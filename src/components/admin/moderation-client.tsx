@@ -1,0 +1,162 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Image from 'next/image'
+import { Check, X, Flag, Loader2, ExternalLink, EyeOff } from 'lucide-react'
+import { formatPrice } from '@/lib/types'
+import { cn } from '@/lib/utils'
+
+export type ModItem = {
+  id: string
+  title: string
+  price: number
+  currency: string
+  priceUnit: string
+  location: string
+  category: string
+  sellerName: string
+  sellerPhone: string | null
+  image: string | null
+  createdAt: string
+  reports: { id: string; reason: string; detail: string | null; createdAt: string }[]
+}
+
+const REASON_LABEL: Record<string, string> = {
+  scam: 'Scam / fake',
+  sold: 'Already sold',
+  'wrong-info': 'Wrong info',
+  duplicate: 'Duplicate',
+  offensive: 'Offensive',
+  other: 'Other',
+}
+
+async function moderate(action: string, id: string) {
+  const res = await fetch('/api/admin/moderate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, id }),
+  })
+  if (!res.ok) throw new Error(`${action} failed`)
+}
+
+function ListingRow({ item, mode }: { item: ModItem; mode: 'pending' | 'reported' }) {
+  const router = useRouter()
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState('')
+
+  const run = async (action: string, id: string) => {
+    setBusy(action); setError('')
+    try {
+      await moderate(action, id)
+      router.refresh()
+    } catch {
+      setError('Action failed — try again.')
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+        {item.image ? (
+          <Image src={item.image} alt={item.title} fill sizes="96px" className="object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">No image</div>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <a href={`/listings/${item.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 truncate text-sm font-bold text-[#1a202c] hover:text-[#0a66c2]">
+              <span className="truncate">{item.title}</span>
+              <ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
+            </a>
+            <p className="mt-0.5 text-sm font-semibold text-[#0a66c2]">{formatPrice(item.price, item.currency, item.priceUnit)}</p>
+            <p className="mt-0.5 truncate text-xs text-[#64748b]">{item.category} · {item.location}</p>
+            <p className="mt-0.5 truncate text-xs text-[#64748b]">{item.sellerName}{item.sellerPhone ? ` · ${item.sellerPhone}` : ''}</p>
+          </div>
+          <span className="shrink-0 text-[11px] text-[#94a3b8]">{new Date(item.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+        </div>
+
+        {item.reports.length > 0 && (
+          <div className="mt-2 space-y-1 rounded-lg bg-red-50 p-2">
+            {item.reports.map((r) => (
+              <div key={r.id} className="flex items-start gap-1.5 text-[11px] text-red-800">
+                <Flag className="mt-0.5 h-3 w-3 shrink-0" />
+                <span><strong>{REASON_LABEL[r.reason] || r.reason}</strong>{r.detail ? ` — ${r.detail}` : ''}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => run('approve', item.id)}
+            disabled={!!busy}
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#0a66c2] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer"
+          >
+            {busy === 'approve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            {mode === 'reported' ? 'Keep & clear reports' : 'Approve & publish'}
+          </button>
+
+          {mode === 'reported' && (
+            <button
+              onClick={() => run('unpublish', item.id)}
+              disabled={!!busy}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-1.5 text-xs font-bold text-[#1a202c] hover:bg-slate-50 disabled:opacity-40 transition-colors cursor-pointer"
+            >
+              {busy === 'unpublish' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <EyeOff className="h-3.5 w-3.5" />}
+              Unpublish
+            </button>
+          )}
+
+          <button
+            onClick={() => run('reject', item.id)}
+            disabled={!!busy}
+            className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white px-4 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors cursor-pointer"
+          >
+            {busy === 'reject' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+            Delete
+          </button>
+
+          {error && <span className="text-xs font-semibold text-red-600">{error}</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function ModerationClient({ pending, reported }: { pending: ModItem[]; reported: ModItem[] }) {
+  const [tab, setTab] = useState<'pending' | 'reported'>('pending')
+  const list = tab === 'pending' ? pending : reported
+
+  return (
+    <div>
+      <div className="mb-5 flex w-fit rounded-full bg-[#f1f5f9] p-1 text-sm font-semibold">
+        {([['pending', `Pending review (${pending.length})`], ['reported', `Reported (${reported.length})`]] as const).map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            className={cn('rounded-full px-4 py-1.5 transition-colors cursor-pointer', tab === k ? 'bg-white text-[#0a66c2] shadow-sm' : 'text-[#64748b]')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {list.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 py-16 text-center text-sm text-[#94a3b8]">
+          {tab === 'pending' ? 'Nothing waiting for review. 🎉' : 'No open reports.'}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {list.map((item) => (
+            <ListingRow key={item.id} item={item} mode={tab} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

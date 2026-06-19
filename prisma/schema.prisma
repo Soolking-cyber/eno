@@ -1,0 +1,127 @@
+// ENO — Verified marketplace for Vietnamese expats
+// Core differentiator: every listing is verification-checked so buyers
+// never waste time on fake / wrong-priced posts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // Supabase pooled connection (Supavisor, port 6543, ?pgbouncer=true)
+  directUrl = env("DIRECT_URL")   // Supabase direct connection (port 5432) — used by migrations
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  nameVi      String
+  slug        String    @unique
+  icon        String
+  color       String
+  description String?
+  listings    Listing[]
+}
+
+model Seller {
+  id            String    @id @default(cuid())
+  name          String
+  avatarColor   String    @default("#dc2626")
+  rating        Float     @default(5)
+  reviewCount   Int       @default(0)
+  verified      Boolean   @default(false)
+  verifiedSeller Boolean  @default(false)
+  memberSince   DateTime  @default(now())
+  responseRate  Int       @default(100)
+  responseTime  String    @default("within an hour")
+  location      String?
+  bio           String?
+  phone         String?   @unique
+  listings      Listing[]
+  reviews       Review[]
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  sellerId  String
+  seller    Seller   @relation(fields: [sellerId], references: [id])
+  author    String
+  rating    Int      @default(5)
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([sellerId])
+}
+
+model Listing {
+  id                 String    @id @default(cuid())
+  title              String
+  titleVi            String?
+  description        String
+  price              Float
+  priceUnit          String    @default("VND")
+  currency           String    @default("₫")
+  negotiable         Boolean   @default(false)
+  location           String
+  district           String?
+  city               String
+  lat                Float?
+  lng                Float?
+  condition          String?
+  images             String
+  categoryId         String
+  category           Category  @relation(fields: [categoryId], references: [id])
+  sellerId           String
+  seller             Seller    @relation(fields: [sellerId], references: [id])
+  verified           Boolean   @default(false)
+  verificationMethod String?
+  verifiedAt         DateTime?
+  verifiedBy         String?
+  verificationNotes  String?
+  searchText         String    @default("") // folded EN+VI blob for accent-insensitive search
+  postedAt           DateTime  @default(now())
+  views              Int       @default(0)
+  savedCount         Int       @default(0)
+  featured           Boolean   @default(false)
+  attributes         String?
+  reports            Report[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([categoryId])
+  @@index([verified])
+  @@index([featured])
+  @@index([city])
+  @@index([condition])
+  @@index([postedAt])
+  @@index([price])
+  @@index([views])
+}
+
+// User-submitted report of a problematic listing (scam, sold, wrong info…).
+// Anonymous — no auth required to report. Feeds the /admin moderation queue.
+model Report {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reason    String   // scam | sold | wrong-info | duplicate | offensive | other
+  detail    String?
+  status    String   @default("open") // open | resolved | dismissed
+  createdAt DateTime @default(now())
+
+  @@index([listingId])
+  @@index([status])
+}
+
+// Machine-translation cache — avoids re-paying the translation API for the
+// same source string. Keyed by a hash of the source text + target language.
+model Translation {
+  id        String   @id @default(cuid())
+  hash      String
+  target    String
+  value     String
+  createdAt DateTime @default(now())
+
+  @@unique([hash, target])
+  @@index([target])
+}

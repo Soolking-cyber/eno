@@ -1,0 +1,82 @@
+import type { Listing, Category, Seller } from '@prisma/client'
+import type { SerializedListing, CategoryColor } from './types'
+
+function safeParse<T>(value: string | null, fallback: T): T {
+  if (!value) return fallback
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return fallback
+  }
+}
+
+export function serializeListing(
+  l: Listing & { category: Category; seller: Seller },
+): SerializedListing {
+  return {
+    id: l.id,
+    title: l.title,
+    titleVi: l.titleVi,
+    description: l.description,
+    price: l.price,
+    priceUnit: l.priceUnit,
+    currency: l.currency,
+    negotiable: l.negotiable,
+    location: l.location,
+    district: l.district,
+    city: l.city,
+    lat: l.lat,
+    lng: l.lng,
+    condition: l.condition,
+    images: safeParse<string[]>(l.images, []),
+    categoryId: l.categoryId,
+    category: {
+      id: l.category.id,
+      name: l.category.name,
+      nameVi: l.category.nameVi,
+      slug: l.category.slug,
+      icon: l.category.icon,
+      color: l.category.color as CategoryColor,
+    },
+    sellerId: l.sellerId,
+    seller: {
+      id: l.seller.id,
+      name: l.seller.name,
+      avatarColor: l.seller.avatarColor,
+      rating: l.seller.rating,
+      reviewCount: l.seller.reviewCount,
+      verifiedSeller: l.seller.verifiedSeller,
+      responseRate: l.seller.responseRate,
+      responseTime: l.seller.responseTime,
+      // Public-safe by default: phone is omitted from list/feed payloads to prevent
+      // bulk PII harvesting. Use serializeListingWithContact for single-listing detail.
+      phone: null,
+    },
+    verified: l.verified,
+    verificationMethod: l.verificationMethod,
+    verifiedAt: l.verifiedAt ? l.verifiedAt.toISOString() : null,
+    verifiedBy: l.verifiedBy,
+    verificationNotes: l.verificationNotes,
+    postedAt: l.postedAt.toISOString(),
+    views: l.views,
+    savedCount: l.savedCount,
+    featured: l.featured,
+    attributes: safeParse<Record<string, unknown> | null>(l.attributes, null),
+  }
+}
+
+/** Single-listing detail variant — includes the seller's phone for the contact CTA. */
+export function serializeListingWithContact(
+  l: Listing & { category: Category; seller: Seller },
+): SerializedListing {
+  const base = serializeListing(l)
+  return { ...base, seller: { ...base.seller, phone: l.seller.phone } }
+}
+
+export function formatPrice(price: number, currency: string, priceUnit: string): string {
+  const formatted = new Intl.NumberFormat('en-US').format(price)
+  if (priceUnit === 'VND') return `${currency}${formatted}`
+  // priceUnit like "VND/month", "VND/service (from)" -> show unit suffix
+  const suffix = priceUnit.replace(/^VND\/?/, '').trim()
+  return suffix ? `${currency}${formatted} / ${suffix}` : `${currency}${formatted}`
+}

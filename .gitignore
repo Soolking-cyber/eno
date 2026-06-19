@@ -1,0 +1,40 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# env & secrets — NEVER commit
+.env
+.env*.local
+.env.production
+
+# local database
+/db/*.db
+/db/*.db-journal
+
+# logs
+*.log
+dev.log
+server.log
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
+
+# misc
+/coverage
+/scratch
+/tool-results
+/download
+/upload
+
+# Azure deployment templates (contain subscription/resource ids)
+Deployment-*/

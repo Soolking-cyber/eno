@@ -1,0 +1,338 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: calc(var(--radius) - 1px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 2px);
+  --radius-2xl: calc(var(--radius) + 4px);
+  --radius-3xl: calc(var(--radius) + 8px);
+
+  /* Brand tokens (Craigslist re-design case study palette) */
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-light: var(--brand-light);
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-verified: var(--verified);
+  --color-pending: var(--pending);
+}
+
+:root {
+  /* ============================================================
+     PALETTE (minimal, proven — 60/30/10)
+     60% canvas    : #ffffff
+     30% neutrals  : slate ramp — ink #1a202c · body #475569 · muted #64748b · faint #94a3b8 · line #e2e8f0 · tint #f1f5f9
+     10% accent    : ONE brand blue #0a66c2 (hover #004182 · tint #e8f1fb · deep #034078) — all actions, links, active, verified
+     semantic only : amber #f59e0b (caution) · red #ef4444 (destructive)
+     Category colours all resolve to the single blue; product photos provide the colour.
+     ============================================================ */
+  --radius: 0.4375rem;
+
+  /* Brand blues (FINN.no palette) */
+  --brand: #0a66c2;
+  --brand-dark: #034078;
+  --brand-light: #8fbfe8;
+  --brand-50: #e8f1fb;
+  --brand-100: #cfe3f5;
+
+  /* Surfaces — soft neutral canvas so white surfaces (cards, header, popovers)
+     gain subtle Airbnb-style depth without reintroducing borders/boxes. */
+  --background: #fafafa;
+  --foreground: #1a202c;
+  --card: #ffffff;
+  --card-foreground: #1a202c;
+  --popover: #ffffff;
+  --popover-foreground: #1a202c;
+
+  /* shadcn primary maps to brand blue */
+  --primary: #0a66c2;
+  --primary-foreground: #ffffff;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #1a202c;
+  --muted: #f5f5f5;
+  --muted-foreground: #64748b;
+  --accent: #e8f1fb;
+  --accent-foreground: #0a66c2;
+  --destructive: #ef4444;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #0a66c2;
+
+  /* Ink scale */
+  --ink: #1a202c;
+  --ink-2: #2d3748;
+  --ink-3: #64748b;
+  --ink-4: #94a3b8;
+
+  /* Semantic — used ONLY to carry meaning, never decoration.
+     verified/trust folds into the brand blue; amber = caution; red = destructive. */
+  --verified: #0a66c2;
+  --pending: #f59e0b;
+
+  /* ── Elevation (soft, diffuse — Airbnb-style) ────────────────────── */
+  --shadow-pop: 0 8px 30px rgba(16, 24, 40, 0.08);     /* dropdowns, popovers */
+  --shadow-card: 0 6px 20px rgba(16, 24, 40, 0.10);    /* card hover lift */
+  --shadow-overlay: 0 16px 48px rgba(16, 24, 40, 0.16); /* dialogs / modals */
+
+  /* ── Type scale (1.25 ratio) & rhythm — base 15px ────────────────── */
+  --text-display: 2rem;     /* 32px — hero */
+  --text-title: 1.375rem;   /* 22px — page / detail title */
+  --text-section: 1.125rem; /* 18px — section heading */
+  --text-body: 0.9375rem;   /* 15px — body */
+  --text-small: 0.8125rem;  /* 13px */
+  --text-caption: 0.6875rem;/* 11px — meta / eyebrow */
+  /* Spacing rhythm uses an 8pt grid: 4 · 8 · 12 · 16 · 24 · 32 · 48 */
+
+  --chart-1: #0a66c2;
+  --chart-2: #4285f4;
+  --chart-3: #9baffd;
+  --chart-4: #034078;
+  --chart-5: #10b981;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a202c;
+  --sidebar-primary: #0a66c2;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8f1fb;
+  --sidebar-accent-foreground: #0a66c2;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #0a66c2;
+}
+
+.dark {
+  --background: #1f1f1f;
+  --foreground: #f5f5f5;
+  --card: #292929;
+  --card-foreground: #f5f5f5;
+  --popover: #292929;
+  --popover-foreground: #f5f5f5;
+  --primary: #0a66c2;
+  --primary-foreground: #ffffff;
+  --secondary: #334155;
+  --secondary-foreground: #f5f5f5;
+  --muted: #1f1f1f;
+  --muted-foreground: #94a3b8;
+  --accent: #1e3a8a;
+  --accent-foreground: #f8fafc;
+  --destructive: #f87171;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: #0a66c2;
+  
+  --sidebar: #292929;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #0a66c2;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1e3a8a;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #0a66c2;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: "opsz" 32;
+  }
+}
+
+/* ============================================================
+   CLEAN FLAT CARD SURFACES (FINN.no inspired)
+   ============================================================ */
+
+/* Cohesive single-canvas: containers blend, no floating boxes (FINN.no) */
+.glass {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.glass-strong {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.glass-dark {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.glass-brand {
+  background: var(--accent);
+  border: 1px solid rgba(10, 102, 194, 0.15);
+  color: var(--accent-foreground);
+}
+
+/* ============================================================
+   FLAT BACKGROUNDS (FINN.no inspired)
+   ============================================================ */
+
+.blob-bg {
+  background-color: var(--background);
+}
+
+.blob-bg-soft {
+  background-color: var(--background);
+}
+
+.blob-bg-dark {
+  background-color: var(--background);
+}
+
+.hero-blob {
+  background-color: var(--background);
+}
+
+/* ============================================================
+   TEXT STYLING
+   ============================================================ */
+.text-gradient-brand {
+  color: var(--foreground);
+}
+
+/* ============================================================
+   TYPOGRAPHY SCALE — reusable semantic headings
+   ============================================================ */
+.h-display {
+  font-size: var(--text-display);
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.h-title {
+  font-size: var(--text-title);
+  line-height: 1.22;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.h-section {
+  font-size: var(--text-section);
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.eyebrow {
+  font-size: var(--text-caption);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   ELEVATION — soft diffuse shadows + Airbnb-style hover lift
+   ============================================================ */
+.shadow-pop { box-shadow: var(--shadow-pop); }
+.shadow-overlay { box-shadow: var(--shadow-overlay); }
+.lift {
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+.lift:hover {
+  box-shadow: var(--shadow-card);
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   SCROLLBAR — refined thin blue
+   ============================================================ */
+.scroll-thin::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: rgba(10, 102, 194, 0.25);
+  border-radius: 999px;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(10, 102, 194, 0.45);
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes float-blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(2%, -3%) scale(1.05); }
+}
+.animate-float-blob {
+  animation: float-blob 14s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Skeleton shimmer — replaces the flat pulse with a soft sweeping highlight */
+.shimmer {
+  background: linear-gradient(90deg, #eef1f5 25%, #e2e8f0 37%, #eef1f5 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* Hide number input spinners etc. not needed but keep base clean */
+input, select, textarea {
+  font-family: inherit;
+}
+
+/* ============================================================
+   ACCESSIBILITY — honor reduced-motion preference
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
