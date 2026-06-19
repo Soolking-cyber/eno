@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { CATEGORY_COLOR_CLASSES, VERIFICATION_METHOD_LABELS, timeAgo } from '@/lib/types'
 import { Price } from '@/components/marketplace/price'
+import { Tr } from '@/context/language-context'
 import { telHref, zaloHref } from '@/lib/contact'
 import { cn } from '@/lib/utils'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
@@ -146,7 +147,7 @@ export default async function ListingPage({ params }: Props) {
             className="inline-flex items-center gap-1 text-sm font-medium text-[#64748b] hover:text-[#0a66c2] transition-colors"
           >
             <ChevronLeft className="h-4 w-4" />
-            <span>Quay lại Chợ tin</span>
+            <span><Tr text="Back to marketplace" /></span>
           </Link>
         </div>
 
@@ -154,35 +155,35 @@ export default async function ListingPage({ params }: Props) {
         <div className="mb-4 space-y-1.5">
           <span className={cn('inline-flex w-fit items-center gap-1 text-xs font-semibold', color.text)}>
             <CategoryIcon name={listing.category.icon} className="h-3.5 w-3.5" />
-            {listing.category.nameVi}
+            <Tr text={listing.category.name} />
           </span>
-          <h1 className="h-title text-[#1a202c]">{displayTitle}</h1>
+          <h1 className="h-title text-[#1a202c]"><Tr text={displayTitle} /></h1>
           <div className="flex items-center gap-1 text-sm text-[#64748b]">
             <MapPin className="h-4 w-4 text-[#94a3b8] shrink-0" />
-            <span className="truncate">{listing.location}</span>
+            <span className="truncate"><Tr text={listing.location} /></span>
           </div>
         </div>
 
         {/* Gallery mosaic */}
-        <ListingGallery images={listing.images} title={displayTitle} showAllLabel="Xem tất cả ảnh" />
+        <ListingGallery images={listing.images} title={displayTitle} showAllLabel="View all photos" />
 
         {/* Content + sticky contact */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
           {/* LEFT: details */}
           <div className="lg:col-span-7 flex flex-col gap-8">
             <div className="space-y-2">
-              <h2 className="h-section text-[#1a202c]">Mô tả</h2>
-              <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#475569]">{displayDesc}</p>
+              <h2 className="h-section text-[#1a202c]"><Tr text="Description" /></h2>
+              <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#475569]"><Tr text={displayDesc} /></p>
             </div>
 
             {attrs.length > 0 && (
               <div className="space-y-1">
-                <h2 className="h-section text-[#1a202c] mb-2">Thông tin</h2>
+                <h2 className="h-section text-[#1a202c] mb-2"><Tr text="Details" /></h2>
                 <dl className="divide-y divide-slate-100 text-sm">
                   {attrs.map(([k, v]) => (
                     <div key={k} className="flex items-start justify-between gap-4 py-2.5">
-                      <dt className="capitalize text-[#64748b]">{k.replace(/([A-Z])/g, ' $1')}</dt>
-                      <dd className="font-medium text-[#1a202c] text-right">{String(v)}</dd>
+                      <dt className="capitalize text-[#64748b]"><Tr text={k.replace(/([A-Z])/g, ' $1')} /></dt>
+                      <dd className="font-medium text-[#1a202c] text-right"><Tr text={String(v)} /></dd>
                     </div>
                   ))}
                 </dl>
@@ -190,7 +191,7 @@ export default async function ListingPage({ params }: Props) {
             )}
 
             <div className="space-y-2">
-              <h2 className="h-section text-[#1a202c]">Vị trí</h2>
+              <h2 className="h-section text-[#1a202c]"><Tr text="Location" /></h2>
               <div className="h-[260px] rounded-2xl overflow-hidden relative">
                 <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} />
               </div>
@@ -198,7 +199,7 @@ export default async function ListingPage({ params }: Props) {
 
             <p className="flex items-start gap-2 text-xs leading-relaxed text-[#64748b]">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              Gặp ở nơi công cộng và kiểm tra sản phẩm trước khi thanh toán. ENO không bao giờ yêu cầu đặt cọc qua liên kết.
+              <Tr text="Meet in a public place and inspect the item before paying. ENO never asks for a deposit via a link." />
             </p>
           </div>
 
@@ -207,29 +208,29 @@ export default async function ListingPage({ params }: Props) {
             <div className="lg:sticky lg:top-24 rounded-2xl border border-slate-200 bg-white shadow-pop p-5 space-y-4">
               <div className="flex items-baseline gap-2">
                 <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-[#1a202c] tracking-tight" />
-                {listing.negotiable && <span className="text-sm text-[#64748b]">· Thương lượng</span>}
+                {listing.negotiable && <span className="text-sm text-[#64748b]">· <Tr text="Negotiable" /></span>}
               </div>
 
               {listing.verified ? (
                 <div className="rounded-lg bg-[#e8f1fb] px-3 py-2 text-xs text-[#0a66c2]">
                   <div className="flex items-center gap-2">
                     <BadgeCheck className="h-4 w-4 shrink-0" />
-                    <span className="font-semibold">Đã xác minh bởi ENO</span>
-                    {methodLabel && <span>· {methodLabel.vi}</span>}
+                    <span className="font-semibold"><Tr text="Verified by ENO" /></span>
+                    {methodLabel && <span>· <Tr text={methodLabel.label} /></span>}
                   </div>
                   {(listing.verifiedBy || listing.verifiedAt || listing.verificationNotes) && (
                     <div className="mt-1.5 pl-6 text-[11px] leading-relaxed text-[#0052cc]">
                       {listing.verifiedBy}
                       {listing.verifiedBy && listing.verifiedAt && ' · '}
                       {listing.verifiedAt && new Date(listing.verifiedAt).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {listing.verificationNotes && <div className="italic text-[#0a66c2]">“{listing.verificationNotes}”</div>}
+                      {listing.verificationNotes && <div className="italic text-[#0a66c2]">“<Tr text={listing.verificationNotes} />”</div>}
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>Đang chờ kiểm duyệt — tin này bị ẩn cho đến khi được ENO xác minh.</span>
+                  <span><Tr text="Pending review — this listing is hidden until verified by ENO." /></span>
                 </div>
               )}
 
@@ -240,13 +241,13 @@ export default async function ListingPage({ params }: Props) {
                   rel="noreferrer"
                   className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] active:scale-98 transition-all text-center cursor-pointer"
                 >
-                  <MessageCircle className="h-4 w-4" /> Nhắn tin
+                  <MessageCircle className="h-4 w-4" /> <Tr text="Message" />
                 </a>
                 <a
                   href={telHref(listing.seller)}
                   className="flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-[#1a202c] hover:bg-slate-50 active:scale-98 transition-all cursor-pointer"
                 >
-                  <Phone className="h-4 w-4" /> Gọi
+                  <Phone className="h-4 w-4" /> <Tr text="Call" />
                 </a>
               </div>
 
@@ -261,13 +262,13 @@ export default async function ListingPage({ params }: Props) {
                   </div>
                   <span className="flex items-center gap-1 text-xs text-[#64748b]">
                     <Star className="h-3 w-3 fill-[#1a202c] text-[#1a202c] shrink-0" />
-                    {listing.seller.rating.toFixed(1)} ({listing.seller.reviewCount}) · Xem hồ sơ
+                    {listing.seller.rating.toFixed(1)} ({listing.seller.reviewCount}) · <Tr text="View profile" />
                   </span>
                 </div>
               </Link>
 
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] text-[#64748b]">Đăng {timeAgo(listing.postedAt, 'vi')}</p>
+                <p className="text-[11px] text-[#64748b]"><Tr text="Posted" /> {timeAgo(listing.postedAt, 'vi')}</p>
                 <ReportButton listingId={listing.id} />
               </div>
             </div>
@@ -279,7 +280,7 @@ export default async function ListingPage({ params }: Props) {
       <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md">
         <div className="min-w-0 flex-1">
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="truncate text-base font-bold text-[#1a202c]" />
-          {listing.verified && <div className="text-[11px] font-semibold text-[#0a66c2]">Đã xác minh</div>}
+          {listing.verified && <div className="text-[11px] font-semibold text-[#0a66c2]"><Tr text="Verified" /></div>}
         </div>
         <a
           href={zaloHref(listing.seller)}
@@ -287,11 +288,11 @@ export default async function ListingPage({ params }: Props) {
           rel="noreferrer"
           className="flex items-center justify-center gap-2 rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white"
         >
-          <MessageCircle className="h-4 w-4" /> Nhắn tin
+          <MessageCircle className="h-4 w-4" /> <Tr text="Message" />
         </a>
         <a
           href={telHref(listing.seller)}
-          aria-label="Gọi"
+          aria-label="Call"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-300 text-[#1a202c]"
         >
           <Phone className="h-4 w-4" />

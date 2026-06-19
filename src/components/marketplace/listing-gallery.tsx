@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Tr } from '@/context/language-context'
 
 type Props = {
   images: string[]
@@ -53,7 +54,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
             onClick={() => openAt(0)}
             className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-slate-300 bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#1a202c] shadow-sm transition-colors hover:bg-white cursor-pointer"
           >
-            <Images className="h-4 w-4" /> {showAllLabel}
+            <Images className="h-4 w-4" /> <Tr text={showAllLabel} />
           </button>
         </div>
       )}

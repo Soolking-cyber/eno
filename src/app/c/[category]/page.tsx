@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
+import { Tr } from '@/context/language-context'
 
 export const revalidate = 600 // ISR
 
@@ -70,23 +71,23 @@ export default async function CategoryPage({ params }: Props) {
       <Header />
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-12">
         <nav className="mb-4 text-sm text-[#64748b]">
-          <Link href="/" className="hover:text-[#0a66c2] transition-colors">Home</Link>
+          <Link href="/" className="hover:text-[#0a66c2] transition-colors"><Tr text="Home" /></Link>
           <span className="mx-1.5 text-[#cbd5e1]">/</span>
-          <span className="font-medium text-[#1a202c]">{cat.name}</span>
+          <span className="font-medium text-[#1a202c]"><Tr text={cat.name} /></span>
         </nav>
 
-        <h1 className="h-display text-[#1a202c]">{cat.name} in Vietnam</h1>
+        <h1 className="h-display text-[#1a202c]"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[#475569]">
-          Every {cat.name.toLowerCase()} listing on ENO is verified by an agent before it goes live — no fakes, no bait
-          prices, no wasted trips. {listings.length} verified {listings.length === 1 ? 'listing' : 'listings'} available.
+          <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on ENO is verified by an agent before it goes live — no fakes, no bait prices, no wasted trips." />{' '}
+          {listings.length} <Tr text="verified" /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." />
         </p>
 
         {districts.length > 0 && (
           <div className="mt-5 flex flex-wrap gap-2">
-            <span className="self-center text-xs font-semibold text-[#94a3b8]">By area:</span>
+            <span className="self-center text-xs font-semibold text-[#94a3b8]"><Tr text="By area:" /></span>
             {districts.map((d) => (
               <Link key={d} href={`/c/${cat.slug}/${slugify(d)}`} className="rounded-full bg-[#f1f5f9] px-3.5 py-1.5 text-xs font-semibold text-[#475569] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2]">
-                {d}
+                <Tr text={d} />
               </Link>
             ))}
           </div>
@@ -97,23 +98,23 @@ export default async function CategoryPage({ params }: Props) {
             <SellerListings listings={listings} />
           ) : (
             <p className="rounded-2xl border border-dashed border-[#cbd5e1] py-12 text-center text-sm text-[#64748b]">
-              No verified {cat.name.toLowerCase()} yet — check back soon.
+              <Tr text="No verified" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="yet — check back soon." />
             </p>
           )}
         </div>
 
         <div className="mt-8">
           <Link href={`/?category=${cat.slug}`} className="inline-block rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
-            Refine in full search →
+            <Tr text="Refine in full search" /> →
           </Link>
         </div>
 
         <div className="mt-12 border-t border-slate-200 pt-6">
-          <h2 className="h-section text-[#1a202c] mb-3">Other categories</h2>
+          <h2 className="h-section text-[#1a202c] mb-3"><Tr text="Other categories" /></h2>
           <div className="flex flex-wrap gap-2">
             {otherCats.map((c) => (
               <Link key={c.slug} href={`/c/${c.slug}`} className="rounded-full bg-[#f1f5f9] px-3.5 py-1.5 text-xs font-semibold text-[#475569] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2]">
-                {c.name}
+                <Tr text={c.name} />
               </Link>
             ))}
           </div>

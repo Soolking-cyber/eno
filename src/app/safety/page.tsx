@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
+import { Tr } from '@/context/language-context'
 
 export const metadata: Metadata = { title: 'Safe trading | ENO' }
 
@@ -18,16 +19,16 @@ export default function SafetyPage() {
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-10 pb-16">
-        <p className="eyebrow text-[#0a66c2] mb-2">Safe trading</p>
-        <h1 className="h-display text-[#1a202c]">Trade with confidence.</h1>
+        <p className="eyebrow text-[#0a66c2] mb-2"><Tr text="Safe trading" /></p>
+        <h1 className="h-display text-[#1a202c]"><Tr text="Trade with confidence." /></h1>
         <p className="mt-4 text-[15px] leading-relaxed text-[#475569]">
-          Verification removes most of the risk — but a few simple habits keep every trade safe.
+          <Tr text="Verification removes most of the risk — but a few simple habits keep every trade safe." />
         </p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {tips.map(([title, text], i) => (
             <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-pop">
-              <h3 className="text-sm font-bold text-[#1a202c]">{title}</h3>
-              <p className="mt-1 text-sm leading-relaxed text-[#475569]">{text}</p>
+              <h3 className="text-sm font-bold text-[#1a202c]"><Tr text={title} /></h3>
+              <p className="mt-1 text-sm leading-relaxed text-[#475569]"><Tr text={text} /></p>
             </div>
           ))}
         </div>

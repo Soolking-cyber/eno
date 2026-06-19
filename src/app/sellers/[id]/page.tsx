@@ -7,10 +7,11 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Star, BadgeCheck, ChevronLeft, MessageSquareText, Clock, CalendarDays } from 'lucide-react'
+import { Tr } from '@/context/language-context'
 
 type Props = { params: Promise<{ id: string }> }
 
-function Stat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+function Stat({ icon, value, label }: { icon: React.ReactNode; value: React.ReactNode; label: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8f1fb] text-[#0a66c2]">{icon}</span>
@@ -50,7 +51,7 @@ export default async function SellerPage({ params }: Props) {
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4 pb-12">
         <div className="mb-5">
           <Link href="/" className="inline-flex items-center gap-1 text-sm font-medium text-[#64748b] hover:text-[#0a66c2] transition-colors">
-            <ChevronLeft className="h-4 w-4" /> <span>Back to Home</span>
+            <ChevronLeft className="h-4 w-4" /> <span><Tr text="Back to Home" /></span>
           </Link>
         </div>
 
@@ -64,31 +65,31 @@ export default async function SellerPage({ params }: Props) {
               <h1 className="h-title text-[#1a202c]">{seller.name}</h1>
               {seller.verifiedSeller && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f1fb] px-2.5 py-1 text-xs font-semibold text-[#0a66c2]">
-                  <BadgeCheck className="h-4 w-4" /> Verified seller
+                  <BadgeCheck className="h-4 w-4" /> <Tr text="Verified seller" />
                 </span>
               )}
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-sm text-[#475569]">
               <Star className="h-4 w-4 fill-[#1a202c] text-[#1a202c]" />
               <span className="font-semibold text-[#1a202c]">{seller.rating.toFixed(1)}</span>
-              <span className="text-[#94a3b8]">· {seller.reviewCount} reviews</span>
+              <span className="text-[#94a3b8]">· {seller.reviewCount} <Tr text="reviews" /></span>
             </div>
-            {seller.bio && <p className="mt-2 max-w-2xl text-sm text-[#475569]">{seller.bio}</p>}
+            {seller.bio && <p className="mt-2 max-w-2xl text-sm text-[#475569]"><Tr text={seller.bio} /></p>}
           </div>
         </div>
 
         {/* Trust stats */}
         <div className="mt-6 grid grid-cols-2 gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-4 shadow-pop">
-          <Stat icon={<Star className="h-4 w-4" />} value={`${seller.rating.toFixed(1)}★`} label="Rating" />
-          <Stat icon={<MessageSquareText className="h-4 w-4" />} value={`${seller.responseRate}%`} label="Response rate" />
-          <Stat icon={<Clock className="h-4 w-4" />} value={seller.responseTime} label="Responds" />
-          <Stat icon={<CalendarDays className="h-4 w-4" />} value={`${memberYear}`} label="Member since" />
+          <Stat icon={<Star className="h-4 w-4" />} value={`${seller.rating.toFixed(1)}★`} label={<Tr text="Rating" />} />
+          <Stat icon={<MessageSquareText className="h-4 w-4" />} value={`${seller.responseRate}%`} label={<Tr text="Response rate" />} />
+          <Stat icon={<Clock className="h-4 w-4" />} value={<Tr text={seller.responseTime} />} label={<Tr text="Responds" />} />
+          <Stat icon={<CalendarDays className="h-4 w-4" />} value={`${memberYear}`} label={<Tr text="Member since" />} />
         </div>
 
         {/* Reviews */}
         {seller.reviews.length > 0 && (
           <section className="mt-10 space-y-4">
-            <h2 className="h-section text-[#1a202c]">Reviews ({seller.reviewCount})</h2>
+            <h2 className="h-section text-[#1a202c]"><Tr text="Reviews" /> ({seller.reviewCount})</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               {seller.reviews.map((r) => (
                 <div key={r.id} className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -101,7 +102,7 @@ export default async function SellerPage({ params }: Props) {
                       <Star className="h-3 w-3 fill-[#1a202c] text-[#1a202c]" /> {r.rating.toFixed(1)}
                     </span>
                   </div>
-                  <p className="mt-2 text-sm leading-relaxed text-[#475569]">{r.text}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-[#475569]"><Tr text={r.text} /></p>
                 </div>
               ))}
             </div>
@@ -111,7 +112,7 @@ export default async function SellerPage({ params }: Props) {
         {/* Listings by this seller */}
         {listings.length > 0 && (
           <section className="mt-10 space-y-4">
-            <h2 className="h-section text-[#1a202c]">Listings by {seller.name} ({listings.length})</h2>
+            <h2 className="h-section text-[#1a202c]"><Tr text="Listings by" /> {seller.name} ({listings.length})</h2>
             <SellerListings listings={listings} />
           </section>
         )}

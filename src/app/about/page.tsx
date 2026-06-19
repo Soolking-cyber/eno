@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ShieldCheck, Eye, BadgeCheck } from 'lucide-react'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
+import { Tr } from '@/context/language-context'
 
 export const metadata: Metadata = { title: 'About | ENO' }
 
@@ -15,27 +16,26 @@ export default function AboutPage() {
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-10 pb-16">
-        <p className="eyebrow text-[#0a66c2] mb-2">About ENO</p>
-        <h1 className="h-display text-[#1a202c]">The verified marketplace for Vietnam.</h1>
+        <p className="eyebrow text-[#0a66c2] mb-2"><Tr text="About ENO" /></p>
+        <h1 className="h-display text-[#1a202c]"><Tr text="The verified marketplace for Vietnam." /></h1>
         <p className="mt-4 text-[15px] leading-relaxed text-[#475569]">
-          ENO is a classifieds marketplace built around one promise: every listing is checked before it goes live.
-          Motorbikes, rentals, electronics, jobs and services — without the fakes and bait prices that waste your time.
+          <Tr text="ENO is a classifieds marketplace built around one promise: every listing is checked before it goes live. Motorbikes, rentals, electronics, jobs and services — without the fakes and bait prices that waste your time." />
         </p>
 
-        <h2 className="h-section text-[#1a202c] mt-10 mb-4">How verification works</h2>
+        <h2 className="h-section text-[#1a202c] mt-10 mb-4"><Tr text="How verification works" /></h2>
         <div className="grid gap-4 sm:grid-cols-3">
           {steps.map((s, i) => (
             <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-pop">
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e8f1fb] text-[#0a66c2]">{s.icon}</span>
-              <h3 className="mt-3 text-sm font-bold text-[#1a202c]">{i + 1}. {s.title}</h3>
-              <p className="mt-1 text-sm leading-relaxed text-[#475569]">{s.text}</p>
+              <h3 className="mt-3 text-sm font-bold text-[#1a202c]">{i + 1}. <Tr text={s.title} /></h3>
+              <p className="mt-1 text-sm leading-relaxed text-[#475569]"><Tr text={s.text} /></p>
             </div>
           ))}
         </div>
 
-        <h2 id="contact" className="h-section text-[#1a202c] mt-10 mb-2">Contact</h2>
+        <h2 id="contact" className="h-section text-[#1a202c] mt-10 mb-2"><Tr text="Contact" /></h2>
         <p className="text-sm text-[#475569]">
-          Questions or press: <a href="mailto:support@eno.forum" className="font-semibold text-[#0a66c2] hover:underline">support@eno.forum</a>
+          <Tr text="Questions or press:" /> <a href="mailto:support@eno.forum" className="font-semibold text-[#0a66c2] hover:underline">support@eno.forum</a>
         </p>
       </main>
       <Footer />

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
+import { Tr } from '@/context/language-context'
 
 export const revalidate = 600 // ISR
 
@@ -80,17 +81,17 @@ export default async function CategoryDistrictPage({ params }: Props) {
       <Header />
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-12">
         <nav className="mb-4 text-sm text-[#64748b]">
-          <Link href="/" className="hover:text-[#0a66c2] transition-colors">Home</Link>
+          <Link href="/" className="hover:text-[#0a66c2] transition-colors"><Tr text="Home" /></Link>
           <span className="mx-1.5 text-[#cbd5e1]">/</span>
-          <Link href={`/c/${cat.slug}`} className="hover:text-[#0a66c2] transition-colors">{cat.name}</Link>
+          <Link href={`/c/${cat.slug}`} className="hover:text-[#0a66c2] transition-colors"><Tr text={cat.name} /></Link>
           <span className="mx-1.5 text-[#cbd5e1]">/</span>
-          <span className="font-medium text-[#1a202c]">{districtName}</span>
+          <span className="font-medium text-[#1a202c]"><Tr text={districtName} /></span>
         </nav>
 
-        <h1 className="h-display text-[#1a202c]">{cat.name} in {districtName}</h1>
+        <h1 className="h-display text-[#1a202c]"><Tr text={cat.name} /> <Tr text="in" /> <Tr text={districtName} /></h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[#475569]">
-          {listings.length} verified {cat.name.toLowerCase()} {listings.length === 1 ? 'listing' : 'listings'} in {districtName},
-          each checked by an ENO agent — no fakes, no bait prices.
+          {listings.length} <Tr text="verified" /> <Tr text={cat.name.toLowerCase()} /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="in" /> <Tr text={districtName} />,{' '}
+          <Tr text="each checked by an ENO agent — no fakes, no bait prices." />
         </p>
 
         <div className="mt-8">
@@ -99,10 +100,10 @@ export default async function CategoryDistrictPage({ params }: Props) {
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Link href={`/c/${cat.slug}`} className="inline-block rounded-full border border-slate-300 px-5 py-2.5 text-sm font-bold text-[#1a202c] transition-colors hover:bg-slate-50">
-            ← All {cat.name}
+            ← <Tr text="All" /> <Tr text={cat.name} />
           </Link>
           <Link href={`/?category=${cat.slug}`} className="inline-block rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
-            Refine in full search →
+            <Tr text="Refine in full search" /> →
           </Link>
         </div>
       </main>
