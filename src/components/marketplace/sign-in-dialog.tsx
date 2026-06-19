@@ -128,7 +128,12 @@ export function SignInDialog({ open, onOpenChange }: Props) {
             )}
 
             {error && <p role="alert" className="text-center text-xs font-semibold text-red-600">{error}</p>}
-            <p className="pt-1 text-center text-[11px] text-[#94a3b8]">{t('Tiếp tục nghĩa là bạn đồng ý với Điều khoản của ENO.', 'By continuing you agree to ENO’s Terms.')}</p>
+            <p className="pt-1 text-center text-[11px] text-[#94a3b8]">
+              {t('Tiếp tục nghĩa là bạn đồng ý với', 'By continuing you agree to our')}{' '}
+              <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-[#0a66c2]">{t('Điều khoản', 'Terms')}</a>
+              {' '}{t('và', 'and')}{' '}
+              <a href="/privacy" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-[#0a66c2]">{t('Chính sách bảo mật', 'Privacy Policy')}</a>.
+            </p>
           </div>
         )}
       </DialogContent>
