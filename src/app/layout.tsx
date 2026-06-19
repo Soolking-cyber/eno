@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -15,6 +15,13 @@ const inter = Inter({
 });
 
 const OG_IMAGE = { url: "/listings/hero-market.png", width: 1344, height: 768, alt: "ENO — verified marketplace" };
+
+// Light-first design: tell browsers not to auto-dark the UI (avoids Chrome
+// mobile "Auto Dark Theme" producing a low-contrast rendering).
+export const viewport: Viewport = {
+  colorScheme: "light",
+  themeColor: "#fafafa",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),

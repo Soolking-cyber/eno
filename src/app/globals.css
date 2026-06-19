@@ -59,6 +59,11 @@
 }
 
 :root {
+  /* ENO is a light-first design. Declare the scheme so mobile browsers
+     (Chrome's "Auto Dark Theme") don't force-darken it into a low-contrast
+     mess. Remove this once a real dark theme is implemented. */
+  color-scheme: light;
+
   /* ============================================================
      PALETTE (minimal, proven — 60/30/10)
      60% canvas    : #ffffff

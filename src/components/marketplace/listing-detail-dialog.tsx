@@ -50,13 +50,13 @@ export function ListingDetailDialog({ listing, open, onOpenChange, onLocate }: P
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-white md:rounded-2xl shadow-overlay w-full max-w-full h-full max-h-full top-0 left-0 translate-x-0 translate-y-0 rounded-none md:max-h-[92vh] md:max-w-5xl md:top-[50%] md:left-[50%] md:translate-x-[-50%] md:translate-y-[-50%] gap-0 overflow-hidden p-0 duration-250">
+      <DialogContent className="bg-white md:rounded-2xl shadow-overlay flex flex-col w-full max-w-full h-[100dvh] max-h-[100dvh] top-0 left-0 translate-x-0 translate-y-0 rounded-none md:h-auto md:max-h-[92vh] md:max-w-5xl md:top-[50%] md:left-[50%] md:translate-x-[-50%] md:translate-y-[-50%] gap-0 overflow-hidden p-0 duration-250">
         <DialogHeader className="sr-only">
           <DialogTitle>{displayTitle}</DialogTitle>
           <DialogDescription>{displayDesc.slice(0, 120)}</DialogDescription>
         </DialogHeader>
 
-        <div className="grid h-full max-h-screen md:max-h-[92vh] overflow-y-auto scroll-thin grid-cols-1 md:grid-cols-12 gap-0 pb-16 md:pb-0">
+        <div className="flex-1 min-h-0 overflow-y-auto scroll-thin grid grid-cols-1 md:grid-cols-12 gap-0 pb-16 md:pb-0">
           {/* LEFT: gallery + description + specs */}
           <div className="md:col-span-7 p-5 md:p-6 flex flex-col gap-6">
             {/* Gallery */}
