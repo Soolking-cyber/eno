@@ -12,14 +12,10 @@ export const revalidate = 600 // ISR
 
 type Props = { params: Promise<{ category: string }> }
 
+// Render on-demand (ISR), not at build — see the district page for why. Pages
+// cache via `revalidate` after first request and are listed in the sitemap.
 export async function generateStaticParams() {
-  try {
-    const cats = await db.category.findMany({ select: { slug: true } })
-    return cats.map((c) => ({ category: c.slug }))
-  } catch {
-    // DB unavailable at build → render on-demand (ISR) instead of failing the build.
-    return []
-  }
+  return []
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

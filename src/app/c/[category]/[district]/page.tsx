@@ -12,23 +12,13 @@ export const revalidate = 600 // ISR
 
 type Props = { params: Promise<{ category: string; district: string }> }
 
+// Render district pages on-demand (ISR), NOT at build. Prerendering all
+// district combos in parallel during the Vercel build bursts the pooled
+// Supabase connection (PrismaClientKnownRequestError on prerender). On-demand
+// rendering does one query per request, caches via `revalidate`, and the pages
+// are still discoverable via the sitemap. dynamicParams defaults to true.
 export async function generateStaticParams() {
-  try {
-    const rows = await db.listing.findMany({
-      where: { verified: true, NOT: { district: null } },
-      select: { district: true, category: { select: { slug: true } } },
-    })
-    const combos = new Map<string, { category: string; district: string }>()
-    for (const r of rows) {
-      if (!r.district) continue
-      const ds = slugify(r.district)
-      combos.set(`${r.category.slug}|${ds}`, { category: r.category.slug, district: ds })
-    }
-    return [...combos.values()]
-  } catch {
-    // DB unavailable at build → render on-demand (ISR) instead of failing the build.
-    return []
-  }
+  return []
 }
 
 async function load(categorySlug: string, districtSlug: string) {

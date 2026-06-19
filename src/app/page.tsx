@@ -8,33 +8,39 @@ import { Footer } from '@/components/marketplace/footer'
 // ISR: near-static homepage data, refreshed at most once a minute (better LCP/TTFB).
 export const revalidate = 60
 
-async function getData() {
-  const [categories, listings] = await Promise.all([
-    db.category.findMany({
-      orderBy: { name: 'asc' },
-      include: { _count: { select: { listings: { where: { verified: true } } } } },
-    }),
-    db.listing.findMany({
-      orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
-      take: 24,
-      include: { category: true, seller: true },
-    }),
-  ])
+async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListing[] }> {
+  try {
+    const [categories, listings] = await Promise.all([
+      db.category.findMany({
+        orderBy: { name: 'asc' },
+        include: { _count: { select: { listings: { where: { verified: true } } } } },
+      }),
+      db.listing.findMany({
+        orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
+        take: 24,
+        include: { category: true, seller: true },
+      }),
+    ])
 
-  const serializedCategories: SerializedCategory[] = categories.map((c) => ({
-    id: c.id,
-    name: c.name,
-    nameVi: c.nameVi,
-    slug: c.slug,
-    icon: c.icon,
-    color: c.color as SerializedCategory['color'],
-    description: c.description,
-    verifiedCount: c._count.listings,
-  }))
+    const serializedCategories: SerializedCategory[] = categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      nameVi: c.nameVi,
+      slug: c.slug,
+      icon: c.icon,
+      color: c.color as SerializedCategory['color'],
+      description: c.description,
+      verifiedCount: c._count.listings,
+    }))
 
-  const serializedListings: SerializedListing[] = listings.map(serializeListing)
+    const serializedListings: SerializedListing[] = listings.map(serializeListing)
 
-  return { categories: serializedCategories, listings: serializedListings }
+    return { categories: serializedCategories, listings: serializedListings }
+  } catch {
+    // DB unreachable at build → prerender empty and let ISR (revalidate) fill it
+    // on the first request, so a transient build-time DB error never fails the deploy.
+    return { categories: [], listings: [] }
+  }
 }
 
 export default async function Home() {
