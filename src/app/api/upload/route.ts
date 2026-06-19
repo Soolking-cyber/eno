@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin, LISTINGS_BUCKET } from '@/lib/supabase-admin'
+import { getSupabaseAdmin, LISTINGS_BUCKET } from '@/lib/supabase-admin'
 
 export const runtime = 'nodejs'
 
@@ -19,6 +19,7 @@ export async function POST(req: Request) {
     const files = form.getAll('files').filter((f): f is File => f instanceof File)
     if (files.length === 0) return NextResponse.json({ urls: [], failed: 0 })
 
+    const supabaseAdmin = getSupabaseAdmin()
     const urls: string[] = []
     let failed = 0
     for (const file of files.slice(0, 8)) {

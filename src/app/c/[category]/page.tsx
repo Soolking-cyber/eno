@@ -13,8 +13,13 @@ export const revalidate = 600 // ISR
 type Props = { params: Promise<{ category: string }> }
 
 export async function generateStaticParams() {
-  const cats = await db.category.findMany({ select: { slug: true } })
-  return cats.map((c) => ({ category: c.slug }))
+  try {
+    const cats = await db.category.findMany({ select: { slug: true } })
+    return cats.map((c) => ({ category: c.slug }))
+  } catch {
+    // DB unavailable at build → render on-demand (ISR) instead of failing the build.
+    return []
+  }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

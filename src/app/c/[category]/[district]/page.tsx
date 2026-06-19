@@ -13,17 +13,22 @@ export const revalidate = 600 // ISR
 type Props = { params: Promise<{ category: string; district: string }> }
 
 export async function generateStaticParams() {
-  const rows = await db.listing.findMany({
-    where: { verified: true, NOT: { district: null } },
-    select: { district: true, category: { select: { slug: true } } },
-  })
-  const combos = new Map<string, { category: string; district: string }>()
-  for (const r of rows) {
-    if (!r.district) continue
-    const ds = slugify(r.district)
-    combos.set(`${r.category.slug}|${ds}`, { category: r.category.slug, district: ds })
+  try {
+    const rows = await db.listing.findMany({
+      where: { verified: true, NOT: { district: null } },
+      select: { district: true, category: { select: { slug: true } } },
+    })
+    const combos = new Map<string, { category: string; district: string }>()
+    for (const r of rows) {
+      if (!r.district) continue
+      const ds = slugify(r.district)
+      combos.set(`${r.category.slug}|${ds}`, { category: r.category.slug, district: ds })
+    }
+    return [...combos.values()]
+  } catch {
+    // DB unavailable at build → render on-demand (ISR) instead of failing the build.
+    return []
   }
-  return [...combos.values()]
 }
 
 async function load(categorySlug: string, districtSlug: string) {
