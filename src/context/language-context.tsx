@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react'
 import { MotionConfig } from 'framer-motion'
 
 // English (default/source) + Vietnamese (home market) + the top inbound-tourist
@@ -214,8 +214,6 @@ const LanguageContext = createContext<LanguageContextProps | undefined>(undefine
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Language>('en')
   const [dicts, setDicts] = useState<Partial<Record<Language, Record<string, string>>>>(STATIC)
-  // Bumped when an inline tr() machine translation arrives, to re-render consumers.
-  const [, setTrTick] = useState(0)
 
   useEffect(() => {
     // A saved preference always wins; otherwise fall back to the device language
@@ -232,7 +230,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // Lazily machine-translate the UI dictionary for ko/ru/zh from English.
   useEffect(() => {
     if (dicts[lang]) return
-    const cacheKey = `ui-i18n:${lang}`
+    const cacheKey = `ui-i18n:v2:${lang}`
     const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheKey) : null
     if (cached) {
       try { setDicts((d) => ({ ...d, [lang]: JSON.parse(cached) })); return } catch { /* refetch */ }
@@ -245,10 +243,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     })
       .then((r) => r.json())
       .then(({ translations }) => {
+        if (!Array.isArray(translations)) return
         const dict: Record<string, string> = {}
-        keys.forEach((k, i) => { dict[k] = translations?.[i] ?? EN[k] })
+        keys.forEach((k, i) => { dict[k] = translations[i] ?? EN[k] })
         setDicts((d) => ({ ...d, [lang]: dict }))
-        try { localStorage.setItem(cacheKey, JSON.stringify(dict)) } catch { /* ignore */ }
+        // Persist only a real translation, never an English passthrough (which
+        // happens if the translation API is momentarily unconfigured).
+        if (keys.some((k) => dict[k] !== EN[k])) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(dict)) } catch { /* ignore */ }
+        }
       })
       .catch(() => { /* keep English fallback */ })
   }, [lang, dicts])
@@ -278,10 +281,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (hit != null) return hit
     if (!trInflight.has(ck)) {
       trInflight.add(ck)
-      translateText(en, lang).then(() => {
-        trInflight.delete(ck)
-        setTrTick((n) => n + 1)
-      })
+      // flush() calls emitTrChange() on resolve, which repaints subscribers.
+      translateText(en, lang).finally(() => trInflight.delete(ck))
     }
     return en // optimistic source fallback until the translation lands
   }
@@ -294,6 +295,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useLanguage() {
+  // Subscribe to the inline-translation cache so this consumer repaints when a
+  // tr() batch resolves (called before the guard to satisfy rules-of-hooks).
+  useSyncExternalStore(subscribeTr, getTrSnapshot, () => 0)
   const context = useContext(LanguageContext)
   if (!context) throw new Error('useLanguage must be used within a LanguageProvider')
   return context
@@ -309,6 +313,21 @@ const trCache = new Map<string, string>() // `${lang} ${text}` -> translated
 const trInflight = new Set<string>() // `${lang} ${text}` currently being fetched (de-dupes tr() calls)
 const pending: Partial<Record<Language, { text: string; resolve: (s: string) => void }[]>> = {}
 let scheduled = false
+
+// External store: any useLanguage() consumer subscribes so it repaints the
+// moment a batch of inline tr() translations lands in trCache. Reliable across
+// the whole tree — unlike bumping provider state.
+let trVersion = 0
+const trListeners = new Set<() => void>()
+function emitTrChange() {
+  trVersion++
+  trListeners.forEach((l) => l())
+}
+function subscribeTr(cb: () => void) {
+  trListeners.add(cb)
+  return () => { trListeners.delete(cb) }
+}
+function getTrSnapshot() { return trVersion }
 
 function flush() {
   scheduled = false
@@ -328,6 +347,7 @@ function flush() {
           trCache.set(`${key} ${it.text}`, value)
           it.resolve(value)
         })
+        emitTrChange() // repaint every component reading trCache via tr()
       })
       .catch(() => items.forEach((it) => it.resolve(it.text)))
   }
