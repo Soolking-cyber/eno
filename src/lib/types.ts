@@ -83,6 +83,19 @@ export function formatPrice(price: number, currency: string, priceUnit: string):
   return suffix ? `${currency}${formatted} / ${suffix}` : `${currency}${formatted}`
 }
 
+/**
+ * Split a price into its numeric part (currency + amount — never translated) and
+ * its unit suffix (e.g. "month", "visit (from)" — translatable). Used by the
+ * <Price> component so the unit word renders in the active language.
+ */
+export function formatPriceParts(price: number, currency: string, priceUnit: string): { amount: string; unit: string | null } {
+  const formatted = new Intl.NumberFormat('en-US').format(price)
+  const amount = `${currency}${formatted}`
+  if (!priceUnit || priceUnit === 'VND') return { amount, unit: null }
+  const unit = priceUnit.replace(/^VND\/?/, '').trim()
+  return { amount, unit: unit || null }
+}
+
 export function timeAgo(iso: string, lang: string = 'vi'): string {
   const then = new Date(iso).getTime()
   const diff = Date.now() - then

@@ -166,14 +166,22 @@ export async function translateBatch(texts: string[], target: Lang): Promise<str
   return texts.map((t) => (t && t.trim() ? out.get(t) ?? t : t))
 }
 
+// Non-source target languages, translated sequentially in warmTranslations to
+// respect the F0 ~33k-chars/minute throttle (a single upload is tiny, but back-
+// to-back uploads shouldn't burst). 'en' is the source; 'vi' is usually authored.
+const WARM_LANGS: Lang[] = LANGS.filter((l) => l !== 'en')
+
 /**
  * Warm the translation cache for freshly authored content (listing title,
- * description, attribute values). Translates into the high-volume markets so
- * the public read path is a pure cache hit. Best-effort and non-blocking —
- * call it from a Next.js `after()` so it never delays the response.
+ * description, attribute values, location) into EVERY supported language, so the
+ * public read path is always a pure cache hit in the visitor's language. Best-
+ * effort and non-blocking — call from a Next.js `after()` so it never delays the
+ * response. Languages run sequentially to stay under the F0 rate limit.
  */
-export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_LANGS): Promise<void> {
-  const clean = texts.filter((t) => t && t.trim().length > 0)
+export async function warmTranslations(texts: string[], langs: Lang[] = WARM_LANGS): Promise<void> {
+  const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
   if (clean.length === 0 || !AZURE_KEY) return
-  await Promise.allSettled(langs.map((l) => translateBatch(clean, l)))
+  for (const l of langs) {
+    try { await translateBatch(clean, l) } catch { /* best-effort per language */ }
+  }
 }

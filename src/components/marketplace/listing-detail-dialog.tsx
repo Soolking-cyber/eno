@@ -16,7 +16,8 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
-import { formatPrice, timeAgo, CATEGORY_COLOR_CLASSES, VERIFICATION_METHOD_LABELS } from '@/lib/types'
+import { timeAgo, CATEGORY_COLOR_CLASSES, VERIFICATION_METHOD_LABELS } from '@/lib/types'
+import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { ListingGallery } from './listing-gallery'
 import { ReportButton } from './report-button'
@@ -133,9 +134,7 @@ export function ListingDetailDialog({ listing, open, onOpenChange, onLocate }: P
 
             {/* Price */}
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-[#1a202c] tracking-tight">
-                {formatPrice(listing.price, listing.currency, listing.priceUnit)}
-              </span>
+              <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-[#1a202c] tracking-tight" />
               {listing.negotiable && (
                 <span className="text-xs text-[#64748b]">{tr('· Negotiable', '· Thương lượng')}</span>
               )}

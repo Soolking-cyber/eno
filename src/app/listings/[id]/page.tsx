@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   ChevronLeft,
 } from 'lucide-react'
-import { formatPrice, CATEGORY_COLOR_CLASSES, VERIFICATION_METHOD_LABELS, timeAgo } from '@/lib/types'
+import { CATEGORY_COLOR_CLASSES, VERIFICATION_METHOD_LABELS, timeAgo } from '@/lib/types'
+import { Price } from '@/components/marketplace/price'
 import { telHref, zaloHref } from '@/lib/contact'
 import { cn } from '@/lib/utils'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
@@ -205,9 +206,7 @@ export default async function ListingPage({ params }: Props) {
           <div className="lg:col-span-5">
             <div className="lg:sticky lg:top-24 rounded-2xl border border-slate-200 bg-white shadow-pop p-5 space-y-4">
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-[#1a202c] tracking-tight">
-                  {formatPrice(listing.price, listing.currency, listing.priceUnit)}
-                </span>
+                <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-[#1a202c] tracking-tight" />
                 {listing.negotiable && <span className="text-sm text-[#64748b]">· Thương lượng</span>}
               </div>
 
@@ -279,9 +278,7 @@ export default async function ListingPage({ params }: Props) {
       {/* Mobile sticky contact bar */}
       <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-base font-bold text-[#1a202c]">
-            {formatPrice(listing.price, listing.currency, listing.priceUnit)}
-          </div>
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="truncate text-base font-bold text-[#1a202c]" />
           {listing.verified && <div className="text-[11px] font-semibold text-[#0a66c2]">Đã xác minh</div>}
         </div>
         <a

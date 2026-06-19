@@ -20,7 +20,8 @@ import {
   BadgeCheck,
 } from 'lucide-react'
 import type { SerializedListing, SerializedCategory } from '@/lib/types'
-import { CATEGORY_COLOR_CLASSES, formatPrice, timeAgo } from '@/lib/types'
+import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
+import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
 import { CardRow } from './card-row'
@@ -622,9 +623,7 @@ export function ListingsExplorer({
 
         {/* Price */}
         <div className="shrink-0 pl-2 text-right">
-          <span className="whitespace-nowrap text-sm font-bold text-[#1a202c] dark:text-white">
-            {formatPrice(l.price, l.currency, l.priceUnit)}
-          </span>
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="whitespace-nowrap text-sm font-bold text-[#1a202c] dark:text-white" />
         </div>
       </div>
     )
@@ -653,9 +652,7 @@ export function ListingsExplorer({
           <h4 className="line-clamp-2 text-sm font-medium leading-snug text-[#1a202c] dark:text-slate-100 group-hover:underline">
             <Tr text={displayTitle} />
           </h4>
-          <span className="mt-1 block text-sm font-bold text-[#1a202c] dark:text-white">
-            {formatPrice(l.price, l.currency, l.priceUnit)}
-          </span>
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="mt-1 block text-sm font-bold text-[#1a202c] dark:text-white" />
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[#64748b]">
             <span className="truncate"><Tr text={l.district || l.city} /></span>
             {l.verified && (
@@ -1120,7 +1117,7 @@ export function ListingsExplorer({
                                     <h5 className="truncate text-xs font-semibold text-[#1a202c]"><Tr text={lang === 'vi' ? (l.titleVi || l.title) : l.title} /></h5>
                                     <span className="text-[10px] text-slate-400"><Tr text={lang === 'vi' ? l.category.nameVi : l.category.name} /></span>
                                   </div>
-                                  <span className="shrink-0 text-xs font-bold text-[#1a202c]">{formatPrice(l.price, l.currency, l.priceUnit)}</span>
+                                  <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="shrink-0 text-xs font-bold text-[#1a202c]" />
                                 </button>
                               ))}
                             </div>
@@ -1836,9 +1833,7 @@ export function ListingsExplorer({
                                         <Tr text={lang === 'vi' ? l.category.nameVi : l.category.name} />
                                       </span>
                                     </div>
-                                    <span className="text-xs font-extrabold text-[#0a66c2] shrink-0">
-                                      {formatPrice(l.price, l.currency, l.priceUnit)}
-                                    </span>
+                                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="text-xs font-extrabold text-[#0a66c2] shrink-0" />
                                   </div>
                                 )
                               })}

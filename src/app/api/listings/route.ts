@@ -576,10 +576,16 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Pre-translate the user-authored fields into the high-volume markets so the
-    // listing renders from cache (no provider round-trip) the moment it's viewed.
-    // Runs after the response flushes — never delays the post.
-    const warmFields = [listing.title, listing.description].filter(Boolean)
+    // Pre-translate every user-authored text field into ALL supported languages
+    // so the listing renders from cache (no provider round-trip) in any
+    // visitor's language. Runs after the response flushes — never delays the post.
+    const attrValues: string[] = (() => {
+      try {
+        const a = listing.attributes ? JSON.parse(listing.attributes) : {}
+        return Object.values(a).map((v) => String(v))
+      } catch { return [] }
+    })()
+    const warmFields = [listing.title, listing.description, listing.location, ...attrValues].filter(Boolean)
     after(() => warmTranslations(warmFields))
 
     return NextResponse.json({ id: listing.id, verified: false }, { status: 201 })

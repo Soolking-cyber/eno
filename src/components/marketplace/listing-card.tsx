@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { Heart, BadgeCheck, ChevronLeft, ChevronRight, Star } from 'lucide-react'
 import Image from 'next/image'
 import type { SerializedListing } from '@/lib/types'
-import { formatPrice } from '@/lib/types'
+import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
@@ -139,9 +139,7 @@ export function ListingCard({ listing, onOpen, priority = false }: Props) {
           {displayTitle}
         </h3>
 
-        <span className="text-sm font-bold text-[#1a202c] dark:text-white">
-          {formatPrice(listing.price, listing.currency, listing.priceUnit)}
-        </span>
+        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-sm font-bold text-[#1a202c] dark:text-white" />
 
         <div className="flex items-center justify-between gap-2 text-xs text-[#64748b]">
           <span className="truncate">{displayLocation}</span>
