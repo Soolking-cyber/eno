@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Link from 'next/link'
 import { SlidersHorizontal, Plus, Heart, User, Globe, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLanguage, LANGUAGES } from '@/context/language-context'
@@ -27,9 +28,9 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-slate-200/60 dark:border-slate-800/40 bg-card">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Logo */}
-        <a href="/" className="flex items-center">
+        <Link href="/" className="flex items-center">
           <img src="/logo.svg" alt="ENO" className="h-10 w-auto" />
-        </a>
+        </Link>
 
         {/* Actions */}
         <div className="flex items-center gap-3">
@@ -71,7 +72,7 @@ export function Header() {
           </div>
 
           {/* FINN-style account cluster */}
-          <a
+          <Link
             href="/saved"
             className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-[#475569] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
             aria-label={tr('Saved', 'Tin đã lưu')}
@@ -82,7 +83,7 @@ export function Header() {
                 {count}
               </span>
             )}
-          </a>
+          </Link>
           {user ? (
             <button
               onClick={() => signOut()}
@@ -105,12 +106,12 @@ export function Header() {
             </button>
           )}
 
-          <a
+          <Link
             href="/post"
             className="hidden items-center gap-1.5 rounded-full bg-[#0a66c2] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#004182] sm:flex cursor-pointer"
           >
             <Plus className="h-4 w-4" /> {t('header.postBtn')}
-          </a>
+          </Link>
           <button
             onClick={() => {
               window.dispatchEvent(new CustomEvent('open-mobile-filters'))

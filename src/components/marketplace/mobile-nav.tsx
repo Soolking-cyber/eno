@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { Compass, Heart, Plus, User } from 'lucide-react'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
@@ -25,11 +26,11 @@ export function MobileNav() {
 
   return (
     <nav className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-slate-200 bg-white/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
-      <a href="/" className={itemCls(pathname === '/')}>
+      <Link href="/" className={itemCls(pathname === '/')}>
         <Compass className="h-5 w-5" />
         <span>{tr('Explore', 'Khám phá')}</span>
-      </a>
-      <a href="/saved" className={itemCls(pathname === '/saved')}>
+      </Link>
+      <Link href="/saved" className={itemCls(pathname === '/saved')}>
         <span className="relative">
           <Heart className={cn('h-5 w-5', count > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
           {count > 0 && (
@@ -39,13 +40,13 @@ export function MobileNav() {
           )}
         </span>
         <span>{tr('Saved', 'Đã lưu')}</span>
-      </a>
-      <a href="/post" className={itemCls(pathname === '/post')}>
+      </Link>
+      <Link href="/post" className={itemCls(pathname === '/post')}>
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white">
           <Plus className="h-4 w-4" />
         </span>
         <span>{tr('Post', 'Đăng tin')}</span>
-      </a>
+      </Link>
       <button onClick={() => (user ? signOut() : openSignIn())} className={itemCls(false)}>
         <User className="h-5 w-5" />
         <span>{user ? tr('Sign out', 'Đăng xuất') : tr('Account', 'Tài khoản')}</span>

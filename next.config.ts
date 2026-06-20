@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   },
   images: {
     formats: ["image/avif", "image/webp"],
+    // Listing photos rarely change → cache optimized variants 30 days; one quality
+    // tier + trimmed widths = fewer optimizer variants and smaller payloads.
+    minimumCacheTTL: 2592000,
+    qualities: [70],
+    deviceSizes: [360, 640, 750, 1080, 1920],
+    imageSizes: [48, 80, 112, 180, 256],
     remotePatterns: [
       {
         protocol: "https",
@@ -16,6 +22,11 @@ const nextConfig: NextConfig = {
         pathname: "/storage/v1/object/public/listings/**",
       },
     ],
+  },
+  // Trim the framer-motion barrel for files that still use it (lucide-react is
+  // already default-optimized in Next 16).
+  experimental: {
+    optimizePackageImports: ["framer-motion"],
   },
   typescript: {
     ignoreBuildErrors: true,
