@@ -1,7 +1,6 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react'
-import { MotionConfig } from 'framer-motion'
 
 // English (default/source) + Vietnamese (home market) + the top inbound-tourist
 // languages to Vietnam by 2025 arrivals (GSO): China→Simplified (single Chinese
@@ -287,7 +286,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <LanguageContext.Provider value={{ lang, setLang, t, tr }}>
-      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+      {children}
     </LanguageContext.Provider>
   )
 }

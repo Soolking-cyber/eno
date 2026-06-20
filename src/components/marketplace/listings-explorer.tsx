@@ -32,7 +32,6 @@ import { SUBCATEGORIES } from '@/lib/subcategories'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
-import { motion, AnimatePresence } from 'framer-motion'
 
 const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.ListingsMap), {
   ssr: false,
@@ -1726,15 +1725,11 @@ export function ListingsExplorer({
             </div>
 
             {/* Subcategory quick-chips — fast drill-down, revealed only once a category is active (progressive disclosure) */}
-            <AnimatePresence initial={false}>
+            <>
               {activeCategory !== 'all' && SUBCATEGORIES[activeCategory]?.length > 0 && (
-                <motion.div
+                <div
                   key={activeCategory}
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.22, ease: 'easeOut' }}
-                  className="overflow-hidden"
+                  className="overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"
                 >
                   <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 pt-0.5">
                     <button
@@ -1772,9 +1767,9 @@ export function ListingsExplorer({
                       )
                     })}
                   </div>
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
+            </>
 
             {/* Category-aware facet bar (replaces the old sidebar) */}
             {renderFacetBar()}
@@ -2055,11 +2050,9 @@ export function ListingsExplorer({
 
             {listings.length > 0 && (
               <div className={cn(isLoading && 'opacity-60 pointer-events-none transition-opacity')}>
-                <motion.div
+                <div
                   key={`${viewMode}|${activeCategory}|${activeSubcategory}|${activeDistrict}|${sort}|${verifiedOnly}|${conditionFilter}`}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22, ease: 'easeOut' }}
+                  className="animate-in fade-in slide-in-from-bottom-1 duration-200"
                 >
                 {viewMode === 'grid' && (
                   /* Grid Mode (Standard Cards) */
@@ -2123,7 +2116,7 @@ export function ListingsExplorer({
                     ))}
                   </div>
                 )}
-                </motion.div>
+                </div>
 
                 {/* Pagination Controls */}
                 {Math.ceil(totalCount / 24) > 1 && (

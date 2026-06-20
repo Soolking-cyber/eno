@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ImagePlus, X, BadgeCheck, ShieldCheck } from 'lucide-react'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
@@ -129,14 +128,8 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
         </div>
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={step}
-          initial={{ opacity: 0, x: 16 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -16 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-        >
+      {/* key remounts on step change → CSS slide-in (replaces framer AnimatePresence) */}
+      <div key={step} className="animate-in fade-in slide-in-from-right-4 duration-200">
           {step === 1 && (
             <div className="space-y-4">
               <h1 className="h-title text-[#1a202c]">{t('Bạn muốn đăng gì?', 'What are you listing?')}</h1>
@@ -295,8 +288,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
               {error && <p role="alert" className="text-sm font-semibold text-red-600">{error}</p>}
             </div>
           )}
-        </motion.div>
-      </AnimatePresence>
+      </div>
 
       {/* Footer nav */}
       <div className="mt-8 flex justify-end gap-3">

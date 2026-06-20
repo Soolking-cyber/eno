@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef, type ReactNode } from 'react'
-import { motion } from 'framer-motion'
+import { useRef, useState, useEffect, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
+import { cn } from '@/lib/utils'
 import { ListingCard } from './listing-card'
 
 type Props = {
@@ -17,6 +17,19 @@ type Props = {
 /** Airbnb-style horizontally-scrolling row of listing cards with snap + arrows. */
 export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel }: Props) {
   const ref = useRef<HTMLDivElement>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+  // Reveal-on-scroll via IntersectionObserver + CSS (replaces framer whileInView).
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const el = sectionRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setInView(true); io.disconnect() } },
+      { rootMargin: '-80px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
 
   const scroll = (dir: 1 | -1) => {
     const el = ref.current
@@ -26,12 +39,12 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel }: Pr
   if (listings.length === 0) return null
 
   return (
-    <motion.section
-      className="space-y-3"
-      initial={{ opacity: 0, y: 14 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-80px' }}
-      transition={{ duration: 0.4, ease: 'easeOut' }}
+    <section
+      ref={sectionRef}
+      className={cn(
+        'space-y-3 transition-all duration-500 ease-out motion-reduce:transition-none',
+        inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3.5',
+      )}
     >
       <div className="flex items-center justify-between gap-3">
         <h2 className="h-section text-slate-800 dark:text-slate-100">{title}</h2>
@@ -73,6 +86,6 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel }: Pr
           </div>
         ))}
       </div>
-    </motion.section>
+    </section>
   )
 }

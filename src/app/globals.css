@@ -330,6 +330,14 @@ input, select, textarea {
   font-family: inherit;
 }
 
+/* Favorite-button pop (replaces framer-motion scale keyframes on the card). */
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+.animate-heart-pop { animation: heart-pop 0.3s ease-out; }
+
 /* ============================================================
    ACCESSIBILITY — honor reduced-motion preference
    ============================================================ */

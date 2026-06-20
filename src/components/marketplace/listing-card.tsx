@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { motion } from 'framer-motion'
 import { Heart, BadgeCheck, ChevronLeft, ChevronRight, Star } from 'lucide-react'
 import Image from 'next/image'
 import type { SerializedListing } from '@/lib/types'
@@ -88,9 +87,10 @@ export function ListingCard({ listing, onOpen, priority = false }: Props) {
           onClick={(e) => { e.stopPropagation(); toggle(listing.id) }}
           className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 shadow-sm transition-transform hover:scale-110 active:scale-90 cursor-pointer"
         >
-          <motion.span initial={false} animate={{ scale: favorited ? [1, 1.35, 1] : 1 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
+          {/* key remounts on favorite → re-runs the CSS pop (replaces framer scale) */}
+          <span key={favorited ? 'on' : 'off'} className={cn('inline-flex', favorited && 'animate-heart-pop')}>
             <Heart className={cn('h-[18px] w-[18px] transition-colors', favorited ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-[#1a202c]')} />
-          </motion.span>
+          </span>
         </button>
 
         {/* carousel arrows (desktop hover, only when multiple images) */}
