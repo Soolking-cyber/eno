@@ -12,7 +12,7 @@ type Convo = {
   id: string; listingTitle: string; lastMessageAt: string; lastMessageText: string | null
   unread: number; counterpart: { name: string; avatarColor: string; avatarUrl: string | null }
 }
-type Msg = { id: string; mine: boolean; body: string; createdAt: string }
+type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean }
 type Thread = {
   id: string; listing: { id: string; title: string; image: string | null }
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null }; messages: Msg[]
@@ -157,16 +157,39 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   const send = async () => {
     const body = text.trim()
     if (!body || sending) return
-    setSending(true); setText('')
+    // Optimistic: show the bubble the instant Enter is pressed. The temp id is
+    // replaced by the server message on response; the broadcast-triggered full
+    // refetch (load) replaces the whole array, so any race self-heals — no dup.
+    const tempId = `temp-${Date.now()}`
+    const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true }
+    setText(''); setSending(true)
+    setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
       const res = await fetch(`/api/conversations/${id}/messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
       })
       if (res.ok) {
         const m = (await res.json()) as Msg
-        setThread((t) => (t ? { ...t, messages: [...t.messages, m] } : t))
+        setThread((t) => {
+          if (!t) return t
+          // Normal case: swap the temp bubble for the server message.
+          if (t.messages.some((x) => x.id === tempId)) {
+            return { ...t, messages: t.messages.map((x) => (x.id === tempId ? m : x)) }
+          }
+          // A refetch already replaced the array (cleared the temp). Re-add the
+          // real message only if it isn't already there — never duplicate.
+          if (t.messages.some((x) => x.id === m.id)) return t
+          return { ...t, messages: [...t.messages, m] }
+        })
         onSent()
-      } else setText(body)
+      } else {
+        // Failed: drop the temp bubble and restore the text so the user can retry.
+        setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+        setText(body)
+      }
+    } catch {
+      setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+      setText(body)
     } finally { setSending(false) }
   }
 
@@ -185,7 +208,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
       <div className="flex-1 space-y-2 overflow-y-auto bg-[#fafafa] px-3 py-3 scroll-thin">
         {thread?.messages.map((m) => (
           <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'}`}>{m.body}</div>
+            <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed transition-opacity ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'} ${m.pending ? 'opacity-60' : ''}`}>{m.body}</div>
           </div>
         ))}
         {thread && thread.messages.length === 0 && (

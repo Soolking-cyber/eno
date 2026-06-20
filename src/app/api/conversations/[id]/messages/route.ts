@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentProfile } from '@/lib/admin'
+import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
@@ -13,10 +13,10 @@ const MAX_LEN = 2000
 // updates the denormalized last-message + the OTHER party's unread counter.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const profile = await getCurrentProfile()
-  if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+  const meId = await getCurrentProfileId()
+  if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
 
-  const rl = await rateLimit('msg:send', profile.id, 20, '1 m')
+  const rl = await rateLimit('msg:send', meId, 20, '1 m')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   let body: { body?: string }
@@ -30,13 +30,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   })
   if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-  const iAmBuyer = convo.buyerProfileId === profile.id
-  const iAmSeller = convo.sellerProfileId === profile.id
+  const iAmBuyer = convo.buyerProfileId === meId
+  const iAmSeller = convo.sellerProfileId === meId
   if (!iAmBuyer && !iAmSeller) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const [message] = await db.$transaction([
     db.message.create({
-      data: { conversationId: id, senderProfileId: profile.id, body: text },
+      data: { conversationId: id, senderProfileId: meId, body: text },
       select: { id: true, body: true, createdAt: true },
     }),
     db.conversation.update({

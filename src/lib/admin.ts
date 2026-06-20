@@ -41,3 +41,28 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   const existing = await db.profile.findUnique({ where: { id: data.user.id } })
   return existing ?? (await ensureProfile(data.user))
 }
+
+/**
+ * The current user's id (== Profile.id == auth.users.id), verified LOCALLY from
+ * the JWT via getClaims() — NO network round-trip to the auth server and NO DB
+ * hit. The project uses asymmetric (ES256) signing keys, so getClaims verifies
+ * the signature with cached JWKS; a forged/tampered/expired/absent token all
+ * fail-closed to null. Use on HOT messaging read/write paths that only need the
+ * user id for participant checks.
+ *
+ * Trade-off vs getUser(): server-side revocation/ban takes effect at token
+ * expiry (~1h) instead of instantly — acceptable for participant-gated 2-party
+ * messaging, NOT for admin powers. Does NOT provision a Profile: use
+ * getCurrentProfile() where the row must exist (admin, /api/me, account page,
+ * conversation create / FK targets).
+ */
+export async function getCurrentProfileId(): Promise<string | null> {
+  try {
+    const supabase = await createSupabaseServer()
+    const { data, error } = await supabase.auth.getClaims()
+    const sub = data?.claims?.sub
+    return error || !sub ? null : (sub as string)
+  } catch {
+    return null
+  }
+}

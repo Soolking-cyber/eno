@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentProfile } from '@/lib/admin'
+import { getCurrentProfile, getCurrentProfileId } from '@/lib/admin'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,12 +42,14 @@ export async function POST(req: Request) {
 }
 
 // GET: the current user's inbox (conversations they're a participant in), newest first.
+// Fast-path auth (getClaims, no network/DB) — read-only, the Profile already exists
+// for any conversation. POST-create below keeps getCurrentProfile for provisioning.
 export async function GET() {
-  const profile = await getCurrentProfile()
-  if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+  const meId = await getCurrentProfileId()
+  if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
 
   const rows = await db.conversation.findMany({
-    where: { OR: [{ buyerProfileId: profile.id }, { sellerProfileId: profile.id }] },
+    where: { OR: [{ buyerProfileId: meId }, { sellerProfileId: meId }] },
     orderBy: { lastMessageAt: 'desc' },
     take: 100,
     select: {
@@ -60,7 +62,7 @@ export async function GET() {
   })
 
   const conversations = rows.map((c) => {
-    const iAmBuyer = c.buyerProfileId === profile.id
+    const iAmBuyer = c.buyerProfileId === meId
     const img = (() => { try { return (JSON.parse(c.listing.images || '[]')[0] as string) ?? null } catch { return null } })()
     return {
       id: c.id,
