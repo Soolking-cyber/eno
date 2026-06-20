@@ -2,10 +2,11 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Compass, Heart, Plus, User } from 'lucide-react'
+import { Compass, Heart, Plus, User, MessageSquare } from 'lucide-react'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
+import { useChat } from '@/context/chat-context'
 import { cn } from '@/lib/utils'
 
 /** Mobile-only bottom tab bar (Airbnb pattern). Hidden on listing detail
@@ -15,6 +16,7 @@ export function MobileNav() {
   const { count } = useFavorites()
   const { tr } = useLanguage()
   const { user, openSignIn } = useAuth()
+  const { unread, openInbox } = useChat()
 
   // Hidden on listing detail (own sticky CTA) and chat threads (full-screen composer).
   if (pathname?.startsWith('/listings/') || pathname?.startsWith('/messages/')) return null
@@ -48,6 +50,17 @@ export function MobileNav() {
         </span>
         <span>{tr('Post', 'Đăng tin')}</span>
       </Link>
+      <button onClick={() => (user ? openInbox() : openSignIn())} className={itemCls(false)}>
+        <span className="relative">
+          <MessageSquare className="h-5 w-5" />
+          {user && unread > 0 && (
+            <span className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[9px] font-bold text-white">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </span>
+        <span>{tr('Messages', 'Tin nhắn')}</span>
+      </button>
       {user ? (
         <Link href="/account" className={itemCls(pathname === '/account')}>
           <User className="h-5 w-5" />

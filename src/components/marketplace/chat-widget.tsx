@@ -44,7 +44,7 @@ export function ChatWidget() {
         <button
           onClick={openInbox}
           aria-label={tr('Messages', 'Tin nhắn')}
-          className="fixed bottom-20 right-4 z-[100] flex h-14 w-14 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-overlay transition-transform hover:scale-105 active:scale-95 lg:bottom-5 lg:right-5"
+          className="fixed bottom-5 right-5 z-[100] hidden h-14 w-14 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-overlay transition-transform hover:scale-105 active:scale-95 lg:flex"
         >
           <MessageSquare className="h-6 w-6" />
           {unread > 0 && (
