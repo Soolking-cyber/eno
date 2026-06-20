@@ -3,6 +3,15 @@
 import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react'
 import { UI_STRINGS } from '@/generated/ui-strings'
 
+// Hash of the UI string set → cache-busts the localStorage UI dictionary whenever
+// copy is added/changed, so returning users always warm the latest strings.
+const UI_HASH = (() => {
+  let h = 5381
+  const s = UI_STRINGS.join('')
+  for (let i = 0; i < s.length; i++) h = (((h << 5) + h + s.charCodeAt(i)) | 0)
+  return (h >>> 0).toString(36)
+})()
+
 // English (default/source) + Vietnamese (home market) + the top inbound-tourist
 // languages to Vietnam by 2025 arrivals (GSO): China→Simplified (single Chinese
 // option, covers the #1 market; Taiwan/HK visitors are routed here too), then
@@ -253,7 +262,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // /api/translate cascade. Repeat visits seed synchronously from localStorage.
   useEffect(() => {
     if (lang === 'en') return // source language — nothing to translate
-    const cacheKey = `ui-dict:v3:${lang}`
+    // Key the cache by a hash of the CURRENT string set, so adding/changing any
+    // UI copy auto-invalidates stale caches (otherwise new strings stay English).
+    const cacheKey = `ui-dict:${UI_HASH}:${lang}`
     const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheKey) : null
     if (cached) {
       try { seedFromMap(lang, JSON.parse(cached)); return } catch { /* refetch */ }

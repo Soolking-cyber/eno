@@ -72,12 +72,12 @@ export function VerifiedBadge({ verified, method, size = 'sm', className, showLa
         sizes.box,
         className,
       )}
-      title={tr(methodLabel ? `Verified · ${methodLabel.label}` : 'Verified by ENO')}
+      title={methodLabel ? `${tr('Verified', 'Đã xác thực')} · ${tr(methodLabel.label, methodLabel.vi)}` : tr('Verified by ENO', 'Đã xác minh bởi ENO')}
     >
       <ShieldCheck className={sizes.icon} />
       {showLabel && (
         methodLabel
-          ? tr(`Verified · ${methodLabel.label}`, `Xác thực · ${methodLabel.vi}`)
+          ? `${tr('Verified', 'Đã xác thực')} · ${tr(methodLabel.label, methodLabel.vi)}`
           : tr('Verified', 'Đã xác thực')
       )}
     </span>

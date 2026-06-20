@@ -805,9 +805,9 @@ export function ListingsExplorer({
               options={[
                 { value: 'all', label: tr('All Bedrooms', 'Tất cả phòng') },
                 { value: '0', label: tr('Studio Room', 'Phòng Studio') },
-                { value: '1', label: tr(`1 Bedroom`, `1 Phòng ngủ`) },
-                { value: '2', label: tr(`2 Bedrooms`, `2 Phòng ngủ`) },
-                { value: '3', label: tr(`3+ Bedrooms`, `3+ Phòng ngủ`) },
+                { value: '1', label: tr('1 Bedroom', '1 Phòng ngủ') },
+                { value: '2', label: tr('2 Bedrooms', '2 Phòng ngủ') },
+                { value: '3', label: tr('3+ Bedrooms', '3+ Phòng ngủ') },
               ]}
               placeholder={tr('Bedrooms', 'Số phòng ngủ')}
               activeClassName="bg-accent border-accent-foreground/35 text-accent-foreground"
@@ -1280,7 +1280,7 @@ export function ListingsExplorer({
                       <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
                     </span>
                     <span className="text-[10px] text-slate-400 select-none font-semibold">
-                      {tr(`${cat.verifiedCount || 0} listings`, `${cat.verifiedCount || 0} tin`)}
+                      {cat.verifiedCount || 0} {tr('listings', 'tin')}
                     </span>
                   </button>
                 )
@@ -2157,7 +2157,7 @@ export function ListingsExplorer({
                     </button>
 
                     <span className="text-xs font-semibold text-[#64748b]">
-                      {tr(`Page ${page} of ${Math.ceil(totalCount / 24)}`, `Trang ${page} / ${Math.ceil(totalCount / 24)}`)}
+                      {tr('Page', 'Trang')} {page} / {Math.ceil(totalCount / 24)}
                     </span>
 
                     <button
@@ -2203,7 +2203,7 @@ export function ListingsExplorer({
               onClick={() => setIsMobileFilterOpen(false)}
               className="w-full rounded-xl bg-[#0a66c2] py-2.5 text-xs font-bold text-white shadow-md active:scale-98 cursor-pointer"
             >
-              {tr(`Apply Filters (${totalCount} listings)`, `Áp dụng lọc (${totalCount} tin)`)}
+              {tr('Apply Filters', 'Áp dụng lọc')} ({totalCount} {tr('listings', 'tin')})
             </button>
           </div>
         </div>

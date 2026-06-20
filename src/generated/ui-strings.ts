@@ -2,6 +2,9 @@
 // Every static UI string in the app, warmed in one batch per language so the
 // translation swap is instant. Re-run the script when UI copy changes.
 export const UI_STRINGS: string[] = [
+  "1 Bedroom",
+  "2 Bedrooms",
+  "3+ Bedrooms",
   "About ENO",
   "About Us",
   "About us",
@@ -188,6 +191,7 @@ export const UI_STRINGS: string[] = [
   "No saved listings yet",
   "No verified",
   "Other categories",
+  "Page",
   "Partially / Unfurnished",
   "Pending review — hidden until verified by an ENO agent.",
   "Pending review — this listing is hidden until verified by ENO.",
