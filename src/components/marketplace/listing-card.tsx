@@ -37,6 +37,9 @@ export function ListingCard({
   const { isFavorite, toggle } = useFavorites()
   const favorited = isFavorite(listing.id)
   const [idx, setIdx] = useState(0)
+  // Only the first image is in the DOM until the user engages the carousel
+  // (hover/touch) — cuts initial DOM nodes + image bytes on the homepage grid.
+  const [expanded, setExpanded] = useState(false)
   const touchStartX = useRef<number | null>(null)
   const suppressClick = useRef(false)
 
@@ -62,7 +65,8 @@ export function ListingCard({
           — otherwise the adjacent (next) image leaks through at the edge on hover. */}
       <div
         className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#f1f5f9] transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
-        onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
+        onMouseEnter={() => { if (images.length > 1) setExpanded(true) }}
+        onTouchStart={(e) => { if (images.length > 1) setExpanded(true); touchStartX.current = e.touches[0].clientX }}
         onTouchEnd={(e) => {
           if (touchStartX.current == null || images.length < 2) return
           const dx = e.changedTouches[0].clientX - touchStartX.current
@@ -75,7 +79,7 @@ export function ListingCard({
             className="flex h-full w-full transition-transform duration-300 ease-out"
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >
-            {images.map((src, i) => (
+            {images.slice(0, expanded ? images.length : 1).map((src, i) => (
               <div key={i} className="relative h-full w-full shrink-0 overflow-hidden">
                 <Image
                   src={src}
