@@ -36,10 +36,21 @@ export async function ensureProfile(user: User) {
   // (same canonical +84… form Seller.phone is stored in).
   if (verifiedPhone) {
     try {
-      await db.seller.updateMany({
+      // Atomic claim-once: updateMany with the ownerId:null guard.
+      const r = await db.seller.updateMany({
         where: { phone: verifiedPhone, ownerId: null },
         data: { ownerId: profile.id, claimedAt: new Date() },
       })
+      if (r.count > 0) {
+        const claimed = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
+        // Light up any conversations that were waiting on this seller to claim.
+        if (claimed) {
+          await db.conversation.updateMany({
+            where: { sellerId: claimed.id, sellerProfileId: null },
+            data: { sellerProfileId: profile.id },
+          })
+        }
+      }
     } catch (e) {
       console.error('[profile] auto-claim failed', e)
     }

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { useLanguage, LANGUAGES } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 import { useAuth } from '@/context/auth-context'
+import { MessagesHeaderLink } from './messages-link'
 
 export function Header() {
   const { lang, setLang, t, tr } = useLanguage()
@@ -84,6 +85,7 @@ export function Header() {
               </span>
             )}
           </Link>
+          <MessagesHeaderLink />
           {user ? (
             <Link
               href="/account"

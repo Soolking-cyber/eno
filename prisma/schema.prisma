@@ -40,6 +40,10 @@ model Profile {
 
   seller      Seller?                       // a user MAY own one storefront (FK on Seller.ownerId)
 
+  buyerConversations  Conversation[] @relation("BuyerConversations")
+  sellerConversations Conversation[] @relation("SellerConversations")
+  sentMessages        Message[]
+
   @@index([phone])
 }
 
@@ -64,6 +68,7 @@ model Seller {
   phone         String?   @unique           // KEEP: the guest-claim join key
   listings      Listing[]
   reviews       Review[]
+  conversations Conversation[]
 
   @@index([ownerId])
 }
@@ -113,6 +118,7 @@ model Listing {
   attributes         String?
   reports            Report[]
   contactReveals     ContactReveal[]
+  conversations      Conversation[]
   contactCount       Int       @default(0) // distinct authenticated viewers who revealed contact
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -141,6 +147,46 @@ model ContactReveal {
   @@unique([listingId, viewerId])
   @@index([listingId])
   @@index([viewerId])
+}
+
+// In-app conversation between a buyer (always an account) and a seller's
+// storefront, scoped to a listing. sellerProfileId is NULL until the seller
+// claims their business profile, at which point existing threads light up.
+// Denormalized last-message + unread counts power the inbox/badge without N+1.
+model Conversation {
+  id              String   @id @default(cuid())
+  listingId       String
+  listing         Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyerProfileId  String   @db.Uuid
+  buyer           Profile  @relation("BuyerConversations", fields: [buyerProfileId], references: [id], onDelete: Cascade)
+  sellerId        String
+  seller          Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sellerProfileId String?  @db.Uuid // null until the seller claims their account
+  sellerProfile   Profile? @relation("SellerConversations", fields: [sellerProfileId], references: [id], onDelete: SetNull)
+  messages        Message[]
+  lastMessageAt   DateTime @default(now())
+  lastMessageText String?
+  buyerUnread     Int      @default(0)
+  sellerUnread    Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@unique([listingId, buyerProfileId]) // one thread per buyer per listing
+  @@index([buyerProfileId])
+  @@index([sellerProfileId])
+  @@index([sellerId])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id              String       @id @default(cuid())
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderProfileId String       @db.Uuid
+  sender          Profile      @relation(fields: [senderProfileId], references: [id], onDelete: Cascade)
+  body            String
+  createdAt       DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 // User-submitted report of a problematic listing (scam, sold, wrong info…).

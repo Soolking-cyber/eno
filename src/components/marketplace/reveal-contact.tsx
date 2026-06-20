@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { MessageCircle, Phone, Lock, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -18,8 +19,10 @@ type Contact = { phone: string; telHref: string; zaloHref: string }
 export function RevealContact({ listingId, compact = false }: { listingId: string; compact?: boolean }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
+  const router = useRouter()
   const [contact, setContact] = useState<Contact | null>(null)
   const [busy, setBusy] = useState(false)
+  const [msgBusy, setMsgBusy] = useState(false)
 
   const reveal = async (): Promise<Contact | null> => {
     if (contact) return contact
@@ -38,7 +41,28 @@ export function RevealContact({ listingId, compact = false }: { listingId: strin
     }
   }
 
-  const onMessage = async () => { const c = await reveal(); if (c) window.open(c.zaloHref, '_blank', 'noopener') }
+  // Messaging-first: "Message" starts an in-app conversation and opens the thread.
+  const onMessage = async () => {
+    if (!user) { openSignIn(); return }
+    setMsgBusy(true)
+    try {
+      const res = await fetch('/api/conversations', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId }),
+      })
+      if (res.status === 401) { openSignIn(); return }
+      if (res.status === 400) {
+        const { error } = await res.json().catch(() => ({}))
+        toast.error(error === 'own_listing' ? tr("That's your own listing.", 'Đây là tin của chính bạn.') : tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.'))
+        return
+      }
+      if (!res.ok) { toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.')); return }
+      const { id } = await res.json()
+      router.push(`/messages/${id}`)
+    } finally {
+      setMsgBusy(false)
+    }
+  }
+
   const onCall = async () => { const c = await reveal(); if (c) window.location.href = c.telHref }
 
   // ── Logged-out: a single primary "sign in to contact" CTA ──
@@ -64,8 +88,8 @@ export function RevealContact({ listingId, compact = false }: { listingId: strin
   if (compact) {
     return (
       <>
-        <button onClick={onMessage} disabled={busy} className="flex items-center justify-center gap-2 rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />} {tr('Message', 'Nhắn tin')}
+        <button onClick={onMessage} disabled={msgBusy} className="flex items-center justify-center gap-2 rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60">
+          {msgBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />} {tr('Message', 'Nhắn tin')}
         </button>
         <button onClick={onCall} disabled={busy} aria-label={tr('Call', 'Gọi')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-300 text-[#1a202c] disabled:opacity-60">
           <Phone className="h-4 w-4" />
@@ -80,10 +104,10 @@ export function RevealContact({ listingId, compact = false }: { listingId: strin
       <div className="flex gap-2.5">
         <button
           onClick={onMessage}
-          disabled={busy || loading}
+          disabled={msgBusy || loading}
           className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] active:scale-98 transition-all cursor-pointer disabled:opacity-60"
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />} {tr('Message', 'Nhắn tin')}
+          {msgBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />} {tr('Message', 'Nhắn tin')}
         </button>
         <button
           onClick={onCall}

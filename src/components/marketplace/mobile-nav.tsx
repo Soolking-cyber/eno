@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Compass, Heart, Plus, User } from 'lucide-react'
+import { MessagesMobileLink } from './messages-link'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -16,7 +17,8 @@ export function MobileNav() {
   const { tr } = useLanguage()
   const { user, openSignIn } = useAuth()
 
-  if (pathname?.startsWith('/listings/')) return null
+  // Hidden on listing detail (own sticky CTA) and chat threads (full-screen composer).
+  if (pathname?.startsWith('/listings/') || pathname?.startsWith('/messages/')) return null
 
   const itemCls = (active: boolean) =>
     cn(
@@ -47,6 +49,7 @@ export function MobileNav() {
         </span>
         <span>{tr('Post', 'Đăng tin')}</span>
       </Link>
+      <MessagesMobileLink itemCls={itemCls} />
       {user ? (
         <Link href="/account" className={itemCls(pathname === '/account')}>
           <User className="h-5 w-5" />
