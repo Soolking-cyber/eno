@@ -19,6 +19,7 @@ import {
 import { CATEGORY_COLOR_CLASSES, VERIFICATION_METHOD_LABELS, timeAgo } from '@/lib/types'
 import { Price } from '@/components/marketplace/price'
 import { Tr } from '@/context/language-context'
+import { getServerLang, getDict } from '@/lib/translate-server'
 import { telHref, zaloHref } from '@/lib/contact'
 import { cn } from '@/lib/utils'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
@@ -97,6 +98,23 @@ export default async function ListingPage({ params }: Props) {
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const canonicalUrl = `${hostUrl}/listings/${listing.id}`
 
+  // Server-resolve the listing CONTENT into the visitor's language (from the warm
+  // Postgres cache, via the `lang` cookie) so it renders in-language on the FIRST
+  // paint — no client translation swap. This page is already dynamic (ƒ), so the
+  // cookie read carries no ISR cost. UI labels stay as <Tr> (instant client swap).
+  const lang = await getServerLang()
+  const contentDict = await getDict(lang, [
+    listing.title,
+    listing.description,
+    listing.location,
+    listing.category.name,
+    ...(methodLabel ? [methodLabel.label] : []),
+    ...attrs.flatMap(([k, v]) => [k.replace(/([A-Z])/g, ' $1'), String(v)]),
+  ])
+  const tx = (s: string) => contentDict[s] ?? s
+  // vi has a hand-authored title; everything else uses the resolved translation.
+  const resolvedTitle = lang === 'vi' ? (listing.titleVi || listing.title) : tx(listing.title)
+
   // Determine standard schema condition
   let schemaCondition = 'https://schema.org/UsedCondition'
   if (listing.condition === 'new' || listing.condition?.toLowerCase().includes('mới')) {
@@ -155,12 +173,12 @@ export default async function ListingPage({ params }: Props) {
         <div className="mb-4 space-y-1.5">
           <span className={cn('inline-flex w-fit items-center gap-1 text-xs font-semibold', color.text)}>
             <CategoryIcon name={listing.category.icon} className="h-3.5 w-3.5" />
-            <Tr text={listing.category.name} />
+            {tx(listing.category.name)}
           </span>
-          <h1 className="h-title text-[#1a202c]"><Tr text={displayTitle} /></h1>
+          <h1 className="h-title text-[#1a202c]">{resolvedTitle}</h1>
           <div className="flex items-center gap-1 text-sm text-[#64748b]">
             <MapPin className="h-4 w-4 text-[#94a3b8] shrink-0" />
-            <span className="truncate"><Tr text={listing.location} /></span>
+            <span className="truncate">{tx(listing.location)}</span>
           </div>
         </div>
 
@@ -173,7 +191,7 @@ export default async function ListingPage({ params }: Props) {
           <div className="lg:col-span-7 flex flex-col gap-8">
             <div className="space-y-2">
               <h2 className="h-section text-[#1a202c]"><Tr text="Description" /></h2>
-              <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#475569]"><Tr text={displayDesc} /></p>
+              <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#475569]">{tx(listing.description)}</p>
             </div>
 
             {attrs.length > 0 && (
@@ -182,8 +200,8 @@ export default async function ListingPage({ params }: Props) {
                 <dl className="divide-y divide-slate-100 text-sm">
                   {attrs.map(([k, v]) => (
                     <div key={k} className="flex items-start justify-between gap-4 py-2.5">
-                      <dt className="capitalize text-[#64748b]"><Tr text={k.replace(/([A-Z])/g, ' $1')} /></dt>
-                      <dd className="font-medium text-[#1a202c] text-right"><Tr text={String(v)} /></dd>
+                      <dt className="capitalize text-[#64748b]">{tx(k.replace(/([A-Z])/g, ' $1'))}</dt>
+                      <dd className="font-medium text-[#1a202c] text-right">{tx(String(v))}</dd>
                     </div>
                   ))}
                 </dl>
@@ -216,7 +234,7 @@ export default async function ListingPage({ params }: Props) {
                   <div className="flex items-center gap-2">
                     <BadgeCheck className="h-4 w-4 shrink-0" />
                     <span className="font-semibold"><Tr text="Verified by ENO" /></span>
-                    {methodLabel && <span>· <Tr text={methodLabel.label} /></span>}
+                    {methodLabel && <span>· {tx(methodLabel.label)}</span>}
                   </div>
                   {(listing.verifiedBy || listing.verifiedAt || listing.verificationNotes) && (
                     <div className="mt-1.5 pl-6 text-[11px] leading-relaxed text-[#0052cc]">
