@@ -29,7 +29,7 @@ export function Header() {
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center">
-          <img src="/logo.svg" alt="ENO" className="h-10 w-auto" />
+          <img src="/logo-mark.svg" alt="ENO" className="h-10 w-10" />
         </Link>
 
         {/* Actions */}

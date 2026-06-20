@@ -42,7 +42,7 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           {/* Brand column */}
           <div className="col-span-2 md:col-span-1 space-y-3">
-            <img src="/logo.svg" alt="ENO" className="h-9 w-auto" />
+            <img src="/logo-mark.svg" alt="ENO" className="h-9 w-9" />
             <p className="max-w-[220px] text-xs leading-relaxed text-[#64748b]">
               {tr('The verified marketplace for the community in Vietnam.', 'Chợ tin đăng được xác minh cho cộng đồng tại Việt Nam.')}
             </p>
