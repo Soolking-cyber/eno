@@ -6,6 +6,7 @@ import { MessageSquare, ChevronLeft, X, Send, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
+import { createSupabaseBrowser } from '@/lib/supabase/browser'
 
 type Convo = {
   id: string; listingTitle: string; lastMessageAt: string; lastMessageText: string | null
@@ -125,21 +126,31 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     setThread(await res.json())
   }, [id])
 
-  // Near-instant feel: poll ~1.5s while the tab is visible, PAUSE when hidden,
-  // and catch up immediately on resume. (Realtime push lands in a later phase;
-  // polling stays as the self-healing backstop.)
+  // Realtime: subscribe to this conversation's channel — the DB trigger pushes a
+  // content-free nudge on every new message, so we refetch instantly (sub-second).
+  // A slow 20s poll + focus/visibility catch-up self-heal any missed broadcast.
   useEffect(() => {
+    load()
+    const supabase = createSupabaseBrowser()
+    const channel = supabase
+      .channel(`convo:${id}`)
+      .on('broadcast', { event: 'new_message' }, () => load())
+      .subscribe()
+
     let iv: ReturnType<typeof setInterval> | null = null
     const stop = () => { if (iv) { clearInterval(iv); iv = null } }
-    const start = () => { if (!iv) iv = setInterval(load, 1500) }
+    const start = () => { if (!iv) iv = setInterval(load, 20000) }
     const onVis = () => {
       if (document.visibilityState === 'visible') { load(); start() } else stop()
     }
-    load()
     if (document.visibilityState === 'visible') start()
     document.addEventListener('visibilitychange', onVis)
-    return () => { stop(); document.removeEventListener('visibilitychange', onVis) }
-  }, [load])
+    return () => {
+      supabase.removeChannel(channel)
+      stop()
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [load, id])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [thread?.messages.length])
 
