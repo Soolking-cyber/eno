@@ -1174,6 +1174,7 @@ export function ListingsExplorer({
                 onOpen={handleOpen}
                 onViewAll={() => setShowExplorer(true)}
                 viewAllLabel={tr('View all', 'Xem tất cả')}
+                lcp
               />
               {categories.map((cat) => {
                 const items = listings.filter((l) => l.category.slug === cat.slug)

@@ -19,6 +19,9 @@ type Props = {
   listing: SerializedListing
   onOpen: (listing: SerializedListing) => void
   priority?: boolean
+  // The single LCP card (first card of the first landing row): use next/image's
+  // real `priority` so Next emits a <link rel=preload> for its image.
+  lcp?: boolean
   // Accurate per-context sizing so the browser downloads card-sized images, not
   // full-width. Default = the result grid (2/3/4 cols); CardRow passes fixed px.
   sizes?: string
@@ -28,6 +31,7 @@ export function ListingCard({
   listing,
   onOpen,
   priority = false,
+  lcp = false,
   sizes = '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw',
 }: Props) {
   const { lang, t, tr } = useLanguage()
@@ -89,10 +93,13 @@ export function ListingCard({
                   className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
                   placeholder="blur"
                   blurDataURL={BLUR}
-                  // Only the LCP image (first card's first photo) loads eagerly; the
-                  // rest lazy-load by default. Avoids the deprecated `priority` prop.
-                  loading={priority && i === 0 ? 'eager' : 'lazy'}
-                  fetchPriority={priority && i === 0 ? 'high' : 'auto'}
+                  // The true LCP image (first card of the first row, first photo) uses
+                  // next/image `priority` so Next emits a <link rel=preload> — the preload
+                  // scanner fetches it before render. Other above-the-fold images just load
+                  // eagerly (no preload flood across every row).
+                  {...(lcp && i === 0
+                    ? { priority: true }
+                    : { loading: priority && i === 0 ? 'eager' : 'lazy' })}
                 />
               </div>
             ))}

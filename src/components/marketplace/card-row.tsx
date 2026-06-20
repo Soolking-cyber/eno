@@ -12,15 +12,21 @@ type Props = {
   onOpen: (l: SerializedListing) => void
   onViewAll?: () => void
   viewAllLabel?: ReactNode
+  // The first landing row: its first card holds the LCP image. Render it visible
+  // immediately (skip the opacity-0 reveal) and flag its first card for preload.
+  lcp?: boolean
 }
 
 /** Airbnb-style horizontally-scrolling row of listing cards with snap + arrows. */
-export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel }: Props) {
+export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp = false }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const sectionRef = useRef<HTMLElement>(null)
   // Reveal-on-scroll via IntersectionObserver + CSS (replaces framer whileInView).
-  const [inView, setInView] = useState(false)
+  // The LCP row starts already visible so its image paints without waiting on the
+  // observer (which would push LCP back by a frame + hydration on slow mobile).
+  const [inView, setInView] = useState(lcp)
   useEffect(() => {
+    if (lcp) return
     const el = sectionRef.current
     if (!el) return
     const io = new IntersectionObserver(
@@ -29,7 +35,7 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel }: Pr
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [])
+  }, [lcp])
 
   const scroll = (dir: 1 | -1) => {
     const el = ref.current
@@ -82,7 +88,10 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel }: Pr
       >
         {listings.map((l, i) => (
           <div key={l.id} className="w-[180px] sm:w-[220px] shrink-0 snap-start">
-            <ListingCard listing={l} onOpen={onOpen} priority={i < 4} sizes="(max-width: 640px) 180px, 220px" />
+            {/* Preload ONLY the LCP image (first row's first card) so it doesn't
+                share bandwidth with other images. Everything else lazy-loads — the
+                next visible card loads via its own observer the moment it's in view. */}
+            <ListingCard listing={l} onOpen={onOpen} priority={lcp && i === 0} lcp={lcp && i === 0} sizes="(max-width: 640px) 180px, 220px" />
           </div>
         ))}
       </div>
