@@ -78,6 +78,9 @@ export default function RootLayout({
             start downloading sooner. (Map origins — unpkg/cartocdn — are
             preconnected lazily by the map itself, which only mounts on demand.) */}
         <link rel="preconnect" href="https://xihiryllwmjoouipkyhw.supabase.co" crossOrigin="" />
+        {/* Landing LCP element (hero wordmark) — preload at high priority so the
+            preload scanner starts it before render, and keep it out of the HTML. */}
+        <link rel="preload" as="image" href="/logo.svg" fetchPriority="high" />
       </head>
       <body
         className={`${inter.variable} antialiased bg-background text-foreground pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0`}
