@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
     // Listing photos rarely change → cache optimized variants 30 days; one quality
     // tier + trimmed widths = fewer optimizer variants and smaller payloads.
     minimumCacheTTL: 2592000,
-    qualities: [60, 70],
+    qualities: [50, 70],
     deviceSizes: [360, 640, 750, 1080, 1920],
     imageSizes: [48, 80, 112, 180, 256],
     remotePatterns: [
