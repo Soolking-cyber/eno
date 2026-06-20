@@ -88,10 +88,11 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp 
       >
         {listings.map((l, i) => (
           <div key={l.id} className="w-[180px] sm:w-[220px] shrink-0 snap-start">
-            {/* Preload ONLY the LCP image (first row's first card) so it doesn't
-                share bandwidth with other images. Everything else lazy-loads — the
-                next visible card loads via its own observer the moment it's in view. */}
-            <ListingCard listing={l} onOpen={onOpen} priority={lcp && i === 0} lcp={lcp && i === 0} sizes="(max-width: 640px) 180px, 220px" />
+            {/* In the LCP (first) row, eager + preload the first 4 cards: on mobile
+                the LCP element is non-deterministic (logo vs. whichever visible card
+                Lighthouse picks), so every above-the-fold candidate must be fetched
+                eagerly + discoverable, never lazy. The rest of the row lazy-loads. */}
+            <ListingCard listing={l} onOpen={onOpen} priority={lcp && i < 4} lcp={lcp && i < 4} sizes="(max-width: 640px) 180px, 220px" />
           </div>
         ))}
       </div>
