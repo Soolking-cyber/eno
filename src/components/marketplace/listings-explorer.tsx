@@ -962,7 +962,7 @@ export function ListingsExplorer({
           {/* HERO SEARCH AREA */}
           <div className="pt-4 pb-2 sm:pt-10 text-center">
             <div className="flex flex-col items-center justify-center mb-6">
-              <img src="/logo.svg" alt="ENO Logo" className="h-20 w-auto object-contain mb-4 select-none" />
+              <img src="/logo.svg" alt="ENO Logo" width={320} height={80} fetchPriority="high" className="h-20 w-auto object-contain mb-4 select-none" />
               <p className="eyebrow text-slate-400 dark:text-slate-500">
                 {tr('e-commerce with no drama', 'Mua bán không drama.')}
               </p>

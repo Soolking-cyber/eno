@@ -314,14 +314,22 @@
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  100% { transform: translateX(100%); }
 }
 
-/* Skeleton shimmer — replaces the flat pulse with a soft sweeping highlight */
+/* Skeleton shimmer — GPU-composited sweep (animates transform, not
+   background-position, so it stays off the main thread / paint). */
 .shimmer {
-  background: linear-gradient(90deg, #eef1f5 25%, #e2e8f0 37%, #eef1f5 63%);
-  background-size: 400% 100%;
+  position: relative;
+  overflow: hidden;
+  background: #eef1f5;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
   animation: shimmer 1.4s ease-in-out infinite;
 }
 

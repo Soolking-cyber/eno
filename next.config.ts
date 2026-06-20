@@ -23,11 +23,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Trim the framer-motion barrel for files that still use it (lucide-react is
-  // already default-optimized in Next 16).
-  experimental: {
-    optimizePackageImports: ["framer-motion"],
-  },
   typescript: {
     ignoreBuildErrors: true,
   },

@@ -68,11 +68,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Warm up TCP/TLS to the image + map origins so listing photos and map
-            tiles start downloading sooner (hides latency for free). */}
+        {/* Warm up TCP/TLS to the image origin so above-the-fold listing photos
+            start downloading sooner. (Map origins — unpkg/cartocdn — are
+            preconnected lazily by the map itself, which only mounts on demand.) */}
         <link rel="preconnect" href="https://xihiryllwmjoouipkyhw.supabase.co" crossOrigin="" />
-        <link rel="preconnect" href="https://unpkg.com" crossOrigin="" />
-        <link rel="preconnect" href="https://basemaps.cartocdn.com" crossOrigin="" />
+        {/* LCP element on the landing hero — let the preload scanner fetch it now. */}
+        <link rel="preload" as="image" href="/logo.svg" />
       </head>
       <body
         className={`${inter.variable} antialiased bg-background text-foreground pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0`}

@@ -69,6 +69,13 @@ function loadLeaflet(cb: () => void) {
   const w = window as unknown as { L?: unknown }
   if (w.L) { cb(); return }
   if (!document.getElementById('leaflet-css')) {
+    // Warm the map origins now that the map is actually loading (these used to be
+    // global preconnects but wasted early-connection slots on the homepage).
+    for (const href of ['https://unpkg.com', 'https://basemaps.cartocdn.com']) {
+      const pc = document.createElement('link')
+      pc.rel = 'preconnect'; pc.href = href; pc.crossOrigin = ''
+      document.head.appendChild(pc)
+    }
     const link = document.createElement('link')
     link.id = 'leaflet-css'; link.rel = 'stylesheet'; link.href = LEAFLET_CSS
     document.head.appendChild(link)
