@@ -55,6 +55,8 @@ type ViewMode = 'compact' | 'grid' | 'map'
 type Props = {
   categories: SerializedCategory[]
   initialListings: SerializedListing[]
+  initialTotal?: number
+  initialFetchedAt?: number
   listingsRef?: React.RefObject<HTMLDivElement | null>
 }
 
@@ -193,6 +195,8 @@ function CustomSelect({
 export function ListingsExplorer({
   categories,
   initialListings,
+  initialTotal,
+  initialFetchedAt,
   listingsRef,
 }: Props) {
   const { lang, t, tr } = useLanguage()
@@ -495,6 +499,18 @@ export function ListingsExplorer({
       return res.json()
     },
     placeholderData: (previousData) => previousData,
+    // Seed the DEFAULT view (page 1, no filters) with the server-rendered data so
+    // React Query treats it as fresh (global staleTime 30s) and skips the
+    // redundant /api/listings refetch on mount. Strictly gated — filtered/sorted
+    // views get no seed and fetch normally. Must match the /api/listings shape.
+    initialData:
+      page === 1 && activeCategory === 'all' && activeSubcategory === 'all' &&
+      activeDistrict === 'all' && conditionFilter === 'all' && priceRange === 'all' &&
+      sort === 'newest' && verifiedOnly && !debouncedQuery.trim() &&
+      Object.keys(customFilters).length === 0
+        ? { listings: initialListings, total: initialTotal ?? initialListings.length, subcategoryCounts: {}, categoryTotal: 0 }
+        : undefined,
+    initialDataUpdatedAt: initialFetchedAt,
   })
 
   // Synchronize state and trigger history caching when data changes
@@ -549,6 +565,8 @@ export function ListingsExplorer({
     if (nextPage > maxPage) return
 
     queryClient.prefetchQuery({
+      // Key + params must mirror the live query (incl. price) or the prefetch
+      // never matches and pagination refetches anyway.
       queryKey: [
         'listings',
         {
@@ -559,6 +577,7 @@ export function ListingsExplorer({
           q: debouncedQuery,
           sort,
           verified: verifiedOnly ? 'true' : 'all',
+          price: priceRange,
           page: nextPage,
           customFilters,
         },
@@ -572,6 +591,11 @@ export function ListingsExplorer({
         if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
         params.set('sort', sort)
         params.set('verified', verifiedOnly ? 'true' : 'all')
+        if (priceRange !== 'all') {
+          const [mn, mx] = priceRange.split('-')
+          if (mn) params.set('priceMin', mn)
+          if (mx) params.set('priceMax', mx)
+        }
 
         Object.entries(customFilters).forEach(([key, val]) => {
           if (val && val !== 'all') {
@@ -600,6 +624,7 @@ export function ListingsExplorer({
     debouncedQuery,
     sort,
     verifiedOnly,
+    priceRange,
     customFilters,
     queryClient,
   ])

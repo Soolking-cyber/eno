@@ -82,7 +82,7 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel }: Pr
       >
         {listings.map((l, i) => (
           <div key={l.id} className="w-[180px] sm:w-[220px] shrink-0 snap-start">
-            <ListingCard listing={l} onOpen={onOpen} priority={i < 4} />
+            <ListingCard listing={l} onOpen={onOpen} priority={i < 4} sizes="(max-width: 640px) 180px, 220px" />
           </div>
         ))}
       </div>

@@ -10,13 +10,26 @@ import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 
+// Tiny neutral blur (matches the card's bg) so images fade in instead of popping
+// from a grey box. Shared across all cards.
+const BLUR =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjYiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjYiIGZpbGw9IiNlZWYyZjYiLz48L3N2Zz4='
+
 type Props = {
   listing: SerializedListing
   onOpen: (listing: SerializedListing) => void
   priority?: boolean
+  // Accurate per-context sizing so the browser downloads card-sized images, not
+  // full-width. Default = the result grid (2/3/4 cols); CardRow passes fixed px.
+  sizes?: string
 }
 
-export function ListingCard({ listing, onOpen, priority = false }: Props) {
+export function ListingCard({
+  listing,
+  onOpen,
+  priority = false,
+  sizes = '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw',
+}: Props) {
   const { lang, t, tr } = useLanguage()
   const images = listing.images
   const displayTitle = useTr(lang === 'vi' ? (listing.titleVi || listing.title) : listing.title)
@@ -65,10 +78,14 @@ export function ListingCard({ listing, onOpen, priority = false }: Props) {
                   src={src}
                   alt={images.length > 1 ? `${displayTitle} — ${i + 1}/${images.length}` : displayTitle}
                   fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  sizes={sizes}
                   className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                  priority={priority && i === 0}
-                  loading={priority && i === 0 ? undefined : 'lazy'}
+                  placeholder="blur"
+                  blurDataURL={BLUR}
+                  // Only the LCP image (first card's first photo) loads eagerly; the
+                  // rest lazy-load by default. Avoids the deprecated `priority` prop.
+                  loading={priority && i === 0 ? 'eager' : 'lazy'}
+                  fetchPriority={priority && i === 0 ? 'high' : 'auto'}
                 />
               </div>
             ))}
