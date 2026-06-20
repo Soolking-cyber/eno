@@ -19,7 +19,7 @@ type Contact = { phone: string; telHref: string; zaloHref: string }
 export function RevealContact({ listingId, compact = false, onStartChat }: { listingId: string; compact?: boolean; onStartChat?: () => void }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
-  const { openThread } = useChat()
+  const { openThread, openPendingThread, close } = useChat()
   const [contact, setContact] = useState<Contact | null>(null)
   const [busy, setBusy] = useState(false)
   const [msgBusy, setMsgBusy] = useState(false)
@@ -41,24 +41,29 @@ export function RevealContact({ listingId, compact = false, onStartChat }: { lis
     }
   }
 
-  // Messaging-first: "Message" starts an in-app conversation and opens the thread.
+  // Messaging-first: open the chat INSTANTLY (skeleton) and create the
+  // conversation in the background; swap in the real thread when it returns.
   const onMessage = async () => {
     if (!user) { openSignIn(); return }
+    openPendingThread()   // panel opens immediately — no wait
+    onStartChat?.()       // close the listing dialog so the chat isn't hidden behind it
     setMsgBusy(true)
     try {
       const res = await fetch('/api/conversations', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId }),
       })
-      if (res.status === 401) { openSignIn(); return }
+      if (res.status === 401) { close(); openSignIn(); return }
       if (res.status === 400) {
+        close()
         const { error } = await res.json().catch(() => ({}))
         toast.error(error === 'own_listing' ? tr("That's your own listing.", 'Đây là tin của chính bạn.') : tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.'))
         return
       }
-      if (!res.ok) { toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.')); return }
+      if (!res.ok) { close(); toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.')); return }
       const { id } = await res.json()
-      onStartChat?.()       // close the listing dialog so the chat isn't hidden behind it
-      openThread(id)        // open the floating chat widget on this conversation
+      openThread(id)        // swap the skeleton for the real conversation
+    } catch {
+      close(); toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.'))
     } finally {
       setMsgBusy(false)
     }

@@ -44,12 +44,42 @@ function TypingDots() {
   )
 }
 
+/** Instant skeleton shown the moment "Message" is tapped, while the conversation
+ *  is created in the background — the panel opens with no wait. */
+function PendingThread({ onBack, onClose }: { onBack: () => void; onClose: () => void }) {
+  const { tr } = useLanguage()
+  return (
+    <>
+      <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2.5">
+        <button onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-[#64748b] hover:text-[#0a66c2]"><ChevronLeft className="h-5 w-5" /></button>
+        <span className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-slate-200" />
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="h-3 w-24 animate-pulse rounded bg-slate-200" />
+          <div className="h-2.5 w-16 animate-pulse rounded bg-slate-100" />
+        </div>
+        <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-[#94a3b8] hover:text-[#1a202c]"><X className="h-5 w-5" /></button>
+      </div>
+      <div className="flex-1 space-y-2 overflow-y-auto bg-[#fafafa] px-3 py-3">
+        {[55, 40, 65].map((w, i) => (
+          <div key={i} className={`flex ${i % 2 ? 'justify-end' : 'justify-start'}`}>
+            <div className="h-9 animate-pulse rounded-2xl bg-slate-200" style={{ width: `${w}%` }} />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-end gap-2 border-t border-slate-200 px-3 py-2.5">
+        <div className="h-9 flex-1 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-slate-200" />
+      </div>
+    </>
+  )
+}
+
 /** Floating chat: a corner launcher that expands into a docked panel (inbox +
  *  thread). Replaces full-page navigation; rendered once in the layout. */
 export function ChatWidget() {
   const { user } = useAuth()
   const { tr } = useLanguage()
-  const { open, view, conversationId, unread, refreshUnread, openInbox, openThread, back, close } = useChat()
+  const { open, view, conversationId, starting, unread, refreshUnread, openInbox, openThread, back, close } = useChat()
 
   if (!user) return null // anon users contact via the listing's gated Message button
 
@@ -76,6 +106,8 @@ export function ChatWidget() {
         <div className="fixed inset-x-2 bottom-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-overlay sm:inset-x-auto sm:right-5 sm:left-auto sm:bottom-5 sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px]">
           {view === 'thread' && conversationId ? (
             <ChatThread key={conversationId} id={conversationId} onBack={back} onClose={close} onSent={refreshUnread} />
+          ) : view === 'thread' && starting ? (
+            <PendingThread onBack={back} onClose={close} />
           ) : (
             <ChatInbox onOpenThread={openThread} onClose={close} />
           )}

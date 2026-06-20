@@ -9,10 +9,12 @@ type ChatCtx = {
   open: boolean
   view: View
   conversationId: string | null
+  starting: boolean
   unread: number
   refreshUnread: () => void
   openInbox: () => void
   openThread: (id: string) => void
+  openPendingThread: () => void
   back: () => void
   close: () => void
 }
@@ -25,6 +27,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<View>('list')
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [starting, setStarting] = useState(false) // thread opened optimistically, conversation creating in the background
   const [unread, setUnread] = useState(0)
 
   const refreshUnread = useCallback(() => {
@@ -46,13 +49,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     return () => { stop(); document.removeEventListener('visibilitychange', onVis) }
   }, [user, refreshUnread])
 
-  const openInbox = useCallback(() => { setView('list'); setConversationId(null); setOpen(true) }, [])
-  const openThread = useCallback((id: string) => { setConversationId(id); setView('thread'); setOpen(true) }, [])
-  const back = useCallback(() => { setView('list'); setConversationId(null); refreshUnread() }, [refreshUnread])
-  const close = useCallback(() => setOpen(false), [])
+  const openInbox = useCallback(() => { setView('list'); setConversationId(null); setStarting(false); setOpen(true) }, [])
+  const openThread = useCallback((id: string) => { setConversationId(id); setStarting(false); setView('thread'); setOpen(true) }, [])
+  // Open the thread panel INSTANTLY (skeleton) while the conversation is created
+  // in the background; openThread(id) then swaps in the real thread.
+  const openPendingThread = useCallback(() => { setConversationId(null); setStarting(true); setView('thread'); setOpen(true) }, [])
+  const back = useCallback(() => { setView('list'); setConversationId(null); setStarting(false); refreshUnread() }, [refreshUnread])
+  const close = useCallback(() => { setOpen(false); setStarting(false) }, [])
 
   return (
-    <ChatContext.Provider value={{ open, view, conversationId, unread, refreshUnread, openInbox, openThread, back, close }}>
+    <ChatContext.Provider value={{ open, view, conversationId, starting, unread, refreshUnread, openInbox, openThread, openPendingThread, back, close }}>
       {children}
     </ChatContext.Provider>
   )
