@@ -38,7 +38,7 @@ function SignInPageInner() {
       <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0a66c2] to-[#004182] p-12 text-white md:flex">
         <Link href="/" className="text-2xl font-black tracking-tight">ENO</Link>
         <div>
-          <h1 className="text-4xl font-black leading-tight">{tr("If it's listed, it exists.", 'Đã đăng là có thật.')}</h1>
+          <h1 className="text-4xl font-black leading-tight">{tr('e-commerce with no drama', 'Mua bán không drama.')}</h1>
           <p className="mt-3 max-w-sm text-[15px] text-blue-100">
             {tr("The verified marketplace for Vietnam's international community.", 'Chợ trực tuyến đã xác minh cho cộng đồng quốc tế tại Việt Nam.')}
           </p>
