@@ -3,7 +3,6 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Compass, Heart, Plus, User } from 'lucide-react'
-import { MessagesMobileLink } from './messages-link'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -49,7 +48,6 @@ export function MobileNav() {
         </span>
         <span>{tr('Post', 'Đăng tin')}</span>
       </Link>
-      <MessagesMobileLink itemCls={itemCls} />
       {user ? (
         <Link href="/account" className={itemCls(pathname === '/account')}>
           <User className="h-5 w-5" />

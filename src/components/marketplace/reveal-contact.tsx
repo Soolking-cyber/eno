@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { MessageCircle, Phone, Lock, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { useChat } from '@/context/chat-context'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -19,7 +19,7 @@ type Contact = { phone: string; telHref: string; zaloHref: string }
 export function RevealContact({ listingId, compact = false }: { listingId: string; compact?: boolean }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
-  const router = useRouter()
+  const { openThread } = useChat()
   const [contact, setContact] = useState<Contact | null>(null)
   const [busy, setBusy] = useState(false)
   const [msgBusy, setMsgBusy] = useState(false)
@@ -57,7 +57,7 @@ export function RevealContact({ listingId, compact = false }: { listingId: strin
       }
       if (!res.ok) { toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.')); return }
       const { id } = await res.json()
-      router.push(`/messages/${id}`)
+      openThread(id) // open the floating chat widget on this conversation
     } finally {
       setMsgBusy(false)
     }

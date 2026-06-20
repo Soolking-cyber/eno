@@ -4,9 +4,11 @@ import "./globals.css";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { LanguageProvider } from "@/context/language-context";
 import { AuthProvider } from "@/context/auth-context";
+import { ChatProvider } from "@/context/chat-context";
 import { FavoritesProvider } from "@/context/favorites-context";
 import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
+import { ChatWidget } from "@/components/marketplace/chat-widget";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -74,12 +76,15 @@ export default function RootLayout({
       >
         <LanguageProvider>
           <AuthProvider>
-            <FavoritesProvider>
-              <QueryProvider>
-                {children}
-                <MobileNav />
-              </QueryProvider>
-            </FavoritesProvider>
+            <ChatProvider>
+              <FavoritesProvider>
+                <QueryProvider>
+                  {children}
+                  <MobileNav />
+                  <ChatWidget />
+                </QueryProvider>
+              </FavoritesProvider>
+            </ChatProvider>
           </AuthProvider>
         </LanguageProvider>
         <SonnerToaster position="bottom-right" richColors closeButton />
