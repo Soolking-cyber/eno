@@ -57,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.removeItem('eno-convos')
       localStorage.removeItem('eno-saved-cache')
+      localStorage.removeItem('eno-account')
       Object.keys(localStorage).filter((k) => k.startsWith('eno-thr:')).forEach((k) => localStorage.removeItem(k))
     } catch {}
   }
