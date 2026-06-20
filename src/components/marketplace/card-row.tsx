@@ -47,7 +47,7 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel }: Pr
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <h2 className="h-section text-slate-800 dark:text-slate-100">{title}</h2>
+        <h2 className="h-section text-slate-800">{title}</h2>
         <div className="flex items-center gap-2 shrink-0">
           {onViewAll && (
             <button

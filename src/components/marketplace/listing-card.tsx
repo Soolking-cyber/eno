@@ -159,11 +159,11 @@ export function ListingCard({
 
       {/* Body — title · price · location · verified */}
       <div className="flex flex-1 flex-col gap-1 px-0.5 pt-2.5">
-        <h3 className="line-clamp-2 text-sm font-medium leading-snug text-[#1a202c] dark:text-slate-100 group-hover:underline decoration-1 underline-offset-2">
+        <h3 className="line-clamp-2 text-sm font-medium leading-snug text-[#1a202c] group-hover:underline decoration-1 underline-offset-2">
           {displayTitle}
         </h3>
 
-        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-sm font-bold text-[#1a202c] dark:text-white" />
+        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-sm font-bold text-[#1a202c]" />
 
         <div className="flex items-center justify-between gap-2 text-xs text-[#64748b]">
           <span className="truncate">{displayLocation}</span>

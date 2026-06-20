@@ -512,7 +512,7 @@ export function ListingsExplorer({
       <div
         key={l.id}
         onClick={() => handleOpen(l)}
-        className="group flex items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[#f5f5f5] dark:hover:bg-slate-800/40 cursor-pointer"
+        className="group flex items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[#f5f5f5] cursor-pointer"
       >
         {/* Thumbnail */}
         <div className="relative h-20 w-24 sm:w-28 shrink-0 overflow-hidden rounded-lg bg-[#f1f5f9]">
@@ -535,7 +535,7 @@ export function ListingsExplorer({
 
         {/* Title + location */}
         <div className="min-w-0 flex-1">
-          <h4 className="line-clamp-2 sm:line-clamp-1 text-sm font-medium leading-snug text-[#1a202c] dark:text-slate-100 group-hover:underline">
+          <h4 className="line-clamp-2 sm:line-clamp-1 text-sm font-medium leading-snug text-[#1a202c] group-hover:underline">
             <Tr text={displayTitle} />
           </h4>
           <div className="mt-1 flex items-center gap-2 text-xs text-[#64748b]">
@@ -551,7 +551,7 @@ export function ListingsExplorer({
 
         {/* Price */}
         <div className="shrink-0 pl-2 text-right">
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="whitespace-nowrap text-sm font-bold text-[#1a202c] dark:text-white" />
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="whitespace-nowrap text-sm font-bold text-[#1a202c]" />
         </div>
       </div>
     )
@@ -565,7 +565,7 @@ export function ListingsExplorer({
     return (
       <div
         onClick={() => handleOpen(l)}
-        className="group flex gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[#f5f5f5] dark:hover:bg-slate-800/40 cursor-pointer"
+        className="group flex gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[#f5f5f5] cursor-pointer"
       >
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-[#f1f5f9]">
           {cover ? (
@@ -577,10 +577,10 @@ export function ListingsExplorer({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h4 className="line-clamp-2 text-sm font-medium leading-snug text-[#1a202c] dark:text-slate-100 group-hover:underline">
+          <h4 className="line-clamp-2 text-sm font-medium leading-snug text-[#1a202c] group-hover:underline">
             <Tr text={displayTitle} />
           </h4>
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="mt-1 block text-sm font-bold text-[#1a202c] dark:text-white" />
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="mt-1 block text-sm font-bold text-[#1a202c]" />
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[#64748b]">
             <span className="truncate"><Tr text={l.district || l.city} /></span>
             {l.verified && (
@@ -963,7 +963,7 @@ export function ListingsExplorer({
           <div className="pt-4 pb-2 sm:pt-10 text-center">
             <div className="flex flex-col items-center justify-center mb-6">
               <img src="/logo.svg" alt="ENO Logo" width={320} height={80} fetchPriority="high" className="h-20 w-auto object-contain mb-4 select-none" />
-              <p className="eyebrow text-slate-600 dark:text-slate-500">
+              <p className="eyebrow text-slate-600">
                 {tr('e-commerce with no drama', 'Mua bán không drama.')}
               </p>
             </div>
@@ -971,7 +971,7 @@ export function ListingsExplorer({
             {/* Centered Search Bar */}
             <div className="relative max-w-2xl w-full mx-auto select-none">
               {/* One cohesive search pill: search · input · divider · map */}
-              <div className="flex items-center rounded-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 transition-all focus-within:border-[#0a66c2] focus-within:ring-2 focus-within:ring-[#0a66c2]/20">
+              <div className="flex items-center rounded-full border border-slate-300 bg-white transition-all focus-within:border-[#0a66c2] focus-within:ring-2 focus-within:ring-[#0a66c2]/20">
                 <button
                   onClick={() => handleLandingSearch(landingQuery)}
                   aria-label={tr('Search', 'Tìm kiếm')}
@@ -990,9 +990,9 @@ export function ListingsExplorer({
                   onFocus={() => setShowSuggestions(true)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleLandingSearch(landingQuery) }}
                   placeholder={tr('Search motorbikes, apartments, moving sales...', 'Tìm xe máy, căn hộ, đồ thanh lý...')}
-                  className="min-w-0 flex-1 bg-transparent py-3.5 pr-3 text-sm text-[#1a202c] dark:text-[#f8fafc] outline-none placeholder:text-[#94a3b8]"
+                  className="min-w-0 flex-1 bg-transparent py-3.5 pr-3 text-sm text-[#1a202c] outline-none placeholder:text-[#94a3b8]"
                 />
-                <span className="h-6 w-px shrink-0 bg-slate-200 dark:bg-slate-700" />
+                <span className="h-6 w-px shrink-0 bg-slate-200" />
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
                   className="flex shrink-0 items-center gap-1.5 rounded-r-full pl-3.5 pr-4 py-3.5 text-sm font-semibold text-[#0a66c2] hover:text-[#004182] transition-colors cursor-pointer"
@@ -1132,7 +1132,7 @@ export function ListingsExplorer({
 
           {/* FINN-STYLE CATEGORY GRID */}
           <div className="space-y-4">
-            <h2 className="eyebrow text-slate-600 dark:text-slate-500 text-center select-none">
+            <h2 className="eyebrow text-slate-600 text-center select-none">
               {tr('Browse by Category', 'Khám phá danh mục')}
             </h2>
             <div className="grid grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4">
@@ -1148,9 +1148,9 @@ export function ListingsExplorer({
                   >
                     <CategoryIcon
                       name={cat.icon}
-                      className="h-8 w-8 text-slate-600 dark:text-slate-500 transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
+                      className="h-8 w-8 text-slate-600 transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
                     />
-                    <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 leading-tight transition-colors group-hover:text-[var(--cat)]">
+                    <span className="text-xs sm:text-sm font-bold text-slate-700 leading-tight transition-colors group-hover:text-[var(--cat)]">
                       <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
                     </span>
                     <span className="text-[10px] text-slate-600 select-none font-semibold">
@@ -1286,7 +1286,7 @@ export function ListingsExplorer({
             <div className="flex items-center justify-between px-1">
               <button
                 onClick={resetToLandingPage}
-                className="text-xs font-bold text-[#0a66c2] dark:text-[#90caf9] hover:underline flex items-center gap-1 cursor-pointer select-none"
+                className="text-xs font-bold text-[#0a66c2] hover:underline flex items-center gap-1 cursor-pointer select-none"
               >
                 &larr; {tr('Back to Home', 'Quay lại Trang chủ')}
               </button>

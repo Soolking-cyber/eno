@@ -37,7 +37,7 @@ export function Footer() {
   ]
 
   return (
-    <footer className="mt-auto border-t border-slate-200/60 dark:border-slate-800/40 bg-card pt-12 pb-8 text-muted-foreground">
+    <footer className="mt-auto border-t border-slate-200/60 bg-card pt-12 pb-8 text-muted-foreground">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           {/* Brand column */}
@@ -56,7 +56,7 @@ export function Footer() {
           {/* Link columns */}
           {columns.map((col) => (
             <div key={col.title} className="space-y-3">
-              <h3 className="text-sm font-bold text-[#1a202c] dark:text-slate-100">{col.title}</h3>
+              <h3 className="text-sm font-bold text-[#1a202c]">{col.title}</h3>
               <ul className="space-y-2">
                 {col.links.map((link) => (
                   <li key={link.label}>
@@ -68,7 +68,7 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-slate-200/60 pt-5 text-xs text-[#94a3b8] dark:border-slate-800/40 sm:flex-row">
+        <div className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-slate-200/60 pt-5 text-xs text-[#94a3b8] sm:flex-row">
           <p className="flex items-center gap-1.5">
             <span>© {new Date().getFullYear()} eno.vn — {tr('All rights reserved.', 'Mọi quyền được bảo lưu.')}</span>
             <span aria-hidden="true">·</span>

@@ -145,36 +145,6 @@
   --sidebar-ring: #0a66c2;
 }
 
-.dark {
-  --background: #1f1f1f;
-  --foreground: #f5f5f5;
-  --card: #292929;
-  --card-foreground: #f5f5f5;
-  --popover: #292929;
-  --popover-foreground: #f5f5f5;
-  --primary: #0a66c2;
-  --primary-foreground: #ffffff;
-  --secondary: #334155;
-  --secondary-foreground: #f5f5f5;
-  --muted: #1f1f1f;
-  --muted-foreground: #94a3b8;
-  --accent: #1e3a8a;
-  --accent-foreground: #f8fafc;
-  --destructive: #f87171;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: #0a66c2;
-  
-  --sidebar: #292929;
-  --sidebar-foreground: #f5f5f5;
-  --sidebar-primary: #0a66c2;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e3a8a;
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #0a66c2;
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -190,56 +160,8 @@
    CLEAN FLAT CARD SURFACES (FINN.no inspired)
    ============================================================ */
 
-/* Cohesive single-canvas: containers blend, no floating boxes (FINN.no) */
-.glass {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-}
-
-.glass-strong {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-}
-
-.glass-dark {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-}
-
-.glass-brand {
-  background: var(--accent);
-  border: 1px solid rgba(10, 102, 194, 0.15);
-  color: var(--accent-foreground);
-}
-
-/* ============================================================
-   FLAT BACKGROUNDS (FINN.no inspired)
-   ============================================================ */
-
 .blob-bg {
   background-color: var(--background);
-}
-
-.blob-bg-soft {
-  background-color: var(--background);
-}
-
-.blob-bg-dark {
-  background-color: var(--background);
-}
-
-.hero-blob {
-  background-color: var(--background);
-}
-
-/* ============================================================
-   TEXT STYLING
-   ============================================================ */
-.text-gradient-brand {
-  color: var(--foreground);
 }
 
 /* ============================================================
@@ -276,13 +198,6 @@
    ============================================================ */
 .shadow-pop { box-shadow: var(--shadow-pop); }
 .shadow-overlay { box-shadow: var(--shadow-overlay); }
-.lift {
-  transition: box-shadow 0.18s ease, transform 0.18s ease;
-}
-.lift:hover {
-  box-shadow: var(--shadow-card);
-  transform: translateY(-2px);
-}
 
 /* ============================================================
    SCROLLBAR — refined thin blue
@@ -305,13 +220,6 @@
 /* ============================================================
    ANIMATIONS
    ============================================================ */
-@keyframes float-blob {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(2%, -3%) scale(1.05); }
-}
-.animate-float-blob {
-  animation: float-blob 14s ease-in-out infinite;
-}
 
 @keyframes shimmer {
   100% { transform: translateX(100%); }
