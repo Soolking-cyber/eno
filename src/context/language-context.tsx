@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react'
+import { UI_STRINGS } from '@/generated/ui-strings'
 
 // English (default/source) + Vietnamese (home market) + the top inbound-tourist
 // languages to Vietnam by 2025 arrivals (GSO): China→Simplified (single Chinese
@@ -43,6 +44,13 @@ function matchLanguage(raw: string): Language | null {
   const primary = lc.split('-')[0]
   const hit = LANGUAGES.find((l) => !l.code.startsWith('zh') && l.code === primary)
   return hit ? hit.code : null
+}
+
+// Mirror the active language into a cookie so the server can read it for SSR
+// translation / <html lang> / hreflang (a later phase). Purely additive today.
+function writeLangCookie(lang: Language) {
+  if (typeof document === 'undefined') return
+  document.cookie = `lang=${lang};path=/;max-age=31536000;samesite=lax`
 }
 
 // Pick the device language: walk the user's ordered preference list, first match
@@ -218,40 +226,60 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const stored = localStorage.getItem('lang') as Language
     if (stored && LANGUAGES.some((l) => l.code === stored)) {
       setLangState(stored)
+      writeLangCookie(stored)
       return
     }
     const detected = detectDeviceLanguage()
+    writeLangCookie(detected)
     if (detected !== 'en') setLangState(detected)
   }, [])
 
-  // Lazily machine-translate the UI dictionary for ko/ru/zh from English.
+  // Seed BOTH translation systems (t() dictionary + <Tr>/tr cache) from one map
+  // of {englishSource: translation}, then repaint consumers.
+  const seedFromMap = (target: Language, map: Record<string, string>) => {
+    for (const [en, val] of Object.entries(map)) trCache.set(`${target} ${en}`, val)
+    // vi has a hand-authored t() dictionary (STATIC.vi) — never overwrite it with
+    // machine translations; only its <Tr> cache (above) gets warmed.
+    if (target !== 'vi') {
+      const dict: Record<string, string> = {}
+      for (const k of Object.keys(EN)) dict[k] = map[EN[k]] ?? EN[k]
+      setDicts((d) => ({ ...d, [target]: dict }))
+    }
+    emitTrChange() // repaint <Tr>/tr consumers now that the cache is warm
+  }
+
+  // Warm EVERY static UI string for the active language in ONE batch (then cache
+  // to localStorage), so the in-language swap is instant — no per-string lazy
+  // /api/translate cascade. Repeat visits seed synchronously from localStorage.
   useEffect(() => {
-    if (dicts[lang]) return
-    const cacheKey = `ui-i18n:v2:${lang}`
+    if (lang === 'en') return // source language — nothing to translate
+    const cacheKey = `ui-dict:v3:${lang}`
     const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheKey) : null
     if (cached) {
-      try { setDicts((d) => ({ ...d, [lang]: JSON.parse(cached) })); return } catch { /* refetch */ }
+      try { seedFromMap(lang, JSON.parse(cached)); return } catch { /* refetch */ }
     }
-    const keys = Object.keys(EN)
+    let cancelled = false
     fetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texts: keys.map((k) => EN[k]), target: lang }),
+      body: JSON.stringify({ texts: UI_STRINGS, target: lang }),
     })
       .then((r) => r.json())
       .then(({ translations }) => {
-        if (!Array.isArray(translations)) return
-        const dict: Record<string, string> = {}
-        keys.forEach((k, i) => { dict[k] = translations[i] ?? EN[k] })
-        setDicts((d) => ({ ...d, [lang]: dict }))
-        // Persist only a real translation, never an English passthrough (which
-        // happens if the translation API is momentarily unconfigured).
-        if (keys.some((k) => dict[k] !== EN[k])) {
-          try { localStorage.setItem(cacheKey, JSON.stringify(dict)) } catch { /* ignore */ }
+        if (cancelled || !Array.isArray(translations)) return
+        const map: Record<string, string> = {}
+        UI_STRINGS.forEach((s, i) => { map[s] = translations[i] ?? s })
+        seedFromMap(lang, map)
+        // Persist only if something actually translated (avoid caching an
+        // English passthrough when the translation API is briefly unconfigured).
+        if (UI_STRINGS.some((s) => map[s] !== s)) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(map)) } catch { /* ignore */ }
         }
       })
       .catch(() => { /* keep English fallback */ })
-  }, [lang, dicts])
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang])
 
   // Keep <html lang> in sync so screen readers use the right voice (WCAG 3.1.1).
   useEffect(() => {
@@ -261,6 +289,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const setLang = (newLang: Language) => {
     setLangState(newLang)
     localStorage.setItem('lang', newLang)
+    writeLangCookie(newLang)
   }
 
   const t = (key: string): string => dicts[lang]?.[key] ?? EN[key] ?? key
