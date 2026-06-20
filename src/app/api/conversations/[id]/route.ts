@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     where: { id },
     select: {
       id: true, buyerProfileId: true, sellerProfileId: true, buyerUnread: true, sellerUnread: true,
-      listing: { select: { id: true, title: true, images: true } },
+      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true } },
       seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
       messages: { orderBy: { createdAt: 'asc' }, select: { id: true, senderProfileId: true, body: true, createdAt: true } },
@@ -42,7 +42,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   return NextResponse.json({
     id: convo.id,
     me: meId,
-    listing: { id: convo.listing.id, title: convo.listing.title, image: img },
+    listing: { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit },
     counterpart: iAmBuyer
       ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl }
       : { name: convo.buyer.displayName || convo.buyer.email || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl },

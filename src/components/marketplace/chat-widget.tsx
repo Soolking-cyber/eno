@@ -2,19 +2,21 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { MessageSquare, ChevronLeft, X, Send, Loader2 } from 'lucide-react'
+import { MessageSquare, ChevronLeft, ChevronRight, X, Send, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
+import { Price } from './price'
 
 type Convo = {
-  id: string; listingTitle: string; lastMessageAt: string; lastMessageText: string | null
+  id: string; listingTitle: string; listingImage: string | null; lastMessageAt: string; lastMessageText: string | null
   unread: number; counterpart: { name: string; avatarColor: string; avatarUrl: string | null }
 }
 type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean }
+type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string }
 type Thread = {
-  id: string; me: string; listing: { id: string; title: string; image: string | null }
+  id: string; me: string; listing: Listing
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null }; messages: Msg[]
 }
 
@@ -116,6 +118,10 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
                     <p className="truncate text-xs text-[#94a3b8]">{c.listingTitle}</p>
                     <p className={`truncate text-xs ${c.unread > 0 ? 'font-semibold text-[#1a202c]' : 'text-[#64748b]'}`}>{c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới')}</p>
                   </div>
+                  {c.listingImage && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.listingImage} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
+                  )}
                 </button>
               </li>
             ))}
@@ -165,15 +171,24 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     let channel: ReturnType<typeof supabase.channel> | null = null
     let retry: ReturnType<typeof setTimeout> | null = null
     let cancelled = false
+    let attempts = 0
 
-    // Join the PRIVATE channel. Arm realtime auth with the current token FIRST —
-    // a private join rejected for a missing token stays permanently dead (setAuth
-    // only re-arms already-joined channels). If a join still fails, retry; the
-    // 20s poll backstops delivery in the meantime so nothing is lost.
+    // Tear down a channel WITHOUT re-entrancy: null the ref first so the status
+    // callback (which fires 'CLOSED' on removal) can't call back into teardown.
+    const drop = () => { if (channel) { const c = channel; channel = null; supabase.removeChannel(c) } }
+
+    // Join the PRIVATE channel. AWAIT realtime auth with the current token FIRST —
+    // a private join rejected for a missing token stays dead, and an un-awaited
+    // setAuth can race the join into CHANNEL_ERROR. Retry only genuine failures
+    // (never 'CLOSED' — that's our own teardown and would recurse), capped; the
+    // 20s poll backstops delivery so nothing is lost meanwhile.
     const join = async () => {
-      const { data } = await supabase.auth.getSession()
       if (cancelled) return
-      if (data.session) supabase.realtime.setAuth(data.session.access_token)
+      drop()
+      const { data } = await supabase.auth.getSession()
+      if (cancelled || !data.session) return
+      await supabase.realtime.setAuth(data.session.access_token)
+      if (cancelled) return
       channel = supabase
         .channel(`convo:${id}`, { config: { private: true } })
         .on('broadcast', { event: 'new_message' }, ({ payload }) => {
@@ -194,8 +209,9 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           peerTypingTimer.current = setTimeout(() => setPeerTyping(false), 3500)
         })
         .subscribe((status) => {
-          if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') && !cancelled && !retry) {
-            if (channel) { supabase.removeChannel(channel); channel = null }
+          if (status === 'SUBSCRIBED') { attempts = 0; return }
+          if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !cancelled && !retry && attempts < 5) {
+            attempts++
             retry = setTimeout(() => { retry = null; join() }, 3000)
           }
         })
@@ -214,7 +230,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
       cancelled = true
       if (retry) clearTimeout(retry)
       if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current)
-      if (channel) supabase.removeChannel(channel)
+      drop()
       stop()
       document.removeEventListener('visibilitychange', onVis)
     }
@@ -266,10 +282,27 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         <Avatar name={thread?.counterpart.name || '?'} color={thread?.counterpart.avatarColor || '#0a66c2'} url={thread?.counterpart.avatarUrl ?? null} size={32} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-bold text-[#1a202c]">{thread?.counterpart.name || '…'}</div>
-          {thread && <Link href={`/listings/${thread.listing.id}`} className="truncate text-[11px] text-[#0a66c2] hover:underline">{thread.listing.title}</Link>}
+          {peerTyping && <div className="truncate text-[11px] font-medium text-[#0a66c2]">{tr('typing…', 'đang nhập…')}</div>}
         </div>
         <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-[#94a3b8] hover:text-[#1a202c]"><X className="h-5 w-5" /></button>
       </div>
+
+      {/* Pinned listing the conversation is about (Shopee-style product context). */}
+      {thread && (
+        <Link href={`/listings/${thread.listing.id}`} className="flex items-center gap-3 border-b border-slate-200 bg-white px-3 py-2 hover:bg-slate-50">
+          {thread.listing.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={thread.listing.image} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+          ) : (
+            <div className="h-10 w-10 shrink-0 rounded-lg bg-slate-100" />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold text-[#1a202c]">{thread.listing.title}</p>
+            <Price price={thread.listing.price} currency={thread.listing.currency} priceUnit={thread.listing.priceUnit} className="text-xs font-bold text-[#0a66c2]" />
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-[#cbd5e1]" />
+        </Link>
+      )}
 
       <div className="flex-1 space-y-2 overflow-y-auto bg-[#fafafa] px-3 py-3 scroll-thin">
         {!thread && (
