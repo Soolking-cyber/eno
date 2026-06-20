@@ -44,7 +44,7 @@ export function Footer() {
           <div className="col-span-2 md:col-span-1 space-y-3">
             <img src="/logo-mark.svg" alt="ENO" className="h-9 w-9" />
             <p className="max-w-[220px] text-xs leading-relaxed text-[#64748b]">
-              {tr('The verified marketplace for the community in Vietnam.', 'Chợ tin đăng được xác minh cho cộng đồng tại Việt Nam.')}
+              {tr("ENO — the verified marketplace for Vietnam's international community.", 'ENO — chợ tin đăng được xác minh cho cộng đồng quốc tế tại Việt Nam.')}
             </p>
             <div className="flex items-center gap-3 pt-1">
               <a href="#top" aria-label="Facebook" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Facebook className="h-5 w-5" /></a>
