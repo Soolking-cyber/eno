@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Heart } from 'lucide-react'
@@ -9,26 +8,14 @@ import { Footer } from '@/components/marketplace/footer'
 import { ListingCard } from '@/components/marketplace/listing-card'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
-import type { SerializedListing } from '@/lib/types'
 
 export default function SavedPage() {
-  const { ids, count } = useFavorites()
+  const { count, saved } = useFavorites()
   const { tr } = useLanguage()
   const router = useRouter()
-  const [saved, setSaved] = useState<SerializedListing[]>([])
-  const [loading, setLoading] = useState(true)
-
-  // Fetch exactly the saved listings by id (verified-only) — no over-fetch, no 100-item ceiling.
-  const idKey = [...ids].sort().join(',')
-  useEffect(() => {
-    if (!idKey) { setSaved([]); setLoading(false); return }
-    setLoading(true)
-    fetch(`/api/listings?ids=${encodeURIComponent(idKey)}`)
-      .then((r) => r.json())
-      .then((d) => setSaved(d.listings || []))
-      .catch(() => setSaved([]))
-      .finally(() => setLoading(false))
-  }, [idKey])
+  // Preloaded + cached in FavoritesContext — instant, no fetch-on-open.
+  const list = saved ?? []
+  const loading = saved === null
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
@@ -49,7 +36,7 @@ export default function SavedPage() {
               </div>
             ))}
           </div>
-        ) : saved.length === 0 ? (
+        ) : list.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
             <Heart className="h-12 w-12 text-slate-300" />
             <p className="text-base font-semibold text-[#1a202c]">
@@ -70,7 +57,7 @@ export default function SavedPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {saved.map((l, i) => (
+            {list.map((l, i) => (
               <ListingCard key={l.id} listing={l} onOpen={() => router.push(`/listings/${l.id}`)} priority={i < 4} />
             ))}
           </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from './auth-context'
 import { hasConsent } from '@/lib/consent'
 
@@ -22,6 +22,8 @@ type ChatCtx = {
   unread: number
   convos: InboxConvo[] | null
   refreshConvos: () => void
+  getCachedThread: (id: string) => unknown
+  cacheThread: (id: string, data: unknown) => void
   refreshUnread: () => void
   openInbox: () => void
   openThread: (id: string) => void
@@ -47,19 +49,31 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     fetch('/api/conversations/unread').then((r) => r.json()).then((d) => setUnread(d.unread ?? 0)).catch(() => {})
   }, [user])
 
+  // In-memory thread cache (NOT persisted — message content is sensitive). Lets
+  // the most-recent thread open instantly within a session.
+  const threadCache = useRef<Map<string, unknown>>(new Map())
+  const getCachedThread = useCallback((id: string) => threadCache.current.get(id) ?? null, [])
+  const cacheThread = useCallback((id: string, data: unknown) => { threadCache.current.set(id, data) }, [])
+  const prefetchThread = useCallback((id: string) => {
+    if (!id || threadCache.current.has(id)) return
+    fetch(`/api/conversations/${id}`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) threadCache.current.set(id, d) }).catch(() => {})
+  }, [])
+
   // Preload the inbox so opening Messages is instant. Persisted per-user to
-  // localStorage (only with consent) for instant paint on repeat visits.
+  // localStorage (only with consent) for instant paint on repeat visits. Also
+  // prefetches the most-recent thread so opening it is instant.
   const refreshConvos = useCallback(() => {
     if (!user) { setConvos(null); return }
     fetch('/api/conversations').then((r) => r.json()).then((d) => {
       const list: InboxConvo[] = d.conversations ?? []
       setConvos(list)
       if (hasConsent()) { try { localStorage.setItem(CONVOS_KEY, JSON.stringify({ userId: user.id, list })) } catch {} }
+      if (list[0]) prefetchThread(list[0].id)
     }).catch(() => {})
-  }, [user])
+  }, [user, prefetchThread])
 
   useEffect(() => {
-    if (!user) { setConvos(null); return }
+    if (!user) { setConvos(null); threadCache.current.clear(); return }
     // Instant paint from this user's cached inbox (consent-gated), then revalidate.
     if (hasConsent()) {
       try {
@@ -93,7 +107,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const close = useCallback(() => { setOpen(false); setStarting(false) }, [])
 
   return (
-    <ChatContext.Provider value={{ open, view, conversationId, starting, unread, convos, refreshConvos, refreshUnread, openInbox, openThread, openPendingThread, back, close }}>
+    <ChatContext.Provider value={{ open, view, conversationId, starting, unread, convos, refreshConvos, getCachedThread, cacheThread, refreshUnread, openInbox, openThread, openPendingThread, back, close }}>
       {children}
     </ChatContext.Provider>
   )

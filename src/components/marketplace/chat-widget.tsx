@@ -159,12 +159,16 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
 
 function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () => void; onClose: () => void; onSent: () => void }) {
   const { tr } = useLanguage()
-  const [thread, setThread] = useState<Thread | null>(null)
+  const { getCachedThread, cacheThread } = useChat()
+  // Hydrate instantly from the prefetched cache (e.g. the most-recent thread),
+  // then load() revalidates below.
+  const cached = getCachedThread(id) as Thread | null
+  const [thread, setThread] = useState<Thread | null>(cached)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [peerTyping, setPeerTyping] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const meRef = useRef('')                 // my profile id, for ignoring my own typing echo
+  const meRef = useRef(cached?.me ?? '')   // my profile id, for ignoring my own typing echo
   const lastTypingSent = useRef(0)         // throttle outgoing typing pings
   const peerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -174,7 +178,8 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     const data = (await res.json()) as Thread
     meRef.current = data.me
     setThread(data)
-  }, [id])
+    cacheThread(id, data) // keep the cache warm for the next open
+  }, [id, cacheThread])
 
   // Throttled "I'm typing" ping (server broadcasts it to the other participant).
   const sendTyping = () => {

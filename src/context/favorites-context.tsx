@@ -1,14 +1,18 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import type { SerializedListing } from '@/lib/types'
+import { hasConsent } from '@/lib/consent'
 
 const KEY = 'eno:favorites'
+const SAVED_KEY = 'eno-saved-cache' // { idKey, list } — consent-gated, device-local
 
 type FavoritesCtx = {
   ids: Set<string>
   isFavorite: (id: string) => boolean
   toggle: (id: string) => void
   count: number
+  saved: SerializedListing[] | null // preloaded hydrated saved listings (null = loading)
 }
 
 const FavoritesContext = createContext<FavoritesCtx | undefined>(undefined)
@@ -43,8 +47,38 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
 
   const isFavorite = useCallback((id: string) => ids.has(id), [ids])
 
+  // Preload the hydrated saved listings so opening /saved is instant. Cached to
+  // localStorage as { idKey, list } (consent-gated); favorites are device-local
+  // so no per-user scoping is needed.
+  const [saved, setSaved] = useState<SerializedListing[] | null>(null)
+  const idKey = [...ids].sort().join(',')
+  useEffect(() => {
+    if (!idKey) { setSaved([]); return }
+    if (hasConsent()) {
+      try {
+        const c = JSON.parse(localStorage.getItem(SAVED_KEY) || 'null')
+        if (c && c.idKey === idKey) setSaved(c.list)
+      } catch {}
+    }
+    // Debounce so rapid hearting while browsing coalesces into one request
+    // (the cache hydrate above is already instant).
+    let cancelled = false
+    const t = setTimeout(() => {
+      fetch(`/api/listings?ids=${encodeURIComponent(idKey)}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (cancelled) return
+          const list: SerializedListing[] = d.listings || []
+          setSaved(list)
+          if (hasConsent()) { try { localStorage.setItem(SAVED_KEY, JSON.stringify({ idKey, list })) } catch {} }
+        })
+        .catch(() => {})
+    }, 400)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [idKey])
+
   return (
-    <FavoritesContext.Provider value={{ ids, isFavorite, toggle, count: ids.size }}>
+    <FavoritesContext.Provider value={{ ids, isFavorite, toggle, count: ids.size, saved }}>
       {children}
     </FavoritesContext.Provider>
   )
