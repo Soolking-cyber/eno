@@ -24,6 +24,12 @@ type ChatCtx = {
   refreshConvos: () => void
   getCachedThread: (id: string) => unknown
   cacheThread: (id: string, data: unknown) => void
+  // Composer draft shared across the pending shell and the real thread, so the
+  // user can type the instant the panel opens and nothing is lost on the swap.
+  draft: string
+  setDraft: (s: string) => void
+  pendingSend: boolean
+  setPendingSend: (b: boolean) => void
   refreshUnread: () => void
   openInbox: () => void
   openThread: (id: string) => void
@@ -43,6 +49,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [starting, setStarting] = useState(false) // thread opened optimistically, conversation creating in the background
   const [unread, setUnread] = useState(0)
   const [convos, setConvos] = useState<InboxConvo[] | null>(null)
+  const [draft, setDraft] = useState('')          // composer text shared across pending → real thread
+  const [pendingSend, setPendingSend] = useState(false) // user hit send before the convo id was ready
 
   const refreshUnread = useCallback(() => {
     if (!user) { setUnread(0); return }
@@ -110,16 +118,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     return () => { stop(); document.removeEventListener('visibilitychange', onVis) }
   }, [user, refreshUnread])
 
-  const openInbox = useCallback(() => { setView('list'); setConversationId(null); setStarting(false); setOpen(true); refreshConvos() }, [refreshConvos])
+  const openInbox = useCallback(() => { setView('list'); setConversationId(null); setStarting(false); setDraft(''); setPendingSend(false); setOpen(true); refreshConvos() }, [refreshConvos])
+  // openThread does NOT reset the draft — the real thread inherits whatever was
+  // typed in the pending shell and consumes it.
   const openThread = useCallback((id: string) => { setConversationId(id); setStarting(false); setView('thread'); setOpen(true) }, [])
-  // Open the thread panel INSTANTLY (skeleton) while the conversation is created
-  // in the background; openThread(id) then swaps in the real thread.
-  const openPendingThread = useCallback(() => { setConversationId(null); setStarting(true); setView('thread'); setOpen(true) }, [])
-  const back = useCallback(() => { setView('list'); setConversationId(null); setStarting(false); refreshUnread(); refreshConvos() }, [refreshUnread, refreshConvos])
-  const close = useCallback(() => { setOpen(false); setStarting(false) }, [])
+  // Open the thread panel INSTANTLY as a usable empty chat (composer ready) while
+  // the conversation is created in the background; openThread(id) then swaps in
+  // the real thread, inheriting the draft.
+  const openPendingThread = useCallback(() => { setConversationId(null); setStarting(true); setView('thread'); setDraft(''); setPendingSend(false); setOpen(true) }, [])
+  const back = useCallback(() => { setView('list'); setConversationId(null); setStarting(false); setDraft(''); setPendingSend(false); refreshUnread(); refreshConvos() }, [refreshUnread, refreshConvos])
+  const close = useCallback(() => { setOpen(false); setStarting(false); setDraft(''); setPendingSend(false) }, [])
 
   return (
-    <ChatContext.Provider value={{ open, view, conversationId, starting, unread, convos, refreshConvos, getCachedThread, cacheThread, refreshUnread, openInbox, openThread, openPendingThread, back, close }}>
+    <ChatContext.Provider value={{ open, view, conversationId, starting, unread, convos, refreshConvos, getCachedThread, cacheThread, draft, setDraft, pendingSend, setPendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close }}>
       {children}
     </ChatContext.Provider>
   )

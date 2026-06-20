@@ -40,31 +40,38 @@ function TypingDots() {
   )
 }
 
-/** Instant skeleton shown the moment "Message" is tapped, while the conversation
- *  is created in the background — the panel opens with no wait. */
+/** Usable empty chat shown the instant "Message" is tapped — composer is ready
+ *  to type while the conversation is created in the background. Whatever is typed
+ *  (and a queued send) carries over to the real thread the moment it mounts. */
 function PendingThread({ onBack, onClose }: { onBack: () => void; onClose: () => void }) {
   const { tr } = useLanguage()
+  const { draft, setDraft, setPendingSend } = useChat()
+  const queue = () => { if (draft.trim()) setPendingSend(true) } // sent by the real thread the instant it mounts
   return (
     <>
       <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2.5">
         <button onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-[#64748b] hover:text-[#0a66c2]"><ChevronLeft className="h-5 w-5" /></button>
-        <span className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-slate-200" />
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="h-3 w-24 animate-pulse rounded bg-slate-200" />
-          <div className="h-2.5 w-16 animate-pulse rounded bg-slate-100" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-bold text-[#1a202c]">{tr('New message', 'Tin nhắn mới')}</div>
         </div>
         <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-[#94a3b8] hover:text-[#1a202c]"><X className="h-5 w-5" /></button>
       </div>
-      <div className="flex-1 space-y-2 overflow-y-auto bg-[#fafafa] px-3 py-3">
-        {[55, 40, 65].map((w, i) => (
-          <div key={i} className={`flex ${i % 2 ? 'justify-end' : 'justify-start'}`}>
-            <div className="h-9 animate-pulse rounded-2xl bg-slate-200" style={{ width: `${w}%` }} />
-          </div>
-        ))}
+      <div className="flex flex-1 items-center justify-center bg-[#fafafa] px-6">
+        <p className="text-center text-xs text-[#94a3b8]">{tr('Say hello — the seller is notified once you send.', 'Gửi lời chào — người bán sẽ được thông báo khi bạn gửi.')}</p>
       </div>
       <div className="flex items-end gap-2 border-t border-slate-200 px-3 py-2.5">
-        <div className="h-9 flex-1 animate-pulse rounded-2xl bg-slate-100" />
-        <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-slate-200" />
+        <textarea
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); queue() } }}
+          rows={1}
+          placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
+          className="max-h-24 flex-1 resize-none rounded-2xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+        />
+        <button onClick={queue} disabled={!draft.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white disabled:opacity-40">
+          <Send className="h-4 w-4" />
+        </button>
       </div>
     </>
   )
@@ -159,12 +166,13 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
 
 function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () => void; onClose: () => void; onSent: () => void }) {
   const { tr } = useLanguage()
-  const { getCachedThread, cacheThread } = useChat()
+  const { getCachedThread, cacheThread, draft, setDraft, pendingSend, setPendingSend } = useChat()
   // Hydrate instantly from the prefetched cache (e.g. the most-recent thread),
   // then load() revalidates below.
   const cached = getCachedThread(id) as Thread | null
   const [thread, setThread] = useState<Thread | null>(cached)
-  const [text, setText] = useState('')
+  // Inherit anything typed in the pending shell so the swap loses nothing.
+  const [text, setText] = useState(draft)
   const [sending, setSending] = useState(false)
   const [peerTyping, setPeerTyping] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -268,8 +276,8 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [thread?.messages.length, peerTyping])
 
-  const send = async () => {
-    const body = text.trim()
+  const send = async (override?: string) => {
+    const body = (override ?? text).trim()
     if (!body || sending) return
     // Optimistic: show the bubble the instant Enter is pressed. On the POST
     // response we drop the temp and add the real message — but only if the
@@ -304,6 +312,14 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
       setText(body)
     } finally { setSending(false) }
   }
+
+  // Took over from the pending shell: clear the shared draft (already inherited
+  // into local text) and auto-send if the user hit send before the convo existed.
+  useEffect(() => {
+    if (draft) setDraft('')
+    if (pendingSend) { setPendingSend(false); void send(draft) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <>
