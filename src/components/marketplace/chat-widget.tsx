@@ -14,7 +14,7 @@ type Convo = {
 }
 type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean }
 type Thread = {
-  id: string; listing: { id: string; title: string; image: string | null }
+  id: string; me: string; listing: { id: string; title: string; image: string | null }
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null }; messages: Msg[]
 }
 
@@ -26,6 +26,19 @@ function Avatar({ name, color, url, size = 36 }: { name: string; color: string; 
     <span style={{ width: size, height: size, backgroundColor: color }} className="flex shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
       {name.slice(0, 2).toUpperCase()}
     </span>
+  )
+}
+
+/** Animated "…" the counterpart is typing (three bouncing dots). */
+function TypingDots() {
+  return (
+    <div className="flex justify-start duration-200 animate-in fade-in slide-in-from-bottom-1">
+      <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-white px-3.5 py-3">
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
+      </div>
+    </div>
   )
 }
 
@@ -60,7 +73,7 @@ export function ChatWidget() {
       {open && (
         <div className="fixed inset-x-2 bottom-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-overlay sm:inset-x-auto sm:right-5 sm:left-auto sm:bottom-5 sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px]">
           {view === 'thread' && conversationId ? (
-            <ChatThread id={conversationId} onBack={back} onClose={close} onSent={refreshUnread} />
+            <ChatThread key={conversationId} id={conversationId} onBack={back} onClose={close} onSent={refreshUnread} />
           ) : (
             <ChatInbox onOpenThread={openThread} onClose={close} />
           )}
@@ -118,24 +131,76 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   const [thread, setThread] = useState<Thread | null>(null)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [peerTyping, setPeerTyping] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const meRef = useRef('')                 // my profile id, for ignoring my own typing echo
+  const lastTypingSent = useRef(0)         // throttle outgoing typing pings
+  const peerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/conversations/${id}`)
     if (!res.ok) return
-    setThread(await res.json())
+    const data = (await res.json()) as Thread
+    meRef.current = data.me
+    setThread(data)
   }, [id])
 
-  // Realtime: subscribe to this conversation's channel — the DB trigger pushes a
-  // content-free nudge on every new message, so we refetch instantly (sub-second).
-  // A slow 20s poll + focus/visibility catch-up self-heal any missed broadcast.
+  // Throttled "I'm typing" ping (server broadcasts it to the other participant).
+  const sendTyping = () => {
+    const now = Date.now()
+    if (now - lastTypingSent.current < 2500) return
+    lastTypingSent.current = now
+    fetch(`/api/conversations/${id}/typing`, { method: 'POST' }).catch(() => {})
+  }
+
+  // Realtime: subscribe to this conversation's PRIVATE channel (RLS-gated to the
+  // two participants). The DB trigger broadcasts the full message body, so we
+  // render straight from the socket payload — ZERO refetch round-trip. If a
+  // payload arrives without a body (e.g. an old content-free nudge) we fall back
+  // to load(). A 20s/visibility poll is a permanent backstop so a dropped or
+  // unauthorized socket (e.g. a missed token refresh) never loses a message.
   useEffect(() => {
     load()
     const supabase = createSupabaseBrowser()
-    const channel = supabase
-      .channel(`convo:${id}`)
-      .on('broadcast', { event: 'new_message' }, () => load())
-      .subscribe()
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let retry: ReturnType<typeof setTimeout> | null = null
+    let cancelled = false
+
+    // Join the PRIVATE channel. Arm realtime auth with the current token FIRST —
+    // a private join rejected for a missing token stays permanently dead (setAuth
+    // only re-arms already-joined channels). If a join still fails, retry; the
+    // 20s poll backstops delivery in the meantime so nothing is lost.
+    const join = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (cancelled) return
+      if (data.session) supabase.realtime.setAuth(data.session.access_token)
+      channel = supabase
+        .channel(`convo:${id}`, { config: { private: true } })
+        .on('broadcast', { event: 'new_message' }, ({ payload }) => {
+          setPeerTyping(false)
+          const p = (payload ?? {}) as { id?: string; body?: string; senderProfileId?: string; createdAt?: string }
+          if (!p.id || !p.body) { load(); return }
+          setThread((t) => {
+            if (!t || t.messages.some((x) => x.id === p.id)) return t // dedup by id
+            const msg: Msg = { id: p.id!, mine: p.senderProfileId === t.me, body: p.body!, createdAt: p.createdAt || new Date().toISOString() }
+            return { ...t, messages: [...t.messages, msg] }
+          })
+        })
+        .on('broadcast', { event: 'typing' }, ({ payload }) => {
+          const from = (payload as { from?: string } | null)?.from
+          if (!from || from === meRef.current) return // ignore my own echo
+          setPeerTyping(true)
+          if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current)
+          peerTypingTimer.current = setTimeout(() => setPeerTyping(false), 3500)
+        })
+        .subscribe((status) => {
+          if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') && !cancelled && !retry) {
+            if (channel) { supabase.removeChannel(channel); channel = null }
+            retry = setTimeout(() => { retry = null; join() }, 3000)
+          }
+        })
+    }
+    join()
 
     let iv: ReturnType<typeof setInterval> | null = null
     const stop = () => { if (iv) { clearInterval(iv); iv = null } }
@@ -146,20 +211,24 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     if (document.visibilityState === 'visible') start()
     document.addEventListener('visibilitychange', onVis)
     return () => {
-      supabase.removeChannel(channel)
+      cancelled = true
+      if (retry) clearTimeout(retry)
+      if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current)
+      if (channel) supabase.removeChannel(channel)
       stop()
       document.removeEventListener('visibilitychange', onVis)
     }
   }, [load, id])
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [thread?.messages.length])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [thread?.messages.length, peerTyping])
 
   const send = async () => {
     const body = text.trim()
     if (!body || sending) return
-    // Optimistic: show the bubble the instant Enter is pressed. The temp id is
-    // replaced by the server message on response; the broadcast-triggered full
-    // refetch (load) replaces the whole array, so any race self-heals — no dup.
+    // Optimistic: show the bubble the instant Enter is pressed. On the POST
+    // response we drop the temp and add the real message — but only if the
+    // realtime broadcast (the sender receives its own message too) hasn't
+    // already delivered it, so it's dup-proof in every interleaving.
     const tempId = `temp-${Date.now()}`
     const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true }
     setText(''); setSending(true)
@@ -172,14 +241,11 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         const m = (await res.json()) as Msg
         setThread((t) => {
           if (!t) return t
-          // Normal case: swap the temp bubble for the server message.
-          if (t.messages.some((x) => x.id === tempId)) {
-            return { ...t, messages: t.messages.map((x) => (x.id === tempId ? m : x)) }
-          }
-          // A refetch already replaced the array (cleared the temp). Re-add the
-          // real message only if it isn't already there — never duplicate.
-          if (t.messages.some((x) => x.id === m.id)) return t
-          return { ...t, messages: [...t.messages, m] }
+          // Drop the optimistic temp, then add the real message only if the
+          // realtime broadcast hasn't already delivered it (dedup by real id).
+          const without = t.messages.filter((x) => x.id !== tempId)
+          if (without.some((x) => x.id === m.id)) return { ...t, messages: without }
+          return { ...t, messages: [...without, m] }
         })
         onSent()
       } else {
@@ -206,21 +272,31 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
       </div>
 
       <div className="flex-1 space-y-2 overflow-y-auto bg-[#fafafa] px-3 py-3 scroll-thin">
+        {!thread && (
+          <div className="space-y-2">
+            {[60, 42, 70, 50].map((w, i) => (
+              <div key={i} className={`flex ${i % 2 ? 'justify-end' : 'justify-start'}`}>
+                <div className="h-9 animate-pulse rounded-2xl bg-slate-200" style={{ width: `${w}%` }} />
+              </div>
+            ))}
+          </div>
+        )}
         {thread?.messages.map((m) => (
-          <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
+          <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'} duration-200 animate-in fade-in slide-in-from-bottom-1`}>
             <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed transition-opacity ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'} ${m.pending ? 'opacity-60' : ''}`}>{m.body}</div>
           </div>
         ))}
-        {thread && thread.messages.length === 0 && (
+        {thread && thread.messages.length === 0 && !peerTyping && (
           <p className="py-10 text-center text-xs text-[#94a3b8]">{tr('Say hello — this seller will be notified.', 'Gửi lời chào — người bán sẽ được thông báo.')}</p>
         )}
+        {peerTyping && <TypingDots />}
         <div ref={bottomRef} />
       </div>
 
       <div className="flex items-end gap-2 border-t border-slate-200 px-3 py-2.5">
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { setText(e.target.value); sendTyping() }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
           rows={1}
           placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
