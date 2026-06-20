@@ -29,5 +29,21 @@ export async function ensureProfile(user: User) {
     update: { email, ...(verifiedPhone ? { phone: verifiedPhone } : {}) },
   })
 
+  // Auto-claim: if the user has a VERIFIED phone matching an UNOWNED guest Seller,
+  // stamp ownership — transferring the storefront + all its listings/reviews with
+  // a single-column update. Guarded by ownerId:null (claim-once). Verified phone
+  // only (never a self-typed number), normalized identically to the post wizard
+  // (same canonical +84… form Seller.phone is stored in).
+  if (verifiedPhone) {
+    try {
+      await db.seller.updateMany({
+        where: { phone: verifiedPhone, ownerId: null },
+        data: { ownerId: profile.id, claimedAt: new Date() },
+      })
+    } catch (e) {
+      console.error('[profile] auto-claim failed', e)
+    }
+  }
+
   return profile
 }

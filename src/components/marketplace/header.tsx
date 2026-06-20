@@ -11,7 +11,7 @@ import { useAuth } from '@/context/auth-context'
 export function Header() {
   const { lang, setLang, t, tr } = useLanguage()
   const { count } = useFavorites()
-  const { user, signOut, openSignIn } = useAuth()
+  const { user, openSignIn } = useAuth()
   const [langOpen, setLangOpen] = useState(false)
   const langRef = useRef<HTMLDivElement>(null)
   const current = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0]
@@ -85,16 +85,17 @@ export function Header() {
             )}
           </Link>
           {user ? (
-            <button
-              onClick={() => signOut()}
+            <Link
+              href="/account"
               className="hidden sm:flex items-center gap-1.5 rounded-full px-2.5 h-9 text-sm font-semibold text-[#1a202c] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
               title={user.email || user.phone || ''}
+              aria-label={tr('My account', 'Tài khoản của tôi')}
             >
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0a66c2] text-[11px] font-bold text-white">
                 {(user.email || user.phone || '?').charAt(0).toUpperCase()}
               </span>
-              <span className="hidden lg:inline">{tr('Sign out', 'Đăng xuất')}</span>
-            </button>
+              <span className="hidden lg:inline">{tr('Account', 'Tài khoản')}</span>
+            </Link>
           ) : (
             <button
               onClick={openSignIn}

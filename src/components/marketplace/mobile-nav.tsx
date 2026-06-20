@@ -14,7 +14,7 @@ export function MobileNav() {
   const pathname = usePathname()
   const { count } = useFavorites()
   const { tr } = useLanguage()
-  const { user, signOut, openSignIn } = useAuth()
+  const { user, openSignIn } = useAuth()
 
   if (pathname?.startsWith('/listings/')) return null
 
@@ -47,10 +47,17 @@ export function MobileNav() {
         </span>
         <span>{tr('Post', 'Đăng tin')}</span>
       </Link>
-      <button onClick={() => (user ? signOut() : openSignIn())} className={itemCls(false)}>
-        <User className="h-5 w-5" />
-        <span>{user ? tr('Sign out', 'Đăng xuất') : tr('Account', 'Tài khoản')}</span>
-      </button>
+      {user ? (
+        <Link href="/account" className={itemCls(pathname === '/account')}>
+          <User className="h-5 w-5" />
+          <span>{tr('Account', 'Tài khoản')}</span>
+        </Link>
+      ) : (
+        <button onClick={() => openSignIn()} className={itemCls(false)}>
+          <User className="h-5 w-5" />
+          <span>{tr('Account', 'Tài khoản')}</span>
+        </button>
+      )}
     </nav>
   )
 }

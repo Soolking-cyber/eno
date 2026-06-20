@@ -57,15 +57,25 @@ export default async function SellerPage({ params }: Props) {
 
         {/* Seller header */}
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#e8f1fb] text-2xl font-bold text-[#0a66c2]">
-            {initials}
-          </span>
+          {seller.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={seller.avatarUrl} alt="" className="h-20 w-20 shrink-0 rounded-full object-cover" />
+          ) : (
+            <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#e8f1fb] text-2xl font-bold text-[#0a66c2]">
+              {initials}
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="h-title text-[#1a202c]">{seller.name}</h1>
               {seller.verifiedSeller && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f1fb] px-2.5 py-1 text-xs font-semibold text-[#0a66c2]">
                   <BadgeCheck className="h-4 w-4" /> <Tr text="Verified seller" />
+                </span>
+              )}
+              {seller.ownerId && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                  <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
                 </span>
               )}
             </div>
