@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { fold, buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
-import { normalizePhone } from '@/lib/phone'
+import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 
 export const dynamic = 'force-dynamic'
 
@@ -526,6 +526,14 @@ export async function POST(req: NextRequest) {
 
     if (!categorySlug || title.length < 3 || contactPhone.replace(/\D/g, '').length < 9 || !Number.isFinite(price) || price < 0 || price > 1e12) {
       return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+    }
+
+    // Keep contact info OFF the public listing — buyers reach sellers in-app, so
+    // sellers must log in to reply (and refresh availability). Reject any phone
+    // number embedded in the public text fields (the seller's real number lives
+    // in contactPhone, revealed only in-chat after they reply).
+    if (containsPhoneNumber(title) || containsPhoneNumber(String(body.description || '')) || containsPhoneNumber(contactName)) {
+      return NextResponse.json({ error: 'no_phone_in_listing' }, { status: 400 })
     }
 
     const category = await db.category.findUnique({ where: { slug: categorySlug } })

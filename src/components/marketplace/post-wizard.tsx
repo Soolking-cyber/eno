@@ -6,6 +6,7 @@ import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
+import { containsPhoneNumber } from '@/lib/phone'
 
 const DISTRICTS = ['District 1', 'District 3', 'District 4', 'District 7 (Phu My Hung)', 'Binh Thanh', 'Thu Duc (Thao Dien)', 'Phu Nhuan', 'Tan Binh']
 const STEPS = 4
@@ -47,6 +48,12 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
   const submit = async () => {
     if (!canSubmit) return
+    // Block contact info in the public fields BEFORE uploading — buyers reach you
+    // in-app (which keeps you coming back to reply + update availability).
+    if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsPhoneNumber(contactName)) {
+      setError(t('Không được ghi số điện thoại trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng.', "Phone numbers aren't allowed in a listing — buyers message you in the app. Remove it to post."))
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
@@ -80,10 +87,14 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
       if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Failed')
       setSubmitted(true)
     } catch (e) {
-      const isUpload = e instanceof Error && e.message === 'upload'
-      setError(isUpload
-        ? t('Không tải được ảnh, vui lòng thử lại.', 'Could not upload your photos — please try again.')
-        : t('Không gửi được, vui lòng thử lại.', 'Could not submit — please try again.'))
+      const msg = e instanceof Error ? e.message : ''
+      setError(
+        msg === 'upload'
+          ? t('Không tải được ảnh, vui lòng thử lại.', 'Could not upload your photos — please try again.')
+          : msg === 'no_phone_in_listing'
+          ? t('Không được ghi số điện thoại trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng.', "Phone numbers aren't allowed in a listing — buyers message you in the app. Remove it to post.")
+          : t('Không gửi được, vui lòng thử lại.', 'Could not submit — please try again.'),
+      )
       console.error(e)
     } finally {
       setSubmitting(false)

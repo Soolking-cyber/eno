@@ -21,3 +21,17 @@ export function normalizePhone(raw: string): string {
 export function normalizePhoneNoPlus(raw: string): string {
   return normalizePhone(raw).replace(/^\+/, '')
 }
+
+/**
+ * Detects a phone number embedded in free text, so contact info stays OFF public
+ * listings — buyers reach sellers in-app, which is what brings sellers back daily
+ * to reply + refresh availability. Tuned for VN mobile/landline (0/+84 then a
+ * 2–9 leading digit) plus a generic international +<digits>; VND prices don't
+ * match (they have no 0/+84 followed by a 2–9 digit run). Shared client + server.
+ */
+// Separators allow spaces/dashes but NOT dots — VN prices use dot thousand-
+// separators (1.080.000.000), which must not be mistaken for a phone number.
+const EMBEDDED_PHONE_RE = /(?:\+?84|0)[\s-]?[2-9](?:[\s-]?\d){7,9}|\+\d(?:[\s-]?\d){7,}/
+export function containsPhoneNumber(text: string | null | undefined): boolean {
+  return !!text && EMBEDDED_PHONE_RE.test(text)
+}
