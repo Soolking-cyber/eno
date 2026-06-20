@@ -88,11 +88,11 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp 
       >
         {listings.map((l, i) => (
           <div key={l.id} className="w-[180px] sm:w-[220px] shrink-0 snap-start">
-            {/* In the LCP (first) row, eager + preload the first 4 cards: on mobile
-                the LCP element is non-deterministic (logo vs. whichever visible card
-                Lighthouse picks), so every above-the-fold candidate must be fetched
-                eagerly + discoverable, never lazy. The rest of the row lazy-loads. */}
-            <ListingCard listing={l} onOpen={onOpen} priority={lcp && i < 4} lcp={lcp && i < 4} sizes="(max-width: 640px) 180px, 220px" />
+            {/* In the LCP (first) row, eager + preload only the 2 cards that are
+                actually visible on mobile (card 0 full, card 1 half) — these plus the
+                logo are the only real LCP candidates, so all are fast & discoverable
+                without over-preloading. Card 2+ is off-screen (horizontal scroll) → lazy. */}
+            <ListingCard listing={l} onOpen={onOpen} priority={lcp && i < 2} lcp={lcp && i < 2} sizes="(max-width: 640px) 180px, 220px" />
           </div>
         ))}
       </div>
