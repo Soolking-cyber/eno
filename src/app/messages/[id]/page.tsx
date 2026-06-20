@@ -7,7 +7,7 @@ import { Header } from '@/components/marketplace/header'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
-import { ChevronLeft, Send, Loader2 } from 'lucide-react'
+import { ChevronLeft, Send, Loader2, Trash2 } from 'lucide-react'
 
 type Msg = { id: string; mine: boolean; body: string; createdAt: string }
 type Thread = {
@@ -25,6 +25,7 @@ export default function ThreadPage() {
   const [notFound, setNotFound] = useState(false)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [menuFor, setMenuFor] = useState<string | null>(null) // message id whose Delete is revealed
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
@@ -66,6 +67,15 @@ export default function ThreadPage() {
     }
   }
 
+  // Delete your own message (optimistic; the API recomputes the thread preview).
+  const deleteMessage = async (mid: string) => {
+    setMenuFor(null)
+    setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== mid) } : t))
+    try {
+      await fetch(`/api/conversations/${id}/messages/${mid}`, { method: 'DELETE' })
+    } catch { /* the 4s poll self-heals if the request failed */ }
+  }
+
   return (
     <div className="flex h-[100dvh] flex-col bg-[#fafafa]">
       <Header />
@@ -97,10 +107,34 @@ export default function ThreadPage() {
           {/* Messages */}
           <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4 scroll-thin">
             {thread?.messages.map((m) => (
-              <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'bg-white text-[#1a202c] border border-slate-200'}`}>
-                  {m.body}
+              <div key={m.id} className={`group flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
+                <div className="flex items-end gap-1">
+                  {/* Desktop convenience: trash on hover over your own message. */}
+                  {m.mine && (
+                    <button
+                      onClick={() => deleteMessage(m.id)}
+                      aria-label={tr('Delete message', 'Xóa tin nhắn')}
+                      className="hidden shrink-0 p-1 text-slate-400 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100 sm:block"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  <div
+                    onClick={() => { if (m.mine) setMenuFor(menuFor === m.id ? null : m.id) }}
+                    className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.mine ? 'cursor-pointer bg-[#0a66c2] text-white' : 'bg-white text-[#1a202c] border border-slate-200'}`}
+                  >
+                    {m.body}
+                  </div>
                 </div>
+                {/* Tap your own message → explicit Delete button (works on mobile too). */}
+                {m.mine && menuFor === m.id && (
+                  <button
+                    onClick={() => deleteMessage(m.id)}
+                    className="mt-1 flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-transform active:scale-95"
+                  >
+                    <Trash2 className="h-3 w-3" /> {tr('Delete', 'Xóa')}
+                  </button>
+                )}
               </div>
             ))}
             {thread && thread.messages.length === 0 && (

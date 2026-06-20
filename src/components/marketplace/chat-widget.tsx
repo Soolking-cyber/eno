@@ -422,23 +422,35 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           </div>
         )}
         {thread?.messages.map((m) => (
-          <div key={m.id} className={`group flex items-end gap-1 ${m.mine ? 'justify-end' : 'justify-start'} duration-200 animate-in fade-in slide-in-from-bottom-1`}>
-            {/* Delete (own, sent messages only): hover on desktop, tap bubble on mobile. */}
-            {m.mine && !m.pending && (
+          <div key={m.id} className={`group flex flex-col ${m.mine ? 'items-end' : 'items-start'} duration-200 animate-in fade-in slide-in-from-bottom-1`}>
+            <div className="flex items-end gap-1">
+              {/* Desktop convenience: trash fades in on hover over your own message. */}
+              {m.mine && !m.pending && (
+                <button
+                  onClick={() => deleteMessage(m.id)}
+                  aria-label={tr('Delete message', 'Xóa tin nhắn')}
+                  className="hidden shrink-0 p-1 text-slate-400 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100 sm:block"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <div
+                onClick={() => { if (m.mine && !m.pending) setMenuFor(menuFor === m.id ? null : m.id) }}
+                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed transition-opacity ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'} ${m.pending ? 'opacity-60' : ''} ${m.mine && !m.pending ? 'cursor-pointer' : ''}`}
+              >
+                {m.body}
+              </div>
+            </div>
+            {/* Tap your own message → an explicit Delete button. Discoverable on every
+                device (mobile has no hover), so deletion isn't hidden behind a tiny icon. */}
+            {m.mine && !m.pending && menuFor === m.id && (
               <button
                 onClick={() => deleteMessage(m.id)}
-                aria-label={tr('Delete message', 'Xóa tin nhắn')}
-                className={`order-first shrink-0 p-1 text-slate-400 transition-opacity hover:text-red-500 ${menuFor === m.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                className="mt-1 flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-transform active:scale-95 animate-in fade-in"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-3 w-3" /> {tr('Delete', 'Xóa')}
               </button>
             )}
-            <div
-              onClick={() => { if (m.mine && !m.pending) setMenuFor(menuFor === m.id ? null : m.id) }}
-              className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed transition-opacity ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'} ${m.pending ? 'opacity-60' : ''} ${m.mine && !m.pending ? 'cursor-pointer' : ''}`}
-            >
-              {m.body}
-            </div>
           </div>
         ))}
         {thread && thread.messages.length === 0 && !peerTyping && (
