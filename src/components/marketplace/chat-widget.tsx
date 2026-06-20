@@ -9,10 +9,6 @@ import { useChat } from '@/context/chat-context'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { Price } from './price'
 
-type Convo = {
-  id: string; listingTitle: string; listingImage: string | null; lastMessageAt: string; lastMessageText: string | null
-  unread: number; counterpart: { name: string; avatarColor: string; avatarUrl: string | null }
-}
 type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean }
 type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string }
 type Thread = {
@@ -79,7 +75,7 @@ function PendingThread({ onBack, onClose }: { onBack: () => void; onClose: () =>
 export function ChatWidget() {
   const { user } = useAuth()
   const { tr } = useLanguage()
-  const { open, view, conversationId, starting, unread, refreshUnread, openInbox, openThread, back, close } = useChat()
+  const { open, view, conversationId, starting, unread, refreshUnread, refreshConvos, openInbox, openThread, back, close } = useChat()
 
   if (!user) return null // anon users contact via the listing's gated Message button
 
@@ -105,7 +101,7 @@ export function ChatWidget() {
       {open && (
         <div className="fixed inset-x-2 bottom-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-overlay sm:inset-x-auto sm:right-5 sm:left-auto sm:bottom-5 sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px]">
           {view === 'thread' && conversationId ? (
-            <ChatThread key={conversationId} id={conversationId} onBack={back} onClose={close} onSent={refreshUnread} />
+            <ChatThread key={conversationId} id={conversationId} onBack={back} onClose={close} onSent={() => { refreshUnread(); refreshConvos() }} />
           ) : view === 'thread' && starting ? (
             <PendingThread onBack={back} onClose={close} />
           ) : (
@@ -119,11 +115,8 @@ export function ChatWidget() {
 
 function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => void; onClose: () => void }) {
   const { tr } = useLanguage()
-  const [convos, setConvos] = useState<Convo[] | null>(null)
-
-  useEffect(() => {
-    fetch('/api/conversations').then((r) => r.json()).then((d) => setConvos(d.conversations ?? [])).catch(() => setConvos([]))
-  }, [])
+  // Preloaded + cached in ChatContext (prefetched on login) so this is instant.
+  const { convos } = useChat()
 
   return (
     <>

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { SlidersHorizontal, Plus, Heart, User, Globe, ChevronDown } from 'lucide-react'
+import { Plus, Heart, User, Globe, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLanguage, LANGUAGES } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
@@ -104,15 +104,6 @@ export function Header() {
           >
             <Plus className="h-4 w-4" /> {t('header.postBtn')}
           </Link>
-          <button
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent('open-mobile-filters'))
-            }}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#e2e8f0] bg-white/80 text-[#475569] md:hidden cursor-pointer"
-            aria-label={tr('Filter')}
-          >
-            <SlidersHorizontal className="h-5 w-5" />
-          </button>
         </div>
       </div>
     </header>
