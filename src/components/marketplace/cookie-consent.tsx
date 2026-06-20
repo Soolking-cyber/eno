@@ -34,7 +34,7 @@ export function CookieConsent() {
             'Chúng tôi dùng cookie để giữ bạn đăng nhập và tải sẵn tin nhắn, tin đã lưu để ứng dụng mở nhanh hơn.',
           )}{' '}
           <Link href="/privacy" className="font-semibold text-[#0a66c2] underline underline-offset-2">
-            {tr('Learn more', 'Tìm hiểu thêm')}
+            {tr('Read our privacy policy', 'Xem chính sách quyền riêng tư')}
           </Link>
         </p>
         <button

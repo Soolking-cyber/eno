@@ -23,9 +23,15 @@ const OG_IMAGE = { url: "/listings/hero-market.png", width: 1344, height: 768, a
 
 // Light-first design: tell browsers not to auto-dark the UI (avoids Chrome
 // mobile "Auto Dark Theme" producing a low-contrast rendering).
+// theme-color matches the white header/nav (not the #fafafa canvas) so the iOS
+// status-bar / toolbar area is seamless with the chrome, no two-tone seam.
+// viewportFit:"cover" is the keystone for iOS: without it env(safe-area-inset-*)
+// resolves to 0, so the safe-area padding the header/nav/body already declare is
+// dead. With it, those insets activate (notch + home-indicator handled cleanly).
 export const viewport: Viewport = {
   colorScheme: "light",
-  themeColor: "#fafafa",
+  themeColor: "#ffffff",
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {

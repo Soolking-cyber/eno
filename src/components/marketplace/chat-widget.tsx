@@ -457,7 +457,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
           className="max-h-24 flex-1 resize-none rounded-2xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
         />
-        <button onClick={send} disabled={!text.trim() || sending} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white disabled:opacity-40">
+        <button onClick={() => send()} disabled={!text.trim() || sending} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white disabled:opacity-40">
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </button>
       </div>

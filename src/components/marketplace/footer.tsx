@@ -68,7 +68,7 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-slate-200/60 pt-5 text-xs text-[#94a3b8] sm:flex-row">
+        <div className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-slate-200/60 pt-5 text-xs text-[#475569] sm:flex-row">
           <p className="flex items-center gap-1.5">
             <span>© {new Date().getFullYear()} eno.vn — {tr('All rights reserved.', 'Mọi quyền được bảo lưu.')}</span>
             <span aria-hidden="true">·</span>

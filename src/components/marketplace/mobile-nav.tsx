@@ -44,7 +44,7 @@ export function MobileNav() {
   if (pathname?.startsWith('/listings/') || pathname?.startsWith('/messages/') || pathname?.startsWith('/signin')) return null
 
   return (
-    <nav className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-slate-200 bg-white/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
+    <nav className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
       <Link href="/" className={TAB}>
         <TabBody active={pathname === '/'} icon={<Compass className="h-5 w-5" />} label={tr('Explore', 'Khám phá')} />
       </Link>

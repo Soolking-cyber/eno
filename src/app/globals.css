@@ -149,6 +149,15 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* The iOS rubber-band overscroll exposes the <html> canvas at the top & bottom
+     edges. Paint it WHITE (the header & bottom-nav colour) — not the #fafafa page
+     canvas — so a swipe past either edge stays seamless with the chrome instead of
+     flashing a grey band. overscroll-behavior-y also kills the bounce/pull-to-
+     refresh on Android for an app-like feel. */
+  html {
+    background-color: var(--card);
+    overscroll-behavior-y: none;
+  }
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv11", "ss01";
