@@ -1094,7 +1094,7 @@ export function ListingsExplorer({
             <div className="flex flex-col items-center justify-center mb-6">
               <img src="/logo.svg" alt="ENO Logo" className="h-20 w-auto object-contain mb-4 select-none" />
               <p className="eyebrow text-slate-400 dark:text-slate-500">
-                {tr('YOUR TRUSTED VIETNAM NETWORK', 'MẠNG LƯỚI KẾT NỐI TIN CẬY TẠI VIỆT NAM')}
+                {tr("If it's listed, it exists.", 'Đã đăng là có thật.')}
               </p>
             </div>
 

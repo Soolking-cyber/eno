@@ -44,7 +44,7 @@ export function ChatWidget() {
         <button
           onClick={openInbox}
           aria-label={tr('Messages', 'Tin nhắn')}
-          className="fixed bottom-20 left-4 z-[100] flex h-14 w-14 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-overlay transition-transform hover:scale-105 active:scale-95 lg:bottom-5 lg:left-5"
+          className="fixed bottom-20 right-4 z-[100] flex h-14 w-14 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-overlay transition-transform hover:scale-105 active:scale-95 lg:bottom-5 lg:right-5"
         >
           <MessageSquare className="h-6 w-6" />
           {unread > 0 && (
@@ -57,7 +57,7 @@ export function ChatWidget() {
 
       {/* Docked panel */}
       {open && (
-        <div className="fixed inset-x-2 bottom-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-overlay sm:inset-x-auto sm:left-5 sm:right-auto sm:bottom-5 sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px]">
+        <div className="fixed inset-x-2 bottom-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-overlay sm:inset-x-auto sm:right-5 sm:left-auto sm:bottom-5 sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px]">
           {view === 'thread' && conversationId ? (
             <ChatThread id={conversationId} onBack={back} onClose={close} onSent={refreshUnread} />
           ) : (
