@@ -184,7 +184,7 @@ export default async function ListingPage({ params }: Props) {
         <ListingGallery images={listing.images} title={displayTitle} showAllLabel="View all photos" />
 
         {/* Content + sticky contact */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
           {/* LEFT: details */}
           <div className="lg:col-span-7 flex flex-col gap-8">
             <div className="space-y-2">
@@ -219,9 +219,10 @@ export default async function ListingPage({ params }: Props) {
             </p>
           </div>
 
-          {/* RIGHT: sticky contact card */}
+          {/* RIGHT: flat sticky contact column — no floating card, cohesive with
+              the single-canvas page; a subtle left rule separates it on desktop. */}
           <div className="lg:col-span-5">
-            <div className="lg:sticky lg:top-24 rounded-2xl border border-slate-200 bg-white shadow-pop p-5 space-y-4">
+            <div className="lg:sticky lg:top-24 space-y-5 lg:border-l lg:border-slate-200/70 lg:pl-10">
               <div className="flex items-baseline gap-2">
                 <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-[#1a202c] tracking-tight" />
                 {listing.negotiable && <span className="text-sm text-[#64748b]">· <Tr text="Negotiable" /></span>}

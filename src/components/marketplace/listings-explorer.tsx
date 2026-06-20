@@ -32,6 +32,7 @@ import { SUBCATEGORIES } from '@/lib/subcategories'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 
 const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.ListingsMap), {
   ssr: false,
@@ -43,10 +44,6 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
       </span>
     </div>
   )
-})
-
-const ListingDetailDialog = dynamic(() => import('./listing-detail-dialog').then((m) => m.ListingDetailDialog), {
-  ssr: false
 })
 
 type SortKey = 'newest' | 'price-low' | 'price-high' | 'popular' | 'verified-first'
@@ -83,8 +80,7 @@ export function ListingsExplorer({
   const [viewMode, setViewMode] = useState<ViewMode>('compact')
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
-  const [selected, setSelected] = useState<SerializedListing | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const router = useRouter()
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
   const [showExplorer, setShowExplorer] = useState(false)
 
@@ -499,10 +495,9 @@ export function ListingsExplorer({
     queryClient,
   ])
 
-  const handleOpen = (l: SerializedListing) => {
-    setSelected(l)
-    setDialogOpen(true)
-  }
+  // One detail view everywhere: any card/pin click navigates to the full listing
+  // page (no modal).
+  const handleOpen = (l: SerializedListing) => { router.push(`/listings/${l.id}`) }
 
   const renderCompactRow = useCallback((l: SerializedListing, index: number) => {
     const cover = l.images[0]
@@ -1197,14 +1192,6 @@ export function ListingsExplorer({
           )}
 
         </div>
-        {/* Same shared dialog as the explorer return (landing/explorer are
-            mutually-exclusive returns, so only one mounts) — identical props. */}
-        <ListingDetailDialog
-          listing={selected}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          onLocate={(l) => { setDialogOpen(false); setShowExplorer(true); setViewMode('map'); setFocusId(l.id) }}
-        />
       </section>
     )
   }
@@ -1808,15 +1795,6 @@ export function ListingsExplorer({
         </div>
       )}
 
-      {/* Single shared detail dialog for ALL view modes (grid/compact/map) and
-          page states, so every card opens the identical detail with a clickable
-          "view on map" address. */}
-      <ListingDetailDialog
-        listing={selected}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onLocate={(l) => { setDialogOpen(false); setShowExplorer(true); setViewMode('map'); setFocusId(l.id) }}
-      />
     </section>
   )
 }
