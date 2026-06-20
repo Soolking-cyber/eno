@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category } = await params
   const cat = await db.category.findUnique({ where: { slug: category } })
   if (!cat) return {}
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
   return {
     title: `${cat.name} in Vietnam — Verified listings | ENO`,
     description: `Browse verified ${cat.name.toLowerCase()} for expats in Vietnam. Every listing checked by an ENO agent — no fakes, no bait prices, no wasted trips.`,
@@ -44,7 +44,7 @@ export default async function CategoryPage({ params }: Props) {
   const listings = raw.map(serializeListing)
   const districts = [...new Set(raw.map((r) => r.district).filter((d): d is string => !!d))]
   const otherCats = await db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } })
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
 
   const jsonLd = {
     '@context': 'https://schema.org',

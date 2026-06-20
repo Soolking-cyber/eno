@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category, district } = await params
   const data = await load(category, district)
   if (!data) return {}
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
   return {
     title: `${data.cat.name} in ${data.districtName} — Verified | ENO`,
     description: `Verified ${data.cat.name.toLowerCase()} in ${data.districtName}. Every listing checked by an ENO agent — no fakes, no bait prices.`,
@@ -53,7 +53,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
   if (!data) notFound()
   const { cat, matched, districtName } = data
   const listings = matched.map(serializeListing)
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
 
   const jsonLd = {
     '@context': 'https://schema.org',

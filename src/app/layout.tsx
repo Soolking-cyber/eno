@@ -35,7 +35,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://www.eno.forum"),
   title: "ENO — Your Trusted Vietnam Network.",
   description:
     "The verified classifieds marketplace for Vietnamese expats. Moving sales, motorbike & house rentals, jobs and more — every listing is checked before it goes live. No fakes, no bait prices, no wasted trips.",

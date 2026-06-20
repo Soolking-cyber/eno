@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const displayTitle = listing.titleVi || listing.title
   const desc = listing.description.slice(0, 160)
   const images = JSON.parse(listing.images || '[]')
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
 
   return {
     title: `${displayTitle} | ENO`,
@@ -93,7 +93,7 @@ export default async function ListingPage({ params }: Props) {
     .toUpperCase()
 
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
   const canonicalUrl = `${hostUrl}/listings/${listing.id}`
 
   // Server-resolve the listing CONTENT into the visitor's language (from the warm

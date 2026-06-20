@@ -20,7 +20,7 @@ export async function GET() {
       orderBy: { postedAt: 'desc' },
     })
 
-    const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+    const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
 
     let xml = `<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
