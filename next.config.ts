@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Inline CSS into the HTML <head> instead of a render-blocking <link>. On
+  // Slow-4G mobile the stylesheet round-trip was the #1 render blocker (~570ms
+  // in PSI); inlining removes that request so first paint isn't gated on it.
+  experimental: {
+    inlineCss: true,
+  },
   // Pin the workspace root so Turbopack doesn't pick up a stray lockfile higher
   // up the tree (e.g. ~/package-lock.json) as the project root.
   turbopack: {

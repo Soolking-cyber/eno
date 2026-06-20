@@ -40,7 +40,7 @@ export function Header() {
             <button
               onClick={() => setLangOpen((v) => !v)}
               className="flex items-center gap-1.5 rounded-full border border-[#e2e8f0] bg-white/80 px-2.5 h-9 text-xs font-bold text-[#1a202c] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
-              aria-label={tr('Language')}
+              aria-label={`${tr('Language', 'Ngôn ngữ')} ${current.label}`}
               aria-haspopup="listbox"
               aria-expanded={langOpen}
             >
