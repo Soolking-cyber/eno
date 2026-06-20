@@ -69,7 +69,11 @@ export function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-slate-200/60 pt-5 text-xs text-[#94a3b8] dark:border-slate-800/40 sm:flex-row">
-          <p>© {new Date().getFullYear()} ENO.vn — {tr('All rights reserved.', 'Mọi quyền được bảo lưu.')}</p>
+          <p className="flex items-center gap-1.5">
+            <span>© {new Date().getFullYear()} eno.vn — {tr('All rights reserved.', 'Mọi quyền được bảo lưu.')}</span>
+            <span aria-hidden="true">·</span>
+            <span>{tr('Made in Saigon', 'Làm tại Sài Gòn')} <span aria-hidden="true">❤️</span></span>
+          </p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
             <a href="/terms" className="transition-colors hover:text-[#0a66c2]">{tr('Terms', 'Điều khoản')}</a>
             <a href="/privacy" className="transition-colors hover:text-[#0a66c2]">{tr('Privacy', 'Quyền riêng tư')}</a>

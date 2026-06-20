@@ -142,6 +142,7 @@ export const UI_STRINGS: string[] = [
   "Loading map…",
   "Location",
   "Log in",
+  "Made in Saigon",
   "Manual",
   "Manual / Semi-Auto",
   "Map",
