@@ -96,6 +96,10 @@ export function ListingsExplorer({
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const [landingQuery, setLandingQuery] = useState('')
+  // Below-the-fold curated rows render only AFTER first paint, so the landing
+  // hydrates ~12 cards instead of ~84 — the ~70 extra cards were saturating the
+  // mobile main thread and delaying the LCP image paint (3.1s render delay).
+  const [deferredRows, setDeferredRows] = useState(false)
 
   const isLandingMode = useMemo(() => {
     return (
@@ -139,6 +143,21 @@ export function ListingsExplorer({
         setRecentSearches(JSON.parse(history))
       } catch (_) {}
     }
+  }, [])
+
+  // Reveal the below-the-fold curated rows after first paint (idle) so the initial
+  // hydration stays light and the LCP image paints without main-thread contention.
+  useEffect(() => {
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number
+      cancelIdleCallback?: (id: number) => void
+    }
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(() => setDeferredRows(true), { timeout: 1500 })
+      return () => w.cancelIdleCallback?.(id)
+    }
+    const id = setTimeout(() => setDeferredRows(true), 200)
+    return () => clearTimeout(id)
   }, [])
 
   // Listen to open-mobile-filters event from Header
@@ -1176,7 +1195,7 @@ export function ListingsExplorer({
                 viewAllLabel={tr('View all', 'Xem tất cả')}
                 lcp
               />
-              {categories.map((cat) => {
+              {deferredRows && categories.map((cat) => {
                 const items = listings.filter((l) => l.category.slug === cat.slug)
                 if (items.length === 0) return null
                 return (
