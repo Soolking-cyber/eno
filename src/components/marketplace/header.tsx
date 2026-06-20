@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { useLanguage, LANGUAGES } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 import { useAuth } from '@/context/auth-context'
+import { AccountMenu } from './account-menu'
 
 export function Header() {
   const { lang, setLang, t, tr } = useLanguage()
@@ -85,17 +86,7 @@ export function Header() {
             )}
           </Link>
           {user ? (
-            <Link
-              href="/account"
-              className="hidden sm:flex items-center gap-1.5 rounded-full px-2.5 h-9 text-sm font-semibold text-[#1a202c] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
-              title={user.email || user.phone || ''}
-              aria-label={tr('My account', 'Tài khoản của tôi')}
-            >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0a66c2] text-[11px] font-bold text-white">
-                {(user.email || user.phone || '?').charAt(0).toUpperCase()}
-              </span>
-              <span className="hidden lg:inline">{tr('Account', 'Tài khoản')}</span>
-            </Link>
+            <div className="hidden sm:block"><AccountMenu /></div>
           ) : (
             <button
               onClick={openSignIn}

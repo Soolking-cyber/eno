@@ -8,7 +8,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
 import { Tr } from '@/context/language-context'
-import { Store, Heart, Plus, ChevronRight, ShieldCheck } from 'lucide-react'
+import { Store, Heart, ChevronRight, ShieldCheck } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'My account — ENO', robots: { index: false, follow: false } }
@@ -62,16 +62,11 @@ export default async function AccountPage() {
           <SignOutButton />
         </div>
 
-        {/* Quick links */}
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
+        {/* Quick links (Post a listing lives in the header's main button) */}
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
           <Link href="/saved" className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-pop hover:border-[#0a66c2]/30 transition-colors">
             <Heart className="h-5 w-5 text-[#0a66c2]" />
             <span className="text-sm font-semibold text-[#1a202c]"><Tr text="Saved listings" /></span>
-            <ChevronRight className="ml-auto h-4 w-4 text-[#cbd5e1]" />
-          </Link>
-          <Link href="/post" className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-pop hover:border-[#0a66c2]/30 transition-colors">
-            <Plus className="h-5 w-5 text-[#0a66c2]" />
-            <span className="text-sm font-semibold text-[#1a202c]"><Tr text="Post a listing" /></span>
             <ChevronRight className="ml-auto h-4 w-4 text-[#cbd5e1]" />
           </Link>
           {seller && (

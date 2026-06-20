@@ -161,7 +161,6 @@ export const UI_STRINGS: string[] = [
   "Member since",
   "Message",
   "Messages",
-  "My account",
   "My business profile",
   "My listings",
   "Mô tả",
