@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { fold, buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
+import { normalizePhone } from '@/lib/phone'
 
 export const dynamic = 'force-dynamic'
 
@@ -509,13 +510,8 @@ export async function GET(req: NextRequest) {
 // Create a listing from the post wizard. No auth yet → identify the seller by
 // phone (Chợ Tốt / Craigslist guest-post pattern). Always created verified=false
 // so it stays hidden from the public feed until an ENO agent verifies it.
-// Canonical phone form so one person = one Seller (defeats 09… / +84… dupes).
-function normalizePhone(raw: string): string {
-  const d = raw.replace(/\D/g, '')
-  if (d.startsWith('84')) return `+${d}`
-  if (d.startsWith('0')) return `+84${d.slice(1)}`
-  return d ? `+${d}` : ''
-}
+// normalizePhone is shared (src/lib/phone.ts) so the later verified-phone claim
+// joins on the exact same canonical form.
 // Only accept Supabase Storage URLs for our project (no arbitrary remote images).
 const SUPABASE_IMG = /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/listings\//
 

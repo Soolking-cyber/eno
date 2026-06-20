@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { serializeListingWithContact } from '@/lib/serialize'
+import { serializeListing } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -11,8 +11,6 @@ import {
   MapPin,
   Star,
   BadgeCheck,
-  MessageCircle,
-  Phone,
   AlertTriangle,
   ChevronLeft,
 } from 'lucide-react'
@@ -20,10 +18,10 @@ import { CATEGORY_COLOR_CLASSES, VERIFICATION_METHOD_LABELS, timeAgo } from '@/l
 import { Price } from '@/components/marketplace/price'
 import { Tr } from '@/context/language-context'
 import { getServerLang, getDict } from '@/lib/translate-server'
-import { telHref, zaloHref } from '@/lib/contact'
 import { cn } from '@/lib/utils'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
+import { RevealContact } from '@/components/marketplace/reveal-contact'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -79,7 +77,7 @@ export default async function ListingPage({ params }: Props) {
     notFound()
   }
 
-  const listing = serializeListingWithContact(rawListing)
+  const listing = serializeListing(rawListing)
   const displayTitle = listing.titleVi || listing.title
   const displayDesc = listing.description
   const color = CATEGORY_COLOR_CLASSES[listing.category.color] ?? CATEGORY_COLOR_CLASSES.brand
@@ -252,22 +250,8 @@ export default async function ListingPage({ params }: Props) {
                 </div>
               )}
 
-              <div className="flex gap-2.5">
-                <a
-                  href={zaloHref(listing.seller)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] active:scale-98 transition-all text-center cursor-pointer"
-                >
-                  <MessageCircle className="h-4 w-4" /> <Tr text="Message" />
-                </a>
-                <a
-                  href={telHref(listing.seller)}
-                  className="flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-[#1a202c] hover:bg-slate-50 active:scale-98 transition-all cursor-pointer"
-                >
-                  <Phone className="h-4 w-4" /> <Tr text="Call" />
-                </a>
-              </div>
+              {/* Contact is auth-gated; the number is never in this payload */}
+              <RevealContact listingId={listing.id} />
 
               <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 border-t border-slate-100 pt-4 cursor-pointer">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e8f1fb] text-sm font-bold text-[#0a66c2]">
@@ -300,21 +284,7 @@ export default async function ListingPage({ params }: Props) {
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="truncate text-base font-bold text-[#1a202c]" />
           {listing.verified && <div className="text-[11px] font-semibold text-[#0a66c2]"><Tr text="Verified" /></div>}
         </div>
-        <a
-          href={zaloHref(listing.seller)}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center justify-center gap-2 rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white"
-        >
-          <MessageCircle className="h-4 w-4" /> <Tr text="Message" />
-        </a>
-        <a
-          href={telHref(listing.seller)}
-          aria-label="Call"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-300 text-[#1a202c]"
-        >
-          <Phone className="h-4 w-4" />
-        </a>
+        <RevealContact listingId={listing.id} compact />
       </div>
 
       <Footer />

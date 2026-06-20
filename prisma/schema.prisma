@@ -85,6 +85,8 @@ model Listing {
   featured           Boolean   @default(false)
   attributes         String?
   reports            Report[]
+  contactReveals     ContactReveal[]
+  contactCount       Int       @default(0) // distinct authenticated viewers who revealed contact
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -96,6 +98,22 @@ model Listing {
   @@index([postedAt])
   @@index([price])
   @@index([views])
+}
+
+// One row per (listing, authenticated viewer) who revealed the seller's contact.
+// A lead signal + the dedupe key so contactCount counts distinct viewers, not clicks.
+// viewerId = Supabase auth user id (no app Profile table required for Phase 1).
+model ContactReveal {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  viewerId  String   // auth.users.id (uuid string)
+  ipHash    String?  // salted hash of client IP — abuse signal, never the raw IP
+  createdAt DateTime @default(now())
+
+  @@unique([listingId, viewerId])
+  @@index([listingId])
+  @@index([viewerId])
 }
 
 // User-submitted report of a problematic listing (scam, sold, wrong info…).

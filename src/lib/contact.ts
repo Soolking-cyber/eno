@@ -1,5 +1,7 @@
-// Single source of truth for seller contact. (Until contact lives in the DB,
-// this map is shared so the detail page, dialog and mobile bar can never diverge.)
+import 'server-only'
+// Single source of truth for seller contact. SERVER-ONLY — these numbers must
+// never reach the client bundle; only the auth-gated /api/listings/[id]/contact
+// route may resolve them.
 const SELLER_PHONES: Record<string, string> = {
   'seller-minh': '0977 905 765',
   'seller-linh': '0912 211 488',

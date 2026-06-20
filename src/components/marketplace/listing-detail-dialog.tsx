@@ -11,8 +11,6 @@ import {
   MapPin,
   Star,
   BadgeCheck,
-  MessageCircle,
-  Phone,
   AlertTriangle,
 } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
@@ -22,7 +20,7 @@ import { CategoryIcon } from './category-icons'
 import { ListingGallery } from './listing-gallery'
 import { ReportButton } from './report-button'
 import { cn } from '@/lib/utils'
-import { telHref, zaloHref } from '@/lib/contact'
+import { RevealContact } from './reveal-contact'
 import { useLanguage, Tr } from '@/context/language-context'
 
 type Props = {
@@ -164,23 +162,8 @@ export function ListingDetailDialog({ listing, open, onOpenChange, onLocate }: P
               </div>
             )}
 
-            {/* CTAs — real Zalo + tel deep links */}
-            <div className="flex gap-2.5">
-              <a
-                href={zaloHref(listing.seller)}
-                target="_blank"
-                rel="noreferrer"
-                className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] active:scale-98 transition-all cursor-pointer"
-              >
-                <MessageCircle className="h-4 w-4" /> {tr('Message', 'Nhắn tin')}
-              </a>
-              <a
-                href={telHref(listing.seller)}
-                className="flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-[#1a202c] hover:bg-slate-50 active:scale-98 transition-all cursor-pointer"
-              >
-                <Phone className="h-4 w-4" /> {tr('Call', 'Gọi')}
-              </a>
-            </div>
+            {/* CTAs — contact is auth-gated; the number is never in this payload */}
+            <RevealContact listingId={listing.id} />
 
             {/* Seller — links to profile */}
             <a href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 border-t border-slate-100 pt-4 cursor-pointer">
