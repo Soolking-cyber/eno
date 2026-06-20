@@ -55,13 +55,19 @@ export async function GET() {
     select: {
       id: true, lastMessageAt: true, lastMessageText: true,
       buyerProfileId: true, buyerUnread: true, sellerUnread: true,
+      buyerDeletedAt: true, sellerDeletedAt: true,
       listing: { select: { id: true, title: true, images: true } },
       seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
     },
   })
 
-  const conversations = rows.map((c) => {
+  const conversations = rows.filter((c) => {
+    // Hide conversations this user "deleted" — until a newer message arrives
+    // (lastMessageAt > the delete time), at which point it reappears.
+    const myDeletedAt = c.buyerProfileId === meId ? c.buyerDeletedAt : c.sellerDeletedAt
+    return !(myDeletedAt && c.lastMessageAt <= myDeletedAt)
+  }).map((c) => {
     const iAmBuyer = c.buyerProfileId === meId
     const img = (() => { try { return (JSON.parse(c.listing.images || '[]')[0] as string) ?? null } catch { return null } })()
     return {

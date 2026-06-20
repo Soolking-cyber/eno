@@ -171,6 +171,12 @@ model Conversation {
   lastMessageText String?
   buyerUnread     Int      @default(0)
   sellerUnread    Int      @default(0)
+  // Per-user inbox hide ("delete conversation"): set to now() when that side
+  // deletes the thread. The inbox query hides it until a newer message arrives
+  // (lastMessageAt > the timestamp), so it reappears if the other party replies.
+  // Non-destructive — the conversation + messages stay intact for the other side.
+  buyerDeletedAt  DateTime?
+  sellerDeletedAt DateTime?
   createdAt       DateTime @default(now())
 
   @@unique([listingId, buyerProfileId]) // one thread per buyer per listing

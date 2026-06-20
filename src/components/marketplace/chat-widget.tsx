@@ -126,7 +126,8 @@ export function ChatWidget() {
 function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => void; onClose: () => void }) {
   const { tr } = useLanguage()
   // Preloaded + cached in ChatContext (prefetched on login) so this is instant.
-  const { convos } = useChat()
+  const { convos, deleteConvo } = useChat()
+  const [confirmId, setConfirmId] = useState<string | null>(null) // row showing the Delete confirm
 
   return (
     <>
@@ -142,8 +143,8 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
         ) : (
           <ul className="divide-y divide-slate-100">
             {convos.map((c) => (
-              <li key={c.id}>
-                <button onClick={() => onOpenThread(c.id)} className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-slate-50">
+              <li key={c.id} className="group flex items-center hover:bg-slate-50">
+                <button onClick={() => onOpenThread(c.id)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left">
                   <Avatar name={c.counterpart.name} color={c.counterpart.avatarColor} url={c.counterpart.avatarUrl} size={40} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
@@ -158,6 +159,23 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
                     <img src={c.listingImage} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
                   )}
                 </button>
+                {/* Delete conversation: tap the trash → it becomes a Delete/Cancel
+                    confirm (so a stray tap on mobile can't wipe a thread). The
+                    server-side delete is per-user + non-destructive. */}
+                {confirmId === c.id ? (
+                  <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
+                    <button onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
+                    <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmId(c.id)}
+                    aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
+                    className="mr-2 ml-1 shrink-0 rounded-full p-1.5 text-slate-400 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -180,7 +198,6 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   const [peerTyping, setPeerTyping] = useState(false)
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
-  const [menuFor, setMenuFor] = useState<string | null>(null) // message id whose delete is revealed (mobile tap)
   const bottomRef = useRef<HTMLDivElement>(null)
   const meRef = useRef(cached?.me ?? '')   // my profile id, for ignoring my own typing echo
   const lastTypingSent = useRef(0)         // throttle outgoing typing pings
@@ -197,15 +214,6 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
 
   // Delete one of MY messages — optimistic; the API removes it (and a realtime
   // 'message_deleted' broadcast / the backstop poll removes it on the other side).
-  const deleteMessage = async (mid: string) => {
-    setMenuFor(null)
-    setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== mid) } : t))
-    try {
-      await fetch(`/api/conversations/${id}/messages/${mid}`, { method: 'DELETE' })
-      onSent() // refresh inbox preview/unread
-    } catch { /* load()/poll self-heals if it failed */ }
-  }
-
   // Reveal the seller's number + Zalo on request (login-gated + rate-limited +
   // logged as a lead by the API). The buyer messages first, then taps this.
   const requestContact = async () => {
@@ -422,35 +430,10 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           </div>
         )}
         {thread?.messages.map((m) => (
-          <div key={m.id} className={`group flex flex-col ${m.mine ? 'items-end' : 'items-start'} duration-200 animate-in fade-in slide-in-from-bottom-1`}>
-            <div className="flex items-end gap-1">
-              {/* Desktop convenience: trash fades in on hover over your own message. */}
-              {m.mine && !m.pending && (
-                <button
-                  onClick={() => deleteMessage(m.id)}
-                  aria-label={tr('Delete message', 'Xóa tin nhắn')}
-                  className="hidden shrink-0 p-1 text-slate-400 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100 sm:block"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-              <div
-                onClick={() => { if (m.mine && !m.pending) setMenuFor(menuFor === m.id ? null : m.id) }}
-                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed transition-opacity ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'} ${m.pending ? 'opacity-60' : ''} ${m.mine && !m.pending ? 'cursor-pointer' : ''}`}
-              >
-                {m.body}
-              </div>
+          <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'} duration-200 animate-in fade-in slide-in-from-bottom-1`}>
+            <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'} ${m.pending ? 'opacity-60' : ''}`}>
+              {m.body}
             </div>
-            {/* Tap your own message → an explicit Delete button. Discoverable on every
-                device (mobile has no hover), so deletion isn't hidden behind a tiny icon. */}
-            {m.mine && !m.pending && menuFor === m.id && (
-              <button
-                onClick={() => deleteMessage(m.id)}
-                className="mt-1 flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-transform active:scale-95 animate-in fade-in"
-              >
-                <Trash2 className="h-3 w-3" /> {tr('Delete', 'Xóa')}
-              </button>
-            )}
           </div>
         ))}
         {thread && thread.messages.length === 0 && !peerTyping && (

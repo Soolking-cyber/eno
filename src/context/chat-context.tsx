@@ -22,6 +22,7 @@ type ChatCtx = {
   unread: number
   convos: InboxConvo[] | null
   refreshConvos: () => void
+  deleteConvo: (id: string) => void
   getCachedThread: (id: string) => unknown
   cacheThread: (id: string, data: unknown) => void
   // Composer draft shared across the pending shell and the real thread, so the
@@ -94,6 +95,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => {})
   }, [user, prefetchThread])
 
+  // Delete a conversation from MY inbox (per-user hide, non-destructive on the
+  // server). Optimistic: drop it from the list + caches now, then call the API.
+  const deleteConvo = useCallback((id: string) => {
+    setConvos((prev) => {
+      const next = (prev ?? []).filter((c) => c.id !== id)
+      if (user) { try { localStorage.setItem(CONVOS_KEY, JSON.stringify({ userId: user.id, list: next })) } catch {} }
+      return next
+    })
+    threadCache.current.delete(id)
+    if (user) { try { localStorage.removeItem(THREAD_PREFIX + id) } catch {} }
+    fetch(`/api/conversations/${id}`, { method: 'DELETE' }).then(() => refreshUnread()).catch(() => {})
+  }, [user, refreshUnread])
+
   useEffect(() => {
     if (!user) { setConvos(null); threadCache.current.clear(); return }
     // Instant paint from this user's cached inbox, then revalidate.
@@ -130,7 +144,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const close = useCallback(() => { setOpen(false); setStarting(false); setDraft(''); setPendingSend(false) }, [])
 
   return (
-    <ChatContext.Provider value={{ open, view, conversationId, starting, unread, convos, refreshConvos, getCachedThread, cacheThread, draft, setDraft, pendingSend, setPendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close }}>
+    <ChatContext.Provider value={{ open, view, conversationId, starting, unread, convos, refreshConvos, deleteConvo, getCachedThread, cacheThread, draft, setDraft, pendingSend, setPendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close }}>
       {children}
     </ChatContext.Provider>
   )

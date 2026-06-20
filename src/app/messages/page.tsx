@@ -6,7 +6,7 @@ import { Header } from '@/components/marketplace/header'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
-import { MessageSquare, ChevronRight } from 'lucide-react'
+import { MessageSquare, Trash2, X } from 'lucide-react'
 
 type Convo = {
   id: string
@@ -22,11 +22,19 @@ export default function MessagesPage() {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const [convos, setConvos] = useState<Convo[] | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null) // row showing the Delete confirm
 
   useEffect(() => {
     if (!user) return
     fetch('/api/conversations').then((r) => r.json()).then((d) => setConvos(d.conversations ?? [])).catch(() => setConvos([]))
   }, [user])
+
+  // Delete a conversation from my inbox (per-user hide, non-destructive server-side).
+  const removeConvo = (id: string) => {
+    setConfirmId(null)
+    setConvos((prev) => (prev ?? []).filter((c) => c.id !== id))
+    fetch(`/api/conversations/${id}`, { method: 'DELETE' }).catch(() => {})
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-[#fafafa]">
@@ -49,22 +57,38 @@ export default function MessagesPage() {
         ) : (
           <div className="space-y-2">
             {convos.map((c) => (
-              <Link key={c.id} href={`/messages/${c.id}`} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-pop hover:border-[#0a66c2]/30 transition-colors">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" style={{ backgroundColor: c.counterpart.avatarColor }}>
-                  {c.counterpart.avatarUrl
-                    ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={c.counterpart.avatarUrl} alt="" className="h-11 w-11 rounded-full object-cover" />
-                    : c.counterpart.name.slice(0, 2).toUpperCase()}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-bold text-[#1a202c]">{c.counterpart.name}</span>
-                    {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0a66c2] px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}
+              <div key={c.id} className="group flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-pop transition-colors hover:border-[#0a66c2]/30">
+                <Link href={`/messages/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-2.5">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" style={{ backgroundColor: c.counterpart.avatarColor }}>
+                    {c.counterpart.avatarUrl
+                      ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={c.counterpart.avatarUrl} alt="" className="h-11 w-11 rounded-full object-cover" />
+                      : c.counterpart.name.slice(0, 2).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-bold text-[#1a202c]">{c.counterpart.name}</span>
+                      {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0a66c2] px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}
+                    </div>
+                    <p className="truncate text-xs text-[#94a3b8]">{c.listingTitle}</p>
+                    <p className={`truncate text-xs ${c.unread > 0 ? 'font-semibold text-[#1a202c]' : 'text-[#64748b]'}`}>{c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới')}</p>
                   </div>
-                  <p className="truncate text-xs text-[#94a3b8]">{c.listingTitle}</p>
-                  <p className={`truncate text-xs ${c.unread > 0 ? 'font-semibold text-[#1a202c]' : 'text-[#64748b]'}`}>{c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới')}</p>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-[#cbd5e1]" />
-              </Link>
+                </Link>
+                {/* Delete conversation: tap trash → Delete/Cancel confirm. */}
+                {confirmId === c.id ? (
+                  <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
+                    <button onClick={() => removeConvo(c.id)} className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
+                    <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1.5 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmId(c.id)}
+                    aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
+                    className="mr-2 ml-1 shrink-0 rounded-full p-2 text-slate-400 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}

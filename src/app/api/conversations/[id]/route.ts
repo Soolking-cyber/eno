@@ -49,3 +49,31 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     messages: convo.messages.map((m) => ({ id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString() })),
   })
 }
+
+// DELETE a conversation from MY inbox only (per-user hide, non-destructive).
+// Stamps the caller's *DeletedAt = now(); the inbox query hides it until a newer
+// message arrives, so it reappears if the other party replies. The conversation
+// and its messages stay intact for the other participant.
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const meId = await getCurrentProfileId()
+  if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+
+  const convo = await db.conversation.findUnique({
+    where: { id },
+    select: { buyerProfileId: true, sellerProfileId: true },
+  })
+  if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
+  const iAmBuyer = convo.buyerProfileId === meId
+  const iAmSeller = convo.sellerProfileId === meId
+  if (!iAmBuyer && !iAmSeller) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+
+  await db.conversation.update({
+    where: { id },
+    data: iAmBuyer
+      ? { buyerDeletedAt: new Date(), buyerUnread: 0 }
+      : { sellerDeletedAt: new Date(), sellerUnread: 0 },
+  })
+  return new NextResponse(null, { status: 204 })
+}
