@@ -23,8 +23,33 @@ model Category {
   listings    Listing[]
 }
 
+// 1:1 extension of Supabase auth.users — the APP ACCOUNT. id == auth.users.id
+// (a uuid; NO @default — supplied by app code in ensureProfile). Every
+// authenticated user has exactly one Profile (buyer and/or seller-owner).
+// The auth.users FK is added via raw SQL (Prisma can't model the auth schema).
+model Profile {
+  id          String   @id @db.Uuid       // = auth.users.id
+  email       String?  @unique             // mirrored from auth for display/search
+  displayName String?                      // from OAuth metadata or set later
+  avatarUrl   String?
+  avatarColor String   @default("#0a66c2")
+  phone       String?  @unique             // normalized +84…, mirrored from VERIFIED auth phone
+  locale      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  seller      Seller?                       // a user MAY own one storefront (FK on Seller.ownerId)
+
+  @@index([phone])
+}
+
 model Seller {
   id            String    @id @default(cuid())
+  // Link to the owning account. NULL = legacy/guest seller (no account yet).
+  ownerId       String?   @unique @db.Uuid  // one Profile owns at most one Seller (1:0..1)
+  owner         Profile?  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  claimedAt     DateTime?                    // when a real account claimed this guest seller
+  avatarUrl     String?
   name          String
   avatarColor   String    @default("#dc2626")
   rating        Float     @default(5)
@@ -36,9 +61,11 @@ model Seller {
   responseTime  String    @default("within an hour")
   location      String?
   bio           String?
-  phone         String?   @unique
+  phone         String?   @unique           // KEEP: the guest-claim join key
   listings      Listing[]
   reviews       Review[]
+
+  @@index([ownerId])
 }
 
 model Review {

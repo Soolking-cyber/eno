@@ -1,4 +1,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { ensureProfile } from '@/lib/profile'
+import type { Profile } from '@prisma/client'
 
 /** Comma-separated allowlist from ADMIN_EMAILS (server-only env). */
 function adminEmails(): string[] {
@@ -23,4 +26,18 @@ export async function getAdmin(): Promise<string | null> {
   const { data } = await supabase.auth.getUser()
   const email = data.user?.email ?? null
   return isAdminEmail(email) ? email!.toLowerCase() : null
+}
+
+/**
+ * The current authenticated user's app Profile (provisioning it on first call if
+ * needed), or null if not signed in. Uses getUser() (JWT-revalidated). Use in
+ * server components / route handlers that need the app account.
+ */
+export async function getCurrentProfile(): Promise<Profile | null> {
+  const supabase = await createSupabaseServer()
+  const { data } = await supabase.auth.getUser()
+  if (!data.user) return null
+  // Lazily provision so a user who signed up before this existed still gets one.
+  const existing = await db.profile.findUnique({ where: { id: data.user.id } })
+  return existing ?? (await ensureProfile(data.user))
 }
