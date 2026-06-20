@@ -369,7 +369,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
 
       {/* Pinned listing the conversation is about (Shopee-style product context). */}
       {thread && (
-        <Link href={`/listings/${thread.listing.id}`} className="flex items-center gap-3 border-b border-slate-200 bg-white px-3 py-2 hover:bg-slate-50">
+        <Link onClick={onClose} href={`/listings/${thread.listing.id}`} className="flex items-center gap-3 border-b border-slate-200 bg-white px-3 py-2 hover:bg-slate-50">
           {thread.listing.image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={thread.listing.image} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
