@@ -123,13 +123,16 @@ model Listing {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // Composite indexes for the hot feed paths (verified is always an equality
+  // predicate on public reads). [verified, postedAt] supersedes the standalone
+  // postedAt index for the default sort.
+  @@index([verified, postedAt])
+  @@index([verified, categoryId, postedAt])
+  @@index([verified, price])
   @@index([categoryId])
-  @@index([verified])
   @@index([featured])
   @@index([city])
   @@index([condition])
-  @@index([postedAt])
-  @@index([price])
   @@index([views])
 }
 

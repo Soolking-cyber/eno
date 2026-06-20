@@ -15,7 +15,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const convo = await db.conversation.findUnique({
     where: { id },
     select: {
-      id: true, buyerProfileId: true, sellerProfileId: true,
+      id: true, buyerProfileId: true, sellerProfileId: true, buyerUnread: true, sellerUnread: true,
       listing: { select: { id: true, title: true, images: true } },
       seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
@@ -28,11 +28,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const iAmSeller = convo.sellerProfileId === profile.id
   if (!iAmBuyer && !iAmSeller) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
-  // Mark my side read.
-  await db.conversation.update({
-    where: { id },
-    data: iAmBuyer ? { buyerUnread: 0 } : { sellerUnread: 0 },
-  })
+  // Mark my side read — but only WRITE when there's actually something to clear,
+  // so the ~1.5s polling reads stay write-free.
+  const myUnread = iAmBuyer ? convo.buyerUnread : convo.sellerUnread
+  if (myUnread > 0) {
+    await db.conversation.update({
+      where: { id },
+      data: iAmBuyer ? { buyerUnread: 0 } : { sellerUnread: 0 },
+    })
+  }
 
   const img = (() => { try { return (JSON.parse(convo.listing.images || '[]')[0] as string) ?? null } catch { return null } })()
   return NextResponse.json({

@@ -125,13 +125,20 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     setThread(await res.json())
   }, [id])
 
-  // Poll every 4s + refetch on focus.
+  // Near-instant feel: poll ~1.5s while the tab is visible, PAUSE when hidden,
+  // and catch up immediately on resume. (Realtime push lands in a later phase;
+  // polling stays as the self-healing backstop.)
   useEffect(() => {
+    let iv: ReturnType<typeof setInterval> | null = null
+    const stop = () => { if (iv) { clearInterval(iv); iv = null } }
+    const start = () => { if (!iv) iv = setInterval(load, 1500) }
+    const onVis = () => {
+      if (document.visibilityState === 'visible') { load(); start() } else stop()
+    }
     load()
-    const iv = setInterval(load, 4000)
-    const onFocus = () => load()
-    window.addEventListener('focus', onFocus)
-    return () => { clearInterval(iv); window.removeEventListener('focus', onFocus) }
+    if (document.visibilityState === 'visible') start()
+    document.addEventListener('visibilitychange', onVis)
+    return () => { stop(); document.removeEventListener('visibilitychange', onVis) }
   }, [load])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [thread?.messages.length])

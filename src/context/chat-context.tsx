@@ -34,11 +34,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) { setUnread(0); return }
+    let iv: ReturnType<typeof setInterval> | null = null
+    const stop = () => { if (iv) { clearInterval(iv); iv = null } }
+    const start = () => { if (!iv) iv = setInterval(refreshUnread, 8000) }
+    const onVis = () => {
+      if (document.visibilityState === 'visible') { refreshUnread(); start() } else stop()
+    }
     refreshUnread()
-    const iv = setInterval(refreshUnread, 15000)
-    const onFocus = () => refreshUnread()
-    window.addEventListener('focus', onFocus)
-    return () => { clearInterval(iv); window.removeEventListener('focus', onFocus) }
+    if (document.visibilityState === 'visible') start()
+    document.addEventListener('visibilitychange', onVis)
+    return () => { stop(); document.removeEventListener('visibilitychange', onVis) }
   }, [user, refreshUnread])
 
   const openInbox = useCallback(() => { setView('list'); setConversationId(null); setOpen(true) }, [])
