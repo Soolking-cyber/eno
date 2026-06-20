@@ -32,6 +32,39 @@ export function normalizePhoneNoPlus(raw: string): string {
 // Separators allow spaces/dashes but NOT dots — VN prices use dot thousand-
 // separators (1.080.000.000), which must not be mistaken for a phone number.
 const EMBEDDED_PHONE_RE = /(?:\+?84|0)[\s-]?[2-9](?:[\s-]?\d){7,9}|\+\d(?:[\s-]?\d){7,}/
+
+// Full-width digits (０９…) → ASCII so they can't slip past the regex.
+function toAsciiDigits(s: string): string {
+  return s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+}
+
+// Spelled-out digits (EN + VI, incl. no-diacritic forms). A run of 7+ in a row is
+// someone dictating a number — normal listing prose never strings that many
+// number-words together, so the high threshold avoids VN homonym false-positives.
+const DIGIT_WORDS = new Set([
+  'zero', 'oh', 'o', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+  'không', 'khong', 'một', 'mot', 'mốt', 'hai', 'ba', 'bốn', 'bon', 'tư', 'tu',
+  'năm', 'nam', 'lăm', 'lam', 'sáu', 'sau', 'bảy', 'bay', 'bẩy', 'tám', 'tam', 'chín', 'chin',
+])
+function hasSpelledDigitRun(text: string): boolean {
+  const tokens = text.toLowerCase().split(/[^\p{L}\p{N}]+/u)
+  let run = 0
+  for (const tok of tokens) {
+    if (DIGIT_WORDS.has(tok)) { if (++run >= 7) return true } else run = 0
+  }
+  return false
+}
+
+/**
+ * Detects a phone number embedded in free text, so contact info stays OFF public
+ * listings — buyers reach sellers in-app, which is what brings sellers back daily
+ * to reply + refresh availability. Catches: VN mobile/landline (0/+84 then a 2–9
+ * leading digit), generic international +<digits>, full-width digits, and spelled-
+ * out digit runs (EN + VI). VND prices (dot/comma thousand-separators) don't
+ * match. Shared client + server.
+ */
 export function containsPhoneNumber(text: string | null | undefined): boolean {
-  return !!text && EMBEDDED_PHONE_RE.test(text)
+  if (!text) return false
+  const norm = toAsciiDigits(text)
+  return EMBEDDED_PHONE_RE.test(norm) || hasSpelledDigitRun(norm)
 }
