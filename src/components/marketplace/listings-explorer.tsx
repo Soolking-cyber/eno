@@ -1323,6 +1323,14 @@ export function ListingsExplorer({
           )}
 
         </div>
+        {/* Same shared dialog as the explorer return (landing/explorer are
+            mutually-exclusive returns, so only one mounts) — identical props. */}
+        <ListingDetailDialog
+          listing={selected}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onLocate={(l) => { setDialogOpen(false); setShowExplorer(true); setViewMode('map'); setFocusId(l.id) }}
+        />
       </section>
     )
   }
