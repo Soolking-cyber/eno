@@ -10,6 +10,7 @@ import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
 import { ChatWidget } from "@/components/marketplace/chat-widget";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -90,6 +91,7 @@ export default function RootLayout({
         </LanguageProvider>
         <SonnerToaster position="bottom-right" richColors closeButton />
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
