@@ -56,6 +56,30 @@ await client.query(`
 `)
 console.log('✓ message_broadcast trigger on "Message"')
 
+// 1a) Deletes: broadcast a CONTENT-FREE 'message_deleted' (just the id) on the
+//     same private topic so the other side removes the bubble instantly.
+await client.query(`
+  create or replace function public.broadcast_deleted_message() returns trigger
+  language plpgsql security definer set search_path = '' as $$
+  begin
+    perform realtime.send(
+      jsonb_build_object('id', OLD.id, 'conversationId', OLD."conversationId"),
+      'message_deleted',
+      'convo:' || OLD."conversationId",
+      true
+    );
+    return OLD;
+  end;
+  $$;
+`)
+await client.query(`drop trigger if exists message_deleted_broadcast on public."Message"`)
+await client.query(`
+  create trigger message_deleted_broadcast
+    after delete on public."Message"
+    for each row execute function public.broadcast_deleted_message();
+`)
+console.log('✓ message_deleted_broadcast trigger on "Message"')
+
 // 1b) Typing signal: a SECURITY DEFINER function the app calls to broadcast an
 //     ephemeral "typing" event on the private convo channel. It re-checks that
 //     p_from is a participant, so clients can never signal on conversations they

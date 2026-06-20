@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { MessageSquare, ChevronLeft, ChevronRight, X, Send, Loader2, Phone } from 'lucide-react'
+import { MessageSquare, ChevronLeft, ChevronRight, X, Send, Loader2, Phone, Trash2 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
@@ -180,6 +180,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   const [peerTyping, setPeerTyping] = useState(false)
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
+  const [menuFor, setMenuFor] = useState<string | null>(null) // message id whose delete is revealed (mobile tap)
   const bottomRef = useRef<HTMLDivElement>(null)
   const meRef = useRef(cached?.me ?? '')   // my profile id, for ignoring my own typing echo
   const lastTypingSent = useRef(0)         // throttle outgoing typing pings
@@ -193,6 +194,17 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     setThread(data)
     cacheThread(id, data) // keep the cache warm for the next open
   }, [id, cacheThread])
+
+  // Delete one of MY messages — optimistic; the API removes it (and a realtime
+  // 'message_deleted' broadcast / the backstop poll removes it on the other side).
+  const deleteMessage = async (mid: string) => {
+    setMenuFor(null)
+    setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== mid) } : t))
+    try {
+      await fetch(`/api/conversations/${id}/messages/${mid}`, { method: 'DELETE' })
+      onSent() // refresh inbox preview/unread
+    } catch { /* load()/poll self-heals if it failed */ }
+  }
 
   // Reveal the seller's number + Zalo on request (login-gated + rate-limited +
   // logged as a lead by the API). The buyer messages first, then taps this.
@@ -263,6 +275,10 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           setPeerTyping(true)
           if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current)
           peerTypingTimer.current = setTimeout(() => setPeerTyping(false), 3500)
+        })
+        .on('broadcast', { event: 'message_deleted' }, ({ payload }) => {
+          const did = (payload as { id?: string } | null)?.id
+          if (did) setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== did) } : t))
         })
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') { attempts = 0; return }
@@ -406,8 +422,23 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           </div>
         )}
         {thread?.messages.map((m) => (
-          <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'} duration-200 animate-in fade-in slide-in-from-bottom-1`}>
-            <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed transition-opacity ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'} ${m.pending ? 'opacity-60' : ''}`}>{m.body}</div>
+          <div key={m.id} className={`group flex items-end gap-1 ${m.mine ? 'justify-end' : 'justify-start'} duration-200 animate-in fade-in slide-in-from-bottom-1`}>
+            {/* Delete (own, sent messages only): hover on desktop, tap bubble on mobile. */}
+            {m.mine && !m.pending && (
+              <button
+                onClick={() => deleteMessage(m.id)}
+                aria-label={tr('Delete message', 'Xóa tin nhắn')}
+                className={`order-first shrink-0 p-1 text-slate-400 transition-opacity hover:text-red-500 ${menuFor === m.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <div
+              onClick={() => { if (m.mine && !m.pending) setMenuFor(menuFor === m.id ? null : m.id) }}
+              className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed transition-opacity ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'} ${m.pending ? 'opacity-60' : ''} ${m.mine && !m.pending ? 'cursor-pointer' : ''}`}
+            >
+              {m.body}
+            </div>
           </div>
         ))}
         {thread && thread.messages.length === 0 && !peerTyping && (
