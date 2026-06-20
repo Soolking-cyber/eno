@@ -162,8 +162,9 @@ export function ListingDetailDialog({ listing, open, onOpenChange, onLocate }: P
               </div>
             )}
 
-            {/* CTAs — contact is auth-gated; the number is never in this payload */}
-            <RevealContact listingId={listing.id} />
+            {/* CTAs — contact is auth-gated; the number is never in this payload.
+                onStartChat closes this dialog so the chat widget isn't hidden behind it. */}
+            <RevealContact listingId={listing.id} onStartChat={() => onOpenChange(false)} />
 
             {/* Seller — links to profile */}
             <a href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 border-t border-slate-100 pt-4 cursor-pointer">

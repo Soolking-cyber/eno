@@ -16,7 +16,7 @@ type Contact = { phone: string; telHref: string; zaloHref: string }
  * lead). Messaging-first: "Message" is the primary CTA. Used on the listing
  * detail page, the detail dialog, and (compact) the mobile sticky bar.
  */
-export function RevealContact({ listingId, compact = false }: { listingId: string; compact?: boolean }) {
+export function RevealContact({ listingId, compact = false, onStartChat }: { listingId: string; compact?: boolean; onStartChat?: () => void }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
   const { openThread } = useChat()
@@ -57,7 +57,8 @@ export function RevealContact({ listingId, compact = false }: { listingId: strin
       }
       if (!res.ok) { toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.')); return }
       const { id } = await res.json()
-      openThread(id) // open the floating chat widget on this conversation
+      onStartChat?.()       // close the listing dialog so the chat isn't hidden behind it
+      openThread(id)        // open the floating chat widget on this conversation
     } finally {
       setMsgBusy(false)
     }
