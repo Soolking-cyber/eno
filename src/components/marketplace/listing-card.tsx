@@ -56,9 +56,12 @@ export function ListingCard({
       }}
       className="group flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-150 active:scale-[0.985] active:duration-75 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0a66c2] focus-visible:ring-offset-2"
     >
-      {/* Image carousel / placeholder */}
+      {/* Image carousel / placeholder.
+          transform-gpu/isolate force a compositing layer so the rounded
+          overflow-hidden actually clips the translateX-transformed carousel row
+          — otherwise the adjacent (next) image leaks through at the edge on hover. */}
       <div
-        className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#f1f5f9] transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
+        className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#f1f5f9] transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
         onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
         onTouchEnd={(e) => {
           if (touchStartX.current == null || images.length < 2) return
@@ -73,7 +76,7 @@ export function ListingCard({
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >
             {images.map((src, i) => (
-              <div key={i} className="relative h-full w-full shrink-0">
+              <div key={i} className="relative h-full w-full shrink-0 overflow-hidden">
                 <Image
                   src={src}
                   alt={images.length > 1 ? `${displayTitle} — ${i + 1}/${images.length}` : displayTitle}
