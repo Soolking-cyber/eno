@@ -93,7 +93,7 @@ export function ListingCard({
                   className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
                   placeholder="blur"
                   blurDataURL={BLUR}
-                  quality={50}
+                  quality={60}
                   // The true LCP image (first card of the first row, first photo) uses
                   // next/image `priority` so Next emits a <link rel=preload> — the preload
                   // scanner fetches it before render. Other above-the-fold images just load
