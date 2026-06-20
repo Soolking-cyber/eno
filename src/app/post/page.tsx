@@ -5,7 +5,9 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { PostWizard } from '@/components/marketplace/post-wizard'
 
-export const dynamic = 'force-dynamic'
+// Categories change rarely and there's no per-user data here — cache the shell
+// (ISR) so the tab opens from cache instead of a per-request DB fetch.
+export const revalidate = 300
 export const metadata: Metadata = { title: 'Post a listing | ENO' }
 
 export default async function PostPage() {
