@@ -1288,7 +1288,9 @@ export function ListingsExplorer({
 
     const cls = ''
     const active = 'bg-[#e8f1fb] text-[#0a66c2]'
-    const wrap = 'w-auto min-w-[7.5rem] shrink-0'
+    // Content-sized pills (no fixed min-width) so they pack into one swipable
+    // row on mobile; widen a touch on desktop where they wrap.
+    const wrap = 'w-auto shrink-0 lg:min-w-[7.5rem]'
 
     const Facet = (key: string, placeholder: string, options: { value: string; label: string }[]) => (
       <CustomSelect
@@ -1425,7 +1427,8 @@ export function ListingsExplorer({
       activeDistrict !== 'all' || conditionFilter !== 'all' || priceRange !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
 
     return (
-      <div className="flex flex-wrap items-center gap-2">
+      // Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps.
+      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-4 px-4 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
         {facets}
         {/* Static trust indicator — every listing on ENO is verified (not a toggle). */}
         <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#e8f1fb] px-3.5 py-2 text-sm font-semibold text-[#0a66c2]">
