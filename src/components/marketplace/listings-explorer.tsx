@@ -981,6 +981,10 @@ export function ListingsExplorer({
                 </button>
                 <input
                   id="listings-search-input"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   value={landingQuery}
                   onChange={(e) => setLandingQuery(e.target.value)}
                   onFocus={() => setShowSuggestions(true)}
@@ -1399,6 +1403,10 @@ export function ListingsExplorer({
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                 <input
                   id="listings-search-input"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onFocus={() => setShowSuggestions(true)}
