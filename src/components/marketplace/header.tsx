@@ -12,7 +12,7 @@ import { AccountMenu } from './account-menu'
 export function Header() {
   const { lang, setLang, t, tr } = useLanguage()
   const { count } = useFavorites()
-  const { user, openSignIn } = useAuth()
+  const { user } = useAuth()
   const [langOpen, setLangOpen] = useState(false)
   const langRef = useRef<HTMLDivElement>(null)
   const current = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0]
@@ -88,14 +88,14 @@ export function Header() {
           {user ? (
             <div className="hidden sm:block"><AccountMenu /></div>
           ) : (
-            <button
-              onClick={openSignIn}
+            <Link
+              href="/signin"
               className="hidden sm:flex items-center gap-1.5 rounded-full px-2.5 h-9 text-sm font-semibold text-[#1a202c] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
               aria-label={tr('Sign in', 'Đăng nhập')}
             >
               <User className="h-5 w-5" />
               <span className="hidden lg:inline">{tr('Log in', 'Đăng nhập')}</span>
-            </button>
+            </Link>
           )}
 
           <Link

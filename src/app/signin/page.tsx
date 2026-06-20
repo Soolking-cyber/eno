@@ -1,0 +1,76 @@
+'use client'
+
+import { Suspense, useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { ShieldCheck, MessageSquare, BadgeCheck } from 'lucide-react'
+import { useAuth } from '@/context/auth-context'
+import { useLanguage } from '@/context/language-context'
+import { SignInForm } from '@/components/marketplace/sign-in-form'
+
+// Dedicated split-layout sign-in page (commerce-login pattern, ENO blue). Reuses
+// the exact same <SignInForm> as the inline modal. Honors ?next= for post-login
+// redirect and bounces already-signed-in users away.
+function SignInPageInner() {
+  const { tr } = useLanguage()
+  const { user } = useAuth()
+  const router = useRouter()
+  const params = useSearchParams()
+  const raw = params.get('next') || '/'
+
+  useEffect(() => {
+    if (!user) return
+    // Sanitize ?next= to a SAME-ORIGIN path. A string-prefix check is NOT enough:
+    // the URL parser normalizes tricks like /\evil.com or /\t/evil.com to an
+    // external origin, which the Next router would location.assign to. Compare
+    // resolved origins instead (open-redirect guard).
+    let dest = '/'
+    try {
+      const u = new URL(raw, window.location.origin)
+      if (u.origin === window.location.origin) dest = u.pathname + u.search + u.hash
+    } catch { /* malformed → home */ }
+    router.replace(dest)
+  }, [user, raw, router])
+
+  return (
+    <div className="grid min-h-screen w-full bg-[#fafafa] md:grid-cols-2">
+      {/* Brand panel (desktop) */}
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0a66c2] to-[#004182] p-12 text-white md:flex">
+        <Link href="/" className="text-2xl font-black tracking-tight">ENO</Link>
+        <div>
+          <h1 className="text-4xl font-black leading-tight">{tr("If it's listed, it exists.", 'Đã đăng là có thật.')}</h1>
+          <p className="mt-3 max-w-sm text-[15px] text-blue-100">
+            {tr("The verified marketplace for Vietnam's international community.", 'Chợ trực tuyến đã xác minh cho cộng đồng quốc tế tại Việt Nam.')}
+          </p>
+          <ul className="mt-8 space-y-3 text-sm text-blue-50">
+            <li className="flex items-center gap-2.5"><BadgeCheck className="h-5 w-5 shrink-0" /> {tr('Every listing verified before it goes live', 'Mọi tin được xác minh trước khi đăng')}</li>
+            <li className="flex items-center gap-2.5"><MessageSquare className="h-5 w-5 shrink-0" /> {tr('Message sellers safely, in-app', 'Nhắn tin an toàn với người bán')}</li>
+            <li className="flex items-center gap-2.5"><ShieldCheck className="h-5 w-5 shrink-0" /> {tr('No fakes, no bait prices, no wasted trips', 'Không hàng giả, không giá ảo')}</li>
+          </ul>
+        </div>
+        <p className="text-xs text-blue-200">© 2026 ENO · Made in Saigon</p>
+      </div>
+
+      {/* Form */}
+      <div className="flex flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+          <Link href="/" className="mb-8 inline-block text-2xl font-black text-[#0a66c2] md:hidden">ENO</Link>
+          <h2 className="text-2xl font-bold text-[#1a202c]">{tr('Welcome to ENO', 'Chào mừng đến ENO')}</h2>
+          <p className="mt-1 text-sm text-[#64748b]">{tr('Sign in or create your account in seconds.', 'Đăng nhập hoặc tạo tài khoản trong vài giây.')}</p>
+          <SignInForm className="mt-6" />
+          <Link href="/" className="mt-6 block text-center text-sm font-semibold text-[#64748b] hover:text-[#0a66c2]">
+            ← {tr('Back to ENO', 'Về trang chủ')}
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#fafafa]" />}>
+      <SignInPageInner />
+    </Suspense>
+  )
+}

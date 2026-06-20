@@ -39,8 +39,9 @@ export function MobileNav() {
   const { user, openSignIn } = useAuth()
   const { unread, openInbox } = useChat()
 
-  // Hidden on listing detail (own sticky CTA) and chat threads (full-screen composer).
-  if (pathname?.startsWith('/listings/') || pathname?.startsWith('/messages/')) return null
+  // Hidden on listing detail (own sticky CTA), chat threads (full-screen composer),
+  // and the full-screen sign-in page.
+  if (pathname?.startsWith('/listings/') || pathname?.startsWith('/messages/') || pathname?.startsWith('/signin')) return null
 
   return (
     <nav className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-slate-200 bg-white/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
