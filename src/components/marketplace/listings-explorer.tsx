@@ -1,17 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useRef, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
   Search,
   SlidersHorizontal,
-  ShieldCheck,
   Inbox,
   Grid,
   List,
   MapPin,
   ChevronRight,
-  ChevronDown,
   Phone,
   Layers,
   X,
@@ -26,6 +23,9 @@ import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
 import { CardRow } from './card-row'
+import { CustomSelect } from './custom-select'
+import { FacetBar } from './facet-bar'
+import { DISTRICTS } from './listings-explorer.constants'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
@@ -60,137 +60,7 @@ type Props = {
   listingsRef?: React.RefObject<HTMLDivElement | null>
 }
 
-// Deterministic phone numbers mapped to seller IDs
-const DISTRICTS = [
-  { slug: 'all', name: 'Toàn bộ HCMC', nameEn: 'All HCMC' },
-  { slug: 'd1', name: 'Quận 1', nameEn: 'District 1' },
-  { slug: 'd3', name: 'Quận 3', nameEn: 'District 3' },
-  { slug: 'd4', name: 'Quận 4', nameEn: 'District 4' },
-  { slug: 'd7', name: 'Quận 7 (Phú Mỹ Hưng)', nameEn: 'District 7 (Phu My Hung)' },
-  { slug: 'binh-thanh', name: 'Bình Thạnh', nameEn: 'Binh Thanh District' },
-  { slug: 'thu-duc', name: 'TP Thủ Đức (Thảo Điền / D2)', nameEn: 'Thu Duc City (Thao Dien / D2)' },
-  { slug: 'phu-nhuan', name: 'Phú Nhuận', nameEn: 'Phu Nhuan District' },
-  { slug: 'tan-binh', name: 'Tân Bình', nameEn: 'Tan Binh District' },
-]
 
-interface CustomSelectProps {
-  value: string
-  onChange: (value: string) => void
-  options: { value: string; label: string }[]
-  placeholder?: string
-  className?: string
-  activeClassName?: string
-  icon?: React.ReactNode
-  wrapperClassName?: string
-}
-
-function CustomSelect({
-  value,
-  onChange,
-  options,
-  placeholder,
-  className,
-  activeClassName,
-  icon,
-  wrapperClassName,
-}: CustomSelectProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [pos, setPos] = useState<{ top: number; left: number; minWidth: number }>({ top: 0, left: 0, minWidth: 0 })
-  const containerRef = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => { setMounted(true) }, [])
-
-  // Position the portaled menu under the trigger (fixed coords, viewport-clamped).
-  const reposition = useCallback(() => {
-    const el = triggerRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    const menuW = Math.min(288, Math.max(r.width, 176))
-    const left = Math.min(r.left, window.innerWidth - menuW - 8)
-    setPos({ top: r.bottom + 8, left: Math.max(8, left), minWidth: r.width })
-  }, [])
-
-  useEffect(() => {
-    if (!isOpen) return
-    reposition()
-    const onDocClick = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (containerRef.current?.contains(t) || menuRef.current?.contains(t)) return
-      setIsOpen(false)
-    }
-    // Reposition while open so the menu stays glued to the trigger (the facet row
-    // scrolls horizontally; the page can scroll vertically).
-    const onScroll = () => reposition()
-    document.addEventListener('mousedown', onDocClick)
-    window.addEventListener('scroll', onScroll, true)
-    window.addEventListener('resize', onScroll)
-    return () => {
-      document.removeEventListener('mousedown', onDocClick)
-      window.removeEventListener('scroll', onScroll, true)
-      window.removeEventListener('resize', onScroll)
-    }
-  }, [isOpen, reposition])
-
-  const selectedOption = options.find(o => o.value === value)
-
-  return (
-    <div ref={containerRef} className={cn('relative', wrapperClassName ?? 'w-full')}>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={cn(
-          "flex w-full items-center justify-between rounded-full px-3.5 py-2 text-sm font-semibold outline-none transition-colors cursor-pointer",
-          value !== 'all' && value !== 'newest'
-            ? (activeClassName ?? "bg-[#e8f1fb] text-[#0a66c2]")
-            : "bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]",
-          className
-        )}
-      >
-        <span className="flex items-center gap-1.5 truncate">
-          {icon}
-          <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
-        </span>
-        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform shrink-0 ml-1.5", isOpen && "rotate-180")} />
-      </button>
-
-      {/* Menu is portaled to <body> so the overflow-x scroll row can't clip it. */}
-      {isOpen && mounted && createPortal(
-        <div
-          ref={menuRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.minWidth }}
-          className="z-[100] w-max max-w-[18rem] overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.08)] max-h-60 overflow-y-auto scroll-thin animate-in fade-in slide-in-from-top-1 duration-75"
-        >
-          {options.map((opt) => {
-            const isActive = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
-                className={cn(
-                  'flex w-full items-center gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer',
-                  isActive
-                    ? 'bg-[#e8f1fb] text-[#0a66c2] font-semibold'
-                    : 'font-medium text-[#475569] hover:bg-[#f1f5f9]'
-                )}
-              >
-                <span className="whitespace-nowrap">{opt.label}</span>
-              </button>
-            )
-          })}
-        </div>,
-        document.body,
-      )}
-    </div>
-  )
-}
 
 export function ListingsExplorer({
   categories,
@@ -1335,184 +1205,6 @@ export function ListingsExplorer({
     )
   }
 
-  // Compact, category-aware facet bar (faceted-search pattern) — replaces the
-  // always-on sidebar. Only the facets relevant to the active category show.
-  const renderFacetBar = () => {
-    const setFacet = (key: string, value: string) =>
-      setCustomFilters((prev) => {
-        const n = { ...prev }
-        if (value === 'all') delete n[key]
-        else n[key] = value
-        return n
-      })
-
-    const cls = ''
-    const active = 'bg-[#e8f1fb] text-[#0a66c2]'
-    // Content-sized pills (no fixed min-width) so they pack into one swipable
-    // row on mobile; widen a touch on desktop where they wrap.
-    const wrap = 'w-auto shrink-0 lg:min-w-[7.5rem]'
-
-    const Facet = (key: string, placeholder: string, options: { value: string; label: string }[]) => (
-      <CustomSelect
-        key={key}
-        value={customFilters[key] || 'all'}
-        onChange={(v) => setFacet(key, v)}
-        options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...options]}
-        placeholder={placeholder}
-        className={cls}
-        activeClassName={active}
-        wrapperClassName={wrap}
-      />
-    )
-
-    // Category-aware price brackets (VND; empty max = open-ended).
-    const priceOpts: { value: string; label: string }[] =
-      activeCategory === 'house-rentals'
-        ? [
-            { value: '0-10000000', label: tr('Under ₫10M', 'Dưới 10tr') },
-            { value: '10000000-20000000', label: '10–20tr' },
-            { value: '20000000-40000000', label: '20–40tr' },
-            { value: '40000000-', label: tr('₫40M+', 'Trên 40tr') },
-          ]
-        : activeCategory === 'motorbike-rentals'
-        ? [
-            { value: '0-2000000', label: tr('Under ₫2M', 'Dưới 2tr') },
-            { value: '2000000-4000000', label: '2–4tr' },
-            { value: '4000000-', label: tr('₫4M+', 'Trên 4tr') },
-          ]
-        : activeCategory === 'services' || activeCategory === 'jobs'
-        ? [
-            { value: '0-500000', label: tr('Under ₫500k', 'Dưới 500k') },
-            { value: '500000-2000000', label: '500k–2tr' },
-            { value: '2000000-', label: tr('₫2M+', 'Trên 2tr') },
-          ]
-        : activeCategory === 'electronics' || activeCategory === 'moving-sale'
-        ? [
-            { value: '0-5000000', label: tr('Under ₫5M', 'Dưới 5tr') },
-            { value: '5000000-15000000', label: '5–15tr' },
-            { value: '15000000-30000000', label: '15–30tr' },
-            { value: '30000000-', label: tr('₫30M+', 'Trên 30tr') },
-          ]
-        : [
-            { value: '0-1000000', label: tr('Under ₫1M', 'Dưới 1tr') },
-            { value: '1000000-10000000', label: '1–10tr' },
-            { value: '10000000-30000000', label: '10–30tr' },
-            { value: '30000000-', label: tr('₫30M+', 'Trên 30tr') },
-          ]
-
-    const facets: React.ReactNode[] = [
-      <CustomSelect
-        key="district"
-        value={activeDistrict}
-        onChange={setActiveDistrict}
-        options={DISTRICTS.map((d) => ({ value: d.slug, label: lang === 'vi' ? d.name : d.nameEn }))}
-        placeholder={tr('Area', 'Khu vực')}
-        className={cls}
-        activeClassName={active}
-        wrapperClassName={wrap}
-        icon={<MapPin className="h-3.5 w-3.5 text-[#94a3b8]" />}
-      />,
-      <CustomSelect
-        key="price"
-        value={priceRange}
-        onChange={setPriceRange}
-        options={[{ value: 'all', label: tr('Any price', 'Mọi giá') }, ...priceOpts]}
-        placeholder={tr('Price', 'Giá')}
-        className={cls}
-        activeClassName={active}
-        wrapperClassName={wrap}
-      />,
-    ]
-
-    if (activeCategory === 'motorbike-rentals') {
-      facets.push(Facet('transmission', tr('Transmission', 'Hộp số'), [
-        { value: 'automatic', label: tr('Automatic', 'Xe ga') },
-        { value: 'manual', label: tr('Manual', 'Xe số') },
-      ]))
-      facets.push(Facet('cc', tr('Engine', 'Phân khối'), [
-        { value: '110-125', label: '110–125cc' },
-        { value: '150-up', label: '150cc+' },
-      ]))
-    } else if (activeCategory === 'house-rentals') {
-      facets.push(Facet('bedrooms', tr('Bedrooms', 'Phòng ngủ'), [
-        { value: '0', label: 'Studio' },
-        { value: '1', label: '1 BR' },
-        { value: '2', label: '2 BR' },
-        { value: '3', label: '3+ BR' },
-      ]))
-      facets.push(Facet('furnishing', tr('Furnishing', 'Nội thất'), [
-        { value: 'fully', label: tr('Furnished', 'Đầy đủ') },
-        { value: 'partly', label: tr('Unfurnished', 'Cơ bản') },
-      ]))
-    } else if (activeCategory === 'moving-sale') {
-      facets.push(Facet('material', tr('Material', 'Chất liệu'), [
-        { value: 'wood', label: tr('Wood', 'Gỗ') },
-        { value: 'fabric', label: tr('Fabric', 'Vải') },
-      ]))
-    } else if (activeCategory === 'electronics') {
-      facets.push(Facet('brand', tr('Brand', 'Hãng'), [
-        { value: 'apple', label: 'Apple' },
-        { value: 'sony', label: 'Sony' },
-      ]))
-      facets.push(Facet('warranty', tr('Warranty', 'Bảo hành'), [
-        { value: 'yes', label: tr('In warranty', 'Còn BH') },
-      ]))
-    } else if (activeCategory === 'jobs') {
-      facets.push(Facet('english', tr('English', 'Tiếng Anh'), [
-        { value: 'required', label: tr('Required', 'Yêu cầu') },
-      ]))
-    }
-
-    // Condition is only meaningful for physical goods.
-    if (activeCategory === 'electronics' || activeCategory === 'moving-sale') {
-      facets.push(
-        <CustomSelect
-          key="condition"
-          value={conditionFilter}
-          onChange={setConditionFilter}
-          options={[
-            { value: 'all', label: tr('Condition', 'Tình trạng') },
-            { value: 'new', label: tr('New', 'Mới') },
-            { value: 'used', label: tr('Used', 'Đã dùng') },
-          ]}
-          placeholder={tr('Condition', 'Tình trạng')}
-          className={cls}
-          activeClassName={active}
-          wrapperClassName={wrap}
-        />,
-      )
-    }
-
-    const hasActive =
-      activeDistrict !== 'all' || conditionFilter !== 'all' || priceRange !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
-
-    return (
-      // Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps.
-      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-4 px-4 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
-        {facets}
-        {/* Static trust indicator — every listing on ENO is verified (not a toggle). */}
-        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#e8f1fb] px-3.5 py-2 text-sm font-semibold text-[#0a66c2]">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          {tr('Verified only', 'Chỉ tin đã xác minh')}
-        </span>
-        {hasActive && (
-          <button
-            onClick={() => {
-              setActiveDistrict('all')
-              setConditionFilter('all')
-              setPriceRange('all')
-              setCustomFilters({})
-              setVerifiedOnly(true)
-            }}
-            className="shrink-0 px-1 text-xs font-semibold text-[#0a66c2] hover:underline cursor-pointer"
-          >
-            {tr('Clear', 'Xóa lọc')}
-          </button>
-        )}
-      </div>
-    )
-  }
-
   // Empty state that diagnoses WHY there are no results and offers one-tap relaxation.
   const renderEmptyState = () => {
     const chips: { label: string; onClear: () => void }[] = []
@@ -1686,7 +1378,19 @@ export function ListingsExplorer({
             </>
 
             {/* Category-aware facet bar (replaces the old sidebar) */}
-            {renderFacetBar()}
+            <FacetBar
+              activeCategory={activeCategory}
+              activeDistrict={activeDistrict}
+              setActiveDistrict={setActiveDistrict}
+              priceRange={priceRange}
+              setPriceRange={setPriceRange}
+              conditionFilter={conditionFilter}
+              setConditionFilter={setConditionFilter}
+              customFilters={customFilters}
+              setCustomFilters={setCustomFilters}
+              verifiedOnly={verifiedOnly}
+              setVerifiedOnly={setVerifiedOnly}
+            />
 
             {/* Quick Search & Sort Control Bar */}
             <div className="flex flex-col sm:flex-row gap-2.5 items-center justify-between">
