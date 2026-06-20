@@ -1323,12 +1323,6 @@ export function ListingsExplorer({
           )}
 
         </div>
-        <ListingDetailDialog
-          listing={selected}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          onLocate={(l) => { setDialogOpen(false); setShowExplorer(true); setViewMode('map'); setFocusId(l.id) }}
-        />
       </section>
     )
   }
@@ -2207,7 +2201,15 @@ export function ListingsExplorer({
         </div>
       )}
 
-      <ListingDetailDialog listing={selected} open={dialogOpen} onOpenChange={setDialogOpen} />
+      {/* Single shared detail dialog for ALL view modes (grid/compact/map) and
+          page states, so every card opens the identical detail with a clickable
+          "view on map" address. */}
+      <ListingDetailDialog
+        listing={selected}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onLocate={(l) => { setDialogOpen(false); setShowExplorer(true); setViewMode('map'); setFocusId(l.id) }}
+      />
     </section>
   )
 }
