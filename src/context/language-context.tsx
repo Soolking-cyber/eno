@@ -4,17 +4,17 @@ import React, { createContext, useContext, useState, useEffect, useSyncExternalS
 import { MotionConfig } from 'framer-motion'
 
 // English (default/source) + Vietnamese (home market) + the top inbound-tourist
-// languages to Vietnam by 2025 arrivals (GSO): China→Simplified, Taiwan/HK→
-// Traditional, then Korea, Japan, Russia, Cambodia, Malaysia, Thailand, France,
-// with Hindi held for India (which otherwise skews English).
+// languages to Vietnam by 2025 arrivals (GSO): China→Simplified (single Chinese
+// option, covers the #1 market; Taiwan/HK visitors are routed here too), then
+// Korea, Japan, Russia, Cambodia, Malaysia, Thailand, France, with Hindi held
+// for India (which otherwise skews English).
 export type Language =
-  | 'en' | 'vi' | 'zh-Hans' | 'zh-Hant' | 'ko' | 'ja' | 'ru' | 'km' | 'ms' | 'th' | 'fr' | 'hi'
+  | 'en' | 'vi' | 'zh-Hans' | 'ko' | 'ja' | 'ru' | 'km' | 'ms' | 'th' | 'fr' | 'hi'
 
 export const LANGUAGES: { code: Language; label: string; native: string }[] = [
   { code: 'en', label: 'EN', native: 'English' },
   { code: 'vi', label: 'VI', native: 'Tiếng Việt' },
-  { code: 'zh-Hans', label: '简', native: '简体中文' },
-  { code: 'zh-Hant', label: '繁', native: '繁體中文' },
+  { code: 'zh-Hans', label: 'ZH', native: '中文' },
   { code: 'ko', label: 'KO', native: '한국어' },
   { code: 'ja', label: 'JA', native: '日本語' },
   { code: 'ru', label: 'RU', native: 'Русский' },
@@ -30,19 +30,17 @@ export const LANGUAGES: { code: Language; label: string; native: string }[] = [
 // before falling back to MT. Entries are PARTIAL — any language not listed for a
 // term falls through to machine translation. Add native-verified terms here.
 const TR_OVERRIDES: Record<string, Partial<Record<Language, string>>> = {
-  Post: { 'zh-Hans': '发布', 'zh-Hant': '發佈', ko: '등록', ja: '投稿', ru: 'Разместить', fr: 'Publier' },
-  Saved: { 'zh-Hans': '已保存', 'zh-Hant': '已儲存', ko: '저장됨', ja: '保存済み', ru: 'Сохранённое', fr: 'Enregistrés' },
+  Post: { 'zh-Hans': '发布', ko: '등록', ja: '投稿', ru: 'Разместить', fr: 'Publier' },
+  Saved: { 'zh-Hans': '已保存', ko: '저장됨', ja: '保存済み', ru: 'Сохранённое', fr: 'Enregistrés' },
 }
 
 // Map a browser BCP-47 tag (navigator.language) to a supported Language, or null.
 function matchLanguage(raw: string): Language | null {
   if (!raw) return null
   const lc = raw.toLowerCase()
-  // Chinese needs script/region inspection: Traditional for Taiwan/HK/Macau.
-  if (lc.startsWith('zh')) {
-    if (lc.includes('hant') || lc.includes('-tw') || lc.includes('-hk') || lc.includes('-mo')) return 'zh-Hant'
-    return 'zh-Hans'
-  }
+  // All Chinese variants (Simplified, Traditional, Taiwan/HK/Macau) → Simplified,
+  // the single supported Chinese option.
+  if (lc.startsWith('zh')) return 'zh-Hans'
   const primary = lc.split('-')[0]
   const hit = LANGUAGES.find((l) => !l.code.startsWith('zh') && l.code === primary)
   return hit ? hit.code : null

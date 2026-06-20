@@ -3,24 +3,24 @@ import crypto from 'crypto'
 import { db } from './db'
 
 // Supported languages — English source, Vietnamese home market, plus the top
-// inbound-tourist languages to Vietnam (GSO 2025 arrivals). zh is split into
-// Simplified (mainland, #1 market) and Traditional (Taiwan/HK, #3 market).
+// inbound-tourist languages to Vietnam (GSO 2025 arrivals). One Chinese option
+// (Simplified — the #1 market; Taiwan/HK visitors are routed to it).
 export type Lang =
-  | 'en' | 'vi' | 'zh-Hans' | 'zh-Hant' | 'ko' | 'ja' | 'ru' | 'km' | 'ms' | 'th' | 'fr' | 'hi'
+  | 'en' | 'vi' | 'zh-Hans' | 'ko' | 'ja' | 'ru' | 'km' | 'ms' | 'th' | 'fr' | 'hi'
 
-export const LANGS: Lang[] = ['en', 'vi', 'zh-Hans', 'zh-Hant', 'ko', 'ja', 'ru', 'km', 'ms', 'th', 'fr', 'hi']
+export const LANGS: Lang[] = ['en', 'vi', 'zh-Hans', 'ko', 'ja', 'ru', 'km', 'ms', 'th', 'fr', 'hi']
 
 // Azure AI Translator language codes. Almost all match our internal codes 1:1
 // (our codes are already Azure-canonical, e.g. zh-Hans — NOT Google's zh-CN).
 const AZURE_CODE: Record<Lang, string> = {
-  en: 'en', vi: 'vi', 'zh-Hans': 'zh-Hans', 'zh-Hant': 'zh-Hant', ko: 'ko',
+  en: 'en', vi: 'vi', 'zh-Hans': 'zh-Hans', ko: 'ko',
   ja: 'ja', ru: 'ru', km: 'km', ms: 'ms', th: 'th', fr: 'fr', hi: 'hi',
 }
 
 // Pre-translate fresh content into the highest-volume markets on write so the
 // hot read path is always a cache hit. The long tail (km/ms/th/fr/hi) is
 // translated lazily on first view (then cached forever like everything else).
-export const EAGER_LANGS: Lang[] = ['en', 'vi', 'zh-Hans', 'zh-Hant', 'ko', 'ja', 'ru']
+export const EAGER_LANGS: Lang[] = ['en', 'vi', 'zh-Hans', 'ko', 'ja', 'ru']
 
 const AZURE_KEY = process.env.AZURE_TRANSLATOR_KEY
 const AZURE_REGION = process.env.AZURE_TRANSLATOR_REGION
