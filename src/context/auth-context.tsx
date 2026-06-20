@@ -35,6 +35,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await createSupabaseBrowser().auth.signOut()
     setUser(null)
+    // Clear the per-user functional caches (inbox, threads, saved) so the next
+    // account on this device starts clean.
+    try {
+      localStorage.removeItem('eno-convos')
+      localStorage.removeItem('eno-saved-cache')
+      Object.keys(localStorage).filter((k) => k.startsWith('eno-thr:')).forEach((k) => localStorage.removeItem(k))
+    } catch {}
   }
 
   return (

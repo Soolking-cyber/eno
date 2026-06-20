@@ -2,10 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import type { SerializedListing } from '@/lib/types'
-import { hasConsent } from '@/lib/consent'
 
 const KEY = 'eno:favorites'
-const SAVED_KEY = 'eno-saved-cache' // { idKey, list } — consent-gated, device-local
+const SAVED_KEY = 'eno-saved-cache' // { idKey, list } — device-local functional cache
 
 type FavoritesCtx = {
   ids: Set<string>
@@ -54,14 +53,13 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   const idKey = [...ids].sort().join(',')
   useEffect(() => {
     if (!idKey) { setSaved([]); return }
-    if (hasConsent()) {
-      try {
-        const c = JSON.parse(localStorage.getItem(SAVED_KEY) || 'null')
-        if (c && c.idKey === idKey) setSaved(c.list)
-      } catch {}
-    }
-    // Debounce so rapid hearting while browsing coalesces into one request
-    // (the cache hydrate above is already instant).
+    // Instant paint from cache (functional first-party cache of the user's own
+    // saved items — works without the cookie banner).
+    try {
+      const c = JSON.parse(localStorage.getItem(SAVED_KEY) || 'null')
+      if (c && c.idKey === idKey) setSaved(c.list)
+    } catch {}
+    // Debounce so rapid hearting while browsing coalesces into one request.
     let cancelled = false
     const t = setTimeout(() => {
       fetch(`/api/listings?ids=${encodeURIComponent(idKey)}`)
@@ -70,7 +68,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
           if (cancelled) return
           const list: SerializedListing[] = d.listings || []
           setSaved(list)
-          if (hasConsent()) { try { localStorage.setItem(SAVED_KEY, JSON.stringify({ idKey, list })) } catch {} }
+          try { localStorage.setItem(SAVED_KEY, JSON.stringify({ idKey, list })) } catch {}
         })
         .catch(() => {})
     }, 400)
