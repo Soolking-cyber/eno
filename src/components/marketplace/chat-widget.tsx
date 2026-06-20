@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { MessageSquare, ChevronLeft, ChevronRight, X, Send, Loader2 } from 'lucide-react'
+import { MessageSquare, ChevronLeft, ChevronRight, X, Send, Loader2, Phone } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
@@ -178,6 +178,8 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   const [text, setText] = useState(draft)
   const [sending, setSending] = useState(false)
   const [peerTyping, setPeerTyping] = useState(false)
+  const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
+  const [revealing, setRevealing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const meRef = useRef(cached?.me ?? '')   // my profile id, for ignoring my own typing echo
   const lastTypingSent = useRef(0)         // throttle outgoing typing pings
@@ -191,6 +193,19 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     setThread(data)
     cacheThread(id, data) // keep the cache warm for the next open
   }, [id, cacheThread])
+
+  // Reveal the seller's number + Zalo on request (login-gated + rate-limited +
+  // logged as a lead by the API). The buyer messages first, then taps this.
+  const requestContact = async () => {
+    if (contact || revealing || !thread) return
+    setRevealing(true)
+    try {
+      const res = await fetch(`/api/listings/${thread.listing.id}/contact`, { method: 'POST' })
+      if (res.ok) setContact(await res.json())
+    } finally {
+      setRevealing(false)
+    }
+  }
 
   // Throttled "I'm typing" ping (server broadcasts it to the other participant).
   const sendTyping = () => {
@@ -351,6 +366,27 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-[#cbd5e1]" />
         </Link>
+      )}
+
+      {/* Request the seller's number / Zalo right here, after the chat is going. */}
+      {thread && (
+        <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
+          {contact ? (
+            <>
+              <a href={contact.telHref} className="flex items-center gap-1.5 rounded-full bg-[#e8f1fb] px-3 py-1.5 text-xs font-bold text-[#0a66c2]">
+                <Phone className="h-3.5 w-3.5" /> {contact.phone}
+              </a>
+              <a href={contact.zaloHref} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#0068ff] px-3 py-1.5 text-xs font-bold text-white">
+                Zalo
+              </a>
+            </>
+          ) : (
+            <button onClick={requestContact} disabled={revealing} className="flex items-center gap-1.5 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[#1a202c] hover:bg-slate-50 disabled:opacity-50 cursor-pointer">
+              {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+              {tr('Request number / Zalo', 'Lấy số / Zalo')}
+            </button>
+          )}
+        </div>
       )}
 
       <div className="flex-1 space-y-2 overflow-y-auto bg-[#fafafa] px-3 py-3 scroll-thin">
