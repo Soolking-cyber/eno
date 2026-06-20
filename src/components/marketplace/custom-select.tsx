@@ -88,7 +88,7 @@ export function CustomSelect({
           {icon}
           <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
         </span>
-        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform shrink-0 ml-1.5", isOpen && "rotate-180")} />
+        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-600 transition-transform shrink-0 ml-1.5", isOpen && "rotate-180")} />
       </button>
 
       {/* Menu is portaled to <body> so the overflow-x scroll row can't clip it. */}

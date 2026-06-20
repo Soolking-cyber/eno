@@ -38,7 +38,7 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
   loading: () => (
     <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center gap-2 select-none animate-pulse">
       <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#0a66c2] border-t-transparent" />
-      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
         Loading Map...
       </span>
     </div>
@@ -963,7 +963,7 @@ export function ListingsExplorer({
           <div className="pt-4 pb-2 sm:pt-10 text-center">
             <div className="flex flex-col items-center justify-center mb-6">
               <img src="/logo.svg" alt="ENO Logo" width={320} height={80} fetchPriority="high" className="h-20 w-auto object-contain mb-4 select-none" />
-              <p className="eyebrow text-slate-400 dark:text-slate-500">
+              <p className="eyebrow text-slate-600 dark:text-slate-500">
                 {tr('e-commerce with no drama', 'Mua bán không drama.')}
               </p>
             </div>
@@ -1012,7 +1012,7 @@ export function ListingsExplorer({
                         {/* Matching categories */}
                         {matchedCategoriesLanding.length > 0 && (
                           <div className="space-y-1.5">
-                            <span className="eyebrow text-slate-400">{tr('Categories', 'Danh mục')}</span>
+                            <span className="eyebrow text-slate-600">{tr('Categories', 'Danh mục')}</span>
                             <div className="flex flex-wrap gap-1.5">
                               {matchedCategoriesLanding.map((cat) => (
                                 <button
@@ -1029,7 +1029,7 @@ export function ListingsExplorer({
                         )}
                         {/* Instant matches */}
                         <div className="space-y-1.5">
-                          <span className="eyebrow text-slate-400">{tr('Instant matches', 'Kết quả nhanh')}</span>
+                          <span className="eyebrow text-slate-600">{tr('Instant matches', 'Kết quả nhanh')}</span>
                           {landingMatches.length === 0 ? (
                             <p className="py-3 text-center text-xs text-[#94a3b8] italic">
                               {tr('No matches. Press Enter to search.', 'Không tìm thấy. Nhấn Enter để tìm rộng hơn.')}
@@ -1047,7 +1047,7 @@ export function ListingsExplorer({
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <h5 className="truncate text-xs font-semibold text-[#1a202c]"><Tr text={lang === 'vi' ? (l.titleVi || l.title) : l.title} /></h5>
-                                    <span className="text-[10px] text-slate-400"><Tr text={lang === 'vi' ? l.category.nameVi : l.category.name} /></span>
+                                    <span className="text-[10px] text-slate-600"><Tr text={lang === 'vi' ? l.category.nameVi : l.category.name} /></span>
                                   </div>
                                   <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="shrink-0 text-xs font-bold text-[#1a202c]" />
                                 </button>
@@ -1062,10 +1062,10 @@ export function ListingsExplorer({
                         {recentSearches.length > 0 && (
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <span className="eyebrow flex items-center gap-1 text-slate-400"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
+                              <span className="eyebrow flex items-center gap-1 text-slate-600"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }}
-                                className="text-[10px] font-semibold text-slate-400 hover:text-red-500 cursor-pointer"
+                                className="text-[10px] font-semibold text-slate-600 hover:text-red-500 cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
                               </button>
@@ -1085,7 +1085,7 @@ export function ListingsExplorer({
                         )}
                         {/* Popular searches */}
                         <div className="space-y-1.5">
-                          <span className="eyebrow text-slate-400">{tr('Popular searches', 'Từ khóa phổ biến')}</span>
+                          <span className="eyebrow text-slate-600">{tr('Popular searches', 'Từ khóa phổ biến')}</span>
                           <div className="flex flex-wrap gap-1.5">
                             {[
                               { label: 'Honda SH', labelVi: 'Xe SH' },
@@ -1108,7 +1108,7 @@ export function ListingsExplorer({
                         </div>
                         {/* Popular areas */}
                         <div className="space-y-1.5">
-                          <span className="eyebrow text-slate-400">{tr('Popular areas', 'Khu vực phổ biến')}</span>
+                          <span className="eyebrow text-slate-600">{tr('Popular areas', 'Khu vực phổ biến')}</span>
                           <div className="flex flex-wrap gap-1.5">
                             {DISTRICTS.filter((d) => d.slug !== 'all').slice(0, 5).map((d) => (
                               <button
@@ -1132,7 +1132,7 @@ export function ListingsExplorer({
 
           {/* FINN-STYLE CATEGORY GRID */}
           <div className="space-y-4">
-            <h2 className="eyebrow text-slate-400 dark:text-slate-500 text-center select-none">
+            <h2 className="eyebrow text-slate-600 dark:text-slate-500 text-center select-none">
               {tr('Browse by Category', 'Khám phá danh mục')}
             </h2>
             <div className="grid grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4">
@@ -1148,12 +1148,12 @@ export function ListingsExplorer({
                   >
                     <CategoryIcon
                       name={cat.icon}
-                      className="h-8 w-8 text-slate-400 dark:text-slate-500 transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
+                      className="h-8 w-8 text-slate-600 dark:text-slate-500 transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
                     />
                     <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 leading-tight transition-colors group-hover:text-[var(--cat)]">
                       <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
                     </span>
-                    <span className="text-[10px] text-slate-400 select-none font-semibold">
+                    <span className="text-[10px] text-slate-600 select-none font-semibold">
                       {cat.verifiedCount || 0} {tr('listings', 'tin')}
                     </span>
                   </button>
@@ -1479,7 +1479,7 @@ export function ListingsExplorer({
                                         <Image src={l.images[0]} alt={displayTitle} fill sizes="48px" className="object-cover" />
                                       ) : (
                                         <div className="flex h-full w-full items-center justify-center bg-slate-200">
-                                          <Search className="h-4 w-4 text-slate-400" />
+                                          <Search className="h-4 w-4 text-slate-600" />
                                         </div>
                                       )}
                                     </div>
@@ -1487,7 +1487,7 @@ export function ListingsExplorer({
                                       <h5 className="truncate text-xs font-bold text-[#1a202c] group-hover/item:text-[#0a66c2] leading-tight">
                                         {displayTitle}
                                       </h5>
-                                      <span className="text-[10px] text-slate-400">
+                                      <span className="text-[10px] text-slate-600">
                                         <Tr text={lang === 'vi' ? l.category.nameVi : l.category.name} />
                                       </span>
                                     </div>
@@ -1517,7 +1517,7 @@ export function ListingsExplorer({
                                     localStorage.removeItem('eno:recent_searches')
                                     setRecentSearches([])
                                   }}
-                                  className="text-[10px] font-semibold text-slate-400 hover:text-red-500 cursor-pointer"
+                                  className="text-[10px] font-semibold text-slate-600 hover:text-red-500 cursor-pointer"
                                 >
                                   {tr('Clear History', 'Xóa lịch sử')}
                                 </button>
@@ -1602,7 +1602,7 @@ export function ListingsExplorer({
                     title={tr('List view', 'Danh sách')}
                     className={cn(
                       'rounded-lg p-2 transition-colors cursor-pointer',
-                      viewMode === 'compact' ? 'bg-accent text-accent-foreground' : 'text-slate-400',
+                      viewMode === 'compact' ? 'bg-accent text-accent-foreground' : 'text-slate-600',
                     )}
                   >
                     <List className="h-3.5 w-3.5" />
@@ -1614,7 +1614,7 @@ export function ListingsExplorer({
                     title={tr('Grid view', 'Lưới')}
                     className={cn(
                       'rounded-lg p-2 transition-colors cursor-pointer',
-                      viewMode === 'grid' ? 'bg-accent text-accent-foreground' : 'text-slate-400',
+                      viewMode === 'grid' ? 'bg-accent text-accent-foreground' : 'text-slate-600',
                     )}
                   >
                     <Grid className="h-3.5 w-3.5" />
@@ -1626,7 +1626,7 @@ export function ListingsExplorer({
                     title={tr('Map view', 'Xem Bản đồ')}
                     className={cn(
                       'rounded-lg p-2 transition-colors cursor-pointer',
-                      viewMode === 'map' ? 'bg-accent text-accent-foreground' : 'text-slate-400',
+                      viewMode === 'map' ? 'bg-accent text-accent-foreground' : 'text-slate-600',
                     )}
                   >
                     <Map className="h-3.5 w-3.5" />
