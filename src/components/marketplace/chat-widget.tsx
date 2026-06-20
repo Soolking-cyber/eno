@@ -80,11 +80,14 @@ function PendingThread({ onBack, onClose }: { onBack: () => void; onClose: () =>
 /** Floating chat: a corner launcher that expands into a docked panel (inbox +
  *  thread). Replaces full-page navigation; rendered once in the layout. */
 export function ChatWidget() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const { open, view, conversationId, starting, unread, refreshUnread, refreshConvos, openInbox, openThread, back, close } = useChat()
 
-  if (!user) return null // anon users contact via the listing's gated Message button
+  // Render while auth is still resolving too, so an optimistically-opened panel
+  // (Message tapped before auth settles) paints instantly. Truly-anon users are
+  // already excluded by ChatWidgetGate.
+  if (!user && !loading) return null
 
   return (
     <>

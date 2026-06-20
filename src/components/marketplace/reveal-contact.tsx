@@ -26,7 +26,9 @@ export function RevealContact({ listingId, compact = false, onStartChat }: { lis
 
   const reveal = async (): Promise<Contact | null> => {
     if (contact) return contact
-    if (!user) { openSignIn(); return null }
+    // While auth is still resolving, don't bounce to sign-in — proceed; the
+    // server (cookie) is the real gate and the 401 path below handles logged-out.
+    if (!user && !loading) { openSignIn(); return null }
     setBusy(true)
     try {
       const res = await fetch(`/api/listings/${listingId}/contact`, { method: 'POST' })
@@ -44,7 +46,7 @@ export function RevealContact({ listingId, compact = false, onStartChat }: { lis
   // Messaging-first: open the chat INSTANTLY (skeleton) and create the
   // conversation in the background; swap in the real thread when it returns.
   const onMessage = async () => {
-    if (!user) { openSignIn(); return }
+    if (!user && !loading) { openSignIn(); return }
     openPendingThread()   // panel opens immediately — no wait
     onStartChat?.()       // close the listing dialog so the chat isn't hidden behind it
     setMsgBusy(true)

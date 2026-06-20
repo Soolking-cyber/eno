@@ -36,7 +36,7 @@ export function MobileNav() {
   const pathname = usePathname()
   const { count } = useFavorites()
   const { tr } = useLanguage()
-  const { user, openSignIn } = useAuth()
+  const { user, loading, openSignIn } = useAuth()
   const { unread, openInbox } = useChat()
 
   // Hidden on listing detail (own sticky CTA), chat threads (full-screen composer),
@@ -78,7 +78,7 @@ export function MobileNav() {
         />
       </Link>
 
-      <button onClick={() => (user ? openInbox() : openSignIn())} className={BTN}>
+      <button onClick={() => ((user || loading) ? openInbox() : openSignIn())} className={BTN}>
         <span className="relative">
           <MessageSquare className="h-5 w-5" />
           {user && unread > 0 && (
@@ -90,16 +90,11 @@ export function MobileNav() {
         <span>{tr('Messages', 'Tin nhắn')}</span>
       </button>
 
-      {user ? (
-        <Link href="/account" className={TAB}>
-          <TabBody active={pathname === '/account'} icon={<User className="h-5 w-5" />} label={tr('Account', 'Tài khoản')} />
-        </Link>
-      ) : (
-        <button onClick={() => openSignIn()} className={BTN}>
-          <User className="h-5 w-5" />
-          <span>{tr('Account', 'Tài khoản')}</span>
-        </button>
-      )}
+      {/* Always a link — /account handles both states (cache-first when signed in,
+          sign-in prompt when not), so it works even before auth resolves. */}
+      <Link href="/account" className={TAB}>
+        <TabBody active={pathname === '/account'} icon={<User className="h-5 w-5" />} label={tr('Account', 'Tài khoản')} />
+      </Link>
     </nav>
   )
 }

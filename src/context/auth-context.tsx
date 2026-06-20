@@ -29,23 +29,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
+    let started = false
     let unsub: (() => void) | undefined
-    // Lazy-load the Supabase client so its chunk isn't in the initial bundle.
-    import('@/lib/supabase/browser').then(({ createSupabaseBrowser }) => {
-      if (cancelled) return
-      const supabase = createSupabaseBrowser()
-      supabase.auth.getSession().then(({ data }) => {
+    const events: (keyof WindowEventMap)[] = ['pointerdown', 'keydown', 'touchstart', 'scroll']
+    let idleId: number | undefined
+    let timerId: ReturnType<typeof setTimeout> | undefined
+
+    const cleanupTriggers = () => {
+      events.forEach((e) => window.removeEventListener(e, init))
+      const cic = (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback
+      if (idleId != null && cic) cic(idleId)
+      if (timerId) clearTimeout(timerId)
+    }
+
+    // Boot Supabase (chunk fetch + GoTrue getSession/onAuthStateChange) only once
+    // the main thread is idle OR the user first interacts — whichever comes first.
+    // Keeps ~62 KiB + GoTrue init off the post-hydration critical path (TBT/bootup).
+    function init() {
+      if (started || cancelled) return
+      started = true
+      cleanupTriggers()
+      // Any failure (chunk-load on a flaky link, getSession reject) must resolve
+      // to the safe logged-out default — never leave loading=true forever.
+      const fail = () => { if (!cancelled) { setUser(null); setLoading(false) } }
+      import('@/lib/supabase/browser').then(({ createSupabaseBrowser }) => {
         if (cancelled) return
-        setUser(data.session?.user ?? null)
-        setLoading(false)
-      })
-      const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user ?? null)
-        if (session?.user) setSignInOpen(false)
-      })
-      unsub = () => sub.subscription.unsubscribe()
-    })
-    return () => { cancelled = true; unsub?.() }
+        const supabase = createSupabaseBrowser()
+        supabase.auth.getSession().then(({ data }) => {
+          if (cancelled) return
+          setUser(data.session?.user ?? null)
+          setLoading(false)
+        }).catch(fail)
+        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+          setUser(session?.user ?? null)
+          if (session?.user) setSignInOpen(false)
+        })
+        unsub = () => sub.subscription.unsubscribe()
+      }).catch(fail)
+    }
+
+    events.forEach((e) => window.addEventListener(e, init, { once: true, passive: true }))
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback
+    if (ric) idleId = ric(() => init(), { timeout: 2000 })
+    else timerId = setTimeout(init, 1500)
+
+    return () => { cancelled = true; cleanupTriggers(); unsub?.() }
   }, [])
 
   const signOut = async () => {
