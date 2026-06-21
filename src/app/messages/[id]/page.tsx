@@ -140,7 +140,7 @@ export default function ThreadPage() {
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-[#fafafa]">
+    <div className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] flex-col bg-[#fafafa] lg:h-[100dvh]">
       <Header />
       {!loading && !user ? (
         <main className="flex flex-1 items-center justify-center px-4">
@@ -183,7 +183,7 @@ export default function ThreadPage() {
           </div>
 
           {/* Composer */}
-          <div className="flex items-end gap-2 border-t border-slate-200 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          <div className="flex items-end gap-2 border-t border-slate-200 bg-white px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}

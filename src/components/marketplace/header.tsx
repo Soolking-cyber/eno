@@ -1,31 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Heart, User, Globe, ChevronDown, MessageSquare } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useLanguage, LANGUAGES } from '@/context/language-context'
-import { useFavorites } from '@/context/favorites-context'
+import { Plus, User } from 'lucide-react'
+import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
-import { useChat } from '@/context/chat-context'
 import { AccountMenu } from './account-menu'
 
 export function Header() {
-  const { lang, setLang, t, tr } = useLanguage()
-  const { count } = useFavorites()
+  const { t, tr } = useLanguage()
   const { user } = useAuth()
-  const { unread } = useChat()
-  const [langOpen, setLangOpen] = useState(false)
-  const langRef = useRef<HTMLDivElement>(null)
-  const current = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0]
-
-  useEffect(() => {
-    const onClick = (e: MouseEvent) => {
-      if (langRef.current && !langRef.current.contains(e.target as Node)) setLangOpen(false)
-    }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [])
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/60 bg-card pt-[env(safe-area-inset-top)]">
@@ -35,73 +18,9 @@ export function Header() {
           <img src="/logo-mark.svg" alt="ENO" width={40} height={40} className="h-10 w-10" />
         </Link>
 
-        {/* Actions */}
-        <div className="flex items-center gap-3">
-          {/* Language Selector (5 languages) */}
-          <div className="relative" ref={langRef}>
-            <button
-              onClick={() => setLangOpen((v) => !v)}
-              className="flex items-center gap-1.5 rounded-full border border-[#e2e8f0] bg-white/80 px-2.5 h-9 text-xs font-bold text-[#1a202c] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
-              aria-label={`${tr('Language', 'Ngôn ngữ')} ${current.label}`}
-              aria-haspopup="listbox"
-              aria-expanded={langOpen}
-            >
-              <Globe className="h-4 w-4" />
-              <span>{current.label}</span>
-              <ChevronDown className={cn('h-3 w-3 opacity-60 transition-transform', langOpen && 'rotate-180')} />
-            </button>
-            {langOpen && (
-              <div
-                role="listbox"
-                className="absolute right-0 top-full mt-1.5 z-50 w-40 rounded-xl border border-slate-100 bg-white p-1 shadow-lg animate-in fade-in slide-in-from-top-1 duration-100"
-              >
-                {LANGUAGES.map((l) => (
-                  <button
-                    key={l.code}
-                    role="option"
-                    aria-selected={lang === l.code}
-                    onClick={() => { setLang(l.code); setLangOpen(false) }}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm font-medium transition-colors cursor-pointer',
-                      lang === l.code ? 'bg-[#e8f1fb] text-[#0a66c2] font-bold' : 'text-[#1a202c] hover:bg-slate-50',
-                    )}
-                  >
-                    <span>{l.native}</span>
-                    <span className="text-[10px] font-bold text-[#94a3b8]">{l.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* FINN-style account cluster */}
-          <Link
-            href="/saved"
-            className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-[#475569] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
-            aria-label={tr('Saved', 'Tin đã lưu')}
-          >
-            <Heart className={cn('h-5 w-5', count > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
-            {count > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[10px] font-bold text-white">
-                {count}
-              </span>
-            )}
-          </Link>
-          {/* Messages — full page (replaces the floating chat widget). */}
-          {user && (
-            <Link
-              href="/messages"
-              className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-[#475569] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
-              aria-label={tr('Messages', 'Tin nhắn')}
-            >
-              <MessageSquare className="h-5 w-5" />
-              {unread > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[10px] font-bold text-white">
-                  {unread > 9 ? '9+' : unread}
-                </span>
-              )}
-            </Link>
-          )}
+        {/* Actions — Saved, Messages and Language now live in the bottom nav +
+            profile preferences, so the header stays clean (no heart/notif). */}
+        <div className="flex items-center gap-2">
           {user ? (
             <div className="hidden sm:block"><AccountMenu /></div>
           ) : (

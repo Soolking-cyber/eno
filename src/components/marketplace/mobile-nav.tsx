@@ -36,7 +36,7 @@ export function MobileNav() {
 
   // Hidden on listing detail (own sticky CTA), chat threads (full-screen composer),
   // and the full-screen sign-in page.
-  if (pathname?.startsWith('/listings/') || pathname?.startsWith('/messages/') || pathname?.startsWith('/signin')) return null
+  if (pathname?.startsWith('/listings/') || pathname?.startsWith('/signin')) return null
 
   return (
     <nav className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
@@ -81,7 +81,7 @@ export function MobileNav() {
           signed-out state itself. */}
       <Link href="/messages" className={TAB}>
         <TabBody
-          active={pathname === '/messages'}
+          active={pathname?.startsWith('/messages') ?? false}
           icon={
             <>
               <MessageSquare className="h-5 w-5" />

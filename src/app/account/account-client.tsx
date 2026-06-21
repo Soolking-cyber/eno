@@ -7,6 +7,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
+import { LanguagePref } from '@/components/marketplace/language-pref'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
@@ -49,12 +50,14 @@ export function AccountClient() {
     return (
       <div className="flex min-h-screen flex-col bg-[#fafafa]">
         <Header />
-        <main className="flex flex-1 items-center justify-center px-4">
-          <div className="max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-pop">
+        <main className="mx-auto w-full max-w-md flex-1 space-y-8 px-4 py-8">
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-pop">
             <h1 className="text-lg font-bold text-[#1a202c]">{tr('Your account', 'Tài khoản của bạn')}</h1>
             <p className="mt-2 text-sm text-[#64748b]">{tr('Sign in to manage your profile, listings and saved items.', 'Đăng nhập để quản lý hồ sơ, tin đăng và mục đã lưu.')}</p>
             <div className="mt-5"><SignInPrompt /></div>
           </div>
+          {/* Language is a device preference — available even before sign-in. */}
+          <LanguagePref />
         </main>
       </div>
     )
@@ -145,6 +148,9 @@ export function AccountClient() {
             ))}
           </div>
         )}
+
+        {/* Preferences */}
+        <section className="mt-10"><LanguagePref /></section>
       </main>
       <Footer />
     </div>

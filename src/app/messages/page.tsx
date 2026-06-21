@@ -68,10 +68,11 @@ export default function MessagesPage() {
             {filtered && filtered.length === 0 ? (
               <p className="py-12 text-center text-sm text-[#94a3b8]">{tr('No conversations match.', 'Không có cuộc trò chuyện phù hợp.')}</p>
             ) : (
-              <div className="space-y-2">
+              <div className="overflow-hidden rounded-2xl bg-white shadow-pop">
+                <div className="divide-y divide-slate-100">
                 {(filtered ?? []).map((c) => (
-                  <div key={c.id} className="group flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-pop transition-colors hover:border-[#0a66c2]/30">
-                    <Link href={`/messages/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-2.5">
+                  <div key={c.id} className="group flex items-center gap-1 transition-colors hover:bg-slate-50">
+                    <Link href={`/messages/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-3">
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0a66c2] text-sm font-bold text-white">
                         {c.counterpart.avatarUrl
                           ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={c.counterpart.avatarUrl} alt="" className="h-11 w-11 rounded-full object-cover" />
@@ -103,6 +104,7 @@ export default function MessagesPage() {
                     )}
                   </div>
                 ))}
+                </div>
               </div>
             )}
           </>
