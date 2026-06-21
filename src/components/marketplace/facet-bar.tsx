@@ -3,15 +3,16 @@
 import { useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
 import { MapPin, ShieldCheck, ChevronDown } from 'lucide-react'
 import { CustomSelect } from './custom-select'
-import { AreaFilter, type Nearby } from './area-filter'
-import { DISTRICTS } from './listings-explorer.constants'
+import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
 type FacetBarProps = {
   activeCategory: string
-  activeDistrict: string
-  setActiveDistrict: Dispatch<SetStateAction<string>>
+  province: Geo | null
+  setProvince: Dispatch<SetStateAction<Geo | null>>
+  ward: Geo | null
+  setWard: Dispatch<SetStateAction<Geo | null>>
   nearby: Nearby | null
   setNearby: Dispatch<SetStateAction<Nearby | null>>
   priceRange: string
@@ -28,8 +29,10 @@ type FacetBarProps = {
 // always-on sidebar. Only the facets relevant to the active category show.
 export function FacetBar({
   activeCategory,
-  activeDistrict,
-  setActiveDistrict,
+  province,
+  setProvince,
+  ward,
+  setWard,
   nearby,
   setNearby,
   priceRange,
@@ -43,12 +46,14 @@ export function FacetBar({
 }: FacetBarProps) {
   const { lang, tr } = useLanguage()
   const [areaOpen, setAreaOpen] = useState(false)
-  // The area pill is "active" when a district or a near-you search is set.
-  const areaActive = activeDistrict !== 'all' || !!nearby
-  const areaLabel = nearby
+  // The area pill is "active" when a ward/province or a near-you search is set.
+  const areaActive = !!ward || !!province || !!nearby
+  const areaLabel = ward
+    ? (lang === 'vi' ? ward.name : ward.nameEn)
+    : nearby
     ? tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`)
-    : activeDistrict !== 'all'
-    ? (DISTRICTS.find((d) => d.slug === activeDistrict) ? (lang === 'vi' ? DISTRICTS.find((d) => d.slug === activeDistrict)!.name : DISTRICTS.find((d) => d.slug === activeDistrict)!.nameEn) : tr('Area', 'Khu vực'))
+    : province
+    ? (lang === 'vi' ? province.name : province.nameEn)
     : tr('Area', 'Khu vực')
 
   const setFacet = (key: string, value: string) =>
@@ -202,7 +207,7 @@ export function FacetBar({
   }
 
   const hasActive =
-    activeDistrict !== 'all' || !!nearby || conditionFilter !== 'all' || priceRange !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
+    !!province || !!ward || !!nearby || conditionFilter !== 'all' || priceRange !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
 
   return (
     // Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps.
@@ -216,7 +221,8 @@ export function FacetBar({
       {hasActive && (
         <button
           onClick={() => {
-            setActiveDistrict('all')
+            setProvince(null)
+            setWard(null)
             setNearby(null)
             setConditionFilter('all')
             setPriceRange('all')
@@ -232,10 +238,11 @@ export function FacetBar({
       <AreaFilter
         open={areaOpen}
         onClose={() => setAreaOpen(false)}
-        district={activeDistrict}
+        province={province}
+        ward={ward}
         nearby={nearby}
-        onApply={({ district, nearby: nb }) => { setActiveDistrict(district); setNearby(nb) }}
-        onReset={() => { setActiveDistrict('all'); setNearby(null) }}
+        onApply={({ province: p, ward: w, nearby: nb }) => { setProvince(p); setWard(w); setNearby(nb) }}
+        onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
       />
     </div>
   )

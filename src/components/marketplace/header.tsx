@@ -10,7 +10,7 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 import { AccountMenu } from './account-menu'
 import { NotificationBell } from './notification-bell'
-import { AreaFilter, type Nearby } from './area-filter'
+import { AreaFilter, type Nearby, type Geo } from './area-filter'
 
 export function Header() {
   const { t, tr } = useLanguage()
@@ -31,16 +31,15 @@ export function Header() {
   // watch it with an IntersectionObserver and reveal the header search on scroll-past.
   const [showSearch, setShowSearch] = useState(false)
   const [searchVal, setSearchVal] = useState('')
-  const [area, setArea] = useState('all')
+  const [province, setProvince] = useState<Geo | null>(null)
+  const [ward, setWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null)
   const [areaOpen, setAreaOpen] = useState(false)
 
-  // Seed the controls from the URL so a revealed search reflects the active query.
+  // Seed the search box from the URL so a revealed search reflects the active query.
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const p = new URLSearchParams(window.location.search)
-    setSearchVal(p.get('q') || '')
-    setArea(p.get('district') || 'all')
+    setSearchVal(new URLSearchParams(window.location.search).get('q') || '')
   }, [pathname])
 
   useEffect(() => {
@@ -76,14 +75,14 @@ export function Header() {
     }
   }
 
-  const applyArea = ({ district, nearby: nb }: { district: string; nearby: Nearby | null }) => {
-    setArea(district)
+  const applyArea = ({ province: p, ward: w, nearby: nb }: { province: Geo | null; ward: Geo | null; nearby: Nearby | null }) => {
+    setProvince(p)
+    setWard(w)
     setNearby(nb)
     if (isExplorerPage) {
-      window.dispatchEvent(new CustomEvent('eno:set-area', { detail: { district, nearby: nb } }))
+      window.dispatchEvent(new CustomEvent('eno:set-area', { detail: { province: p, ward: w, nearby: nb } }))
     } else {
-      // Off the explorer: navigate home with the district (near-you is session-only).
-      router.push(district && district !== 'all' ? `/?district=${district}` : '/')
+      router.push('/') // off the explorer: jump to the home feed (area is session state)
     }
   }
 
@@ -121,7 +120,7 @@ export function Header() {
               aria-label={tr('Area', 'Khu vực')}
               className={cn(
                 'absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors',
-                area !== 'all' || nearby ? 'bg-[#e8f1fb] text-[#0a66c2]' : 'text-[#94a3b8] hover:bg-slate-200/70 hover:text-[#0a66c2]',
+                province || ward || nearby ? 'bg-[#e8f1fb] text-[#0a66c2]' : 'text-[#94a3b8] hover:bg-slate-200/70 hover:text-[#0a66c2]',
               )}
             >
               <MapPin className="h-4 w-4" />
@@ -160,10 +159,11 @@ export function Header() {
       <AreaFilter
         open={areaOpen}
         onClose={() => setAreaOpen(false)}
-        district={area}
+        province={province}
+        ward={ward}
         nearby={nearby}
         onApply={applyArea}
-        onReset={() => applyArea({ district: 'all', nearby: null })}
+        onReset={() => applyArea({ province: null, ward: null, nearby: null })}
       />
     </header>
   )

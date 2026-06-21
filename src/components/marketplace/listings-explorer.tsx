@@ -28,7 +28,7 @@ import { CustomSelect } from './custom-select'
 import { FacetBar } from './facet-bar'
 import { DISTRICTS } from './listings-explorer.constants'
 import { FavoriteHeart } from './favorite-heart'
-import { type Nearby } from './area-filter'
+import { type Nearby, type Geo } from './area-filter'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
@@ -77,6 +77,9 @@ export function ListingsExplorer({
   const [sort, setSort] = useState<SortKey>('newest')
   const [verifiedOnly, setVerifiedOnly] = useState(true)
   const [activeDistrict, setActiveDistrict] = useState('all')
+  // New area model (Vietnam 2025: province → ward), driven by the AreaFilter.
+  const [activeProvince, setActiveProvince] = useState<Geo | null>(null)
+  const [activeWard, setActiveWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null) // {lat,lng,radiusKm} when "search near you" is on
   const [conditionFilter, setConditionFilter] = useState('all') // 'all' | 'new' | 'used'
   const [priceRange, setPriceRange] = useState('all') // 'all' | 'min-max' (VND, empty max = open)
@@ -122,9 +125,10 @@ export function ListingsExplorer({
       activeCategory === 'all' &&
       activeDistrict === 'all' &&
       activeSubcategory === 'all' &&
+      !activeProvince && !activeWard && !nearby &&
       Object.keys(customFilters).length === 0
     )
-  }, [showExplorer, activeCategory, activeDistrict, activeSubcategory, customFilters])
+  }, [showExplorer, activeCategory, activeDistrict, activeSubcategory, activeProvince, activeWard, nearby, customFilters])
 
   const resetToLandingPage = useCallback(() => {
     setQuery('')
@@ -248,8 +252,9 @@ export function ListingsExplorer({
     }
     // Area filter (district + "near you") applied from the header search bar.
     const onArea = (e: Event) => {
-      const d = (e as CustomEvent<{ district?: string; nearby?: Nearby | null }>).detail
-      setActiveDistrict(d?.district ?? 'all')
+      const d = (e as CustomEvent<{ province?: Geo | null; ward?: Geo | null; nearby?: Nearby | null }>).detail
+      setActiveProvince(d?.province ?? null)
+      setActiveWard(d?.ward ?? null)
       setNearby(d?.nearby ?? null)
       setShowExplorer(true)
       document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -383,7 +388,7 @@ export function ListingsExplorer({
   // Reset page to 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, verifiedOnly, sort, activeSubcategory, customFilters, priceRange, nearby])
+  }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, verifiedOnly, sort, activeSubcategory, customFilters, priceRange, nearby, activeProvince?.code, activeWard?.code])
 
   // Fetch listings dynamically from API on parameter/page modifications using React Query SWR cache
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching } = useQuery({
@@ -393,6 +398,8 @@ export function ListingsExplorer({
         category: activeCategory,
         subcategory: activeSubcategory,
         district: activeDistrict,
+        province: activeProvince?.code ?? null,
+        ward: activeWard?.code ?? null,
         near: nearby ? 1 : 0,
         condition: conditionFilter,
         q: debouncedQuery,
@@ -407,8 +414,10 @@ export function ListingsExplorer({
       const params = new URLSearchParams()
       if (activeCategory !== 'all') params.set('category', activeCategory)
       if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
-      // "Near you" ignores the district filter and pulls a broad set to distance-filter client-side.
+      // "Near you" ignores area filters and pulls a broad set to distance-filter client-side.
       if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
+      if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
+      if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
       if (conditionFilter !== 'all') params.set('condition', conditionFilter)
       if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
       params.set('sort', sort)
@@ -1459,8 +1468,10 @@ export function ListingsExplorer({
             {/* Category-aware facet bar (replaces the old sidebar) */}
             <FacetBar
               activeCategory={activeCategory}
-              activeDistrict={activeDistrict}
-              setActiveDistrict={setActiveDistrict}
+              province={activeProvince}
+              setProvince={setActiveProvince}
+              ward={activeWard}
+              setWard={setActiveWard}
               nearby={nearby}
               setNearby={setNearby}
               priceRange={priceRange}

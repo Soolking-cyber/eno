@@ -99,6 +99,18 @@ export async function GET(req: NextRequest) {
   if (districtFilter) {
     andFilters.push(districtFilter)
   }
+
+  // New area model (province → ward). Province matches the listing city (the only
+  // level the current listings carry); ward is best-effort against district/location
+  // (won't hit pre-2025 listings until they're re-tagged with wards).
+  const province = searchParams.get('province')?.trim()
+  if (province) {
+    andFilters.push({ OR: [{ city: { contains: province } }, { location: { contains: province } }] })
+  }
+  const ward = searchParams.get('ward')?.trim()
+  if (ward) {
+    andFilters.push({ OR: [{ district: { contains: ward } }, { location: { contains: ward } }] })
+  }
   if (q) {
     // Accent-insensitive + cross-language: match the folded query against the
     // pre-folded searchText blob (covers EN title + VI titleVi + desc + location).
