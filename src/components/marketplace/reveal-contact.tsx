@@ -5,6 +5,7 @@ import { MessageCircle, Lock, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { trackContactSeller, type Currency } from '@/lib/analytics'
 import { toast } from 'sonner'
 
 /**
@@ -13,7 +14,7 @@ import { toast } from 'sonner'
  * ChatThread). Used on the listing detail page, the detail dialog, and (compact)
  * the mobile sticky bar.
  */
-export function RevealContact({ listingId, compact = false, onStartChat }: { listingId: string; compact?: boolean; onStartChat?: () => void }) {
+export function RevealContact({ listingId, listingTitle, price, currency, compact = false, onStartChat }: { listingId: string; listingTitle?: string; price?: number; currency?: Currency; compact?: boolean; onStartChat?: () => void }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
@@ -35,7 +36,9 @@ export function RevealContact({ listingId, compact = false, onStartChat }: { lis
         return
       }
       if (!res.ok) { toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.')); return }
-      const { id } = await res.json()
+      const { id, created } = await res.json()
+      // Count the lead only on a genuinely new conversation (the API is idempotent).
+      if (created) trackContactSeller({ id: listingId, title: listingTitle, price, currency })
       onStartChat?.()
       router.push(`/messages/${id}`)
     } catch {

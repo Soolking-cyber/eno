@@ -3,6 +3,24 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { User } from '@supabase/supabase-js'
+import { trackSignUp } from '@/lib/analytics'
+
+// Fire the sign_up / CompleteRegistration conversion exactly once for a genuinely
+// NEW account. Supabase's auth events don't flag new-vs-returning, so we treat a
+// session whose user was created in the last 5 min as a fresh registration (a
+// returning sign-in carries a much older created_at). A per-user localStorage key
+// guarantees we never double-count across reloads or token refreshes — this single
+// hook covers every method (OAuth, magic-link, phone OTP) since they all land here.
+function maybeTrackSignUp(u: User): void {
+  try {
+    const key = `eno-signup-fired:${u.id}`
+    if (localStorage.getItem(key)) return
+    const createdAt = u.created_at ? new Date(u.created_at).getTime() : 0
+    if (!createdAt || Date.now() - createdAt > 5 * 60_000) return
+    localStorage.setItem(key, '1')
+    trackSignUp((u.app_metadata?.provider as string) || 'email')
+  } catch { /* storage blocked / no analytics — ignore */ }
+}
 
 // The Supabase client + sign-in UI are the heaviest JS on the anonymous home
 // page yet a logged-out visitor needs neither up front. Load the client lazily
@@ -62,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }).catch(fail)
         const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
           setUser(session?.user ?? null)
-          if (session?.user) setSignInOpen(false)
+          if (session?.user) { setSignInOpen(false); maybeTrackSignUp(session.user) }
         })
         unsub = () => sub.subscription.unsubscribe()
       }).catch(fail)

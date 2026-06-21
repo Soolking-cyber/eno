@@ -27,18 +27,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'own_listing' }, { status: 400 })
   }
 
-  const convo = await db.conversation.upsert({
-    where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
-    update: {},
-    create: {
-      listingId,
-      buyerProfileId: profile.id,
-      sellerId: listing.sellerId,
-      sellerProfileId: listing.seller.ownerId ?? null,
-    },
-    select: { id: true },
-  })
-  return NextResponse.json({ id: convo.id })
+  // Create the conversation, letting the unique (listingId, buyerProfileId)
+  // constraint be the single source of truth for new-vs-existing. `created` stays
+  // accurate even under a double-tap / concurrent POST race (a non-atomic
+  // read-then-upsert could report created:true for BOTH racers and double-count
+  // the lead). A P2002 means the thread already exists → reuse it, created:false.
+  try {
+    const convo = await db.conversation.create({
+      data: {
+        listingId,
+        buyerProfileId: profile.id,
+        sellerId: listing.sellerId,
+        sellerProfileId: listing.seller.ownerId ?? null,
+      },
+      select: { id: true },
+    })
+    return NextResponse.json({ id: convo.id, created: true })
+  } catch (e) {
+    if ((e as { code?: string })?.code === 'P2002') {
+      const existing = await db.conversation.findUnique({
+        where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
+        select: { id: true },
+      })
+      if (existing) return NextResponse.json({ id: existing.id, created: false })
+    }
+    throw e
+  }
 }
 
 // GET: the current user's inbox (conversations they're a participant in), newest first.

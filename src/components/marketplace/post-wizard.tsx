@@ -7,6 +7,7 @@ import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
+import { trackPostListing } from '@/lib/analytics'
 
 const DISTRICTS = ['District 1', 'District 3', 'District 4', 'District 7 (Phu My Hung)', 'Binh Thanh', 'Thu Duc (Thao Dien)', 'Phu Nhuan', 'Tan Binh']
 const STEPS = 4
@@ -85,6 +86,18 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
         }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Failed')
+      // Published successfully → fire the sell-side conversion (once; this path is
+      // only reached on a 2xx, the Submit button is disabled while submitting, and
+      // success unmounts the form). Listings are always priced in VND (₫).
+      const created = (await res.json().catch(() => ({}))) as { id?: string }
+      trackPostListing({
+        id: created.id,
+        title: title.trim(),
+        price: Number(price),
+        currency: 'VND',
+        category: cat?.name || categorySlug,
+        district: district || undefined,
+      })
       setSubmitted(true)
     } catch (e) {
       const msg = e instanceof Error ? e.message : ''

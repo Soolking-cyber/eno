@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { RevealContact } from '@/components/marketplace/reveal-contact'
+import { TrackView } from '@/components/marketplace/track-view'
+import { currencyCode } from '@/lib/analytics'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -153,6 +155,15 @@ export default async function ListingPage({ params }: Props) {
         />
       )}
 
+      {/* Fires GA4 view_item / Meta ViewContent once per listing view (client, renders null) */}
+      <TrackView
+        id={listing.id}
+        title={displayTitle}
+        price={listing.price}
+        currency={currencyCode(listing.currency)}
+        category={listing.category.name}
+      />
+
       <Header />
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4 pb-12">
@@ -252,7 +263,7 @@ export default async function ListingPage({ params }: Props) {
               )}
 
               {/* Contact is auth-gated; the number is never in this payload */}
-              <RevealContact listingId={listing.id} />
+              <RevealContact listingId={listing.id} listingTitle={displayTitle} price={listing.price} currency={currencyCode(listing.currency)} />
 
               <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 border-t border-slate-100 pt-4 cursor-pointer">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e8f1fb] text-sm font-bold text-[#0a66c2]">
@@ -285,7 +296,7 @@ export default async function ListingPage({ params }: Props) {
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="truncate text-base font-bold text-[#1a202c]" />
           {listing.verified && <div className="text-[11px] font-semibold text-[#0a66c2]"><Tr text="Verified" /></div>}
         </div>
-        <RevealContact listingId={listing.id} compact />
+        <RevealContact listingId={listing.id} listingTitle={displayTitle} price={listing.price} currency={currencyCode(listing.currency)} compact />
       </div>
 
       <Footer />

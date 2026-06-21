@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   Search,
   SlidersHorizontal,
@@ -27,6 +27,7 @@ import { LogoWordmark } from './logo-wordmark'
 import { CustomSelect } from './custom-select'
 import { FacetBar } from './facet-bar'
 import { DISTRICTS } from './listings-explorer.constants'
+import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
@@ -166,6 +167,10 @@ export function ListingsExplorer({
     window.addEventListener('open-mobile-filters', handleOpenFilters)
     return () => window.removeEventListener('open-mobile-filters', handleOpenFilters)
   }, [])
+
+  // The last search term sent to analytics — so 'search' fires once per distinct
+  // committed query, not again on every pagination/sort/filter refetch of the same term.
+  const lastTrackedSearch = useRef<string | null>(null)
 
   // Helper to persist search terms
   const saveSearchToHistory = useCallback((searchTerm: string) => {
@@ -410,11 +415,23 @@ export function ListingsExplorer({
       if (listingsData.categoryTotal !== undefined) {
         setCategoryTotal(listingsData.categoryTotal)
       }
-      if (debouncedQuery.trim().length >= 2) {
+      const term = debouncedQuery.trim()
+      if (term.length >= 2) {
         saveSearchToHistory(debouncedQuery)
+        // Settled query (debounced + a successful /api/listings response) → a real
+        // search event, deduped so refetches of the same term don't re-fire.
+        if (lastTrackedSearch.current !== term) {
+          lastTrackedSearch.current = term
+          trackSearch({
+            term,
+            results: listingsData.total,
+            category: activeCategory !== 'all' ? activeCategory : undefined,
+            contentIds: listingsData.listings.slice(0, 10).map((l) => l.id),
+          })
+        }
       }
     }
-  }, [listingsData, debouncedQuery, saveSearchToHistory])
+  }, [listingsData, debouncedQuery, saveSearchToHistory, activeCategory])
 
   // Update loading state
   useEffect(() => {
