@@ -17,36 +17,30 @@ interface CustomSelectProps {
   labelClassName?: string
 }
 
-/** Pill-styled select whose menu is portaled to <body> so the horizontally
- *  scrolling facet row can't clip it. Props-only; no app context coupling. */
+/** Select whose menu MORPHS out of the trigger (Google-style): on open the trigger
+ *  flattens its bottom and the menu attaches directly below as one continuous white
+ *  window (same width, shared border + shadow, faint divider). Menu is portaled to
+ *  <body> so a scrolling facet row can't clip it. Props-only; no app coupling. */
 export function CustomSelect({
-  value,
-  onChange,
-  options,
-  placeholder,
-  className,
-  activeClassName,
-  icon,
-  wrapperClassName,
-  labelClassName,
+  value, onChange, options, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [pos, setPos] = useState<{ top: number; left: number; minWidth: number }>({ top: 0, left: 0, minWidth: 0 })
+  const [pos, setPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { setMounted(true) }, [])
 
-  // Position the portaled menu under the trigger (fixed coords, viewport-clamped).
+  // Attach the menu flush under the trigger, exact same width → one window.
   const reposition = useCallback(() => {
     const el = triggerRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    const menuW = Math.min(288, Math.max(r.width, 176))
-    const left = Math.min(r.left, window.innerWidth - menuW - 8)
-    setPos({ top: r.bottom + 8, left: Math.max(8, left), minWidth: r.width })
+    const width = Math.max(r.width, 176) // keep narrow pills' menus readable
+    const left = Math.min(r.left, window.innerWidth - width - 8)
+    setPos({ top: r.bottom, left: Math.max(8, left), width })
   }, [])
 
   useEffect(() => {
@@ -57,8 +51,6 @@ export function CustomSelect({
       if (containerRef.current?.contains(t) || menuRef.current?.contains(t)) return
       setIsOpen(false)
     }
-    // Reposition while open so the menu stays glued to the trigger (the facet row
-    // scrolls horizontally; the page can scroll vertically).
     const onScroll = () => reposition()
     document.addEventListener('mousedown', onDocClick)
     window.addEventListener('scroll', onScroll, true)
@@ -70,7 +62,7 @@ export function CustomSelect({
     }
   }, [isOpen, reposition])
 
-  const selectedOption = options.find(o => o.value === value)
+  const selectedOption = options.find((o) => o.value === value)
 
   return (
     <div ref={containerRef} className={cn('relative', wrapperClassName ?? 'w-full')}>
@@ -79,26 +71,29 @@ export function CustomSelect({
         type="button"
         onClick={() => { if (!isOpen) reposition(); setIsOpen((o) => !o) }}
         className={cn(
-          "flex w-full items-center justify-between rounded-full px-3.5 py-2 text-sm font-semibold outline-none transition-colors cursor-pointer",
-          value !== 'all' && value !== 'newest'
-            ? (activeClassName ?? "bg-[#e8f1fb] text-[#0a66c2]")
-            : "bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]",
-          className
+          'flex w-full items-center justify-between px-3.5 py-2 text-sm font-semibold outline-none transition-colors cursor-pointer border',
+          // Closed: consistent rounded-xl (no more pills). Caller className may restyle.
+          !isOpen && 'rounded-xl border-transparent',
+          !isOpen && (value !== 'all' && value !== 'newest'
+            ? (activeClassName ?? 'bg-[#e8f1fb] text-[#0a66c2]')
+            : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]'),
+          className,
+          // Open: morph into the top of the window (overrides caller styling).
+          isOpen && 'rounded-t-2xl rounded-b-none border-slate-200 border-b-transparent bg-white text-[#1a202c] shadow-pop',
         )}
       >
         <span className="flex items-center gap-1.5 truncate">
           {icon}
           <span className={cn('truncate', labelClassName)}>{selectedOption ? selectedOption.label : placeholder}</span>
         </span>
-        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-600 transition-transform shrink-0 ml-1.5", isOpen && "rotate-180")} />
+        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 ml-1.5 text-slate-600 transition-transform', isOpen && 'rotate-180')} />
       </button>
 
-      {/* Menu is portaled to <body> so the overflow-x scroll row can't clip it. */}
       {isOpen && mounted && createPortal(
         <div
           ref={menuRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.minWidth }}
-          className="z-[100] w-max max-w-[18rem] overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.08)] max-h-60 overflow-y-auto scroll-thin animate-in fade-in slide-in-from-top-1 duration-75"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
+          className="z-[100] max-h-60 overflow-y-auto overflow-x-hidden rounded-b-2xl border border-t-slate-100 border-slate-200 bg-white p-1.5 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
         >
           {options.map((opt) => {
             const isActive = opt.value === value
@@ -106,18 +101,13 @@ export function CustomSelect({
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setIsOpen(false)
-                }}
+                onClick={() => { onChange(opt.value); setIsOpen(false) }}
                 className={cn(
                   'flex w-full items-center gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer',
-                  isActive
-                    ? 'bg-[#e8f1fb] text-[#0a66c2] font-semibold'
-                    : 'font-medium text-[#475569] hover:bg-[#f1f5f9]'
+                  isActive ? 'bg-[#e8f1fb] text-[#0a66c2] font-semibold' : 'font-medium text-[#475569] hover:bg-[#f1f5f9]',
                 )}
               >
-                <span className="whitespace-nowrap">{opt.label}</span>
+                <span className="truncate">{opt.label}</span>
               </button>
             )
           })}

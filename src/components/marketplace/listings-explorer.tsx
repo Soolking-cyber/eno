@@ -1066,8 +1066,8 @@ export function ListingsExplorer({
               <div className={cn(
                 'flex items-center bg-white transition-all duration-200',
                 showSuggestions
-                  ? 'rounded-t-3xl border border-slate-200 border-b-0 shadow-pop'
-                  : 'rounded-full border border-slate-300 focus-within:border-[#0a66c2] focus-within:ring-2 focus-within:ring-[#0a66c2]/20',
+                  ? 'rounded-t-2xl border border-slate-200 border-b-0 shadow-pop'
+                  : 'rounded-2xl border border-slate-300 focus-within:border-[#0a66c2] focus-within:ring-2 focus-within:ring-[#0a66c2]/20',
               )}>
                 <button
                   onClick={() => handleLandingSearch(landingQuery)}
@@ -1092,7 +1092,7 @@ export function ListingsExplorer({
                 <span className="h-6 w-px shrink-0 bg-slate-200" />
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
-                  className="flex shrink-0 items-center gap-1.5 rounded-r-full pl-3.5 pr-4 py-3.5 text-sm font-semibold text-[#0a66c2] hover:text-[#004182] transition-colors cursor-pointer"
+                  className="flex shrink-0 items-center gap-1.5 rounded-r-2xl pl-3.5 pr-4 py-3.5 text-sm font-semibold text-[#0a66c2] hover:text-[#004182] transition-colors cursor-pointer"
                 >
                   <Map className="h-4 w-4" />
                   <span>{tr('Map', 'Bản đồ')}</span>
@@ -1103,7 +1103,7 @@ export function ListingsExplorer({
               {showSuggestions && (
                 <>
                   <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowSuggestions(false)} />
-                  <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-3xl border border-t-slate-100 border-slate-200 bg-white p-4 shadow-pop text-left max-h-[440px] overflow-y-auto scroll-thin space-y-4 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-2xl border border-t-slate-100 border-slate-200 bg-white p-4 shadow-pop text-left max-h-[440px] overflow-y-auto scroll-thin space-y-4 animate-in fade-in slide-in-from-top-1 duration-150">
                     {landingQuery.trim() ? (
                       <>
                         {/* Matching categories */}

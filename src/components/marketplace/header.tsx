@@ -111,7 +111,7 @@ export function Header() {
               autoComplete="off"
               placeholder={tr('Find products…', 'Tìm sản phẩm…')}
               aria-label={tr('Search', 'Tìm kiếm')}
-              className="w-full rounded-full bg-[#f1f5f9] py-2.5 pl-9 pr-11 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20"
+              className="w-full rounded-2xl bg-[#f1f5f9] py-2.5 pl-9 pr-11 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20"
             />
             {/* Area filter — small location pin inside the search bar (right) */}
             <button
