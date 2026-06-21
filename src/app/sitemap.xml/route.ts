@@ -2,7 +2,11 @@ import { db } from '@/lib/db'
 import { slugify } from '@/lib/slug'
 import { NextResponse } from 'next/server'
 
-export const dynamic = 'force-dynamic'
+// Cache the generated sitemap for an hour instead of rebuilding it (DB query over
+// all listings + a serverless cold start) on every request — that ~6s response was
+// timing out Google's fetcher ("Couldn't fetch"). Revalidates hourly in the
+// background, so Google always gets a fast, already-built XML.
+export const revalidate = 3600
 
 export async function GET() {
   try {

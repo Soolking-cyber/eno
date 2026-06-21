@@ -14,4 +14,4 @@ User-agent: *
 Allow: /
 Disallow: /admin
 
-Sitemap: https://eno.forum/sitemap.xml
+Sitemap: https://www.eno.forum/sitemap.xml
