@@ -149,8 +149,9 @@ export function AccountClient() {
           </div>
         )}
 
-        {/* Preferences */}
-        <section className="mt-10"><LanguagePref /></section>
+        {/* Preferences — mobile only; on desktop the language picker lives in the
+            account dropdown (top-right), so it's removed from this page there. */}
+        <section className="mt-10 lg:hidden"><LanguagePref /></section>
       </main>
       <Footer />
     </div>

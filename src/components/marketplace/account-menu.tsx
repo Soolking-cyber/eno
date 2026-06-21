@@ -2,16 +2,17 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { User, Heart, MessageSquare, Store, LogOut } from 'lucide-react'
+import { User, Heart, MessageSquare, Store, LogOut, Check } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
-import { useLanguage } from '@/context/language-context'
+import { useLanguage, LANGUAGES } from '@/context/language-context'
+import { cn } from '@/lib/utils'
 
 type Me = { displayName: string | null; email: string | null; avatarUrl: string | null; avatarColor: string; sellerId: string | null }
 
 /** Header avatar → dropdown menu (no page redirect). */
 export function AccountMenu() {
   const { user, signOut } = useAuth()
-  const { tr } = useLanguage()
+  const { tr, lang, setLang } = useLanguage()
   const [open, setOpen] = useState(false)
   const [me, setMe] = useState<Me | null>(null)
   const ref = useRef<HTMLDivElement>(null)
@@ -71,9 +72,34 @@ export function AccountMenu() {
             <Link href="/messages" role="menuitem" onClick={() => setOpen(false)} className={item}>
               <MessageSquare className="h-4 w-4 text-[#0a66c2]" /> {tr('Messages', 'Tin nhắn')}
             </Link>
-            <button role="menuitem" onClick={() => { setOpen(false); signOut() }} className={`${item} hover:bg-red-50 hover:text-red-600`}>
-              <LogOut className="h-4 w-4" /> {tr('Sign out', 'Đăng xuất')}
-            </button>
+
+            {/* Language — switch instantly without leaving the menu */}
+            <div className="mt-1 border-t border-slate-100 px-1 pb-1 pt-2">
+              <p className="mb-1.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#94a3b8]">{tr('Language', 'Ngôn ngữ')}</p>
+              <div className="grid grid-cols-2 gap-1">
+                {LANGUAGES.map((l) => (
+                  <button
+                    key={l.code}
+                    role="menuitemradio"
+                    aria-checked={lang === l.code}
+                    onClick={() => setLang(l.code)}
+                    className={cn(
+                      'flex items-center justify-between gap-1 rounded-lg px-2 py-1.5 text-left text-xs font-medium transition-colors cursor-pointer',
+                      lang === l.code ? 'bg-[#e8f1fb] font-semibold text-[#0a66c2]' : 'text-[#475569] hover:bg-slate-50',
+                    )}
+                  >
+                    <span className="truncate">{l.native}</span>
+                    {lang === l.code && <Check className="h-3.5 w-3.5 shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-1 border-t border-slate-100 pt-1">
+              <button role="menuitem" onClick={() => { setOpen(false); signOut() }} className={`${item} hover:bg-red-50 hover:text-red-600`}>
+                <LogOut className="h-4 w-4" /> {tr('Sign out', 'Đăng xuất')}
+              </button>
+            </div>
           </div>
         </div>
       )}
