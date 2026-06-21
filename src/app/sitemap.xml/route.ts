@@ -31,6 +31,17 @@ export async function GET() {
       xml += `  <url><loc>${hostUrl}/${p}</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>\n`
     }
 
+    // SEO keyword landing pages (expat-intent entry points that funnel to categories)
+    for (const p of [
+      'housing-vietnam-expats',
+      'jobs-vietnam-expats',
+      'motorbikes-for-sale-vietnam',
+      'moving-sales-vietnam',
+      'services-for-expats-vietnam',
+    ]) {
+      xml += `  <url><loc>${hostUrl}/${p}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n`
+    }
+
     // Faceted category pages (programmatic SEO entry points)
     for (const c of categories) {
       xml += `  <url><loc>${hostUrl}/c/${c.slug}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>\n`

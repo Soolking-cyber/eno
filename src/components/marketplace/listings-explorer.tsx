@@ -977,9 +977,15 @@ export function ListingsExplorer({
           {/* HERO SEARCH AREA */}
           <div className="pt-4 pb-2 sm:pt-10 text-center">
             <div className="flex flex-col items-center justify-center mb-6">
+              {/* SEO: a real <h1> with the exact brand phrase (the logo is an image). */}
+              <h1 className="sr-only">ENO Forum — Verified Expat Marketplace in Vietnam</h1>
               <LogoWordmark className="h-20 w-auto mb-4 select-none" />
               <p className="eyebrow text-slate-600">
                 {tr('e-commerce with no drama', 'Mua bán không drama.')}
+              </p>
+              {/* Visible brand text: ties the exact phrase "ENO Forum" + "ENO.vn" to the brand. */}
+              <p className="mt-2.5 max-w-md text-xs leading-relaxed text-slate-500">
+                {tr('ENO Forum is the temporary home of ENO.vn — a verified marketplace for Vietnam’s international community.', 'ENO Forum là ngôi nhà tạm của ENO.vn — chợ đã xác minh cho cộng đồng quốc tế tại Việt Nam.')}
               </p>
             </div>
 

@@ -429,7 +429,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           </div>
         )}
         {thread?.messages.map((m) => (
-          <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'} duration-200 animate-in fade-in slide-in-from-bottom-1`}>
+          <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'}`}>
               {m.body}
             </div>

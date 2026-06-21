@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import type { SerializedCategory, SerializedListing } from '@/lib/types'
@@ -7,6 +8,9 @@ import { Footer } from '@/components/marketplace/footer'
 
 // ISR: near-static homepage data, refreshed at most once a minute (better LCP/TTFB).
 export const revalidate = 60
+
+// Self-canonical so Google attributes ranking signals to the no-redirect www host.
+export const metadata: Metadata = { alternates: { canonical: '/' } }
 
 async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListing[]; total: number }> {
   try {

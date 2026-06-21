@@ -36,32 +36,37 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://www.eno.forum"),
-  title: "ENO — Your Trusted Vietnam Network.",
+  title: "ENO Forum - Verified Expat Marketplace in Vietnam",
   description:
-    "The verified classifieds marketplace for Vietnamese expats. Moving sales, motorbike & house rentals, jobs and more — every listing is checked before it goes live. No fakes, no bait prices, no wasted trips.",
+    "ENO Forum is a verified marketplace for expats and internationals in Vietnam. Find housing, jobs, motorbikes, services, moving sales, and more — every listing is checked before it goes live.",
+  applicationName: "ENO Forum",
   keywords: [
+    "ENO Forum",
+    "eno.forum",
+    "expat marketplace Vietnam",
     "Vietnam expats",
     "Viet Kieu",
     "verified marketplace",
+    "housing Vietnam expats",
     "motorbike rental Saigon",
     "house rental Thao Dien",
     "moving sale Vietnam",
-    "ENO",
+    "jobs Vietnam expats",
     "classifieds Vietnam",
   ],
-  authors: [{ name: "ENO" }],
+  authors: [{ name: "ENO Forum" }],
   openGraph: {
-    title: "ENO — Your Trusted Vietnam Network.",
+    title: "ENO Forum - Verified Expat Marketplace in Vietnam",
     description:
-      "Every listing verified before it goes live. No fakes, no bait prices, no wasted trips.",
-    siteName: "ENO",
+      "A verified marketplace for expats and internationals in Vietnam. Housing, jobs, motorbikes, services and moving sales — every listing checked before it goes live.",
+    siteName: "ENO Forum",
     type: "website",
     images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
-    title: "ENO — Your Trusted Vietnam Network.",
-    description: "Every listing verified. No fakes, no bait prices.",
+    title: "ENO Forum - Verified Expat Marketplace in Vietnam",
+    description: "Verified marketplace for expats in Vietnam — housing, jobs, motorbikes, services, moving sales.",
     images: [OG_IMAGE.url],
   },
 };
