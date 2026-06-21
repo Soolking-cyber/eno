@@ -213,8 +213,8 @@ export function AreaFilter({
         </div>
 
         <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
-          <button onClick={reset} className="flex-1 rounded-full border border-slate-300 py-2.5 text-sm font-bold text-[#475569] transition-colors hover:bg-slate-50">{tr('Delete filter', 'Xóa lọc')}</button>
-          <button onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</button>
+          <button onClick={reset} className="flex-1 rounded-xl border border-slate-300 py-2.5 text-sm font-bold text-[#475569] transition-colors hover:bg-slate-50">{tr('Delete filter', 'Xóa lọc')}</button>
+          <button onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</button>
         </div>
       </div>
     </div>,

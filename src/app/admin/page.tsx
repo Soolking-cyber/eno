@@ -72,7 +72,7 @@ export default async function AdminPage() {
             <p className="mt-2 text-sm text-[#64748b]">
               Sign in with an authorized ENO admin account to access the moderation queue.
             </p>
-            <a href="/" className="mt-5 inline-block rounded-full bg-[#0a66c2] px-6 py-2 text-sm font-bold text-white hover:bg-[#004182] transition-colors">
+            <a href="/" className="mt-5 inline-block rounded-xl bg-[#0a66c2] px-6 py-2 text-sm font-bold text-white hover:bg-[#004182] transition-colors">
               Back to ENO
             </a>
           </div>

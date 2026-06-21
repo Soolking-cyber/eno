@@ -71,7 +71,7 @@ export function ReportButton({ listingId, className }: Props) {
               <CheckCircle2 className="mx-auto h-10 w-10 text-[#0a66c2]" />
               <p className="mt-3 text-sm font-semibold text-[#1a202c]">{t('Cảm ơn bạn', 'Thanks for the heads-up')}</p>
               <p className="mt-1 text-sm text-[#64748b]">{t('Đội ngũ ENO sẽ xem xét tin này.', 'The ENO team will review this listing.')}</p>
-              <button onClick={() => { setOpen(false); reset() }} className="mt-4 rounded-full bg-[#0a66c2] px-6 py-2 text-sm font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer">
+              <button onClick={() => { setOpen(false); reset() }} className="mt-4 rounded-xl bg-[#0a66c2] px-6 py-2 text-sm font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer">
                 {t('Đóng', 'Close')}
               </button>
             </div>
@@ -109,7 +109,7 @@ export function ReportButton({ listingId, className }: Props) {
               <button
                 onClick={submit}
                 disabled={loading || !reason}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer"
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Gửi báo cáo', 'Submit report')}
               </button>

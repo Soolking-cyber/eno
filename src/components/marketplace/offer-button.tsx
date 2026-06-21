@@ -91,14 +91,14 @@ export function OfferButton({ listingId, listingTitle, listingImage, price, curr
     <button
       onClick={openModal}
       aria-label={tr('Make an offer', 'Trả giá')}
-      className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#0a66c2] px-4 text-sm font-bold text-[#0a66c2] transition-colors active:scale-95"
+      className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#0a66c2] px-4 text-sm font-bold text-[#0a66c2] transition-colors active:scale-95"
     >
       <Tag className="h-4 w-4" /> {tr('Offer', 'Trả giá')}
     </button>
   ) : (
     <button
       onClick={openModal}
-      className="flex w-full items-center justify-center gap-2 rounded-full border border-[#0a66c2] py-2.5 text-sm font-bold text-[#0a66c2] transition-all hover:bg-[#e8f1fb] active:scale-98 cursor-pointer"
+      className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#0a66c2] py-2.5 text-sm font-bold text-[#0a66c2] transition-all hover:bg-[#e8f1fb] active:scale-98 cursor-pointer"
     >
       <Tag className="h-4 w-4" /> {tr('Make an offer', 'Trả giá')}
     </button>
@@ -129,7 +129,7 @@ export function OfferButton({ listingId, listingTitle, listingImage, price, curr
             <button
               onClick={send}
               disabled={!parseVnd(amount) || busy}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-50"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
               {tr('Send offer', 'Gửi đề nghị')}

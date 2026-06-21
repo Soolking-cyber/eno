@@ -39,7 +39,7 @@ export function CookieConsent() {
         </p>
         <button
           onClick={accept}
-          className="shrink-0 rounded-full bg-[#0a66c2] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] active:scale-95 cursor-pointer"
+          className="shrink-0 rounded-xl bg-[#0a66c2] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] active:scale-95 cursor-pointer"
         >
           {tr('Accept', 'Đồng ý')}
         </button>

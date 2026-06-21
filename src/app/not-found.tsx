@@ -54,13 +54,13 @@ export default function NotFound() {
           </p>
 
           <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
-            <Link href="/" className="flex items-center gap-2 rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+            <Link href="/" className="flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
               <Home className="h-4 w-4" /> <Tr text="Back to home" />
             </Link>
-            <Link href="/" className="flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-[#1a202c] transition-colors hover:border-[#0a66c2] hover:text-[#0a66c2]">
+            <Link href="/" className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-[#1a202c] transition-colors hover:border-[#0a66c2] hover:text-[#0a66c2]">
               <Compass className="h-4 w-4" /> <Tr text="Browse listings" />
             </Link>
-            <Link href="/help" className="flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-[#1a202c] transition-colors hover:border-[#0a66c2] hover:text-[#0a66c2]">
+            <Link href="/help" className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-[#1a202c] transition-colors hover:border-[#0a66c2] hover:text-[#0a66c2]">
               <LifeBuoy className="h-4 w-4" /> <Tr text="Help center" />
             </Link>
           </div>

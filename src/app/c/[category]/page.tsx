@@ -104,7 +104,7 @@ export default async function CategoryPage({ params }: Props) {
         </div>
 
         <div className="mt-8">
-          <Link href={`/?category=${cat.slug}`} className="inline-block rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+          <Link href={`/?category=${cat.slug}`} className="inline-block rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
             <Tr text="Refine in full search" /> →
           </Link>
         </div>

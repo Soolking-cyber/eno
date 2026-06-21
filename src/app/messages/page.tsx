@@ -90,7 +90,7 @@ export default function MessagesPage() {
                     {/* Delete conversation: tap trash → Delete/Cancel confirm. */}
                     {confirmId === c.id ? (
                       <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
-                        <button onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
+                        <button onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="rounded-xl bg-red-500 px-3 py-1.5 text-xs font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
                         <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1.5 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>
                       </div>
                     ) : (

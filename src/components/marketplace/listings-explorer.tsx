@@ -1352,7 +1352,7 @@ export function ListingsExplorer({
                 setCustomFilters({})
                 setVerifiedOnly(true)
               }}
-              className="rounded-full bg-[#0a66c2] px-4 py-2 text-xs font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer"
+              className="rounded-xl bg-[#0a66c2] px-4 py-2 text-xs font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer"
             >
               {tr('Clear all filters', 'Xóa tất cả bộ lọc')}
             </button>

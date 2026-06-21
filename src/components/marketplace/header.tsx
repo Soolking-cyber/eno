@@ -139,7 +139,7 @@ export function Header() {
           ) : (
             <Link
               href="/signin"
-              className="hidden sm:flex items-center gap-1.5 rounded-full px-2.5 h-9 text-sm font-semibold text-[#1a202c] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-[#1a202c] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
               aria-label={tr('Sign in', 'Đăng nhập')}
             >
               <User className="h-5 w-5" />
@@ -149,7 +149,7 @@ export function Header() {
 
           <Link
             href="/post"
-            className="hidden items-center gap-1.5 rounded-full bg-[#0a66c2] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#004182] sm:flex cursor-pointer"
+            className="hidden items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#004182] sm:flex cursor-pointer"
           >
             <Plus className="h-4 w-4" /> {t('header.postBtn')}
           </Link>

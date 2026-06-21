@@ -11,7 +11,7 @@ export function SignInPrompt() {
   return (
     <button
       onClick={() => openSignIn()}
-      className="inline-flex items-center gap-2 rounded-full bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer"
+      className="inline-flex items-center gap-2 rounded-xl bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer"
     >
       <LogIn className="h-4 w-4" /> {tr('Sign in', 'Đăng nhập')}
     </button>

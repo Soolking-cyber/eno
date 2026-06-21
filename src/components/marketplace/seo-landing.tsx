@@ -62,7 +62,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-[#475569]">{content.intro}</p>
         <Link
           href={`/c/${content.categorySlug}`}
-          className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#004182]"
+          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#004182]"
         >
           {content.cta} <ArrowRight className="h-4 w-4" />
         </Link>

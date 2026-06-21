@@ -41,7 +41,7 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
       aria-pressed={saved}
       aria-label={label}
       className={cn(
-        'flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95',
+        'flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95',
         saved ? 'border-[#0a66c2] bg-[#e8f1fb] text-[#0a66c2]' : 'border-slate-200 text-[#475569] hover:border-[#0a66c2] hover:text-[#0a66c2]',
         className,
       )}

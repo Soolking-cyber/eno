@@ -94,10 +94,10 @@ export default function GuidePage() {
 
         {/* CTA */}
         <div className="mt-12 flex flex-wrap gap-2.5">
-          <Link href="/post" className="flex items-center gap-2 rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+          <Link href="/post" className="flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
             <Plus className="h-4 w-4" /> <Tr text="Post a listing" />
           </Link>
-          <Link href="/" className="flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-[#1a202c] transition-colors hover:border-[#0a66c2] hover:text-[#0a66c2]">
+          <Link href="/" className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-[#1a202c] transition-colors hover:border-[#0a66c2] hover:text-[#0a66c2]">
             <Search className="h-4 w-4" /> <Tr text="Browse listings" />
           </Link>
         </div>

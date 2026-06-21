@@ -52,7 +52,7 @@ export function RevealContact({ listingId, listingTitle, price, currency, compac
   if (!loading && !user) {
     if (compact) {
       return (
-        <button onClick={() => openSignIn()} className="flex items-center justify-center gap-2 rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white">
+        <button onClick={() => openSignIn()} className="flex items-center justify-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white">
           <Lock className="h-4 w-4" /> {tr('Sign in', 'Đăng nhập')}
         </button>
       )
@@ -60,7 +60,7 @@ export function RevealContact({ listingId, listingTitle, price, currency, compac
     return (
       <button
         onClick={() => openSignIn()}
-        className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] active:scale-98 transition-all cursor-pointer"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] active:scale-98 transition-all cursor-pointer"
       >
         <Lock className="h-4 w-4" /> {tr('Sign in to contact seller', 'Đăng nhập để liên hệ người bán')}
       </button>
@@ -70,7 +70,7 @@ export function RevealContact({ listingId, listingTitle, price, currency, compac
   // ── Compact (mobile sticky bar): a single full-width Message button ──
   if (compact) {
     return (
-      <button onClick={onMessage} disabled={msgBusy} className="flex items-center justify-center gap-2 rounded-full bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white disabled:opacity-60">
+      <button onClick={onMessage} disabled={msgBusy} className="flex items-center justify-center gap-2 rounded-xl bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white disabled:opacity-60">
         {msgBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />} {tr('Message', 'Nhắn tin')}
       </button>
     )
@@ -82,7 +82,7 @@ export function RevealContact({ listingId, listingTitle, price, currency, compac
       <button
         onClick={onMessage}
         disabled={msgBusy || loading}
-        className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] active:scale-98 transition-all cursor-pointer disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] active:scale-98 transition-all cursor-pointer disabled:opacity-60"
       >
         {msgBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />} {tr('Message', 'Nhắn tin')}
       </button>

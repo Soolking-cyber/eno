@@ -50,7 +50,7 @@ export default function SavedPage() {
             </p>
             <Link
               href="/"
-              className="mt-2 rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"
+              className="mt-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"
             >
               {tr('Browse listings', 'Khám phá tin đăng')}
             </Link>

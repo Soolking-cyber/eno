@@ -95,10 +95,10 @@ export function SignInForm({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-3', className)}>
       {/* OAuth */}
-      <button onClick={() => oauth('google')} className="flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white py-2.5 text-sm font-bold text-[#1a202c] hover:bg-slate-50 transition-colors cursor-pointer">
+      <button onClick={() => oauth('google')} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-2.5 text-sm font-bold text-[#1a202c] hover:bg-slate-50 transition-colors cursor-pointer">
         <GoogleIcon /> {t('Tiếp tục với Google', 'Continue with Google')}
       </button>
-      <button onClick={() => oauth('facebook')} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#1877f2] py-2.5 text-sm font-bold text-white hover:bg-[#0f63d6] transition-colors cursor-pointer">
+      <button onClick={() => oauth('facebook')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1877f2] py-2.5 text-sm font-bold text-white hover:bg-[#0f63d6] transition-colors cursor-pointer">
         <FacebookIcon /> {t('Tiếp tục với Facebook', 'Continue with Facebook')}
       </button>
 
@@ -121,7 +121,7 @@ export function SignInForm({ className }: { className?: string }) {
       {tab === 'email' && (
         <div className="space-y-2">
           <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20" />
-          <button onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer">
+          <button onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Gửi liên kết đăng nhập', 'Send magic link')}
           </button>
         </div>
@@ -130,7 +130,7 @@ export function SignInForm({ className }: { className?: string }) {
       {tab === 'phone' && stage === 'input' && (
         <div className="space-y-2">
           <input type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20" />
-          <button onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer">
+          <button onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Gửi mã SMS', 'Send SMS code')}
           </button>
         </div>
@@ -146,7 +146,7 @@ export function SignInForm({ className }: { className?: string }) {
               ))}
             </InputOTPGroup>
           </InputOTP>
-          <button onClick={() => verifyPhone()} disabled={loading || code.length < 6} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer">
+          <button onClick={() => verifyPhone()} disabled={loading || code.length < 6} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Xác nhận', 'Verify')}
           </button>
           <div className="flex items-center justify-between px-1 text-xs">

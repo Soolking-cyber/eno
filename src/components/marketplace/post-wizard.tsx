@@ -129,7 +129,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
             'An ENO agent will verify your listing within 24 hours before it goes live. That’s how we keep the marketplace free of fakes.',
           )}
         </p>
-        <a href="/" className="mt-2 rounded-full bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+        <a href="/" className="mt-2 rounded-xl bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
           {t('Về trang chủ', 'Back to home')}
         </a>
       </div>
@@ -314,7 +314,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
           <button
             onClick={() => canContinue && setStep((s) => s + 1)}
             disabled={!canContinue}
-            className="rounded-full bg-[#0a66c2] px-7 py-2.5 text-sm font-bold text-white transition-all hover:bg-[#004182] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+            className="rounded-xl bg-[#0a66c2] px-7 py-2.5 text-sm font-bold text-white transition-all hover:bg-[#004182] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
           >
             {t('Tiếp tục', 'Continue')}
           </button>
@@ -322,7 +322,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
           <button
             onClick={submit}
             disabled={!canSubmit}
-            className="rounded-full bg-[#0a66c2] px-7 py-2.5 text-sm font-bold text-white transition-all hover:bg-[#004182] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+            className="rounded-xl bg-[#0a66c2] px-7 py-2.5 text-sm font-bold text-white transition-all hover:bg-[#004182] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
           >
             {submitting ? t('Đang gửi…', 'Submitting…') : t('Gửi để kiểm duyệt', 'Submit for verification')}
           </button>

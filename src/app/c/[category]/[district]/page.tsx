@@ -99,10 +99,10 @@ export default async function CategoryDistrictPage({ params }: Props) {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href={`/c/${cat.slug}`} className="inline-block rounded-full border border-slate-300 px-5 py-2.5 text-sm font-bold text-[#1a202c] transition-colors hover:bg-slate-50">
+          <Link href={`/c/${cat.slug}`} className="inline-block rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-bold text-[#1a202c] transition-colors hover:bg-slate-50">
             ← <Tr text="All" /> <Tr text={cat.name} />
           </Link>
-          <Link href={`/?category=${cat.slug}`} className="inline-block rounded-full bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+          <Link href={`/?category=${cat.slug}`} className="inline-block rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
             <Tr text="Refine in full search" /> →
           </Link>
         </div>
