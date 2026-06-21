@@ -7,11 +7,13 @@ import { Header } from '@/components/marketplace/header'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
+import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, Send } from 'lucide-react'
 
 type Msg = { id: string; mine: boolean; body: string; createdAt: string }
 type Thread = {
   id: string
+  me: string // current user's profile id — to tell my messages from incoming
   listing: { id: string; title: string; image: string | null }
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null }
   messages: Msg[]
@@ -40,23 +42,76 @@ export default function ThreadPage() {
     })
   }, [id])
 
-  // Initial load + poll every 4s + refetch on tab focus (the reliable backstop).
+  // Realtime: subscribe to this conversation's PRIVATE channel so an incoming
+  // message paints the instant it's sent (the same socket the old widget used).
+  // A slow poll + focus refetch stay as a backstop if the socket drops.
   useEffect(() => {
     if (!user) return
     load()
-    const iv = setInterval(load, 4000)
+
+    const supabase = createSupabaseBrowser()
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let retry: ReturnType<typeof setTimeout> | null = null
+    let cancelled = false
+    let attempts = 0
+
+    // Tear down WITHOUT re-entrancy: null the ref first so the 'CLOSED' status
+    // callback can't recurse back into teardown.
+    const drop = () => { if (channel) { const c = channel; channel = null; supabase.removeChannel(c) } }
+
+    const join = async () => {
+      if (cancelled) return
+      drop()
+      const { data } = await supabase.auth.getSession()
+      if (cancelled || !data.session) return
+      await supabase.realtime.setAuth(data.session.access_token)
+      if (cancelled) return
+      channel = supabase
+        .channel(`convo:${id}`, { config: { private: true } })
+        .on('broadcast', { event: 'new_message' }, ({ payload }) => {
+          const p = (payload ?? {}) as { id?: string; senderProfileId?: string; body?: string; createdAt?: string }
+          if (!p.id || !p.body) { load(); return }
+          setThread((t) => {
+            if (!t) return t
+            if (p.senderProfileId === t.me) return t // my own message: handled by optimistic send + POST
+            if (t.messages.some((x) => x.id === p.id)) return t // dedup (poll may have it)
+            return { ...t, messages: [...t.messages, { id: p.id!, mine: false, body: p.body!, createdAt: p.createdAt || new Date().toISOString() }] }
+          })
+        })
+        .on('broadcast', { event: 'message_deleted' }, ({ payload }) => {
+          const did = (payload as { id?: string } | null)?.id
+          if (did) setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== did) } : t))
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') { attempts = 0; return }
+          // Never retry 'CLOSED' (that's our own teardown → would recurse); cap the rest.
+          if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !cancelled && !retry && attempts < 5) {
+            attempts++
+            retry = setTimeout(() => { retry = null; join() }, 3000)
+          }
+        })
+    }
+    join()
+
+    const iv = setInterval(load, 15000) // backstop only — realtime is primary
     const onFocus = () => load()
     window.addEventListener('focus', onFocus)
-    return () => { clearInterval(iv); window.removeEventListener('focus', onFocus) }
-  }, [user, load])
+    return () => {
+      cancelled = true
+      if (retry) clearTimeout(retry)
+      drop()
+      clearInterval(iv)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [user, load, id])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [thread?.messages.length])
 
   const send = async () => {
     const body = text.trim()
     if (!body) return
-    // Optimistic: show the bubble the instant Send is tapped — the POST + 4s poll
-    // reconcile in the background, so the UI never waits on the DB round-trip.
+    // Optimistic: show the bubble the instant Send is tapped — the POST swaps in the
+    // real message; realtime ignores my own echo, so the UI never waits on the DB.
     const tempId = `temp-${Date.now()}`
     const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString() }
     setText('')
