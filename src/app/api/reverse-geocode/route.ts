@@ -4,9 +4,10 @@ import { rateLimit } from '@/lib/ratelimit'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Paid Google Geocoding key (server-only). Falls back to the translate key if you
-// enabled the Geocoding API on that same key; else we fall back to free Nominatim.
-const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_TRANSLATE_API_KEY
+// Paid Google Geocoding key (server-only). ONLY set this when the Geocoding API is
+// actually enabled for the key — otherwise leave it unset and we use free Nominatim
+// (no wasted failing Google round-trip). Not reusing the translate key on purpose.
+const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY
 
 // Map an address blob to one of our HCMC district slugs.
 const DISTRICT_KEYS: Record<string, string[]> = {
