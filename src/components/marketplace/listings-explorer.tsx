@@ -27,6 +27,7 @@ import { LogoWordmark } from './logo-wordmark'
 import { CustomSelect } from './custom-select'
 import { FacetBar } from './facet-bar'
 import { DISTRICTS } from './listings-explorer.constants'
+import { FavoriteHeart } from './favorite-heart'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
@@ -612,6 +613,8 @@ export function ListingsExplorer({
         <div className="shrink-0 pl-2 text-right">
           <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="whitespace-nowrap text-sm font-bold text-[#1a202c]" />
         </div>
+
+        <FavoriteHeart id={l.id} className="self-center" />
       </div>
     )
   }, [lang, handleOpen])
@@ -650,15 +653,18 @@ export function ListingsExplorer({
             )}
           </div>
         </div>
-        {/* Locate this listing on the map */}
-        <button
-          onClick={(e) => { e.stopPropagation(); setFocusId(l.id) }}
-          aria-label={tr('Show on map', 'Xem trên bản đồ')}
-          title={tr('Show on map', 'Xem trên bản đồ')}
-          className="shrink-0 self-center flex h-9 w-9 items-center justify-center rounded-full text-[#0a66c2] hover:bg-[#e8f1fb] transition-colors cursor-pointer"
-        >
-          <MapPin className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 items-center self-center">
+          <FavoriteHeart id={l.id} />
+          {/* Locate this listing on the map */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setFocusId(l.id) }}
+            aria-label={tr('Show on map', 'Xem trên bản đồ')}
+            title={tr('Show on map', 'Xem trên bản đồ')}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[#0a66c2] hover:bg-[#e8f1fb] transition-colors cursor-pointer"
+          >
+            <MapPin className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     )
   }, [lang, t, tr, handleOpen])

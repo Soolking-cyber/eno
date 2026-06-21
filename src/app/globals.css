@@ -226,6 +226,16 @@
   background: transparent;
 }
 
+/* Fully hidden scrollbar (Facebook-Marketplace-style horizontal rows). Used by
+   the curated card rows + facet/subcategory rows — scroll still works, no bar. */
+.scrollbar-none {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* old Edge/IE */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;                /* Chrome/Safari */
+}
+
 /* ============================================================
    ANIMATIONS
    ============================================================ */
