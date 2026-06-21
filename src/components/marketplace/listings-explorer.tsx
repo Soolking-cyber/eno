@@ -590,6 +590,9 @@ export function ListingsExplorer({
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
   const handleOpen = (l: SerializedListing) => { router.push(`/listings/${l.id}`) }
+  // Warm the listing page before the click (hover on desktop, touchstart on mobile)
+  // so it opens instantly instead of SSR-ing on click. De-duped by Next's prefetch cache.
+  const prefetchListing = useCallback((id: string) => { router.prefetch(`/listings/${id}`) }, [router])
 
   const renderCompactRow = useCallback((l: SerializedListing, index: number) => {
     const cover = l.images[0]
@@ -599,6 +602,8 @@ export function ListingsExplorer({
       <div
         key={l.id}
         onClick={() => handleOpen(l)}
+        onMouseEnter={() => prefetchListing(l.id)}
+        onTouchStart={() => prefetchListing(l.id)}
         className="group flex items-start gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[#f5f5f5] cursor-pointer"
       >
         {/* Thumbnail */}
@@ -640,7 +645,7 @@ export function ListingsExplorer({
         <FavoriteHeart id={l.id} className="-mr-1 shrink-0 self-start" />
       </div>
     )
-  }, [lang, t, handleOpen])
+  }, [lang, t, handleOpen, prefetchListing])
 
   // Compact card for the narrow map-view list: stacks title → price → location
   // so long prices never crush the title.
@@ -650,6 +655,8 @@ export function ListingsExplorer({
     return (
       <div
         onClick={() => handleOpen(l)}
+        onMouseEnter={() => prefetchListing(l.id)}
+        onTouchStart={() => prefetchListing(l.id)}
         className="group flex gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[#f5f5f5] cursor-pointer"
       >
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-[#f1f5f9]">
@@ -690,7 +697,7 @@ export function ListingsExplorer({
         </div>
       </div>
     )
-  }, [lang, t, tr, handleOpen])
+  }, [lang, t, tr, handleOpen, prefetchListing])
 
   const renderCategorySpecificFilters = () => {
     if (activeCategory === 'all') return null
@@ -1782,6 +1789,8 @@ export function ListingsExplorer({
                         key={l.id}
                         className="flex flex-col h-full"
                         style={{ contentVisibility: 'auto' as any, containIntrinsicSize: 'auto 320px' }}
+                        onMouseEnter={() => prefetchListing(l.id)}
+                        onTouchStart={() => prefetchListing(l.id)}
                       >
                         <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} />
                       </div>

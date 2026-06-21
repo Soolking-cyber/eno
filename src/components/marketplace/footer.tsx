@@ -38,7 +38,7 @@ export function Footer() {
 
   return (
     <footer className="mt-auto border-t border-slate-200/60 bg-card pt-12 pb-8 text-muted-foreground">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           {/* Brand column */}
           <div className="col-span-2 md:col-span-1 space-y-3">
