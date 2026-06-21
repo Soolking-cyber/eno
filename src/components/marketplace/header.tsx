@@ -10,6 +10,7 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 import { AccountMenu } from './account-menu'
 import { CustomSelect } from './custom-select'
+import { NotificationBell } from './notification-bell'
 import { DISTRICTS } from './listings-explorer.constants'
 
 export function Header() {
@@ -127,9 +128,10 @@ export function Header() {
           <div className="flex-1" />
         )}
 
-        {/* Actions — Saved/Messages/Language live in the bottom nav + profile, so the
-            header stays clean (no heart/notif). Desktop only; mobile uses the bottom nav. */}
-        <div className="flex shrink-0 items-center gap-2">
+        {/* Actions. The notification bell shows on ALL sizes (top-right, per the
+            Chợ Tốt pattern); account + Post are desktop-only (mobile uses the bottom nav). */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <NotificationBell />
           {user ? (
             <div className="hidden sm:block"><AccountMenu /></div>
           ) : (

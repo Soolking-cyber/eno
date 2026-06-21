@@ -5,6 +5,7 @@ import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { LanguageProvider } from "@/context/language-context";
 import { AuthProvider } from "@/context/auth-context";
 import { ChatProvider } from "@/context/chat-context";
+import { NotificationsProvider } from "@/context/notifications-context";
 import { FavoritesProvider } from "@/context/favorites-context";
 import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
@@ -115,15 +116,17 @@ export default function RootLayout({
       >
         <LanguageProvider>
           <AuthProvider>
-            <ChatProvider>
-              <FavoritesProvider>
-                <QueryProvider>
-                  {children}
-                  <MobileNav />
-                  <CookieConsent />
-                </QueryProvider>
-              </FavoritesProvider>
-            </ChatProvider>
+            <NotificationsProvider>
+              <ChatProvider>
+                <FavoritesProvider>
+                  <QueryProvider>
+                    {children}
+                    <MobileNav />
+                    <CookieConsent />
+                  </QueryProvider>
+                </FavoritesProvider>
+              </ChatProvider>
+            </NotificationsProvider>
           </AuthProvider>
         </LanguageProvider>
         <SonnerToaster position="bottom-right" richColors closeButton />

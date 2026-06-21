@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const convo = await db.conversation.findUnique({
     where: { id },
-    select: { id: true, buyerProfileId: true, sellerProfileId: true },
+    select: { id: true, buyerProfileId: true, sellerProfileId: true, listing: { select: { id: true } } },
   })
   if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -49,6 +49,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
     }),
   ])
+
+  // Notify the recipient (best-effort — a notification failure must never fail the
+  // send). An unclaimed seller (null profile) can't be notified, so skip.
+  const recipientId = iAmBuyer ? convo.sellerProfileId : convo.buyerProfileId
+  if (recipientId) {
+    try {
+      const sender = await db.profile.findUnique({ where: { id: meId }, select: { displayName: true, email: true } })
+      const senderName = sender?.displayName || sender?.email?.split('@')[0] || 'Someone'
+      await db.notification.create({
+        data: {
+          recipientId,
+          type: text.startsWith('💰') ? 'offer' : 'message',
+          title: senderName,
+          body: text.slice(0, 140),
+          actorName: senderName,
+          conversationId: id,
+          listingId: convo.listing.id,
+        },
+      })
+    } catch (e) {
+      console.error('[messages] notify', e)
+    }
+  }
 
   return NextResponse.json({ id: message.id, mine: true, body: message.body, createdAt: message.createdAt.toISOString() })
 }

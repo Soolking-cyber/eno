@@ -43,6 +43,7 @@ model Profile {
   buyerConversations  Conversation[] @relation("BuyerConversations")
   sellerConversations Conversation[] @relation("SellerConversations")
   sentMessages        Message[]
+  notifications       Notification[] @relation("RecipientNotifications")
 
   @@index([phone])
 }
@@ -196,6 +197,26 @@ model Message {
   createdAt       DateTime     @default(now())
 
   @@index([conversationId, createdAt])
+}
+
+// In-app notification for a recipient (new message, offer, system). Created
+// server-side on the triggering event; read via /api/notifications. Display
+// fields are denormalized so the bell never needs joins.
+model Notification {
+  id             String   @id @default(cuid())
+  recipientId    String   @db.Uuid
+  recipient      Profile  @relation("RecipientNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
+  type           String   // 'message' | 'offer' | 'system'
+  title          String   // short headline (e.g. the actor's name)
+  body           String?  // preview text
+  actorName      String?  // who triggered it (denormalized display name)
+  conversationId String?  // deep-link target
+  listingId      String?
+  read           Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([recipientId, createdAt])
+  @@index([recipientId, read])
 }
 
 // User-submitted report of a problematic listing (scam, sold, wrong info…).
