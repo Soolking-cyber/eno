@@ -7,6 +7,7 @@ import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
+import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 
 const TAB = 'flex flex-1 cursor-pointer transition-transform active:scale-90'
@@ -33,13 +34,20 @@ export function MobileNav() {
   const { tr } = useLanguage()
   const { user } = useAuth()
   const { unread } = useChat()
+  // Slide the bar down out of view on scroll-down, back up on scroll-up.
+  const hidden = useHideOnScroll()
 
   // Hidden on listing detail (own sticky CTA), chat threads (full-screen composer),
   // and the full-screen sign-in page.
   if (pathname?.startsWith('/listings/') || pathname?.startsWith('/signin')) return null
 
   return (
-    <nav className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
+    <nav
+      className={cn(
+        'lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none',
+        hidden ? 'translate-y-full' : 'translate-y-0',
+      )}
+    >
       {/* Fixed 64px tab row; the safe-area padding sits BELOW it (filled white) so
           the home-indicator inset never compresses the icons out of the bar. */}
       <div className="flex h-16 items-stretch">

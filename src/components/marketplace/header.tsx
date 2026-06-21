@@ -4,14 +4,24 @@ import Link from 'next/link'
 import { Plus, User } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
+import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
+import { cn } from '@/lib/utils'
 import { AccountMenu } from './account-menu'
 
 export function Header() {
   const { t, tr } = useLanguage()
   const { user } = useAuth()
+  // Roll the bar up on scroll-down, back down on scroll-up (mobile only — the
+  // desktop header stays pinned via lg:translate-y-0).
+  const hidden = useHideOnScroll()
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/60 bg-card pt-[env(safe-area-inset-top)]">
+    <header
+      className={cn(
+        'sticky top-0 z-40 border-b border-slate-200/60 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none',
+        hidden ? '-translate-y-full lg:translate-y-0' : 'translate-y-0',
+      )}
+    >
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center">
