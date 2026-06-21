@@ -172,7 +172,7 @@ export default async function ListingPage({ params }: Props) {
 
       <Header />
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4 pb-12">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         {/* Back Link */}
         <div className="mb-5">
           <Link

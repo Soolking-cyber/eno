@@ -55,7 +55,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         />
       )}
       <Header />
-      <main className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-10 pb-16">
+      <main className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         {/* Hero */}
         <p className="eyebrow text-[#0a66c2] mb-2">{content.eyebrow}</p>
         <h1 className="h-display text-[#1a202c]">{content.h1}</h1>

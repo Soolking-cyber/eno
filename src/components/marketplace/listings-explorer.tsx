@@ -1106,7 +1106,9 @@ export function ListingsExplorer({
   if (isLandingMode) {
     return (
       <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pt-2 pb-5 sm:pt-3 sm:pb-8">
-        <div className="relative mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 space-y-12">
+        {/* Width + edge gutter are owned by the parent page <main> (canonical
+            max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
+        <div className="relative w-full space-y-12">
           
           {/* HERO SEARCH AREA */}
           <div className="pb-2 text-center">
@@ -1412,7 +1414,8 @@ export function ListingsExplorer({
 
   return (
     <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden py-5 sm:py-8">
-      <div className="relative mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
+      {/* Width + edge gutter owned by the parent page <main> (see landing branch). */}
+      <div className="relative w-full">
 
         {/* Single-column faceted directory */}
         <div className="animate-in fade-in slide-in-from-bottom-3 duration-300">

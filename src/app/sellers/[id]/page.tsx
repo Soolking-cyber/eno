@@ -48,7 +48,7 @@ export default async function SellerPage({ params }: Props) {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4 pb-12">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         <div className="mb-5">
           <Link href="/" className="inline-flex items-center gap-1 text-sm font-medium text-[#64748b] hover:text-[#0a66c2] transition-colors">
             <ChevronLeft className="h-4 w-4" /> <span><Tr text="Back to Home" /></span>

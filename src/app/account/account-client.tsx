@@ -50,7 +50,7 @@ export function AccountClient() {
     return (
       <div className="flex min-h-screen flex-col bg-[#fafafa]">
         <Header />
-        <main className="mx-auto w-full max-w-md flex-1 space-y-8 px-4 py-8">
+        <main className="mx-auto w-full max-w-md flex-1 space-y-8 px-3 py-8">
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-pop">
             <h1 className="text-lg font-bold text-[#1a202c]">{tr('Your account', 'Tài khoản của bạn')}</h1>
             <p className="mt-2 text-sm text-[#64748b]">{tr('Sign in to manage your profile, listings and saved items.', 'Đăng nhập để quản lý hồ sơ, tin đăng và mục đã lưu.')}</p>
@@ -75,7 +75,7 @@ export function AccountClient() {
   return (
     <div className="flex min-h-screen flex-col bg-[#fafafa]">
       <Header />
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6">
         {/* Identity header */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">

@@ -148,14 +148,14 @@ export default function ThreadPage() {
     <div className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] flex-col bg-[#fafafa] lg:h-[100dvh]">
       <Header />
       {!loading && !user ? (
-        <main className="flex flex-1 items-center justify-center px-4">
+        <main className="flex flex-1 items-center justify-center px-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-pop">
             <p className="text-sm text-[#64748b]">{tr('Sign in to view this conversation.', 'Đăng nhập để xem cuộc trò chuyện này.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
         </main>
       ) : notFound ? (
-        <main className="flex flex-1 items-center justify-center px-4">
+        <main className="flex flex-1 items-center justify-center px-3">
           <p className="text-sm text-[#64748b]">{tr('Conversation not found.', 'Không tìm thấy cuộc trò chuyện.')}</p>
         </main>
       ) : (

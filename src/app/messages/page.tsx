@@ -32,7 +32,7 @@ export default function MessagesPage() {
   return (
     <div className="flex min-h-screen flex-col bg-[#fafafa]">
       <Header />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:px-6">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-3 py-8 sm:px-6">
         <h1 className="h-title text-[#1a202c] mb-6">{tr('Messages', 'Tin nhắn')}</h1>
 
         {!loading && !user ? (

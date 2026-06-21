@@ -65,7 +65,7 @@ export default async function AdminPage() {
     return (
       <div className="flex min-h-screen flex-col">
         <Header />
-        <main className="flex flex-1 items-center justify-center px-4">
+        <main className="flex flex-1 items-center justify-center px-3">
           <div className="max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-pop">
             <ShieldAlert className="mx-auto h-10 w-10 text-[#94a3b8]" />
             <h1 className="mt-4 text-lg font-bold text-[#1a202c]">Restricted area</h1>
@@ -107,7 +107,7 @@ export default async function AdminPage() {
   return (
     <div className="flex min-h-screen flex-col bg-[#fafafa]">
       <Header />
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6">
         <div className="mb-6">
           <h1 className="h-title text-[#1a202c]">Moderation</h1>
           <p className="mt-1 text-sm text-[#64748b]">Signed in as {admin}. Approve listings to publish them, or clear reports.</p>

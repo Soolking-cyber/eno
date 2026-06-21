@@ -69,7 +69,7 @@ export default async function CategoryPage({ params }: Props) {
     <div className="flex min-h-screen flex-col blob-bg">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-12">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <nav className="mb-4 text-sm text-[#64748b]">
           <Link href="/" className="hover:text-[#0a66c2] transition-colors"><Tr text="Home" /></Link>
           <span className="mx-1.5 text-[#cbd5e1]">/</span>

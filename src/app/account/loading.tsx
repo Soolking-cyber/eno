@@ -8,7 +8,7 @@ export default function AccountLoading() {
   return (
     <div className="flex min-h-screen flex-col bg-[#fafafa]">
       <Header />
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6">
         {/* Identity header */}
         <div className="flex items-center gap-4">
           <Skeleton className="h-16 w-16 rounded-full" />

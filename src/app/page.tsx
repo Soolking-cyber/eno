@@ -57,7 +57,7 @@ export default async function Home() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         <ListingsExplorer
           categories={categories}
           initialListings={listings}

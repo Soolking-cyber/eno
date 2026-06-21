@@ -20,7 +20,7 @@ export default function SavedPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-12">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <h1 className="h-title text-[#1a202c] mb-1">{tr('Saved', 'Tin đã lưu')}</h1>
         <p className="text-sm text-[#64748b] mb-6">
           {count} {tr(count === 1 ? 'saved listing' : 'saved listings', 'tin đã lưu')}
