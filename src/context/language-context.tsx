@@ -264,7 +264,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (lang === 'en') return // source language — nothing to translate
     // Key the cache by a hash of the CURRENT string set, so adding/changing any
     // UI copy auto-invalidates stale caches (otherwise new strings stay English).
-    const cacheKey = `ui-dict:${UI_HASH}:${lang}`
+    // The "g2" version segment busts every client's cached UI dictionary when the
+    // *translations* change (not the source) — e.g. the Azure→Google re-translate.
+    const cacheKey = `ui-dict:g2:${UI_HASH}:${lang}`
     const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheKey) : null
     if (cached) {
       try { seedFromMap(lang, JSON.parse(cached)); return } catch { /* refetch */ }
