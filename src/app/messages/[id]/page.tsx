@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { Header } from '@/components/marketplace/header'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, Send } from 'lucide-react'
@@ -23,7 +24,10 @@ export default function ThreadPage() {
   const { id } = useParams<{ id: string }>()
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
-  const [thread, setThread] = useState<Thread | null>(null)
+  const { getCachedThread, cacheThread } = useChat()
+  // Paint instantly from the cached thread (e.g. one the offer/Message action just
+  // seeded) and revalidate in the background — no blank "loading" flash on open.
+  const [thread, setThread] = useState<Thread | null>(() => (getCachedThread(id) as Thread | null) ?? null)
   const [notFound, setNotFound] = useState(false)
   const [text, setText] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -33,6 +37,7 @@ export default function ThreadPage() {
     if (res.status === 404 || res.status === 403) { setNotFound(true); return }
     if (!res.ok) return
     const data = await res.json()
+    cacheThread(id, data) // keep the cache warm for an instant paint next time
     // Preserve any still-pending optimistic messages so a background poll never
     // makes a just-sent message flicker away before the POST confirms it.
     setThread((prev) => {
@@ -40,7 +45,7 @@ export default function ThreadPage() {
       const temps = prev.messages.filter((m) => String(m.id).startsWith('temp-'))
       return temps.length ? { ...data, messages: [...data.messages, ...temps] } : data
     })
-  }, [id])
+  }, [id, cacheThread])
 
   // Realtime: subscribe to this conversation's PRIVATE channel so an incoming
   // message paints the instant it's sent (the same socket the old widget used).

@@ -275,7 +275,7 @@ export default async function ListingPage({ params }: Props) {
               <RevealContact listingId={listing.id} listingTitle={displayTitle} price={listing.price} currency={currencyCode(listing.currency)} />
 
               {/* Quick offer — sends a price into the chat for the seller to accept/counter */}
-              <OfferButton listingId={listing.id} price={listing.price} currency={listing.currency} />
+              <OfferButton listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={listing.currency} />
 
               <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 border-t border-slate-100 pt-4 cursor-pointer">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e8f1fb] text-sm font-bold text-[#0a66c2]">

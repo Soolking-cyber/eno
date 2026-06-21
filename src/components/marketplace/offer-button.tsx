@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Tag, X, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { useChat } from '@/context/chat-context'
 import { VndInput } from './vnd-input'
 import { formatMoneyFull, parseVnd } from '@/lib/vnd'
 import { trackContactSeller } from '@/lib/analytics'
@@ -17,9 +18,10 @@ import { toast } from 'sonner'
  * with the seller, who negotiates in chat. Reuses the conversation + message
  * APIs; the seller is notified like any new message. The buyer lands in the thread.
  */
-export function OfferButton({ listingId, price, currency, compact = false }: { listingId: string; price: number; currency: string; compact?: boolean }) {
+export function OfferButton({ listingId, listingTitle, listingImage, price, currency, compact = false }: { listingId: string; listingTitle?: string; listingImage?: string | null; price: number; currency: string; compact?: boolean }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr, lang } = useLanguage()
+  const { cacheThread } = useChat()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
@@ -65,6 +67,16 @@ export function OfferButton({ listingId, price, currency, compact = false }: { l
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
       })
       if (!m.ok) { toast.error(tr('Could not send offer.', 'Không gửi được đề nghị.')); return }
+      const sent = (await m.json().catch(() => null)) as { id: string; body: string; createdAt: string } | null
+      // Seed the thread cache so /messages/[id] paints the offer INSTANTLY (no blank
+      // load); the page then revalidates counterpart/listing in the background.
+      cacheThread(id, {
+        id,
+        me: user?.id ?? '',
+        listing: { id: listingId, title: listingTitle ?? '', image: listingImage ?? null },
+        counterpart: { name: '', avatarColor: '#0a66c2', avatarUrl: null },
+        messages: sent ? [{ id: sent.id, mine: true, body: sent.body, createdAt: sent.createdAt }] : [],
+      })
       if (created) trackContactSeller({ id: listingId, price: n, currency: currency === '₫' ? 'VND' : 'USD' })
       setOpen(false)
       router.push(`/messages/${id}`)
