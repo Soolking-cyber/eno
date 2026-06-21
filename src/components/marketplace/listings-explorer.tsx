@@ -1061,8 +1061,14 @@ export function ListingsExplorer({
             {/* Centered Search Bar (the header reveals its own search once this
                 scrolls out of view — id is the IntersectionObserver target). */}
             <div id="eno-hero-search" className="relative max-w-2xl w-full mx-auto select-none">
-              {/* One cohesive search pill: search · input · divider · map */}
-              <div className="flex items-center rounded-full border border-slate-300 bg-white transition-all focus-within:border-[#0a66c2] focus-within:ring-2 focus-within:ring-[#0a66c2]/20">
+              {/* One cohesive search pill that morphs into a seamless suggestions
+                  panel on focus (Google-style): flat bottom + shared shadow/border. */}
+              <div className={cn(
+                'flex items-center bg-white transition-all duration-200',
+                showSuggestions
+                  ? 'rounded-t-3xl border border-slate-200 border-b-0 shadow-pop'
+                  : 'rounded-full border border-slate-300 focus-within:border-[#0a66c2] focus-within:ring-2 focus-within:ring-[#0a66c2]/20',
+              )}>
                 <button
                   onClick={() => handleLandingSearch(landingQuery)}
                   aria-label={tr('Search', 'Tìm kiếm')}
@@ -1097,7 +1103,7 @@ export function ListingsExplorer({
               {showSuggestions && (
                 <>
                   <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowSuggestions(false)} />
-                  <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-pop text-left max-h-[440px] overflow-y-auto scroll-thin space-y-4">
+                  <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-3xl border border-t-slate-100 border-slate-200 bg-white p-4 shadow-pop text-left max-h-[440px] overflow-y-auto scroll-thin space-y-4 animate-in fade-in slide-in-from-top-1 duration-150">
                     {landingQuery.trim() ? (
                       <>
                         {/* Matching categories */}
