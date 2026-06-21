@@ -26,9 +26,19 @@ const AZURE_KEY = process.env.AZURE_TRANSLATOR_KEY
 const AZURE_REGION = process.env.AZURE_TRANSLATOR_REGION
 const AZURE_ENDPOINT = process.env.AZURE_TRANSLATOR_ENDPOINT || 'https://api.cognitive.microsofttranslator.com'
 
-// Azure limits: ≤1000 array items and ≤50,000 chars total per request. Stay well under.
-const MAX_ITEMS = 500
-const MAX_CHARS = 45000
+// Google Cloud Translation (v2) — PRIMARY provider; Azure stays as a fallback.
+const GOOGLE_KEY = process.env.GOOGLE_TRANSLATE_API_KEY
+const GOOGLE_ENDPOINT = 'https://translation.googleapis.com/language/translate/v2'
+
+// Google v2 codes match ours except Simplified Chinese (Google uses zh-CN).
+const GOOGLE_CODE: Record<Lang, string> = {
+  en: 'en', vi: 'vi', 'zh-Hans': 'zh-CN', ko: 'ko', ja: 'ja',
+  ru: 'ru', km: 'km', ms: 'ms', th: 'th', fr: 'fr', hi: 'hi',
+}
+
+// Keep chunks safe for BOTH providers (Google ≤128 items/request; Azure ≤1000).
+const MAX_ITEMS = 100
+const MAX_CHARS = 28000
 
 function hash(text: string): string {
   return crypto.createHash('sha1').update(text).digest('hex')
@@ -105,6 +115,48 @@ async function azureTranslate(chunk: string[], target: Lang): Promise<string[] |
   return null
 }
 
+// Google's REST response HTML-escapes some chars even with format:text — undo it.
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&amp;/g, '&')
+}
+
+/** Translate one chunk into a single target via Google Cloud Translation v2, with
+ *  retry/backoff on 429/5xx. Returns translated strings in order, or null on a
+ *  hard failure (caller falls back to Azure, then source text). */
+async function googleTranslate(chunk: string[], target: Lang): Promise<string[] | null> {
+  const body = JSON.stringify({ q: chunk, target: GOOGLE_CODE[target], format: 'text' })
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const res = await fetch(`${GOOGLE_ENDPOINT}?key=${GOOGLE_KEY}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+      })
+      if (res.status === 429 || res.status >= 500) { await sleep(Math.min(400 * (attempt + 1), 5000)); continue }
+      if (!res.ok) { console.error('[translate] google error', res.status, await res.text().catch(() => '')); return null }
+      const json = await res.json()
+      const items = json?.data?.translations
+      if (!Array.isArray(items)) return null
+      return chunk.map((src, i) => decodeEntities(items[i]?.translatedText ?? src))
+    } catch (err) {
+      if (attempt === 3) { console.error('[translate] google request failed', err); return null }
+      await sleep(400 * (attempt + 1))
+    }
+  }
+  return null
+}
+
+/** Provider dispatch: Google first (preferred), Azure as fallback. */
+async function translateChunk(chunk: string[], target: Lang): Promise<string[] | null> {
+  if (GOOGLE_KEY) {
+    const g = await googleTranslate(chunk, target)
+    if (g) return g
+  }
+  if (AZURE_KEY) return azureTranslate(chunk, target)
+  return null
+}
+
 /**
  * Translate a batch of strings into `target`, preserving input order and
  * duplicates. Results are cached in the DB so the same source string is never
@@ -130,15 +182,15 @@ export async function translateBatch(texts: string[], target: Lang): Promise<str
 
   // 2) Translate the misses via Azure (if configured), else passthrough.
   if (misses.length > 0) {
-    if (!AZURE_KEY) {
+    if (!GOOGLE_KEY && !AZURE_KEY) {
       if (!warnedNoKey) {
-        console.warn('[translate] AZURE_TRANSLATOR_KEY not set — returning source text untranslated.')
+        console.warn('[translate] no provider configured (set GOOGLE_TRANSLATE_API_KEY) — returning source text untranslated.')
         warnedNoKey = true
       }
       for (const t of misses) out.set(t, t)
     } else {
       for (const chunk of chunkTexts(misses)) {
-        const translated = await azureTranslate(chunk, target)
+        const translated = await translateChunk(chunk, target)
         if (!translated) {
           for (const t of chunk) out.set(t, t) // hard failure → source fallback
           continue
@@ -180,7 +232,7 @@ const WARM_LANGS: Lang[] = LANGS.filter((l) => l !== 'en')
  */
 export async function warmTranslations(texts: string[], langs: Lang[] = WARM_LANGS): Promise<void> {
   const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
-  if (clean.length === 0 || !AZURE_KEY) return
+  if (clean.length === 0 || (!GOOGLE_KEY && !AZURE_KEY)) return
   for (const l of langs) {
     try { await translateBatch(clean, l) } catch { /* best-effort per language */ }
   }
