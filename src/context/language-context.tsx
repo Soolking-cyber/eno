@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react'
 import { UI_STRINGS } from '@/generated/ui-strings'
+import { VI_OVERRIDES } from '@/generated/vi-overrides'
 
 // Hash of the UI string set → cache-busts the localStorage UI dictionary whenever
 // copy is added/changed, so returning users always warm the latest strings.
@@ -262,6 +263,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // /api/translate cascade. Repeat visits seed synchronously from localStorage.
   useEffect(() => {
     if (lang === 'en') return // source language — nothing to translate
+    // Vietnamese is hand-authored (VI_OVERRIDES, applied directly in tr()/useTr());
+    // skip the machine-translation prefetch entirely. Any string not yet in the
+    // overrides falls back to lazy per-string machine translation via tr()/useTr().
+    if (lang === 'vi') return
     // Key the cache by a hash of the CURRENT string set, so adding/changing any
     // UI copy auto-invalidates stale caches (otherwise new strings stay English).
     // The "g2" version segment busts every client's cached UI dictionary when the
@@ -326,7 +331,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const tr = (en: string, vi?: string): string => {
     if (!en) return en
     if (lang === 'en') return en
-    if (lang === 'vi' && vi != null) return vi
+    if (lang === 'vi') { if (vi != null) return vi; const hv = VI_OVERRIDES[en]; if (hv != null) return hv }
     const override = TR_OVERRIDES[en]?.[lang]
     if (override) return override
     const ck = `${lang} ${en}`
@@ -362,7 +367,7 @@ export function useLanguage() {
    hit /api/translate (DB-cached). Calls are batched per language.
    ============================================================ */
 
-const trCache = new Map<string, string>() // `${lang} ${text}` -> translated
+const trCache = new Map<string, string>() // `${lang} ${text}` -> translated
 const trInflight = new Set<string>() // `${lang} ${text}` currently being fetched (de-dupes tr() calls)
 const pending: Partial<Record<Language, { text: string; resolve: (s: string) => void }[]>> = {}
 let scheduled = false
@@ -397,7 +402,7 @@ function flush() {
       .then(({ translations }) => {
         items.forEach((it, i) => {
           const value = translations?.[i] ?? it.text
-          trCache.set(`${key} ${it.text}`, value)
+          trCache.set(`${key} ${it.text}`, value)
           it.resolve(value)
         })
         emitTrChange() // repaint every component reading trCache via tr()
@@ -421,14 +426,20 @@ function translateText(text: string, lang: Language): Promise<string> {
 export function useTr(text: string | null | undefined): string {
   const { lang } = useLanguage()
   const safe = text ?? ''
-  const cacheKey = `${lang} ${safe}`
+  const cacheKey = `${lang} ${safe}`
   const [val, setVal] = useState<string>(() =>
-    lang === 'en' || !safe ? safe : trCache.get(cacheKey) ?? safe,
+    lang === 'en' || !safe
+      ? safe
+      : lang === 'vi' && VI_OVERRIDES[safe] != null
+      ? VI_OVERRIDES[safe]
+      : trCache.get(cacheKey) ?? safe,
   )
 
   useEffect(() => {
     if (!safe || lang === 'en') { setVal(safe); return }
-    const ck = `${lang} ${safe}`
+    // Hand-authored Vietnamese wins over machine translation.
+    if (lang === 'vi') { const hv = VI_OVERRIDES[safe]; if (hv != null) { setVal(hv); return } }
+    const ck = `${lang} ${safe}`
     const hit = trCache.get(ck)
     if (hit != null) { setVal(hit); return }
     let cancelled = false
