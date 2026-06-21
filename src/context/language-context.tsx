@@ -272,24 +272,38 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       try { seedFromMap(lang, JSON.parse(cached)); return } catch { /* refetch */ }
     }
     let cancelled = false
-    fetch('/api/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texts: UI_STRINGS, target: lang }),
-    })
-      .then((r) => r.json())
-      .then(({ translations }) => {
-        if (cancelled || !Array.isArray(translations)) return
-        const map: Record<string, string> = {}
-        UI_STRINGS.forEach((s, i) => { map[s] = translations[i] ?? s })
-        seedFromMap(lang, map)
-        // Persist only if something actually translated (avoid caching an
-        // English passthrough when the translation API is briefly unconfigured).
-        if (UI_STRINGS.some((s) => map[s] !== s)) {
-          try { localStorage.setItem(cacheKey, JSON.stringify(map)) } catch { /* ignore */ }
-        }
+    // Fetch the dictionary in chunks so a not-yet-warmed language (many cache
+    // misses) stays under the endpoint's per-request billable cap; an already
+    // cached language just resolves in a few cheap parallel hits.
+    const CHUNK = 100
+    const chunks: string[][] = []
+    for (let i = 0; i < UI_STRINGS.length; i += CHUNK) chunks.push(UI_STRINGS.slice(i, i + CHUNK))
+    Promise.all(
+      chunks.map((texts) =>
+        fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texts, target: lang }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => (d && Array.isArray(d.translations) ? (d.translations as string[]) : null))
+          .catch(() => null),
+      ),
+    ).then((results) => {
+      if (cancelled) return
+      const map: Record<string, string> = {}
+      let anyFail = false
+      results.forEach((translations, ci) => {
+        if (!translations) anyFail = true
+        chunks[ci].forEach((s, i) => { map[s] = translations ? (translations[i] ?? s) : s })
       })
-      .catch(() => { /* keep English fallback */ })
+      seedFromMap(lang, map)
+      // Cache only a COMPLETE, actually-translated dictionary — never persist a
+      // partial result from a failed chunk or an English passthrough.
+      if (!anyFail && UI_STRINGS.some((s) => map[s] !== s)) {
+        try { localStorage.setItem(cacheKey, JSON.stringify(map)) } catch { /* ignore */ }
+      }
+    })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang])

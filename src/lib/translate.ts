@@ -218,6 +218,29 @@ export async function translateBatch(texts: string[], target: Lang): Promise<str
   return texts.map((t) => (t && t.trim() ? out.get(t) ?? t : t))
 }
 
+/**
+ * How many UNIQUE, non-trivial strings in `texts` are NOT yet cached for `target`,
+ * and their total length — i.e. the BILLABLE work this batch would trigger. The
+ * public /api/translate endpoint uses this to bound paid translation WITHOUT
+ * rejecting large but already-cached batches (the full UI dictionary, repeat
+ * listing views), which cost nothing.
+ */
+export async function uncachedStats(texts: string[], target: Lang): Promise<{ count: number; chars: number }> {
+  const uniq = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
+  if (uniq.length === 0) return { count: 0, chars: 0 }
+  const cached = await db.translation.findMany({
+    where: { target, hash: { in: uniq.map(hash) } },
+    select: { hash: true },
+  })
+  const cachedSet = new Set(cached.map((c) => c.hash))
+  let count = 0
+  let chars = 0
+  for (const t of uniq) {
+    if (!cachedSet.has(hash(t))) { count++; chars += t.length }
+  }
+  return { count, chars }
+}
+
 // Non-source target languages, translated sequentially in warmTranslations to
 // respect the F0 ~33k-chars/minute throttle (a single upload is tiny, but back-
 // to-back uploads shouldn't burst). 'en' is the source; 'vi' is usually authored.
