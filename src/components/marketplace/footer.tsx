@@ -71,7 +71,7 @@ export function Footer() {
         {/* Popular keyword landing pages — sitewide internal links so Google can
             discover + rank the expat-intent SEO entry pages. */}
         <nav aria-label={tr('Popular', 'Phổ biến')} className="mt-10 border-t border-slate-200/60 pt-6">
-          <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#94a3b8]">{tr('Popular in Vietnam', 'Phổ biến tại Việt Nam')}</h3>
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#475569]">{tr('Popular in Vietnam', 'Phổ biến tại Việt Nam')}</h3>
           <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
             <a href="/housing-vietnam-expats" className="text-xs text-[#64748b] transition-colors hover:text-[#0a66c2]">Housing for expats</a>
             <a href="/jobs-vietnam-expats" className="text-xs text-[#64748b] transition-colors hover:text-[#0a66c2]">Jobs for expats</a>
