@@ -194,7 +194,6 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   const [thread, setThread] = useState<Thread | null>(cached)
   // Inherit anything typed in the pending shell so the swap loses nothing.
   const [text, setText] = useState(draft)
-  const [sending, setSending] = useState(false)
   const [peerTyping, setPeerTyping] = useState(false)
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
@@ -320,14 +319,14 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
 
   const send = async (override?: string) => {
     const body = (override ?? text).trim()
-    if (!body || sending) return
+    if (!body) return
     // Optimistic: show the bubble the instant Enter is pressed. On the POST
     // response we drop the temp and add the real message — but only if the
     // realtime broadcast (the sender receives its own message too) hasn't
     // already delivered it, so it's dup-proof in every interleaving.
     const tempId = `temp-${Date.now()}`
     const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true }
-    setText(''); setSending(true)
+    setText('')
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
       const res = await fetch(`/api/conversations/${id}/messages`, {
@@ -352,7 +351,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     } catch {
       setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
       setText(body)
-    } finally { setSending(false) }
+    }
   }
 
   // Took over from the pending shell: clear the shared draft (already inherited
@@ -431,7 +430,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         )}
         {thread?.messages.map((m) => (
           <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'} duration-200 animate-in fade-in slide-in-from-bottom-1`}>
-            <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'} ${m.pending ? 'opacity-60' : ''}`}>
+            <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'}`}>
               {m.body}
             </div>
           </div>
@@ -452,8 +451,8 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
           className="max-h-24 flex-1 resize-none rounded-2xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
         />
-        <button onClick={() => send()} disabled={!text.trim() || sending} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white disabled:opacity-40">
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        <button onClick={() => send()} disabled={!text.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40">
+          <Send className="h-4 w-4" />
         </button>
       </div>
     </>
