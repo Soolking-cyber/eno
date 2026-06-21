@@ -119,8 +119,10 @@ export function Header() {
               onClick={() => setAreaOpen(true)}
               aria-label={tr('Area', 'Khu vực')}
               className={cn(
-                'absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors',
-                province || ward || nearby ? 'bg-[#e8f1fb] text-[#0a66c2]' : 'text-[#94a3b8] hover:bg-slate-200/70 hover:text-[#0a66c2]',
+                'absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl transition-all active:scale-95',
+                province || ward || nearby
+                  ? 'bg-[#0a66c2] text-white shadow-sm'
+                  : 'bg-[#e8f1fb] text-[#0a66c2] hover:bg-[#dbeafe]',
               )}
             >
               <MapPin className="h-4 w-4" />

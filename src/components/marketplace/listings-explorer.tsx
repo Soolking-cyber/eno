@@ -113,6 +113,7 @@ export function ListingsExplorer({
 
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [recentSearches, setRecentSearches] = useState<string[]>([])
+  const [recentLocations, setRecentLocations] = useState<{ province: Geo; ward: Geo | null }[]>([])
   const [landingQuery, setLandingQuery] = useState('')
   // Below-the-fold curated rows render only AFTER first paint, so the landing
   // hydrates ~12 cards instead of ~84 — the ~70 extra cards were saturating the
@@ -154,15 +155,30 @@ export function ListingsExplorer({
     }
   }, [activeCategory, query, activeDistrict, activeSubcategory, customFilters])
 
-  // Load search history from localStorage on mount
+  // Load search + location history from localStorage on mount
   useEffect(() => {
-    const history = localStorage.getItem('eno:recent_searches')
-    if (history) {
-      try {
-        setRecentSearches(JSON.parse(history))
-      } catch (_) {}
-    }
+    try {
+      const h = localStorage.getItem('eno:recent_searches')
+      if (h) setRecentSearches(JSON.parse(h))
+    } catch (_) {}
+    try {
+      const l = localStorage.getItem('eno:recent_locations')
+      if (l) setRecentLocations(JSON.parse(l))
+    } catch (_) {}
   }, [])
+
+  // Remember the user's applied areas (province/ward) for quick re-select.
+  useEffect(() => {
+    if (!activeProvince) return
+    const entry = { province: activeProvince, ward: activeWard }
+    setRecentLocations((prev) => {
+      const key = (e: typeof entry) => `${e.province.code}:${e.ward?.code ?? ''}`
+      const next = [entry, ...prev.filter((e) => key(e) !== key(entry))].slice(0, 6)
+      try { localStorage.setItem('eno:recent_locations', JSON.stringify(next)) } catch (_) {}
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProvince?.code, activeWard?.code])
 
   // Reveal the below-the-fold curated rows after first paint (idle) so the initial
   // hydration stays light and the LCP image paints without main-thread contention.
@@ -244,6 +260,15 @@ export function ListingsExplorer({
   // The header's search box + area selector drive the explorer here, and we tell the
   // header whether the hero search pill is on this page so it can reveal its own
   // search once the hero scrolls out of view.
+  // Re-apply a previously-used area from the suggestions quick-select.
+  const applyRecentLocation = useCallback((loc: { province: Geo; ward: Geo | null }) => {
+    setNearby(null)
+    setActiveProvince(loc.province)
+    setActiveWard(loc.ward)
+    setShowExplorer(true)
+    setShowSuggestions(false)
+  }, [])
+
   useEffect(() => {
     const onSearch = (e: Event) => {
       const q = (e as CustomEvent<{ query?: string }>).detail?.query ?? ''
@@ -462,7 +487,14 @@ export function ListingsExplorer({
   // Synchronize state and trigger history caching when data changes
   useEffect(() => {
     if (listingsData) {
-      setListings(listingsData.listings)
+      // Page 1 (or any filter change, which resets page→1) replaces; later pages
+      // append for the infinite feed. Dedupe by id so the placeholderData transition
+      // between pages can't double-insert.
+      setListings((prev) => {
+        if (page === 1) return listingsData.listings
+        const seen = new Set(prev.map((l) => l.id))
+        return [...prev, ...listingsData.listings.filter((l: SerializedListing) => !seen.has(l.id))]
+      })
       setTotalCount(listingsData.total)
       if (listingsData.subcategoryCounts) {
         setSubcategoryCounts(listingsData.subcategoryCounts)
@@ -486,7 +518,7 @@ export function ListingsExplorer({
         }
       }
     }
-  }, [listingsData, debouncedQuery, saveSearchToHistory, activeCategory])
+  }, [listingsData, page, debouncedQuery, saveSearchToHistory, activeCategory])
 
   // Update loading state
   useEffect(() => {
@@ -586,6 +618,28 @@ export function ListingsExplorer({
     customFilters,
     queryClient,
   ])
+
+  // Infinite feed (FB-style): an off-screen sentinel below the list bumps the page
+  // as it nears the viewport. Disabled for "near you" (single broad client-filtered
+  // fetch) — there's nothing more to page through.
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const hasMore = !nearby && listings.length < totalCount
+  useEffect(() => {
+    if (!hasMore) return
+    const el = loadMoreRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !queryFetching) {
+          prefetchNextPage() // warm page+1 so the swap is instant
+          setPage((p) => p + 1)
+        }
+      },
+      { rootMargin: '600px 0px' }, // start loading well before the user hits the end
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasMore, queryFetching, prefetchNextPage])
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
@@ -1187,45 +1241,32 @@ export function ListingsExplorer({
                             </div>
                           </div>
                         )}
-                        {/* Popular searches */}
-                        <div className="space-y-1.5">
-                          <span className="eyebrow text-slate-600">{tr('Popular searches', 'Từ khóa phổ biến')}</span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {[
-                              { label: 'Honda SH', labelVi: 'Xe SH' },
-                              { label: 'Studio Apartment', labelVi: 'Căn hộ Studio', query: 'Studio' },
-                              { label: 'Sofa', labelVi: 'Ghế Sofa' },
-                              { label: 'Sony Camera', labelVi: 'Máy ảnh Sony', query: 'Sony' },
-                            ].map((item, i) => {
-                              const termQuery = item.query || item.label
-                              return (
+                        {/* Recent locations — the user's previously-searched areas */}
+                        {recentLocations.length > 0 && (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="eyebrow flex items-center gap-1 text-slate-600"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }}
+                                className="text-[10px] font-semibold text-slate-600 hover:text-red-500 cursor-pointer"
+                              >
+                                {tr('Clear', 'Xóa')}
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {recentLocations.map((loc, i) => (
                                 <button
                                   key={i}
-                                  onClick={() => { setLandingQuery(termQuery); handleLandingSearch(termQuery) }}
-                                  className="rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                                  onClick={() => applyRecentLocation(loc)}
+                                  className="flex items-center gap-1.5 rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
                                 >
-                                  {lang === 'vi' ? item.labelVi : item.label}
+                                  <MapPin className="h-3 w-3" />
+                                  {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
                                 </button>
-                              )
-                            })}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                        {/* Popular areas */}
-                        <div className="space-y-1.5">
-                          <span className="eyebrow text-slate-600">{tr('Popular areas', 'Khu vực phổ biến')}</span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {DISTRICTS.filter((d) => d.slug !== 'all').slice(0, 5).map((d) => (
-                              <button
-                                key={d.slug}
-                                onClick={() => { setActiveDistrict(d.slug); setShowExplorer(true); setShowSuggestions(false) }}
-                                className="flex items-center gap-1.5 rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
-                              >
-                                <MapPin className="h-3 w-3" />
-                                {lang === 'vi' ? d.name : d.nameEn}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -1640,36 +1681,39 @@ export function ListingsExplorer({
                             </div>
                           )}
 
-                          {/* Curated Popular Searches */}
-                          <div className="space-y-1.5">
-                            <span className="text-[10px] font-bold text-[#64748b] uppercase tracking-wider select-none">
-                              {tr('Popular Searches', 'Gợi ý từ khóa phổ biến')}
-                            </span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {[
-                                { label: 'Honda SH', labelVi: 'Xe SH' },
-                                { label: 'Studio Apartment', labelVi: 'Căn hộ Studio', query: 'Studio' },
-                                { label: 'Sofa', labelVi: 'Ghế Sofa' },
-                                { label: 'Sony Camera', labelVi: 'Máy ảnh Sony', query: 'Sony' },
-                                { label: 'Room in Thao Dien', labelVi: 'Phòng Thảo Điền', query: 'Thao Dien' }
-                              ].map((item, i) => {
-                                const term = lang === 'vi' ? item.labelVi : item.label
-                                const termQuery = item.query || item.label
-                                return (
+                          {/* Recent locations — the user's previously-searched areas */}
+                          {recentLocations.length > 0 && (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between select-none">
+                                <span className="text-[10px] font-bold text-[#64748b] uppercase tracking-wider flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {tr('Recent locations', 'Khu vực gần đây')}
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    localStorage.removeItem('eno:recent_locations')
+                                    setRecentLocations([])
+                                  }}
+                                  className="text-[10px] font-semibold text-slate-600 hover:text-red-500 cursor-pointer"
+                                >
+                                  {tr('Clear History', 'Xóa lịch sử')}
+                                </button>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {recentLocations.map((loc, i) => (
                                   <button
                                     key={i}
-                                    onClick={() => {
-                                      setQuery(termQuery)
-                                      setShowSuggestions(false)
-                                    }}
-                                    className="rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                                    onClick={() => applyRecentLocation(loc)}
+                                    className="flex items-center gap-1.5 rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
                                   >
-                                    {term}
+                                    <MapPin className="h-3 w-3" />
+                                    {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
                                   </button>
-                                )
-                              })}
+                                ))}
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1847,29 +1891,22 @@ export function ListingsExplorer({
                 )}
                 </div>
 
-                {/* Pagination Controls */}
-                {Math.ceil(totalCount / 24) > 1 && (
-                  <div className="flex items-center justify-between border-t border-slate-100 pt-5 mt-6 select-none">
-                    <button
-                      disabled={page <= 1 || isLoading}
-                      onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                      className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-[#475569] shadow-sm transition-all hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                    >
-                      &larr; {tr('Previous', 'Trang trước')}
-                    </button>
-
-                    <span className="text-xs font-semibold text-[#64748b]">
-                      {tr('Page', 'Trang')} {page} / {Math.ceil(totalCount / 24)}
-                    </span>
-
-                    <button
-                      disabled={page >= Math.ceil(totalCount / 24) || isLoading}
-                      onClick={() => setPage((p) => Math.min(p + 1, Math.ceil(totalCount / 24)))}
-                      onMouseEnter={prefetchNextPage}
-                      className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-[#475569] shadow-sm transition-all hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                    >
-                      {tr('Next', 'Trang sau')} &rarr;
-                    </button>
+                {/* Infinite feed — the sentinel triggers the next page as it nears
+                    the viewport (FB-style). "Near you" pulls one broad set, so it's
+                    excluded; once everything is loaded we show an end-cap. */}
+                {!nearby && (
+                  <div ref={loadMoreRef} className="mt-6 select-none">
+                    {queryFetching && hasMore && (
+                      <div className="flex items-center justify-center gap-2 border-t border-slate-100 pt-5 text-xs font-semibold text-[#64748b]">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-[#0a66c2]" aria-hidden="true" />
+                        {tr('Loading more…', 'Đang tải thêm…')}
+                      </div>
+                    )}
+                    {!hasMore && totalCount > 24 && (
+                      <p className="border-t border-slate-100 pt-5 text-center text-xs font-semibold text-[#94a3b8]">
+                        {tr("You've reached the end", 'Bạn đã xem hết')}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
