@@ -222,6 +222,33 @@ export function ListingsExplorer({
     setShowSuggestions(false)
   }, [saveSearchToHistory])
 
+  // Header ↔ explorer bridge (custom events, same pattern as 'open-mobile-filters').
+  // The header's search box + area selector drive the explorer here, and we tell the
+  // header whether the hero search pill is on this page so it can reveal its own
+  // search once the hero scrolls out of view.
+  useEffect(() => {
+    const onSearch = (e: Event) => {
+      const q = (e as CustomEvent<{ query?: string }>).detail?.query ?? ''
+      handleLandingSearch(q)
+      document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    const onDistrict = (e: Event) => {
+      const d = (e as CustomEvent<{ district?: string }>).detail?.district ?? 'all'
+      setActiveDistrict(d)
+      setShowExplorer(true)
+    }
+    window.addEventListener('eno:search', onSearch)
+    window.addEventListener('eno:set-district', onDistrict)
+    return () => {
+      window.removeEventListener('eno:search', onSearch)
+      window.removeEventListener('eno:set-district', onDistrict)
+    }
+  }, [handleLandingSearch])
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('eno:hero', { detail: { present: isLandingMode } }))
+  }, [isLandingMode])
+
   // Global keyboard listener to focus search bar on '/'
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1006,8 +1033,9 @@ export function ListingsExplorer({
               </p>
             </div>
 
-            {/* Centered Search Bar */}
-            <div className="relative max-w-2xl w-full mx-auto select-none">
+            {/* Centered Search Bar (the header reveals its own search once this
+                scrolls out of view — id is the IntersectionObserver target). */}
+            <div id="eno-hero-search" className="relative max-w-2xl w-full mx-auto select-none">
               {/* One cohesive search pill: search · input · divider · map */}
               <div className="flex items-center rounded-full border border-slate-300 bg-white transition-all focus-within:border-[#0a66c2] focus-within:ring-2 focus-within:ring-[#0a66c2]/20">
                 <button

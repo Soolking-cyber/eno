@@ -14,6 +14,7 @@ interface CustomSelectProps {
   activeClassName?: string
   icon?: React.ReactNode
   wrapperClassName?: string
+  labelClassName?: string
 }
 
 /** Pill-styled select whose menu is portaled to <body> so the horizontally
@@ -27,6 +28,7 @@ export function CustomSelect({
   activeClassName,
   icon,
   wrapperClassName,
+  labelClassName,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -86,7 +88,7 @@ export function CustomSelect({
       >
         <span className="flex items-center gap-1.5 truncate">
           {icon}
-          <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+          <span className={cn('truncate', labelClassName)}>{selectedOption ? selectedOption.label : placeholder}</span>
         </span>
         <ChevronDown className={cn("h-3.5 w-3.5 text-slate-600 transition-transform shrink-0 ml-1.5", isOpen && "rotate-180")} />
       </button>
