@@ -611,7 +611,7 @@ export function ListingsExplorer({
 
         {/* Price */}
         <div className="shrink-0 pl-2 text-right">
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="whitespace-nowrap text-sm font-bold text-[#1a202c]" />
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="whitespace-nowrap text-sm font-bold text-[#1a202c]" />
         </div>
 
         <FavoriteHeart id={l.id} className="self-center" />
@@ -642,7 +642,7 @@ export function ListingsExplorer({
           <h4 className="line-clamp-2 text-sm font-medium leading-snug text-[#1a202c] group-hover:underline">
             <Tr text={displayTitle} />
           </h4>
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="mt-1 block text-sm font-bold text-[#1a202c]" />
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="mt-1 block text-sm font-bold text-[#1a202c]" />
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[#64748b]">
             <span className="truncate"><Tr text={l.district || l.city} /></span>
             {l.verified && (

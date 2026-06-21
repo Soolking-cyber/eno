@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { trackPostListing } from '@/lib/analytics'
+import { VndInput } from './vnd-input'
+import { formatMoneyFull } from '@/lib/vnd'
 
 const DISTRICTS = ['District 1', 'District 3', 'District 4', 'District 7 (Phu My Hung)', 'Binh Thanh', 'Thu Duc (Thao Dien)', 'Phu Nhuan', 'Tan Binh']
 const STEPS = 4
@@ -203,28 +205,20 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
           {step === 3 && (
             <div className="space-y-5">
               <h1 className="h-title text-[#1a202c]">{t('Giá, khu vực & ảnh', 'Price, area & photos')}</h1>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-[#1a202c]">{t('Giá (₫)', 'Price (₫)')}</label>
-                  <input
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value.replace(/[^\d]/g, ''))}
-                    inputMode="numeric"
-                    placeholder="14,900,000"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-[#1a202c] outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-[#94a3b8]"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-[#1a202c]">{t('Khu vực', 'Area')}</label>
-                  <select
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-[#1a202c] outline-none focus:border-[#0a66c2]"
-                  >
-                    <option value="">{t('Chọn khu vực', 'Select area')}</option>
-                    {DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-[#1a202c]">{t('Giá (₫)', 'Price (₫)')}</label>
+                <VndInput value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-[#1a202c]">{t('Khu vực', 'Area')}</label>
+                <select
+                  value={district}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-[#1a202c] outline-none focus:border-[#0a66c2]"
+                >
+                  <option value="">{t('Chọn khu vực', 'Select area')}</option>
+                  {DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
 
               {isGoods && (
@@ -298,7 +292,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-pop space-y-3">
                 <Row label={t('Danh mục', 'Category')} value={cat ? (lang === 'vi' ? cat.nameVi : cat.name) : '—'} />
                 <Row label={t('Tiêu đề', 'Title')} value={title || '—'} />
-                <Row label={t('Giá', 'Price')} value={price ? `₫${Number(price).toLocaleString('en-US')}` : '—'} />
+                <Row label={t('Giá', 'Price')} value={price ? formatMoneyFull(Number(price), '₫') : '—'} />
                 <Row label={t('Khu vực', 'Area')} value={district || '—'} />
                 {isGoods && <Row label={t('Tình trạng', 'Condition')} value={condition === 'new' ? t('Mới', 'New') : condition === 'used' ? t('Đã dùng', 'Used') : '—'} />}
                 <Row label={t('Ảnh', 'Photos')} value={`${photos.length}`} />

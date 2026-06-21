@@ -171,7 +171,7 @@ export function ListingCard({
           {displayTitle}
         </h3>
 
-        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-sm font-bold text-[#1a202c]" />
+        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-[#1a202c]" />
 
         <div className="flex items-center justify-between gap-2 text-xs text-[#64748b]">
           <span className="truncate">{displayLocation}</span>
