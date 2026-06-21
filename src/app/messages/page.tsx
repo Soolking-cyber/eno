@@ -5,36 +5,19 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { MessageSquare, Trash2, X } from 'lucide-react'
-
-type Convo = {
-  id: string
-  listingTitle: string
-  listingImage: string | null
-  lastMessageAt: string
-  lastMessageText: string | null
-  unread: number
-  counterpart: { name: string; avatarColor: string; avatarUrl: string | null }
-}
 
 export default function MessagesPage() {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
-  const [convos, setConvos] = useState<Convo[] | null>(null)
+  // Read the already-preloaded + localStorage-cached inbox (same source as the
+  // chat widget) so this full page paints instantly; revalidate on visit.
+  const { convos, deleteConvo, refreshConvos } = useChat()
   const [confirmId, setConfirmId] = useState<string | null>(null) // row showing the Delete confirm
 
-  useEffect(() => {
-    if (!user) return
-    fetch('/api/conversations').then((r) => r.json()).then((d) => setConvos(d.conversations ?? [])).catch(() => setConvos([]))
-  }, [user])
-
-  // Delete a conversation from my inbox (per-user hide, non-destructive server-side).
-  const removeConvo = (id: string) => {
-    setConfirmId(null)
-    setConvos((prev) => (prev ?? []).filter((c) => c.id !== id))
-    fetch(`/api/conversations/${id}`, { method: 'DELETE' }).catch(() => {})
-  }
+  useEffect(() => { if (user) refreshConvos() }, [user, refreshConvos])
 
   return (
     <div className="flex min-h-screen flex-col bg-[#fafafa]">
@@ -76,7 +59,7 @@ export default function MessagesPage() {
                 {/* Delete conversation: tap trash → Delete/Cancel confirm. */}
                 {confirmId === c.id ? (
                   <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
-                    <button onClick={() => removeConvo(c.id)} className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
+                    <button onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
                     <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1.5 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>
                   </div>
                 ) : (
