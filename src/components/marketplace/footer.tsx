@@ -47,9 +47,9 @@ export function Footer() {
               {tr("ENO — the verified marketplace for Vietnam's international community.", 'ENO — chợ tin đăng được xác minh cho cộng đồng quốc tế tại Việt Nam.')}
             </p>
             <div className="flex items-center gap-3 pt-1">
-              <a href="#top" aria-label="Facebook" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Facebook className="h-5 w-5" /></a>
-              <a href="#top" aria-label="Instagram" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Instagram className="h-5 w-5" /></a>
-              <a href="#top" aria-label="YouTube" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Youtube className="h-5 w-5" /></a>
+              <a href="https://www.facebook.com/profile.php?id=61591370031264" target="_blank" rel="noopener noreferrer me" aria-label="ENO on Facebook" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Facebook className="h-5 w-5" /></a>
+              <a href="https://www.instagram.com/eno.vn/" target="_blank" rel="noopener noreferrer me" aria-label="ENO on Instagram" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Instagram className="h-5 w-5" /></a>
+              <a href="https://www.youtube.com/@enovietnam" target="_blank" rel="noopener noreferrer me" aria-label="ENO on YouTube" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Youtube className="h-5 w-5" /></a>
             </div>
           </div>
 

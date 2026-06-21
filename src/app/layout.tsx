@@ -86,6 +86,29 @@ export default function RootLayout({
         {/* Landing LCP element (hero wordmark) — preload at high priority so the
             preload scanner starts it before render, and keep it out of the HTML. */}
         <link rel="preload" as="image" href="/logo.svg" fetchPriority="high" />
+        {/* Organization entity — ties the brand "ENO Forum" to its official social
+            profiles (sameAs) so Google can recognise it as a distinct brand and
+            attribute the eno.forum query to this site. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "ENO Forum",
+              alternateName: ["ENO", "ENO.vn", "eno.forum"],
+              url: "https://www.eno.forum",
+              logo: "https://www.eno.forum/logo.svg",
+              description:
+                "ENO Forum is a verified marketplace for expats and internationals in Vietnam — housing, jobs, motorbikes, services and moving sales.",
+              sameAs: [
+                "https://www.facebook.com/profile.php?id=61591370031264",
+                "https://www.instagram.com/eno.vn/",
+                "https://www.youtube.com/@enovietnam",
+              ],
+            }).replace(/</g, "\\u003c"),
+          }}
+        />
       </head>
       <body
         className={`${inter.variable} antialiased bg-background text-foreground pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0`}
