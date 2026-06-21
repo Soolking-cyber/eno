@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Plus, User, Search, MapPin, Clock } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -41,12 +41,30 @@ export function Header() {
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const [recentLocations, setRecentLocations] = useState<{ province: Geo; ward: Geo | null }[]>([])
 
+  const searchFormRef = useRef<HTMLFormElement>(null)
+
   // Read fresh on focus so it reflects searches/areas made elsewhere this session.
   const openSuggestions = () => {
     try { const h = localStorage.getItem('eno:recent_searches'); setRecentSearches(h ? JSON.parse(h) : []) } catch { setRecentSearches([]) }
     try { const l = localStorage.getItem('eno:recent_locations'); setRecentLocations(l ? JSON.parse(l) : []) } catch { setRecentLocations([]) }
     setShowSuggestions(true)
   }
+
+  // Retract the suggestions when clicking anywhere outside the search, or on Escape.
+  useEffect(() => {
+    if (!showSuggestions) return
+    const onDown = (e: MouseEvent) => {
+      if (searchFormRef.current && !searchFormRef.current.contains(e.target as Node)) setShowSuggestions(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowSuggestions(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [showSuggestions])
+
+  // The window is "open" (morph + panel) only when focused, empty, and there's
+  // history to show — otherwise the bar stays a normal pill (no flat-bottom).
+  const suggestOpen = showSuggestions && searchVal.trim().length === 0 && (recentSearches.length > 0 || recentLocations.length > 0)
 
   // Seed the search box from the URL so a revealed search reflects the active query.
   useEffect(() => {
@@ -113,39 +131,49 @@ export function Header() {
 
         {showSearch ? (
           <form
+            ref={searchFormRef}
             onSubmit={(e) => { e.preventDefault(); submitSearch(searchVal); setShowSuggestions(false) }}
             className="relative min-w-0 flex-1 animate-in fade-in duration-200"
           >
-            <Search className="pointer-events-none absolute left-3 top-1/2 z-50 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-            <input
-              value={searchVal}
-              onChange={(e) => setSearchVal(e.target.value)}
-              onFocus={openSuggestions}
-              autoComplete="off"
-              placeholder={tr('Find products…', 'Tìm sản phẩm…')}
-              aria-label={tr('Search', 'Tìm kiếm')}
-              className="relative z-50 w-full rounded-2xl bg-[#f1f5f9] py-2.5 pl-9 pr-11 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20"
-            />
-            {/* Area filter — small location pin inside the search bar (right) */}
-            <button
-              type="button"
-              onClick={() => setAreaOpen(true)}
-              aria-label={tr('Area', 'Khu vực')}
-              className={cn(
-                'absolute right-1.5 top-1/2 z-50 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl transition-all active:scale-95',
-                province || ward || nearby
-                  ? 'bg-[#0a66c2] text-white shadow-sm'
-                  : 'bg-[#e8f1fb] text-[#0a66c2] hover:bg-[#dbeafe]',
-              )}
-            >
-              <MapPin className="h-4 w-4" />
-            </button>
+            {/* Morphing search "window": a rounded pill when idle that flattens its
+                bottom and fuses with the suggestions panel into one continuous white
+                window when open (Google-style monolith). */}
+            <div className={cn(
+              'relative z-50 flex items-center transition-all duration-200',
+              suggestOpen
+                ? 'rounded-t-2xl border border-slate-200 border-b-0 bg-white shadow-pop'
+                : 'rounded-2xl border border-transparent bg-[#f1f5f9] focus-within:border-[#0a66c2] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0a66c2]/20',
+            )}>
+              <Search className="pointer-events-none ml-3 h-4 w-4 shrink-0 text-[#94a3b8]" />
+              <input
+                value={searchVal}
+                onChange={(e) => setSearchVal(e.target.value)}
+                onFocus={openSuggestions}
+                autoComplete="off"
+                placeholder={tr('Find products…', 'Tìm sản phẩm…')}
+                aria-label={tr('Search', 'Tìm kiếm')}
+                className="min-w-0 flex-1 bg-transparent py-2.5 pl-2 pr-2 text-sm text-[#1a202c] outline-none placeholder:text-[#94a3b8]"
+              />
+              {/* Area filter — small location pin inside the search bar (right) */}
+              <button
+                type="button"
+                onClick={() => { setAreaOpen(true); setShowSuggestions(false) }}
+                aria-label={tr('Area', 'Khu vực')}
+                className={cn(
+                  'mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95',
+                  province || ward || nearby
+                    ? 'bg-[#0a66c2] text-white shadow-sm'
+                    : 'bg-[#e8f1fb] text-[#0a66c2] hover:bg-[#dbeafe]',
+                )}
+              >
+                <MapPin className="h-4 w-4" />
+              </button>
+            </div>
 
-            {/* Recent searches + recent locations — same quick-select as the hero search */}
-            {showSuggestions && searchVal.trim().length === 0 && (recentSearches.length > 0 || recentLocations.length > 0) && (
+            {/* Recent searches + recent locations — flush bottom of the same window */}
+            {suggestOpen && (
               <>
-                <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowSuggestions(false)} />
-                <div className="absolute left-0 right-0 top-full z-50 mt-1.5 space-y-3.5 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-xl animate-in fade-in slide-in-from-top-2 duration-100">
+                <div className="absolute left-0 right-0 top-full z-50 -mt-px space-y-3.5 rounded-b-2xl border border-t-slate-100 border-slate-200 bg-white p-3.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">

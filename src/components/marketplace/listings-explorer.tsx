@@ -1556,7 +1556,12 @@ export function ListingsExplorer({
                   onChange={(e) => setQuery(e.target.value)}
                   onFocus={() => setShowSuggestions(true)}
                   placeholder={tr('Search keyword (Sofa, Motorbike, Room...)', 'Nhập từ khóa (Sofa, AirBlade, Thảo Điền...)')}
-                  className="w-full rounded-xl bg-[#f1f5f9] py-2.5 pl-10 pr-3 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20"
+                  className={cn(
+                    'w-full py-2.5 pl-10 pr-3 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8]',
+                    showSuggestions
+                      ? 'rounded-t-2xl border border-slate-200 border-b-0 bg-white shadow-pop'
+                      : 'rounded-xl border border-transparent bg-[#f1f5f9] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20',
+                  )}
                 />
 
                 {showSuggestions && (
@@ -1567,8 +1572,8 @@ export function ListingsExplorer({
                       onClick={() => setShowSuggestions(false)} 
                     />
 
-                    {/* Suggestions Dropdown overlay */}
-                    <div className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-100 max-h-[380px] overflow-y-auto scroll-thin">
+                    {/* Suggestions panel — flush bottom of the same window (monolith) */}
+                    <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-2xl border border-t-slate-100 border-slate-200 bg-white p-3.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150 max-h-[380px] overflow-y-auto scroll-thin">
                       
                       {/* 1. Category Suggestions */}
                       {matchedCategories.length > 0 && (
