@@ -20,9 +20,9 @@ export function Footer() {
       title: tr('About ENO', 'Về ENO'),
       links: [
         { label: tr('About us', 'Giới thiệu'), href: '/about' },
-        { label: tr('How verification works', 'Cách xác minh tin'), href: '/about' },
+        { label: tr('How it works', 'Cách hoạt động'), href: '/guide' },
+        { label: tr('How verification works', 'Cách xác minh tin'), href: '/guide#verification' },
         { label: tr('Careers', 'Tuyển dụng'), href: '/about' },
-        { label: tr('Press', 'Báo chí'), href: '/about#contact' },
       ],
     },
     {

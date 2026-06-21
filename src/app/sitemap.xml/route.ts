@@ -31,7 +31,7 @@ export async function GET() {
 `
 
     // Static info pages
-    for (const p of ['about', 'safety', 'help']) {
+    for (const p of ['about', 'safety', 'help', 'guide']) {
       xml += `  <url><loc>${hostUrl}/${p}</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>\n`
     }
 
