@@ -1036,7 +1036,7 @@ export function ListingsExplorer({
   if (isLandingMode) {
     return (
       <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pt-2 pb-5 sm:pt-3 sm:pb-8">
-        <div className="relative mx-auto w-full max-w-7xl px-2 sm:px-6 lg:px-8 space-y-12">
+        <div className="relative mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 space-y-12">
           
           {/* HERO SEARCH AREA */}
           <div className="pb-2 text-center">
@@ -1349,7 +1349,7 @@ export function ListingsExplorer({
 
   return (
     <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden py-5 sm:py-8">
-      <div className="relative mx-auto w-full max-w-7xl px-2 sm:px-6 lg:px-8">
+      <div className="relative mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
 
         {/* Single-column faceted directory */}
         <div className="animate-in fade-in slide-in-from-bottom-3 duration-300">
