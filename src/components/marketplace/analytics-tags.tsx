@@ -3,9 +3,11 @@ import Script from 'next/script'
 // Google Analytics (GA4) + Meta (Facebook) Pixel. Both are OPT-IN via env — they
 // render nothing until the IDs are set, so there's zero perf cost out of the box.
 // Loaded afterInteractive (post-hydration) so they never block FCP/LCP.
-//   NEXT_PUBLIC_GA_ID       e.g. G-XXXXXXXXXX
+//   NEXT_PUBLIC_GA_ID       e.g. G-XXXXXXXXXX  (env overrides the default below)
 //   NEXT_PUBLIC_FB_PIXEL_ID e.g. 1234567890
-const GA_ID = process.env.NEXT_PUBLIC_GA_ID
+// GA Measurement IDs are public (they ship in the page), so the live ID is set as
+// the default — works in prod with no extra env step; env still overrides it.
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-CKTZK62B0X'
 const FB_PIXEL_ID = process.env.NEXT_PUBLIC_FB_PIXEL_ID
 
 export function AnalyticsTags() {
