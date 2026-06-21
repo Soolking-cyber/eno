@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Plus, User, Search, MapPin } from 'lucide-react'
+import { Plus, User, Search, MapPin, Clock } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
@@ -13,7 +13,7 @@ import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 
 export function Header() {
-  const { t, tr } = useLanguage()
+  const { t, tr, lang } = useLanguage()
   const { user } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
@@ -35,6 +35,18 @@ export function Header() {
   const [ward, setWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null)
   const [areaOpen, setAreaOpen] = useState(false)
+  // Quick-select suggestions (same store as the hero/in-explorer search): the user's
+  // recent searches + recently-used areas, shown when the header search is focused.
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
+  const [recentLocations, setRecentLocations] = useState<{ province: Geo; ward: Geo | null }[]>([])
+
+  // Read fresh on focus so it reflects searches/areas made elsewhere this session.
+  const openSuggestions = () => {
+    try { const h = localStorage.getItem('eno:recent_searches'); setRecentSearches(h ? JSON.parse(h) : []) } catch { setRecentSearches([]) }
+    try { const l = localStorage.getItem('eno:recent_locations'); setRecentLocations(l ? JSON.parse(l) : []) } catch { setRecentLocations([]) }
+    setShowSuggestions(true)
+  }
 
   // Seed the search box from the URL so a revealed search reflects the active query.
   useEffect(() => {
@@ -101,17 +113,18 @@ export function Header() {
 
         {showSearch ? (
           <form
-            onSubmit={(e) => { e.preventDefault(); submitSearch(searchVal) }}
+            onSubmit={(e) => { e.preventDefault(); submitSearch(searchVal); setShowSuggestions(false) }}
             className="relative min-w-0 flex-1 animate-in fade-in duration-200"
           >
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 z-50 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
             <input
               value={searchVal}
               onChange={(e) => setSearchVal(e.target.value)}
+              onFocus={openSuggestions}
               autoComplete="off"
               placeholder={tr('Find products…', 'Tìm sản phẩm…')}
               aria-label={tr('Search', 'Tìm kiếm')}
-              className="w-full rounded-2xl bg-[#f1f5f9] py-2.5 pl-9 pr-11 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20"
+              className="relative z-50 w-full rounded-2xl bg-[#f1f5f9] py-2.5 pl-9 pr-11 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20"
             />
             {/* Area filter — small location pin inside the search bar (right) */}
             <button
@@ -119,7 +132,7 @@ export function Header() {
               onClick={() => setAreaOpen(true)}
               aria-label={tr('Area', 'Khu vực')}
               className={cn(
-                'absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl transition-all active:scale-95',
+                'absolute right-1.5 top-1/2 z-50 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl transition-all active:scale-95',
                 province || ward || nearby
                   ? 'bg-[#0a66c2] text-white shadow-sm'
                   : 'bg-[#e8f1fb] text-[#0a66c2] hover:bg-[#dbeafe]',
@@ -127,6 +140,56 @@ export function Header() {
             >
               <MapPin className="h-4 w-4" />
             </button>
+
+            {/* Recent searches + recent locations — same quick-select as the hero search */}
+            {showSuggestions && searchVal.trim().length === 0 && (recentSearches.length > 0 || recentLocations.length > 0) && (
+              <>
+                <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowSuggestions(false)} />
+                <div className="absolute left-0 right-0 top-full z-50 mt-1.5 space-y-3.5 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-xl animate-in fade-in slide-in-from-top-2 duration-100">
+                  {recentSearches.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#64748b]"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
+                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }} className="text-[10px] font-semibold text-slate-600 hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {recentSearches.map((term, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
+                            className="rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                          >
+                            {term}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {recentLocations.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#64748b]"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
+                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }} className="text-[10px] font-semibold text-slate-600 hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {recentLocations.map((loc, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => { applyArea({ province: loc.province, ward: loc.ward, nearby: null }); setShowSuggestions(false) }}
+                            className="flex items-center gap-1.5 rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                          >
+                            <MapPin className="h-3 w-3" />
+                            {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </form>
         ) : (
           <div className="flex-1" />
