@@ -229,7 +229,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                       <button
                         key={v}
                         onClick={() => setCondition(v)}
-                        className={cn('rounded-full px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', condition === v ? 'bg-[#0a66c2] text-white' : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb]')}
+                        className={cn('rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', condition === v ? 'bg-[#0a66c2] text-white' : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb]')}
                       >
                         {label}
                       </button>

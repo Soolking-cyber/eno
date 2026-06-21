@@ -61,7 +61,7 @@ export default function MessagesPage() {
                 autoCapitalize="off"
                 spellCheck={false}
                 aria-label={tr('Search messages', 'Tìm tin nhắn')}
-                className="w-full rounded-full border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm text-[#1a202c] outline-none transition-colors focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-[#94a3b8]"
+                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm text-[#1a202c] outline-none transition-colors focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-[#94a3b8]"
               />
             </div>
 

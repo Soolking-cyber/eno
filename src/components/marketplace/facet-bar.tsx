@@ -124,7 +124,7 @@ export function FacetBar({
       type="button"
       onClick={() => setAreaOpen(true)}
       className={cn(
-        'flex shrink-0 items-center justify-between gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
+        'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
         wrap,
         areaActive ? active : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]',
       )}
@@ -214,7 +214,7 @@ export function FacetBar({
     <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-4 px-4 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
       {facets}
       {/* Static trust indicator — every listing on ENO is verified (not a toggle). */}
-      <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#e8f1fb] px-3.5 py-2 text-sm font-semibold text-[#0a66c2]">
+      <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#e8f1fb] px-3.5 py-2 text-sm font-semibold text-[#0a66c2]">
         <ShieldCheck className="h-3.5 w-3.5" />
         {tr('Verified only', 'Chỉ tin đã xác minh')}
       </span>

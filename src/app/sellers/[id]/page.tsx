@@ -69,12 +69,12 @@ export default async function SellerPage({ params }: Props) {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="h-title text-[#1a202c]">{seller.name}</h1>
               {seller.verifiedSeller && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f1fb] px-2.5 py-1 text-xs font-semibold text-[#0a66c2]">
+                <span className="inline-flex items-center gap-1 rounded-xl bg-[#e8f1fb] px-2.5 py-1 text-xs font-semibold text-[#0a66c2]">
                   <BadgeCheck className="h-4 w-4" /> <Tr text="Verified seller" />
                 </span>
               )}
               {seller.ownerId && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                   <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
                 </span>
               )}

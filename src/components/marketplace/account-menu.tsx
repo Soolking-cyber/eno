@@ -37,7 +37,7 @@ export function AccountMenu() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-full px-2.5 h-9 text-sm font-semibold text-[#1a202c] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
+        className="flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-[#1a202c] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
         aria-label={tr('Account', 'Tài khoản')}
         aria-haspopup="menu"
         aria-expanded={open}

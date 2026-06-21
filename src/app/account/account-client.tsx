@@ -117,7 +117,7 @@ export function AccountClient() {
             <div className="flex items-center gap-2">
               <h2 className="h-section text-[#1a202c]">{tr('My listings', 'Tin của tôi')}</h2>
               {seller.verifiedSeller && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f1fb] px-2 py-0.5 text-[11px] font-semibold text-[#0a66c2]">
+                <span className="inline-flex items-center gap-1 rounded-xl bg-[#e8f1fb] px-2 py-0.5 text-[11px] font-semibold text-[#0a66c2]">
                   <ShieldCheck className="h-3 w-3" /> {tr('Verified business', 'Doanh nghiệp đã xác minh')}
                 </span>
               )}

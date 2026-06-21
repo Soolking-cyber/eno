@@ -1115,7 +1115,7 @@ export function ListingsExplorer({
                                 <button
                                   key={cat.id}
                                   onClick={() => { handleCategorySelect(cat.slug); setLandingQuery(''); setShowSuggestions(false) }}
-                                  className="flex items-center gap-1.5 rounded-full bg-[#e8f1fb] px-3 py-1.5 text-xs font-semibold text-[#0a66c2] hover:bg-[#0a66c2] hover:text-white transition-colors cursor-pointer"
+                                  className="flex items-center gap-1.5 rounded-xl bg-[#e8f1fb] px-3 py-1.5 text-xs font-semibold text-[#0a66c2] hover:bg-[#0a66c2] hover:text-white transition-colors cursor-pointer"
                                 >
                                   <CategoryIcon name={cat.icon} className="h-3 w-3" />
                                   <span><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
@@ -1172,7 +1172,7 @@ export function ListingsExplorer({
                                 <button
                                   key={i}
                                   onClick={() => { setLandingQuery(term); handleLandingSearch(term) }}
-                                  className="rounded-full bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                                  className="rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
                                 >
                                   {term}
                                 </button>
@@ -1195,7 +1195,7 @@ export function ListingsExplorer({
                                 <button
                                   key={i}
                                   onClick={() => { setLandingQuery(termQuery); handleLandingSearch(termQuery) }}
-                                  className="rounded-full bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                                  className="rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
                                 >
                                   {lang === 'vi' ? item.labelVi : item.label}
                                 </button>
@@ -1211,7 +1211,7 @@ export function ListingsExplorer({
                               <button
                                 key={d.slug}
                                 onClick={() => { setActiveDistrict(d.slug); setShowExplorer(true); setShowSuggestions(false) }}
-                                className="flex items-center gap-1.5 rounded-full bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                                className="flex items-center gap-1.5 rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
                               >
                                 <MapPin className="h-3 w-3" />
                                 {lang === 'vi' ? d.name : d.nameEn}
@@ -1331,7 +1331,7 @@ export function ListingsExplorer({
               <button
                 key={i}
                 onClick={c.onClear}
-                className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
               >
                 {c.label}
                 <X className="h-3 w-3" />
@@ -1391,7 +1391,7 @@ export function ListingsExplorer({
                   <button
                     onClick={() => handleCategoryClick('all')}
                     className={cn(
-                      'flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer select-none whitespace-nowrap',
+                      'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer select-none whitespace-nowrap',
                       activeCategory === 'all'
                         ? 'bg-[#0a66c2] text-white'
                         : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]'
@@ -1410,7 +1410,7 @@ export function ListingsExplorer({
                       key={cat.id}
                       onClick={() => handleCategoryClick(cat.slug)}
                       className={cn(
-                        'flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer select-none whitespace-nowrap',
+                        'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer select-none whitespace-nowrap',
                         isActive
                           ? 'bg-[#0a66c2] text-white'
                           : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]'
@@ -1435,7 +1435,7 @@ export function ListingsExplorer({
                     <button
                       onClick={() => setActiveSubcategory('all')}
                       className={cn(
-                        'shrink-0 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap',
+                        'shrink-0 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap',
                         activeSubcategory === 'all'
                           ? 'bg-[#0a66c2] text-white'
                           : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]'
@@ -1451,7 +1451,7 @@ export function ListingsExplorer({
                           key={sub.slug}
                           onClick={() => setActiveSubcategory(sub.slug)}
                           className={cn(
-                            'flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap',
+                            'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap',
                             isActive
                               ? 'bg-[#0a66c2] text-white'
                               : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]'
@@ -1505,7 +1505,7 @@ export function ListingsExplorer({
                   onChange={(e) => setQuery(e.target.value)}
                   onFocus={() => setShowSuggestions(true)}
                   placeholder={tr('Search keyword (Sofa, Motorbike, Room...)', 'Nhập từ khóa (Sofa, AirBlade, Thảo Điền...)')}
-                  className="w-full rounded-full bg-[#f1f5f9] py-2.5 pl-10 pr-3 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20"
+                  className="w-full rounded-xl bg-[#f1f5f9] py-2.5 pl-10 pr-3 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20"
                 />
 
                 {showSuggestions && (
@@ -1534,7 +1534,7 @@ export function ListingsExplorer({
                                   setQuery('')
                                   setShowSuggestions(false)
                                 }}
-                                className="flex items-center gap-1.5 rounded-full bg-[#e8f1fb] px-3 py-1.5 text-xs font-semibold text-[#0a66c2] hover:bg-[#0a66c2] hover:text-white transition-colors cursor-pointer"
+                                className="flex items-center gap-1.5 rounded-xl bg-[#e8f1fb] px-3 py-1.5 text-xs font-semibold text-[#0a66c2] hover:bg-[#0a66c2] hover:text-white transition-colors cursor-pointer"
                               >
                                 <CategoryIcon name={cat.icon} className="h-3 w-3" />
                                 <span><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
@@ -1624,7 +1624,7 @@ export function ListingsExplorer({
                                       setQuery(term)
                                       setShowSuggestions(false)
                                     }}
-                                    className="rounded-full bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                                    className="rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
                                   >
                                     {term}
                                   </button>
@@ -1655,7 +1655,7 @@ export function ListingsExplorer({
                                       setQuery(termQuery)
                                       setShowSuggestions(false)
                                     }}
-                                    className="rounded-full bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                                    className="rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
                                   >
                                     {term}
                                   </button>

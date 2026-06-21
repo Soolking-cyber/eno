@@ -30,7 +30,7 @@ export function VerifiedBadge({ verified, method, size = 'sm', className, showLa
     return (
       <span
         className={cn(
-          'inline-flex items-center rounded-full font-semibold bg-amber-100 text-amber-700 ring-1 ring-amber-200',
+          'inline-flex items-center rounded-xl font-semibold bg-amber-100 text-amber-700 ring-1 ring-amber-200',
           sizes.box,
           className,
         )}
@@ -49,7 +49,7 @@ export function VerifiedBadge({ verified, method, size = 'sm', className, showLa
     return (
       <span
         className={cn(
-          'inline-flex items-center rounded-full font-semibold text-white shadow-sm',
+          'inline-flex items-center rounded-xl font-semibold text-white shadow-sm',
           'bg-[#0a66c2] ring-1 ring-[#0a66c2]/20',
           sizes.box,
           className,
@@ -67,7 +67,7 @@ export function VerifiedBadge({ verified, method, size = 'sm', className, showLa
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full font-semibold text-white shadow-sm',
+        'inline-flex items-center rounded-xl font-semibold text-white shadow-sm',
         'bg-[#0a66c2] ring-1 ring-[#0a66c2]/20',
         sizes.box,
         className,
