@@ -29,7 +29,7 @@ function matchDistrict(hay: string): string | null {
   return null
 }
 
-type Result = { address: string; district: string | null }
+type Result = { address: string; district: string | null; province: string; ward: string }
 
 // Google Geocoding (preferred): administrative_area_level_2 is the district.
 async function geocodeGoogle(lat: string, lng: string, lang: string): Promise<Result | null> {
@@ -44,9 +44,11 @@ async function geocodeGoogle(lat: string, lng: string, lang: string): Promise<Re
   const pick = (type: string) => comps.find((c) => c.types.includes(type))?.long_name
   const districtName = pick('administrative_area_level_2') || pick('administrative_area_level_3')
   const district = matchDistrict(`${districtName || ''} ${top.formatted_address || ''}`)
+  const province = pick('administrative_area_level_1') || ''
+  const ward = pick('sublocality_level_1') || pick('sublocality') || pick('administrative_area_level_3') || pick('locality') || ''
   // Google's formatted_address is clean; trim the trailing ", Vietnam".
   const address = String(top.formatted_address || '').replace(/,?\s*Vietnam$/i, '').trim()
-  return { address, district }
+  return { address, district, province, ward }
 }
 
 // Nominatim (free) fallback.
@@ -57,13 +59,15 @@ async function geocodeNominatim(lat: string, lng: string, lang: string): Promise
   const data = await res.json()
   const a = (data.address || {}) as Record<string, string>
   const district = matchDistrict(`${Object.values(a).join(' ')} ${data.display_name || ''}`)
+  const province = a.state || a.city || a.region || ''
+  const ward = a.quarter || a.suburb || a.ward || a.neighbourhood || a.village || a.hamlet || ''
   const parts = [
     [a.house_number, a.road].filter(Boolean).join(' '),
     a.quarter || a.suburb || a.neighbourhood,
     a.city_district || a.district || a.county,
     a.city || a.town,
   ].filter(Boolean)
-  return { address: parts.join(', ') || data.display_name || '', district }
+  return { address: parts.join(', ') || data.display_name || '', district, province, ward }
 }
 
 // GET /api/reverse-geocode?lat=&lng=&lang= → { address, district }

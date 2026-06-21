@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MapPin, LocateFixed, Loader2, X, Check, ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
@@ -14,6 +14,23 @@ type Unit = { code: string; name: string; nameEn: string }
 
 const FIELD = 'w-full justify-between rounded-xl border border-slate-300 bg-white py-2.5 text-[#1a202c]'
 const HCMC = '79' // Ho Chi Minh City — the live market; default selection
+
+// Normalize a VN admin name for matching: lowercase, strip diacritics, drop the
+// administrative prefix (Tỉnh/Thành phố/Quận/Huyện/Phường/Xã/Thị trấn/Thị xã).
+function norm(s: string): string {
+  return (s || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/\b(tinh|thanh pho|tp|quan|huyen|phuong|xa|thi tran|thi xa)\b\.?/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+function findUnit(list: { code: string; name: string; nameEn: string }[], raw: string) {
+  const n = norm(raw)
+  if (!n) return undefined
+  return list.find((u) => norm(u.name) === n || norm(u.nameEn) === n) ||
+    list.find((u) => { const un = norm(u.name); return un.includes(n) || n.includes(un) })
+}
 
 function DisabledField({ label }: { label: string }) {
   return (
@@ -52,6 +69,7 @@ export function AreaFilter({
   const [address, setAddress] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
   const [locating, setLocating] = useState(false)
+  const pendingWard = useRef<string | null>(null) // ward name from geolocation, applied once its wards load
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -79,7 +97,16 @@ export function AreaFilter({
     setLoadingWards(true)
     fetch(`/api/geo?type=wards&province=${provCode}`)
       .then((r) => r.json())
-      .then((d) => { if (!off) { setWards(d.wards || []); setLoadingWards(false) } })
+      .then((d) => {
+        if (off) return
+        const ws = d.wards || []
+        setWards(ws); setLoadingWards(false)
+        // Apply a ward pending from geolocation once its province's wards arrive.
+        if (pendingWard.current) {
+          const w = findUnit(ws, pendingWard.current)
+          if (w) { setWardCode(w.code); pendingWard.current = null }
+        }
+      })
       .catch(() => { if (!off) setLoadingWards(false) })
     return () => { off = true }
   }, [provCode])
@@ -94,10 +121,16 @@ export function AreaFilter({
       const r = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}&lang=${lang}`)
       const d = await r.json()
       if (d.address) setAddress(d.address)
-      // Best-effort: auto-select the province if its name appears in the address.
-      const a = String(d.address || '').toLowerCase()
-      const hit = provinces.find((p) => a.includes(p.name.toLowerCase()) || a.includes(p.nameEn.toLowerCase()))
-      if (hit) { setProvCode(hit.code); setWardCode('') }
+      // Auto-select province + ward from the geocoder's explicit fields (diacritic-insensitive).
+      pendingWard.current = d.ward || null
+      const prov = findUnit(provinces, d.province || '')
+      if (prov && prov.code !== provCode) {
+        setProvCode(prov.code); setWardCode('') // the wards effect loads them, then applies pendingWard
+      } else if (pendingWard.current) {
+        // same/unknown province → match the ward against the already-loaded list
+        const w = findUnit(wards, pendingWard.current)
+        if (w) { setWardCode(w.code); pendingWard.current = null }
+      }
     } catch { /* coords only */ } finally {
       setResolving(false)
     }
