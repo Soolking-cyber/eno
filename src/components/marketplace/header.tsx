@@ -9,12 +9,11 @@ import { useAuth } from '@/context/auth-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 import { AccountMenu } from './account-menu'
-import { CustomSelect } from './custom-select'
 import { NotificationBell } from './notification-bell'
-import { DISTRICTS } from './listings-explorer.constants'
+import { AreaFilter, type Nearby } from './area-filter'
 
 export function Header() {
-  const { t, tr, lang } = useLanguage()
+  const { t, tr } = useLanguage()
   const { user } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
@@ -33,6 +32,8 @@ export function Header() {
   const [showSearch, setShowSearch] = useState(false)
   const [searchVal, setSearchVal] = useState('')
   const [area, setArea] = useState('all')
+  const [nearby, setNearby] = useState<Nearby | null>(null)
+  const [areaOpen, setAreaOpen] = useState(false)
 
   // Seed the controls from the URL so a revealed search reflects the active query.
   useEffect(() => {
@@ -75,12 +76,14 @@ export function Header() {
     }
   }
 
-  const submitDistrict = (slug: string) => {
-    setArea(slug)
+  const applyArea = ({ district, nearby: nb }: { district: string; nearby: Nearby | null }) => {
+    setArea(district)
+    setNearby(nb)
     if (isExplorerPage) {
-      window.dispatchEvent(new CustomEvent('eno:set-district', { detail: { district: slug } }))
+      window.dispatchEvent(new CustomEvent('eno:set-area', { detail: { district, nearby: nb } }))
     } else {
-      router.push(slug && slug !== 'all' ? `/?district=${slug}` : '/')
+      // Off the explorer: navigate home with the district (near-you is session-only).
+      router.push(district && district !== 'all' ? `/?district=${district}` : '/')
     }
   }
 
@@ -98,32 +101,32 @@ export function Header() {
         </Link>
 
         {showSearch ? (
-          <div className="flex min-w-0 flex-1 items-center gap-2 animate-in fade-in duration-200">
-            {/* Area selector — icon-only on mobile, labelled on desktop */}
-            <CustomSelect
-              value={area}
-              onChange={submitDistrict}
-              options={DISTRICTS.map((d) => ({ value: d.slug, label: lang === 'vi' ? d.name : d.nameEn }))}
-              placeholder={tr('Area', 'Khu vực')}
-              icon={<MapPin className="h-4 w-4 shrink-0 text-[#0a66c2]" />}
-              wrapperClassName="shrink-0"
-              className="w-auto px-2.5 py-2"
-              labelClassName="hidden sm:inline"
+          <form
+            onSubmit={(e) => { e.preventDefault(); submitSearch(searchVal) }}
+            className="relative min-w-0 flex-1 animate-in fade-in duration-200"
+          >
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
+            <input
+              value={searchVal}
+              onChange={(e) => setSearchVal(e.target.value)}
+              autoComplete="off"
+              placeholder={tr('Find products…', 'Tìm sản phẩm…')}
+              aria-label={tr('Search', 'Tìm kiếm')}
+              className="w-full rounded-full bg-[#f1f5f9] py-2.5 pl-9 pr-11 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20"
             />
-
-            {/* Search */}
-            <form onSubmit={(e) => { e.preventDefault(); submitSearch(searchVal) }} className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-              <input
-                value={searchVal}
-                onChange={(e) => setSearchVal(e.target.value)}
-                autoComplete="off"
-                placeholder={tr('Find products…', 'Tìm sản phẩm…')}
-                aria-label={tr('Search', 'Tìm kiếm')}
-                className="w-full rounded-full bg-[#f1f5f9] py-2.5 pl-9 pr-3 text-sm text-[#1a202c] outline-none transition-all placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#0a66c2]/20"
-              />
-            </form>
-          </div>
+            {/* Area filter — small location pin inside the search bar (right) */}
+            <button
+              type="button"
+              onClick={() => setAreaOpen(true)}
+              aria-label={tr('Area', 'Khu vực')}
+              className={cn(
+                'absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors',
+                area !== 'all' || nearby ? 'bg-[#e8f1fb] text-[#0a66c2]' : 'text-[#94a3b8] hover:bg-slate-200/70 hover:text-[#0a66c2]',
+              )}
+            >
+              <MapPin className="h-4 w-4" />
+            </button>
+          </form>
         ) : (
           <div className="flex-1" />
         )}
@@ -153,6 +156,16 @@ export function Header() {
           </Link>
         </div>
       </div>
+
+      <AreaFilter
+        open={areaOpen}
+        onClose={() => setAreaOpen(false)}
+        district={area}
+        nearby={nearby}
+        onApply={applyArea}
+        onReset={() => applyArea({ district: 'all', nearby: null })}
+      />
     </header>
   )
 }
+

@@ -1,15 +1,19 @@
 'use client'
 
-import type { Dispatch, SetStateAction, ReactNode } from 'react'
-import { MapPin, ShieldCheck } from 'lucide-react'
+import { useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
+import { MapPin, ShieldCheck, ChevronDown } from 'lucide-react'
 import { CustomSelect } from './custom-select'
+import { AreaFilter, type Nearby } from './area-filter'
 import { DISTRICTS } from './listings-explorer.constants'
 import { useLanguage } from '@/context/language-context'
+import { cn } from '@/lib/utils'
 
 type FacetBarProps = {
   activeCategory: string
   activeDistrict: string
   setActiveDistrict: Dispatch<SetStateAction<string>>
+  nearby: Nearby | null
+  setNearby: Dispatch<SetStateAction<Nearby | null>>
   priceRange: string
   setPriceRange: Dispatch<SetStateAction<string>>
   conditionFilter: string
@@ -26,6 +30,8 @@ export function FacetBar({
   activeCategory,
   activeDistrict,
   setActiveDistrict,
+  nearby,
+  setNearby,
   priceRange,
   setPriceRange,
   conditionFilter,
@@ -36,6 +42,14 @@ export function FacetBar({
   setVerifiedOnly,
 }: FacetBarProps) {
   const { lang, tr } = useLanguage()
+  const [areaOpen, setAreaOpen] = useState(false)
+  // The area pill is "active" when a district or a near-you search is set.
+  const areaActive = activeDistrict !== 'all' || !!nearby
+  const areaLabel = nearby
+    ? tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`)
+    : activeDistrict !== 'all'
+    ? (DISTRICTS.find((d) => d.slug === activeDistrict) ? (lang === 'vi' ? DISTRICTS.find((d) => d.slug === activeDistrict)!.name : DISTRICTS.find((d) => d.slug === activeDistrict)!.nameEn) : tr('Area', 'Khu vực'))
+    : tr('Area', 'Khu vực')
 
   const setFacet = (key: string, value: string) =>
     setCustomFilters((prev) => {
@@ -100,17 +114,22 @@ export function FacetBar({
         ]
 
   const facets: ReactNode[] = [
-    <CustomSelect
-      key="district"
-      value={activeDistrict}
-      onChange={setActiveDistrict}
-      options={DISTRICTS.map((d) => ({ value: d.slug, label: lang === 'vi' ? d.name : d.nameEn }))}
-      placeholder={tr('Area', 'Khu vực')}
-      className={cls}
-      activeClassName={active}
-      wrapperClassName={wrap}
-      icon={<MapPin className="h-3.5 w-3.5 text-[#94a3b8]" />}
-    />,
+    <button
+      key="area"
+      type="button"
+      onClick={() => setAreaOpen(true)}
+      className={cn(
+        'flex shrink-0 items-center justify-between gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
+        wrap,
+        areaActive ? active : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]',
+      )}
+    >
+      <span className="flex items-center gap-1.5 truncate">
+        <MapPin className={cn('h-3.5 w-3.5', areaActive ? 'text-[#0a66c2]' : 'text-[#94a3b8]')} />
+        <span className="truncate">{areaLabel}</span>
+      </span>
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-600" />
+    </button>,
     <CustomSelect
       key="price"
       value={priceRange}
@@ -183,7 +202,7 @@ export function FacetBar({
   }
 
   const hasActive =
-    activeDistrict !== 'all' || conditionFilter !== 'all' || priceRange !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
+    activeDistrict !== 'all' || !!nearby || conditionFilter !== 'all' || priceRange !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
 
   return (
     // Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps.
@@ -198,6 +217,7 @@ export function FacetBar({
         <button
           onClick={() => {
             setActiveDistrict('all')
+            setNearby(null)
             setConditionFilter('all')
             setPriceRange('all')
             setCustomFilters({})
@@ -208,6 +228,15 @@ export function FacetBar({
           {tr('Clear', 'Xóa lọc')}
         </button>
       )}
+
+      <AreaFilter
+        open={areaOpen}
+        onClose={() => setAreaOpen(false)}
+        district={activeDistrict}
+        nearby={nearby}
+        onApply={({ district, nearby: nb }) => { setActiveDistrict(district); setNearby(nb) }}
+        onReset={() => { setActiveDistrict('all'); setNearby(null) }}
+      />
     </div>
   )
 }

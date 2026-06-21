@@ -28,6 +28,8 @@ import { CustomSelect } from './custom-select'
 import { FacetBar } from './facet-bar'
 import { DISTRICTS } from './listings-explorer.constants'
 import { FavoriteHeart } from './favorite-heart'
+import { type Nearby } from './area-filter'
+import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
@@ -75,6 +77,7 @@ export function ListingsExplorer({
   const [sort, setSort] = useState<SortKey>('newest')
   const [verifiedOnly, setVerifiedOnly] = useState(true)
   const [activeDistrict, setActiveDistrict] = useState('all')
+  const [nearby, setNearby] = useState<Nearby | null>(null) // {lat,lng,radiusKm} when "search near you" is on
   const [conditionFilter, setConditionFilter] = useState('all') // 'all' | 'new' | 'used'
   const [priceRange, setPriceRange] = useState('all') // 'all' | 'min-max' (VND, empty max = open)
   const [customFilters, setCustomFilters] = useState<Record<string, string>>({})
@@ -88,6 +91,16 @@ export function ListingsExplorer({
   const [showExplorer, setShowExplorer] = useState(false)
 
   const [listings, setListings] = useState<SerializedListing[]>(initialListings)
+  // When "search near you" is on, distance-filter + sort the fetched set client-side
+  // (listing coordinates are approximate — district-derived — until precise capture).
+  const shownListings = useMemo(() => {
+    if (!nearby) return listings
+    return listings
+      .map((l) => ({ l, d: haversineKm(nearby, getListingCoordinates(l)) }))
+      .filter((x) => x.d <= nearby.radiusKm)
+      .sort((a, b) => a.d - b.d)
+      .map((x) => x.l)
+  }, [listings, nearby])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
@@ -233,16 +246,19 @@ export function ListingsExplorer({
       handleLandingSearch(q)
       document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
-    const onDistrict = (e: Event) => {
-      const d = (e as CustomEvent<{ district?: string }>).detail?.district ?? 'all'
-      setActiveDistrict(d)
+    // Area filter (district + "near you") applied from the header search bar.
+    const onArea = (e: Event) => {
+      const d = (e as CustomEvent<{ district?: string; nearby?: Nearby | null }>).detail
+      setActiveDistrict(d?.district ?? 'all')
+      setNearby(d?.nearby ?? null)
       setShowExplorer(true)
+      document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
     window.addEventListener('eno:search', onSearch)
-    window.addEventListener('eno:set-district', onDistrict)
+    window.addEventListener('eno:set-area', onArea)
     return () => {
       window.removeEventListener('eno:search', onSearch)
-      window.removeEventListener('eno:set-district', onDistrict)
+      window.removeEventListener('eno:set-area', onArea)
     }
   }, [handleLandingSearch])
 
@@ -367,7 +383,7 @@ export function ListingsExplorer({
   // Reset page to 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, verifiedOnly, sort, activeSubcategory, customFilters, priceRange])
+  }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, verifiedOnly, sort, activeSubcategory, customFilters, priceRange, nearby])
 
   // Fetch listings dynamically from API on parameter/page modifications using React Query SWR cache
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching } = useQuery({
@@ -377,6 +393,7 @@ export function ListingsExplorer({
         category: activeCategory,
         subcategory: activeSubcategory,
         district: activeDistrict,
+        near: nearby ? 1 : 0,
         condition: conditionFilter,
         q: debouncedQuery,
         sort,
@@ -390,7 +407,8 @@ export function ListingsExplorer({
       const params = new URLSearchParams()
       if (activeCategory !== 'all') params.set('category', activeCategory)
       if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
-      if (activeDistrict !== 'all') params.set('district', activeDistrict)
+      // "Near you" ignores the district filter and pulls a broad set to distance-filter client-side.
+      if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
       if (conditionFilter !== 'all') params.set('condition', conditionFilter)
       if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
       params.set('sort', sort)
@@ -408,7 +426,7 @@ export function ListingsExplorer({
         }
       })
 
-      const limit = 24
+      const limit = nearby ? 100 : 24
       const offset = (page - 1) * limit
       params.set('limit', String(limit))
       params.set('offset', String(offset))
@@ -1447,6 +1465,8 @@ export function ListingsExplorer({
               activeCategory={activeCategory}
               activeDistrict={activeDistrict}
               setActiveDistrict={setActiveDistrict}
+              nearby={nearby}
+              setNearby={setNearby}
               priceRange={priceRange}
               setPriceRange={setPriceRange}
               conditionFilter={conditionFilter}
@@ -1699,7 +1719,7 @@ export function ListingsExplorer({
             <div className="flex items-center justify-between text-xs text-[#64748b] px-1 select-none">
               <span>
                 {tr('Found', 'Tìm thấy')}{' '}
-                <strong className="text-[#1a202c]">{totalCount}</strong>{' '}
+                <strong className="text-[#1a202c]">{nearby ? shownListings.length : totalCount}</strong>{' '}
                 {tr('listings', 'tin đăng')}
               </span>
             </div>
@@ -1733,9 +1753,9 @@ export function ListingsExplorer({
               )
             )}
 
-            {!isLoading && listings.length === 0 && renderEmptyState()}
+            {!isLoading && shownListings.length === 0 && renderEmptyState()}
 
-            {listings.length > 0 && (
+            {shownListings.length > 0 && (
               <div className={cn(isLoading && 'opacity-60 pointer-events-none transition-opacity')}>
                 <div
                   key={`${viewMode}|${activeCategory}|${activeSubcategory}|${activeDistrict}|${sort}|${verifiedOnly}|${conditionFilter}`}
@@ -1744,7 +1764,7 @@ export function ListingsExplorer({
                 {viewMode === 'grid' && (
                   /* Grid Mode (Standard Cards) */
                   <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                    {listings.map((l, index) => (
+                    {shownListings.map((l, index) => (
                       <div
                         key={l.id}
                         className="flex flex-col h-full"
@@ -1761,7 +1781,7 @@ export function ListingsExplorer({
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                     {/* Left: scrollable result list */}
                     <div className="min-w-0 lg:col-span-5 lg:h-[640px] lg:overflow-y-auto lg:pr-1 space-y-1 scroll-thin order-2 lg:order-1">
-                      {listings.map((l, index) => (
+                      {shownListings.map((l, index) => (
                         <div
                           key={l.id}
                           onMouseEnter={() => setHoveredId(l.id)}
@@ -1778,7 +1798,7 @@ export function ListingsExplorer({
                     {/* Right: sticky map */}
                     <div className="min-w-0 lg:col-span-7 h-[420px] lg:h-[640px] lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
                       <ListingsMap
-                        listings={listings}
+                        listings={shownListings}
                         activeDistrict={activeDistrict}
                         onOpenListing={handleOpen}
                         lang={lang}
@@ -1793,7 +1813,7 @@ export function ListingsExplorer({
                 {viewMode === 'compact' && (
                   /* Compact Row Mode (bonbanh-style list rows) */
                   <div className="space-y-1.5">
-                    {listings.map((l, index) => (
+                    {shownListings.map((l, index) => (
                       <div
                         key={l.id}
                         style={{ contentVisibility: 'auto' as any, containIntrinsicSize: 'auto 90px' }}

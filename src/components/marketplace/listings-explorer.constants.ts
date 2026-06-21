@@ -1,5 +1,11 @@
 // Shared static data for the listings explorer + its extracted sub-components.
 
+// Provinces/cities ENO covers. HCMC is the live market (its districts are below);
+// more cities slot in here as they launch.
+export const PROVINCES = [
+  { slug: 'ho-chi-minh', name: 'TP. Hồ Chí Minh', nameEn: 'Ho Chi Minh City' },
+]
+
 // HCMC areas surfaced in the area facet / district routes (slug ↔ VI/EN label).
 export const DISTRICTS = [
   { slug: 'all', name: 'Toàn bộ HCMC', nameEn: 'All HCMC' },
