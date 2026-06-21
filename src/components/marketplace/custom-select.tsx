@@ -75,7 +75,7 @@ export function CustomSelect({
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => { if (!isOpen) reposition(); setIsOpen((o) => !o) }}
         className={cn(
           "flex w-full items-center justify-between rounded-full px-3.5 py-2 text-sm font-semibold outline-none transition-colors cursor-pointer",
           value !== 'all' && value !== 'newest'

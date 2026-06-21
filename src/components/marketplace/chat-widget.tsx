@@ -109,7 +109,7 @@ export function ChatWidget() {
 
       {/* Docked panel */}
       {open && (
-        <div className="fixed inset-x-2 bottom-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-overlay sm:inset-x-auto sm:right-5 sm:left-auto sm:bottom-5 sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px]">
+        <div className="fixed inset-x-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-overlay bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] sm:inset-x-auto sm:right-5 sm:left-auto sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px] sm:bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] lg:bottom-5">
           {view === 'thread' && conversationId ? (
             <ChatThread key={conversationId} id={conversationId} onBack={back} onClose={close} onSent={() => { refreshUnread(); refreshConvos() }} />
           ) : view === 'thread' && starting ? (
