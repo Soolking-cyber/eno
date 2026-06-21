@@ -590,7 +590,7 @@ export function ListingsExplorer({
       <div
         key={l.id}
         onClick={() => handleOpen(l)}
-        className="group flex items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[#f5f5f5] cursor-pointer"
+        className="group flex items-start gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[#f5f5f5] cursor-pointer"
       >
         {/* Thumbnail */}
         <div className="relative h-20 w-24 sm:w-28 shrink-0 overflow-hidden rounded-lg bg-[#f1f5f9]">
@@ -611,12 +611,13 @@ export function ListingsExplorer({
           )}
         </div>
 
-        {/* Title + location */}
+        {/* Title → price → meta, stacked so a long price never squeezes the title */}
         <div className="min-w-0 flex-1">
-          <h4 className="line-clamp-2 sm:line-clamp-1 text-sm font-medium leading-snug text-[#1a202c] group-hover:underline">
+          <h4 className="line-clamp-2 text-sm font-medium leading-snug text-[#1a202c] group-hover:underline">
             <Tr text={displayTitle} />
           </h4>
-          <div className="mt-1 flex items-center gap-2 text-xs text-[#64748b]">
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="mt-1 block text-sm font-bold text-[#1a202c]" />
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[#64748b]">
             <span className="truncate"><Tr text={l.district || l.city} /></span>
             {l.verified && (
               <span className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-[#0a66c2]">
@@ -627,15 +628,10 @@ export function ListingsExplorer({
           </div>
         </div>
 
-        {/* Price */}
-        <div className="shrink-0 pl-2 text-right">
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="whitespace-nowrap text-sm font-bold text-[#1a202c]" />
-        </div>
-
-        <FavoriteHeart id={l.id} className="self-center" />
+        <FavoriteHeart id={l.id} className="-mr-1 shrink-0 self-start" />
       </div>
     )
-  }, [lang, handleOpen])
+  }, [lang, t, handleOpen])
 
   // Compact card for the narrow map-view list: stacks title → price → location
   // so long prices never crush the title.
@@ -1040,7 +1036,7 @@ export function ListingsExplorer({
   if (isLandingMode) {
     return (
       <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pt-2 pb-5 sm:pt-3 sm:pb-8">
-        <div className="relative mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 space-y-12">
+        <div className="relative mx-auto w-full max-w-7xl px-2 sm:px-6 lg:px-8 space-y-12">
           
           {/* HERO SEARCH AREA */}
           <div className="pb-2 text-center">
@@ -1353,7 +1349,7 @@ export function ListingsExplorer({
 
   return (
     <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden py-5 sm:py-8">
-      <div className="relative mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="relative mx-auto w-full max-w-7xl px-2 sm:px-6 lg:px-8">
 
         {/* Single-column faceted directory */}
         <div className="animate-in fade-in slide-in-from-bottom-3 duration-300">
