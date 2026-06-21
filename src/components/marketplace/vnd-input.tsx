@@ -43,9 +43,9 @@ export function VndInput({
           value={groupVnd(digits)}
           onChange={(e) => set(e.target.value)}
           placeholder={placeholder ?? '0'}
-          className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-3.5 pr-9 text-lg font-bold tabular-nums text-[#1a202c] outline-none transition-colors focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+          className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-3.5 pr-14 text-lg font-bold tabular-nums text-[#1a202c] outline-none transition-colors focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
         />
-        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-[#94a3b8]">₫</span>
+        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#94a3b8]">VND</span>
       </div>
 
       {/* Readability helper — reserves its line so the chips don't jump */}
@@ -56,8 +56,8 @@ export function VndInput({
       {/* Fast-entry chips */}
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         <button type="button" onClick={() => { if (digits) set(digits + '000') }} disabled={!digits} className={chip}>+000</button>
-        <button type="button" onClick={() => mul(1_000)} disabled={!digits} className={chip}>×1.000 (k)</button>
-        <button type="button" onClick={() => mul(1_000_000)} disabled={!digits} className={chip}>×1.000.000 (tr)</button>
+        <button type="button" onClick={() => mul(1_000)} disabled={!digits} className={chip}>×1,000</button>
+        <button type="button" onClick={() => mul(1_000_000)} disabled={!digits} className={chip}>×1,000,000</button>
         {(presets ?? []).map((p) => (
           <button type="button" key={p.label} onClick={() => set(p.value)} className={chip}>{p.label}</button>
         ))}

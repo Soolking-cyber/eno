@@ -82,35 +82,35 @@ export function FacetBar({
   const priceOpts: { value: string; label: string }[] =
     activeCategory === 'house-rentals'
       ? [
-          { value: '0-10000000', label: tr('Under ₫10M', 'Dưới 10tr') },
+          { value: '0-10000000', label: tr('Under 10M', 'Dưới 10tr') },
           { value: '10000000-20000000', label: '10–20tr' },
           { value: '20000000-40000000', label: '20–40tr' },
-          { value: '40000000-', label: tr('₫40M+', 'Trên 40tr') },
+          { value: '40000000-', label: tr('40M+', 'Trên 40tr') },
         ]
       : activeCategory === 'motorbike-rentals'
       ? [
-          { value: '0-2000000', label: tr('Under ₫2M', 'Dưới 2tr') },
+          { value: '0-2000000', label: tr('Under 2M', 'Dưới 2tr') },
           { value: '2000000-4000000', label: '2–4tr' },
-          { value: '4000000-', label: tr('₫4M+', 'Trên 4tr') },
+          { value: '4000000-', label: tr('4M+', 'Trên 4tr') },
         ]
       : activeCategory === 'services' || activeCategory === 'jobs'
       ? [
-          { value: '0-500000', label: tr('Under ₫500k', 'Dưới 500k') },
+          { value: '0-500000', label: tr('Under 500k', 'Dưới 500k') },
           { value: '500000-2000000', label: '500k–2tr' },
-          { value: '2000000-', label: tr('₫2M+', 'Trên 2tr') },
+          { value: '2000000-', label: tr('2M+', 'Trên 2tr') },
         ]
       : activeCategory === 'electronics' || activeCategory === 'moving-sale'
       ? [
-          { value: '0-5000000', label: tr('Under ₫5M', 'Dưới 5tr') },
+          { value: '0-5000000', label: tr('Under 5M', 'Dưới 5tr') },
           { value: '5000000-15000000', label: '5–15tr' },
           { value: '15000000-30000000', label: '15–30tr' },
-          { value: '30000000-', label: tr('₫30M+', 'Trên 30tr') },
+          { value: '30000000-', label: tr('30M+', 'Trên 30tr') },
         ]
       : [
-          { value: '0-1000000', label: tr('Under ₫1M', 'Dưới 1tr') },
+          { value: '0-1000000', label: tr('Under 1M', 'Dưới 1tr') },
           { value: '1000000-10000000', label: '1–10tr' },
           { value: '10000000-30000000', label: '10–30tr' },
-          { value: '30000000-', label: tr('₫30M+', 'Trên 30tr') },
+          { value: '30000000-', label: tr('30M+', 'Trên 30tr') },
         ]
 
   const facets: ReactNode[] = [

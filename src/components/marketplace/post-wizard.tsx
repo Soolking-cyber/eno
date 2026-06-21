@@ -206,7 +206,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
             <div className="space-y-5">
               <h1 className="h-title text-[#1a202c]">{t('Giá, khu vực & ảnh', 'Price, area & photos')}</h1>
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-[#1a202c]">{t('Giá (₫)', 'Price (₫)')}</label>
+                <label className="text-sm font-semibold text-[#1a202c]">{t('Giá (VND)', 'Price (VND)')}</label>
                 <VndInput value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} />
               </div>
               <div className="space-y-1.5">

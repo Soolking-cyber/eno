@@ -308,7 +308,6 @@ export default async function ListingPage({ params }: Props) {
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="truncate text-base font-bold text-[#1a202c]" />
           {listing.verified && <div className="text-[11px] font-semibold text-[#0a66c2]"><Tr text="Verified" /></div>}
         </div>
-        <SaveListingButton id={listing.id} compact />
         <RevealContact listingId={listing.id} listingTitle={displayTitle} price={listing.price} currency={currencyCode(listing.currency)} compact />
       </div>
 

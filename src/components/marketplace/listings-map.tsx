@@ -10,10 +10,10 @@ import { getListingCoordinates } from '@/lib/geo'
 // Compact price for map labels (Airbnb-style price pins).
 function compactPrice(l: SerializedListing): string {
   if (l.currency === '₫') {
-    if (l.price >= 1_000_000_000) return `₫${(l.price / 1_000_000_000).toFixed(1)}tỷ`
-    if (l.price >= 1_000_000) return `₫${Math.round(l.price / 1_000_000)}tr`
-    if (l.price >= 1_000) return `₫${Math.round(l.price / 1_000)}k`
-    return `₫${l.price}`
+    if (l.price >= 1_000_000_000) return `${(l.price / 1_000_000_000).toFixed(1)}tỷ`
+    if (l.price >= 1_000_000) return `${Math.round(l.price / 1_000_000)}tr`
+    if (l.price >= 1_000) return `${Math.round(l.price / 1_000)}k`
+    return `${l.price}`
   }
   return formatPrice(l.price, l.currency, l.priceUnit)
 }
