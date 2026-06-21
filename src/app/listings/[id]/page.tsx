@@ -23,6 +23,8 @@ import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { RevealContact } from '@/components/marketplace/reveal-contact'
 import { TrackView } from '@/components/marketplace/track-view'
+import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
+import { SaveListingButton } from '@/components/marketplace/save-listing-button'
 import { currencyCode } from '@/lib/analytics'
 
 type Props = {
@@ -155,6 +157,9 @@ export default async function ListingPage({ params }: Props) {
         />
       )}
 
+      {/* Open the detail page at the top, not at the feed's stale scroll position */}
+      <ScrollToTop id={listing.id} />
+
       {/* Fires GA4 view_item / Meta ViewContent once per listing view (client, renders null) */}
       <TrackView
         id={listing.id}
@@ -179,16 +184,19 @@ export default async function ListingPage({ params }: Props) {
         </div>
 
         {/* Title header */}
-        <div className="mb-4 space-y-1.5">
-          <span className={cn('inline-flex w-fit items-center gap-1 text-xs font-semibold', color.text)}>
-            <CategoryIcon name={listing.category.icon} className="h-3.5 w-3.5" />
-            {tx(listing.category.name)}
-          </span>
-          <h1 className="h-title text-[#1a202c]">{resolvedTitle}</h1>
-          <div className="flex items-center gap-1 text-sm text-[#64748b]">
-            <MapPin className="h-4 w-4 text-[#94a3b8] shrink-0" />
-            <span className="truncate">{tx(listing.location)}</span>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1.5">
+            <span className={cn('inline-flex w-fit items-center gap-1 text-xs font-semibold', color.text)}>
+              <CategoryIcon name={listing.category.icon} className="h-3.5 w-3.5" />
+              {tx(listing.category.name)}
+            </span>
+            <h1 className="h-title text-[#1a202c]">{resolvedTitle}</h1>
+            <div className="flex items-center gap-1 text-sm text-[#64748b]">
+              <MapPin className="h-4 w-4 text-[#94a3b8] shrink-0" />
+              <span className="truncate">{tx(listing.location)}</span>
+            </div>
           </div>
+          <SaveListingButton id={listing.id} className="mt-0.5 shrink-0" />
         </div>
 
         {/* Gallery mosaic */}
@@ -296,6 +304,7 @@ export default async function ListingPage({ params }: Props) {
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="truncate text-base font-bold text-[#1a202c]" />
           {listing.verified && <div className="text-[11px] font-semibold text-[#0a66c2]"><Tr text="Verified" /></div>}
         </div>
+        <SaveListingButton id={listing.id} compact />
         <RevealContact listingId={listing.id} listingTitle={displayTitle} price={listing.price} currency={currencyCode(listing.currency)} compact />
       </div>
 
