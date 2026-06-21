@@ -8,7 +8,6 @@ import { ChatProvider } from "@/context/chat-context";
 import { FavoritesProvider } from "@/context/favorites-context";
 import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
-import { ChatWidgetGate } from "@/components/marketplace/chat-widget-gate";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
@@ -120,7 +119,6 @@ export default function RootLayout({
                 <QueryProvider>
                   {children}
                   <MobileNav />
-                  <ChatWidgetGate />
                   <CookieConsent />
                 </QueryProvider>
               </FavoritesProvider>

@@ -2,17 +2,19 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Heart, User, Globe, ChevronDown } from 'lucide-react'
+import { Plus, Heart, User, Globe, ChevronDown, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLanguage, LANGUAGES } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 import { useAuth } from '@/context/auth-context'
+import { useChat } from '@/context/chat-context'
 import { AccountMenu } from './account-menu'
 
 export function Header() {
   const { lang, setLang, t, tr } = useLanguage()
   const { count } = useFavorites()
   const { user } = useAuth()
+  const { unread } = useChat()
   const [langOpen, setLangOpen] = useState(false)
   const langRef = useRef<HTMLDivElement>(null)
   const current = LANGUAGES.find((l) => l.code === lang) ?? LANGUAGES[0]
@@ -85,6 +87,21 @@ export function Header() {
               </span>
             )}
           </Link>
+          {/* Messages — full page (replaces the floating chat widget). */}
+          {user && (
+            <Link
+              href="/messages"
+              className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-[#475569] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
+              aria-label={tr('Messages', 'Tin nhắn')}
+            >
+              <MessageSquare className="h-5 w-5" />
+              {unread > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[10px] font-bold text-white">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
+            </Link>
+          )}
           {user ? (
             <div className="hidden sm:block"><AccountMenu /></div>
           ) : (

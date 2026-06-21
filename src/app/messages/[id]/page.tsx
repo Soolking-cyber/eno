@@ -103,7 +103,7 @@ export default function ThreadPage() {
           {/* Thread header */}
           <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
             <Link href="/messages" className="text-[#64748b] hover:text-[#0a66c2]"><ChevronLeft className="h-5 w-5" /></Link>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: thread?.counterpart.avatarColor || '#0a66c2' }}>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-xs font-bold text-white">
               {thread?.counterpart.name.slice(0, 2).toUpperCase()}
             </span>
             <div className="min-w-0 flex-1">

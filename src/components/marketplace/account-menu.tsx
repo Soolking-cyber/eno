@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { User, Heart, MessageSquare, Store, LogOut } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { useChat } from '@/context/chat-context'
 
 type Me = { displayName: string | null; email: string | null; avatarUrl: string | null; avatarColor: string; sellerId: string | null }
 
@@ -13,7 +12,6 @@ type Me = { displayName: string | null; email: string | null; avatarUrl: string 
 export function AccountMenu() {
   const { user, signOut } = useAuth()
   const { tr } = useLanguage()
-  const { openInbox } = useChat()
   const [open, setOpen] = useState(false)
   const [me, setMe] = useState<Me | null>(null)
   const ref = useRef<HTMLDivElement>(null)
@@ -70,9 +68,9 @@ export function AccountMenu() {
             <Link href="/saved" role="menuitem" onClick={() => setOpen(false)} className={item}>
               <Heart className="h-4 w-4 text-[#0a66c2]" /> {tr('Saved listings', 'Tin đã lưu')}
             </Link>
-            <button role="menuitem" onClick={() => { setOpen(false); openInbox() }} className={item}>
+            <Link href="/messages" role="menuitem" onClick={() => setOpen(false)} className={item}>
               <MessageSquare className="h-4 w-4 text-[#0a66c2]" /> {tr('Messages', 'Tin nhắn')}
-            </button>
+            </Link>
             <button role="menuitem" onClick={() => { setOpen(false); signOut() }} className={`${item} hover:bg-red-50 hover:text-red-600`}>
               <LogOut className="h-4 w-4" /> {tr('Sign out', 'Đăng xuất')}
             </button>

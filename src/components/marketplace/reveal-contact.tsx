@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { MessageCircle, Lock, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { useChat } from '@/context/chat-context'
 import { toast } from 'sonner'
 
 /**
@@ -16,31 +16,30 @@ import { toast } from 'sonner'
 export function RevealContact({ listingId, compact = false, onStartChat }: { listingId: string; compact?: boolean; onStartChat?: () => void }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
-  const { openThread, openPendingThread, close } = useChat()
+  const router = useRouter()
   const [msgBusy, setMsgBusy] = useState(false)
 
-  // Open the chat INSTANTLY and create the conversation in the background.
+  // Create (or reuse) the conversation, then navigate to its full-page thread —
+  // canvas, no floating window.
   const onMessage = async () => {
     if (!user && !loading) { openSignIn(); return }
-    openPendingThread()
-    onStartChat?.()
     setMsgBusy(true)
     try {
       const res = await fetch('/api/conversations', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId }),
       })
-      if (res.status === 401) { close(); openSignIn(); return }
+      if (res.status === 401) { openSignIn(); return }
       if (res.status === 400) {
-        close()
         const { error } = await res.json().catch(() => ({}))
         toast.error(error === 'own_listing' ? tr("That's your own listing.", 'Đây là tin của chính bạn.') : tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.'))
         return
       }
-      if (!res.ok) { close(); toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.')); return }
+      if (!res.ok) { toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.')); return }
       const { id } = await res.json()
-      openThread(id)
+      onStartChat?.()
+      router.push(`/messages/${id}`)
     } catch {
-      close(); toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.'))
+      toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.'))
     } finally {
       setMsgBusy(false)
     }
