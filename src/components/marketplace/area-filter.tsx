@@ -34,6 +34,9 @@ export function AreaFilter({
   const [radiusKm, setRadiusKm] = useState(nearby?.radiusKm ?? 5)
   const [locating, setLocating] = useState(false)
 
+  const [address, setAddress] = useState<string | null>(null)
+  const [resolving, setResolving] = useState(false)
+
   useEffect(() => { setMounted(true) }, [])
   // Re-sync the draft to the applied values each time the modal opens.
   useEffect(() => {
@@ -41,13 +44,33 @@ export function AreaFilter({
     setDist(district)
     setLoc(nearby ? { lat: nearby.lat, lng: nearby.lng } : null)
     setRadiusKm(nearby?.radiusKm ?? 5)
+    setAddress(null)
   }, [open, district, nearby])
+
+  // Reverse-geocode the device location → fill the address + auto-select the district.
+  const resolveAddress = async (lat: number, lng: number) => {
+    setResolving(true)
+    setAddress(null)
+    try {
+      const r = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}&lang=${lang}`)
+      const d = await r.json()
+      if (d.address) setAddress(d.address)
+      if (d.district) setDist(d.district) // auto-pick the matched district
+    } catch { /* keep coordinates-only */ } finally {
+      setResolving(false)
+    }
+  }
 
   const locate = () => {
     if (!('geolocation' in navigator)) { toast.error(tr('Location not available on this device.', 'Thiết bị không hỗ trợ định vị.')); return }
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
-      (pos) => { setLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false) },
+      (pos) => {
+        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setLoc(p)
+        setLocating(false)
+        resolveAddress(p.lat, p.lng)
+      },
       () => { setLocating(false); toast.error(tr('Could not get your location. Allow location access and try again.', 'Không lấy được vị trí. Hãy cho phép truy cập vị trí và thử lại.')) },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     )
@@ -58,7 +81,7 @@ export function AreaFilter({
     onClose()
   }
 
-  const reset = () => { setDist('all'); setLoc(null); setRadiusKm(5); onReset(); onClose() }
+  const reset = () => { setDist('all'); setLoc(null); setAddress(null); setRadiusKm(5); onReset(); onClose() }
 
   if (!open || !mounted) return null
 
@@ -110,8 +133,13 @@ export function AreaFilter({
               <div className="mt-3 space-y-3 rounded-xl bg-[#f8fafc] p-3.5">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-sm font-semibold text-[#0a66c2]"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
-                  <button onClick={() => setLoc(null)} className="text-xs font-semibold text-slate-400 hover:text-slate-700">{tr('Remove', 'Bỏ')}</button>
+                  <button onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-slate-400 hover:text-slate-700">{tr('Remove', 'Bỏ')}</button>
                 </div>
+                {resolving ? (
+                  <p className="flex items-center gap-1.5 text-xs text-[#64748b]"><Loader2 className="h-3 w-3 animate-spin" /> {tr('Finding your address…', 'Đang tìm địa chỉ…')}</p>
+                ) : address ? (
+                  <p className="text-xs leading-relaxed text-[#475569]">{address}</p>
+                ) : null}
                 <div>
                   <div className="mb-1 flex items-center justify-between text-xs">
                     <span className="text-[#64748b]">{tr('Search range', 'Bán kính tìm')}</span>
