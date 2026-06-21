@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { MapPin, LocateFixed, Loader2, X, Check } from 'lucide-react'
+import { MapPin, LocateFixed, Loader2, X, Check, ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { CustomSelect } from './custom-select'
 import { PROVINCES, DISTRICTS } from './listings-explorer.constants'
@@ -10,6 +10,22 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
 export type Nearby = { lat: number; lng: number; radiusKm: number }
+
+const FIELD = 'w-full justify-between rounded-xl border border-slate-300 bg-white py-2.5 text-[#1a202c]'
+
+// A not-yet-available cascading field (Ward/Commune, Street) — present for the
+// detailed structure, disabled until we carry that data on listings.
+function DisabledField({ label, title }: { label: string; title?: string }) {
+  return (
+    <div
+      title={title}
+      className="flex w-full cursor-not-allowed items-center justify-between rounded-xl bg-[#f1f5f9] px-3.5 py-2.5 text-sm text-[#94a3b8]"
+    >
+      <span>{label}</span>
+      <ChevronDown className="h-4 w-4 text-slate-300" />
+    </div>
+  )
+}
 
 /**
  * Area filter modal: province → district (precise location), plus "Search near
@@ -102,24 +118,40 @@ export function AreaFilter({
             <label className="text-xs font-bold text-[#1a202c]">{tr('Province / City', 'Tỉnh / Thành phố')} <span className="text-red-500">*</span></label>
             <CustomSelect
               value={province}
-              onChange={setProvince}
+              onChange={(p) => { setProvince(p); if (p !== 'ho-chi-minh') setDist('all') }}
               options={PROVINCES.map((p) => ({ value: p.slug, label: lang === 'vi' ? p.name : p.nameEn }))}
-              className="w-full justify-between bg-white border border-slate-300 text-[#1a202c] py-2.5"
+              className={FIELD}
               activeClassName="bg-white border-[#0a66c2] text-[#1a202c]"
             />
           </div>
 
-          {/* District */}
+          {/* District / county */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[#1a202c]">{tr('District / Ward', 'Quận / Phường')}</label>
-            <CustomSelect
-              value={dist}
-              onChange={setDist}
-              options={DISTRICTS.map((d) => ({ value: d.slug, label: lang === 'vi' ? d.name : d.nameEn }))}
-              placeholder={tr('Select district', 'Chọn quận')}
-              className="w-full justify-between bg-white border border-slate-300 text-[#1a202c] py-2.5"
-              activeClassName="bg-white border-[#0a66c2] text-[#1a202c]"
-            />
+            <label className="text-xs font-bold text-[#1a202c]">{tr('District / County', 'Quận / Huyện')}</label>
+            {province === 'ho-chi-minh' ? (
+              <CustomSelect
+                value={dist}
+                onChange={setDist}
+                options={DISTRICTS.map((d) => ({ value: d.slug, label: lang === 'vi' ? d.name : d.nameEn }))}
+                placeholder={tr('Select District/County', 'Chọn Quận/Huyện')}
+                className={FIELD}
+                activeClassName="bg-white border-[#0a66c2] text-[#1a202c]"
+              />
+            ) : (
+              <DisabledField label={tr('Listings coming soon to this province', 'Sắp có tin đăng ở tỉnh này')} />
+            )}
+          </div>
+
+          {/* Ward / commune — structure shown; not data-backed yet */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#1a202c]">{tr('Ward / Commune', 'Phường / Xã')}</label>
+            <DisabledField label={tr('Select Ward/Commune', 'Chọn Phường/Xã')} title={tr('Select the District/County first', 'Hãy chọn Quận/Huyện trước')} />
+          </div>
+
+          {/* Street */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#1a202c]">{tr('Street', 'Đường')}</label>
+            <DisabledField label={tr('Select Street/Road', 'Chọn Đường/Phố')} title={tr('Select the District/County first', 'Hãy chọn Quận/Huyện trước')} />
           </div>
 
           {/* Search near you */}
@@ -158,9 +190,11 @@ export function AreaFilter({
               <button
                 onClick={locate}
                 disabled={locating}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-2.5 text-sm font-semibold text-[#0a66c2] transition-colors hover:border-[#0a66c2] disabled:opacity-60"
+                className="mt-3 flex w-full items-center justify-center gap-2.5 rounded-xl border-2 border-[#0a66c2] bg-[#e8f1fb] py-3 text-sm font-bold text-[#0a66c2] shadow-sm transition-all hover:bg-[#dbeafe] active:scale-[0.99] disabled:opacity-60"
               >
-                {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white">
+                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                </span>
                 {tr('Use my current location', 'Dùng vị trí hiện tại')}
               </button>
             )}

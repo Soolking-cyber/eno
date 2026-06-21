@@ -7,6 +7,7 @@ import { SUBCATEGORIES } from '@/lib/subcategories'
 import { fold, buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
+import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,95 +82,17 @@ export async function GET(req: NextRequest) {
       })
     }
   }
+  // Generic district filter driven by DISTRICTS[].match (EN + VI variants), matched
+  // against both the `district` and `location` fields.
   const buildDistrictFilter = (districtVal: string): Prisma.ListingWhereInput | undefined => {
     if (!districtVal || districtVal === 'all') return undefined
-    if (districtVal === 'd1') {
-      return {
-        OR: [
-          { district: { contains: 'District 1' } },
-          { district: { contains: 'Quận 1' } },
-          { location: { contains: 'District 1' } },
-          { location: { contains: 'Quận 1' } }
-        ]
-      }
+    const def = DISTRICTS.find((d) => d.slug === districtVal)
+    if (!def?.match?.length) return undefined
+    const OR: Prisma.ListingWhereInput[] = []
+    for (const m of def.match) {
+      OR.push({ district: { contains: m } }, { location: { contains: m } })
     }
-    if (districtVal === 'd3') {
-      return {
-        OR: [
-          { district: { contains: 'District 3' } },
-          { district: { contains: 'Quận 3' } },
-          { location: { contains: 'District 3' } },
-          { location: { contains: 'Quận 3' } }
-        ]
-      }
-    }
-    if (districtVal === 'd4') {
-      return {
-        OR: [
-          { district: { contains: 'District 4' } },
-          { district: { contains: 'Quận 4' } },
-          { location: { contains: 'District 4' } },
-          { location: { contains: 'Quận 4' } }
-        ]
-      }
-    }
-    if (districtVal === 'd7') {
-      return {
-        OR: [
-          { district: { contains: 'District 7' } },
-          { district: { contains: 'Quận 7' } },
-          { location: { contains: 'District 7' } },
-          { location: { contains: 'Quận 7' } },
-          { location: { contains: 'Phu My Hung' } },
-          { location: { contains: 'Phú Mỹ Hưng' } }
-        ]
-      }
-    }
-    if (districtVal === 'binh-thanh') {
-      return {
-        OR: [
-          { district: { contains: 'Binh Thanh' } },
-          { district: { contains: 'Bình Thạnh' } },
-          { location: { contains: 'Binh Thanh' } },
-          { location: { contains: 'Bình Thạnh' } }
-        ]
-      }
-    }
-    if (districtVal === 'thu-duc') {
-      return {
-        OR: [
-          { district: { contains: 'District 2' } },
-          { district: { contains: 'Quận 2' } },
-          { district: { contains: 'Thu Duc' } },
-          { district: { contains: 'Thủ Đức' } },
-          { location: { contains: 'District 2' } },
-          { location: { contains: 'Quận 2' } },
-          { location: { contains: 'Thao Dien' } },
-          { location: { contains: 'Thảo Điền' } }
-        ]
-      }
-    }
-    if (districtVal === 'phu-nhuan') {
-      return {
-        OR: [
-          { district: { contains: 'Phu Nhuan' } },
-          { district: { contains: 'Phú Nhuận' } },
-          { location: { contains: 'Phu Nhuan' } },
-          { location: { contains: 'Phú Nhuận' } }
-        ]
-      }
-    }
-    if (districtVal === 'tan-binh') {
-      return {
-        OR: [
-          { district: { contains: 'Tan Binh' } },
-          { district: { contains: 'Tân Bình' } },
-          { location: { contains: 'Tan Binh' } },
-          { location: { contains: 'Tân Bình' } }
-        ]
-      }
-    }
-    return undefined
+    return { OR }
   }
 
   const districtFilter = buildDistrictFilter(district || 'all')
