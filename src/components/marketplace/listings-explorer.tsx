@@ -142,6 +142,20 @@ export function ListingsExplorer({
     setShowExplorer(false)
   }, [])
 
+  // Clicking the header logo while already on the homepage resets the explorer back
+  // to landing mode (a same-route <Link> can't reset this client state on its own).
+  useEffect(() => {
+    const onResetHome = () => {
+      resetToLandingPage()
+      setActiveProvince(null)
+      setActiveWard(null)
+      setNearby(null)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    window.addEventListener('eno:reset-home', onResetHome)
+    return () => window.removeEventListener('eno:reset-home', onResetHome)
+  }, [resetToLandingPage])
+
   // Sync showExplorer with URL/parameters on mount or change
   useEffect(() => {
     if (
@@ -1423,17 +1437,6 @@ export function ListingsExplorer({
           {/* Listings Main Workspace */}
           <div className="space-y-4">
 
-            {/* Back to Home Breadcrumb in Explorer Mode */}
-            <div className="flex items-center justify-between px-1">
-              <button
-                onClick={resetToLandingPage}
-                className="text-xs font-bold text-[#0a66c2] hover:underline flex items-center gap-1 cursor-pointer select-none"
-              >
-                &larr; {tr('Back to Home', 'Quay lại Trang chủ')}
-              </button>
-            </div>
-
-            
             {/* Top Categories Navigation Bar (Desktop Hover Dropdowns / Mobile Click Dropdowns) */}
             <div className="relative select-none">
               <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1 lg:flex-wrap lg:overflow-x-visible">

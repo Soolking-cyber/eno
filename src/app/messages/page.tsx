@@ -48,10 +48,12 @@ export default function MessagesPage() {
             {tr('No messages yet. Tap "Message" on a listing to start a chat.', 'Chưa có tin nhắn. Nhấn "Nhắn tin" trên một tin đăng để bắt đầu.')}
           </div>
         ) : (
-          <>
-            {/* Search bar (flat, on-canvas) */}
-            <div className="relative mb-4">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
+          // One continuous panel: search + conversation list as a single monolith
+          // (no separate floating boxes, no shadow).
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            {/* Search — top of the monolith */}
+            <div className="relative border-b border-slate-100">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -61,15 +63,14 @@ export default function MessagesPage() {
                 autoCapitalize="off"
                 spellCheck={false}
                 aria-label={tr('Search messages', 'Tìm tin nhắn')}
-                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm text-[#1a202c] outline-none transition-colors focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-[#94a3b8]"
+                className="w-full bg-transparent py-3.5 pl-11 pr-4 text-sm text-[#1a202c] outline-none placeholder:text-[#94a3b8]"
               />
             </div>
 
             {filtered && filtered.length === 0 ? (
               <p className="py-12 text-center text-sm text-[#94a3b8]">{tr('No conversations match.', 'Không có cuộc trò chuyện phù hợp.')}</p>
             ) : (
-              <div className="overflow-hidden rounded-2xl bg-white shadow-pop">
-                <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100">
                 {(filtered ?? []).map((c) => (
                   <div key={c.id} className="group flex items-center gap-1 transition-colors hover:bg-slate-50">
                     <Link href={`/messages/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-3">
@@ -104,10 +105,9 @@ export default function MessagesPage() {
                     )}
                   </div>
                 ))}
-                </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </main>
     </div>

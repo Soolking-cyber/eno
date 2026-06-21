@@ -125,7 +125,12 @@ export function Header() {
     >
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 sm:gap-3 px-3 sm:px-6 lg:px-8">
         {/* Logo */}
-        <Link href="/" className="flex shrink-0 items-center" aria-label="ENO">
+        <Link
+          href="/"
+          onClick={() => { if (pathname === '/') window.dispatchEvent(new CustomEvent('eno:reset-home')) }}
+          className="flex shrink-0 items-center"
+          aria-label="ENO"
+        >
           <img src="/logo-mark.svg" alt="ENO" width={40} height={40} className="h-10 w-10" />
         </Link>
 
