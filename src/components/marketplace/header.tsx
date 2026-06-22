@@ -3,9 +3,10 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { Plus, User, Search, MapPin, Clock } from 'lucide-react'
+import { Plus, User, Search, MapPin, Clock, Heart, MessageSquare } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
+import { useChat } from '@/context/chat-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 import { AccountMenu } from './account-menu'
@@ -17,6 +18,7 @@ import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-sug
 export function Header() {
   const { t, tr, lang } = useLanguage()
   const { user } = useAuth()
+  const { unread } = useChat()
   const pathname = usePathname()
   const router = useRouter()
   // Roll the bar up on scroll-down, back down on scroll-up (mobile only — desktop
@@ -269,6 +271,20 @@ export function Header() {
         {/* Actions. The notification bell shows on ALL sizes (top-right, per the
             Chợ Tốt pattern); account + Post are desktop-only (mobile uses the bottom nav). */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          {/* Desktop quick actions (mobile uses the bottom nav): Saved · Messages · Bell */}
+          {user && (
+            <>
+              <Link href="/saved" aria-label={tr('Saved listings', 'Tin đã lưu')} className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                <Heart className="h-5 w-5" />
+              </Link>
+              <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                <MessageSquare className="h-5 w-5" />
+                {unread > 0 && (
+                  <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[9px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>
+                )}
+              </Link>
+            </>
+          )}
           <NotificationBell />
           {user ? (
             <div className="hidden sm:block"><AccountMenu /></div>

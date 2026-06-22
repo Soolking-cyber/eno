@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Heart, MessageSquare, Store, LogOut, Monitor, Sun, Moon } from 'lucide-react'
+import { Store, LogOut, Monitor, Sun, Moon } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, LANGUAGES } from '@/context/language-context'
 import { useTheme } from '@/context/theme-context'
@@ -70,12 +70,6 @@ export function AccountMenu() {
           <div className="pt-1">
             <Link href="/dashboard" role="menuitem" onClick={() => setOpen(false)} className={item}>
               <Store className="h-4 w-4 text-accent-foreground" /> {tr('Dashboard', 'Bảng điều khiển')}
-            </Link>
-            <Link href="/saved" role="menuitem" onClick={() => setOpen(false)} className={item}>
-              <Heart className="h-4 w-4 text-accent-foreground" /> {tr('Saved listings', 'Tin đã lưu')}
-            </Link>
-            <Link href="/messages" role="menuitem" onClick={() => setOpen(false)} className={item}>
-              <MessageSquare className="h-4 w-4 text-accent-foreground" /> {tr('Messages', 'Tin nhắn')}
             </Link>
 
             {/* Language (left, compact dropdown) + theme (right, icon segmented) — one line */}
