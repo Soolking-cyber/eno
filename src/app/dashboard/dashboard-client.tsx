@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Eye, MessageSquareText, Tag, Clock, Store, Upload, Loader2, Plus } from 'lucide-react'
+import { Eye, MessageSquareText, Tag, Clock, Store, Upload, Loader2, Plus, Heart, ChevronRight } from 'lucide-react'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { SignInPrompt } from '@/components/marketplace/account-actions'
+import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
 import { TrustBadge } from '@/components/marketplace/trust-badge'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
+import { LanguagePref } from '@/components/marketplace/language-pref'
+import { ThemePref } from '@/components/marketplace/theme-pref'
 import { isStale } from '@/lib/stale'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -77,12 +79,15 @@ export function DashboardClient() {
     return (
       <div className="flex min-h-screen flex-col bg-background">
         <Header />
-        <main className="mx-auto w-full max-w-md flex-1 px-3 py-10">
+        <main className="mx-auto w-full max-w-md flex-1 space-y-8 px-3 py-10">
           <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-pop">
-            <h1 className="text-lg font-bold text-foreground">{tr('Seller dashboard', 'Bảng điều khiển')}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">{tr('Sign in to manage your listings and messages.', 'Đăng nhập để quản lý tin đăng và tin nhắn.')}</p>
+            <h1 className="text-lg font-bold text-foreground">{tr('Your account', 'Tài khoản của bạn')}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{tr('Sign in to manage your listings, messages and saved items.', 'Đăng nhập để quản lý tin đăng, tin nhắn và mục đã lưu.')}</p>
             <div className="mt-5"><SignInPrompt /></div>
           </div>
+          {/* Language + appearance are device prefs — available before sign-in. */}
+          <LanguagePref />
+          <ThemePref />
         </main>
       </div>
     )
@@ -99,16 +104,39 @@ export function DashboardClient() {
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
       <main className="mx-auto w-full max-w-5xl flex-1 px-3 py-6 sm:px-6">
-        {/* Title + trust + post */}
+        {/* Identity header — avatar · name · email · trust, with post + sign out */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <h1 className="h-title text-foreground">{d?.profile.businessName || d?.profile.displayName || tr('Dashboard', 'Bảng điều khiển')}</h1>
-            {d && <TrustBadge tier={d.profile.trustTier} size="sm" />}
+          <div className="flex min-w-0 items-center gap-3">
+            {d?.profile.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={d.profile.avatarUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
+            ) : (
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold text-white" style={{ backgroundColor: d?.profile.avatarColor || '#0a66c2' }}>
+                {(d?.profile.businessName || d?.profile.displayName || d?.profile.email || '?').slice(0, 2).toUpperCase()}
+              </span>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-lg font-bold text-foreground">{d?.profile.businessName || d?.profile.displayName || tr('Your account', 'Tài khoản của bạn')}</h1>
+                {d && <TrustBadge tier={d.profile.trustTier} size="sm" />}
+              </div>
+              {d?.profile.email && <p className="truncate text-sm text-muted-foreground">{d.profile.email}</p>}
+            </div>
           </div>
-          <Link href="/post" className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#004182]">
-            <Plus className="h-4 w-4" /> {tr('Post a listing', 'Đăng tin')}
-          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link href="/post" className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#004182]">
+              <Plus className="h-4 w-4" /> {tr('Post a listing', 'Đăng tin')}
+            </Link>
+            <SignOutButton />
+          </div>
         </div>
+
+        {/* Quick link — saved (buyer side; everything else lives below) */}
+        <Link href="/saved" className="mt-4 flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-pop transition-colors hover:border-[#0a66c2]/30">
+          <Heart className="h-5 w-5 text-accent-foreground" />
+          <span className="text-sm font-semibold text-foreground">{tr('Saved listings', 'Tin đã lưu')}</span>
+          <ChevronRight className="ml-auto h-4 w-4 text-line-strong" />
+        </Link>
 
         {/* Action strip — the 3 questions: messages? performance? needs action? */}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -177,6 +205,12 @@ export function DashboardClient() {
         <section className="mt-8">
           <h2 className="h-section text-foreground">{tr('Reminders', 'Nhắc nhở')}</h2>
           <div className="mt-3"><ReminderSettings /></div>
+        </section>
+
+        {/* Preferences — language + appearance (merged from the old account page) */}
+        <section className="mt-8 space-y-8">
+          <LanguagePref />
+          <ThemePref />
         </section>
       </main>
       <Footer />

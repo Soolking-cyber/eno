@@ -85,9 +85,9 @@ export function ReminderSettings() {
           onClick={() => setPref(!optIn)}
           role="switch"
           aria-checked={optIn}
-          className={cn('relative h-6 w-11 shrink-0 rounded-full transition-colors cursor-pointer', optIn ? 'bg-[#0a66c2]' : 'bg-input')}
+          className={cn('inline-flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors cursor-pointer', optIn ? 'bg-[#0a66c2]' : 'bg-input')}
         >
-          <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-card shadow transition-transform', optIn ? 'translate-x-[22px]' : 'translate-x-0.5')} />
+          <span className={cn('h-5 w-5 rounded-full bg-white shadow transition-transform', optIn ? 'translate-x-5' : 'translate-x-0')} />
         </button>
       </div>
 

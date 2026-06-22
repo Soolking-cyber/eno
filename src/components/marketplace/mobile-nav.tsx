@@ -104,10 +104,10 @@ export function MobileNav() {
         />
       </Link>
 
-      {/* Always a link — /account handles both states (cache-first when signed in,
-          sign-in prompt when not), so it works even before auth resolves. */}
-      <Link href="/account" className={TAB}>
-        <TabBody active={pathname === '/account'} icon={<User className="h-5 w-5" />} label={tr('Account', 'Tài khoản')} />
+      {/* The unified hub (account + dashboard) — handles both states (cache-first
+          when signed in, sign-in prompt when not), so it works before auth resolves. */}
+      <Link href="/dashboard" className={TAB}>
+        <TabBody active={pathname === '/dashboard'} icon={<User className="h-5 w-5" />} label={tr('Account', 'Tài khoản')} />
       </Link>
       </div>
     </nav>

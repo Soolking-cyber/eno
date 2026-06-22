@@ -1,11 +1,7 @@
-import type { Metadata } from 'next'
-import { AccountClient } from './account-client'
+import { redirect } from 'next/navigation'
 
-export const metadata: Metadata = { title: 'My account — eno.vn', robots: { index: false, follow: false } }
-
-// Static shell → the client component paints instantly from a localStorage cache
-// of the account (profile + my listings) and revalidates via /api/account, so
-// businesses checking their offerings feel no lag.
+// Account + dashboard were merged into a single hub at /dashboard ("one place to
+// rule everything"). Keep this route as a redirect so old links/bookmarks land.
 export default function AccountPage() {
-  return <AccountClient />
+  redirect('/dashboard')
 }
