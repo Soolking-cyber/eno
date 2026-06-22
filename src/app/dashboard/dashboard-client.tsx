@@ -9,6 +9,8 @@ import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
 import { TrustBadge } from '@/components/marketplace/trust-badge'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
+import { ReminderSettings } from '@/components/marketplace/reminder-settings'
+import { isStale } from '@/lib/stale'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
@@ -91,7 +93,7 @@ export function DashboardClient() {
   const isBusiness = d?.tier === 'business'
   // "Needs attention" = LIVE listings only: those held (failed auto-publish) or
   // active-but-stale. Sold/hidden are terminal — never actionable here.
-  const needsAttention = d ? d.listings.filter((l) => l.status === 'active' && (!l.verified || Date.now() - new Date(l.availabilityConfirmedAt || l.postedAt).getTime() > 7 * 86_400_000)) : []
+  const needsAttention = d ? d.listings.filter((l) => l.status === 'active' && (!l.verified || isStale(l.availabilityConfirmedAt, l.postedAt))) : []
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -169,6 +171,12 @@ export function DashboardClient() {
               {d.listings.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />)}
             </div>
           )}
+        </section>
+
+        {/* Reminders */}
+        <section className="mt-8">
+          <h2 className="h-section text-foreground">{tr('Reminders', 'Nhắc nhở')}</h2>
+          <div className="mt-3"><ReminderSettings /></div>
         </section>
       </main>
       <Footer />

@@ -43,6 +43,7 @@ model Profile {
   positiveInteractions Int       @default(0)   // track-record gate for the Trusted/Exceptional badge
   falseReportStrikes   Int       @default(0)   // anti-abuse: confirmed-false reports filed BY this user
   reportCooldownUntil  DateTime?               // anti-abuse: can't file new reports until this passes
+  dailyReminderOptIn   Boolean   @default(true) // receive the daily "confirm availability" reminder
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -53,9 +54,25 @@ model Profile {
   sentMessages        Message[]
   notifications       Notification[] @relation("RecipientNotifications")
   trustEvents         TrustEvent[]   @relation("SubjectTrustEvents")
+  pushSubscriptions   PushSubscription[]
 
   @@index([phone])
   @@index([trustTier])
+}
+
+// Web Push subscription (one row per browser/device that opted in). FK within
+// public → Profile, so it goes through the normal drop-FK→push→re-add flow.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  profileId String   @db.Uuid
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
 }
 
 model Seller {

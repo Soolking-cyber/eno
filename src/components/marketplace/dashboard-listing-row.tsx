@@ -6,9 +6,8 @@ import { Eye, MessageSquareText, RefreshCw, CheckCircle2, RotateCcw, Trash2, Loa
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { useLanguage } from '@/context/language-context'
+import { isStale } from '@/lib/stale'
 import { cn } from '@/lib/utils'
-
-const DAY = 86_400_000
 
 // One row in the seller dashboard's listings table: thumbnail, key stats (views,
 // leads), a status chip, and one-tap lifecycle actions backed by the owner-scoped
@@ -21,8 +20,7 @@ export function DashboardListingRow({ listing, onChanged }: { listing: Serialize
 
   const title = lang === 'vi' ? (listing.titleVi || listing.title) : listing.title
   const img = listing.images[0] || null
-  const confirmedAt = listing.availabilityConfirmedAt || listing.postedAt
-  const stale = listing.status === 'active' && Date.now() - new Date(confirmedAt).getTime() > 7 * DAY
+  const stale = listing.status === 'active' && isStale(listing.availabilityConfirmedAt, listing.postedAt)
 
   const call = async (key: string, url: string, method: 'POST' | 'DELETE', body?: unknown) => {
     setBusy(key)

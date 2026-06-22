@@ -2,14 +2,10 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { serializeListing } from '@/lib/serialize'
+import { isStale } from '@/lib/stale'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-// Days without an availability confirmation before a live listing is "stale" and
-// surfaces in the dashboard's "needs attention" strip + the reminder.
-const STALE_DAYS = 7
-const STALE_MS = STALE_DAYS * 86_400_000
 
 // The seller CRM dashboard payload (owner-scoped). Answers the three questions a
 // seller opens the dashboard for: new messages? how are my listings doing? what
@@ -32,14 +28,10 @@ export async function GET() {
   const unreadMessages = sellerUnreadAgg._sum.sellerUnread ?? 0
 
   const listings = seller ? seller.listings.map(serializeListing) : []
-  const now = Date.now()
 
   // Stats over the seller's own listings.
   const active = listings.filter((l) => l.status === 'active')
-  const stale = active.filter((l) => {
-    const c = l.availabilityConfirmedAt ? new Date(l.availabilityConfirmedAt).getTime() : new Date(l.postedAt).getTime()
-    return now - c > STALE_MS
-  })
+  const stale = active.filter((l) => isStale(l.availabilityConfirmedAt, l.postedAt))
   const stats = {
     totalViews: listings.reduce((n, l) => n + l.views, 0),
     totalLeads: listings.reduce((n, l) => n + l.contactCount, 0),
