@@ -1272,7 +1272,7 @@ export function ListingsExplorer({
                       name={cat.icon}
                       className="h-8 w-8 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
                     />
-                    <span className="text-xs sm:text-sm font-bold text-slate-700 leading-tight transition-colors group-hover:text-[var(--cat)]">
+                    <span className="text-xs sm:text-sm font-bold text-foreground leading-tight transition-colors group-hover:text-[var(--cat)]">
                       <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
                     </span>
                     <span className="text-[10px] text-body select-none font-semibold">

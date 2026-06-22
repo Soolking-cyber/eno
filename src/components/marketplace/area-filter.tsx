@@ -167,7 +167,7 @@ export function AreaFilter({
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-t-2xl bg-card shadow-pop sm:rounded-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-base font-bold text-foreground">{tr('Area', 'Khu vực')}</h2>
-          <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+          <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
 
         <div className="space-y-4 px-5 py-5">
@@ -214,7 +214,7 @@ export function AreaFilter({
               <div className="mt-3 space-y-3 rounded-xl bg-muted p-3.5">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-sm font-semibold text-accent-foreground"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
-                  <button onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-slate-400 hover:text-slate-700">{tr('Remove', 'Bỏ')}</button>
+                  <button onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</button>
                 </div>
                 {resolving ? (
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> {tr('Finding your address…', 'Đang tìm địa chỉ…')}</p>

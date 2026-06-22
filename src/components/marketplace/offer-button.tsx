@@ -115,7 +115,7 @@ export function OfferButton({ listingId, listingTitle, listingImage, price, curr
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-bold text-foreground">{tr('Make an offer', 'Trả giá')}</h2>
-              <button onClick={() => setOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+              <button onClick={() => setOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
 
             {price > 0 && (

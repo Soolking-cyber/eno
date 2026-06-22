@@ -165,7 +165,7 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
                 {confirmId === c.id ? (
                   <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
                     <button onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
-                    <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>
+                    <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1 text-ink-4 hover:text-foreground"><X className="h-4 w-4" /></button>
                   </div>
                 ) : (
                   <button
