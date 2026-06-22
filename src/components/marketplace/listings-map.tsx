@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Star, X } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
 import { formatPrice } from '@/lib/types'
+import { formatMoneyFull } from '@/lib/vnd'
 import type { Language } from '@/context/language-context'
 import { useLanguage } from '@/context/language-context'
 import { getListingCoordinates } from '@/lib/geo'
@@ -68,12 +70,14 @@ function pinHtml(label: string, active: boolean): string {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId }: Props) {
+export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, selectedId, onHover, focusId }: Props) {
   const { tr } = useLanguage()
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markersRef = useRef<Map<string, any>>(new Map())
   const [ready, setReady] = useState(false)
+  // Airbnb-style: a pin tap opens a small info card (not a direct navigation).
+  const [card, setCard] = useState<SerializedListing | null>(null)
 
   useEffect(() => { loadLeaflet(() => setReady(true)) }, [])
 
@@ -99,6 +103,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
 
     markersRef.current.forEach((m) => map.removeLayer(m))
     markersRef.current.clear()
+    setCard(null) // a filter change invalidates the open card
 
     const bounds: [number, number][] = []
     listings.forEach((l) => {
@@ -106,7 +111,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       bounds.push([lat, lng])
       const icon = L.divIcon({ html: pinHtml(compactPrice(l), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
       const marker = L.marker([lat, lng], { icon, riseOnHover: true }).addTo(map)
-      marker.on('click', () => onOpenListing(l))
+      marker.on('click', () => { setCard(l); onHover?.(l.id) })
       if (onHover) {
         marker.on('mouseover', () => onHover(l.id))
         marker.on('mouseout', () => onHover(null))
@@ -158,6 +163,41 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
         </div>
       )}
       <div ref={mapRef} className="w-full h-full" />
+
+      {/* Airbnb-style info card for the tapped pin */}
+      {card && (
+        <div className="absolute inset-x-0 bottom-4 z-[1100] flex justify-center px-4">
+          <div className="relative w-full max-w-[360px] overflow-hidden rounded-2xl bg-card shadow-pop animate-in fade-in slide-in-from-bottom-2 duration-150">
+            <button
+              onClick={(e) => { e.stopPropagation(); setCard(null); onHover?.(null) }}
+              aria-label={tr('Close', 'Đóng')}
+              className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm transition-transform hover:scale-105 active:scale-95"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <button onClick={() => onOpenListing(card)} className="block w-full text-left cursor-pointer">
+              <div className="aspect-[16/10] w-full bg-tint">
+                {card.images[0] && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={card.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
+                )}
+              </div>
+              <div className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate text-sm font-bold text-foreground">{lang === 'vi' ? (card.titleVi || card.title) : card.title}</p>
+                  {card.seller.reviewCount > 0 && (
+                    <span className="flex shrink-0 items-center gap-0.5 text-xs font-semibold text-foreground">
+                      <Star className="h-3 w-3 fill-[#1a202c] text-foreground" /> {card.seller.rating.toFixed(1)}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
+                <p className="mt-1 text-sm font-bold text-foreground">{formatMoneyFull(card.price, card.currency)}</p>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
