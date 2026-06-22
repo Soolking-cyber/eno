@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
@@ -33,12 +34,18 @@ type Props = {
   params: Promise<{ id: string }>
 }
 
+// Cached per-request so generateMetadata + the page share ONE DB query instead of
+// each running its own findUnique for the same listing.
+const getListing = cache((id: string) =>
+  db.listing.findUnique({
+    where: { id },
+    include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+  }),
+)
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const listing = await db.listing.findUnique({
-    where: { id },
-    include: { category: true },
-  })
+  const listing = await getListing(id)
 
   if (!listing) return {}
 
@@ -74,10 +81,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ListingPage({ params }: Props) {
   const { id } = await params
-  const rawListing = await db.listing.findUnique({
-    where: { id },
-    include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
-  })
+  const rawListing = await getListing(id)
 
   // Only publicly-live listings are viewable by direct URL; sold/hidden/held are
   // pulled from public view (sellers manage them in their dashboard).
