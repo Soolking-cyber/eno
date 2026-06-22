@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Eye, MessageSquareText, Tag, Clock, Store, Upload, Loader2, Plus, Heart, ChevronRight } from 'lucide-react'
+import { Eye, MessageSquareText, Tag, Clock, Store, Upload, Plus } from 'lucide-react'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
@@ -128,13 +128,6 @@ export function DashboardClient() {
             <SignOutButton />
           </div>
         </div>
-
-        {/* Quick link — saved (buyer side; everything else lives below) */}
-        <Link href="/saved" className="mt-4 flex items-center gap-3 rounded-2xl bg-card p-3.5 transition-colors hover:bg-muted">
-          <Heart className="h-5 w-5 text-accent-foreground" />
-          <span className="text-sm font-semibold text-foreground">{tr('Saved listings', 'Tin đã lưu')}</span>
-          <ChevronRight className="ml-auto h-4 w-4 text-line-strong" />
-        </Link>
 
         {/* Action strip — the 3 questions: messages? performance? needs action? */}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
