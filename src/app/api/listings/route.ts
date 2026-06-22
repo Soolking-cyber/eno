@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { fold, buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
+import { syndicateListing } from '@/lib/syndicate'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { getCurrentProfileId } from '@/lib/admin'
@@ -586,6 +587,21 @@ export async function POST(req: NextRequest) {
     })()
     const warmFields = [listing.title, listing.description, listing.location, ...attrValues].filter(Boolean)
     after(() => warmTranslations(warmFields))
+
+    // Auto cross-post to the platform's social channels — only when the listing is
+    // actually live (not held/restricted). Best-effort, after the response flushes.
+    if (autoPublish) {
+      after(() => syndicateListing({
+        id: listing.id,
+        title: listing.title,
+        price: listing.price,
+        currency: listing.currency,
+        location: listing.location,
+        district: listing.district,
+        image: images[0] || null,
+        categoryName: category.name,
+      }))
+    }
 
     return NextResponse.json({ id: listing.id, verified: autoPublish }, { status: 201 })
   } catch (e) {
