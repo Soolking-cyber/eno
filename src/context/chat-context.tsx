@@ -25,6 +25,7 @@ type ChatCtx = {
   deleteConvo: (id: string) => void
   getCachedThread: (id: string) => unknown
   cacheThread: (id: string, data: unknown) => void
+  prefetchThread: (id: string) => void
   // Composer draft shared across the pending shell and the real thread, so the
   // user can type the instant the panel opens and nothing is lost on the swap.
   draft: string
@@ -144,7 +145,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const close = useCallback(() => { setOpen(false); setStarting(false); setDraft(''); setPendingSend(false) }, [])
 
   return (
-    <ChatContext.Provider value={{ open, view, conversationId, starting, unread, convos, refreshConvos, deleteConvo, getCachedThread, cacheThread, draft, setDraft, pendingSend, setPendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close }}>
+    <ChatContext.Provider value={{ open, view, conversationId, starting, unread, convos, refreshConvos, deleteConvo, getCachedThread, cacheThread, prefetchThread, draft, setDraft, pendingSend, setPendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close }}>
       {children}
     </ChatContext.Provider>
   )

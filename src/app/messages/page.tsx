@@ -14,7 +14,7 @@ export default function MessagesPage() {
   const { tr } = useLanguage()
   // Read the already-preloaded + localStorage-cached inbox (same source the chat
   // used to be) so this full page paints instantly; revalidate on visit.
-  const { convos, deleteConvo, refreshConvos } = useChat()
+  const { convos, deleteConvo, refreshConvos, prefetchThread } = useChat()
   const [confirmId, setConfirmId] = useState<string | null>(null) // row showing the Delete confirm
   const [query, setQuery] = useState('')
 
@@ -72,7 +72,7 @@ export default function MessagesPage() {
             ) : (
               <div className="divide-y divide-border">
                 {(filtered ?? []).map((c) => (
-                  <div key={c.id} className="group flex items-center gap-1 transition-colors hover:bg-muted">
+                  <div key={c.id} className="group flex items-center gap-1 transition-colors hover:bg-muted" onMouseEnter={() => prefetchThread(c.id)} onTouchStart={() => prefetchThread(c.id)}>
                     <Link href={`/messages/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-3">
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0a66c2] text-sm font-bold text-white">
                         {c.counterpart.avatarUrl

@@ -184,6 +184,16 @@ export default function ThreadPage() {
             {thread && thread.messages.length === 0 && (
               <p className="py-10 text-center text-xs text-ink-4">{tr('Say hello — this seller will be notified.', 'Gửi lời chào — người bán sẽ được thông báo.')}</p>
             )}
+            {/* Uncached thread → skeleton bubbles (not a blank pane) while it loads. */}
+            {!thread && (
+              <div className="space-y-2" aria-hidden>
+                {[['start', 'w-40'], ['end', 'w-28'], ['start', 'w-52'], ['end', 'w-36']].map(([side, w], i) => (
+                  <div key={i} className={`flex ${side === 'end' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`h-9 ${w} rounded-2xl shimmer`} />
+                  </div>
+                ))}
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
 

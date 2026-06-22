@@ -25,11 +25,19 @@ export function AccountMenu() {
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
 
-  // Load identity (incl. owned storefront) when the menu first opens.
+  // Instant paint: seed the avatar/name from the cached dashboard profile so the
+  // header isn't blank, then revalidate identity from /api/me in the background.
   useEffect(() => {
-    if (!open || me) return
-    fetch('/api/me').then((r) => r.json()).then((d) => setMe(d.user ?? null)).catch(() => {})
-  }, [open, me])
+    if (!user) { setMe(null); return }
+    try {
+      const c = JSON.parse(localStorage.getItem('eno-dashboard') || 'null')
+      if (c?.userId === user.id && c.dashboard?.profile) {
+        const p = c.dashboard.profile
+        setMe({ displayName: p.displayName, email: p.email, avatarUrl: p.avatarUrl, avatarColor: p.avatarColor, sellerId: c.dashboard.seller?.id ?? null })
+      }
+    } catch {}
+    fetch('/api/me').then((r) => r.json()).then((d) => { if (d.user) setMe(d.user) }).catch(() => {})
+  }, [user])
 
   if (!user) return null
   const initial = (user.email || user.phone || '?').charAt(0).toUpperCase()

@@ -10,7 +10,9 @@ export function SellerListings({ listings }: { listings: SerializedListing[] }) 
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {listings.map((l, i) => (
-        <ListingCard key={l.id} listing={l} onOpen={() => router.push(`/listings/${l.id}`)} priority={i < 4} />
+        <div key={l.id} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)}>
+          <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} priority={i < 4} />
+        </div>
       ))}
     </div>
   )

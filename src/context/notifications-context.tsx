@@ -36,12 +36,19 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       const d = await r.json()
       setItems(d.notifications || [])
       setUnread(d.unread || 0)
+      // Cache (userId-scoped) for an instant paint on the next visit.
+      try { if (user) localStorage.setItem('eno-notifs', JSON.stringify({ userId: user.id, items: d.notifications || [], unread: d.unread || 0 })) } catch {}
     } catch { /* keep last state */ }
-  }, [])
+  }, [user])
 
   // Fetch on sign-in, then poll + refetch on focus (realtime can layer on later).
   useEffect(() => {
     if (!user) { setItems([]); setUnread(0); return }
+    // Instant paint from cache, then revalidate.
+    try {
+      const c = JSON.parse(localStorage.getItem('eno-notifs') || 'null')
+      if (c?.userId === user.id) { setItems(c.items || []); setUnread(c.unread || 0) }
+    } catch {}
     refresh()
     const iv = setInterval(refresh, 30000)
     const onFocus = () => refresh()
