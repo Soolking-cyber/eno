@@ -10,6 +10,7 @@ import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-ac
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
 import { TrustBadge } from '@/components/marketplace/trust-badge'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
+import { ProfileEditor } from '@/components/marketplace/profile-editor'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
 import { isStale } from '@/lib/stale'
@@ -26,7 +27,7 @@ type Stats = {
 }
 type Dashboard = {
   tier: 'business' | 'individual'
-  profile: { displayName: string | null; email: string | null; avatarUrl: string | null; avatarColor: string; businessName: string | null; trustScore: number; trustTier: string }
+  profile: { displayName: string | null; email: string | null; phone: string | null; avatarUrl: string | null; avatarColor: string; businessName: string | null; trustScore: number; trustTier: string }
   seller: { id: string; name: string; verifiedSeller: boolean; trustScore: number; trustTier: string; responseRate: number; bio: string | null; location: string | null; phone: string | null; avatarUrl: string | null } | null
   stats: Stats
   listings: SerializedListing[]
@@ -208,13 +209,19 @@ export function DashboardClient() {
       </>)}
 
       {tab === 'account' && (<>
-        {/* Business profile editor */}
-        {isBusiness && d?.seller && (
+        {/* Profile editor — business storefront (with representative) OR the
+            individual's own profile. */}
+        {isBusiness && d?.seller ? (
           <section className="mt-6">
             <h2 className="h-section text-foreground">{tr('Business profile', 'Hồ sơ doanh nghiệp')}</h2>
-            <div className="mt-3"><BusinessProfileEditor seller={d.seller} onSaved={refresh} /></div>
+            <div className="mt-3"><BusinessProfileEditor seller={d.seller} repName={d.profile.displayName} onSaved={refresh} /></div>
           </section>
-        )}
+        ) : d ? (
+          <section className="mt-6">
+            <h2 className="h-section text-foreground">{tr('Your profile', 'Hồ sơ của bạn')}</h2>
+            <div className="mt-3"><ProfileEditor profile={d.profile} onSaved={refresh} /></div>
+          </section>
+        ) : null}
 
         {/* Reminders */}
         <section className="mt-8">

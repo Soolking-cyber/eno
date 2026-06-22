@@ -9,9 +9,10 @@ type Seller = { id: string; name: string; bio: string | null; location: string |
 
 /** Inline business-profile editor (business tier). Edits the storefront's
  *  name/about/location/logo via the owner-scoped PATCH /api/seller. */
-export function BusinessProfileEditor({ seller, onSaved }: { seller: Seller; onSaved: () => void }) {
+export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Seller; repName: string | null; onSaved: () => void }) {
   const { tr } = useLanguage()
   const [name, setName] = useState(seller.name)
+  const [rep, setRep] = useState(repName || '')
   const [bio, setBio] = useState(seller.bio || '')
   const [location, setLocation] = useState(seller.location || '')
   const [phone, setPhone] = useState(seller.phone || '')
@@ -26,8 +27,9 @@ export function BusinessProfileEditor({ seller, onSaved }: { seller: Seller; onS
   useEffect(() => {
     setName(seller.name); setBio(seller.bio || ''); setLocation(seller.location || ''); setPhone(seller.phone || ''); setAvatarUrl(seller.avatarUrl)
   }, [seller.name, seller.bio, seller.location, seller.phone, seller.avatarUrl])
+  useEffect(() => { setRep(repName || '') }, [repName])
 
-  const dirty = name !== seller.name || bio !== (seller.bio || '') || location !== (seller.location || '') || phone !== (seller.phone || '') || avatarUrl !== seller.avatarUrl
+  const dirty = name !== seller.name || rep !== (repName || '') || bio !== (seller.bio || '') || location !== (seller.location || '') || phone !== (seller.phone || '') || avatarUrl !== seller.avatarUrl
 
   const uploadLogo = async (file: File) => {
     setUploading(true); setError('')
@@ -44,6 +46,11 @@ export function BusinessProfileEditor({ seller, onSaved }: { seller: Seller; onS
   const save = async () => {
     setSaving(true); setError(''); setSaved(false)
     try {
+      // The representative's name lives on the Profile (one business → many staff,
+      // each their own account), saved alongside the storefront fields.
+      if (rep.trim() && rep.trim() !== (repName || '')) {
+        await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: rep.trim() }) })
+      }
       const res = await fetch('/api/seller', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -85,6 +92,11 @@ export function BusinessProfileEditor({ seller, onSaved }: { seller: Seller; onS
         <div>
           <label className="mb-1 block text-xs font-semibold text-body">{tr('Business name', 'Tên doanh nghiệp')}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} className={field} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-body">{tr('Your name (representative)', 'Tên người đại diện')}</label>
+          <input value={rep} onChange={(e) => setRep(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} className={field} />
+          <p className="mt-1 text-[11px] text-ink-4">{tr('The person on this account — buyers see the business name, not this.', 'Người dùng tài khoản này — người mua thấy tên doanh nghiệp, không phải tên này.')}</p>
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-body">{tr('Location', 'Khu vực')}</label>

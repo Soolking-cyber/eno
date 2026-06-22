@@ -49,6 +49,7 @@ export async function GET() {
       profile: {
         displayName: profile.displayName,
         email: profile.email,
+        phone: profile.phone,
         avatarUrl: profile.avatarUrl,
         avatarColor: profile.avatarColor,
         businessName: profile.businessName,
