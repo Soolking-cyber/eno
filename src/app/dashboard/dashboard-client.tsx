@@ -207,8 +207,9 @@ export function DashboardClient() {
           <div className="mt-3"><ReminderSettings /></div>
         </section>
 
-        {/* Preferences — language + appearance (merged from the old account page) */}
-        <section className="mt-8 space-y-8">
+        {/* Preferences — language + appearance. Mobile only: on desktop (sm+) these
+            live in the header account dropdown, so they'd be redundant here. */}
+        <section className="mt-8 space-y-8 sm:hidden">
           <LanguagePref />
           <ThemePref />
         </section>
