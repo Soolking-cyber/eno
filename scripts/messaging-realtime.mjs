@@ -25,10 +25,15 @@ if (!url) { console.error('Set DIRECT_URL'); process.exit(1) }
 const client = new pg.Client({ connectionString: url })
 await client.connect()
 
-// 1) Trigger: broadcast the full message body on the PRIVATE topic.
+// 1) Trigger: broadcast the full message body on the PRIVATE convo topic (the open
+//    thread subscribes to this), AND a lightweight 'convo_activity' nudge to EACH
+//    participant's PRIVATE user topic ('user:<profileId>'). The user topic lets a
+//    client subscribe to ONE channel for the global unread badge / inbox refresh
+//    instead of one channel per conversation (unbounded; no 30-convo cap).
 await client.query(`
   create or replace function public.broadcast_new_message() returns trigger
   language plpgsql security definer set search_path = '' as $$
+  declare c record;
   begin
     perform realtime.send(
       jsonb_build_object(
@@ -42,11 +47,24 @@ await client.query(`
       'convo:' || NEW."conversationId",
       true  -- PRIVATE topic; only RLS-authorized participants receive the content
     );
+    -- Per-participant nudge on their own user topic (content-free: ids only).
+    select c2."buyerProfileId" as buyer, c2."sellerProfileId" as seller
+      into c from public."Conversation" c2 where c2.id = NEW."conversationId";
+    if c.buyer is not null then
+      perform realtime.send(
+        jsonb_build_object('conversationId', NEW."conversationId", 'senderProfileId', NEW."senderProfileId"),
+        'convo_activity', 'user:' || c.buyer::text, true);
+    end if;
+    if c.seller is not null then
+      perform realtime.send(
+        jsonb_build_object('conversationId', NEW."conversationId", 'senderProfileId', NEW."senderProfileId"),
+        'convo_activity', 'user:' || c.seller::text, true);
+    end if;
     return NEW;
   end;
   $$;
 `)
-console.log('✓ broadcast_new_message() function (private, full payload)')
+console.log('✓ broadcast_new_message() function (convo content + per-user activity nudge)')
 
 await client.query(`drop trigger if exists message_broadcast on public."Message"`)
 await client.query(`
@@ -134,6 +152,22 @@ await client.query(`
     );
 `)
 console.log('✓ RLS receive policy on realtime.messages (participants only)')
+
+// 2a) Receive policy for a user's OWN topic ('user:<auth.uid()>'). Profile.id ==
+//     auth.users.id == auth.uid(), so a user can only ever subscribe to their own
+//     activity channel — never anyone else's.
+await client.query(`drop policy if exists "own user channel" on realtime.messages`)
+await client.query(`
+  create policy "own user channel"
+    on realtime.messages
+    for select
+    to authenticated
+    using (
+      realtime.messages.extension = 'broadcast'
+      and realtime.topic() = 'user:' || (select auth.uid())::text
+    );
+`)
+console.log('✓ RLS receive policy on realtime.messages (own user topic)')
 
 const { rows: trg } = await client.query(`select tgname from pg_trigger where tgname = 'message_broadcast'`)
 const { rows: pol } = await client.query(
