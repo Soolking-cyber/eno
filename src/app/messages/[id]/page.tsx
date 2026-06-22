@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { Header } from '@/components/marketplace/header'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
@@ -145,24 +144,23 @@ export default function ThreadPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] flex-col bg-background lg:h-[100dvh]">
-      <Header />
+    <div className="flex h-full w-full flex-col bg-background">
       {!loading && !user ? (
-        <main className="flex flex-1 items-center justify-center px-3">
+        <div className="flex flex-1 items-center justify-center px-3">
           <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-pop">
             <p className="text-sm text-muted-foreground">{tr('Sign in to view this conversation.', 'Đăng nhập để xem cuộc trò chuyện này.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
-        </main>
+        </div>
       ) : notFound ? (
-        <main className="flex flex-1 items-center justify-center px-3">
+        <div className="flex flex-1 items-center justify-center px-3">
           <p className="text-sm text-muted-foreground">{tr('Conversation not found.', 'Không tìm thấy cuộc trò chuyện.')}</p>
-        </main>
+        </div>
       ) : (
-        <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-hidden px-0 sm:px-6">
-          {/* Thread header */}
+        <div className="flex h-full w-full flex-col overflow-hidden">
+          {/* Thread header (back arrow only on mobile — the list is always shown on desktop) */}
           <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
-            <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground"><ChevronLeft className="h-5 w-5" /></Link>
+            <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground lg:hidden"><ChevronLeft className="h-5 w-5" /></Link>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-xs font-bold text-white">
               {thread?.counterpart.name.slice(0, 2).toUpperCase()}
             </span>
@@ -211,7 +209,7 @@ export default function ThreadPage() {
               <Send className="h-4 w-4" />
             </button>
           </div>
-        </main>
+        </div>
       )}
     </div>
   )

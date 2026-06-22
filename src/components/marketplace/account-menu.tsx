@@ -69,7 +69,7 @@ export function AccountMenu() {
           </div>
           <div className="pt-1">
             <Link href="/dashboard" role="menuitem" onClick={() => setOpen(false)} className={item}>
-              <Store className="h-4 w-4 text-accent-foreground" /> {tr('Account & listings', 'Tài khoản & tin đăng')}
+              <Store className="h-4 w-4 text-accent-foreground" /> {tr('Dashboard', 'Bảng điều khiển')}
             </Link>
             <Link href="/saved" role="menuitem" onClick={() => setOpen(false)} className={item}>
               <Heart className="h-4 w-4 text-accent-foreground" /> {tr('Saved listings', 'Tin đã lưu')}

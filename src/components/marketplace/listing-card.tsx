@@ -122,7 +122,7 @@ export function ListingCard({
         >
           {/* key remounts on favorite → re-runs the CSS pop (replaces framer scale) */}
           <span key={favorited ? 'on' : 'off'} className={cn('inline-flex', favorited && 'animate-heart-pop')}>
-            <Heart className={cn('h-[18px] w-[18px] transition-colors', favorited ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-foreground')} />
+            <Heart className={cn('h-[18px] w-[18px] transition-colors', favorited ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-[#1a202c]')} />
           </span>
         </button>
 
