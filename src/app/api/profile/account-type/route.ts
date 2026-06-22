@@ -1,40 +1,68 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
+import { normalizePhone } from '@/lib/phone'
 
 export const runtime = 'nodejs'
 
 const TYPES = new Set(['individual', 'business'])
 
-// Records the one-time account type (individual vs business) chosen right after
-// the first sign-in. Business accounts also capture a business name, which is
-// synced to the Seller storefront when they create/claim one. Owner-scoped via
-// getCurrentProfile() (the route trusts the session, never the client).
+// Records the one-time account profile chosen right after first sign-in:
+//  - individual: their name (the rest of contact is captured when they post).
+//  - business:   business name + representative person's name + phone → a Seller
+//                storefront is created/claimed now so the dashboard, analytics and
+//                "posting as <business>" prefill all work immediately.
+// Owner-scoped via getCurrentProfile() (trusts the session, never the client).
 export async function POST(req: Request) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
 
-  let body: { accountType?: string; businessName?: string } = {}
+  let body: { accountType?: string; businessName?: string; displayName?: string; phone?: string } = {}
   try { body = await req.json() } catch { /* empty body → invalid below */ }
 
   const accountType = String(body.accountType || '')
-  if (!TYPES.has(accountType)) {
-    return NextResponse.json({ error: 'invalid_account_type' }, { status: 400 })
-  }
+  if (!TYPES.has(accountType)) return NextResponse.json({ error: 'invalid_account_type' }, { status: 400 })
 
+  const displayName = String(body.displayName || '').trim().slice(0, 80) || profile.displayName || null
   const businessName = accountType === 'business'
     ? (String(body.businessName || '').trim().slice(0, 120) || null)
     : null
+  const phone = normalizePhone(String(body.phone || '')) || profile.phone || null
+
+  if (accountType === 'business' && !businessName) {
+    return NextResponse.json({ error: 'business_name_required' }, { status: 400 })
+  }
 
   await db.profile.update({
     where: { id: profile.id },
-    data: { accountType, businessName },
+    data: {
+      accountType,
+      businessName,
+      displayName,
+      // Only set the profile phone if we don't already have a verified one.
+      ...(profile.phone ? {} : phone ? { phone } : {}),
+    },
   })
 
-  // If they already own a storefront and gave a business name, keep its name in
-  // sync (cheap, idempotent — full business-profile editing lands in Phase 3).
-  if (businessName) {
-    await db.seller.updateMany({ where: { ownerId: profile.id }, data: { name: businessName } })
+  // Business → ensure a storefront exists (name = business, contact phone = rep's).
+  if (accountType === 'business') {
+    const owned = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
+    if (owned) {
+      await db.seller.update({ where: { id: owned.id }, data: { name: businessName!, ...(phone ? { phone } : {}) } })
+    } else {
+      // Claim an unowned guest storefront on phone match, else create a new one.
+      const byPhone = phone ? await db.seller.findUnique({ where: { phone }, select: { id: true, ownerId: true } }) : null
+      try {
+        if (byPhone && !byPhone.ownerId) {
+          await db.seller.update({ where: { id: byPhone.id }, data: { ownerId: profile.id, name: businessName! } })
+        } else {
+          await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...(phone ? { phone } : {}), responseRate: 100 } })
+        }
+      } catch {
+        // Phone already claimed by another seller → create without it (rare).
+        await db.seller.create({ data: { name: businessName!, ownerId: profile.id, responseRate: 100 } })
+      }
+    }
   }
 
   return NextResponse.json({ ok: true, accountType })

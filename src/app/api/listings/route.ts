@@ -8,6 +8,7 @@ import { fold, buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { isListingImageUrl } from '@/lib/listing-image'
+import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 
 export const dynamic = 'force-dynamic'
@@ -481,21 +482,42 @@ export async function POST(req: NextRequest) {
     const category = await db.category.findUnique({ where: { slug: categorySlug } })
     if (!category) return NextResponse.json({ error: 'Unknown category' }, { status: 400 })
 
-    // Reuse an existing seller on phone match WITHOUT renaming it (an unauthenticated
-    // request must never overwrite another seller's identity). Name set on create only.
-    const existing = await db.seller.findUnique({ where: { phone: contactPhone } })
-    const seller = existing
-      ? existing
-      : await db.seller.create({
-          data: {
-            name: contactName || 'eno.vn seller',
-            phone: contactPhone,
-            verifiedSeller: false,
-            rating: 0,
-            reviewCount: 0,
-            responseRate: 100,
-          },
-        })
+    // Resolve the storefront this listing belongs to. CRITICAL: a SIGNED-IN poster's
+    // listing must attach to THEIR Profile-owned Seller (ownerId) — otherwise it
+    // won't show in their dashboard and buyer messages (conversation.sellerProfileId
+    // = seller.ownerId) never reach them. Guests still resolve/create by phone.
+    const meId = await getCurrentProfileId()
+    let seller
+    if (meId) {
+      const owned = await db.seller.findUnique({ where: { ownerId: meId } })
+      if (owned) {
+        seller = owned
+        // Backfill a missing contact phone on their storefront (best-effort).
+        if (!owned.phone && contactPhone) {
+          try { seller = await db.seller.update({ where: { id: owned.id }, data: { phone: contactPhone } }) } catch { /* phone taken elsewhere */ }
+        }
+      } else {
+        const byPhone = await db.seller.findUnique({ where: { phone: contactPhone } })
+        if (byPhone && !byPhone.ownerId) {
+          // Claim the unowned guest storefront for this account.
+          seller = await db.seller.update({ where: { id: byPhone.id }, data: { ownerId: meId } })
+        } else if (byPhone) {
+          seller = byPhone // phone belongs to another owned seller — use as-is (rare)
+        } else {
+          seller = await db.seller.create({
+            data: { name: contactName || 'eno.vn seller', phone: contactPhone, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
+          })
+        }
+      }
+    } else {
+      // Guest post (not signed in): resolve/create by phone, ownerId stays null.
+      const existing = await db.seller.findUnique({ where: { phone: contactPhone } })
+      seller = existing
+        ? existing
+        : await db.seller.create({
+            data: { name: contactName || 'eno.vn seller', phone: contactPhone, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
+          })
+    }
 
     const images: string[] = Array.isArray(body.images)
       ? body.images.filter(isListingImageUrl).slice(0, 8)
