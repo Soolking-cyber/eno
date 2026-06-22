@@ -28,6 +28,7 @@ import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { TrackView } from '@/components/marketplace/track-view'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SaveListingButton } from '@/components/marketplace/save-listing-button'
+import { ShareButton } from '@/components/marketplace/share-button'
 import { currencyCode } from '@/lib/analytics'
 
 type Props = {
@@ -215,7 +216,10 @@ export default async function ListingPage({ params }: Props) {
               <span className="truncate">{tx(listing.location)}</span>
             </div>
           </div>
-          <SaveListingButton id={listing.id} className="mt-0.5 shrink-0" />
+          <div className="mt-0.5 flex shrink-0 items-center gap-2">
+            <ShareButton url={canonicalUrl} title={displayTitle} />
+            <SaveListingButton id={listing.id} />
+          </div>
         </div>
 
         {/* Gallery mosaic */}
