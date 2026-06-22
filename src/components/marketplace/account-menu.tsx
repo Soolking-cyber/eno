@@ -119,7 +119,7 @@ export function AccountMenu() {
             </div>
 
             <div className="mt-1 border-t border-border pt-1">
-              <button role="menuitem" onClick={() => { setOpen(false); signOut() }} className={`${item} hover:bg-red-50 hover:text-red-600`}>
+              <button role="menuitem" onClick={() => { setOpen(false); signOut() }} className={`${item} hover:bg-destructive/10 hover:text-destructive`}>
                 <LogOut className="h-4 w-4" /> {tr('Sign out', 'Đăng xuất')}
               </button>
             </div>

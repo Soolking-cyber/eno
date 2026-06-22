@@ -117,6 +117,8 @@
   --body: #475569;        /* slate-600 */
   --tint: #f1f5f9;        /* slate-100 */
   --line-strong: #cbd5e1; /* slate-300 */
+  --skeleton: #eef1f5;             /* loading placeholder base */
+  --skeleton-sheen: rgba(255, 255, 255, 0.6); /* sweep highlight */
 
   /* Semantic — used ONLY to carry meaning, never decoration.
      verified/trust folds into the brand blue; amber = caution; red = destructive. */
@@ -197,6 +199,8 @@
   --body: #aab4c2;
   --tint: #1c212b;
   --line-strong: #323a48;
+  --skeleton: #1c212b;
+  --skeleton-sheen: rgba(255, 255, 255, 0.06);
 
   --verified: #5aa2ec;
   --pending: #f5b042;
@@ -326,14 +330,14 @@
 .shimmer {
   position: relative;
   overflow: hidden;
-  background: #eef1f5;
+  background: var(--skeleton);
 }
 .shimmer::after {
   content: '';
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  background: linear-gradient(90deg, transparent, var(--skeleton-sheen), transparent);
   animation: shimmer 1.4s ease-in-out infinite;
 }
 

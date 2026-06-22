@@ -169,7 +169,7 @@ export function Header() {
               'relative z-50 flex items-center transition-all duration-200',
               panelOpen
                 ? 'rounded-t-2xl border border-border border-b-0 bg-card shadow-pop'
-                : 'rounded-2xl border border-transparent bg-tint focus-within:border-[#0a66c2] focus-within:bg-card focus-within:ring-2 focus-within:ring-[#0a66c2]/20',
+                : 'rounded-2xl border border-transparent bg-tint focus-within:border-ring focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30',
             )}>
               <Search className="pointer-events-none ml-3 h-4 w-4 shrink-0 text-ink-4" />
               <input
@@ -191,7 +191,7 @@ export function Header() {
                   'mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95',
                   province || ward || nearby
                     ? 'bg-[#0a66c2] text-white shadow-sm'
-                    : 'bg-accent text-accent-foreground hover:bg-[#dbeafe]',
+                    : 'bg-accent text-accent-foreground hover:bg-brand-100',
                 )}
               >
                 <MapPin className="h-4 w-4" />
@@ -206,7 +206,7 @@ export function Header() {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
-                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }} className="text-[10px] font-semibold text-slate-600 hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
+                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }} className="text-[10px] font-semibold text-muted-foreground hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {recentSearches.map((term, i) => (
@@ -226,7 +226,7 @@ export function Header() {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
-                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }} className="text-[10px] font-semibold text-slate-600 hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
+                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }} className="text-[10px] font-semibold text-muted-foreground hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {recentLocations.map((loc, i) => (

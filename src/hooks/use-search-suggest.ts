@@ -25,21 +25,27 @@ export type SuggestCategory = { slug: string; name: string; nameVi: string }
 export function useSearchSuggest(query: string, enabled: boolean) {
   const [listings, setListings] = useState<SuggestListing[]>([])
   const [categories, setCategories] = useState<SuggestCategory[]>([])
-  const [loading, setLoading] = useState(false)
   const q = query.trim()
+  // Derive loading so it's true on the SAME render the query first qualifies —
+  // avoids a one-paint "No matches yet" flash before the effect/fetch starts.
+  const [results, setResults] = useState<{ q: string; listings: SuggestListing[]; categories: SuggestCategory[] }>({ q: '', listings: [], categories: [] })
+  const loading = enabled && q.length >= 2 && results.q !== q
 
   useEffect(() => {
     if (!enabled || q.length < 2) {
-      setListings([]); setCategories([]); setLoading(false)
+      setListings([]); setCategories([])
       return
     }
     const ac = new AbortController()
-    setLoading(true)
     const timer = setTimeout(() => {
       fetch(`/api/search/suggest?q=${encodeURIComponent(q)}`, { signal: ac.signal })
         .then((r) => r.json())
-        .then((d) => { setListings(d.listings || []); setCategories(d.categories || []); setLoading(false) })
-        .catch(() => { /* aborted or failed — keep last results, drop the spinner on the next run */ })
+        .then((d) => {
+          setListings(d.listings || [])
+          setCategories(d.categories || [])
+          setResults({ q, listings: d.listings || [], categories: d.categories || [] }) // marks this q as fetched → clears loading
+        })
+        .catch(() => { /* aborted or failed — keep last results; loading stays until a fetch settles */ })
     }, 150)
     return () => { ac.abort(); clearTimeout(timer) }
   }, [q, enabled])
