@@ -2,19 +2,19 @@ import type { Metadata } from 'next'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 
-export const metadata: Metadata = { title: 'Terms of Service | ENO' }
+export const metadata: Metadata = { title: 'Terms of Service | eno.vn' }
 
 const sections: [string, string[]][] = [
   [
     'Acceptance',
     [
-      'These Terms govern your use of ENO, a verified classifieds marketplace. By accessing or using ENO you agree to these Terms. If you do not agree, please do not use the service.',
+      'These Terms govern your use of eno.vn, a verified classifieds marketplace. By accessing or using eno.vn you agree to these Terms. If you do not agree, please do not use the service.',
     ],
   ],
   [
     'Eligibility and accounts',
     [
-      'You must be at least 18 years old to use ENO. You are responsible for keeping your sign-in method secure and for all activity under your account. Never share one-time login codes with anyone.',
+      'You must be at least 18 years old to use eno.vn. You are responsible for keeping your sign-in method secure and for all activity under your account. Never share one-time login codes with anyone.',
     ],
   ],
   [
@@ -27,31 +27,31 @@ const sections: [string, string[]][] = [
   [
     'Verification',
     [
-      'The "Verified by ENO" badge means an agent reviewed the listing before it went live. Verification reduces risk but is not a guarantee or endorsement, and does not make ENO a party to any transaction. Always inspect items and meet safely.',
+      'The "Verified by eno.vn" badge means an agent reviewed the listing before it went live. Verification reduces risk but is not a guarantee or endorsement, and does not make eno.vn a party to any transaction. Always inspect items and meet safely.',
     ],
   ],
   [
-    'ENO is a platform, not a party to transactions',
+    'eno.vn is a platform, not a party to transactions',
     [
-      'ENO provides a venue to discover listings and contact sellers. We are not the buyer or seller, do not take payment for listed items, and are not responsible for the quality, safety, legality, or delivery of items, or for the conduct of users. Transactions are solely between buyer and seller.',
+      'eno.vn provides a venue to discover listings and contact sellers. We are not the buyer or seller, do not take payment for listed items, and are not responsible for the quality, safety, legality, or delivery of items, or for the conduct of users. Transactions are solely between buyer and seller.',
     ],
   ],
   [
     'Your content',
     [
-      'You retain ownership of the content you post. By posting, you grant ENO a non-exclusive, worldwide licence to host, display, translate and distribute that content for the purpose of operating and promoting the marketplace.',
+      'You retain ownership of the content you post. By posting, you grant eno.vn a non-exclusive, worldwide licence to host, display, translate and distribute that content for the purpose of operating and promoting the marketplace.',
     ],
   ],
   [
     'Disclaimers and limitation of liability',
     [
-      'ENO is provided "as is" without warranties of any kind. To the maximum extent permitted by law, ENO is not liable for any indirect, incidental or consequential damages, or for losses arising from transactions between users.',
+      'eno.vn is provided "as is" without warranties of any kind. To the maximum extent permitted by law, eno.vn is not liable for any indirect, incidental or consequential damages, or for losses arising from transactions between users.',
     ],
   ],
   [
     'Termination',
     [
-      'We may suspend or terminate access for any violation of these Terms or to protect users and the service. You may stop using ENO and request account deletion at any time.',
+      'We may suspend or terminate access for any violation of these Terms or to protect users and the service. You may stop using eno.vn and request account deletion at any time.',
     ],
   ],
   [

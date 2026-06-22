@@ -39,10 +39,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category, district } = await params
   const data = await load(category, district)
   if (!data) return {}
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   return {
-    title: `${data.cat.name} in ${data.districtName} — Verified | ENO`,
-    description: `Verified ${data.cat.name.toLowerCase()} in ${data.districtName}. Every listing checked by an ENO agent — no fakes, no bait prices.`,
+    title: `${data.cat.name} in ${data.districtName} — Verified | eno.vn`,
+    description: `Verified ${data.cat.name.toLowerCase()} in ${data.districtName}. Every listing checked by an eno.vn agent — no fakes, no bait prices.`,
     alternates: { canonical: `${hostUrl}/c/${data.cat.slug}/${district}` },
   }
 }
@@ -53,7 +53,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
   if (!data) notFound()
   const { cat, matched, districtName } = data
   const listings = matched.map(serializeListing)
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -91,7 +91,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
         <h1 className="h-display text-[#1a202c]"><Tr text={cat.name} /> <Tr text="in" /> <Tr text={districtName} /></h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[#475569]">
           {listings.length} <Tr text="verified" /> <Tr text={cat.name.toLowerCase()} /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="in" /> <Tr text={districtName} />,{' '}
-          <Tr text="each checked by an ENO agent — no fakes, no bait prices." />
+          <Tr text="each checked by an eno.vn agent — no fakes, no bait prices." />
         </p>
 
         <div className="mt-8">

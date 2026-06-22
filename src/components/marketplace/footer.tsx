@@ -17,7 +17,7 @@ export function Footer() {
       ],
     },
     {
-      title: tr('About ENO', 'Về ENO'),
+      title: tr('About eno.vn', 'Về eno.vn'),
       links: [
         { label: tr('About us', 'Giới thiệu'), href: '/about' },
         { label: tr('How it works', 'Cách hoạt động'), href: '/guide' },
@@ -42,14 +42,14 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           {/* Brand column */}
           <div className="col-span-2 md:col-span-1 space-y-3">
-            <img src="/logo-mark.svg" alt="ENO" width={36} height={36} className="h-9 w-9" />
+            <img src="/logo-mark.svg" alt="eno.vn" width={36} height={36} className="h-9 w-9" />
             <p className="max-w-[220px] text-xs leading-relaxed text-[#64748b]">
-              {tr("ENO — the verified marketplace for Vietnam's international community.", 'ENO — chợ tin đăng được xác minh cho cộng đồng quốc tế tại Việt Nam.')}
+              {tr("eno.vn — the verified marketplace for Vietnam's international community.", 'eno.vn — chợ tin đăng được xác minh cho cộng đồng quốc tế tại Việt Nam.')}
             </p>
             <div className="flex items-center gap-3 pt-1">
-              <a href="https://www.facebook.com/profile.php?id=61591370031264" target="_blank" rel="noopener noreferrer me" aria-label="ENO on Facebook" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Facebook className="h-5 w-5" /></a>
-              <a href="https://www.instagram.com/eno.vn/" target="_blank" rel="noopener noreferrer me" aria-label="ENO on Instagram" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Instagram className="h-5 w-5" /></a>
-              <a href="https://www.youtube.com/@enovietnam" target="_blank" rel="noopener noreferrer me" aria-label="ENO on YouTube" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Youtube className="h-5 w-5" /></a>
+              <a href="https://www.facebook.com/profile.php?id=61591370031264" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Facebook" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Facebook className="h-5 w-5" /></a>
+              <a href="https://www.instagram.com/eno.vn/" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Instagram" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Instagram className="h-5 w-5" /></a>
+              <a href="https://www.youtube.com/@enovietnam" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on YouTube" className="text-[#64748b] transition-colors hover:text-[#0a66c2]"><Youtube className="h-5 w-5" /></a>
             </div>
           </div>
 

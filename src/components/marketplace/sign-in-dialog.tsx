@@ -16,7 +16,7 @@ export function SignInDialog({ open, onOpenChange }: Props) {
       <DialogContent className="bg-white rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
         <DialogHeader>
           <DialogTitle className="text-center text-lg font-bold text-[#1a202c]">
-            {tr('Sign in to ENO', 'Đăng nhập ENO')}
+            {tr('Sign in to eno.vn', 'Đăng nhập eno.vn')}
           </DialogTitle>
         </DialogHeader>
         <SignInForm className="mt-4" />

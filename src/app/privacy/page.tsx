@@ -2,13 +2,13 @@ import type { Metadata } from 'next'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 
-export const metadata: Metadata = { title: 'Privacy Policy | ENO' }
+export const metadata: Metadata = { title: 'Privacy Policy | eno.vn' }
 
 const sections: [string, string[]][] = [
   [
     'Overview',
     [
-      'ENO ("we", "us") operates a verified classifieds marketplace for people living in and visiting Vietnam. This policy explains what personal information we collect, how we use it, and the choices you have. By using ENO you agree to this policy.',
+      'eno.vn ("we", "us") operates a verified classifieds marketplace for people living in and visiting Vietnam. This policy explains what personal information we collect, how we use it, and the choices you have. By using eno.vn you agree to this policy.',
     ],
   ],
   [
@@ -32,7 +32,7 @@ const sections: [string, string[]][] = [
   [
     'Service providers we share data with',
     [
-      'We use trusted providers strictly to run ENO, and we do not sell your personal information. These include: Supabase (authentication, database and image storage); Google and Meta/Facebook (only if you choose to sign in with them); Microsoft Azure Translator (to translate content — message text is processed and not retained by the provider for training); and SMS/Zalo messaging providers (to deliver one-time login codes).',
+      'We use trusted providers strictly to run eno.vn, and we do not sell your personal information. These include: Supabase (authentication, database and image storage); Google and Meta/Facebook (only if you choose to sign in with them); Microsoft Azure Translator (to translate content — message text is processed and not retained by the provider for training); and SMS/Zalo messaging providers (to deliver one-time login codes).',
     ],
   ],
   [
@@ -55,7 +55,7 @@ const sections: [string, string[]][] = [
   ],
   [
     'Children',
-    ['ENO is intended for adults (18+) and is not directed at children.'],
+    ['eno.vn is intended for adults (18+) and is not directed at children.'],
   ],
   [
     'Changes and contact',

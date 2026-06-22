@@ -213,7 +213,7 @@ export function FacetBar({
     // Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps.
     <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
       {facets}
-      {/* Static trust indicator — every listing on ENO is verified (not a toggle). */}
+      {/* Static trust indicator — every listing on eno.vn is verified (not a toggle). */}
       <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#e8f1fb] px-3.5 py-2 text-sm font-semibold text-[#0a66c2]">
         <ShieldCheck className="h-3.5 w-3.5" />
         {tr('Verified only', 'Chỉ tin đã xác minh')}

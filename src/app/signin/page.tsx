@@ -8,7 +8,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInForm } from '@/components/marketplace/sign-in-form'
 
-// Dedicated split-layout sign-in page (commerce-login pattern, ENO blue). Reuses
+// Dedicated split-layout sign-in page (commerce-login pattern, eno.vn blue). Reuses
 // the exact same <SignInForm> as the inline modal. Honors ?next= for post-login
 // redirect and bounces already-signed-in users away.
 function SignInPageInner() {
@@ -36,7 +36,7 @@ function SignInPageInner() {
     <div className="grid min-h-screen w-full bg-[#fafafa] md:grid-cols-2">
       {/* Brand panel (desktop) */}
       <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0a66c2] to-[#004182] p-12 text-white md:flex">
-        <Link href="/" className="text-2xl font-black tracking-tight">ENO</Link>
+        <Link href="/" className="text-2xl font-black tracking-tight">eno.vn</Link>
         <div>
           <h1 className="text-4xl font-black leading-tight">{tr('e-commerce with no drama', 'Mua bán không drama.')}</h1>
           <p className="mt-3 max-w-sm text-[15px] text-blue-100">
@@ -48,18 +48,18 @@ function SignInPageInner() {
             <li className="flex items-center gap-2.5"><ShieldCheck className="h-5 w-5 shrink-0" /> {tr('No fakes, no bait prices, no wasted trips', 'Không hàng giả, không giá ảo')}</li>
           </ul>
         </div>
-        <p className="text-xs text-blue-200">© 2026 ENO · Made in Saigon</p>
+        <p className="text-xs text-blue-200">© 2026 eno.vn · Made in Saigon</p>
       </div>
 
       {/* Form */}
       <div className="flex flex-col items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
-          <Link href="/" className="mb-8 inline-block text-2xl font-black text-[#0a66c2] md:hidden">ENO</Link>
-          <h2 className="text-2xl font-bold text-[#1a202c]">{tr('Welcome to ENO', 'Chào mừng đến ENO')}</h2>
+          <Link href="/" className="mb-8 inline-block text-2xl font-black text-[#0a66c2] md:hidden">eno.vn</Link>
+          <h2 className="text-2xl font-bold text-[#1a202c]">{tr('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h2>
           <p className="mt-1 text-sm text-[#64748b]">{tr('Sign in or create your account in seconds.', 'Đăng nhập hoặc tạo tài khoản trong vài giây.')}</p>
           <SignInForm className="mt-6" />
           <Link href="/" className="mt-6 block text-center text-sm font-semibold text-[#64748b] hover:text-[#0a66c2]">
-            ← {tr('Back to ENO', 'Về trang chủ')}
+            ← {tr('Back to eno.vn', 'Về trang chủ')}
           </Link>
         </div>
       </div>

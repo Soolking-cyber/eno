@@ -6,29 +6,29 @@ import { Tr } from '@/context/language-context'
 import { Search, MessageCircle, Tag, MapPin, Plus, BadgeCheck, Bell, Heart, Globe, ShieldCheck, ChevronRight } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'How ENO works — Guide | ENO',
-  description: 'A quick guide to ENO: how to buy, sell, get verified, message, make offers and trade safely on Vietnam’s verified marketplace.',
+  title: 'How eno.vn works — Guide | eno.vn',
+  description: 'A quick guide to eno.vn: how to buy, sell, get verified, message, make offers and trade safely on Vietnam’s verified marketplace.',
 }
 
 const BUYER_STEPS: { Icon: typeof Search; title: string; body: string }[] = [
-  { Icon: Search, title: 'Search & filter', body: 'Browse by category, area and price. Every listing you see has been verified by an ENO agent.' },
+  { Icon: Search, title: 'Search & filter', body: 'Browse by category, area and price. Every listing you see has been verified by an eno.vn agent.' },
   { Icon: MessageCircle, title: 'Message or make an offer', body: 'Tap Message to chat in-app, or Make an offer to send a price. The seller can accept or counter.' },
   { Icon: MapPin, title: 'Meet & inspect', body: 'Agree a public meeting spot, check the item in person, and only pay once you’re happy.' },
 ]
 
 const SELLER_STEPS: { Icon: typeof Search; title: string; body: string }[] = [
   { Icon: Plus, title: 'Post your listing', body: 'Pick a category, add details, price and photos. The VND price field has quick chips so big numbers are fast to type.' },
-  { Icon: BadgeCheck, title: 'Get verified', body: 'An ENO agent reviews your listing — usually within 24 hours — then it goes live with the Verified badge.' },
+  { Icon: BadgeCheck, title: 'Get verified', body: 'An eno.vn agent reviews your listing — usually within 24 hours — then it goes live with the Verified badge.' },
   { Icon: MessageCircle, title: 'Reply & sell', body: 'Buyers message you in-app; you get a notification for every reply and offer. Share your number in chat when ready.' },
 ]
 
 const FEATURES: { Icon: typeof Search; id?: string; title: string; body: string }[] = [
-  { Icon: BadgeCheck, id: 'verification', title: 'Verification & trust', body: 'Listings are hidden until an ENO agent confirms them in person, by video, or against documents — so prices, photos and locations are real. The blue “Verified by ENO” badge marks a checked listing. Verification confirms the listing is genuine; always still inspect before you pay.' },
+  { Icon: BadgeCheck, id: 'verification', title: 'Verification & trust', body: 'Listings are hidden until an eno.vn agent confirms them in person, by video, or against documents — so prices, photos and locations are real. The blue “Verified by eno.vn” badge marks a checked listing. Verification confirms the listing is genuine; always still inspect before you pay.' },
   { Icon: Tag, title: 'Messaging & offers', body: 'All contact happens in-app: tap Message to chat, or Make an offer to send a price the seller can accept or counter. Phone/Zalo is exchanged inside the chat, never published on the listing — which keeps spam out.' },
   { Icon: Bell, title: 'Notifications', body: 'The bell at the top-right alerts you to new messages and offers in real time, on desktop and mobile. Each notification links straight to the conversation.' },
   { Icon: Heart, title: 'Saving listings', body: 'Tap the heart on any card or listing to save it. Your saved items live in the Saved tab — handy for comparing places or items before you decide.' },
   { Icon: Globe, title: 'Languages', body: 'The whole app and every listing auto-translate into 11 languages. We default to your device language; change it anytime in Account → Language.' },
-  { Icon: ShieldCheck, title: 'Safe trading', body: 'Meet in public, inspect before paying, and never send a deposit through a link — ENO never asks for one. Report anything suspicious with the Report button.' },
+  { Icon: ShieldCheck, title: 'Safe trading', body: 'Meet in public, inspect before paying, and never send a deposit through a link — eno.vn never asks for one. Report anything suspicious with the Report button.' },
 ]
 
 export default function GuidePage() {
@@ -37,9 +37,9 @@ export default function GuidePage() {
       <Header />
       <main className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         <p className="eyebrow text-[#0a66c2] mb-2"><Tr text="Guide" /></p>
-        <h1 className="h-display text-[#1a202c]"><Tr text="How ENO works" /></h1>
+        <h1 className="h-display text-[#1a202c]"><Tr text="How eno.vn works" /></h1>
         <p className="mt-3 text-sm leading-relaxed text-[#475569]">
-          <Tr text="ENO is the verified marketplace for Vietnam’s international community. Here’s everything you need in a couple of minutes." />
+          <Tr text="eno.vn is the verified marketplace for Vietnam’s international community. Here’s everything you need in a couple of minutes." />
         </p>
 
         {/* For buyers */}

@@ -4,22 +4,22 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Tr } from '@/context/language-context'
 
-export const metadata: Metadata = { title: 'About | ENO' }
+export const metadata: Metadata = { title: 'About | eno.vn' }
 
 export default function AboutPage() {
   const steps = [
     { icon: <Eye className="h-5 w-5" />, title: 'Listing submitted', text: 'A seller posts an item with photos, price and location.' },
-    { icon: <ShieldCheck className="h-5 w-5" />, title: 'ENO verifies', text: 'Our agent checks the item in person, by video, or against documents — within 24 hours.' },
+    { icon: <ShieldCheck className="h-5 w-5" />, title: 'eno.vn verifies', text: 'Our agent checks the item in person, by video, or against documents — within 24 hours.' },
     { icon: <BadgeCheck className="h-5 w-5" />, title: 'It goes live', text: 'Only verified listings appear in the feed. No fakes, no bait prices, no wasted trips.' },
   ]
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
-        <p className="eyebrow text-[#0a66c2] mb-2"><Tr text="About ENO" /></p>
+        <p className="eyebrow text-[#0a66c2] mb-2"><Tr text="About eno.vn" /></p>
         <h1 className="h-display text-[#1a202c]"><Tr text="The verified marketplace for Vietnam." /></h1>
         <p className="mt-4 text-[15px] leading-relaxed text-[#475569]">
-          <Tr text="ENO is a classifieds marketplace built around one promise: every listing is checked before it goes live. Motorbikes, rentals, electronics, jobs and services — without the fakes and bait prices that waste your time." />
+          <Tr text="eno.vn is a classifieds marketplace built around one promise: every listing is checked before it goes live. Motorbikes, rentals, electronics, jobs and services — without the fakes and bait prices that waste your time." />
         </p>
 
         <h2 className="h-section text-[#1a202c] mt-10 mb-4"><Tr text="How verification works" /></h2>

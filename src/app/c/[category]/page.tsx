@@ -23,10 +23,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category } = await params
   const cat = await db.category.findUnique({ where: { slug: category } })
   if (!cat) return {}
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   return {
-    title: `${cat.name} in Vietnam — Verified listings | ENO`,
-    description: `Browse verified ${cat.name.toLowerCase()} for expats in Vietnam. Every listing checked by an ENO agent — no fakes, no bait prices, no wasted trips.`,
+    title: `${cat.name} in Vietnam — Verified listings | eno.vn`,
+    description: `Browse verified ${cat.name.toLowerCase()} for expats in Vietnam. Every listing checked by an eno.vn agent — no fakes, no bait prices, no wasted trips.`,
     alternates: { canonical: `${hostUrl}/c/${cat.slug}` },
   }
 }
@@ -44,7 +44,7 @@ export default async function CategoryPage({ params }: Props) {
   const listings = raw.map(serializeListing)
   const districts = [...new Set(raw.map((r) => r.district).filter((d): d is string => !!d))]
   const otherCats = await db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } })
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -78,7 +78,7 @@ export default async function CategoryPage({ params }: Props) {
 
         <h1 className="h-display text-[#1a202c]"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[#475569]">
-          <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on ENO is verified by an agent before it goes live — no fakes, no bait prices, no wasted trips." />{' '}
+          <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on eno.vn is verified by an agent before it goes live — no fakes, no bait prices, no wasted trips." />{' '}
           {listings.length} <Tr text="verified" /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." />
         </p>
 

@@ -4,12 +4,12 @@ import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landin
 export const revalidate = 3600
 
 export const metadata: Metadata = {
-  title: 'Moving Sales & Secondhand Furniture in Vietnam | ENO Forum',
+  title: 'Moving Sales & Secondhand Furniture in Vietnam | eno.vn',
   description:
-    'Shop expat moving sales in Vietnam — secondhand furniture, appliances and home goods in Ho Chi Minh City. Verified listings on ENO Forum, checked before they go live.',
+    'Shop expat moving sales in Vietnam — secondhand furniture, appliances and home goods in Ho Chi Minh City. Verified listings on eno.vn, checked before they go live.',
   alternates: { canonical: '/moving-sales-vietnam' },
   openGraph: {
-    title: 'Moving Sales & Secondhand Furniture in Vietnam | ENO Forum',
+    title: 'Moving Sales & Secondhand Furniture in Vietnam | eno.vn',
     description:
       'Expat moving sales — furniture, appliances and home goods at great prices, verified before they go live.',
   },
@@ -19,7 +19,7 @@ const CONTENT: SeoContent = {
   eyebrow: 'Moving Sales · Vietnam',
   h1: 'Moving Sales & Secondhand Furniture in Vietnam',
   intro:
-    'Furnish your place for less. Expats and internationals leaving Vietnam sell quality furniture, appliances and home goods through moving sales — sofas, beds, fridges, washing machines, kitchenware and more, mostly in Ho Chi Minh City. Every ENO Forum listing is checked before it goes live, so the items and prices are real.',
+    'Furnish your place for less. Expats and internationals leaving Vietnam sell quality furniture, appliances and home goods through moving sales — sofas, beds, fridges, washing machines, kitchenware and more, mostly in Ho Chi Minh City. Every eno.vn listing is checked before it goes live, so the items and prices are real.',
   categorySlug: 'moving-sale',
   cta: 'Browse verified moving sales',
   sections: [

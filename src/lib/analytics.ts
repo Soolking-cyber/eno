@@ -16,7 +16,7 @@ declare global {
 
 export type Currency = 'VND' | 'USD'
 
-// Convert ENO's display symbol ('₫' / '$') to an ISO currency code for analytics.
+// Convert eno.vn's display symbol ('₫' / '$') to an ISO currency code for analytics.
 export function currencyCode(symbol: string): Currency {
   return symbol === '₫' ? 'VND' : 'USD'
 }

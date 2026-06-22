@@ -444,7 +444,7 @@ export async function GET(req: NextRequest) {
 
 // Create a listing from the post wizard. No auth yet → identify the seller by
 // phone (Chợ Tốt / Craigslist guest-post pattern). Always created verified=false
-// so it stays hidden from the public feed until an ENO agent verifies it.
+// so it stays hidden from the public feed until an eno.vn agent verifies it.
 // normalizePhone is shared (src/lib/phone.ts) so the later verified-phone claim
 // joins on the exact same canonical form.
 // Only accept Supabase Storage URLs for our project (no arbitrary remote images).
@@ -481,7 +481,7 @@ export async function POST(req: NextRequest) {
       ? existing
       : await db.seller.create({
           data: {
-            name: contactName || 'ENO seller',
+            name: contactName || 'eno.vn seller',
             phone: contactPhone,
             verifiedSeller: false,
             rating: 0,

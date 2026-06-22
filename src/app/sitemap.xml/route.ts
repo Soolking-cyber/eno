@@ -18,7 +18,7 @@ export async function GET() {
     const categories = await db.category.findMany({ select: { slug: true } })
     const sellers = await db.seller.findMany({ where: { verifiedSeller: true }, select: { id: true } })
 
-    const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
+    const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

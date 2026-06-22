@@ -125,8 +125,8 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
         <h1 className="h-title text-[#1a202c]">{t('Đã gửi để kiểm duyệt!', 'Submitted for verification!')}</h1>
         <p className="max-w-md text-sm text-[#475569]">
           {t(
-            'Nhân viên ENO sẽ xác minh tin đăng của bạn trong vòng 24 giờ trước khi hiển thị công khai. Đó là cách chúng tôi giữ chợ không có tin ảo.',
-            'An ENO agent will verify your listing within 24 hours before it goes live. That’s how we keep the marketplace free of fakes.',
+            'Nhân viên eno.vn sẽ xác minh tin đăng của bạn trong vòng 24 giờ trước khi hiển thị công khai. Đó là cách chúng tôi giữ chợ không có tin ảo.',
+            'An eno.vn agent will verify your listing within 24 hours before it goes live. That’s how we keep the marketplace free of fakes.',
           )}
         </p>
         <a href="/" className="mt-2 rounded-xl bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
@@ -300,7 +300,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
               <div className="flex items-start gap-2 rounded-xl bg-[#e8f1fb] px-4 py-3 text-xs text-[#0052cc]">
                 <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{t('Tin của bạn sẽ được nhân viên ENO kiểm duyệt thực tế trước khi hiển thị.', 'Your listing will be verified by an ENO agent before going live.')}</span>
+                <span>{t('Tin của bạn sẽ được nhân viên eno.vn kiểm duyệt thực tế trước khi hiển thị.', 'Your listing will be verified by an eno.vn agent before going live.')}</span>
               </div>
 
               {error && <p role="alert" className="text-sm font-semibold text-red-600">{error}</p>}

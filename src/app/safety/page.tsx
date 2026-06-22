@@ -3,13 +3,13 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Tr } from '@/context/language-context'
 
-export const metadata: Metadata = { title: 'Safe trading | ENO' }
+export const metadata: Metadata = { title: 'Safe trading | eno.vn' }
 
 const tips = [
   ['Meet in public', 'Always meet in a busy, public place during daylight to inspect items and complete trades.'],
   ['Inspect before paying', 'Check the item matches the photos and description. Test electronics, start the motorbike, view the room.'],
-  ['Never pay a deposit via links', 'ENO never asks for deposits through chat links. Treat any such request as a scam.'],
-  ['Prefer verified listings', 'The “Verified by ENO” badge means an agent checked the listing in person — no fakes, no bait prices.'],
+  ['Never pay a deposit via links', 'eno.vn never asks for deposits through chat links. Treat any such request as a scam.'],
+  ['Prefer verified listings', 'The “Verified by eno.vn” badge means an agent checked the listing in person — no fakes, no bait prices.'],
   ['Keep chats on the record', 'Use messaging so there’s a record of what was agreed. Be wary of pressure to move off-platform.'],
   ['Report anything suspicious', 'See a too-good-to-be-true price or a fake-looking post? Report it and we’ll review.'],
 ]

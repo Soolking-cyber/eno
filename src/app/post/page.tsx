@@ -8,7 +8,7 @@ import { PostWizard } from '@/components/marketplace/post-wizard'
 // Categories change rarely and there's no per-user data here — cache the shell
 // (ISR) so the tab opens from cache instead of a per-request DB fetch.
 export const revalidate = 300
-export const metadata: Metadata = { title: 'Post a listing | ENO' }
+export const metadata: Metadata = { title: 'Post a listing | eno.vn' }
 
 export default async function PostPage() {
   const categories = await db.category.findMany({ orderBy: { name: 'asc' } })

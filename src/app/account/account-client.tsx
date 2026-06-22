@@ -132,7 +132,7 @@ export function AccountClient() {
           </section>
         ) : account ? (
           <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-pop">
-            <h2 className="text-sm font-bold text-[#1a202c]">{tr('Selling on ENO?', 'Bán hàng trên ENO?')}</h2>
+            <h2 className="text-sm font-bold text-[#1a202c]">{tr('Selling on eno.vn?', 'Bán hàng trên eno.vn?')}</h2>
             <p className="mt-1 text-sm text-[#64748b]">
               {tr("Post a listing to create your business profile. If you've posted before with your phone number, sign in with that number to claim it.", 'Đăng tin để tạo hồ sơ doanh nghiệp. Nếu bạn đã từng đăng tin bằng số điện thoại, hãy đăng nhập bằng số đó để nhận lại.')}
             </p>

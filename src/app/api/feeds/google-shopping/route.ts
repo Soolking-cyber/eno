@@ -20,12 +20,12 @@ export async function GET() {
       orderBy: { postedAt: 'desc' },
     })
 
-    const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
+    const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
     let xml = `<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
   <channel>
-    <title>ENO — Your Trusted Vietnam Network.</title>
+    <title>eno.vn — Your Trusted Vietnam Network.</title>
     <link>${hostUrl}</link>
     <description>Verified classifieds listings for expats. Moving sales, rentals, jobs and more.</description>
     <language>vi-vn</language>
@@ -57,7 +57,7 @@ export async function GET() {
       <g:condition>${condition}</g:condition>
       <g:price>${formattedPrice}</g:price>
       <g:availability>in_stock</g:availability>
-      <g:brand>ENO</g:brand>
+      <g:brand>eno.vn</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>${escapeXml(listing.category.name)}</g:product_type>
     </item>

@@ -121,7 +121,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
             <BadgeCheck className="h-5 w-5" />
           </span>
           <p className="text-sm leading-relaxed text-[#475569]">
-            Every ENO Forum listing is checked before it goes live — no fake photos, no bait prices, no wasted trips.{' '}
+            Every eno.vn listing is checked before it goes live — no fake photos, no bait prices, no wasted trips.{' '}
             <Link href="/about" className="font-semibold text-[#0a66c2] hover:underline">See how verification works</Link>.
           </p>
         </div>
@@ -143,8 +143,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
 
         {/* Brand line */}
         <p className="mt-14 border-t border-slate-200 pt-6 text-sm leading-relaxed text-[#64748b]">
-          <strong className="font-semibold text-[#1a202c]">ENO Forum</strong> is the temporary home of{' '}
-          <strong className="font-semibold text-[#1a202c]">ENO.vn</strong> — a verified marketplace for Vietnam’s
+          <strong className="font-semibold text-[#1a202c]">eno.vn</strong> — a verified marketplace for Vietnam’s
           international community.
         </p>
       </main>

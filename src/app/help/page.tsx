@@ -6,13 +6,13 @@ import { Tr } from '@/context/language-context'
 import { Rocket, BadgeCheck, ShieldCheck, Mail, ChevronRight } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Help center | ENO',
-  description: 'Answers about buying, selling, verification, messaging, offers and safe trading on ENO — the verified marketplace for Vietnam.',
+  title: 'Help center | eno.vn',
+  description: 'Answers about buying, selling, verification, messaging, offers and safe trading on eno.vn — the verified marketplace for Vietnam.',
 }
 
 // Quick links to the deeper guides. (Labels are English source — <Tr> auto-translates.)
 const TOPICS: { Icon: typeof Rocket; label: string; href: string }[] = [
-  { Icon: Rocket, label: 'How ENO works', href: '/guide' },
+  { Icon: Rocket, label: 'How eno.vn works', href: '/guide' },
   { Icon: BadgeCheck, label: 'Verification & trust', href: '/guide#verification' },
   { Icon: ShieldCheck, label: 'Safe trading', href: '/safety' },
   { Icon: Mail, label: 'Contact support', href: 'mailto:support@eno.forum' },
@@ -23,11 +23,11 @@ const SECTIONS: { title: string; items: [string, string][] }[] = [
   {
     title: 'Getting started',
     items: [
-      ['What is ENO?', 'ENO is a verified classifieds marketplace for Vietnam’s international community — housing, motorbikes, furniture, jobs and services. Every listing is checked by an ENO agent before it goes live, so the feed stays free of fakes and bait prices.'],
+      ['What is eno.vn?', 'eno.vn is a verified classifieds marketplace for Vietnam’s international community — housing, motorbikes, furniture, jobs and services. Every listing is checked by an eno.vn agent before it goes live, so the feed stays free of fakes and bait prices.'],
       ['Do I need an account to browse?', 'No. Browsing and searching are open to everyone. You only sign in to message a seller, save a listing, make an offer, or post your own.'],
-      ['Is ENO free to use?', 'Yes. Browsing and saving are always free, and posting a listing is free during the launch period.'],
+      ['Is eno.vn free to use?', 'Yes. Browsing and saving are always free, and posting a listing is free during the launch period.'],
       ['What areas do you cover?', 'We’re live across Ho Chi Minh City, with Hanoi, Da Nang and more coming soon.'],
-      ['Which languages does ENO support?', 'The whole app and every listing auto-translate into 11 languages. Set yours in Account → Language; by default we follow your device language.'],
+      ['Which languages does eno.vn support?', 'The whole app and every listing auto-translate into 11 languages. Set yours in Account → Language; by default we follow your device language.'],
     ],
   },
   {
@@ -42,8 +42,8 @@ const SECTIONS: { title: string; items: [string, string][] }[] = [
   {
     title: 'Selling & posting',
     items: [
-      ['How do I post a listing?', 'Tap “Post”, choose a category, then add title, description, price, area and up to 6 photos. Submit and an ENO agent verifies it — usually within 24 hours — before it goes live.'],
-      ['Why isn’t my listing visible yet?', 'New listings stay hidden until an ENO agent verifies them. That short wait is exactly what keeps scams and fake prices out of the marketplace.'],
+      ['How do I post a listing?', 'Tap “Post”, choose a category, then add title, description, price, area and up to 6 photos. Submit and an eno.vn agent verifies it — usually within 24 hours — before it goes live.'],
+      ['Why isn’t my listing visible yet?', 'New listings stay hidden until an eno.vn agent verifies them. That short wait is exactly what keeps scams and fake prices out of the marketplace.'],
       ['Can I edit or remove my listing?', 'Yes — manage your listings from your account. Mark items sold or remove them anytime.'],
       ['Why can’t I put my phone number in the listing?', 'Contact details aren’t allowed in the public fields — buyers reach you in-app, which protects you from spam and keeps every conversation in one place. You can share your number inside the chat.'],
     ],
@@ -51,7 +51,7 @@ const SECTIONS: { title: string; items: [string, string][] }[] = [
   {
     title: 'Verification & trust',
     items: [
-      ['What does “Verified by ENO” mean?', 'An ENO agent confirmed the listing in person, by video call, or against documents — so the photos, price and location are accurate. Look for the blue badge.'],
+      ['What does “Verified by eno.vn” mean?', 'An eno.vn agent confirmed the listing in person, by video call, or against documents — so the photos, price and location are accurate. Look for the blue badge.'],
       ['Does verification guarantee the item?', 'It confirms the listing is genuine and accurately described. Always still inspect the item yourself before paying — see our Safe trading guide.'],
       ['How long does verification take?', 'Most listings are reviewed within 24 hours.'],
     ],
@@ -67,7 +67,7 @@ const SECTIONS: { title: string; items: [string, string][] }[] = [
   {
     title: 'Safety & payments',
     items: [
-      ['How do I trade safely?', 'Meet in a public place, inspect before you pay, and never send a deposit through a link. ENO never asks for a deposit. Read the full Safe trading guide.'],
+      ['How do I trade safely?', 'Meet in a public place, inspect before you pay, and never send a deposit through a link. eno.vn never asks for a deposit. Read the full Safe trading guide.'],
       ['Someone is asking for a deposit via a link — is that normal?', 'No — that’s a classic scam. Don’t pay, and report the listing so we can remove it.'],
       ['How do I report a listing or user?', 'Use the “Report” button on any listing. Our team reviews reports quickly.'],
     ],
@@ -82,7 +82,7 @@ export default function HelpPage() {
         <p className="eyebrow text-[#0a66c2] mb-2"><Tr text="Help center" /></p>
         <h1 className="h-display text-[#1a202c]"><Tr text="How can we help?" /></h1>
         <p className="mt-3 text-sm leading-relaxed text-[#475569]">
-          <Tr text="Answers to common questions about buying, selling, verification and staying safe on ENO." />
+          <Tr text="Answers to common questions about buying, selling, verification and staying safe on eno.vn." />
         </p>
 
         {/* Quick-link topic cards */}
@@ -128,7 +128,7 @@ export default function HelpPage() {
         </div>
 
         <p className="mt-6 text-sm text-[#475569]">
-          <Tr text="New to ENO?" />{' '}
+          <Tr text="New to eno.vn?" />{' '}
           <Link href="/guide" className="inline-flex items-center gap-0.5 font-semibold text-[#0a66c2] hover:underline">
             <Tr text="Read the quick guide" /> <ChevronRight className="h-3.5 w-3.5" />
           </Link>

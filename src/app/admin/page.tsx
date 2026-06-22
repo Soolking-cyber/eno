@@ -8,7 +8,7 @@ import type { Metadata } from 'next'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Moderation — ENO',
+  title: 'Moderation — eno.vn',
   robots: { index: false, follow: false },
 }
 
@@ -70,10 +70,10 @@ export default async function AdminPage() {
             <ShieldAlert className="mx-auto h-10 w-10 text-[#94a3b8]" />
             <h1 className="mt-4 text-lg font-bold text-[#1a202c]">Restricted area</h1>
             <p className="mt-2 text-sm text-[#64748b]">
-              Sign in with an authorized ENO admin account to access the moderation queue.
+              Sign in with an authorized eno.vn admin account to access the moderation queue.
             </p>
             <a href="/" className="mt-5 inline-block rounded-xl bg-[#0a66c2] px-6 py-2 text-sm font-bold text-white hover:bg-[#004182] transition-colors">
-              Back to ENO
+              Back to eno.vn
             </a>
           </div>
         </main>

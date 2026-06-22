@@ -19,7 +19,7 @@ export async function GET() {
       orderBy: { postedAt: 'desc' },
     })
 
-    const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
+    const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
     // CSV Headers
     const headers = ['id', 'title', 'description', 'availability', 'condition', 'price', 'link', 'image_link', 'brand']
@@ -51,7 +51,7 @@ export async function GET() {
         escapeCsv(formattedPrice),
         escapeCsv(itemUrl),
         escapeCsv(imageUrl),
-        'ENO',
+        'eno.vn',
       ]
 
       csv += row.join(',') + '\n'

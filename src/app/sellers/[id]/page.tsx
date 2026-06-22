@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const seller = await db.seller.findUnique({ where: { id } })
   if (!seller) return {}
-  return { title: `${seller.name} | ENO`, description: `${seller.name} — ${seller.reviewCount} reviews · ${seller.rating.toFixed(1)}★` }
+  return { title: `${seller.name} | eno.vn`, description: `${seller.name} — ${seller.reviewCount} reviews · ${seller.rating.toFixed(1)}★` }
 }
 
 export default async function SellerPage({ params }: Props) {

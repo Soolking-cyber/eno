@@ -54,7 +54,7 @@ async function geocodeGoogle(lat: string, lng: string, lang: string): Promise<Re
 // Nominatim (free) fallback.
 async function geocodeNominatim(lat: string, lng: string, lang: string): Promise<Result | null> {
   const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&accept-language=${lang}&zoom=16`
-  const res = await fetch(url, { headers: { 'User-Agent': 'ENO Marketplace/1.0 (https://www.eno.forum)' } })
+  const res = await fetch(url, { headers: { 'User-Agent': 'eno.vn Marketplace/1.0 (https://eno.vn)' } })
   if (!res.ok) return null
   const data = await res.json()
   const a = (data.address || {}) as Record<string, string>

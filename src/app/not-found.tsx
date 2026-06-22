@@ -5,7 +5,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Tr } from '@/context/language-context'
 
-export const metadata: Metadata = { title: 'Page not found | ENO' }
+export const metadata: Metadata = { title: 'Page not found | eno.vn' }
 
 // Faint, on-brand marketplace icons scattered as a lightweight background motif —
 // inline SVG (lucide), so ZERO extra network weight (no raster images). Positions
@@ -46,7 +46,7 @@ export default function NotFound() {
         </div>
 
         <div className="relative w-full max-w-lg text-center">
-          <img src="/logo-mark.svg" alt="ENO" width={56} height={56} className="mx-auto h-14 w-14" />
+          <img src="/logo-mark.svg" alt="eno.vn" width={56} height={56} className="mx-auto h-14 w-14" />
           <p className="eyebrow mt-6 text-[#0a66c2]"><Tr text="Error 404" /></p>
           <h1 className="h-display mt-2 text-[#1a202c]"><Tr text="This page has moved on." /></h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[#475569]">

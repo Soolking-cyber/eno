@@ -4,12 +4,12 @@ import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landin
 export const revalidate = 3600
 
 export const metadata: Metadata = {
-  title: 'Jobs for Expats & Internationals in Vietnam | ENO Forum',
+  title: 'Jobs for Expats & Internationals in Vietnam | eno.vn',
   description:
-    'Find jobs for expats and internationals in Vietnam — teaching, hospitality, marketing, tech and English-required roles in Ho Chi Minh City. Verified listings on ENO Forum.',
+    'Find jobs for expats and internationals in Vietnam — teaching, hospitality, marketing, tech and English-required roles in Ho Chi Minh City. Verified listings on eno.vn.',
   alternates: { canonical: '/jobs-vietnam-expats' },
   openGraph: {
-    title: 'Jobs for Expats & Internationals in Vietnam | ENO Forum',
+    title: 'Jobs for Expats & Internationals in Vietnam | eno.vn',
     description:
       'Teaching, hospitality, marketing, tech and English-required roles for internationals in Vietnam — verified before they go live.',
   },
@@ -19,7 +19,7 @@ const CONTENT: SeoContent = {
   eyebrow: 'Jobs · Vietnam',
   h1: 'Jobs for Expats & Internationals in Vietnam',
   intro:
-    'Looking for work in Vietnam? Find jobs suited to expats and internationals — English teaching, hospitality, marketing, design, tech and roles where English is required — mostly across Ho Chi Minh City. Every ENO Forum job is checked before it goes live, so you skip the recycled and fake postings.',
+    'Looking for work in Vietnam? Find jobs suited to expats and internationals — English teaching, hospitality, marketing, design, tech and roles where English is required — mostly across Ho Chi Minh City. Every eno.vn job is checked before it goes live, so you skip the recycled and fake postings.',
   categorySlug: 'jobs',
   cta: 'Browse verified jobs',
   sections: [
@@ -33,7 +33,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'Fewer scams, real opportunities',
-      body: 'Job scams targeting newcomers are common. ENO Forum verifies postings before they appear so you spend your time on genuine opportunities.',
+      body: 'Job scams targeting newcomers are common. eno.vn verifies postings before they appear so you spend your time on genuine opportunities.',
     },
   ],
   faqs: [

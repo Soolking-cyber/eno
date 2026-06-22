@@ -44,10 +44,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const displayTitle = listing.titleVi || listing.title
   const desc = listing.description.slice(0, 160)
   const images = JSON.parse(listing.images || '[]')
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
   return {
-    title: `${displayTitle} | ENO`,
+    title: `${displayTitle} | eno.vn`,
     description: desc,
     // Pending (unverified) listings are hidden from the feed — don't let Google index them either.
     robots: listing.verified ? undefined : { index: false, follow: true },
@@ -55,16 +55,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       canonical: `${hostUrl}/listings/${id}`,
     },
     openGraph: {
-      title: `${displayTitle} | ENO`,
+      title: `${displayTitle} | eno.vn`,
       description: desc,
       url: `${hostUrl}/listings/${id}`,
-      siteName: 'ENO',
+      siteName: 'eno.vn',
       type: 'website',
       images: images.map((img: string) => ({ url: img })),
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${displayTitle} | ENO`,
+      title: `${displayTitle} | eno.vn`,
       description: desc,
       images: images[0] ? [images[0]] : undefined,
     },
@@ -98,7 +98,7 @@ export default async function ListingPage({ params }: Props) {
     .toUpperCase()
 
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.eno.forum'
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const canonicalUrl = `${hostUrl}/listings/${listing.id}`
 
   // Server-resolve the listing CONTENT into the visitor's language (from the warm
@@ -235,7 +235,7 @@ export default async function ListingPage({ params }: Props) {
 
             <p className="flex items-start gap-2 text-xs leading-relaxed text-[#64748b]">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <Tr text="Meet in a public place and inspect the item before paying. ENO never asks for a deposit via a link." />
+              <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />
             </p>
           </div>
 
@@ -252,7 +252,7 @@ export default async function ListingPage({ params }: Props) {
                 <div className="rounded-lg bg-[#e8f1fb] px-3 py-2 text-xs text-[#0a66c2]">
                   <div className="flex items-center gap-2">
                     <BadgeCheck className="h-4 w-4 shrink-0" />
-                    <span className="font-semibold"><Tr text="Verified by ENO" /></span>
+                    <span className="font-semibold"><Tr text="Verified by eno.vn" /></span>
                     {methodLabel && <span>· {tx(methodLabel.label)}</span>}
                   </div>
                   {(listing.verifiedBy || listing.verifiedAt || listing.verificationNotes) && (
@@ -267,7 +267,7 @@ export default async function ListingPage({ params }: Props) {
               ) : (
                 <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span><Tr text="Pending review — this listing is hidden until verified by ENO." /></span>
+                  <span><Tr text="Pending review — this listing is hidden until verified by eno.vn." /></span>
                 </div>
               )}
 

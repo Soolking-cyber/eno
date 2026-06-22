@@ -54,7 +54,7 @@ export function VerifiedBadge({ verified, method, size = 'sm', className, showLa
           sizes.box,
           className,
         )}
-        title={tr('Availability Guaranteed by ENO')}
+        title={tr('Availability Guaranteed by eno.vn')}
       >
         <ShieldCheck className={sizes.icon} />
         {showLabel && tr('Available', 'Sẵn hàng')}
@@ -72,7 +72,7 @@ export function VerifiedBadge({ verified, method, size = 'sm', className, showLa
         sizes.box,
         className,
       )}
-      title={methodLabel ? `${tr('Verified', 'Đã xác thực')} · ${tr(methodLabel.label, methodLabel.vi)}` : tr('Verified by ENO', 'Đã xác minh bởi ENO')}
+      title={methodLabel ? `${tr('Verified', 'Đã xác thực')} · ${tr(methodLabel.label, methodLabel.vi)}` : tr('Verified by eno.vn', 'Đã xác minh bởi eno.vn')}
     >
       <ShieldCheck className={sizes.icon} />
       {showLabel && (

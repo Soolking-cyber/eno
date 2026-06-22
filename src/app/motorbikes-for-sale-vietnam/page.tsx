@@ -4,12 +4,12 @@ import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landin
 export const revalidate = 3600
 
 export const metadata: Metadata = {
-  title: 'Motorbikes for Sale & Rent in Vietnam | ENO Forum',
+  title: 'Motorbikes for Sale & Rent in Vietnam | eno.vn',
   description:
-    'Buy or rent verified motorbikes in Vietnam — Honda, Yamaha, automatic and manual, monthly rentals and used bikes for sale in Ho Chi Minh City. Checked before they go live on ENO Forum.',
+    'Buy or rent verified motorbikes in Vietnam — Honda, Yamaha, automatic and manual, monthly rentals and used bikes for sale in Ho Chi Minh City. Checked before they go live on eno.vn.',
   alternates: { canonical: '/motorbikes-for-sale-vietnam' },
   openGraph: {
-    title: 'Motorbikes for Sale & Rent in Vietnam | ENO Forum',
+    title: 'Motorbikes for Sale & Rent in Vietnam | eno.vn',
     description:
       'Verified motorbikes to buy or rent in Vietnam — Honda, Yamaha, automatic & manual. No bait prices, no fake photos.',
   },
@@ -19,7 +19,7 @@ const CONTENT: SeoContent = {
   eyebrow: 'Motorbikes · Vietnam',
   h1: 'Motorbikes for Sale & Rent in Vietnam',
   intro:
-    'Get on the road fast. Buy or rent verified motorbikes in Vietnam — automatic scooters and manual bikes from Honda, Yamaha and more, with monthly rentals and used bikes for sale across Ho Chi Minh City. Every ENO Forum listing is checked before it goes live, so the price and condition are real.',
+    'Get on the road fast. Buy or rent verified motorbikes in Vietnam — automatic scooters and manual bikes from Honda, Yamaha and more, with monthly rentals and used bikes for sale across Ho Chi Minh City. Every eno.vn listing is checked before it goes live, so the price and condition are real.',
   categorySlug: 'motorbike-rentals',
   cta: 'Browse verified motorbikes',
   sections: [
@@ -33,7 +33,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'Know what you’re getting',
-      body: 'Bike scams and misleading photos are common. ENO Forum verifies each listing first, and you can message the owner or shop in-app to arrange a test ride before paying.',
+      body: 'Bike scams and misleading photos are common. eno.vn verifies each listing first, and you can message the owner or shop in-app to arrange a test ride before paying.',
     },
   ],
   faqs: [

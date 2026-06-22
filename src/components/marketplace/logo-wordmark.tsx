@@ -9,7 +9,7 @@ export function LogoWordmark({ className }: { className?: string }) {
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src="/logo.svg"
-      alt="ENO Logo"
+      alt="eno.vn Logo"
       width={320}
       height={80}
       fetchPriority="high"
