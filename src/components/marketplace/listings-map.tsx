@@ -5,6 +5,7 @@ import { Star, X, Heart } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
 import { formatPrice } from '@/lib/types'
 import { formatMoneyFull } from '@/lib/vnd'
+import { useCurrency } from '@/context/currency-context'
 import type { Language } from '@/context/language-context'
 import { useLanguage } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
@@ -75,6 +76,7 @@ function pinHtml(label: string, active: boolean): string {
 export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, selectedId, onHover, focusId }: Props) {
   const { tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
+  const { format: formatPrice } = useCurrency()
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markersRef = useRef<Map<string, any>>(new Map())
@@ -254,7 +256,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   )}
                 </div>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
-                <p className="mt-1 text-sm font-bold text-foreground">{formatMoneyFull(card.price, card.currency)}</p>
+                <p className="mt-1 text-sm font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</p>
               </div>
             </button>
           </div>

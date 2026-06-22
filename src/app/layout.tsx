@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/context/theme-context";
 import { LanguageProvider } from "@/context/language-context";
+import { CurrencyProvider } from "@/context/currency-context";
 import { AuthProvider } from "@/context/auth-context";
 import { ChatProvider } from "@/context/chat-context";
 import { NotificationsProvider } from "@/context/notifications-context";
@@ -148,6 +149,7 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <LanguageProvider>
+            <CurrencyProvider>
             <AuthProvider>
               <NotificationsProvider>
                 <ChatProvider>
@@ -166,6 +168,7 @@ export default function RootLayout({
                 </ChatProvider>
               </NotificationsProvider>
             </AuthProvider>
+            </CurrencyProvider>
           </LanguageProvider>
         </ThemeProvider>
         <SonnerToaster position="bottom-right" richColors closeButton />

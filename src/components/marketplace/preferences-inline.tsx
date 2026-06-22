@@ -1,21 +1,24 @@
 'use client'
 
-import { Monitor, Sun, Moon } from 'lucide-react'
+import { Sun, Moon } from 'lucide-react'
 import { useLanguage, LANGUAGES } from '@/context/language-context'
+import { useCurrency } from '@/context/currency-context'
 import { useTheme } from '@/context/theme-context'
+import { CURRENCIES } from '@/lib/currencies'
 import { CustomSelect } from './custom-select'
 import { cn } from '@/lib/utils'
 
-/** Compact one-line preferences: a STYLED language picker (left) + System/Light/Dark
- *  icon segmented control (right). Borderless, dark-mode-safe, portaled menu (no
- *  native OS dropdown). Shared by the desktop account dropdown and the mobile
- *  dashboard so both read the same. */
+/** Compact preferences row: STYLED language picker + DISPLAY-currency picker
+ *  (independent of language — e.g. English UI with VND prices, or vice-versa) +
+ *  a light/dark toggle. Borderless, dark-mode-safe, portaled menus. Shared by the
+ *  desktop account dropdown and the mobile dashboard so both read the same. */
 export function PreferencesInline({ className, compact = false }: { className?: string; compact?: boolean }) {
   const { tr, lang, setLang } = useLanguage()
-  const { theme, setTheme } = useTheme()
-  // Compact (narrow account dropdown): show the 2-letter code on the trigger so it
-  // never truncates to "P…". Full width (dashboard): show the native name.
+  const { currency, setCurrency } = useCurrency()
+  const { resolved, setTheme } = useTheme()
   const code = LANGUAGES.find((l) => l.code === lang)?.label
+  const isDark = resolved === 'dark'
+
   return (
     <div className={cn('flex items-center gap-2', className)}>
       <CustomSelect
@@ -27,24 +30,32 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         className="text-body hover:bg-muted"
         activeClassName="text-body hover:bg-muted"
       />
-      <div className="flex shrink-0 items-center gap-0.5 rounded-lg p-0.5">
-        {([['system', Monitor, tr('System', 'Hệ thống')], ['light', Sun, tr('Light', 'Sáng')], ['dark', Moon, tr('Dark', 'Tối')]] as const).map(([val, Icon, label]) => (
-          <button
-            key={val}
-            role="radio"
-            aria-checked={theme === val}
-            title={label}
-            aria-label={label}
-            onClick={() => setTheme(val)}
-            className={cn(
-              'flex h-9 w-9 items-center justify-center rounded-md transition-colors cursor-pointer',
-              theme === val ? 'bg-accent text-accent-foreground' : 'text-ink-4 hover:bg-muted hover:text-body',
-            )}
-          >
-            <Icon className="h-4 w-4" />
-          </button>
-        ))}
-      </div>
+      <CustomSelect
+        value={currency}
+        onChange={setCurrency}
+        options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.flag} ${c.label}` }))}
+        wrapperClassName={compact ? 'shrink-0' : 'min-w-0 flex-1'}
+        className="text-body hover:bg-muted"
+        activeClassName="text-body hover:bg-muted"
+      />
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isDark}
+        aria-label={tr('Dark mode', 'Chế độ tối')}
+        title={isDark ? tr('Dark', 'Tối') : tr('Light', 'Sáng')}
+        onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        className="relative flex h-9 w-[3.75rem] shrink-0 items-center rounded-full bg-muted px-1 transition-colors cursor-pointer"
+      >
+        <span
+          className={cn(
+            'flex h-7 w-7 items-center justify-center rounded-full bg-card shadow-sm transition-transform duration-200 ease-out',
+            isDark ? 'translate-x-6 text-accent-foreground' : 'translate-x-0 text-amber-500',
+          )}
+        >
+          {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+        </span>
+      </button>
     </div>
   )
 }
