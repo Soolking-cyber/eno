@@ -13,6 +13,13 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 
 export const dynamic = 'force-dynamic'
 
+// Subcategory facet counts are expensive (one multi-LIKE COUNT per subcategory)
+// and change slowly. Memoize per filter-signature with a short TTL so the fan-out
+// runs at most once per minute per (category, district, verified) on a warm
+// instance, instead of on every cache miss.
+const SUBCOUNT_TTL = 60_000
+const subCountCache = new Map<string, { at: number; data: { slug: string; count: number }[] }>()
+
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams
 
@@ -367,6 +374,11 @@ export async function GET(req: NextRequest) {
 
   if (category && category !== 'all') {
     const subcats = SUBCATEGORIES[category] || []
+    const cacheKey = `${category}|${district || 'all'}|${verifiedFilter}`
+    const cached = subCountCache.get(cacheKey)
+    if (cached && Date.now() - cached.at < SUBCOUNT_TTL) {
+      promises[2] = Promise.resolve(cached.data)
+    } else {
     promises[2] = Promise.all(
       subcats.map(async (sub) => {
         const subFilters: Prisma.ListingWhereInput[] = [
@@ -416,7 +428,11 @@ export async function GET(req: NextRequest) {
         const count = await db.listing.count({ where: { AND: subFilters } })
         return { slug: sub.slug, count }
       })
-    )
+    ).then((data) => {
+      subCountCache.set(cacheKey, { at: Date.now(), data })
+      return data
+    })
+    }
   }
 
   const [listings, total, subCounts, categoryTotal] = await Promise.all([
