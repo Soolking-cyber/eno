@@ -17,6 +17,7 @@ export function PreferencesInline({ className, compact = false }: { className?: 
   const { currency, setCurrency } = useCurrency()
   const { resolved, setTheme } = useTheme()
   const code = LANGUAGES.find((l) => l.code === lang)?.label
+  const curSymbol = CURRENCIES.find((c) => c.code === currency)?.symbol
   const isDark = resolved === 'dark'
 
   return (
@@ -33,7 +34,8 @@ export function PreferencesInline({ className, compact = false }: { className?: 
       <CustomSelect
         value={currency}
         onChange={setCurrency}
-        options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.flag} ${c.label}` }))}
+        options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol}  ${c.label}` }))}
+        triggerLabel={compact ? curSymbol : undefined}
         wrapperClassName={compact ? 'shrink-0' : 'min-w-0 flex-1'}
         className="text-body hover:bg-muted"
         activeClassName="text-body hover:bg-muted"

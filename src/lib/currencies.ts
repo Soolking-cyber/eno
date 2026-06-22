@@ -10,21 +10,21 @@ export type CurrencyCode =
 
 // Curated to the nationalities eno.vn serves (mirrors the UI languages) + a few
 // common ones. Flag makes the picker instantly recognizable across languages.
-export const CURRENCIES: { code: CurrencyCode; flag: string; label: string }[] = [
-  { code: 'VND', flag: '🇻🇳', label: 'VND' },
-  { code: 'USD', flag: '🇺🇸', label: 'USD' },
-  { code: 'EUR', flag: '🇪🇺', label: 'EUR' },
-  { code: 'GBP', flag: '🇬🇧', label: 'GBP' },
-  { code: 'CNY', flag: '🇨🇳', label: 'CNY' },
-  { code: 'KRW', flag: '🇰🇷', label: 'KRW' },
-  { code: 'JPY', flag: '🇯🇵', label: 'JPY' },
-  { code: 'THB', flag: '🇹🇭', label: 'THB' },
-  { code: 'MYR', flag: '🇲🇾', label: 'MYR' },
-  { code: 'SGD', flag: '🇸🇬', label: 'SGD' },
-  { code: 'INR', flag: '🇮🇳', label: 'INR' },
-  { code: 'RUB', flag: '🇷🇺', label: 'RUB' },
-  { code: 'AUD', flag: '🇦🇺', label: 'AUD' },
-  { code: 'KHR', flag: '🇰🇭', label: 'KHR' },
+export const CURRENCIES: { code: CurrencyCode; symbol: string; label: string }[] = [
+  { code: 'VND', symbol: '₫', label: 'VND' },
+  { code: 'USD', symbol: '$', label: 'USD' },
+  { code: 'EUR', symbol: '€', label: 'EUR' },
+  { code: 'GBP', symbol: '£', label: 'GBP' },
+  { code: 'CNY', symbol: '¥', label: 'CNY' },
+  { code: 'KRW', symbol: '₩', label: 'KRW' },
+  { code: 'JPY', symbol: '¥', label: 'JPY' },
+  { code: 'THB', symbol: '฿', label: 'THB' },
+  { code: 'MYR', symbol: 'RM', label: 'MYR' },
+  { code: 'SGD', symbol: 'S$', label: 'SGD' },
+  { code: 'INR', symbol: '₹', label: 'INR' },
+  { code: 'RUB', symbol: '₽', label: 'RUB' },
+  { code: 'AUD', symbol: 'A$', label: 'AUD' },
+  { code: 'KHR', symbol: '៛', label: 'KHR' },
 ]
 
 export const CURRENCY_CODES = CURRENCIES.map((c) => c.code)
