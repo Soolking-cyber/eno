@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Eye, MessageSquareText, Tag, Clock, Store, Upload, Plus } from 'lucide-react'
+import { Eye, MessageSquareText, Tag, Clock, Store, Upload } from 'lucide-react'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
@@ -121,12 +121,7 @@ export function DashboardClient() {
               {d?.profile.email && <p className="truncate text-sm text-muted-foreground">{d.profile.email}</p>}
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Link href="/post" className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#004182]">
-              <Plus className="h-4 w-4" /> {tr('Post a listing', 'Đăng tin')}
-            </Link>
-            <SignOutButton />
-          </div>
+          <SignOutButton />
         </div>
 
         {/* Action strip — the 3 questions: messages? performance? needs action? */}
