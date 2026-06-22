@@ -21,10 +21,14 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url = (event.notification.data && event.notification.data.url) || '/dashboard'
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      // Focus an existing tab if one is open, else open a new one.
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (wins) => {
+      // Focus an existing tab if one is open (navigating it where supported), else
+      // open a new one.
       for (const w of wins) {
-        if ('focus' in w) { w.navigate(url); return w.focus() }
+        if ('focus' in w) {
+          if ('navigate' in w) { try { await w.navigate(url) } catch { /* cross-origin / not allowed */ } }
+          return w.focus()
+        }
       }
       return clients.openWindow(url)
     }),

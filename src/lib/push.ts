@@ -44,6 +44,8 @@ export async function sendPushToProfile(profileId: string, payload: PushPayload)
     }),
   )
 
-  if (dead.length) await db.pushSubscription.deleteMany({ where: { endpoint: { in: dead } } })
+  // Scope the prune to THIS profile's rows so a concurrent re-home of the same
+  // endpoint to another account isn't clobbered by our stale 410.
+  if (dead.length) await db.pushSubscription.deleteMany({ where: { profileId, endpoint: { in: dead } } })
   return sent
 }

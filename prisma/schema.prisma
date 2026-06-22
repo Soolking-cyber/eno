@@ -243,7 +243,7 @@ model Notification {
   id             String   @id @default(cuid())
   recipientId    String   @db.Uuid
   recipient      Profile  @relation("RecipientNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
-  type           String   // 'message' | 'offer' | 'system'
+  type           String   // 'message' | 'offer' | 'reminder' | 'system'
   title          String   // short headline (e.g. the actor's name)
   body           String?  // preview text
   actorName      String?  // who triggered it (denormalized display name)

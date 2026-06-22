@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
 import { sendPushToProfile } from '@/lib/push'
 import { STALE_DAYS } from '@/lib/stale'
@@ -7,6 +8,20 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
+// At most one reminder per recipient per ~day — skips anyone reminded within this
+// window so a never-confirming seller gets one nudge/day, not a backlog, and a
+// duplicate cron fire on the same day is idempotent.
+const REMIND_EVERY_MS = 20 * 60 * 60 * 1000
+const MAX_SELLERS = 1000 // safety cap per run
+const CONCURRENCY = 20   // bounded fan-out so we don't serialize hundreds of pushes
+
+function bearerOk(header: string | null, secret: string): boolean {
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : ''
+  const a = Buffer.from(token)
+  const b = Buffer.from(secret)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
 // Daily reminder job (Vercel Cron → see vercel.json). Guarded by CRON_SECRET:
 // Vercel attaches `Authorization: Bearer $CRON_SECRET` to scheduled invocations.
 // For every seller with ≥1 stale LIVE listing who hasn't opted out, drops one
@@ -14,8 +29,7 @@ export const maxDuration = 60
 // Web Push to their devices. One notification per seller per run (collapsed).
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
-  const auth = req.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!secret || !bearerOk(req.headers.get('authorization'), secret)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 401 })
   }
 
@@ -30,6 +44,7 @@ export async function GET(req: NextRequest) {
       OR: [{ availabilityConfirmedAt: { lt: cutoff } }, { availabilityConfirmedAt: null, postedAt: { lt: cutoff } }],
     },
     select: { seller: { select: { ownerId: true } } },
+    take: MAX_SELLERS * 50, // bounded scan; tally collapses to ≤ owners
   })
 
   // Tally stale count per owning profile.
@@ -40,29 +55,41 @@ export async function GET(req: NextRequest) {
   }
   if (countByOwner.size === 0) return NextResponse.json({ ok: true, notified: 0 })
 
-  // Respect the opt-out.
-  const optedIn = await db.profile.findMany({
-    where: { id: { in: [...countByOwner.keys()] }, dailyReminderOptIn: true },
-    select: { id: true, displayName: true },
-  })
+  // Respect the opt-out AND skip anyone already reminded within the window
+  // (cross-run dedupe → one nudge/day, idempotent on a duplicate cron fire).
+  const since = new Date(Date.now() - REMIND_EVERY_MS)
+  const ownerIds = [...countByOwner.keys()].slice(0, MAX_SELLERS)
+  const [optedIn, recent] = await Promise.all([
+    db.profile.findMany({ where: { id: { in: ownerIds }, dailyReminderOptIn: true }, select: { id: true } }),
+    db.notification.findMany({ where: { recipientId: { in: ownerIds }, type: 'reminder', createdAt: { gt: since } }, select: { recipientId: true } }),
+  ])
+  const remindedRecently = new Set(recent.map((r) => r.recipientId))
+  const targets = optedIn.filter((p) => !remindedRecently.has(p.id))
 
   let notified = 0
   let pushed = 0
-  for (const p of optedIn) {
-    const n = countByOwner.get(p.id) ?? 0
-    if (n === 0) continue
-    const title = '⏰ ' + (n === 1 ? 'Confirm your listing is still available' : `Confirm ${n} listings are still available`)
-    const body = 'Tap to refresh availability — fresh listings rise back to the top.'
-    try {
-      await db.notification.create({
-        data: { recipientId: p.id, type: 'reminder', title, body, actorName: null },
-      })
-      notified++
-      pushed += await sendPushToProfile(p.id, { title, body, url: '/dashboard', tag: 'eno-availability' })
-    } catch (e) {
-      console.error('[cron] reminder failed for', p.id, e)
-    }
+  // Bounded-concurrency fan-out so a few thousand sellers don't serialize past
+  // maxDuration; each owner's work (1 notif insert + push) runs independently.
+  for (let i = 0; i < targets.length; i += CONCURRENCY) {
+    const batch = targets.slice(i, i + CONCURRENCY)
+    const res = await Promise.all(
+      batch.map(async (p) => {
+        const n = countByOwner.get(p.id) ?? 0
+        if (n === 0) return { notified: 0, pushed: 0 }
+        const title = '⏰ ' + (n === 1 ? 'Confirm your listing is still available' : `Confirm ${n} listings are still available`)
+        const body = 'Tap to refresh availability — fresh listings rise back to the top.'
+        try {
+          await db.notification.create({ data: { recipientId: p.id, type: 'reminder', title, body, actorName: null } })
+          const sent = await sendPushToProfile(p.id, { title, body, url: '/dashboard', tag: 'eno-availability' })
+          return { notified: 1, pushed: sent }
+        } catch (e) {
+          console.error('[cron] reminder failed for', p.id, e)
+          return { notified: 0, pushed: 0 }
+        }
+      }),
+    )
+    for (const r of res) { notified += r.notified; pushed += r.pushed }
   }
 
-  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, notified, pushed })
+  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, skipped: optedIn.length - targets.length, notified, pushed })
 }

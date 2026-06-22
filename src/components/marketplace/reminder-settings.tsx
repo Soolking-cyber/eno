@@ -37,13 +37,16 @@ export function ReminderSettings() {
     }
   }, [])
 
+  const [savingPref, setSavingPref] = useState(false)
   const setPref = async (val: boolean) => {
-    setOptIn(val)
-    setSavedTick(false)
+    if (savingPref) return // in-flight guard — no racey double-writes
+    const prev = optIn
+    setOptIn(val); setSavedTick(false); setSavingPref(true)
     try {
-      await fetch('/api/profile/reminder-prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dailyReminderOptIn: val }) })
+      const res = await fetch('/api/profile/reminder-prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dailyReminderOptIn: val }) })
+      if (!res.ok) throw new Error('failed')
       setSavedTick(true)
-    } catch { /* keep local state */ }
+    } catch { setOptIn(prev) /* revert on failure */ } finally { setSavingPref(false) }
   }
 
   const enablePush = async () => {
@@ -53,7 +56,17 @@ export function ReminderSettings() {
       await navigator.serviceWorker.ready
       const perm = await Notification.requestPermission()
       if (perm !== 'granted') { setPushState(perm === 'denied' ? 'denied' : 'default'); return }
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID) as BufferSource })
+      const wanted = urlBase64ToUint8Array(VAPID)
+      // Reuse an existing subscription, but if it was made with a DIFFERENT VAPID
+      // key (e.g. keys rotated), drop it first — re-subscribing with a mismatched
+      // applicationServerKey otherwise throws.
+      let sub = await reg.pushManager.getSubscription()
+      if (sub) {
+        const cur = new Uint8Array(sub.options.applicationServerKey || new ArrayBuffer(0))
+        const matches = cur.length === wanted.length && cur.every((b, i) => b === wanted[i])
+        if (!matches) { await sub.unsubscribe().catch(() => {}); sub = null }
+      }
+      sub = sub || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: wanted as BufferSource })
       await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub.toJSON()) })
       setPushState('granted')
       if (!optIn) setPref(true) // enabling push implies you want the reminder

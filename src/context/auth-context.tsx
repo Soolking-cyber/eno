@@ -129,6 +129,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, identityLoaded, accountType, pathname, router])
 
   const signOut = async () => {
+    // Tear down Web Push FIRST so a shared device never keeps delivering the
+    // previous user's reminders to the next person who signs in here.
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration()
+        const sub = await reg?.pushManager.getSubscription()
+        if (sub) {
+          await fetch('/api/push/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {})
+          await sub.unsubscribe().catch(() => {})
+        }
+      }
+    } catch { /* push not supported / no reg — nothing to tear down */ }
+
     const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
     await createSupabaseBrowser().auth.signOut()
     setUser(null)
