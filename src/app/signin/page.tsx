@@ -30,8 +30,8 @@ function SignInPageInner() {
     <div className="grid min-h-screen w-full bg-background md:grid-cols-2">
       {/* Brand panel (desktop) — muted deep navy-blue (calmer than the vivid accent) */}
       <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1b4b76] to-[#0c2b48] p-12 text-white md:flex">
-        {/* Trust mascot imprint — centered on the right, clear of the left-aligned text */}
-        <Mascot name="wave" white className="pointer-events-none absolute right-6 top-1/2 h-80 w-80 -translate-y-1/2 opacity-[0.14] lg:right-12 lg:h-96 lg:w-96" />
+        {/* Trust mascot — anchored in the empty lower-right, clear of the text above */}
+        <Mascot name="wave" white className="pointer-events-none absolute bottom-8 right-8 h-72 w-72 opacity-[0.13] lg:h-96 lg:w-96" />
         <Link href="/" className="relative text-2xl font-black tracking-tight">eno.vn</Link>
         <div className="relative">
           <h1 className="text-4xl font-black leading-tight">{tr('e-commerce with no drama', 'Mua bán không drama.')}</h1>
