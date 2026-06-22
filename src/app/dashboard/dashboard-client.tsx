@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Eye, MessageSquareText, Tag, Clock, Upload } from 'lucide-react'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Header } from '@/components/marketplace/header'
@@ -11,6 +12,7 @@ import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-
 import { TrustBadge } from '@/components/marketplace/trust-badge'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
 import { ProfileEditor } from '@/components/marketplace/profile-editor'
+import { reviewKey, todayStr } from './availability/availability-client'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
 import { isStale } from '@/lib/stale'
@@ -53,8 +55,20 @@ function StatCard({ icon, value, label, href, accent }: { icon: React.ReactNode;
 export function DashboardClient() {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
+  const router = useRouter()
   const [data, setData] = useState<Dashboard | null>(null)
   const [tab, setTab] = useState<'listings' | 'account'>('listings')
+  const reviewedRef = useRef(false)
+
+  // Daily availability review: the FIRST time a seller with live listings opens
+  // the dashboard each day, send them through the quick review (auto, not opt-in).
+  useEffect(() => {
+    if (!user || reviewedRef.current || !data) return
+    if (!data.listings.some((l) => l.status === 'active')) return
+    let done = false
+    try { done = localStorage.getItem(reviewKey(user.id)) === todayStr() } catch {}
+    if (!done) { reviewedRef.current = true; router.replace('/dashboard/availability') }
+  }, [user, data, router])
 
   // Open the tab from ?tab= so the account-menu's "Listings" / "Settings" entries
   // deep-link straight to the right view.

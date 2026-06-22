@@ -1,5 +1,7 @@
 import 'server-only'
+import { after } from 'next/server'
 import { db } from './db'
+import { sendPushToProfile } from './push'
 
 export type SerializedMessage = { id: string; mine: true; body: string; createdAt: string }
 
@@ -50,6 +52,14 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
           listingId: convo.listingId,
         },
       })
+      // Web push so the recipient is notified even with eno.vn closed. Best-effort,
+      // after the response flushes — never delays the send.
+      after(() => sendPushToProfile(recipientId, {
+        title: senderName,
+        body: text.slice(0, 140),
+        url: `/messages/${convo.id}`,
+        tag: `convo-${convo.id}`,
+      }))
     } catch (e) {
       console.error('[messages] notify', e)
     }
