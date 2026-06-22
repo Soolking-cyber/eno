@@ -523,6 +523,12 @@ export async function POST(req: NextRequest) {
       ? body.images.filter(isListingImageUrl).slice(0, 8)
       : []
     const district = body.district ? String(body.district).trim().slice(0, 80) : null
+    const city = body.city ? String(body.city).trim().slice(0, 80) : 'Ho Chi Minh City'
+    const location = body.location ? String(body.location).trim().slice(0, 120) : (district || city)
+    // Optional precise pin from "use my current location" (validated to plausible ranges).
+    const latNum = Number(body.lat), lngNum = Number(body.lng)
+    const lat = Number.isFinite(latNum) && latNum >= -90 && latNum <= 90 ? latNum : null
+    const lng = Number.isFinite(lngNum) && lngNum >= -180 && lngNum <= 180 ? lngNum : null
 
     // Automated publish gate (manual per-listing verification removed — no
     // manpower). Listings go LIVE instantly; the reactive control is the trust
@@ -539,9 +545,11 @@ export async function POST(req: NextRequest) {
         priceUnit: 'VND',
         currency: '₫',
         negotiable: false,
-        location: district || 'Ho Chi Minh City',
+        location,
         district,
-        city: 'Ho Chi Minh City',
+        city,
+        lat,
+        lng,
         condition: body.condition ? String(body.condition).trim() : null,
         images: JSON.stringify(images),
         searchText: buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi]),

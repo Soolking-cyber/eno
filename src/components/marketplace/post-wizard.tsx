@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ImagePlus, X, BadgeCheck, ShieldCheck } from 'lucide-react'
+import { ChevronLeft, ImagePlus, X, BadgeCheck, ShieldCheck, MapPin, ChevronDown } from 'lucide-react'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
@@ -9,11 +9,10 @@ import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { trackPostListing } from '@/lib/analytics'
 import { VndInput } from './vnd-input'
-import { CustomSelect } from './custom-select'
+import { AreaFilter, type Geo, type Nearby } from './area-filter'
 import { Mascot } from './mascot'
 import { formatMoneyFull } from '@/lib/vnd'
 
-const DISTRICTS = ['District 1', 'District 3', 'District 4', 'District 7 (Phu My Hung)', 'Binh Thanh', 'Thu Duc (Thao Dien)', 'Phu Nhuan', 'Tan Binh']
 const STEPS = 4
 
 export function PostWizard({ categories }: { categories: SerializedCategory[] }) {
@@ -28,8 +27,12 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
-  const [district, setDistrict] = useState('')
   const [condition, setCondition] = useState('')
+  // Location via the shared AreaFilter (Province/Ward + one-tap "use my location").
+  const [areaOpen, setAreaOpen] = useState(false)
+  const [province, setProvince] = useState<Geo | null>(null)
+  const [ward, setWard] = useState<Geo | null>(null)
+  const [nearby, setNearby] = useState<Nearby | null>(null)
   const [photos, setPhotos] = useState<{ url: string; file: File }[]>([])
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
@@ -51,10 +54,15 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
   const isGoods = categorySlug === 'electronics' || categorySlug === 'moving-sale'
   const phoneOk = contactPhone.replace(/\D/g, '').length >= 9
 
+  // Derive the listing location from the area picker.
+  const district = ward?.name || province?.name || ''
+  const areaLabel = ward ? `${ward.name}${province ? `, ${province.name}` : ''}` : province ? province.name : (nearby ? t('Vị trí của bạn', 'Your location') : '')
+  const hasLocation = !!(province || ward || nearby)
+
   const canContinue =
     step === 1 ? !!categorySlug :
     step === 2 ? title.trim().length >= 3 :
-    step === 3 ? price.trim().length > 0 && !!district :
+    step === 3 ? price.trim().length > 0 && hasLocation :
     true
   const canSubmit = contactName.trim().length >= 2 && phoneOk && !submitting
 
@@ -96,6 +104,10 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
           description: description.trim(),
           price: Number(price),
           district: district || null,
+          city: province?.name || null,
+          location: ward?.name || province?.name || null,
+          lat: nearby?.lat ?? null,
+          lng: nearby?.lng ?? null,
           condition: isGoods ? condition || null : null,
           images: imageUrls,
           contactName: contactName.trim(),
@@ -224,14 +236,17 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-foreground">{t('Khu vực', 'Area')}</label>
-                <CustomSelect
-                  value={district}
-                  onChange={setDistrict}
-                  options={DISTRICTS.map((d) => ({ value: d, label: d }))}
-                  placeholder={t('Chọn khu vực', 'Select area')}
-                  className="bg-tint text-body py-3"
-                  activeClassName="bg-tint text-body hover:bg-accent hover:text-accent-foreground"
-                />
+                <button
+                  type="button"
+                  onClick={() => setAreaOpen(true)}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted"
+                >
+                  <span className={cn('flex min-w-0 items-center gap-2', areaLabel ? 'text-foreground font-medium' : 'text-ink-4')}>
+                    <MapPin className="h-4 w-4 shrink-0 text-accent-foreground" />
+                    <span className="truncate">{areaLabel || t('Chọn khu vực — hoặc dùng vị trí của bạn', 'Set area — or use your location')}</span>
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-ink-4" />
+                </button>
               </div>
 
               {isGoods && (
@@ -320,7 +335,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
               <div className="flex items-start gap-2 rounded-xl bg-accent px-4 py-3 text-xs text-accent-foreground">
                 <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{t('Tin của bạn sẽ được nhân viên eno.vn kiểm duyệt thực tế trước khi hiển thị.', 'Your listing will be verified by an eno.vn agent before going live.')}</span>
+                <span>{t('Tin của bạn sẽ hiển thị ngay. Người mua nhắn tin trong ứng dụng — số của bạn được giữ kín.', 'Your listing goes live right away. Buyers message you in-app — your number stays private.')}</span>
               </div>
 
               {error && <p role="alert" className="text-sm font-semibold text-red-600">{error}</p>}
@@ -344,10 +359,21 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
             disabled={!canSubmit}
             className="rounded-xl bg-[#0a66c2] px-7 py-2.5 text-sm font-bold text-white transition-all hover:bg-[#004182] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
           >
-            {submitting ? t('Đang gửi…', 'Submitting…') : t('Gửi để kiểm duyệt', 'Submit for verification')}
+            {submitting ? t('Đang đăng…', 'Posting…') : t('Đăng tin', 'Post listing')}
           </button>
         )}
       </div>
+
+      {/* Shared area picker — Province/Ward + one-tap "use my current location". */}
+      <AreaFilter
+        open={areaOpen}
+        onClose={() => setAreaOpen(false)}
+        province={province}
+        ward={ward}
+        nearby={nearby}
+        onApply={({ province: p, ward: w, nearby: nb }) => { setProvince(p); setWard(w); setNearby(nb) }}
+        onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
+      />
     </div>
   )
 }
