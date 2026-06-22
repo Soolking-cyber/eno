@@ -1,7 +1,8 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from './auth-context'
+import { createSupabaseBrowser } from '@/lib/supabase/browser'
 
 type View = 'list' | 'thread'
 
@@ -132,6 +133,43 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     document.addEventListener('visibilitychange', onVis)
     return () => { stop(); document.removeEventListener('visibilitychange', onVis) }
   }, [user, refreshUnread])
+
+  // REALTIME: warm the socket on sign-in and subscribe to my conversations so the
+  // unread badge + inbox update INSTANTLY on an incoming message (reuses the
+  // participant-gated convo:<id> broadcast — no DB change). The 8s poll above stays
+  // as a backstop. Keyed by the conversation-id set so it only re-subscribes when
+  // the set actually changes.
+  const convoIds = useMemo(() => (convos ?? []).slice(0, 30).map((c) => c.id).join(','), [convos])
+  useEffect(() => {
+    if (!user || !convoIds) return
+    const supabase = createSupabaseBrowser()
+    let cancelled = false
+    let debounce: ReturnType<typeof setTimeout> | null = null
+    const channels: ReturnType<typeof supabase.channel>[] = []
+    const bump = () => { if (debounce) return; debounce = setTimeout(() => { debounce = null; refreshUnread(); refreshConvos() }, 300) }
+    ;(async () => {
+      const { data } = await supabase.auth.getSession()
+      if (cancelled || !data.session) return
+      await supabase.realtime.setAuth(data.session.access_token)
+      supabase.realtime.connect() // warm the WS so subsequent thread subscribes are instant
+      for (const id of convoIds.split(',')) {
+        const ch = supabase
+          .channel(`convo:${id}`, { config: { private: true } })
+          .on('broadcast', { event: 'new_message' }, ({ payload }) => {
+            const p = (payload ?? {}) as { senderProfileId?: string }
+            if (p.senderProfileId && p.senderProfileId === user.id) return // my own echo
+            bump()
+          })
+          .subscribe()
+        channels.push(ch)
+      }
+    })()
+    return () => {
+      cancelled = true
+      if (debounce) clearTimeout(debounce)
+      channels.forEach((c) => supabase.removeChannel(c))
+    }
+  }, [user, convoIds, refreshUnread, refreshConvos])
 
   const openInbox = useCallback(() => { setView('list'); setConversationId(null); setStarting(false); setDraft(''); setPendingSend(false); setOpen(true); refreshConvos() }, [refreshConvos])
   // openThread does NOT reset the draft — the real thread inherits whatever was
