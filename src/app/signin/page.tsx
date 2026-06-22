@@ -7,7 +7,7 @@ import { ShieldCheck, MessageSquare, BadgeCheck } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInForm } from '@/components/marketplace/sign-in-form'
-import { EnoMascot } from '@/components/marketplace/eno-mascot'
+import { Mascot } from '@/components/marketplace/mascot'
 import { safeNextPath } from '@/lib/url'
 
 // Dedicated split-layout sign-in page (commerce-login pattern, eno.vn blue). Reuses
@@ -28,10 +28,10 @@ function SignInPageInner() {
 
   return (
     <div className="grid min-h-screen w-full bg-background md:grid-cols-2">
-      {/* Brand panel (desktop) */}
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0a66c2] to-[#004182] p-12 text-white md:flex">
+      {/* Brand panel (desktop) — muted deep navy-blue (calmer than the vivid accent) */}
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1b4b76] to-[#0c2b48] p-12 text-white md:flex">
         {/* Trust mascot imprint */}
-        <EnoMascot className="pointer-events-none absolute -bottom-12 -right-10 h-80 w-80 text-white opacity-[0.09]" />
+        <Mascot name="wave" white className="pointer-events-none absolute -bottom-10 -right-8 h-72 w-72 opacity-[0.12]" />
         <Link href="/" className="relative text-2xl font-black tracking-tight">eno.vn</Link>
         <div className="relative">
           <h1 className="text-4xl font-black leading-tight">{tr('e-commerce with no drama', 'Mua bán không drama.')}</h1>

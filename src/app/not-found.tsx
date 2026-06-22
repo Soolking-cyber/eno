@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Compass, Home, LifeBuoy, MapPin, Bike, Armchair, Tag, Building2, Briefcase, ShoppingBag, KeyRound, Search } from 'lucide-react'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { EnoMascot } from '@/components/marketplace/eno-mascot'
+import { Mascot } from '@/components/marketplace/mascot'
 import { Tr } from '@/context/language-context'
 
 export const metadata: Metadata = { title: 'Page not found | eno.vn' }
@@ -47,7 +47,7 @@ export default function NotFound() {
         </div>
 
         <div className="relative w-full max-w-lg text-center">
-          <EnoMascot className="mx-auto h-24 w-24 text-accent-foreground" />
+          <Mascot name="search" className="mx-auto h-28 w-28" />
           <p className="eyebrow mt-6 text-accent-foreground"><Tr text="Error 404" /></p>
           <h1 className="h-display mt-2 text-foreground"><Tr text="This page has moved on." /></h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-body">

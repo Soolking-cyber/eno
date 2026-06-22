@@ -954,10 +954,10 @@ export function ListingsExplorer({
             <button
               onClick={() => handleCategorySelect('all')}
               className={cn(
-                'flex items-center gap-2 rounded-xl border p-2 text-xs font-bold transition-all cursor-pointer justify-center shadow-xs',
+                'flex items-center gap-2 rounded-xl p-2 text-xs font-bold transition-colors cursor-pointer justify-center',
                 activeCategory === 'all'
-                  ? 'bg-accent border-accent-foreground/20 text-accent-foreground shadow-sm'
-                  : 'bg-muted border-border text-body hover:bg-tint'
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-body hover:bg-muted'
               )}
             >
               <span className="text-[11px]">{tr('All', 'Tất cả')}</span>
@@ -969,10 +969,10 @@ export function ListingsExplorer({
                    key={cat.id}
                    onClick={() => handleCategorySelect(cat.slug)}
                    className={cn(
-                     'flex items-center gap-2 rounded-xl border p-2 text-xs font-bold transition-all cursor-pointer justify-center min-w-0 shadow-xs',
+                     'flex items-center gap-2 rounded-xl p-2 text-xs font-bold transition-colors cursor-pointer justify-center min-w-0',
                      isActive
-                       ? 'bg-accent border-accent-foreground/20 text-accent-foreground shadow-sm'
-                       : 'bg-muted border-border text-body hover:bg-tint'
+                       ? 'bg-accent text-accent-foreground'
+                       : 'text-body hover:bg-muted'
                    )}
                 >
                   <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-accent-foreground' : 'text-accent-foreground')} />
@@ -994,10 +994,10 @@ export function ListingsExplorer({
             <button
               onClick={() => setActiveSubcategory('all')}
               className={cn(
-                'rounded-lg px-2.5 py-1 text-xs font-bold transition-all border cursor-pointer',
+                'rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
                 activeSubcategory === 'all'
-                  ? 'bg-accent text-accent-foreground border-[#0a66c2]/20 shadow-xs'
-                  : 'bg-muted border-border text-ink-3'
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-body hover:bg-muted'
               )}
             >
               {tr('All', 'Tất cả')}
@@ -1009,10 +1009,10 @@ export function ListingsExplorer({
                   key={sub.slug}
                   onClick={() => setActiveSubcategory(sub.slug)}
                   className={cn(
-                    'rounded-lg px-2.5 py-1 text-xs font-bold transition-all border cursor-pointer',
+                    'rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
                     isSubActive
-                      ? 'bg-accent text-accent-foreground border-[#0a66c2]/20 shadow-xs'
-                      : 'bg-muted border-border text-ink-3'
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-body hover:bg-muted'
                   )}
                 >
                   <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
@@ -1210,7 +1210,7 @@ export function ListingsExplorer({
                                 <button
                                   key={i}
                                   onClick={() => { setLandingQuery(term); handleLandingSearch(term) }}
-                                  className="rounded-xl bg-tint px-3 py-1.5 text-xs font-semibold text-body hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                                  className="rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
                                 >
                                   {term}
                                 </button>
@@ -1235,7 +1235,7 @@ export function ListingsExplorer({
                                 <button
                                   key={i}
                                   onClick={() => applyRecentLocation(loc)}
-                                  className="flex items-center gap-1.5 rounded-xl bg-tint px-3 py-1.5 text-xs font-semibold text-body hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                                  className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
                                 >
                                   <MapPin className="h-3 w-3" />
                                   {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
@@ -1356,7 +1356,7 @@ export function ListingsExplorer({
               <button
                 key={i}
                 onClick={c.onClear}
-                className="inline-flex items-center gap-1 rounded-xl bg-tint px-3 py-1.5 text-xs font-semibold text-body hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
               >
                 {c.label}
                 <X className="h-3 w-3" />
@@ -1409,7 +1409,7 @@ export function ListingsExplorer({
                       'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer select-none whitespace-nowrap',
                       activeCategory === 'all'
                         ? 'bg-[#0a66c2] text-white'
-                        : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground'
+                        : 'text-body hover:bg-muted'
                     )}
                   >
                     <Layers className="h-3.5 w-3.5" />
@@ -1428,7 +1428,7 @@ export function ListingsExplorer({
                         'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer select-none whitespace-nowrap',
                         isActive
                           ? 'bg-[#0a66c2] text-white'
-                          : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground'
+                          : 'text-body hover:bg-muted'
                       )}
                     >
                       <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-white' : 'text-accent-foreground')} />
@@ -1453,7 +1453,7 @@ export function ListingsExplorer({
                         'shrink-0 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap',
                         activeSubcategory === 'all'
                           ? 'bg-[#0a66c2] text-white'
-                          : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground'
+                          : 'text-body hover:bg-muted'
                       )}
                     >
                       {tr('All', 'Tất cả')}
@@ -1469,7 +1469,7 @@ export function ListingsExplorer({
                             'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap',
                             isActive
                               ? 'bg-[#0a66c2] text-white'
-                              : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground'
+                              : 'text-body hover:bg-muted'
                           )}
                         >
                           <span><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span>

@@ -2,10 +2,10 @@
 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Heart } from 'lucide-react'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { ListingCard } from '@/components/marketplace/listing-card'
+import { Mascot } from '@/components/marketplace/mascot'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 
@@ -38,7 +38,7 @@ export default function SavedPage() {
           </div>
         ) : list.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-            <Heart className="h-12 w-12 text-line-strong" />
+            <Mascot name="saved" className="h-28 w-28" />
             <p className="text-base font-semibold text-foreground">
               {tr('No saved listings yet', 'Chưa có tin nào được lưu')}
             </p>

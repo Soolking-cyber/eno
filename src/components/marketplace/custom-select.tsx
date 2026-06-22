@@ -78,7 +78,7 @@ export function CustomSelect({
           !isOpen && 'rounded-xl border-transparent',
           !isOpen && (value !== 'all' && value !== 'newest'
             ? (activeClassName ?? 'bg-accent text-accent-foreground')
-            : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground'),
+            : 'text-body hover:bg-muted'), // flush at rest, color on hover (one-canvas)
           className,
           // Open: morph into the top of the window (overrides caller styling).
           isOpen && 'rounded-t-2xl rounded-b-none border-border border-b-transparent bg-card text-foreground shadow-pop',

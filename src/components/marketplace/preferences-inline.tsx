@@ -24,10 +24,10 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         options={LANGUAGES.map((l) => ({ value: l.code, label: l.native }))}
         triggerLabel={compact ? code : undefined}
         wrapperClassName={compact ? 'shrink-0' : 'min-w-0 flex-1'}
-        className="bg-tint text-body"
-        activeClassName="bg-tint text-body hover:bg-accent hover:text-accent-foreground"
+        className="text-body hover:bg-muted"
+        activeClassName="text-body hover:bg-muted"
       />
-      <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-tint p-0.5">
+      <div className="flex shrink-0 items-center gap-0.5 rounded-lg p-0.5">
         {([['system', Monitor, tr('System', 'Hệ thống')], ['light', Sun, tr('Light', 'Sáng')], ['dark', Moon, tr('Dark', 'Tối')]] as const).map(([val, Icon, label]) => (
           <button
             key={val}
@@ -38,7 +38,7 @@ export function PreferencesInline({ className, compact = false }: { className?: 
             onClick={() => setTheme(val)}
             className={cn(
               'flex h-9 w-9 items-center justify-center rounded-md transition-colors cursor-pointer',
-              theme === val ? 'bg-card text-accent-foreground shadow-sm' : 'text-ink-4 hover:text-body',
+              theme === val ? 'bg-accent text-accent-foreground' : 'text-ink-4 hover:bg-muted hover:text-body',
             )}
           >
             <Icon className="h-4 w-4" />

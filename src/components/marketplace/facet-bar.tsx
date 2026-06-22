@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
-import { MapPin, ShieldCheck, ChevronDown } from 'lucide-react'
+import { MapPin, ChevronDown } from 'lucide-react'
 import { CustomSelect } from './custom-select'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useLanguage } from '@/context/language-context'
@@ -126,14 +126,14 @@ export function FacetBar({
       className={cn(
         'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
         wrap,
-        areaActive ? active : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground',
+        areaActive ? active : 'text-body hover:bg-muted',
       )}
     >
       <span className="flex items-center gap-1.5 truncate">
         <MapPin className={cn('h-3.5 w-3.5', areaActive ? 'text-accent-foreground' : 'text-ink-4')} />
         <span className="truncate">{areaLabel}</span>
       </span>
-      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-600" />
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-4" />
     </button>,
     <CustomSelect
       key="price"
@@ -213,11 +213,6 @@ export function FacetBar({
     // Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps.
     <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
       {facets}
-      {/* Static trust indicator — every listing on eno.vn is verified (not a toggle). */}
-      <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-accent-foreground">
-        <ShieldCheck className="h-3.5 w-3.5" />
-        {tr('Verified only', 'Chỉ tin đã xác minh')}
-      </span>
       {hasActive && (
         <button
           onClick={() => {
