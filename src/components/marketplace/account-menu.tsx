@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Store, LogOut } from 'lucide-react'
+import { Store, LogOut, Settings } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { PreferencesInline } from './preferences-inline'
@@ -73,8 +73,11 @@ export function AccountMenu() {
             {me?.email && <p className="truncate text-xs text-ink-4">{me.email}</p>}
           </div>
           <div className="pt-1">
-            <Link href="/dashboard" role="menuitem" onClick={() => setOpen(false)} className={item}>
-              <Store className="h-4 w-4 text-accent-foreground" /> {tr('Dashboard', 'Bảng điều khiển')}
+            <Link href="/dashboard?tab=listings" role="menuitem" onClick={() => setOpen(false)} className={item}>
+              <Store className="h-4 w-4 text-accent-foreground" /> {tr('Listings', 'Tin đăng')}
+            </Link>
+            <Link href="/dashboard?tab=account" role="menuitem" onClick={() => setOpen(false)} className={item}>
+              <Settings className="h-4 w-4 text-accent-foreground" /> {tr('Settings', 'Cài đặt')}
             </Link>
 
             {/* Language + theme — compact one line (language shows its 2-letter code) */}

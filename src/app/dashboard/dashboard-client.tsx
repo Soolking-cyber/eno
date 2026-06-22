@@ -55,6 +55,13 @@ export function DashboardClient() {
   const [data, setData] = useState<Dashboard | null>(null)
   const [tab, setTab] = useState<'listings' | 'account'>('listings')
 
+  // Open the tab from ?tab= so the account-menu's "Listings" / "Settings" entries
+  // deep-link straight to the right view.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (new URLSearchParams(window.location.search).get('tab') === 'account') setTab('account')
+  }, [])
+
   const refresh = useCallback(() => {
     const uid = user?.id
     fetch('/api/dashboard')
@@ -104,7 +111,7 @@ export function DashboardClient() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-3 py-6 sm:px-6">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-3 py-6 sm:px-6 lg:px-8">
         {/* Identity header — avatar · name · email · trust, with post + sign out */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -138,7 +145,7 @@ export function DashboardClient() {
                 tab === tb ? 'border-[#0a66c2] text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
-              {tb === 'listings' ? tr('Listings', 'Tin đăng') : tr('Account', 'Tài khoản')}
+              {tb === 'listings' ? tr('Listings', 'Tin đăng') : tr('Settings', 'Cài đặt')}
             </button>
           ))}
         </div>
