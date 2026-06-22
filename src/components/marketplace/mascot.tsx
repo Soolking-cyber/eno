@@ -3,22 +3,28 @@ import { cn } from '@/lib/utils'
 export type MascotName = 'wave' | 'saved' | 'help' | 'key' | 'search' | 'profile' | 'chat' | 'success'
 
 /**
- * eno.vn's hand-drawn shield mascot illustrations (public/mascots/*.png).
- * They're dark line-art on transparent, so in DARK mode we flip them to clean
- * white via `brightness-0 invert`; pass `white` to force white on any colored
- * surface (e.g. the blue sign-in panel). Decorative → lazy + empty alt.
+ * eno.vn's hand-drawn shield mascots — vector-traced from the originals
+ * (public/mascots/*.svg) and rendered as a CSS mask filled with `currentColor`,
+ * so they're crisp at any size and adapt to the theme automatically: dark line-art
+ * in light mode, light line-art in dark mode (via `text-foreground`). No raster,
+ * no dark-mode invert hacks. Pass `white` to force white (e.g. on the blue panel).
  */
-export function Mascot({ name, className, white = false, alt }: { name: MascotName; className?: string; white?: boolean; alt?: string }) {
+export function Mascot({ name, className, white = false }: { name: MascotName; className?: string; white?: boolean }) {
+  const url = `url(/mascots/${name}.svg)`
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={`/mascots/${name}.png`}
-      alt={alt ?? ''}
-      aria-hidden={alt ? undefined : true}
-      loading="lazy"
-      decoding="async"
-      draggable={false}
-      className={cn('select-none object-contain', white ? '[filter:brightness(0)_invert(1)]' : 'dark:[filter:brightness(0)_invert(1)]', className)}
+    <span
+      aria-hidden
+      className={cn('inline-block bg-current', white ? 'text-white' : 'text-foreground', className)}
+      style={{
+        maskImage: url,
+        WebkitMaskImage: url,
+        maskRepeat: 'no-repeat',
+        WebkitMaskRepeat: 'no-repeat',
+        maskPosition: 'center',
+        WebkitMaskPosition: 'center',
+        maskSize: 'contain',
+        WebkitMaskSize: 'contain',
+      }}
     />
   )
 }
