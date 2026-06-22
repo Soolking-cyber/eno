@@ -172,6 +172,10 @@ model Listing {
   @@index([city])
   @@index([condition])
   @@index([views])
+  // Accelerates the accent-folded search (`searchText LIKE '%term%'`). Requires the
+  // pg_trgm extension (already installed). Trivial at current row counts but keeps
+  // search from sequential-scanning as the catalog grows.
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 // One row per (listing, authenticated viewer) who revealed the seller's contact.
