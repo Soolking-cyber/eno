@@ -48,7 +48,9 @@ export async function POST(req: NextRequest) {
       select: { id: true, sellerId: true, seller: { select: { ownerId: true } } },
     })
     if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
-    sellerId = sellerId ?? listing.sellerId
+    // Always derive the storefront from the listing — never trust a client-supplied
+    // sellerId here, or a report about listing X could be attributed to seller Y.
+    sellerId = listing.sellerId
     targetProfileId = listing.seller?.ownerId ?? null
     const openCount = await db.report.count({ where: { listingId, status: 'open' } })
     // Already heavily flagged — silently accept (don't reveal the cap).
