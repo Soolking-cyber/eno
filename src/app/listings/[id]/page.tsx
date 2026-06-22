@@ -22,11 +22,10 @@ import { getServerLang, getDict } from '@/lib/translate-server'
 import { cn } from '@/lib/utils'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
-import { RevealContact } from '@/components/marketplace/reveal-contact'
+import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { TrackView } from '@/components/marketplace/track-view'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SaveListingButton } from '@/components/marketplace/save-listing-button'
-import { OfferButton } from '@/components/marketplace/offer-button'
 import { currencyCode } from '@/lib/analytics'
 
 type Props = {
@@ -256,11 +255,9 @@ export default async function ListingPage({ params }: Props) {
                 </div>
               )}
 
-              {/* Contact is auth-gated; the number is never in this payload */}
-              <RevealContact listingId={listing.id} listingTitle={displayTitle} price={listing.price} currency={currencyCode(listing.currency)} />
-
-              {/* Quick offer — sends a price into the chat for the seller to accept/counter */}
-              <OfferButton listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={listing.currency} />
+              {/* Unified contact + offer (auth-gated; number never in this payload).
+                  Type a message or tap "Make an offer", then send → opens the thread. */}
+              <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={currencyCode(listing.currency)} />
 
               <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 border-t border-border pt-4 cursor-pointer">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">
