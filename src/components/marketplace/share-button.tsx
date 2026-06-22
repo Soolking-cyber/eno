@@ -85,19 +85,20 @@ export function ShareButton({ url, title, className }: { url: string; title: str
           <p className="px-1 pb-2 text-xs font-bold text-foreground">{tr('Share this listing', 'Chia sẻ tin này')}</p>
           <div className="grid grid-cols-3 gap-1">
             {channels.map(({ key, label, href, bg, Icon }) => (
-              <a
+              // Buttons (not <a href="share-url">) so ad/social blockers (EasyList
+              // "Social", Brave, Safari content blockers) can't hide these — they
+              // match on anchor hrefs pointing at share URLs.
+              <button
                 key={key}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setOpen(false)}
-                className="flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted"
+                type="button"
+                onClick={() => { window.open(href, '_blank', 'noopener,noreferrer'); setOpen(false) }}
+                className="flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted cursor-pointer"
               >
                 <span className={cn('flex h-9 w-9 items-center justify-center rounded-full text-white', bg)}>
                   <Icon className="h-[18px] w-[18px]" />
                 </span>
                 <span className="text-[10px] font-medium text-body">{label}</span>
-              </a>
+              </button>
             ))}
           </div>
 
