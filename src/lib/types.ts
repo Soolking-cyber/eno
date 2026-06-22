@@ -62,6 +62,8 @@ export type SerializedListing = {
   postedAt: string
   views: number
   savedCount: number
+  contactCount: number
+  availabilityConfirmedAt: string | null
   featured: boolean
   attributes: Record<string, unknown> | null
 }

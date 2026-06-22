@@ -7,6 +7,7 @@ import { SUBCATEGORIES } from '@/lib/subcategories'
 import { fold, buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
+import { isListingImageUrl } from '@/lib/listing-image'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 
 export const dynamic = 'force-dynamic'
@@ -453,9 +454,8 @@ export async function GET(req: NextRequest) {
 // (low trust) or has no photo — see the autoPublish gate below; abuse is handled
 // reactively by the trust score + reporting.
 // normalizePhone is shared (src/lib/phone.ts) so the later verified-phone claim
-// joins on the exact same canonical form.
-// Only accept Supabase Storage URLs for our project (no arbitrary remote images).
-const SUPABASE_IMG = /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/listings\//
+// joins on the exact same canonical form. Image URLs validated via the shared,
+// host-pinned isListingImageUrl() (our project's bucket only).
 
 export async function POST(req: NextRequest) {
   try {
@@ -498,7 +498,7 @@ export async function POST(req: NextRequest) {
         })
 
     const images: string[] = Array.isArray(body.images)
-      ? body.images.filter((u: unknown): u is string => typeof u === 'string' && SUPABASE_IMG.test(u)).slice(0, 8)
+      ? body.images.filter(isListingImageUrl).slice(0, 8)
       : []
     const district = body.district ? String(body.district).trim().slice(0, 80) : null
 

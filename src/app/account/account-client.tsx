@@ -99,18 +99,18 @@ export function AccountClient() {
 
         {/* Quick links */}
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          {seller && (
+            <Link href="/dashboard" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-pop hover:border-[#0a66c2]/30 transition-colors">
+              <Store className="h-5 w-5 text-accent-foreground" />
+              <span className="text-sm font-semibold text-foreground">{tr('Seller dashboard', 'Bảng điều khiển')}</span>
+              <ChevronRight className="ml-auto h-4 w-4 text-line-strong" />
+            </Link>
+          )}
           <Link href="/saved" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-pop hover:border-[#0a66c2]/30 transition-colors">
             <Heart className="h-5 w-5 text-accent-foreground" />
             <span className="text-sm font-semibold text-foreground">{tr('Saved listings', 'Tin đã lưu')}</span>
             <ChevronRight className="ml-auto h-4 w-4 text-line-strong" />
           </Link>
-          {seller && (
-            <Link href={`/sellers/${seller.id}`} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-pop hover:border-[#0a66c2]/30 transition-colors">
-              <Store className="h-5 w-5 text-accent-foreground" />
-              <span className="text-sm font-semibold text-foreground">{tr('My business profile', 'Hồ sơ doanh nghiệp')}</span>
-              <ChevronRight className="ml-auto h-4 w-4 text-line-strong" />
-            </Link>
-          )}
         </div>
 
         {/* My listings */}

@@ -60,13 +60,11 @@ export function AccountMenu() {
             {me?.email && <p className="truncate text-xs text-ink-4">{me.email}</p>}
           </div>
           <div className="pt-1">
-            {me?.sellerId && (
-              <Link href={`/sellers/${me.sellerId}`} role="menuitem" onClick={() => setOpen(false)} className={item}>
-                <Store className="h-4 w-4 text-accent-foreground" /> {tr('My business profile', 'Hồ sơ doanh nghiệp')}
-              </Link>
-            )}
+            <Link href="/dashboard" role="menuitem" onClick={() => setOpen(false)} className={item}>
+              <Store className="h-4 w-4 text-accent-foreground" /> {tr('Dashboard', 'Bảng điều khiển')}
+            </Link>
             <Link href="/account" role="menuitem" onClick={() => setOpen(false)} className={item}>
-              <User className="h-4 w-4 text-accent-foreground" /> {tr('My listings', 'Tin của tôi')}
+              <User className="h-4 w-4 text-accent-foreground" /> {tr('Account', 'Tài khoản')}
             </Link>
             <Link href="/saved" role="menuitem" onClick={() => setOpen(false)} className={item}>
               <Heart className="h-4 w-4 text-accent-foreground" /> {tr('Saved listings', 'Tin đã lưu')}

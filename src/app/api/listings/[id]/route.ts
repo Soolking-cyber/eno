@@ -4,11 +4,10 @@ import { checkListingOwner } from '@/lib/listing-owner'
 import { containsPhoneNumber } from '@/lib/phone'
 import { buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
+import { isListingImageUrl } from '@/lib/listing-image'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const SUPABASE_IMG = /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/listings\//
 
 // PATCH — a seller edits their OWN listing (title/description/price/district/
 // condition/images). Category isn't editable here. Re-runs the same guards as
@@ -57,7 +56,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (body.condition !== undefined) data.condition = body.condition ? String(body.condition).trim() : null
   if (Array.isArray(body.images)) {
-    const images = (body.images as unknown[]).filter((u): u is string => typeof u === 'string' && SUPABASE_IMG.test(u)).slice(0, 8)
+    const images = (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     data.images = JSON.stringify(images)
   }
 

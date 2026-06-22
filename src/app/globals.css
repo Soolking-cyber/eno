@@ -165,44 +165,46 @@
 .dark {
   color-scheme: dark;
 
-  --brand: #2f86e0;        /* brand blue, brightened for dark surfaces */
-  --brand-dark: #5aa2ec;   /* hover goes LIGHTER in dark */
-  --brand-light: #2a4a6b;
-  --brand-50: #13243a;     /* dark blue tint (was #e8f1fb) */
-  --brand-100: #1a3553;
+  /* Softer "dark dimmed" palette — a lighter slate canvas (not near-black) with
+     brighter text tokens so every text/background pair clears WCAG AA. */
+  --brand: #3b8ee6;        /* brand blue, brightened for dark surfaces */
+  --brand-dark: #74b3f2;   /* hover goes LIGHTER in dark */
+  --brand-light: #2f5377;
+  --brand-50: #17314d;     /* dark blue tint (was #e8f1fb) */
+  --brand-100: #214161;
 
-  --background: #0e1116;   /* deep slate canvas */
-  --foreground: #e6e9ef;
-  --card: #161a22;         /* elevated surface */
-  --card-foreground: #e6e9ef;
-  --popover: #1a1f29;
-  --popover-foreground: #e6e9ef;
+  --background: #1a1e26;   /* soft slate canvas (lighter than near-black) */
+  --foreground: #eef1f6;
+  --card: #232834;         /* elevated surface, sits clearly above the canvas */
+  --card-foreground: #eef1f6;
+  --popover: #282e3b;
+  --popover-foreground: #eef1f6;
 
   --primary: #0a66c2;      /* primary button keeps brand blue + white text */
   --primary-foreground: #ffffff;
-  --secondary: #262b36;
-  --secondary-foreground: #e6e9ef;
-  --muted: #1c212b;
-  --muted-foreground: #9aa6b6;
-  --accent: #13243a;       /* blue tint surface */
-  --accent-foreground: #5aa2ec;
+  --secondary: #2f3643;
+  --secondary-foreground: #eef1f6;
+  --muted: #262c37;
+  --muted-foreground: #b4bdca; /* ~7:1 on card — readable secondary text */
+  --accent: #17314d;       /* blue tint surface */
+  --accent-foreground: #74b3f2;
   --destructive: #f0616b;
-  --border: #272d39;
-  --input: #2b3240;
-  --ring: #3b8eea;
+  --border: #353c4a;       /* more visible separators on the lighter canvas */
+  --input: #3a4150;
+  --ring: #4f97ee;
 
-  /* Ink ramp inverted (light → dark text) */
-  --ink: #e6e9ef;
-  --ink-2: #c2cad6;
-  --ink-3: #9aa6b6;
-  --ink-4: #6b7686;
-  --body: #aab4c2;
-  --tint: #1c212b;
-  --line-strong: #323a48;
-  --skeleton: #1c212b;
+  /* Ink ramp inverted (light → dark text), brightened for contrast */
+  --ink: #eef1f6;
+  --ink-2: #d2d9e3;
+  --ink-3: #b4bdca;
+  --ink-4: #8995a6;        /* ~4.9:1 on canvas — AA for meta text */
+  --body: #c6cdd9;         /* ~8.8:1 on card — comfortable body text */
+  --tint: #262c37;
+  --line-strong: #3f4757;
+  --skeleton: #262c37;
   --skeleton-sheen: rgba(255, 255, 255, 0.06);
 
-  --verified: #5aa2ec;
+  --verified: #74b3f2;
   --pending: #f5b042;
 
   /* Deepen elevation so surfaces still read on the dark canvas */
@@ -216,14 +218,14 @@
   --chart-4: #5aa2ec;
   --chart-5: #34d399;
 
-  --sidebar: #161a22;
-  --sidebar-foreground: #e6e9ef;
-  --sidebar-primary: #2f86e0;
+  --sidebar: #232834;
+  --sidebar-foreground: #eef1f6;
+  --sidebar-primary: #3b8ee6;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #13243a;
-  --sidebar-accent-foreground: #5aa2ec;
-  --sidebar-border: #272d39;
-  --sidebar-ring: #3b8eea;
+  --sidebar-accent: #17314d;
+  --sidebar-accent-foreground: #74b3f2;
+  --sidebar-border: #353c4a;
+  --sidebar-ring: #4f97ee;
 }
 
 @layer base {

@@ -63,6 +63,8 @@ export function serializeListing(
     postedAt: l.postedAt.toISOString(),
     views: l.views,
     savedCount: l.savedCount,
+    contactCount: l.contactCount,
+    availabilityConfirmedAt: l.availabilityConfirmedAt ? l.availabilityConfirmedAt.toISOString() : null,
     featured: l.featured,
     attributes: safeParse<Record<string, unknown> | null>(l.attributes, null),
   }

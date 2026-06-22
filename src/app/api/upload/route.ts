@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin, LISTINGS_BUCKET } from '@/lib/supabase-admin'
+import { getCurrentProfileId } from '@/lib/admin'
+import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
 
@@ -13,8 +15,18 @@ const ALLOWED: Record<string, string> = {
 const MAX_BYTES = 5 * 1024 * 1024 // 5MB per file
 
 // Receives image files (multipart), uploads to Supabase Storage, returns public URLs.
-export async function POST(req: Request) {
+// Kept open (the post wizard is a guest/anonymous flow), but RATE-LIMITED to stop
+// the endpoint being abused as free image hosting / for storage-cost bloat:
+// generous for signed-in users, tighter per-IP for anonymous uploaders.
+export async function POST(req: NextRequest) {
   try {
+    const profileId = await getCurrentProfileId()
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+    const limit = profileId
+      ? await rateLimit('upload-user', profileId, 120, '1 h')
+      : await rateLimit('upload-ip', ip, 30, '1 h')
+    if (!limit.success) return NextResponse.json({ error: 'rate_limited', urls: [], failed: 0 }, { status: 429 })
+
     const form = await req.formData()
     const files = form.getAll('files').filter((f): f is File => f instanceof File)
     if (files.length === 0) return NextResponse.json({ urls: [], failed: 0 })
