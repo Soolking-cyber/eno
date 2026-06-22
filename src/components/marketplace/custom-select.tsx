@@ -92,6 +92,7 @@ export function CustomSelect({
       {isOpen && mounted && createPortal(
         <div
           ref={menuRef}
+          data-portal-menu
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
           className="z-[100] max-h-60 overflow-y-auto overflow-x-hidden rounded-b-2xl border border-t-border border-border bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
         >

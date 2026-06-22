@@ -18,7 +18,14 @@ export function AccountMenu() {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const onClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    const onClick = (e: MouseEvent) => {
+      const t = e.target as Element
+      // Ignore clicks inside the menu itself OR inside any portaled dropdown it
+      // opened (e.g. the language CustomSelect, which renders to <body>) — else the
+      // menu closes before the option's click registers.
+      if (ref.current?.contains(t) || t?.closest?.('[data-portal-menu]')) return
+      setOpen(false)
+    }
     document.addEventListener('mousedown', onClick)
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
