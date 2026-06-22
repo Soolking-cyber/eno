@@ -1,7 +1,7 @@
 import type { Listing, Category, Seller } from '@prisma/client'
 import type { SerializedListing, CategoryColor } from './types'
 
-function safeParse<T>(value: string | null, fallback: T): T {
+export function safeParse<T>(value: string | null, fallback: T): T {
   if (!value) return fallback
   try {
     return JSON.parse(value) as T

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Eye, MessageSquareText, RefreshCw, CheckCircle2, RotateCcw, Trash2, Clock, ExternalLink } from 'lucide-react'
+import { Eye, MessageSquareText, RefreshCw, CheckCircle2, RotateCcw, Trash2, Clock, ExternalLink, Pencil } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { useLanguage } from '@/context/language-context'
@@ -111,6 +111,9 @@ export function DashboardListingRow({ listing, onChanged }: { listing: Serialize
               <RotateCcw className="h-3 w-3" /> {tr('Relist', 'Đăng lại')}
             </button>
           )}
+          <button onClick={() => router.push(`/listings/${listing.id}/edit`)} onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} className={btn}>
+            <Pencil className="h-3 w-3" /> {tr('Edit', 'Sửa')}
+          </button>
           <button onClick={() => router.push(`/listings/${listing.id}`)} className={btn}>
             <ExternalLink className="h-3 w-3" /> {tr('View', 'Xem')}
           </button>
