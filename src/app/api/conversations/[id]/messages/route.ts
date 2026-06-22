@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
+import { insertMessage } from '@/lib/messages'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,44 +35,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const iAmSeller = convo.sellerProfileId === meId
   if (!iAmBuyer && !iAmSeller) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
-  const [message] = await db.$transaction([
-    db.message.create({
-      data: { conversationId: id, senderProfileId: meId, body: text },
-      select: { id: true, body: true, createdAt: true },
-    }),
-    db.conversation.update({
-      where: { id },
-      data: {
-        lastMessageAt: new Date(),
-        lastMessageText: text.slice(0, 140),
-        // Bump the OTHER party's unread.
-        ...(iAmBuyer ? { sellerUnread: { increment: 1 } } : { buyerUnread: { increment: 1 } }),
-      },
-    }),
-  ])
-
-  // Notify the recipient (best-effort — a notification failure must never fail the
-  // send). An unclaimed seller (null profile) can't be notified, so skip.
-  const recipientId = iAmBuyer ? convo.sellerProfileId : convo.buyerProfileId
-  if (recipientId) {
-    try {
-      const sender = await db.profile.findUnique({ where: { id: meId }, select: { displayName: true, email: true } })
-      const senderName = sender?.displayName || sender?.email?.split('@')[0] || 'Someone'
-      await db.notification.create({
-        data: {
-          recipientId,
-          type: text.startsWith('💰') ? 'offer' : 'message',
-          title: senderName,
-          body: text.slice(0, 140),
-          actorName: senderName,
-          conversationId: id,
-          listingId: convo.listing.id,
-        },
-      })
-    } catch (e) {
-      console.error('[messages] notify', e)
-    }
-  }
-
-  return NextResponse.json({ id: message.id, mine: true, body: message.body, createdAt: message.createdAt.toISOString() })
+  const message = await insertMessage(
+    { id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId, listingId: convo.listing.id },
+    meId,
+    text,
+  )
+  return NextResponse.json(message)
 }

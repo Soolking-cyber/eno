@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile, getCurrentProfileId } from '@/lib/admin'
+import { insertMessage } from '@/lib/messages'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -11,10 +12,13 @@ export async function POST(req: Request) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
 
-  let body: { listingId?: string }
+  let body: { listingId?: string; message?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
   const listingId = String(body.listingId || '').trim()
   if (!listingId) return NextResponse.json({ error: 'missing_listing' }, { status: 400 })
+  // Optional first message — lets the composer create the thread AND send in one
+  // round trip (snappier; the message side effects live in insertMessage).
+  const initialMessage = String(body.message || '').trim().slice(0, 2000)
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
@@ -32,24 +36,34 @@ export async function POST(req: Request) {
   // accurate even under a double-tap / concurrent POST race (a non-atomic
   // read-then-upsert could report created:true for BOTH racers and double-count
   // the lead). A P2002 means the thread already exists → reuse it, created:false.
+  const sellerProfileId = listing.seller.ownerId ?? null
   try {
     const convo = await db.conversation.create({
       data: {
         listingId,
         buyerProfileId: profile.id,
         sellerId: listing.sellerId,
-        sellerProfileId: listing.seller.ownerId ?? null,
+        sellerProfileId,
       },
       select: { id: true },
     })
-    return NextResponse.json({ id: convo.id, created: true })
+    const message = initialMessage
+      ? await insertMessage({ id: convo.id, buyerProfileId: profile.id, sellerProfileId, listingId }, profile.id, initialMessage)
+      : null
+    return NextResponse.json({ id: convo.id, created: true, message })
   } catch (e) {
     if ((e as { code?: string })?.code === 'P2002') {
       const existing = await db.conversation.findUnique({
         where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
         select: { id: true },
       })
-      if (existing) return NextResponse.json({ id: existing.id, created: false })
+      if (existing) {
+        // Thread already exists → still deliver the message (reuse it).
+        const message = initialMessage
+          ? await insertMessage({ id: existing.id, buyerProfileId: profile.id, sellerProfileId, listingId }, profile.id, initialMessage)
+          : null
+        return NextResponse.json({ id: existing.id, created: false, message })
+      }
     }
     throw e
   }

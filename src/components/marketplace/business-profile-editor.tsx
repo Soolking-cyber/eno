@@ -61,7 +61,7 @@ export function BusinessProfileEditor({ seller, onSaved }: { seller: Seller; onS
   const initials = name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-pop">
+    <div className="rounded-2xl bg-card p-4 shadow-pop">
       <div className="flex items-center gap-4">
         {avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element

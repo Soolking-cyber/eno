@@ -10,8 +10,7 @@ import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-
 import { TrustBadge } from '@/components/marketplace/trust-badge'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
-import { LanguagePref } from '@/components/marketplace/language-pref'
-import { ThemePref } from '@/components/marketplace/theme-pref'
+import { PreferencesInline } from '@/components/marketplace/preferences-inline'
 import { isStale } from '@/lib/stale'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -34,7 +33,7 @@ type Dashboard = {
 // Module-level so it isn't re-created (and its subtree remounted) every render.
 function StatCard({ icon, value, label, href, accent }: { icon: React.ReactNode; value: React.ReactNode; label: string; href?: string; accent?: boolean }) {
   const inner = (
-    <div className={`flex items-center gap-3 rounded-2xl border p-4 shadow-pop transition-colors ${accent ? 'border-[#0a66c2]/30 bg-accent' : 'border-border bg-card'} ${href ? 'hover:border-[#0a66c2]/40 cursor-pointer' : ''}`}>
+    <div className={`flex items-center gap-3 rounded-2xl p-4 shadow-pop transition-shadow ${accent ? 'bg-accent' : 'bg-card'} ${href ? 'hover:shadow-card cursor-pointer' : ''}`}>
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${accent ? 'bg-[#0a66c2] text-white' : 'bg-tint text-accent-foreground'}`}>{icon}</span>
       <div className="leading-tight">
         <div className="text-lg font-bold text-foreground">{value}</div>
@@ -79,15 +78,14 @@ export function DashboardClient() {
     return (
       <div className="flex min-h-screen flex-col bg-background">
         <Header />
-        <main className="mx-auto w-full max-w-md flex-1 space-y-8 px-3 py-10">
-          <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-pop">
+        <main className="mx-auto w-full max-w-md flex-1 space-y-6 px-3 py-10">
+          <div className="rounded-2xl bg-card p-8 text-center shadow-pop">
             <h1 className="text-lg font-bold text-foreground">{tr('Your account', 'Tài khoản của bạn')}</h1>
             <p className="mt-2 text-sm text-muted-foreground">{tr('Sign in to manage your listings, messages and saved items.', 'Đăng nhập để quản lý tin đăng, tin nhắn và mục đã lưu.')}</p>
             <div className="mt-5"><SignInPrompt /></div>
           </div>
           {/* Language + appearance are device prefs — available before sign-in. */}
-          <LanguagePref />
-          <ThemePref />
+          <PreferencesInline />
         </main>
       </div>
     )
@@ -132,7 +130,7 @@ export function DashboardClient() {
         </div>
 
         {/* Quick link — saved (buyer side; everything else lives below) */}
-        <Link href="/saved" className="mt-4 flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-pop transition-colors hover:border-[#0a66c2]/30">
+        <Link href="/saved" className="mt-4 flex items-center gap-3 rounded-2xl bg-card p-3.5 shadow-pop transition-shadow hover:shadow-card">
           <Heart className="h-5 w-5 text-accent-foreground" />
           <span className="text-sm font-semibold text-foreground">{tr('Saved listings', 'Tin đã lưu')}</span>
           <ChevronRight className="ml-auto h-4 w-4 text-line-strong" />
@@ -159,7 +157,7 @@ export function DashboardClient() {
 
         {/* Business with no storefront yet → nudge to create one. */}
         {isBusiness && d && !d.seller && (
-          <div className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-pop">
+          <div className="mt-6 rounded-2xl bg-card p-5 shadow-pop">
             <h2 className="text-sm font-bold text-foreground">{tr('Set up your storefront', 'Tạo gian hàng của bạn')}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{tr('Post your first listing to create your business storefront — then you can edit your profile, see analytics and bulk-upload.', 'Đăng tin đầu tiên để tạo gian hàng — sau đó bạn có thể chỉnh hồ sơ, xem phân tích và tải hàng loạt.')}</p>
           </div>
@@ -190,7 +188,7 @@ export function DashboardClient() {
           {!d ? (
             <div className="mt-4 space-y-2.5">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[92px] rounded-2xl shimmer" />)}</div>
           ) : d.listings.length === 0 ? (
-            <div className="mt-3 rounded-2xl border border-dashed border-line-strong py-12 text-center">
+            <div className="mt-3 rounded-2xl bg-tint py-12 text-center">
               <Store className="mx-auto h-8 w-8 text-ink-4" />
               <p className="mt-2 text-sm text-muted-foreground">{tr('No listings yet — post your first one.', 'Chưa có tin nào — đăng tin đầu tiên.')}</p>
             </div>
@@ -209,9 +207,9 @@ export function DashboardClient() {
 
         {/* Preferences — language + appearance. Mobile only: on desktop (sm+) these
             live in the header account dropdown, so they'd be redundant here. */}
-        <section className="mt-8 space-y-8 sm:hidden">
-          <LanguagePref />
-          <ThemePref />
+        <section className="mt-8 sm:hidden">
+          <h2 className="h-section text-foreground mb-3">{tr('Preferences', 'Tùy chọn')}</h2>
+          <PreferencesInline />
         </section>
       </main>
       <Footer />

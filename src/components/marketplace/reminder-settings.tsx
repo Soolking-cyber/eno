@@ -74,7 +74,7 @@ export function ReminderSettings() {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-pop">
+    <div className="rounded-2xl bg-card p-4 shadow-pop">
       {/* In-app reminder switch */}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -94,7 +94,7 @@ export function ReminderSettings() {
       {savedTick && <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-accent-foreground"><Check className="h-3 w-3" />{tr('Saved', 'Đã lưu')}</p>}
 
       {/* Browser push */}
-      <div className="mt-4 border-t border-border pt-4">
+      <div className="mt-4 pt-2">
         {pushState === 'unsupported' ? (
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><BellOff className="h-4 w-4 shrink-0" />{tr('Browser notifications aren’t available here. On iPhone, add eno.vn to your Home Screen first.', 'Thông báo trình duyệt không khả dụng. Trên iPhone, hãy thêm eno.vn vào Màn hình chính trước.')}</p>
         ) : pushState === 'granted' ? (
@@ -102,7 +102,7 @@ export function ReminderSettings() {
         ) : pushState === 'denied' ? (
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><BellOff className="h-4 w-4 shrink-0" />{tr('Notifications are blocked. Enable them in your browser settings to get reminders here.', 'Thông báo đang bị chặn. Hãy bật trong cài đặt trình duyệt để nhận nhắc nhở.')}</p>
         ) : (
-          <button onClick={enablePush} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-card px-4 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer">
+          <button onClick={enablePush} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-tint px-4 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />} {tr('Get reminders on this device', 'Nhận nhắc nhở trên thiết bị này')}
           </button>
         )}

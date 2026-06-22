@@ -1,0 +1,59 @@
+import 'server-only'
+import { db } from './db'
+
+export type SerializedMessage = { id: string; mine: true; body: string; createdAt: string }
+
+type ConvoForSend = {
+  id: string
+  buyerProfileId: string
+  sellerProfileId: string | null
+  listingId: string
+}
+
+/**
+ * Insert a message into a conversation and keep the denormalized state consistent
+ * (last-message + the other party's unread), then best-effort notify the
+ * recipient. The AFTER-INSERT trigger on Message broadcasts realtime. Shared by
+ * the send endpoint and the conversation-create endpoint (initial message) so the
+ * side effects live in ONE place. Caller is responsible for the participant check.
+ */
+export async function insertMessage(convo: ConvoForSend, senderId: string, text: string): Promise<SerializedMessage> {
+  const iAmBuyer = convo.buyerProfileId === senderId
+  const [message] = await db.$transaction([
+    db.message.create({
+      data: { conversationId: convo.id, senderProfileId: senderId, body: text },
+      select: { id: true, body: true, createdAt: true },
+    }),
+    db.conversation.update({
+      where: { id: convo.id },
+      data: {
+        lastMessageAt: new Date(),
+        lastMessageText: text.slice(0, 140),
+        ...(iAmBuyer ? { sellerUnread: { increment: 1 } } : { buyerUnread: { increment: 1 } }),
+      },
+    }),
+  ])
+
+  const recipientId = iAmBuyer ? convo.sellerProfileId : convo.buyerProfileId
+  if (recipientId) {
+    try {
+      const sender = await db.profile.findUnique({ where: { id: senderId }, select: { displayName: true, email: true } })
+      const senderName = sender?.displayName || sender?.email?.split('@')[0] || 'Someone'
+      await db.notification.create({
+        data: {
+          recipientId,
+          type: text.startsWith('💰') ? 'offer' : 'message',
+          title: senderName,
+          body: text.slice(0, 140),
+          actorName: senderName,
+          conversationId: convo.id,
+          listingId: convo.listingId,
+        },
+      })
+    } catch (e) {
+      console.error('[messages] notify', e)
+    }
+  }
+
+  return { id: message.id, mine: true, body: message.body, createdAt: message.createdAt.toISOString() }
+}

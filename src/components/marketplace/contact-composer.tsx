@@ -57,11 +57,13 @@ export function ContactComposer({
   const send = async () => {
     if (!canSend || busy) return
     if (!user && !loading) { openSignIn(); return }
-    const body = buildBody()
+    const messageBody = buildBody()
     setBusy(true)
     try {
+      // ONE round trip: create the thread AND send the first message together, so
+      // we redirect almost immediately and the rest loads in the background.
       const res = await fetch('/api/conversations', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId, message: messageBody }),
       })
       if (res.status === 401) { openSignIn(); return }
       if (res.status === 400) {
@@ -70,19 +72,15 @@ export function ContactComposer({
         return
       }
       if (!res.ok) { toast.error(tr('Could not start chat.', 'Không thể bắt đầu trò chuyện.')); return }
-      const { id, created } = await res.json()
+      const { id, created, message } = await res.json()
 
-      const mres = await fetch(`/api/conversations/${id}/messages`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
-      })
-      const sent = mres.ok ? ((await mres.json().catch(() => null)) as { id: string; body: string; createdAt: string } | null) : null
-
+      // Seed the thread cache so /messages/[id] paints the sent message instantly.
       cacheThread(id, {
         id,
         me: user?.id ?? '',
         listing: { id: listingId, title: listingTitle ?? '', image: listingImage ?? null },
         counterpart: { name: '', avatarColor: '#0a66c2', avatarUrl: null },
-        messages: sent ? [{ id: sent.id, mine: true, body: sent.body, createdAt: sent.createdAt }] : [],
+        messages: message ? [{ id: message.id, mine: true, body: message.body, createdAt: message.createdAt }] : [],
       })
       if (created) trackContactSeller({ id: listingId, title: listingTitle, price: offering && hasPrice ? offerPrice : price, currency: currencyCode(currency) })
       router.push(`/messages/${id}`)
@@ -108,7 +106,7 @@ export function ContactComposer({
         <button
           type="button"
           onClick={() => { setOffering(true); setTimeout(() => ref.current?.focus(), 0) }}
-          className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-card px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:border-[#0a66c2] hover:bg-accent hover:text-accent-foreground cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
         >
           <Tag className="h-3.5 w-3.5" /> {tr('Make an offer', 'Trả giá')}
         </button>
@@ -116,7 +114,7 @@ export function ContactComposer({
 
       {/* Offer slider — drag the discount, the new price shows live as the offer. */}
       {hasPrice && offering && (
-        <div className="rounded-xl border border-[#0a66c2]/30 bg-accent p-3">
+        <div className="rounded-xl bg-accent p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-body">{tr('Your offer', 'Giá đề nghị')}</span>
             <button type="button" onClick={() => setOffering(false)} aria-label={tr('Cancel offer', 'Hủy đề nghị')} className="rounded-full p-0.5 text-ink-4 hover:text-foreground cursor-pointer"><X className="h-4 w-4" /></button>
@@ -149,7 +147,7 @@ export function ContactComposer({
         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
         rows={2}
         placeholder={offering ? tr('Add a note (optional)…', 'Thêm ghi chú (không bắt buộc)…') : tr('Message the seller…', 'Nhắn tin cho người bán…')}
-        className="w-full resize-none rounded-xl border border-line-strong bg-card px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-ink-4 focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+        className="w-full resize-none rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-ink-4 focus:ring-2 focus:ring-ring/30"
       />
 
       <button
