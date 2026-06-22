@@ -58,10 +58,10 @@ export default function NotFound() {
             <Link href="/" className="flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
               <Home className="h-4 w-4" /> <Tr text="Back to home" />
             </Link>
-            <Link href="/" className="flex items-center gap-2 rounded-xl border border-line-strong bg-card px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-[#0a66c2] hover:text-accent-foreground">
+            <Link href="/" className="flex items-center gap-2 rounded-xl bg-tint px-5 py-2.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-accent-foreground">
               <Compass className="h-4 w-4" /> <Tr text="Browse listings" />
             </Link>
-            <Link href="/help" className="flex items-center gap-2 rounded-xl border border-line-strong bg-card px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-[#0a66c2] hover:text-accent-foreground">
+            <Link href="/help" className="flex items-center gap-2 rounded-xl bg-tint px-5 py-2.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-accent-foreground">
               <LifeBuoy className="h-4 w-4" /> <Tr text="Help center" />
             </Link>
           </div>
