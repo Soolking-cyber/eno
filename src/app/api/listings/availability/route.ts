@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 
@@ -34,5 +35,7 @@ export async function POST(req: NextRequest) {
     })
     confirmed = r.count
   }
+  // Purge cached detail pages for everything touched (sold → 404, confirmed → fresh).
+  for (const id of [...sold, ...confirm]) revalidatePath(`/listings/${id}`)
   return NextResponse.json({ ok: true, confirmed, markedSold })
 }

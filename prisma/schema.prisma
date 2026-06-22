@@ -226,6 +226,11 @@ model Conversation {
   @@index([sellerProfileId])
   @@index([sellerId])
   @@index([lastMessageAt])
+  // Inbox query is `WHERE buyer=me OR seller=me ORDER BY lastMessageAt DESC`. These
+  // composites let each side of the OR be served index-ordered (no sort) so the
+  // conversation list stays sub-ms as the table grows to millions of rows.
+  @@index([buyerProfileId, lastMessageAt(sort: Desc)])
+  @@index([sellerProfileId, lastMessageAt(sort: Desc)])
 }
 
 model Message {

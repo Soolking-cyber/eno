@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { checkListingOwner } from '@/lib/listing-owner'
 
@@ -19,5 +20,6 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     where: { id },
     data: { status: 'active', availabilityConfirmedAt: now, postedAt: now },
   })
+  revalidatePath(`/listings/${id}`)
   return NextResponse.json({ ok: true })
 }

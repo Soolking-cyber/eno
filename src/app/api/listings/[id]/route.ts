@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, after } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { checkListingOwner } from '@/lib/listing-owner'
 import { containsPhoneNumber } from '@/lib/phone'
@@ -69,6 +70,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   data.searchText = buildSearchText([newTitle, newDesc, newDistrict, current.category.name, current.category.nameVi])
 
   await db.listing.update({ where: { id }, data })
+  revalidatePath(`/listings/${id}`) // purge the cached (ISR) detail page so the edit shows
 
   // Re-warm translations for any changed user text (after the response flushes).
   const warm = [data.title as string, data.description as string, data.location as string].filter(Boolean)
@@ -83,5 +85,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const auth = await checkListingOwner(id)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.code })
   await db.listing.delete({ where: { id } })
+  revalidatePath(`/listings/${id}`)
   return NextResponse.json({ ok: true })
 }

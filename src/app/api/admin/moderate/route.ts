@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { applyTrustEvent, penalizeSeller, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
           data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date() },
         }),
       ])
+      revalidatePath(`/listings/${id}`)
       return NextResponse.json({ ok: true })
     }
 
@@ -48,11 +50,13 @@ export async function POST(req: NextRequest) {
       const listing = await db.listing.findUnique({ where: { id }, select: { id: true } })
       if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       await db.listing.delete({ where: { id } })
+      revalidatePath(`/listings/${id}`)
       return NextResponse.json({ ok: true })
     }
 
     case 'unpublish': {
       await db.listing.update({ where: { id }, data: { verified: false } })
+      revalidatePath(`/listings/${id}`)
       return NextResponse.json({ ok: true })
     }
 
@@ -85,6 +89,7 @@ export async function POST(req: NextRequest) {
       // Reactive: take the reported listing down immediately.
       if (report.listingId) {
         await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {})
+        revalidatePath(`/listings/${report.listingId}`)
       }
       return NextResponse.json({ ok: true })
     }

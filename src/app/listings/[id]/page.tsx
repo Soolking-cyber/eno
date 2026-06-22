@@ -17,11 +17,11 @@ import {
   ChevronLeft,
   Building2,
 } from 'lucide-react'
-import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
+import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
 import { TrustBadge } from '@/components/marketplace/trust-badge'
 import { Price } from '@/components/marketplace/price'
 import { Tr } from '@/context/language-context'
-import { getServerLang, getDict } from '@/lib/translate-server'
+import { LocalizedTitle, PostedAgo } from '@/components/marketplace/listing-content'
 import { cn } from '@/lib/utils'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
@@ -34,6 +34,17 @@ import { currencyCode } from '@/lib/analytics'
 
 type Props = {
   params: Promise<{ id: string }>
+}
+
+// ISR: render on-demand, then cache the HTML at the global edge (the #1 SEO page,
+// served ~globally in tens of ms instead of a function+DB hit in Singapore per
+// view). Self-heals hourly; mutation routes call revalidatePath('/listings/<id>')
+// so an edit/sold/hidden/delete purges it immediately (a sold listing must 404).
+// Content renders in the visitor's language CLIENT-side (LocalizedTitle + <Tr>),
+// same as the cards — so no per-request server translation forces it dynamic.
+export const revalidate = 3600
+export async function generateStaticParams() {
+  return []
 }
 
 // Cached per-request so generateMetadata + the page share ONE DB query instead of
@@ -113,22 +124,6 @@ export default async function ListingPage({ params }: Props) {
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const canonicalUrl = `${hostUrl}/listings/${listing.id}`
-
-  // Server-resolve the listing CONTENT into the visitor's language (from the warm
-  // Postgres cache, via the `lang` cookie) so it renders in-language on the FIRST
-  // paint — no client translation swap. This page is already dynamic (ƒ), so the
-  // cookie read carries no ISR cost. UI labels stay as <Tr> (instant client swap).
-  const lang = await getServerLang()
-  const contentDict = await getDict(lang, [
-    listing.title,
-    listing.description,
-    listing.location,
-    listing.category.name,
-    ...attrs.flatMap(([k, v]) => [k.replace(/([A-Z])/g, ' $1'), String(v)]),
-  ])
-  const tx = (s: string) => contentDict[s] ?? s
-  // vi has a hand-authored title; everything else uses the resolved translation.
-  const resolvedTitle = lang === 'vi' ? (listing.titleVi || listing.title) : tx(listing.title)
 
   // Determine standard schema condition
   let schemaCondition = 'https://schema.org/UsedCondition'
@@ -216,12 +211,12 @@ export default async function ListingPage({ params }: Props) {
           <div className="min-w-0 space-y-1.5">
             <span className={cn('inline-flex w-fit items-center gap-1 text-xs font-semibold', color.text)}>
               <CategoryIcon name={listing.category.icon} className="h-3.5 w-3.5" />
-              {tx(listing.category.name)}
+              <Tr text={listing.category.name} />
             </span>
-            <h1 className="h-title text-foreground">{resolvedTitle}</h1>
+            <h1 className="h-title text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} /></h1>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4 text-ink-4 shrink-0" />
-              <span className="truncate">{tx(listing.location)}</span>
+              <span className="truncate"><Tr text={listing.location} /></span>
             </div>
           </div>
           <div className="mt-0.5 flex shrink-0 items-center gap-2">
@@ -239,7 +234,7 @@ export default async function ListingPage({ params }: Props) {
           <div className="lg:col-span-7 flex flex-col gap-8">
             <div className="space-y-2">
               <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
-              <p className="whitespace-pre-line text-[15px] leading-relaxed text-body">{tx(listing.description)}</p>
+              <p className="whitespace-pre-line text-[15px] leading-relaxed text-body"><Tr text={listing.description} /></p>
             </div>
 
             {attrs.length > 0 && (
@@ -248,8 +243,8 @@ export default async function ListingPage({ params }: Props) {
                 <dl className="divide-y divide-border text-sm">
                   {attrs.map(([k, v]) => (
                     <div key={k} className="flex items-start justify-between gap-4 py-2.5">
-                      <dt className="capitalize text-muted-foreground">{tx(k.replace(/([A-Z])/g, ' $1'))}</dt>
-                      <dd className="font-medium text-foreground text-right">{tx(String(v))}</dd>
+                      <dt className="capitalize text-muted-foreground"><Tr text={k.replace(/([A-Z])/g, ' $1')} /></dt>
+                      <dd className="font-medium text-foreground text-right"><Tr text={String(v)} /></dd>
                     </div>
                   ))}
                 </dl>
@@ -313,7 +308,7 @@ export default async function ListingPage({ params }: Props) {
               </Link>
 
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] text-muted-foreground"><Tr text="Posted" /> {timeAgo(listing.postedAt, lang)}</p>
+                <p className="text-[11px] text-muted-foreground"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></p>
                 <ReportButton listingId={listing.id} />
               </div>
             </div>
