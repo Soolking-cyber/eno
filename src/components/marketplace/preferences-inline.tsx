@@ -3,26 +3,26 @@
 import { Monitor, Sun, Moon } from 'lucide-react'
 import { useLanguage, LANGUAGES } from '@/context/language-context'
 import { useTheme } from '@/context/theme-context'
+import { CustomSelect } from './custom-select'
 import { cn } from '@/lib/utils'
 
-/** Compact one-line preferences: language picker (left) + System/Light/Dark icon
- *  segmented control (right). Borderless. Shared by the desktop account dropdown
- *  and the mobile dashboard so both read the same. */
+/** Compact one-line preferences: a STYLED language picker (left) + System/Light/Dark
+ *  icon segmented control (right). Borderless, dark-mode-safe, portaled menu (no
+ *  native OS dropdown). Shared by the desktop account dropdown and the mobile
+ *  dashboard so both read the same. */
 export function PreferencesInline({ className }: { className?: string }) {
   const { tr, lang, setLang } = useLanguage()
   const { theme, setTheme } = useTheme()
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      <select
+      <CustomSelect
         value={lang}
-        onChange={(e) => setLang(e.target.value as typeof lang)}
-        aria-label={tr('Language', 'Ngôn ngữ')}
-        className="min-w-0 flex-1 cursor-pointer rounded-lg bg-tint py-2 pl-2.5 pr-1 text-sm font-medium text-body outline-none transition-colors hover:bg-muted focus:ring-2 focus:ring-ring/30"
-      >
-        {LANGUAGES.map((l) => (
-          <option key={l.code} value={l.code}>{l.native}</option>
-        ))}
-      </select>
+        onChange={(v) => setLang(v as typeof lang)}
+        options={LANGUAGES.map((l) => ({ value: l.code, label: l.native }))}
+        wrapperClassName="min-w-0 flex-1"
+        className="bg-tint text-body"
+        activeClassName="bg-tint text-body hover:bg-accent hover:text-accent-foreground"
+      />
       <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-tint p-0.5">
         {([['system', Monitor, tr('System', 'Hệ thống')], ['light', Sun, tr('Light', 'Sáng')], ['dark', Moon, tr('Dark', 'Tối')]] as const).map(([val, Icon, label]) => (
           <button
@@ -33,7 +33,7 @@ export function PreferencesInline({ className }: { className?: string }) {
             aria-label={label}
             onClick={() => setTheme(val)}
             className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-md transition-colors cursor-pointer',
+              'flex h-9 w-9 items-center justify-center rounded-md transition-colors cursor-pointer',
               theme === val ? 'bg-card text-accent-foreground shadow-sm' : 'text-ink-4 hover:text-body',
             )}
           >

@@ -86,7 +86,7 @@ export function CustomSelect({
           {icon}
           <span className={cn('truncate', labelClassName)}>{selectedOption ? selectedOption.label : placeholder}</span>
         </span>
-        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 ml-1.5 text-slate-600 transition-transform', isOpen && 'rotate-180')} />
+        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4 transition-transform', isOpen && 'rotate-180')} />
       </button>
 
       {isOpen && mounted && createPortal(
