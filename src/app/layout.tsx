@@ -120,6 +120,27 @@ export default function RootLayout({
             }).replace(/</g, "\\u003c"),
           }}
         />
+        {/* WebSite entity + SearchAction → eligible for Google's sitelinks search box
+            (search eno.vn directly from the results). Target is the real ?q= search. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "eno.vn",
+              url: "https://eno.vn",
+              potentialAction: {
+                "@type": "SearchAction",
+                target: {
+                  "@type": "EntryPoint",
+                  urlTemplate: "https://eno.vn/?q={search_term_string}",
+                },
+                "query-input": "required name=search_term_string",
+              },
+            }).replace(/</g, "\\u003c"),
+          }}
+        />
       </head>
       <body
         className={`${inter.variable} antialiased bg-background text-foreground pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0`}

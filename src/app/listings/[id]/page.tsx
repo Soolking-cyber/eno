@@ -122,8 +122,12 @@ export default async function ListingPage({ params }: Props) {
     schemaCondition = 'https://schema.org/NewCondition'
   }
 
-  // Inject structured JSON-LD data for Google search compatibility
-  const jsonLd = {
+  // Structured data for Google rich results. Indexable listings only (verified +
+  // active); sold/hidden never get rich-snippeted.
+  const indexable = listing.verified && listing.status === 'active'
+  const availability = listing.status === 'sold' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock'
+
+  const productLd = {
     '@context': 'https://schema.org/',
     '@type': 'Product',
     'name': displayTitle,
@@ -131,6 +135,7 @@ export default async function ListingPage({ params }: Props) {
     'description': displayDesc,
     'sku': listing.id,
     'mpn': listing.id,
+    'category': listing.category.name,
     'offers': {
       '@type': 'Offer',
       'url': canonicalUrl,
@@ -138,22 +143,32 @@ export default async function ListingPage({ params }: Props) {
       'price': listing.price,
       'priceValidUntil': new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString().split('T')[0], // 90 days
       'itemCondition': schemaCondition,
-      'availability': 'https://schema.org/InStock',
-      'seller': {
-        '@type': 'Person',
-        'name': listing.seller.name,
-      },
+      'availability': availability,
+      'seller': { '@type': 'Organization', 'name': listing.seller.name },
     },
   }
 
+  // Breadcrumb rich result: Home › Category › Listing.
+  const breadcrumbLd = {
+    '@context': 'https://schema.org/',
+    '@type': 'BreadcrumbList',
+    'itemListElement': [
+      { '@type': 'ListItem', 'position': 1, 'name': 'eno.vn', 'item': hostUrl },
+      { '@type': 'ListItem', 'position': 2, 'name': listing.category.name, 'item': `${hostUrl}/c/${rawListing.category.slug}` },
+      { '@type': 'ListItem', 'position': 3, 'name': displayTitle, 'item': canonicalUrl },
+    ],
+  }
+
+  const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
+
   return (
     <div className="flex min-h-screen flex-col blob-bg">
-      {/* JSON-LD — only for verified listings (don't rich-snippet hidden/pending ones) */}
-      {listing.verified && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
-        />
+      {/* JSON-LD — indexable listings only (no rich snippets for hidden/sold/pending) */}
+      {indexable && (
+        <>
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(productLd) }} />
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(breadcrumbLd) }} />
+        </>
       )}
 
       {/* Open the detail page at the top, not at the feed's stale scroll position */}
