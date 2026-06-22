@@ -217,7 +217,7 @@ export default async function ListingPage({ params }: Props) {
             </div>
           </div>
           <div className="mt-0.5 flex shrink-0 items-center gap-2">
-            <ShareButton url={canonicalUrl} title={displayTitle} />
+            <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} />
             <SaveListingButton id={listing.id} />
           </div>
         </div>

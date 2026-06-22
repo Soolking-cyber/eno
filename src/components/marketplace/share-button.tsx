@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { formatMoneyFull } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 
 // Brand glyphs (single-path, 24² viewBox). Rendered white on a brand-colour chip.
@@ -25,7 +26,7 @@ function XIcon(props: { className?: string }) {
  * that matter for the audience, plus Copy link. Native share is offered as a "More"
  * fallback where available (phones).
  */
-export function ShareButton({ url, title, className }: { url: string; title: string; className?: string }) {
+export function ShareButton({ url, title, price, currency, className }: { url: string; title: string; price?: number; currency?: string; className?: string }) {
   const { tr } = useLanguage()
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -41,8 +42,11 @@ export function ShareButton({ url, title, className }: { url: string; title: str
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
   }, [open])
 
+  // Lead with the price — it's the part people share for. Falls back to the bare
+  // title when no price is supplied.
+  const shareText = price != null && currency ? `${title} — ${formatMoneyFull(price, currency)}` : title
   const u = encodeURIComponent(url)
-  const t = encodeURIComponent(title)
+  const t = encodeURIComponent(shareText)
   const channels = [
     // Zalo first — the dominant messenger in Vietnam. Its share plugin scrapes the
     // listing page's Open Graph tags (title/image) for the preview.
@@ -59,7 +63,7 @@ export function ShareButton({ url, title, className }: { url: string; title: str
   }
   const nativeShare = async () => {
     setOpen(false)
-    try { await navigator.share?.({ title, url }) } catch { /* dismissed */ }
+    try { await navigator.share?.({ title: shareText, url }) } catch { /* dismissed */ }
   }
   const hasNative = typeof navigator !== 'undefined' && !!navigator.share
 
