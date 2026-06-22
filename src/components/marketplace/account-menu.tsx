@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Heart, MessageSquare, Store, LogOut, Check, Monitor, Sun, Moon } from 'lucide-react'
+import { Heart, MessageSquare, Store, LogOut, Monitor, Sun, Moon } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, LANGUAGES } from '@/context/language-context'
 import { useTheme } from '@/context/theme-context'
@@ -70,44 +70,33 @@ export function AccountMenu() {
               <MessageSquare className="h-4 w-4 text-accent-foreground" /> {tr('Messages', 'Tin nhắn')}
             </Link>
 
-            {/* Language — switch instantly without leaving the menu */}
-            <div className="mt-1 border-t border-border px-1 pb-1 pt-2">
-              <p className="mb-1.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-ink-4">{tr('Language', 'Ngôn ngữ')}</p>
-              <div className="grid grid-cols-2 gap-1">
+            {/* Language (left, compact dropdown) + theme (right, icon segmented) — one line */}
+            <div className="mt-1 flex items-center gap-2 border-t border-border px-1.5 pb-1 pt-2">
+              <select
+                value={lang}
+                onChange={(e) => setLang(e.target.value as typeof lang)}
+                aria-label={tr('Language', 'Ngôn ngữ')}
+                className="min-w-0 flex-1 cursor-pointer rounded-lg border border-border bg-card py-1.5 pl-2 pr-1 text-xs font-medium text-body outline-none transition-colors hover:bg-muted focus:border-ring"
+              >
                 {LANGUAGES.map((l) => (
-                  <button
-                    key={l.code}
-                    role="menuitemradio"
-                    aria-checked={lang === l.code}
-                    onClick={() => setLang(l.code)}
-                    className={cn(
-                      'flex items-center justify-between gap-1 rounded-lg px-2 py-1.5 text-left text-xs font-medium transition-colors cursor-pointer',
-                      lang === l.code ? 'bg-accent font-semibold text-accent-foreground' : 'text-body hover:bg-muted',
-                    )}
-                  >
-                    <span className="truncate">{l.native}</span>
-                    {lang === l.code && <Check className="h-3.5 w-3.5 shrink-0" />}
-                  </button>
+                  <option key={l.code} value={l.code}>{l.native}</option>
                 ))}
-              </div>
-            </div>
-
-            {/* Appearance — System / Light / Dark, beside Language */}
-            <div className="mt-1 border-t border-border px-1 pb-1 pt-2">
-              <p className="mb-1.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-ink-4">{tr('Appearance', 'Giao diện')}</p>
-              <div className="grid grid-cols-3 gap-1">
+              </select>
+              <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-muted p-0.5">
                 {([['system', Monitor, tr('System', 'Hệ thống')], ['light', Sun, tr('Light', 'Sáng')], ['dark', Moon, tr('Dark', 'Tối')]] as const).map(([val, Icon, label]) => (
                   <button
                     key={val}
                     role="menuitemradio"
                     aria-checked={theme === val}
+                    title={label}
+                    aria-label={label}
                     onClick={() => setTheme(val)}
                     className={cn(
-                      'flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors cursor-pointer',
-                      theme === val ? 'bg-accent font-semibold text-accent-foreground' : 'text-body hover:bg-muted',
+                      'flex h-7 w-7 items-center justify-center rounded-md transition-colors cursor-pointer',
+                      theme === val ? 'bg-card text-accent-foreground shadow-sm' : 'text-ink-4 hover:text-body',
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5 shrink-0" /> {label}
+                    <Icon className="h-4 w-4" />
                   </button>
                 ))}
               </div>
