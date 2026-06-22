@@ -257,7 +257,7 @@ export default async function ListingPage({ params }: Props) {
 
               {/* Unified contact + offer (auth-gated; number never in this payload).
                   Type a message or tap "Make an offer", then send → opens the thread. */}
-              <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={currencyCode(listing.currency)} />
+              <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={listing.currency} />
 
               <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 border-t border-border pt-4 cursor-pointer">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">
@@ -276,7 +276,7 @@ export default async function ListingPage({ params }: Props) {
               </Link>
 
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] text-muted-foreground"><Tr text="Posted" /> {timeAgo(listing.postedAt, 'vi')}</p>
+                <p className="text-[11px] text-muted-foreground"><Tr text="Posted" /> {timeAgo(listing.postedAt, lang)}</p>
                 <ReportButton listingId={listing.id} />
               </div>
             </div>
