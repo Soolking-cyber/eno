@@ -32,7 +32,7 @@ const sections: [string, string[]][] = [
   [
     'Service providers we share data with',
     [
-      'We use trusted providers strictly to run eno.vn, and we do not sell your personal information. These include: Supabase (authentication, database and image storage); Google (only if you choose to sign in with it); Meta (analytics and advertising measurement via the Meta pixel); Microsoft Azure Translator (to translate content — message text is processed and not retained by the provider for training); and SMS/Zalo messaging providers (to deliver one-time login codes).',
+      'We use trusted providers strictly to run eno.vn, and we do not sell your personal information. These include: Supabase (authentication, database and image storage); Google (sign-in if you choose it, and Google Analytics for aggregate usage measurement); Microsoft Azure Translator (to translate content — message text is processed and not retained by the provider for training); and SMS/Zalo messaging providers (to deliver one-time login codes).',
     ],
   ],
   [

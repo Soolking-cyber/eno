@@ -1,10 +1,9 @@
-// GA4 + Meta Pixel conversion events. The base pixels (gtag.js + fbevents.js) are
-// installed in analytics-tags.tsx with strategy="afterInteractive", so window.gtag
-// and window.fbq are defined a tick after hydration. Every call here is therefore
-// guarded: it no-ops on the server and before the scripts load, and never throws
-// inside a click handler — a dropped event always beats a broken interaction. Both
-// vendors self-queue, so a call landing between hydration and script-load is still
-// captured once the library finishes loading.
+// GA4 conversion events (+ Meta Pixel events kept wired but DORMANT). The Meta
+// Pixel script was removed from analytics-tags.tsx for performance, so window.fbq
+// is never defined and every fb() call below no-ops — re-adding the Pixel script
+// re-enables them with no other change. GA (gtag) is installed interaction-gated.
+// Every call here is guarded: it no-ops on the server / before the script loads and
+// never throws inside a click handler — a dropped event always beats a broken UX.
 
 declare global {
   interface Window {
