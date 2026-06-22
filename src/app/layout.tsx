@@ -43,6 +43,7 @@ export const metadata: Metadata = {
   description:
     "eno.vn is a verified marketplace for expats and internationals in Vietnam. Find housing, jobs, motorbikes, services, moving sales, and more — every listing is checked before it goes live.",
   applicationName: "eno.vn",
+  appleWebApp: { capable: true, title: "eno.vn", statusBarStyle: "default" },
   keywords: [
     "eno.vn",
     "eno.vn",
