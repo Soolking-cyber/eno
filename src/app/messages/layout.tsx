@@ -16,7 +16,9 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
   return (
     <div className="flex h-[100dvh] flex-col bg-background">
       <Header />
-      <div className="mx-auto flex w-full max-w-6xl flex-1 overflow-hidden">
+      {/* Same max-width + gutter as the header navbar so the two-pane edges line up
+          with the logo (left) and Post button (right). Mobile stays edge-to-edge. */}
+      <div className="mx-auto flex w-full max-w-7xl flex-1 overflow-hidden px-0 sm:px-6 lg:px-8">
         {/* List pane — full width on mobile (hidden when a thread is open); fixed
             sidebar on desktop, always visible. */}
         <aside className={cn('w-full shrink-0 lg:w-[380px] lg:border-r lg:border-border', inThread && 'hidden lg:block')}>
