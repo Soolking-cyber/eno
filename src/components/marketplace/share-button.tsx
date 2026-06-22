@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Share2, Check, Link2, Mail, MoreHorizontal } from 'lucide-react'
+import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -44,6 +44,9 @@ export function ShareButton({ url, title, className }: { url: string; title: str
   const u = encodeURIComponent(url)
   const t = encodeURIComponent(title)
   const channels = [
+    // Zalo first — the dominant messenger in Vietnam. Its share plugin scrapes the
+    // listing page's Open Graph tags (title/image) for the preview.
+    { key: 'zalo', label: 'Zalo', href: `https://sp.zalo.me/plugins/share?url=${u}`, bg: 'bg-[#0068FF]', Icon: MessageCircle },
     { key: 'wa', label: 'WhatsApp', href: `https://wa.me/?text=${t}%20${u}`, bg: 'bg-[#25D366]', Icon: WhatsAppIcon },
     { key: 'fb', label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${u}`, bg: 'bg-[#1877F2]', Icon: FacebookIcon },
     { key: 'tg', label: 'Telegram', href: `https://t.me/share/url?url=${u}&text=${t}`, bg: 'bg-[#26A5E4]', Icon: TelegramIcon },
@@ -80,7 +83,7 @@ export function ShareButton({ url, title, className }: { url: string; title: str
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl bg-card p-3 shadow-pop animate-in fade-in zoom-in-95 origin-top-right duration-150">
           <p className="px-1 pb-2 text-xs font-bold text-foreground">{tr('Share this listing', 'Chia sẻ tin này')}</p>
-          <div className="flex flex-wrap gap-1">
+          <div className="grid grid-cols-3 gap-1">
             {channels.map(({ key, label, href, bg, Icon }) => (
               <a
                 key={key}
@@ -88,7 +91,7 @@ export function ShareButton({ url, title, className }: { url: string; title: str
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setOpen(false)}
-                className="flex w-[calc(20%-0.2rem)] flex-col items-center gap-1 rounded-xl py-1.5 transition-colors hover:bg-muted"
+                className="flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted"
               >
                 <span className={cn('flex h-9 w-9 items-center justify-center rounded-full text-white', bg)}>
                   <Icon className="h-[18px] w-[18px]" />
