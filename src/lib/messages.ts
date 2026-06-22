@@ -36,15 +36,20 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
     }),
   ])
 
+  // Plain chat messages do NOT create a bell notification or push — they already
+  // surface on the Messages-icon unread badge (the conversation unread counter,
+  // incremented above). Only OFFERS (and future notification types) notify, to
+  // keep the bell + push meaningful instead of noisy.
+  const isOffer = text.startsWith('💰')
   const recipientId = iAmBuyer ? convo.sellerProfileId : convo.buyerProfileId
-  if (recipientId) {
+  if (recipientId && isOffer) {
     try {
       const sender = await db.profile.findUnique({ where: { id: senderId }, select: { displayName: true, email: true } })
       const senderName = sender?.displayName || sender?.email?.split('@')[0] || 'Someone'
       await db.notification.create({
         data: {
           recipientId,
-          type: text.startsWith('💰') ? 'offer' : 'message',
+          type: 'offer',
           title: senderName,
           body: text.slice(0, 140),
           actorName: senderName,
@@ -52,7 +57,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
           listingId: convo.listingId,
         },
       })
-      // Web push so the recipient is notified even with eno.vn closed. Best-effort,
+      // Web push so the recipient sees the offer even with eno.vn closed. Best-effort,
       // after the response flushes — never delays the send.
       after(() => sendPushToProfile(recipientId, {
         title: senderName,
