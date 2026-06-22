@@ -1,13 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Star, X } from 'lucide-react'
+import { Star, X, Heart } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
 import { formatPrice } from '@/lib/types'
 import { formatMoneyFull } from '@/lib/vnd'
 import type { Language } from '@/context/language-context'
 import { useLanguage } from '@/context/language-context'
+import { useFavorites } from '@/context/favorites-context'
 import { getListingCoordinates } from '@/lib/geo'
+import { cn } from '@/lib/utils'
 
 // Compact price for map labels (Airbnb-style price pins).
 function compactPrice(l: SerializedListing): string {
@@ -72,12 +74,34 @@ function pinHtml(label: string, active: boolean): string {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, selectedId, onHover, focusId }: Props) {
   const { tr } = useLanguage()
+  const { isFavorite, toggle } = useFavorites()
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markersRef = useRef<Map<string, any>>(new Map())
   const [ready, setReady] = useState(false)
-  // Airbnb-style: a pin tap opens a small info card (not a direct navigation).
+  // Airbnb-style: a pin tap opens a small info card (not a direct navigation). The
+  // ref mirrors the open card id so marker/map click handlers (captured in effects)
+  // always see the current value without stale closures.
   const [card, setCard] = useState<SerializedListing | null>(null)
+  // Card pops ABOVE the tapped pin (anchored to its screen position) — `above`
+  // flips it below the pin when there isn't room near the top edge.
+  const [cardPos, setCardPos] = useState<{ x: number; y: number; above: boolean } | null>(null)
+  const cardIdRef = useRef<string | null>(null)
+  const listingsRef = useRef(listings)
+  listingsRef.current = listings
+
+  const CARD_W = 300, CARD_H = 250
+  const placeCardFor = (l: SerializedListing) => {
+    const map = mapInstanceRef.current, el = mapRef.current
+    if (!map || !el) return
+    const { lat, lng } = getListingCoordinates(l)
+    const pt = map.latLngToContainerPoint([lat, lng])
+    const W = el.clientWidth
+    const x = Math.max(CARD_W / 2 + 8, Math.min(W - CARD_W / 2 - 8, pt.x))
+    setCardPos({ x, y: pt.y, above: pt.y > CARD_H + 24 })
+  }
+  const openCard = (l: SerializedListing) => { cardIdRef.current = l.id; setCard(l); placeCardFor(l); onHover?.(l.id) }
+  const closeCard = () => { cardIdRef.current = null; setCard(null); setCardPos(null); onHover?.(null) }
 
   useEffect(() => { loadLeaflet(() => setReady(true)) }, [])
 
@@ -91,8 +115,17 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     }).addTo(map)
+    map.on('click', () => closeCard()) // tap the map background → close the card
+    // Keep the card glued to its pin while the map pans/zooms.
+    map.on('move zoom', () => {
+      const id = cardIdRef.current
+      if (!id) return
+      const l = listingsRef.current.find((x) => x.id === id)
+      if (l) placeCardFor(l)
+    })
     mapInstanceRef.current = map
     setTimeout(() => map.invalidateSize(), 80)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready])
 
   // Draw / refresh markers when listings change.
@@ -103,7 +136,13 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
 
     markersRef.current.forEach((m) => map.removeLayer(m))
     markersRef.current.clear()
-    setCard(null) // a filter change invalidates the open card
+    // Keep the open card UNLESS its listing is gone (e.g. filtered out). A redraw
+    // alone must NOT close it — otherwise it flickers shut right after opening.
+    setCard((c) => {
+      const keep = c && listings.some((l) => l.id === c.id)
+      if (!keep) cardIdRef.current = null
+      return keep ? c : null
+    })
 
     const bounds: [number, number][] = []
     listings.forEach((l) => {
@@ -111,7 +150,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       bounds.push([lat, lng])
       const icon = L.divIcon({ html: pinHtml(compactPrice(l), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
       const marker = L.marker([lat, lng], { icon, riseOnHover: true }).addTo(map)
-      marker.on('click', () => { setCard(l); onHover?.(l.id) })
+      // First tap → open the card; tapping the SAME pin again → open the listing.
+      marker.on('click', () => { if (cardIdRef.current === l.id) onOpenListing(l); else openCard(l) })
       if (onHover) {
         marker.on('mouseover', () => onHover(l.id))
         marker.on('mouseout', () => onHover(null))
@@ -164,17 +204,39 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       )}
       <div ref={mapRef} className="w-full h-full" />
 
-      {/* Airbnb-style info card for the tapped pin */}
-      {card && (
-        <div className="absolute inset-x-0 bottom-4 z-[1100] flex justify-center px-4">
-          <div className="relative w-full max-w-[360px] overflow-hidden rounded-2xl bg-card shadow-pop animate-in fade-in slide-in-from-bottom-2 duration-150">
-            <button
-              onClick={(e) => { e.stopPropagation(); setCard(null); onHover?.(null) }}
-              aria-label={tr('Close', 'Đóng')}
-              className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm transition-transform hover:scale-105 active:scale-95"
-            >
-              <X className="h-4 w-4" />
-            </button>
+      {/* Airbnb-style info card — pops ON TOP of the tapped pin, magnifying out of it */}
+      {card && cardPos && (
+        <div
+          className="absolute z-[1100] pointer-events-none"
+          style={{
+            left: cardPos.x,
+            top: cardPos.above ? cardPos.y - 14 : cardPos.y + 14,
+            transform: cardPos.above ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
+          }}
+        >
+          <div
+            className={cn(
+              'pointer-events-auto relative overflow-hidden rounded-2xl bg-card shadow-pop duration-150 ease-out animate-in fade-in zoom-in-95',
+              cardPos.above ? 'origin-bottom' : 'origin-top',
+            )}
+            style={{ width: CARD_W }}
+          >
+            <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
+                aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-card/90 shadow-sm transition-transform hover:scale-105 active:scale-95"
+              >
+                <Heart className={cn('h-4 w-4 transition-colors', isFavorite(card.id) ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-[#1a202c]')} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); closeCard() }}
+                aria-label={tr('Close', 'Đóng')}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm transition-transform hover:scale-105 active:scale-95"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
             <button onClick={() => onOpenListing(card)} className="block w-full text-left cursor-pointer">
               <div className="aspect-[16/10] w-full bg-tint">
                 {card.images[0] && (

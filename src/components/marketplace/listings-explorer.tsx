@@ -1634,8 +1634,8 @@ export function ListingsExplorer({
                 {viewMode === 'map' && (
                   /* Airbnb-style split: scrollable list (left) + sticky map (right) */
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                    {/* Left: scrollable result list */}
-                    <div className="min-w-0 lg:col-span-5 lg:h-[640px] lg:overflow-y-auto lg:pr-1 space-y-1 scroll-thin order-2 lg:order-1">
+                    {/* Left: narrow single-column result list */}
+                    <div className="min-w-0 lg:col-span-3 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 space-y-1.5 scroll-thin order-2 lg:order-1">
                       {shownListings.map((l, index) => (
                         <div
                           key={l.id}
@@ -1650,8 +1650,8 @@ export function ListingsExplorer({
                         </div>
                       ))}
                     </div>
-                    {/* Right: sticky map */}
-                    <div className="min-w-0 lg:col-span-7 h-[420px] lg:h-[640px] lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
+                    {/* Right: big sticky map */}
+                    <div className="min-w-0 lg:col-span-9 h-[60vh] lg:h-[calc(100dvh-8rem)] lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
                       <ListingsMap
                         listings={shownListings}
                         activeDistrict={activeDistrict}
