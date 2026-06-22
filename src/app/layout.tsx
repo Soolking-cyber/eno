@@ -144,7 +144,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} antialiased bg-background text-foreground pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0`}
+        className={`${inter.variable} antialiased bg-background text-foreground`}
       >
         <ThemeProvider>
           <LanguageProvider>
@@ -154,6 +154,11 @@ export default function RootLayout({
                   <FavoritesProvider>
                     <QueryProvider>
                       {children}
+                      {/* Reserve room for the fixed mobile bottom-nav. A WHITE
+                          spacer (not body padding) so when the nav auto-hides at
+                          the page bottom it blends with the footer instead of
+                          exposing a grey band. */}
+                      <div aria-hidden className="lg:hidden h-[calc(4rem+env(safe-area-inset-bottom))] bg-card" />
                       <MobileNav />
                       <CookieConsent />
                     </QueryProvider>
