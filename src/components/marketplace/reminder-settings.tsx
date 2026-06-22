@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bell, BellOff, Loader2, Check } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -37,16 +37,16 @@ export function ReminderSettings() {
     }
   }, [])
 
-  const [savingPref, setSavingPref] = useState(false)
-  const setPref = async (val: boolean) => {
-    if (savingPref) return // in-flight guard — no racey double-writes
-    const prev = optIn
-    setOptIn(val); setSavedTick(false); setSavingPref(true)
-    try {
-      const res = await fetch('/api/profile/reminder-prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dailyReminderOptIn: val }) })
-      if (!res.ok) throw new Error('failed')
-      setSavedTick(true)
-    } catch { setOptIn(prev) /* revert on failure */ } finally { setSavingPref(false) }
+  // Optimistic + latest-wins: the flip is instant on every tap (no in-flight
+  // block). We tag each request with a sequence number and only the most recent
+  // one is allowed to reconcile/revert, so rapid taps never deadlock or fight.
+  const seq = useRef(0)
+  const setPref = (val: boolean) => {
+    setOptIn(val); setSavedTick(false)
+    const mine = ++seq.current
+    fetch('/api/profile/reminder-prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dailyReminderOptIn: val }) })
+      .then((res) => { if (!res.ok) throw new Error('failed'); if (mine === seq.current) setSavedTick(true) })
+      .catch(() => { if (mine === seq.current) setOptIn(!val) /* revert only the latest */ })
   }
 
   const enablePush = async () => {
