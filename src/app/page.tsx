@@ -14,20 +14,21 @@ export const metadata: Metadata = { alternates: { canonical: '/' } }
 
 async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListing[]; total: number }> {
   try {
-    // verified:true matches the /api/listings response (GET forces verified-only),
-    // so this SSR data can seed React Query's default-view cache exactly.
+    // verified:true AND status:'active' matches the /api/listings response (GET
+    // forces verified+active-only), so this SSR data can seed React Query's
+    // default-view cache exactly — and never leaks sold/hidden items on first paint.
     const [categories, listings, total] = await Promise.all([
       db.category.findMany({
         orderBy: { name: 'asc' },
-        include: { _count: { select: { listings: { where: { verified: true } } } } },
+        include: { _count: { select: { listings: { where: { verified: true, status: 'active' } } } } },
       }),
       db.listing.findMany({
-        where: { verified: true },
+        where: { verified: true, status: 'active' },
         orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
         take: 24,
         include: { category: true, seller: true },
       }),
-      db.listing.count({ where: { verified: true } }),
+      db.listing.count({ where: { verified: true, status: 'active' } }),
     ])
 
     const serializedCategories: SerializedCategory[] = categories.map((c) => ({

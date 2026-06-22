@@ -38,7 +38,7 @@ export default async function SellerPage({ params }: Props) {
     where: { id },
     include: {
       reviews: { orderBy: { createdAt: 'desc' } },
-      listings: { where: { verified: true }, orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
+      listings: { where: { verified: true, status: 'active' }, orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
     },
   })
   if (!seller) notFound()

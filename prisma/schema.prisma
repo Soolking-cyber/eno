@@ -126,7 +126,12 @@ model Listing {
   verifiedBy         String?
   verificationNotes  String?
   searchText         String    @default("") // folded EN+VI blob for accent-insensitive search
-  postedAt           DateTime  @default(now())
+  // Availability (separate from `verified` moderation): 'active' is live,
+  // 'sold'/'hidden' are pulled from the public feed but kept in the seller's
+  // dashboard. Public feed requires verified=true AND status='active'.
+  status             String    @default("active")
+  availabilityConfirmedAt DateTime?            // last seller "still available" confirmation (reminder targeting)
+  postedAt           DateTime  @default(now()) // also the feed-recency key; "confirm availability" bumps it
   views              Int       @default(0)
   savedCount         Int       @default(0)
   featured           Boolean   @default(false)
@@ -142,6 +147,7 @@ model Listing {
   // predicate on public reads). [verified, postedAt] supersedes the standalone
   // postedAt index for the default sort.
   @@index([verified, postedAt])
+  @@index([verified, status, postedAt])
   @@index([verified, categoryId, postedAt])
   @@index([verified, price])
   @@index([categoryId])

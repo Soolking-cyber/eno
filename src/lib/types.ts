@@ -54,6 +54,7 @@ export type SerializedListing = {
     phone: string | null
   }
   verified: boolean
+  status: string
   verificationMethod: string | null
   verifiedAt: string | null
   verifiedBy: string | null

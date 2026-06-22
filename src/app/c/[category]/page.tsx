@@ -37,7 +37,7 @@ export default async function CategoryPage({ params }: Props) {
   if (!cat) notFound()
 
   const raw = await db.listing.findMany({
-    where: { categoryId: cat.id, verified: true },
+    where: { categoryId: cat.id, verified: true, status: 'active' },
     include: { category: true, seller: true },
     orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
   })

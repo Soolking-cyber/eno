@@ -26,7 +26,7 @@ async function load(categorySlug: string, districtSlug: string) {
   const cat = await db.category.findUnique({ where: { slug: categorySlug } })
   if (!cat) return null
   const raw = await db.listing.findMany({
-    where: { categoryId: cat.id, verified: true, NOT: { district: null } },
+    where: { categoryId: cat.id, verified: true, status: 'active', NOT: { district: null } },
     include: { category: true, seller: true },
     orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
   })

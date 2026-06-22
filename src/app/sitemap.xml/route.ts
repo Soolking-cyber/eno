@@ -11,7 +11,7 @@ export const revalidate = 3600
 export async function GET() {
   try {
     const listings = await db.listing.findMany({
-      where: { verified: true },
+      where: { verified: true, status: 'active' },
       select: { id: true, updatedAt: true, district: true, category: { select: { slug: true } } },
       orderBy: { updatedAt: 'desc' },
     })

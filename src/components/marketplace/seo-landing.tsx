@@ -25,7 +25,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
   let listings: ReturnType<typeof serializeListing>[] = []
   try {
     const rows = await db.listing.findMany({
-      where: { verified: true, category: { slug: content.categorySlug } },
+      where: { verified: true, status: 'active', category: { slug: content.categorySlug } },
       orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
       take: 8,
       include: { category: true, seller: true },

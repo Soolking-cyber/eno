@@ -50,8 +50,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${displayTitle} | eno.vn`,
     description: desc,
-    // Pending (unverified) listings are hidden from the feed — don't let Google index them either.
-    robots: listing.verified ? undefined : { index: false, follow: true },
+    // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
+    robots: listing.verified && listing.status === 'active' ? undefined : { index: false, follow: true },
     alternates: {
       canonical: `${hostUrl}/listings/${id}`,
     },
@@ -79,7 +79,9 @@ export default async function ListingPage({ params }: Props) {
     include: { category: true, seller: true },
   })
 
-  if (!rawListing) {
+  // Only publicly-live listings are viewable by direct URL; sold/hidden/held are
+  // pulled from public view (sellers manage them in their dashboard).
+  if (!rawListing || !rawListing.verified || rawListing.status !== 'active') {
     notFound()
   }
 

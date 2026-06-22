@@ -51,6 +51,9 @@ export async function GET(req: NextRequest) {
   const andFilters: Prisma.ListingWhereInput[] = []
 
   andFilters.push({ verified: verifiedFilter })
+  // Public feed shows only AVAILABLE listings — sold/hidden stay in the seller's
+  // dashboard, out of the browse feed.
+  andFilters.push({ status: 'active' })
   if (featuredOnly) {
     andFilters.push({ featured: true })
   }
@@ -333,7 +336,8 @@ export async function GET(req: NextRequest) {
   let categoryTotalPromise: Promise<number> = Promise.resolve(0)
   if (category && category !== 'all') {
     const allFilters: Prisma.ListingWhereInput[] = [
-      { verified: verifiedFilter !== undefined ? verifiedFilter : true }
+      { verified: verifiedFilter !== undefined ? verifiedFilter : true },
+      { status: 'active' },
     ]
     allFilters.push({ category: { slug: category } })
     const distFilter = buildDistrictFilter(district || 'all')
@@ -364,9 +368,10 @@ export async function GET(req: NextRequest) {
     promises[2] = Promise.all(
       subcats.map(async (sub) => {
         const subFilters: Prisma.ListingWhereInput[] = [
-          { verified: verifiedFilter !== undefined ? verifiedFilter : true }
+          { verified: verifiedFilter !== undefined ? verifiedFilter : true },
+          { status: 'active' },
         ]
-        
+
         subFilters.push({ category: { slug: category } })
         
         const distFilter = buildDistrictFilter(district || 'all')

@@ -55,6 +55,7 @@ export function serializeListing(
       phone: null,
     },
     verified: l.verified,
+    status: l.status,
     verificationMethod: l.verificationMethod,
     verifiedAt: l.verifiedAt ? l.verifiedAt.toISOString() : null,
     verifiedBy: l.verifiedBy,

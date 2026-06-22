@@ -15,7 +15,7 @@ function escapeXml(unsafe: string): string {
 export async function GET() {
   try {
     const listings = await db.listing.findMany({
-      where: { verified: true },
+      where: { verified: true, status: 'active' },
       include: { category: true, seller: true },
       orderBy: { postedAt: 'desc' },
     })
