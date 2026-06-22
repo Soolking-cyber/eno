@@ -5,7 +5,7 @@ import { Loader2, Check, Upload } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
-type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null }
+type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; phone: string | null }
 
 /** Inline business-profile editor (business tier). Edits the storefront's
  *  name/about/location/logo via the owner-scoped PATCH /api/seller. */
@@ -14,6 +14,7 @@ export function BusinessProfileEditor({ seller, onSaved }: { seller: Seller; onS
   const [name, setName] = useState(seller.name)
   const [bio, setBio] = useState(seller.bio || '')
   const [location, setLocation] = useState(seller.location || '')
+  const [phone, setPhone] = useState(seller.phone || '')
   const [avatarUrl, setAvatarUrl] = useState(seller.avatarUrl)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -23,10 +24,10 @@ export function BusinessProfileEditor({ seller, onSaved }: { seller: Seller; onS
   // Re-sync local fields when the saved storefront changes (e.g. after refresh()
   // returns the server-trimmed values) so the form doesn't read perpetually dirty.
   useEffect(() => {
-    setName(seller.name); setBio(seller.bio || ''); setLocation(seller.location || ''); setAvatarUrl(seller.avatarUrl)
-  }, [seller.name, seller.bio, seller.location, seller.avatarUrl])
+    setName(seller.name); setBio(seller.bio || ''); setLocation(seller.location || ''); setPhone(seller.phone || ''); setAvatarUrl(seller.avatarUrl)
+  }, [seller.name, seller.bio, seller.location, seller.phone, seller.avatarUrl])
 
-  const dirty = name !== seller.name || bio !== (seller.bio || '') || location !== (seller.location || '') || avatarUrl !== seller.avatarUrl
+  const dirty = name !== seller.name || bio !== (seller.bio || '') || location !== (seller.location || '') || phone !== (seller.phone || '') || avatarUrl !== seller.avatarUrl
 
   const uploadLogo = async (file: File) => {
     setUploading(true); setError('')
@@ -46,11 +47,16 @@ export function BusinessProfileEditor({ seller, onSaved }: { seller: Seller; onS
       const res = await fetch('/api/seller', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), bio, location, avatarUrl }),
+        body: JSON.stringify({ name: name.trim(), bio, location, phone, avatarUrl }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(d.error === 'no_phone_in_profile' ? tr("Phone numbers aren't allowed here.", 'Không được ghi số điện thoại.') : tr('Could not save. Try again.', 'Không lưu được. Thử lại.'))
+        setError(
+          d.error === 'no_phone_in_profile' ? tr("Phone numbers aren't allowed in the name/about.", 'Không ghi số trong tên/giới thiệu.')
+          : d.error === 'phone_taken' ? tr('That phone is already used by another storefront.', 'Số này đã được dùng cho gian hàng khác.')
+          : d.error === 'bad_phone' ? tr('Enter a valid phone number.', 'Nhập số điện thoại hợp lệ.')
+          : tr('Could not save. Try again.', 'Không lưu được. Thử lại.'),
+        )
         return
       }
       setSaved(true); onSaved()
@@ -83,6 +89,11 @@ export function BusinessProfileEditor({ seller, onSaved }: { seller: Seller; onS
         <div>
           <label className="mb-1 block text-xs font-semibold text-body">{tr('Location', 'Khu vực')}</label>
           <input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={120} placeholder={tr('e.g. District 1, HCMC', 'vd. Quận 1, TP.HCM')} className={field} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-body">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</label>
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" className={field} />
+          <p className="mt-1 text-[11px] text-ink-4">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</p>
         </div>
       </div>
       <div className="mt-3">

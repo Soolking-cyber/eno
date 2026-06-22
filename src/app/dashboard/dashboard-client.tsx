@@ -15,6 +15,7 @@ import { PreferencesInline } from '@/components/marketplace/preferences-inline'
 import { isStale } from '@/lib/stale'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { cn } from '@/lib/utils'
 import type { SerializedListing } from '@/lib/types'
 
 const KEY = 'eno-dashboard'
@@ -26,7 +27,7 @@ type Stats = {
 type Dashboard = {
   tier: 'business' | 'individual'
   profile: { displayName: string | null; email: string | null; avatarUrl: string | null; avatarColor: string; businessName: string | null; trustScore: number; trustTier: string }
-  seller: { id: string; name: string; verifiedSeller: boolean; trustScore: number; trustTier: string; responseRate: number; bio: string | null; location: string | null; avatarUrl: string | null } | null
+  seller: { id: string; name: string; verifiedSeller: boolean; trustScore: number; trustTier: string; responseRate: number; bio: string | null; location: string | null; phone: string | null; avatarUrl: string | null } | null
   stats: Stats
   listings: SerializedListing[]
 }
@@ -52,6 +53,7 @@ export function DashboardClient() {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const [data, setData] = useState<Dashboard | null>(null)
+  const [tab, setTab] = useState<'listings' | 'account'>('listings')
 
   const refresh = useCallback(() => {
     const uid = user?.id
@@ -125,6 +127,23 @@ export function DashboardClient() {
           <SignOutButton />
         </div>
 
+        {/* Tabs — keep listings management separate from account details */}
+        <div className="mt-5 flex items-center gap-1 border-b border-border">
+          {(['listings', 'account'] as const).map((tb) => (
+            <button
+              key={tb}
+              onClick={() => setTab(tb)}
+              className={cn(
+                '-mb-px border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
+                tab === tb ? 'border-[#0a66c2] text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {tb === 'listings' ? tr('Listings', 'Tin đăng') : tr('Account', 'Tài khoản')}
+            </button>
+          ))}
+        </div>
+
+      {tab === 'listings' && (<>
         {/* Action strip — the 3 questions: messages? performance? needs action? */}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard icon={<MessageSquareText className="h-5 w-5" />} value={s?.unreadMessages ?? '—'} label={tr('Unread messages', 'Tin nhắn chưa đọc')} href="/messages" accent={!!s && s.unreadMessages > 0} />
@@ -163,14 +182,6 @@ export function DashboardClient() {
           </section>
         )}
 
-        {/* Business profile editor */}
-        {isBusiness && d?.seller && (
-          <section className="mt-8">
-            <h2 className="h-section text-foreground">{tr('Business profile', 'Hồ sơ doanh nghiệp')}</h2>
-            <div className="mt-3"><BusinessProfileEditor seller={d.seller} onSaved={refresh} /></div>
-          </section>
-        )}
-
         {/* All listings */}
         <section className="mt-8">
           <h2 className="h-section text-foreground">{tr('My listings', 'Tin của tôi')}{d ? ` (${d.listings.length})` : ''}</h2>
@@ -187,6 +198,16 @@ export function DashboardClient() {
             </div>
           )}
         </section>
+      </>)}
+
+      {tab === 'account' && (<>
+        {/* Business profile editor */}
+        {isBusiness && d?.seller && (
+          <section className="mt-6">
+            <h2 className="h-section text-foreground">{tr('Business profile', 'Hồ sơ doanh nghiệp')}</h2>
+            <div className="mt-3"><BusinessProfileEditor seller={d.seller} onSaved={refresh} /></div>
+          </section>
+        )}
 
         {/* Reminders */}
         <section className="mt-8">
@@ -200,6 +221,7 @@ export function DashboardClient() {
           <h2 className="h-section text-foreground mb-3">{tr('Preferences', 'Tùy chọn')}</h2>
           <PreferencesInline />
         </section>
+      </>)}
       </main>
       <Footer />
     </div>

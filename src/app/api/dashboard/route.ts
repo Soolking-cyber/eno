@@ -65,6 +65,7 @@ export async function GET() {
             responseRate: seller.responseRate,
             bio: seller.bio,
             location: seller.location,
+            phone: seller.phone,
             avatarUrl: seller.avatarUrl,
           }
         : null,

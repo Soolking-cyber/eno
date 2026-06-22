@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
-import { containsPhoneNumber } from '@/lib/phone'
+import { containsPhoneNumber, normalizePhone } from '@/lib/phone'
 import { isListingImageUrl } from '@/lib/listing-image'
 
 export const runtime = 'nodejs'
@@ -31,6 +31,12 @@ export async function PATCH(req: NextRequest) {
     if (url && !isListingImageUrl(url)) return NextResponse.json({ error: 'bad_avatar' }, { status: 400 })
     data.avatarUrl = url
   }
+  // Contact phone (the in-chat reveal number; gated, never shown publicly).
+  if (body.phone !== undefined) {
+    const phone = normalizePhone(String(body.phone || ''))
+    if (body.phone && phone.replace(/\D/g, '').length < 9) return NextResponse.json({ error: 'bad_phone' }, { status: 400 })
+    data.phone = phone || null
+  }
 
   // Public-facing text can't carry a phone number (same rule as listings).
   if (containsPhoneNumber(String(data.name ?? '')) || containsPhoneNumber(String(data.bio ?? ''))) {
@@ -38,6 +44,12 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (Object.keys(data).length === 0) return NextResponse.json({ ok: true })
-  await db.seller.update({ where: { id: seller.id }, data })
+  try {
+    await db.seller.update({ where: { id: seller.id }, data })
+  } catch (e) {
+    // Seller.phone is unique — another storefront already claimed it.
+    if ((e as { code?: string })?.code === 'P2002') return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
+    throw e
+  }
   return NextResponse.json({ ok: true })
 }
