@@ -62,14 +62,14 @@ export function ListingCard({
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(listing) }
       }}
-      className="group flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-150 active:scale-[0.985] active:duration-75 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0a66c2] focus-visible:ring-offset-2"
+      className="group flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-150 active:scale-[0.985] active:duration-75 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       {/* Image carousel / placeholder.
           transform-gpu/isolate force a compositing layer so the rounded
           overflow-hidden actually clips the translateX-transformed carousel row
           — otherwise the adjacent (next) image leaks through at the edge on hover. */}
       <div
-        className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#f1f5f9] transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
+        className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
         onMouseEnter={() => { if (images.length > 1) setExpanded(true) }}
         onTouchStart={(e) => { if (images.length > 1) setExpanded(true); touchStartX.current = e.touches[0].clientX }}
         onTouchEnd={(e) => {
@@ -107,7 +107,7 @@ export function ListingCard({
             ))}
           </div>
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-[#f1f5f9]">
+          <div className="flex h-full w-full items-center justify-center bg-tint">
             <CategoryIcon name={listing.category.icon} className="h-10 w-10 text-slate-300" />
           </div>
         )}
@@ -122,7 +122,7 @@ export function ListingCard({
         >
           {/* key remounts on favorite → re-runs the CSS pop (replaces framer scale) */}
           <span key={favorited ? 'on' : 'off'} className={cn('inline-flex', favorited && 'animate-heart-pop')}>
-            <Heart className={cn('h-[18px] w-[18px] transition-colors', favorited ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-[#1a202c]')} />
+            <Heart className={cn('h-[18px] w-[18px] transition-colors', favorited ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-foreground')} />
           </span>
         </button>
 
@@ -134,7 +134,7 @@ export function ListingCard({
                 type="button"
                 aria-label={tr('Previous photo')}
                 onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 hidden h-7 w-7 items-center justify-center rounded-full bg-white/95 text-[#1a202c] shadow-sm opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer"
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 hidden h-7 w-7 items-center justify-center rounded-full bg-white/95 text-foreground shadow-sm opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -144,7 +144,7 @@ export function ListingCard({
                 type="button"
                 aria-label={tr('Next photo')}
                 onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 hidden h-7 w-7 items-center justify-center rounded-full bg-white/95 text-[#1a202c] shadow-sm opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 hidden h-7 w-7 items-center justify-center rounded-full bg-white/95 text-foreground shadow-sm opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -168,16 +168,16 @@ export function ListingCard({
 
       {/* Body — title · price · location · verified */}
       <div className="flex flex-1 flex-col gap-1 px-0.5 pt-2.5">
-        <h3 className="line-clamp-2 text-sm font-medium leading-snug text-[#1a202c] group-hover:underline decoration-1 underline-offset-2">
+        <h3 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">
           {displayTitle}
         </h3>
 
-        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-[#1a202c]" />
+        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
 
-        <div className="flex items-center justify-between gap-2 text-xs text-[#64748b]">
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="truncate">{displayLocation}</span>
-          <span className="flex shrink-0 items-center gap-0.5 text-[#1a202c]">
-            <Star className="h-3 w-3 fill-[#1a202c] text-[#1a202c]" />
+          <span className="flex shrink-0 items-center gap-0.5 text-foreground">
+            <Star className="h-3 w-3 fill-[#1a202c] text-foreground" />
             {listing.seller.rating.toFixed(1)}
           </span>
         </div>

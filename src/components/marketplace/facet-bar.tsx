@@ -65,7 +65,7 @@ export function FacetBar({
     })
 
   const cls = ''
-  const active = 'bg-[#e8f1fb] text-[#0a66c2]'
+  const active = 'bg-accent text-accent-foreground'
   // Content-sized pills (no fixed min-width) so they pack into one swipable
   // row on mobile; widen a touch on desktop where they wrap.
   const wrap = 'w-auto shrink-0 lg:min-w-[7.5rem]'
@@ -126,11 +126,11 @@ export function FacetBar({
       className={cn(
         'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
         wrap,
-        areaActive ? active : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]',
+        areaActive ? active : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground',
       )}
     >
       <span className="flex items-center gap-1.5 truncate">
-        <MapPin className={cn('h-3.5 w-3.5', areaActive ? 'text-[#0a66c2]' : 'text-[#94a3b8]')} />
+        <MapPin className={cn('h-3.5 w-3.5', areaActive ? 'text-accent-foreground' : 'text-ink-4')} />
         <span className="truncate">{areaLabel}</span>
       </span>
       <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-600" />
@@ -214,7 +214,7 @@ export function FacetBar({
     <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
       {facets}
       {/* Static trust indicator — every listing on eno.vn is verified (not a toggle). */}
-      <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#e8f1fb] px-3.5 py-2 text-sm font-semibold text-[#0a66c2]">
+      <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-accent-foreground">
         <ShieldCheck className="h-3.5 w-3.5" />
         {tr('Verified only', 'Chỉ tin đã xác minh')}
       </span>
@@ -229,7 +229,7 @@ export function FacetBar({
             setCustomFilters({})
             setVerifiedOnly(true)
           }}
-          className="shrink-0 px-1 text-xs font-semibold text-[#0a66c2] hover:underline cursor-pointer"
+          className="shrink-0 px-1 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
         >
           {tr('Clear', 'Xóa lọc')}
         </button>

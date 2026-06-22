@@ -26,7 +26,7 @@ function SignInPageInner() {
   }, [user, raw, router])
 
   return (
-    <div className="grid min-h-screen w-full bg-[#fafafa] md:grid-cols-2">
+    <div className="grid min-h-screen w-full bg-background md:grid-cols-2">
       {/* Brand panel (desktop) */}
       <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0a66c2] to-[#004182] p-12 text-white md:flex">
         <Link href="/" className="text-2xl font-black tracking-tight">eno.vn</Link>
@@ -47,11 +47,11 @@ function SignInPageInner() {
       {/* Form */}
       <div className="flex flex-col items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
-          <Link href="/" className="mb-8 inline-block text-2xl font-black text-[#0a66c2] md:hidden">eno.vn</Link>
-          <h2 className="text-2xl font-bold text-[#1a202c]">{tr('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h2>
-          <p className="mt-1 text-sm text-[#64748b]">{tr('Sign in or create your account in seconds.', 'Đăng nhập hoặc tạo tài khoản trong vài giây.')}</p>
+          <Link href="/" className="mb-8 inline-block text-2xl font-black text-accent-foreground md:hidden">eno.vn</Link>
+          <h2 className="text-2xl font-bold text-foreground">{tr('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{tr('Sign in or create your account in seconds.', 'Đăng nhập hoặc tạo tài khoản trong vài giây.')}</p>
           <SignInForm className="mt-6" />
-          <Link href="/" className="mt-6 block text-center text-sm font-semibold text-[#64748b] hover:text-[#0a66c2]">
+          <Link href="/" className="mt-6 block text-center text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
             ← {tr('Back to eno.vn', 'Về trang chủ')}
           </Link>
         </div>
@@ -62,7 +62,7 @@ function SignInPageInner() {
 
 export default function SignInPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#fafafa]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
       <SignInPageInner />
     </Suspense>
   )

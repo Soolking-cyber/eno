@@ -13,9 +13,9 @@ export function SignInDialog({ open, onOpenChange }: Props) {
   const { tr } = useLanguage()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-white rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
+      <DialogContent className="bg-card rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
         <DialogHeader>
-          <DialogTitle className="text-center text-lg font-bold text-[#1a202c]">
+          <DialogTitle className="text-center text-lg font-bold text-foreground">
             {tr('Sign in to eno.vn', 'Đăng nhập eno.vn')}
           </DialogTitle>
         </DialogHeader>

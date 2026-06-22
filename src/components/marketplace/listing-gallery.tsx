@@ -23,7 +23,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
   const openAt = (n: number) => { setIdx(n); setOpen(true) }
 
   if (images.length === 0) {
-    return <div className="h-[300px] w-full rounded-2xl bg-[#f1f5f9]" />
+    return <div className="h-[300px] w-full rounded-2xl bg-tint" />
   }
 
   const rest = images.slice(1, 5)
@@ -34,7 +34,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
     <>
       {images.length === 1 ? (
         <button onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer">
-          <div className="relative aspect-[16/10] w-full bg-[#f1f5f9]">
+          <div className="relative aspect-[16/10] w-full bg-tint">
             <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 100vw, 60vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority />
           </div>
         </button>
@@ -52,7 +52,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
           </div>
           <button
             onClick={() => openAt(0)}
-            className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-slate-300 bg-white/95 px-3 py-1.5 text-xs font-semibold text-[#1a202c] shadow-sm transition-colors hover:bg-white cursor-pointer"
+            className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-line-strong bg-card/95 px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-card cursor-pointer"
           >
             <Images className="h-4 w-4" /> <Tr text={showAllLabel} />
           </button>

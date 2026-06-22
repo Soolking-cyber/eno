@@ -66,10 +66,10 @@ export default async function AdminPage() {
       <div className="flex min-h-screen flex-col">
         <Header />
         <main className="flex flex-1 items-center justify-center px-3">
-          <div className="max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-pop">
-            <ShieldAlert className="mx-auto h-10 w-10 text-[#94a3b8]" />
-            <h1 className="mt-4 text-lg font-bold text-[#1a202c]">Restricted area</h1>
-            <p className="mt-2 text-sm text-[#64748b]">
+          <div className="max-w-sm rounded-2xl border border-border bg-card p-8 text-center shadow-pop">
+            <ShieldAlert className="mx-auto h-10 w-10 text-ink-4" />
+            <h1 className="mt-4 text-lg font-bold text-foreground">Restricted area</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
               Sign in with an authorized eno.vn admin account to access the moderation queue.
             </p>
             <a href="/" className="mt-5 inline-block rounded-xl bg-[#0a66c2] px-6 py-2 text-sm font-bold text-white hover:bg-[#004182] transition-colors">
@@ -126,12 +126,12 @@ export default async function AdminPage() {
   }))
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#fafafa]">
+    <div className="flex min-h-screen flex-col bg-background">
       <Header />
       <main className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6">
         <div className="mb-6">
-          <h1 className="h-title text-[#1a202c]">Moderation</h1>
-          <p className="mt-1 text-sm text-[#64748b]">Signed in as {admin}. Resolve reports (confirm docks trust); held listings need a photo or are from restricted accounts.</p>
+          <h1 className="h-title text-foreground">Moderation</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Signed in as {admin}. Resolve reports (confirm docks trust); held listings need a photo or are from restricted accounts.</p>
         </div>
         <ModerationClient pending={pending} reported={reported} accountReports={accountReports} />
       </main>

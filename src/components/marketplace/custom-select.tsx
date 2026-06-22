@@ -75,11 +75,11 @@ export function CustomSelect({
           // Closed: consistent rounded-xl (no more pills). Caller className may restyle.
           !isOpen && 'rounded-xl border-transparent',
           !isOpen && (value !== 'all' && value !== 'newest'
-            ? (activeClassName ?? 'bg-[#e8f1fb] text-[#0a66c2]')
-            : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2]'),
+            ? (activeClassName ?? 'bg-accent text-accent-foreground')
+            : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground'),
           className,
           // Open: morph into the top of the window (overrides caller styling).
-          isOpen && 'rounded-t-2xl rounded-b-none border-slate-200 border-b-transparent bg-white text-[#1a202c] shadow-pop',
+          isOpen && 'rounded-t-2xl rounded-b-none border-border border-b-transparent bg-card text-foreground shadow-pop',
         )}
       >
         <span className="flex items-center gap-1.5 truncate">
@@ -93,7 +93,7 @@ export function CustomSelect({
         <div
           ref={menuRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
-          className="z-[100] max-h-60 overflow-y-auto overflow-x-hidden rounded-b-2xl border border-t-slate-100 border-slate-200 bg-white p-1.5 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
+          className="z-[100] max-h-60 overflow-y-auto overflow-x-hidden rounded-b-2xl border border-t-border border-border bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
         >
           {options.map((opt) => {
             const isActive = opt.value === value
@@ -104,7 +104,7 @@ export function CustomSelect({
                 onClick={() => { onChange(opt.value); setIsOpen(false) }}
                 className={cn(
                   'flex w-full items-center gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer',
-                  isActive ? 'bg-[#e8f1fb] text-[#0a66c2] font-semibold' : 'font-medium text-[#475569] hover:bg-[#f1f5f9]',
+                  isActive ? 'bg-accent text-accent-foreground font-semibold' : 'font-medium text-body hover:bg-tint',
                 )}
               >
                 <span className="truncate">{opt.label}</span>

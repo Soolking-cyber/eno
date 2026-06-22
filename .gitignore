@@ -40,3 +40,4 @@ server.log
 
 # Azure deployment templates (contain subscription/resource ids)
 Deployment-*/
+.vercel

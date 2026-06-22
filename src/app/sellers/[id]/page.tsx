@@ -16,10 +16,10 @@ type Props = { params: Promise<{ id: string }> }
 function Stat({ icon, value, label }: { icon: React.ReactNode; value: React.ReactNode; label: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8f1fb] text-[#0a66c2]">{icon}</span>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">{icon}</span>
       <div className="leading-tight">
-        <div className="text-sm font-bold text-[#1a202c]">{value}</div>
-        <div className="text-[11px] text-[#94a3b8]">{label}</div>
+        <div className="text-sm font-bold text-foreground">{value}</div>
+        <div className="text-[11px] text-ink-4">{label}</div>
       </div>
     </div>
   )
@@ -52,7 +52,7 @@ export default async function SellerPage({ params }: Props) {
       <Header />
       <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         <div className="mb-5">
-          <Link href="/" className="inline-flex items-center gap-1 text-sm font-medium text-[#64748b] hover:text-[#0a66c2] transition-colors">
+          <Link href="/" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors">
             <ChevronLeft className="h-4 w-4" /> <span><Tr text="Back to Home" /></span>
           </Link>
         </div>
@@ -63,13 +63,13 @@ export default async function SellerPage({ params }: Props) {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={seller.avatarUrl} alt="" className="h-20 w-20 shrink-0 rounded-full object-cover" />
           ) : (
-            <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#e8f1fb] text-2xl font-bold text-[#0a66c2]">
+            <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-accent text-2xl font-bold text-accent-foreground">
               {initials}
             </span>
           )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="h-title text-[#1a202c]">{seller.name}</h1>
+              <h1 className="h-title text-foreground">{seller.name}</h1>
               <TrustBadge tier={seller.trustTier} size="md" />
               {seller.ownerId && (
                 <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
@@ -77,12 +77,12 @@ export default async function SellerPage({ params }: Props) {
                 </span>
               )}
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-sm text-[#475569]">
-              <Star className="h-4 w-4 fill-[#1a202c] text-[#1a202c]" />
-              <span className="font-semibold text-[#1a202c]">{seller.rating.toFixed(1)}</span>
-              <span className="text-[#94a3b8]">· {seller.reviewCount} <Tr text="reviews" /></span>
+            <div className="mt-1 flex items-center gap-1.5 text-sm text-body">
+              <Star className="h-4 w-4 fill-foreground text-foreground" />
+              <span className="font-semibold text-foreground">{seller.rating.toFixed(1)}</span>
+              <span className="text-ink-4">· {seller.reviewCount} <Tr text="reviews" /></span>
             </div>
-            {seller.bio && <p className="mt-2 max-w-2xl text-sm text-[#475569]"><Tr text={seller.bio} /></p>}
+            {seller.bio && <p className="mt-2 max-w-2xl text-sm text-body"><Tr text={seller.bio} /></p>}
             <div className="mt-3">
               <ReportButton sellerId={seller.id} />
             </div>
@@ -90,7 +90,7 @@ export default async function SellerPage({ params }: Props) {
         </div>
 
         {/* Trust stats */}
-        <div className="mt-6 grid grid-cols-2 gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-4 shadow-pop">
+        <div className="mt-6 grid grid-cols-2 gap-4 rounded-2xl border border-border bg-card p-5 sm:grid-cols-4 shadow-pop">
           <Stat icon={<Star className="h-4 w-4" />} value={`${seller.rating.toFixed(1)}★`} label={<Tr text="Rating" />} />
           <Stat icon={<MessageSquareText className="h-4 w-4" />} value={`${seller.responseRate}%`} label={<Tr text="Response rate" />} />
           <Stat icon={<Clock className="h-4 w-4" />} value={<Tr text={seller.responseTime} />} label={<Tr text="Responds" />} />
@@ -100,20 +100,20 @@ export default async function SellerPage({ params }: Props) {
         {/* Reviews */}
         {seller.reviews.length > 0 && (
           <section className="mt-10 space-y-4">
-            <h2 className="h-section text-[#1a202c]"><Tr text="Reviews" /> ({seller.reviewCount})</h2>
+            <h2 className="h-section text-foreground"><Tr text="Reviews" /> ({seller.reviewCount})</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               {seller.reviews.map((r) => (
-                <div key={r.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div key={r.id} className="rounded-2xl border border-border bg-card p-4">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f1f5f9] text-xs font-bold text-[#475569]">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-tint text-xs font-bold text-body">
                       {r.author.split(' ').map((w) => w[0]).join('').toUpperCase()}
                     </span>
-                    <span className="text-sm font-semibold text-[#1a202c]">{r.author}</span>
-                    <span className="ml-auto flex items-center gap-0.5 text-xs text-[#1a202c]">
-                      <Star className="h-3 w-3 fill-[#1a202c] text-[#1a202c]" /> {r.rating.toFixed(1)}
+                    <span className="text-sm font-semibold text-foreground">{r.author}</span>
+                    <span className="ml-auto flex items-center gap-0.5 text-xs text-foreground">
+                      <Star className="h-3 w-3 fill-foreground text-foreground" /> {r.rating.toFixed(1)}
                     </span>
                   </div>
-                  <p className="mt-2 text-sm leading-relaxed text-[#475569]"><Tr text={r.text} /></p>
+                  <p className="mt-2 text-sm leading-relaxed text-body"><Tr text={r.text} /></p>
                 </div>
               ))}
             </div>
@@ -123,7 +123,7 @@ export default async function SellerPage({ params }: Props) {
         {/* Listings by this seller */}
         {listings.length > 0 && (
           <section className="mt-10 space-y-4">
-            <h2 className="h-section text-[#1a202c]"><Tr text="Listings by" /> {seller.name} ({listings.length})</h2>
+            <h2 className="h-section text-foreground"><Tr text="Listings by" /> {seller.name} ({listings.length})</h2>
             <SellerListings listings={listings} />
           </section>
         )}

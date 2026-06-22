@@ -104,6 +104,16 @@ await client.query(`
 `)
 console.log('✓ broadcast_typing() function (participant-gated)')
 
+// 1c) Lock down the SECURITY DEFINER functions. They are invoked ONLY by triggers
+//     (new_message / deleted_message) or by the service-role app via $executeRaw
+//     (typing) — NEVER by a client. Revoke EXECUTE from the PostgREST API roles so
+//     they can't be called via /rest/v1/rpc/... (Supabase security advisor 0028/0029).
+//     Triggers + the service role keep working (they don't rely on these grants).
+await client.query(`revoke execute on function public.broadcast_new_message() from public, anon, authenticated`)
+await client.query(`revoke execute on function public.broadcast_deleted_message() from public, anon, authenticated`)
+await client.query(`revoke execute on function public.broadcast_typing(text, uuid) from public, anon, authenticated`)
+console.log('✓ revoked EXECUTE on broadcast_* from public/anon/authenticated')
+
 // 2) Realtime Authorization: RLS SELECT (receive) policy on realtime.messages so
 //    only the conversation's participants can receive the private broadcasts.
 //    Only a SELECT/receive policy is needed — the definer trigger does the send.

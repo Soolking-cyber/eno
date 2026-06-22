@@ -71,21 +71,21 @@ export function OnboardClient() {
   // loader — never flash the choice card to an already-onboarded user mid-bounce.
   if (loading || !user || accountType) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#fafafa]">
-        <Loader2 className="h-6 w-6 animate-spin text-[#0a66c2]" />
+      <main className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" />
       </main>
     )
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-[#fafafa] px-4 py-10">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 flex justify-center">
           <LogoWordmark className="h-9 w-auto" />
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <h1 className="text-center text-xl font-bold text-[#1a202c]">{t('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h1>
-          <p className="mt-1 text-center text-sm text-[#64748b]">{t('How will you use eno.vn? You can ask us to change this later.', 'Bạn sẽ dùng eno.vn như thế nào? Bạn có thể thay đổi sau.')}</p>
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+          <h1 className="text-center text-xl font-bold text-foreground">{t('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h1>
+          <p className="mt-1 text-center text-sm text-muted-foreground">{t('How will you use eno.vn? You can ask us to change this later.', 'Bạn sẽ dùng eno.vn như thế nào? Bạn có thể thay đổi sau.')}</p>
 
           <div className="mt-6 space-y-3">
             {options.map(({ key, Icon, title, desc }) => {
@@ -98,15 +98,15 @@ export function OnboardClient() {
                   aria-pressed={active}
                   className={cn(
                     'flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors cursor-pointer',
-                    active ? 'border-[#0a66c2] bg-[#e8f1fb] ring-2 ring-[#0a66c2]/20' : 'border-slate-300 bg-white hover:bg-slate-50',
+                    active ? 'border-[#0a66c2] bg-accent ring-2 ring-[#0a66c2]/20' : 'border-line-strong bg-card hover:bg-muted',
                   )}
                 >
-                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', active ? 'bg-[#0a66c2] text-white' : 'bg-slate-100 text-[#64748b]')}>
+                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', active ? 'bg-[#0a66c2] text-white' : 'bg-tint text-muted-foreground')}>
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2 text-sm font-bold text-[#1a202c]">{title}{active && <Check className="h-4 w-4 text-[#0a66c2]" />}</span>
-                    <span className="mt-0.5 block text-xs leading-relaxed text-[#64748b]">{desc}</span>
+                    <span className="flex items-center gap-2 text-sm font-bold text-foreground">{title}{active && <Check className="h-4 w-4 text-accent-foreground" />}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{desc}</span>
                   </span>
                 </button>
               )
@@ -115,14 +115,14 @@ export function OnboardClient() {
 
           {choice === 'business' && (
             <div className="mt-4">
-              <label htmlFor="biz" className="mb-1 block text-xs font-semibold text-[#475569]">{t('Business name', 'Tên doanh nghiệp')}</label>
+              <label htmlFor="biz" className="mb-1 block text-xs font-semibold text-body">{t('Business name', 'Tên doanh nghiệp')}</label>
               <input
                 id="biz"
                 value={businessName}
                 onChange={(e) => setBusinessName(e.target.value)}
                 placeholder={t('e.g. Saigon Moto Rentals', 'vd. Saigon Moto Rentals')}
                 maxLength={120}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+                className="w-full rounded-xl border border-line-strong px-4 py-3 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
               />
             </div>
           )}

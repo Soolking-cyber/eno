@@ -54,14 +54,19 @@
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-ink-4: var(--ink-4);
+  /* Sweep helpers — light values match the literals they replace (zero light
+     regression); dark values are the dark-mode counterparts. */
+  --color-body: var(--body);             /* slate-600 secondary body text */
+  --color-tint: var(--tint);             /* slate-100 tint surfaces / chips */
+  --color-line-strong: var(--line-strong); /* slate-300 stronger borders/inputs */
   --color-verified: var(--verified);
   --color-pending: var(--pending);
 }
 
 :root {
-  /* ENO is a light-first design. Declare the scheme so mobile browsers
-     (Chrome's "Auto Dark Theme") don't force-darken it into a low-contrast
-     mess. Remove this once a real dark theme is implemented. */
+  /* Light is the default scheme; the real dark theme lives in `.dark` below and
+     is toggled explicitly (System/Light/Dark) so Chrome's "Auto Dark Theme"
+     never force-darkens the light palette into a low-contrast mess. */
   color-scheme: light;
 
   /* ============================================================
@@ -109,6 +114,9 @@
   --ink-2: #2d3748;
   --ink-3: #64748b;
   --ink-4: #94a3b8;
+  --body: #475569;        /* slate-600 */
+  --tint: #f1f5f9;        /* slate-100 */
+  --line-strong: #cbd5e1; /* slate-300 */
 
   /* Semantic — used ONLY to carry meaning, never decoration.
      verified/trust folds into the brand blue; amber = caution; red = destructive. */
@@ -143,6 +151,75 @@
   --sidebar-accent-foreground: #0a66c2;
   --sidebar-border: #e2e8f0;
   --sidebar-ring: #0a66c2;
+}
+
+/* ============================================================
+   DARK THEME — a faithful counterpart of the light identity:
+   deep slate canvas (not pure black), the SAME single blue accent
+   (brightened where it sits on dark for legibility), inverted ink
+   ramp. Applied by toggling `.dark` on <html> (ThemeProvider + the
+   no-FOUC script in layout). Brand-blue buttons read on both themes.
+   ============================================================ */
+.dark {
+  color-scheme: dark;
+
+  --brand: #2f86e0;        /* brand blue, brightened for dark surfaces */
+  --brand-dark: #5aa2ec;   /* hover goes LIGHTER in dark */
+  --brand-light: #2a4a6b;
+  --brand-50: #13243a;     /* dark blue tint (was #e8f1fb) */
+  --brand-100: #1a3553;
+
+  --background: #0e1116;   /* deep slate canvas */
+  --foreground: #e6e9ef;
+  --card: #161a22;         /* elevated surface */
+  --card-foreground: #e6e9ef;
+  --popover: #1a1f29;
+  --popover-foreground: #e6e9ef;
+
+  --primary: #0a66c2;      /* primary button keeps brand blue + white text */
+  --primary-foreground: #ffffff;
+  --secondary: #262b36;
+  --secondary-foreground: #e6e9ef;
+  --muted: #1c212b;
+  --muted-foreground: #9aa6b6;
+  --accent: #13243a;       /* blue tint surface */
+  --accent-foreground: #5aa2ec;
+  --destructive: #f0616b;
+  --border: #272d39;
+  --input: #2b3240;
+  --ring: #3b8eea;
+
+  /* Ink ramp inverted (light → dark text) */
+  --ink: #e6e9ef;
+  --ink-2: #c2cad6;
+  --ink-3: #9aa6b6;
+  --ink-4: #6b7686;
+  --body: #aab4c2;
+  --tint: #1c212b;
+  --line-strong: #323a48;
+
+  --verified: #5aa2ec;
+  --pending: #f5b042;
+
+  /* Deepen elevation so surfaces still read on the dark canvas */
+  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.6);
+
+  --chart-1: #3b8eea;
+  --chart-2: #4285f4;
+  --chart-3: #9baffd;
+  --chart-4: #5aa2ec;
+  --chart-5: #34d399;
+
+  --sidebar: #161a22;
+  --sidebar-foreground: #e6e9ef;
+  --sidebar-primary: #2f86e0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #13243a;
+  --sidebar-accent-foreground: #5aa2ec;
+  --sidebar-border: #272d39;
+  --sidebar-ring: #3b8eea;
 }
 
 @layer base {

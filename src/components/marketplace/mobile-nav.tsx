@@ -19,7 +19,7 @@ function TabBody({ active, icon, label }: { active: boolean; icon: React.ReactNo
   const { pending } = useLinkStatus()
   const on = active || pending
   return (
-    <span className={cn('flex h-full w-full flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors', on ? 'text-[#0a66c2]' : 'text-[#64748b]')}>
+    <span className={cn('flex h-full w-full flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors', on ? 'text-accent-foreground' : 'text-muted-foreground')}>
       <span className="relative">{icon}</span>
       <span>{label}</span>
     </span>
@@ -44,7 +44,7 @@ export function MobileNav() {
   return (
     <nav
       className={cn(
-        'lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none',
+        'lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none',
         hidden ? 'translate-y-full' : 'translate-y-0',
       )}
     >

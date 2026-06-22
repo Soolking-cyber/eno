@@ -26,7 +26,7 @@ export default function SellerLoading() {
         </div>
 
         {/* Trust stats */}
-        <div className="mt-6 grid grid-cols-2 gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-4 shadow-pop">
+        <div className="mt-6 grid grid-cols-2 gap-4 rounded-2xl border border-border bg-card p-5 sm:grid-cols-4 shadow-pop">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex items-center gap-2.5">
               <Skeleton className="h-9 w-9 shrink-0 rounded-full" />

@@ -59,24 +59,24 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cn('inline-flex items-center gap-1 text-[11px] text-[#94a3b8] hover:text-red-600 transition-colors cursor-pointer', className)}
+        className={cn('inline-flex items-center gap-1 text-[11px] text-ink-4 hover:text-red-600 transition-colors cursor-pointer', className)}
       >
         <Flag className="h-3 w-3" /> {t('Báo cáo', 'Report')}
       </button>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
-        <DialogContent className="bg-white rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
+        <DialogContent className="bg-card rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
           <DialogHeader>
-            <DialogTitle className="text-center text-lg font-bold text-[#1a202c]">
+            <DialogTitle className="text-center text-lg font-bold text-foreground">
               {t('Báo cáo tin đăng', 'Report this listing')}
             </DialogTitle>
           </DialogHeader>
 
           {done ? (
             <div className="mt-4 text-center">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-[#0a66c2]" />
-              <p className="mt-3 text-sm font-semibold text-[#1a202c]">{t('Cảm ơn bạn', 'Thanks for the heads-up')}</p>
-              <p className="mt-1 text-sm text-[#64748b]">{t('Đội ngũ eno.vn sẽ xem xét tin này.', 'The eno.vn team will review this listing.')}</p>
+              <CheckCircle2 className="mx-auto h-10 w-10 text-accent-foreground" />
+              <p className="mt-3 text-sm font-semibold text-foreground">{t('Cảm ơn bạn', 'Thanks for the heads-up')}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t('Đội ngũ eno.vn sẽ xem xét tin này.', 'The eno.vn team will review this listing.')}</p>
               <button onClick={() => { setOpen(false); reset() }} className="mt-4 rounded-xl bg-[#0a66c2] px-6 py-2 text-sm font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer">
                 {t('Đóng', 'Close')}
               </button>
@@ -90,10 +90,10 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
                     onClick={() => setReason(r.value)}
                     className={cn(
                       'flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors cursor-pointer',
-                      reason === r.value ? 'border-[#0a66c2] bg-[#e8f1fb] font-semibold text-[#0a66c2]' : 'border-slate-200 text-[#1a202c] hover:bg-slate-50',
+                      reason === r.value ? 'border-[#0a66c2] bg-accent font-semibold text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
                     )}
                   >
-                    <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', reason === r.value ? 'border-[#0a66c2]' : 'border-slate-300')}>
+                    <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', reason === r.value ? 'border-[#0a66c2]' : 'border-line-strong')}>
                       {reason === r.value && <span className="h-2 w-2 rounded-full bg-[#0a66c2]" />}
                     </span>
                     {t(r.vi, r.en)}
@@ -107,7 +107,7 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
                 rows={2}
                 maxLength={1000}
                 placeholder={t('Chi tiết (không bắt buộc)', 'Details (optional)')}
-                className="w-full resize-none rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+                className="w-full resize-none rounded-xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
               />
 
               {error && <p role="alert" className="text-center text-xs font-semibold text-red-600">{error}</p>}

@@ -19,11 +19,11 @@ export function FavoriteHeart({ id, className }: { id: string; className?: strin
       onClick={(e) => { e.stopPropagation(); toggle(id) }}
       aria-pressed={fav}
       aria-label={fav ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
-      className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer hover:bg-[#e8f1fb]', className)}
+      className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer hover:bg-accent', className)}
     >
       {/* key remounts on toggle → re-runs the CSS pop (same as the grid card) */}
       <span key={fav ? 'on' : 'off'} className={cn('inline-flex', fav && 'animate-heart-pop')}>
-        <Heart className={cn('h-[18px] w-[18px] transition-colors', fav ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-[#1a202c]')} />
+        <Heart className={cn('h-[18px] w-[18px] transition-colors', fav ? 'fill-[#0a66c2] text-accent-foreground' : 'text-foreground')} />
       </span>
     </button>
   )

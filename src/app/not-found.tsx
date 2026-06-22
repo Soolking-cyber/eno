@@ -47,9 +47,9 @@ export default function NotFound() {
 
         <div className="relative w-full max-w-lg text-center">
           <img src="/logo-mark.svg" alt="eno.vn" width={56} height={56} className="mx-auto h-14 w-14" />
-          <p className="eyebrow mt-6 text-[#0a66c2]"><Tr text="Error 404" /></p>
-          <h1 className="h-display mt-2 text-[#1a202c]"><Tr text="This page has moved on." /></h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[#475569]">
+          <p className="eyebrow mt-6 text-accent-foreground"><Tr text="Error 404" /></p>
+          <h1 className="h-display mt-2 text-foreground"><Tr text="This page has moved on." /></h1>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-body">
             <Tr text="The listing may have sold, been taken down, or the link is broken — let's get you back to the good stuff." />
           </p>
 
@@ -57,10 +57,10 @@ export default function NotFound() {
             <Link href="/" className="flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
               <Home className="h-4 w-4" /> <Tr text="Back to home" />
             </Link>
-            <Link href="/" className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-[#1a202c] transition-colors hover:border-[#0a66c2] hover:text-[#0a66c2]">
+            <Link href="/" className="flex items-center gap-2 rounded-xl border border-line-strong bg-card px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-[#0a66c2] hover:text-accent-foreground">
               <Compass className="h-4 w-4" /> <Tr text="Browse listings" />
             </Link>
-            <Link href="/help" className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-[#1a202c] transition-colors hover:border-[#0a66c2] hover:text-[#0a66c2]">
+            <Link href="/help" className="flex items-center gap-2 rounded-xl border border-line-strong bg-card px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-[#0a66c2] hover:text-accent-foreground">
               <LifeBuoy className="h-4 w-4" /> <Tr text="Help center" />
             </Link>
           </div>

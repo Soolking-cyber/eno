@@ -70,23 +70,23 @@ export default async function CategoryPage({ params }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <Header />
       <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
-        <nav className="mb-4 text-sm text-[#64748b]">
-          <Link href="/" className="hover:text-[#0a66c2] transition-colors"><Tr text="Home" /></Link>
-          <span className="mx-1.5 text-[#cbd5e1]">/</span>
-          <span className="font-medium text-[#1a202c]"><Tr text={cat.name} /></span>
+        <nav className="mb-4 text-sm text-muted-foreground">
+          <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
+          <span className="mx-1.5 text-line-strong">/</span>
+          <span className="font-medium text-foreground"><Tr text={cat.name} /></span>
         </nav>
 
-        <h1 className="h-display text-[#1a202c]"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[#475569]">
+        <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
+        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-body">
           <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on eno.vn is verified by an agent before it goes live — no fakes, no bait prices, no wasted trips." />{' '}
           {listings.length} <Tr text="verified" /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." />
         </p>
 
         {districts.length > 0 && (
           <div className="mt-5 flex flex-wrap gap-2">
-            <span className="self-center text-xs font-semibold text-[#94a3b8]"><Tr text="By area:" /></span>
+            <span className="self-center text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
             {districts.map((d) => (
-              <Link key={d} href={`/c/${cat.slug}/${slugify(d)}`} className="rounded-full bg-[#f1f5f9] px-3.5 py-1.5 text-xs font-semibold text-[#475569] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2]">
+              <Link key={d} href={`/c/${cat.slug}/${slugify(d)}`} className="rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground">
                 <Tr text={d} />
               </Link>
             ))}
@@ -97,7 +97,7 @@ export default async function CategoryPage({ params }: Props) {
           {listings.length > 0 ? (
             <SellerListings listings={listings} />
           ) : (
-            <p className="rounded-2xl border border-dashed border-[#cbd5e1] py-12 text-center text-sm text-[#64748b]">
+            <p className="rounded-2xl border border-dashed border-line-strong py-12 text-center text-sm text-muted-foreground">
               <Tr text="No verified" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="yet — check back soon." />
             </p>
           )}
@@ -109,11 +109,11 @@ export default async function CategoryPage({ params }: Props) {
           </Link>
         </div>
 
-        <div className="mt-12 border-t border-slate-200 pt-6">
-          <h2 className="h-section text-[#1a202c] mb-3"><Tr text="Other categories" /></h2>
+        <div className="mt-12 border-t border-border pt-6">
+          <h2 className="h-section text-foreground mb-3"><Tr text="Other categories" /></h2>
           <div className="flex flex-wrap gap-2">
             {otherCats.map((c) => (
-              <Link key={c.slug} href={`/c/${c.slug}`} className="rounded-full bg-[#f1f5f9] px-3.5 py-1.5 text-xs font-semibold text-[#475569] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2]">
+              <Link key={c.slug} href={`/c/${c.slug}`} className="rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground">
                 <Tr text={c.name} />
               </Link>
             ))}

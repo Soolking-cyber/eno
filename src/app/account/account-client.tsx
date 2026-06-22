@@ -8,6 +8,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
 import { LanguagePref } from '@/components/marketplace/language-pref'
+import { ThemePref } from '@/components/marketplace/theme-pref'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
@@ -48,16 +49,17 @@ export function AccountClient() {
   // Logged out
   if (!loading && !user) {
     return (
-      <div className="flex min-h-screen flex-col bg-[#fafafa]">
+      <div className="flex min-h-screen flex-col bg-background">
         <Header />
         <main className="mx-auto w-full max-w-md flex-1 space-y-8 px-3 py-8">
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-pop">
-            <h1 className="text-lg font-bold text-[#1a202c]">{tr('Your account', 'Tài khoản của bạn')}</h1>
-            <p className="mt-2 text-sm text-[#64748b]">{tr('Sign in to manage your profile, listings and saved items.', 'Đăng nhập để quản lý hồ sơ, tin đăng và mục đã lưu.')}</p>
+          <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-pop">
+            <h1 className="text-lg font-bold text-foreground">{tr('Your account', 'Tài khoản của bạn')}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{tr('Sign in to manage your profile, listings and saved items.', 'Đăng nhập để quản lý hồ sơ, tin đăng và mục đã lưu.')}</p>
             <div className="mt-5"><SignInPrompt /></div>
           </div>
-          {/* Language is a device preference — available even before sign-in. */}
+          {/* Language + appearance are device preferences — available even before sign-in. */}
           <LanguagePref />
+          <div className="mt-8"><ThemePref /></div>
         </main>
       </div>
     )
@@ -73,7 +75,7 @@ export function AccountClient() {
   const listings = account?.listings ?? []
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#fafafa]">
+    <div className="flex min-h-screen flex-col bg-background">
       <Header />
       <main className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6">
         {/* Identity header */}
@@ -88,8 +90,8 @@ export function AccountClient() {
               </span>
             )}
             <div>
-              <h1 className="h-title text-[#1a202c]">{displayName}</h1>
-              {email && <p className="text-sm text-[#64748b]">{email}</p>}
+              <h1 className="h-title text-foreground">{displayName}</h1>
+              {email && <p className="text-sm text-muted-foreground">{email}</p>}
             </div>
           </div>
           <SignOutButton />
@@ -97,16 +99,16 @@ export function AccountClient() {
 
         {/* Quick links */}
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          <Link href="/saved" className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-pop hover:border-[#0a66c2]/30 transition-colors">
-            <Heart className="h-5 w-5 text-[#0a66c2]" />
-            <span className="text-sm font-semibold text-[#1a202c]">{tr('Saved listings', 'Tin đã lưu')}</span>
-            <ChevronRight className="ml-auto h-4 w-4 text-[#cbd5e1]" />
+          <Link href="/saved" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-pop hover:border-[#0a66c2]/30 transition-colors">
+            <Heart className="h-5 w-5 text-accent-foreground" />
+            <span className="text-sm font-semibold text-foreground">{tr('Saved listings', 'Tin đã lưu')}</span>
+            <ChevronRight className="ml-auto h-4 w-4 text-line-strong" />
           </Link>
           {seller && (
-            <Link href={`/sellers/${seller.id}`} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-pop hover:border-[#0a66c2]/30 transition-colors">
-              <Store className="h-5 w-5 text-[#0a66c2]" />
-              <span className="text-sm font-semibold text-[#1a202c]">{tr('My business profile', 'Hồ sơ doanh nghiệp')}</span>
-              <ChevronRight className="ml-auto h-4 w-4 text-[#cbd5e1]" />
+            <Link href={`/sellers/${seller.id}`} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-pop hover:border-[#0a66c2]/30 transition-colors">
+              <Store className="h-5 w-5 text-accent-foreground" />
+              <span className="text-sm font-semibold text-foreground">{tr('My business profile', 'Hồ sơ doanh nghiệp')}</span>
+              <ChevronRight className="ml-auto h-4 w-4 text-line-strong" />
             </Link>
           )}
         </div>
@@ -115,9 +117,9 @@ export function AccountClient() {
         {seller ? (
           <section className="mt-10">
             <div className="flex items-center gap-2">
-              <h2 className="h-section text-[#1a202c]">{tr('My listings', 'Tin của tôi')}</h2>
+              <h2 className="h-section text-foreground">{tr('My listings', 'Tin của tôi')}</h2>
               {seller.verifiedSeller && (
-                <span className="inline-flex items-center gap-1 rounded-xl bg-[#e8f1fb] px-2 py-0.5 text-[11px] font-semibold text-[#0a66c2]">
+                <span className="inline-flex items-center gap-1 rounded-xl bg-accent px-2 py-0.5 text-[11px] font-semibold text-accent-foreground">
                   <ShieldCheck className="h-3 w-3" /> {tr('Verified business', 'Doanh nghiệp đã xác minh')}
                 </span>
               )}
@@ -125,15 +127,15 @@ export function AccountClient() {
             {listings.length > 0 ? (
               <div className="mt-4"><SellerListings listings={listings} /></div>
             ) : (
-              <p className="mt-3 rounded-2xl border border-dashed border-[#cbd5e1] py-10 text-center text-sm text-[#64748b]">
+              <p className="mt-3 rounded-2xl border border-dashed border-line-strong py-10 text-center text-sm text-muted-foreground">
                 {tr('No live listings yet — post one to get started.', 'Chưa có tin nào — đăng tin để bắt đầu.')}
               </p>
             )}
           </section>
         ) : account ? (
-          <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-pop">
-            <h2 className="text-sm font-bold text-[#1a202c]">{tr('Selling on eno.vn?', 'Bán hàng trên eno.vn?')}</h2>
-            <p className="mt-1 text-sm text-[#64748b]">
+          <section className="mt-10 rounded-2xl border border-border bg-card p-6 shadow-pop">
+            <h2 className="text-sm font-bold text-foreground">{tr('Selling on eno.vn?', 'Bán hàng trên eno.vn?')}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
               {tr("Post a listing to create your business profile. If you've posted before with your phone number, sign in with that number to claim it.", 'Đăng tin để tạo hồ sơ doanh nghiệp. Nếu bạn đã từng đăng tin bằng số điện thoại, hãy đăng nhập bằng số đó để nhận lại.')}
             </p>
           </section>
@@ -151,7 +153,7 @@ export function AccountClient() {
 
         {/* Preferences — mobile only; on desktop the language picker lives in the
             account dropdown (top-right), so it's removed from this page there. */}
-        <section className="mt-10 lg:hidden"><LanguagePref /></section>
+        <section className="mt-10 space-y-8 lg:hidden"><LanguagePref /><ThemePref /></section>
       </main>
       <Footer />
     </div>

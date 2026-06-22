@@ -80,16 +80,16 @@ export default async function CategoryDistrictPage({ params }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <Header />
       <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
-        <nav className="mb-4 text-sm text-[#64748b]">
-          <Link href="/" className="hover:text-[#0a66c2] transition-colors"><Tr text="Home" /></Link>
-          <span className="mx-1.5 text-[#cbd5e1]">/</span>
-          <Link href={`/c/${cat.slug}`} className="hover:text-[#0a66c2] transition-colors"><Tr text={cat.name} /></Link>
-          <span className="mx-1.5 text-[#cbd5e1]">/</span>
-          <span className="font-medium text-[#1a202c]"><Tr text={districtName} /></span>
+        <nav className="mb-4 text-sm text-muted-foreground">
+          <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
+          <span className="mx-1.5 text-line-strong">/</span>
+          <Link href={`/c/${cat.slug}`} className="hover:text-accent-foreground transition-colors"><Tr text={cat.name} /></Link>
+          <span className="mx-1.5 text-line-strong">/</span>
+          <span className="font-medium text-foreground"><Tr text={districtName} /></span>
         </nav>
 
-        <h1 className="h-display text-[#1a202c]"><Tr text={cat.name} /> <Tr text="in" /> <Tr text={districtName} /></h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[#475569]">
+        <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in" /> <Tr text={districtName} /></h1>
+        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-body">
           {listings.length} <Tr text="verified" /> <Tr text={cat.name.toLowerCase()} /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="in" /> <Tr text={districtName} />,{' '}
           <Tr text="each checked by an eno.vn agent — no fakes, no bait prices." />
         </p>
@@ -99,7 +99,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href={`/c/${cat.slug}`} className="inline-block rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-bold text-[#1a202c] transition-colors hover:bg-slate-50">
+          <Link href={`/c/${cat.slug}`} className="inline-block rounded-xl border border-line-strong px-5 py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted">
             ← <Tr text="All" /> <Tr text={cat.name} />
           </Link>
           <Link href={`/?category=${cat.slug}`} className="inline-block rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">

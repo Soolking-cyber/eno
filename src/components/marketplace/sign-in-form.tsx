@@ -102,10 +102,10 @@ export function SignInForm({ className }: { className?: string }) {
   if (stage === 'sent') {
     return (
       <div className={cn('text-center', className)}>
-        <Mail className="mx-auto h-10 w-10 text-[#0a66c2]" />
-        <p className="mt-3 text-sm font-semibold text-[#1a202c]">{t('Kiểm tra email của bạn', 'Check your email')}</p>
-        <p className="mt-1 text-sm text-[#64748b]">{t('Chúng tôi đã gửi liên kết đăng nhập tới', 'We sent a magic link to')} <strong>{email}</strong>.</p>
-        <button onClick={reset} className="mt-4 text-sm font-semibold text-[#0a66c2] hover:underline cursor-pointer">
+        <Mail className="mx-auto h-10 w-10 text-accent-foreground" />
+        <p className="mt-3 text-sm font-semibold text-foreground">{t('Kiểm tra email của bạn', 'Check your email')}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('Chúng tôi đã gửi liên kết đăng nhập tới', 'We sent a magic link to')} <strong>{email}</strong>.</p>
+        <button onClick={reset} className="mt-4 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
           {t('Dùng cách khác', 'Use another method')}
         </button>
       </div>
@@ -115,20 +115,20 @@ export function SignInForm({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-3', className)}>
       {/* OAuth */}
-      <button onClick={() => oauth('google')} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-2.5 text-sm font-bold text-[#1a202c] hover:bg-slate-50 transition-colors cursor-pointer">
+      <button onClick={() => oauth('google')} className="flex w-full items-center justify-center gap-2 rounded-xl border border-line-strong bg-card py-2.5 text-sm font-bold text-foreground hover:bg-muted transition-colors cursor-pointer">
         <GoogleIcon /> {t('Tiếp tục với Google', 'Continue with Google')}
       </button>
 
       <div className="flex items-center gap-3 py-1">
-        <span className="h-px flex-1 bg-slate-200" />
-        <span className="text-xs text-[#94a3b8]">{t('hoặc', 'or')}</span>
-        <span className="h-px flex-1 bg-slate-200" />
+        <span className="h-px flex-1 bg-border" />
+        <span className="text-xs text-ink-4">{t('hoặc', 'or')}</span>
+        <span className="h-px flex-1 bg-border" />
       </div>
 
       {/* Email / Phone tabs */}
-      <div className="flex rounded-full bg-[#f1f5f9] p-1 text-sm font-semibold">
+      <div className="flex rounded-full bg-tint p-1 text-sm font-semibold">
         {(['phone', 'email'] as const).map((m) => (
-          <button key={m} onClick={() => { setTab(m); reset() }} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 transition-colors cursor-pointer', tab === m ? 'bg-white text-[#0a66c2] shadow-sm' : 'text-[#64748b]')}>
+          <button key={m} onClick={() => { setTab(m); reset() }} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 transition-colors cursor-pointer', tab === m ? 'bg-card text-accent-foreground shadow-sm' : 'text-muted-foreground')}>
             {m === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
             {m === 'email' ? tr('Email') : t('Điện thoại', 'Phone')}
           </button>
@@ -137,7 +137,7 @@ export function SignInForm({ className }: { className?: string }) {
 
       {tab === 'email' && (
         <div className="space-y-2">
-          <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20" />
+          <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="w-full rounded-xl border border-line-strong px-4 py-3 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20" />
           <button onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Gửi liên kết đăng nhập', 'Send magic link')}
           </button>
@@ -146,7 +146,7 @@ export function SignInForm({ className }: { className?: string }) {
 
       {tab === 'phone' && stage === 'input' && (
         <div className="space-y-2">
-          <input type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20" />
+          <input type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" className="w-full rounded-xl border border-line-strong px-4 py-3 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20" />
           <button onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Gửi mã SMS', 'Send SMS code')}
           </button>
@@ -155,7 +155,7 @@ export function SignInForm({ className }: { className?: string }) {
 
       {tab === 'phone' && stage === 'code' && (
         <div className="space-y-3">
-          <p className="text-center text-xs text-[#64748b]">{t('Nhập mã 6 số gửi tới', 'Enter the 6-digit code sent to')} <strong className="text-[#1a202c]">{phone}</strong></p>
+          <p className="text-center text-xs text-muted-foreground">{t('Nhập mã 6 số gửi tới', 'Enter the 6-digit code sent to')} <strong className="text-foreground">{phone}</strong></p>
           <InputOTP maxLength={6} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
             <InputOTPGroup>
               {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -167,8 +167,8 @@ export function SignInForm({ className }: { className?: string }) {
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Xác nhận', 'Verify')}
           </button>
           <div className="flex items-center justify-between px-1 text-xs">
-            <button onClick={reset} className="font-semibold text-[#64748b] hover:text-[#0a66c2] cursor-pointer">{t('Đổi số', 'Change number')}</button>
-            <button onClick={sendPhone} disabled={countdown > 0 || loading} className="font-semibold text-[#0a66c2] hover:underline disabled:text-[#94a3b8] disabled:no-underline cursor-pointer disabled:cursor-default">
+            <button onClick={reset} className="font-semibold text-muted-foreground hover:text-accent-foreground cursor-pointer">{t('Đổi số', 'Change number')}</button>
+            <button onClick={sendPhone} disabled={countdown > 0 || loading} className="font-semibold text-accent-foreground hover:underline disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
               {countdown > 0 ? `${t('Gửi lại sau', 'Resend in')} 0:${String(countdown).padStart(2, '0')}` : t('Gửi lại mã', 'Resend code')}
             </button>
           </div>
@@ -176,11 +176,11 @@ export function SignInForm({ className }: { className?: string }) {
       )}
 
       {error && <p role="alert" className="text-center text-xs font-semibold text-red-600">{error}</p>}
-      <p className="pt-1 text-center text-[11px] text-[#94a3b8]">
+      <p className="pt-1 text-center text-[11px] text-ink-4">
         {t('Tiếp tục nghĩa là bạn đồng ý với', 'By continuing you agree to our')}{' '}
-        <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-[#0a66c2]">{t('Điều khoản', 'Terms')}</a>
+        <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Điều khoản', 'Terms')}</a>
         {' '}{t('và', 'and')}{' '}
-        <a href="/privacy" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-[#0a66c2]">{t('Chính sách bảo mật', 'Privacy Policy')}</a>.
+        <a href="/privacy" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Chính sách bảo mật', 'Privacy Policy')}</a>.
       </p>
     </div>
   )

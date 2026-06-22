@@ -57,9 +57,9 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
       <Header />
       <main className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         {/* Hero */}
-        <p className="eyebrow text-[#0a66c2] mb-2">{content.eyebrow}</p>
-        <h1 className="h-display text-[#1a202c]">{content.h1}</h1>
-        <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-[#475569]">{content.intro}</p>
+        <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
+        <h1 className="h-display text-foreground">{content.h1}</h1>
+        <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-body">{content.intro}</p>
         <Link
           href={`/c/${content.categorySlug}`}
           className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#004182]"
@@ -70,11 +70,11 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         {/* Real verified listings (crawlable internal links) */}
         {listings.length > 0 && (
           <section className="mt-12">
-            <h2 className="h-section text-[#1a202c] mb-4">Verified listings</h2>
+            <h2 className="h-section text-foreground mb-4">Verified listings</h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {listings.map((l) => (
                 <Link key={l.id} href={`/listings/${l.id}`} className="group flex flex-col">
-                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#f1f5f9]">
+                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-tint">
                     {l.images[0] && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -86,10 +86,10 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
                     )}
                   </div>
                   <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2.5">
-                    <span className="line-clamp-1 text-sm font-semibold text-[#1a202c] group-hover:text-[#0a66c2]">{l.title}</span>
-                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="text-sm font-bold text-[#0a66c2]" />
-                    <span className="flex items-center gap-1 text-xs text-[#64748b]">
-                      <MapPin className="h-3 w-3 shrink-0 text-[#94a3b8]" />
+                    <span className="line-clamp-1 text-sm font-semibold text-foreground group-hover:text-accent-foreground">{l.title}</span>
+                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="text-sm font-bold text-accent-foreground" />
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <MapPin className="h-3 w-3 shrink-0 text-ink-4" />
                       <span className="truncate">{l.location}</span>
                     </span>
                   </div>
@@ -98,7 +98,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
             </div>
             <Link
               href={`/c/${content.categorySlug}`}
-              className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#0a66c2] hover:underline"
+              className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
             >
               {content.cta} <ArrowRight className="h-4 w-4" />
             </Link>
@@ -109,32 +109,32 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         <div className="mt-14 space-y-8">
           {content.sections.map((s, i) => (
             <section key={i}>
-              <h2 className="h-section text-[#1a202c] mb-2">{s.title}</h2>
-              <p className="text-[15px] leading-relaxed text-[#475569]">{s.body}</p>
+              <h2 className="h-section text-foreground mb-2">{s.title}</h2>
+              <p className="text-[15px] leading-relaxed text-body">{s.body}</p>
             </section>
           ))}
         </div>
 
         {/* Verified-trust strip */}
-        <div className="mt-12 flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-pop">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e8f1fb] text-[#0a66c2]">
+        <div className="mt-12 flex items-start gap-3 rounded-2xl border border-border bg-card p-5 shadow-pop">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
             <BadgeCheck className="h-5 w-5" />
           </span>
-          <p className="text-sm leading-relaxed text-[#475569]">
+          <p className="text-sm leading-relaxed text-body">
             Every eno.vn listing is checked before it goes live — no fake photos, no bait prices, no wasted trips.{' '}
-            <Link href="/about" className="font-semibold text-[#0a66c2] hover:underline">See how verification works</Link>.
+            <Link href="/about" className="font-semibold text-accent-foreground hover:underline">See how verification works</Link>.
           </p>
         </div>
 
         {/* FAQ */}
         {content.faqs.length > 0 && (
           <section className="mt-12">
-            <h2 className="h-section text-[#1a202c] mb-4">Frequently asked questions</h2>
+            <h2 className="h-section text-foreground mb-4">Frequently asked questions</h2>
             <div className="space-y-5">
               {content.faqs.map((f, i) => (
                 <div key={i}>
-                  <h3 className="text-sm font-bold text-[#1a202c]">{f.q}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-[#475569]">{f.a}</p>
+                  <h3 className="text-sm font-bold text-foreground">{f.q}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-body">{f.a}</p>
                 </div>
               ))}
             </div>
@@ -142,8 +142,8 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         )}
 
         {/* Brand line */}
-        <p className="mt-14 border-t border-slate-200 pt-6 text-sm leading-relaxed text-[#64748b]">
-          <strong className="font-semibold text-[#1a202c]">eno.vn</strong> — a verified marketplace for Vietnam’s
+        <p className="mt-14 border-t border-border pt-6 text-sm leading-relaxed text-muted-foreground">
+          <strong className="font-semibold text-foreground">eno.vn</strong> — a verified marketplace for Vietnam’s
           international community.
         </p>
       </main>

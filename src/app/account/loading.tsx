@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 // gap so the bottom-nav tap feels instant instead of frozen.
 export default function AccountLoading() {
   return (
-    <div className="flex min-h-screen flex-col bg-[#fafafa]">
+    <div className="flex min-h-screen flex-col bg-background">
       <Header />
       <main className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6">
         {/* Identity header */}

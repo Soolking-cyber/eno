@@ -119,11 +119,11 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
   if (submitted) {
     return (
       <div className="flex flex-col items-center gap-4 py-16 text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e8f1fb] text-[#0a66c2]">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-accent-foreground">
           <ShieldCheck className="h-8 w-8" />
         </span>
-        <h1 className="h-title text-[#1a202c]">{t('Đã gửi để kiểm duyệt!', 'Submitted for verification!')}</h1>
-        <p className="max-w-md text-sm text-[#475569]">
+        <h1 className="h-title text-foreground">{t('Đã gửi để kiểm duyệt!', 'Submitted for verification!')}</h1>
+        <p className="max-w-md text-sm text-body">
           {t(
             'Nhân viên eno.vn sẽ xác minh tin đăng của bạn trong vòng 24 giờ trước khi hiển thị công khai. Đó là cách chúng tôi giữ chợ không có tin ảo.',
             'An eno.vn agent will verify your listing within 24 hours before it goes live. That’s how we keep the marketplace free of fakes.',
@@ -143,13 +143,13 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
         <div className="mb-3 flex items-center justify-between">
           <button
             onClick={() => (step > 1 ? setStep((s) => s - 1) : (window.location.href = '/'))}
-            className="inline-flex items-center gap-1 text-sm font-medium text-[#64748b] hover:text-[#0a66c2] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer"
           >
             <ChevronLeft className="h-4 w-4" /> {step > 1 ? t('Quay lại', 'Back') : t('Thoát', 'Exit')}
           </button>
-          <span className="text-xs font-semibold text-[#94a3b8]">{t('Bước', 'Step')} {step}/{STEPS}</span>
+          <span className="text-xs font-semibold text-ink-4">{t('Bước', 'Step')} {step}/{STEPS}</span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#f1f5f9]">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-tint">
           <div className="h-full rounded-full bg-[#0a66c2] transition-all duration-300" style={{ width: `${(step / STEPS) * 100}%` }} />
         </div>
       </div>
@@ -158,7 +158,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
       <div key={step} className="animate-in fade-in slide-in-from-right-4 duration-200">
           {step === 1 && (
             <div className="space-y-4">
-              <h1 className="h-title text-[#1a202c]">{t('Bạn muốn đăng gì?', 'What are you listing?')}</h1>
+              <h1 className="h-title text-foreground">{t('Bạn muốn đăng gì?', 'What are you listing?')}</h1>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {categories.map((c) => (
                   <button
@@ -166,11 +166,11 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                     onClick={() => setCategorySlug(c.slug)}
                     className={cn(
                       'flex flex-col items-center gap-2 rounded-2xl border p-5 transition-all cursor-pointer',
-                      categorySlug === c.slug ? 'border-[#0a66c2] bg-[#e8f1fb]' : 'border-slate-200 hover:border-[#0a66c2]/40 hover:bg-[#f1f5f9]',
+                      categorySlug === c.slug ? 'border-[#0a66c2] bg-accent' : 'border-border hover:border-[#0a66c2]/40 hover:bg-tint',
                     )}
                   >
-                    <CategoryIcon name={c.icon} className={cn('h-7 w-7', categorySlug === c.slug ? 'text-[#0a66c2]' : 'text-slate-400')} />
-                    <span className="text-sm font-bold text-[#1a202c]">{lang === 'vi' ? c.nameVi : c.name}</span>
+                    <CategoryIcon name={c.icon} className={cn('h-7 w-7', categorySlug === c.slug ? 'text-accent-foreground' : 'text-ink-4')} />
+                    <span className="text-sm font-bold text-foreground">{lang === 'vi' ? c.nameVi : c.name}</span>
                   </button>
                 ))}
               </div>
@@ -179,24 +179,24 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
           {step === 2 && (
             <div className="space-y-5">
-              <h1 className="h-title text-[#1a202c]">{t('Mô tả tin đăng', 'Describe your listing')}</h1>
+              <h1 className="h-title text-foreground">{t('Mô tả tin đăng', 'Describe your listing')}</h1>
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-[#1a202c]">{t('Tiêu đề', 'Title')}</label>
+                <label className="text-sm font-semibold text-foreground">{t('Tiêu đề', 'Title')}</label>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={t('VD: iPhone 14 128GB — pin 92%', 'e.g. iPhone 14 128GB — battery 92%')}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-[#1a202c] outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-[#94a3b8]"
+                  className="w-full rounded-xl border border-line-strong bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-ink-4"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-[#1a202c]">{t('Mô tả', 'Description')}</label>
+                <label className="text-sm font-semibold text-foreground">{t('Mô tả', 'Description')}</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={5}
                   placeholder={t('Tình trạng, lý do bán, thông tin liên hệ...', 'Condition, reason for selling, details…')}
-                  className="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-[#1a202c] outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-[#94a3b8]"
+                  className="w-full resize-none rounded-xl border border-line-strong bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-ink-4"
                 />
               </div>
             </div>
@@ -204,17 +204,17 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
           {step === 3 && (
             <div className="space-y-5">
-              <h1 className="h-title text-[#1a202c]">{t('Giá, khu vực & ảnh', 'Price, area & photos')}</h1>
+              <h1 className="h-title text-foreground">{t('Giá, khu vực & ảnh', 'Price, area & photos')}</h1>
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-[#1a202c]">{t('Giá (VND)', 'Price (VND)')}</label>
+                <label className="text-sm font-semibold text-foreground">{t('Giá (VND)', 'Price (VND)')}</label>
                 <VndInput value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-[#1a202c]">{t('Khu vực', 'Area')}</label>
+                <label className="text-sm font-semibold text-foreground">{t('Khu vực', 'Area')}</label>
                 <select
                   value={district}
                   onChange={(e) => setDistrict(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-[#1a202c] outline-none focus:border-[#0a66c2]"
+                  className="w-full rounded-xl border border-line-strong bg-card px-3 py-3 text-sm text-foreground outline-none focus:border-[#0a66c2]"
                 >
                   <option value="">{t('Chọn khu vực', 'Select area')}</option>
                   {DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -223,13 +223,13 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
               {isGoods && (
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-[#1a202c]">{t('Tình trạng', 'Condition')}</label>
+                  <label className="text-sm font-semibold text-foreground">{t('Tình trạng', 'Condition')}</label>
                   <div className="flex gap-2">
                     {[['new', t('Mới', 'New')], ['used', t('Đã dùng', 'Used')]].map(([v, label]) => (
                       <button
                         key={v}
                         onClick={() => setCondition(v)}
-                        className={cn('rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', condition === v ? 'bg-[#0a66c2] text-white' : 'bg-[#f1f5f9] text-[#475569] hover:bg-[#e8f1fb]')}
+                        className={cn('rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', condition === v ? 'bg-[#0a66c2] text-white' : 'bg-tint text-body hover:bg-accent')}
                       >
                         {label}
                       </button>
@@ -239,19 +239,19 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
               )}
 
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-[#1a202c]">{t('Ảnh', 'Photos')} <span className="font-normal text-[#94a3b8]">({photos.length}/6)</span></label>
+                <label className="text-sm font-semibold text-foreground">{t('Ảnh', 'Photos')} <span className="font-normal text-ink-4">({photos.length}/6)</span></label>
                 <div className="grid grid-cols-3 gap-2">
                   {photos.map((p, i) => (
-                    <div key={i} className="relative aspect-square overflow-hidden rounded-xl bg-[#f1f5f9]">
+                    <div key={i} className="relative aspect-square overflow-hidden rounded-xl bg-tint">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={p.url} alt={p.file.name} className="h-full w-full object-cover" />
-                      <button aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-[#1a202c] shadow-sm cursor-pointer">
+                      <button aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-foreground shadow-sm cursor-pointer">
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ))}
                   {photos.length < 6 && (
-                    <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 text-[#94a3b8] hover:border-[#0a66c2] hover:text-[#0a66c2] transition-colors">
+                    <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 hover:border-[#0a66c2] hover:text-accent-foreground transition-colors">
                       <ImagePlus className="h-6 w-6" />
                       <span className="text-[10px] font-semibold">{t('Thêm', 'Add')}</span>
                       <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
@@ -264,32 +264,32 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
           {step === 4 && (
             <div className="space-y-5">
-              <h1 className="h-title text-[#1a202c]">{t('Liên hệ & gửi', 'Contact & submit')}</h1>
+              <h1 className="h-title text-foreground">{t('Liên hệ & gửi', 'Contact & submit')}</h1>
 
               {/* Contact capture (no account needed) */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-[#1a202c]">{t('Tên của bạn', 'Your name')}</label>
+                  <label className="text-sm font-semibold text-foreground">{t('Tên của bạn', 'Your name')}</label>
                   <input
                     value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
                     placeholder={t('VD: Minh', 'e.g. Minh')}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-[#1a202c] outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-[#94a3b8]"
+                    className="w-full rounded-xl border border-line-strong bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-ink-4"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-[#1a202c]">{t('Số điện thoại / Zalo', 'Phone / Zalo')}</label>
+                  <label className="text-sm font-semibold text-foreground">{t('Số điện thoại / Zalo', 'Phone / Zalo')}</label>
                   <input
                     value={contactPhone}
                     onChange={(e) => setContactPhone(e.target.value)}
                     inputMode="tel"
                     placeholder="0901 234 567"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-[#1a202c] outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-[#94a3b8]"
+                    className="w-full rounded-xl border border-line-strong bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-ink-4"
                   />
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-pop space-y-3">
+              <div className="rounded-2xl border border-border bg-card p-5 shadow-pop space-y-3">
                 <Row label={t('Danh mục', 'Category')} value={cat ? (lang === 'vi' ? cat.nameVi : cat.name) : '—'} />
                 <Row label={t('Tiêu đề', 'Title')} value={title || '—'} />
                 <Row label={t('Giá', 'Price')} value={price ? formatMoneyFull(Number(price), '₫') : '—'} />
@@ -298,7 +298,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                 <Row label={t('Ảnh', 'Photos')} value={`${photos.length}`} />
               </div>
 
-              <div className="flex items-start gap-2 rounded-xl bg-[#e8f1fb] px-4 py-3 text-xs text-[#0052cc]">
+              <div className="flex items-start gap-2 rounded-xl bg-accent px-4 py-3 text-xs text-accent-foreground">
                 <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{t('Tin của bạn sẽ được nhân viên eno.vn kiểm duyệt thực tế trước khi hiển thị.', 'Your listing will be verified by an eno.vn agent before going live.')}</span>
               </div>
@@ -334,9 +334,9 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-2.5 last:border-0 last:pb-0 text-sm">
-      <span className="text-[#64748b]">{label}</span>
-      <span className="font-medium text-[#1a202c] text-right">{value}</span>
+    <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5 last:border-0 last:pb-0 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-foreground text-right">{value}</span>
     </div>
   )
 }

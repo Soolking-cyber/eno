@@ -148,9 +148,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   return (
     // `isolate` keeps Leaflet's internal z-index (panes/controls up to ~1000)
     // contained so it can never render above modals/dialogs (which sit at z-50).
-    <div className="w-full h-full relative isolate bg-slate-100">
+    <div className="w-full h-full relative isolate bg-tint">
       {!ready && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-50 z-20 select-none">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted z-20 select-none">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#0a66c2] border-t-transparent" />
           <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
             {tr('Loading map…', 'Đang tải bản đồ...')}

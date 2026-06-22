@@ -25,7 +25,7 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
         aria-label={label}
         className={cn(
           'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors active:scale-90',
-          saved ? 'border-[#0a66c2] bg-[#e8f1fb] text-[#0a66c2]' : 'border-slate-200 text-[#475569]',
+          saved ? 'border-[#0a66c2] bg-accent text-accent-foreground' : 'border-border text-body',
           className,
         )}
       >
@@ -42,7 +42,7 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
       aria-label={label}
       className={cn(
         'flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95',
-        saved ? 'border-[#0a66c2] bg-[#e8f1fb] text-[#0a66c2]' : 'border-slate-200 text-[#475569] hover:border-[#0a66c2] hover:text-[#0a66c2]',
+        saved ? 'border-[#0a66c2] bg-accent text-accent-foreground' : 'border-border text-body hover:border-[#0a66c2] hover:text-accent-foreground',
         className,
       )}
     >

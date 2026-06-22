@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/context/theme-context";
 import { LanguageProvider } from "@/context/language-context";
 import { AuthProvider } from "@/context/auth-context";
 import { ChatProvider } from "@/context/chat-context";
@@ -22,16 +23,17 @@ const inter = Inter({
 
 const OG_IMAGE = { url: "/listings/hero-market.png", width: 1344, height: 768, alt: "eno.vn — verified marketplace" };
 
-// Light-first design: tell browsers not to auto-dark the UI (avoids Chrome
-// mobile "Auto Dark Theme" producing a low-contrast rendering).
-// theme-color matches the white header/nav (not the #fafafa canvas) so the iOS
-// status-bar / toolbar area is seamless with the chrome, no two-tone seam.
-// viewportFit:"cover" is the keystone for iOS: without it env(safe-area-inset-*)
-// resolves to 0, so the safe-area padding the header/nav/body already declare is
-// dead. With it, those insets activate (notch + home-indicator handled cleanly).
+// Both schemes are supported now (real dark theme in globals.css `.dark`,
+// toggled System/Light/Dark). theme-color is media-matched so the iOS status-bar
+// / toolbar stays seamless with the chrome in each scheme (white header in light,
+// dark canvas in dark). viewportFit:"cover" activates env(safe-area-inset-*) so
+// the safe-area padding the header/nav/body declare is honored (notch + home bar).
 export const viewport: Viewport = {
-  colorScheme: "light",
-  themeColor: "#ffffff",
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e1116" },
+  ],
   viewportFit: "cover",
 };
 
@@ -80,6 +82,14 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Set the theme class BEFORE paint to avoid a flash of the wrong scheme —
+            reads the persisted System/Light/Dark choice + the OS preference. Kept
+            in sync with ThemeProvider. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
         {/* Warm up TCP/TLS to the image origin so above-the-fold listing photos
             start downloading sooner. (Map origins — unpkg/cartocdn — are
             preconnected lazily by the map itself, which only mounts on demand.) */}
@@ -114,21 +124,23 @@ export default function RootLayout({
       <body
         className={`${inter.variable} antialiased bg-background text-foreground pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0`}
       >
-        <LanguageProvider>
-          <AuthProvider>
-            <NotificationsProvider>
-              <ChatProvider>
-                <FavoritesProvider>
-                  <QueryProvider>
-                    {children}
-                    <MobileNav />
-                    <CookieConsent />
-                  </QueryProvider>
-                </FavoritesProvider>
-              </ChatProvider>
-            </NotificationsProvider>
-          </AuthProvider>
-        </LanguageProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <NotificationsProvider>
+                <ChatProvider>
+                  <FavoritesProvider>
+                    <QueryProvider>
+                      {children}
+                      <MobileNav />
+                      <CookieConsent />
+                    </QueryProvider>
+                  </FavoritesProvider>
+                </ChatProvider>
+              </NotificationsProvider>
+            </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
         <SonnerToaster position="bottom-right" richColors closeButton />
         <AnalyticsTags />
         <SpeedInsights />

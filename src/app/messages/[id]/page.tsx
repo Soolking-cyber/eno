@@ -145,30 +145,30 @@ export default function ThreadPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] flex-col bg-[#fafafa] lg:h-[100dvh]">
+    <div className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] flex-col bg-background lg:h-[100dvh]">
       <Header />
       {!loading && !user ? (
         <main className="flex flex-1 items-center justify-center px-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-pop">
-            <p className="text-sm text-[#64748b]">{tr('Sign in to view this conversation.', 'Đăng nhập để xem cuộc trò chuyện này.')}</p>
+          <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-pop">
+            <p className="text-sm text-muted-foreground">{tr('Sign in to view this conversation.', 'Đăng nhập để xem cuộc trò chuyện này.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
         </main>
       ) : notFound ? (
         <main className="flex flex-1 items-center justify-center px-3">
-          <p className="text-sm text-[#64748b]">{tr('Conversation not found.', 'Không tìm thấy cuộc trò chuyện.')}</p>
+          <p className="text-sm text-muted-foreground">{tr('Conversation not found.', 'Không tìm thấy cuộc trò chuyện.')}</p>
         </main>
       ) : (
         <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-hidden px-0 sm:px-6">
           {/* Thread header */}
-          <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
-            <Link href="/messages" className="text-[#64748b] hover:text-[#0a66c2]"><ChevronLeft className="h-5 w-5" /></Link>
+          <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
+            <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground"><ChevronLeft className="h-5 w-5" /></Link>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-xs font-bold text-white">
               {thread?.counterpart.name.slice(0, 2).toUpperCase()}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-bold text-[#1a202c]">{thread?.counterpart.name || '…'}</div>
-              {thread && <Link href={`/listings/${thread.listing.id}`} className="truncate text-xs text-[#0a66c2] hover:underline">{thread.listing.title}</Link>}
+              <div className="truncate text-sm font-bold text-foreground">{thread?.counterpart.name || '…'}</div>
+              {thread && <Link href={`/listings/${thread.listing.id}`} className="truncate text-xs text-accent-foreground hover:underline">{thread.listing.title}</Link>}
             </div>
           </div>
 
@@ -176,26 +176,26 @@ export default function ThreadPage() {
           <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4 scroll-thin">
             {thread?.messages.map((m) => (
               <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'bg-white text-[#1a202c] border border-slate-200'}`}>
+                <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'bg-card text-foreground border border-border'}`}>
                   {m.body}
                 </div>
               </div>
             ))}
             {thread && thread.messages.length === 0 && (
-              <p className="py-10 text-center text-xs text-[#94a3b8]">{tr('Say hello — this seller will be notified.', 'Gửi lời chào — người bán sẽ được thông báo.')}</p>
+              <p className="py-10 text-center text-xs text-ink-4">{tr('Say hello — this seller will be notified.', 'Gửi lời chào — người bán sẽ được thông báo.')}</p>
             )}
             <div ref={bottomRef} />
           </div>
 
           {/* Composer */}
-          <div className="flex items-end gap-2 border-t border-slate-200 bg-white px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          <div className="flex items-end gap-2 border-t border-border bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
               rows={1}
               placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
-              className="max-h-28 flex-1 resize-none rounded-2xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+              className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
             />
             <button onClick={send} disabled={!text.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40">
               <Send className="h-4 w-4" />

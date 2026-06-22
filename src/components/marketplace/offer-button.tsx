@@ -91,14 +91,14 @@ export function OfferButton({ listingId, listingTitle, listingImage, price, curr
     <button
       onClick={openModal}
       aria-label={tr('Make an offer', 'Trả giá')}
-      className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#0a66c2] px-4 text-sm font-bold text-[#0a66c2] transition-colors active:scale-95"
+      className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#0a66c2] px-4 text-sm font-bold text-accent-foreground transition-colors active:scale-95"
     >
       <Tag className="h-4 w-4" /> {tr('Offer', 'Trả giá')}
     </button>
   ) : (
     <button
       onClick={openModal}
-      className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#0a66c2] py-2.5 text-sm font-bold text-[#0a66c2] transition-all hover:bg-[#e8f1fb] active:scale-98 cursor-pointer"
+      className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#0a66c2] py-2.5 text-sm font-bold text-accent-foreground transition-all hover:bg-accent active:scale-98 cursor-pointer"
     >
       <Tag className="h-4 w-4" /> {tr('Make an offer', 'Trả giá')}
     </button>
@@ -111,16 +111,16 @@ export function OfferButton({ listingId, listingTitle, listingImage, price, curr
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4" onClick={() => !busy && setOpen(false)}>
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-pop sm:rounded-2xl animate-in fade-in slide-in-from-bottom-2 duration-200"
+            className="w-full max-w-md rounded-t-2xl bg-card p-5 shadow-pop sm:rounded-2xl animate-in fade-in slide-in-from-bottom-2 duration-200"
           >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-bold text-[#1a202c]">{tr('Make an offer', 'Trả giá')}</h2>
+              <h2 className="text-base font-bold text-foreground">{tr('Make an offer', 'Trả giá')}</h2>
               <button onClick={() => setOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
             </div>
 
             {price > 0 && (
-              <p className="mb-2 text-xs text-[#64748b]">
-                {tr('Asking price', 'Giá rao')}: <span className="font-semibold text-[#1a202c]">{formatMoneyFull(price, currency)}</span>
+              <p className="mb-2 text-xs text-muted-foreground">
+                {tr('Asking price', 'Giá rao')}: <span className="font-semibold text-foreground">{formatMoneyFull(price, currency)}</span>
               </p>
             )}
 
@@ -134,7 +134,7 @@ export function OfferButton({ listingId, listingTitle, listingImage, price, curr
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
               {tr('Send offer', 'Gửi đề nghị')}
             </button>
-            <p className="mt-2 text-center text-[11px] text-[#94a3b8]">{tr('The seller can accept or counter in chat.', 'Người bán có thể đồng ý hoặc trả giá lại trong tin nhắn.')}</p>
+            <p className="mt-2 text-center text-[11px] text-ink-4">{tr('The seller can accept or counter in chat.', 'Người bán có thể đồng ý hoặc trả giá lại trong tin nhắn.')}</p>
           </div>
         </div>,
         document.body,

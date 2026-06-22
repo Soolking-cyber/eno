@@ -45,7 +45,7 @@ export default function ListingLoading() {
             {/* Details dl */}
             <div className="space-y-1">
               <Skeleton className="mb-2 h-6 w-24" />
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-border">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="flex items-center justify-between gap-4 py-2.5">
                     <Skeleton className="h-4 w-28" />
@@ -67,7 +67,7 @@ export default function ListingLoading() {
 
           {/* RIGHT: flat sticky contact column — left rule, no boxed card */}
           <div className="lg:col-span-5">
-            <div className="lg:sticky lg:top-24 space-y-5 lg:border-l lg:border-slate-200/70 lg:pl-10">
+            <div className="lg:sticky lg:top-24 space-y-5 lg:border-l lg:border-border/70 lg:pl-10">
               {/* Price */}
               <Skeleton className="h-9 w-40" />
 
@@ -78,7 +78,7 @@ export default function ListingLoading() {
               <Skeleton className="h-11 w-full rounded-full" />
 
               {/* Seller row */}
-              <div className="flex items-center gap-3 border-t border-slate-100 pt-4">
+              <div className="flex items-center gap-3 border-t border-border pt-4">
                 <Skeleton className="h-11 w-11 rounded-full" />
                 <div className="flex-1 space-y-1.5">
                   <Skeleton className="h-4 w-32" />

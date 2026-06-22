@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 import { AccountMenu } from './account-menu'
 import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
+import { useSearchSuggest } from '@/hooks/use-search-suggest'
+import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
 
 export function Header() {
   const { t, tr, lang } = useLanguage()
@@ -62,9 +64,29 @@ export function Header() {
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
   }, [showSuggestions])
 
-  // The window is "open" (morph + panel) only when focused, empty, and there's
-  // history to show — otherwise the bar stays a normal pill (no flat-bottom).
+  // The window is "open" (morph + panel) when focused with EITHER history to show
+  // (empty query) OR live instant-match results (≥2 chars). Otherwise it stays a
+  // normal pill (no flat-bottom).
   const suggestOpen = showSuggestions && searchVal.trim().length === 0 && (recentSearches.length > 0 || recentLocations.length > 0)
+  const instantOpen = showSuggestions && searchVal.trim().length >= 2
+  const panelOpen = suggestOpen || instantOpen
+
+  // Instant matches (debounced typeahead) — listings + categories.
+  const live = useSearchSuggest(searchVal, showSuggestions)
+  const suggestItems = buildSuggestItems(live.categories, live.listings)
+  const [activeIdx, setActiveIdx] = useState(-1)
+  useEffect(() => { setActiveIdx(-1) }, [searchVal])
+
+  const pickSuggest = (it: SuggestItem) => {
+    setShowSuggestions(false)
+    router.push(it.type === 'category' ? `/c/${it.slug}` : `/listings/${it.id}`)
+  }
+  const onSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (!instantOpen || suggestItems.length === 0) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx((i) => Math.min(suggestItems.length - 1, i + 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx((i) => Math.max(-1, i - 1)) }
+    else if (e.key === 'Enter' && activeIdx >= 0 && suggestItems[activeIdx]) { e.preventDefault(); pickSuggest(suggestItems[activeIdx]) }
+  }
 
   // Seed the search box from the URL so a revealed search reflects the active query.
   useEffect(() => {
@@ -119,7 +141,7 @@ export function Header() {
   return (
     <header
       className={cn(
-        'sticky top-0 z-40 border-b border-slate-200/60 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none',
+        'sticky top-0 z-40 border-b border-border/60 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none',
         hidden ? '-translate-y-full lg:translate-y-0' : 'translate-y-0',
       )}
     >
@@ -145,19 +167,20 @@ export function Header() {
                 window when open (Google-style monolith). */}
             <div className={cn(
               'relative z-50 flex items-center transition-all duration-200',
-              suggestOpen
-                ? 'rounded-t-2xl border border-slate-200 border-b-0 bg-white shadow-pop'
-                : 'rounded-2xl border border-transparent bg-[#f1f5f9] focus-within:border-[#0a66c2] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#0a66c2]/20',
+              panelOpen
+                ? 'rounded-t-2xl border border-border border-b-0 bg-card shadow-pop'
+                : 'rounded-2xl border border-transparent bg-tint focus-within:border-[#0a66c2] focus-within:bg-card focus-within:ring-2 focus-within:ring-[#0a66c2]/20',
             )}>
-              <Search className="pointer-events-none ml-3 h-4 w-4 shrink-0 text-[#94a3b8]" />
+              <Search className="pointer-events-none ml-3 h-4 w-4 shrink-0 text-ink-4" />
               <input
                 value={searchVal}
                 onChange={(e) => setSearchVal(e.target.value)}
                 onFocus={openSuggestions}
+                onKeyDown={onSearchKeyDown}
                 autoComplete="off"
                 placeholder={tr('Find products…', 'Tìm sản phẩm…')}
                 aria-label={tr('Search', 'Tìm kiếm')}
-                className="min-w-0 flex-1 bg-transparent py-2.5 pl-2 pr-2 text-sm text-[#1a202c] outline-none placeholder:text-[#94a3b8]"
+                className="min-w-0 flex-1 bg-transparent py-2.5 pl-2 pr-2 text-sm text-foreground outline-none placeholder:text-ink-4"
               />
               {/* Area filter — small location pin inside the search bar (right) */}
               <button
@@ -168,7 +191,7 @@ export function Header() {
                   'mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95',
                   province || ward || nearby
                     ? 'bg-[#0a66c2] text-white shadow-sm'
-                    : 'bg-[#e8f1fb] text-[#0a66c2] hover:bg-[#dbeafe]',
+                    : 'bg-accent text-accent-foreground hover:bg-[#dbeafe]',
                 )}
               >
                 <MapPin className="h-4 w-4" />
@@ -178,11 +201,11 @@ export function Header() {
             {/* Recent searches + recent locations — flush bottom of the same window */}
             {suggestOpen && (
               <>
-                <div className="absolute left-0 right-0 top-full z-50 -mt-px space-y-3.5 rounded-b-2xl border border-t-slate-100 border-slate-200 bg-white p-3.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="absolute left-0 right-0 top-full z-50 -mt-px space-y-3.5 rounded-b-2xl border border-t-border border-border bg-card p-3.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#64748b]"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
+                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
                         <button type="button" onClick={() => { localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }} className="text-[10px] font-semibold text-slate-600 hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -191,7 +214,7 @@ export function Header() {
                             key={i}
                             type="button"
                             onClick={() => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
-                            className="rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                            className="rounded-xl bg-tint px-3 py-1.5 text-xs font-semibold text-body hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
                           >
                             {term}
                           </button>
@@ -202,7 +225,7 @@ export function Header() {
                   {recentLocations.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#64748b]"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
+                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
                         <button type="button" onClick={() => { localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }} className="text-[10px] font-semibold text-slate-600 hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -211,7 +234,7 @@ export function Header() {
                             key={i}
                             type="button"
                             onClick={() => { applyArea({ province: loc.province, ward: loc.ward, nearby: null }); setShowSuggestions(false) }}
-                            className="flex items-center gap-1.5 rounded-xl bg-[#f1f5f9] px-3 py-1.5 text-xs font-semibold text-[#475569] hover:bg-[#e8f1fb] hover:text-[#0a66c2] transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 rounded-xl bg-tint px-3 py-1.5 text-xs font-semibold text-body hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
                           >
                             <MapPin className="h-3 w-3" />
                             {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
@@ -222,6 +245,21 @@ export function Header() {
                   )}
                 </div>
               </>
+            )}
+
+            {/* Instant matches — live listings + categories as you type (≥2 chars) */}
+            {instantOpen && (
+              <div className="absolute left-0 right-0 top-full z-50 -mt-px max-h-[70vh] overflow-y-auto rounded-b-2xl border border-t-border border-border bg-card p-2.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
+                <SearchSuggest
+                  listings={live.listings}
+                  categories={live.categories}
+                  loading={live.loading}
+                  query={searchVal}
+                  activeIndex={activeIdx}
+                  onPick={pickSuggest}
+                  onSubmitQuery={() => { submitSearch(searchVal); setShowSuggestions(false) }}
+                />
+              </div>
             )}
           </form>
         ) : (
@@ -237,7 +275,7 @@ export function Header() {
           ) : (
             <Link
               href="/signin"
-              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-[#1a202c] transition-colors hover:bg-[#e8f1fb] hover:text-[#0a66c2] cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
               aria-label={tr('Sign in', 'Đăng nhập')}
             >
               <User className="h-5 w-5" />

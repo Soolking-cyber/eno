@@ -21,8 +21,8 @@ export default function SavedPage() {
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
-        <h1 className="h-title text-[#1a202c] mb-1">{tr('Saved', 'Tin đã lưu')}</h1>
-        <p className="text-sm text-[#64748b] mb-6">
+        <h1 className="h-title text-foreground mb-1">{tr('Saved', 'Tin đã lưu')}</h1>
+        <p className="text-sm text-muted-foreground mb-6">
           {count} {tr(count === 1 ? 'saved listing' : 'saved listings', 'tin đã lưu')}
         </p>
 
@@ -38,11 +38,11 @@ export default function SavedPage() {
           </div>
         ) : list.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-            <Heart className="h-12 w-12 text-slate-300" />
-            <p className="text-base font-semibold text-[#1a202c]">
+            <Heart className="h-12 w-12 text-line-strong" />
+            <p className="text-base font-semibold text-foreground">
               {tr('No saved listings yet', 'Chưa có tin nào được lưu')}
             </p>
-            <p className="max-w-sm text-sm text-[#64748b]">
+            <p className="max-w-sm text-sm text-muted-foreground">
               {tr(
                 'Tap the heart on any listing to save it here for later.',
                 'Nhấn vào biểu tượng trái tim trên tin đăng để lưu lại xem sau.',

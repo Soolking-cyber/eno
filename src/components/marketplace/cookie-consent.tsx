@@ -26,14 +26,14 @@ export function CookieConsent() {
 
   return (
     <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-[120] px-3 lg:bottom-4 lg:px-0">
-      <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-overlay sm:flex-row sm:items-center">
-        <Cookie className="hidden h-6 w-6 shrink-0 text-[#0a66c2] sm:block" />
-        <p className="flex-1 text-xs leading-relaxed text-[#475569]">
+      <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-overlay sm:flex-row sm:items-center">
+        <Cookie className="hidden h-6 w-6 shrink-0 text-accent-foreground sm:block" />
+        <p className="flex-1 text-xs leading-relaxed text-body">
           {tr(
             'We use cookies to keep you signed in and load faster.',
             'Chúng tôi dùng cookie để giữ đăng nhập và tải nhanh hơn.',
           )}{' '}
-          <Link href="/privacy" className="font-semibold text-[#0a66c2] underline underline-offset-2">
+          <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">
             {tr('Read our privacy policy', 'Xem chính sách quyền riêng tư')}
           </Link>
         </p>

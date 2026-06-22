@@ -86,7 +86,7 @@ export function RevealContact({ listingId, listingTitle, price, currency, compac
       >
         {msgBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />} {tr('Message', 'Nhắn tin')}
       </button>
-      <p className="text-center text-xs text-[#64748b]">
+      <p className="text-center text-xs text-muted-foreground">
         {tr('Message the seller — request their number or Zalo once they reply.', 'Nhắn tin cho người bán — yêu cầu số điện thoại hoặc Zalo sau khi họ trả lời.')}
       </p>
     </div>

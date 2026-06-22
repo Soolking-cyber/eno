@@ -176,7 +176,7 @@ export default async function ListingPage({ params }: Props) {
         <div className="mb-5">
           <Link
             href="/"
-            className="inline-flex items-center gap-1 text-sm font-medium text-[#64748b] hover:text-[#0a66c2] transition-colors"
+            className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors"
           >
             <ChevronLeft className="h-4 w-4" />
             <span><Tr text="Back to marketplace" /></span>
@@ -190,9 +190,9 @@ export default async function ListingPage({ params }: Props) {
               <CategoryIcon name={listing.category.icon} className="h-3.5 w-3.5" />
               {tx(listing.category.name)}
             </span>
-            <h1 className="h-title text-[#1a202c]">{resolvedTitle}</h1>
-            <div className="flex items-center gap-1 text-sm text-[#64748b]">
-              <MapPin className="h-4 w-4 text-[#94a3b8] shrink-0" />
+            <h1 className="h-title text-foreground">{resolvedTitle}</h1>
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4 text-ink-4 shrink-0" />
               <span className="truncate">{tx(listing.location)}</span>
             </div>
           </div>
@@ -207,18 +207,18 @@ export default async function ListingPage({ params }: Props) {
           {/* LEFT: details */}
           <div className="lg:col-span-7 flex flex-col gap-8">
             <div className="space-y-2">
-              <h2 className="h-section text-[#1a202c]"><Tr text="Description" /></h2>
-              <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#475569]">{tx(listing.description)}</p>
+              <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
+              <p className="whitespace-pre-line text-[15px] leading-relaxed text-body">{tx(listing.description)}</p>
             </div>
 
             {attrs.length > 0 && (
               <div className="space-y-1">
-                <h2 className="h-section text-[#1a202c] mb-2"><Tr text="Details" /></h2>
-                <dl className="divide-y divide-slate-100 text-sm">
+                <h2 className="h-section text-foreground mb-2"><Tr text="Details" /></h2>
+                <dl className="divide-y divide-border text-sm">
                   {attrs.map(([k, v]) => (
                     <div key={k} className="flex items-start justify-between gap-4 py-2.5">
-                      <dt className="capitalize text-[#64748b]">{tx(k.replace(/([A-Z])/g, ' $1'))}</dt>
-                      <dd className="font-medium text-[#1a202c] text-right">{tx(String(v))}</dd>
+                      <dt className="capitalize text-muted-foreground">{tx(k.replace(/([A-Z])/g, ' $1'))}</dt>
+                      <dd className="font-medium text-foreground text-right">{tx(String(v))}</dd>
                     </div>
                   ))}
                 </dl>
@@ -226,13 +226,13 @@ export default async function ListingPage({ params }: Props) {
             )}
 
             <div className="space-y-2">
-              <h2 className="h-section text-[#1a202c]"><Tr text="Location" /></h2>
+              <h2 className="h-section text-foreground"><Tr text="Location" /></h2>
               <div className="h-[260px] rounded-2xl overflow-hidden relative">
                 <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} />
               </div>
             </div>
 
-            <p className="flex items-start gap-2 text-xs leading-relaxed text-[#64748b]">
+            <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />
             </p>
@@ -241,16 +241,16 @@ export default async function ListingPage({ params }: Props) {
           {/* RIGHT: flat sticky contact column — no floating card, cohesive with
               the single-canvas page; a subtle left rule separates it on desktop. */}
           <div className="lg:col-span-5">
-            <div className="lg:sticky lg:top-24 space-y-5 lg:border-l lg:border-slate-200/70 lg:pl-10">
+            <div className="lg:sticky lg:top-24 space-y-5 lg:border-l lg:border-border/70 lg:pl-10">
               <div className="flex items-baseline gap-2">
-                <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-[#1a202c] tracking-tight" />
-                {listing.negotiable && <span className="text-sm text-[#64748b]">· <Tr text="Negotiable" /></span>}
+                <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-foreground tracking-tight" />
+                {listing.negotiable && <span className="text-sm text-muted-foreground">· <Tr text="Negotiable" /></span>}
               </div>
 
               {(listing.seller.trustTier === 'trusted' || listing.seller.trustTier === 'exceptional') && (
                 <div className="flex items-center gap-2">
                   <TrustBadge tier={listing.seller.trustTier} size="md" />
-                  <span className="text-xs text-[#64748b]">
+                  <span className="text-xs text-muted-foreground">
                     <Tr text="Earned on eno.vn from a clean track record" />
                   </span>
                 </div>
@@ -262,24 +262,24 @@ export default async function ListingPage({ params }: Props) {
               {/* Quick offer — sends a price into the chat for the seller to accept/counter */}
               <OfferButton listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={listing.currency} />
 
-              <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 border-t border-slate-100 pt-4 cursor-pointer">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e8f1fb] text-sm font-bold text-[#0a66c2]">
+              <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 border-t border-border pt-4 cursor-pointer">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">
                   {initials}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="truncate text-sm font-semibold text-[#1a202c] group-hover:underline">{listing.seller.name}</span>
-                    {listing.seller.verifiedSeller && <BadgeCheck className="h-4 w-4 shrink-0 text-[#0a66c2]" />}
+                    <span className="truncate text-sm font-semibold text-foreground group-hover:underline">{listing.seller.name}</span>
+                    {listing.seller.verifiedSeller && <BadgeCheck className="h-4 w-4 shrink-0 text-accent-foreground" />}
                   </div>
-                  <span className="flex items-center gap-1 text-xs text-[#64748b]">
-                    <Star className="h-3 w-3 fill-[#1a202c] text-[#1a202c] shrink-0" />
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Star className="h-3 w-3 fill-foreground text-foreground shrink-0" />
                     {listing.seller.rating.toFixed(1)} ({listing.seller.reviewCount}) · <Tr text="View profile" />
                   </span>
                 </div>
               </Link>
 
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] text-[#64748b]"><Tr text="Posted" /> {timeAgo(listing.postedAt, 'vi')}</p>
+                <p className="text-[11px] text-muted-foreground"><Tr text="Posted" /> {timeAgo(listing.postedAt, 'vi')}</p>
                 <ReportButton listingId={listing.id} />
               </div>
             </div>
@@ -288,10 +288,10 @@ export default async function ListingPage({ params }: Props) {
       </main>
 
       {/* Mobile sticky contact bar */}
-      <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-slate-200 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-border bg-card px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         <div className="min-w-0 flex-1">
-          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="truncate text-base font-bold text-[#1a202c]" />
-          {listing.verified && <div className="text-[11px] font-semibold text-[#0a66c2]"><Tr text="Verified" /></div>}
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="truncate text-base font-bold text-foreground" />
+          {listing.verified && <div className="text-[11px] font-semibold text-accent-foreground"><Tr text="Verified" /></div>}
         </div>
         <RevealContact listingId={listing.id} listingTitle={displayTitle} price={listing.price} currency={currencyCode(listing.currency)} compact />
       </div>

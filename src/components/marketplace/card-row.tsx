@@ -53,12 +53,12 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp 
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <h2 className="h-section text-slate-800">{title}</h2>
+        <h2 className="h-section text-foreground">{title}</h2>
         <div className="flex items-center gap-2 shrink-0">
           {onViewAll && (
             <button
               onClick={onViewAll}
-              className="text-sm font-semibold text-[#0a66c2] hover:underline cursor-pointer whitespace-nowrap"
+              className="text-sm font-semibold text-accent-foreground hover:underline cursor-pointer whitespace-nowrap"
             >
               {viewAllLabel} →
             </button>
@@ -67,14 +67,14 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp 
             <button
               onClick={() => scroll(-1)}
               aria-label="Scroll left"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-[#475569] shadow-sm transition-colors hover:bg-slate-50 cursor-pointer"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-body shadow-sm transition-colors hover:bg-muted cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               onClick={() => scroll(1)}
               aria-label="Scroll right"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-[#475569] shadow-sm transition-colors hover:bg-slate-50 cursor-pointer"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-body shadow-sm transition-colors hover:bg-muted cursor-pointer"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

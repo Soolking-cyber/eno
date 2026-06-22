@@ -31,7 +31,7 @@ function Avatar({ name, color, url, size = 36 }: { name: string; color: string; 
 function TypingDots() {
   return (
     <div className="flex justify-start duration-200 animate-in fade-in slide-in-from-bottom-1">
-      <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-white px-3.5 py-3">
+      <div className="flex items-center gap-1 rounded-2xl border border-border bg-card px-3.5 py-3">
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
@@ -49,17 +49,17 @@ function PendingThread({ onBack, onClose }: { onBack: () => void; onClose: () =>
   const queue = () => { if (draft.trim()) setPendingSend(true) } // sent by the real thread the instant it mounts
   return (
     <>
-      <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2.5">
-        <button onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-[#64748b] hover:text-[#0a66c2]"><ChevronLeft className="h-5 w-5" /></button>
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+        <button onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground"><ChevronLeft className="h-5 w-5" /></button>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-bold text-[#1a202c]">{tr('New message', 'Tin nhắn mới')}</div>
+          <div className="truncate text-sm font-bold text-foreground">{tr('New message', 'Tin nhắn mới')}</div>
         </div>
-        <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-[#94a3b8] hover:text-[#1a202c]"><X className="h-5 w-5" /></button>
+        <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-ink-4 hover:text-foreground"><X className="h-5 w-5" /></button>
       </div>
-      <div className="flex flex-1 items-center justify-center bg-[#fafafa] px-6">
-        <p className="text-center text-xs text-[#94a3b8]">{tr('Say hello — the seller is notified once you send.', 'Gửi lời chào — người bán sẽ được thông báo khi bạn gửi.')}</p>
+      <div className="flex flex-1 items-center justify-center bg-background px-6">
+        <p className="text-center text-xs text-ink-4">{tr('Say hello — the seller is notified once you send.', 'Gửi lời chào — người bán sẽ được thông báo khi bạn gửi.')}</p>
       </div>
-      <div className="flex items-end gap-2 border-t border-slate-200 px-3 py-2.5">
+      <div className="flex items-end gap-2 border-t border-border px-3 py-2.5">
         <textarea
           autoFocus
           value={draft}
@@ -67,7 +67,7 @@ function PendingThread({ onBack, onClose }: { onBack: () => void; onClose: () =>
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); queue() } }}
           rows={1}
           placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
-          className="max-h-24 flex-1 resize-none rounded-2xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+          className="max-h-24 flex-1 resize-none rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
         />
         <button onClick={queue} disabled={!draft.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white disabled:opacity-40">
           <Send className="h-4 w-4" />
@@ -109,7 +109,7 @@ export function ChatWidget() {
 
       {/* Docked panel */}
       {open && (
-        <div className="fixed inset-x-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-overlay bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] sm:inset-x-auto sm:right-5 sm:left-auto sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px] sm:bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] lg:bottom-5">
+        <div className="fixed inset-x-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-overlay bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] sm:inset-x-auto sm:right-5 sm:left-auto sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px] sm:bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] lg:bottom-5">
           {view === 'thread' && conversationId ? (
             <ChatThread key={conversationId} id={conversationId} onBack={back} onClose={close} onSent={() => { refreshUnread(); refreshConvos() }} />
           ) : view === 'thread' && starting ? (
@@ -131,28 +131,28 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
 
   return (
     <>
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-        <h2 className="text-base font-bold text-[#1a202c]">{tr('Messages', 'Tin nhắn')}</h2>
-        <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-[#94a3b8] hover:text-[#1a202c]"><X className="h-5 w-5" /></button>
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <h2 className="text-base font-bold text-foreground">{tr('Messages', 'Tin nhắn')}</h2>
+        <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-ink-4 hover:text-foreground"><X className="h-5 w-5" /></button>
       </div>
       <div className="flex-1 overflow-y-auto scroll-thin">
         {convos === null ? (
-          <div className="space-y-2 p-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-100" />)}</div>
+          <div className="space-y-2 p-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-tint" />)}</div>
         ) : convos.length === 0 ? (
-          <p className="px-6 py-16 text-center text-sm text-[#94a3b8]">{tr('No messages yet. Tap "Message" on a listing to start a chat.', 'Chưa có tin nhắn. Nhấn "Nhắn tin" trên một tin đăng để bắt đầu.')}</p>
+          <p className="px-6 py-16 text-center text-sm text-ink-4">{tr('No messages yet. Tap "Message" on a listing to start a chat.', 'Chưa có tin nhắn. Nhấn "Nhắn tin" trên một tin đăng để bắt đầu.')}</p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-border">
             {convos.map((c) => (
-              <li key={c.id} className="group flex items-center hover:bg-slate-50">
+              <li key={c.id} className="group flex items-center hover:bg-muted">
                 <button onClick={() => onOpenThread(c.id)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left">
                   <Avatar name={c.counterpart.name} color={c.counterpart.avatarColor} url={c.counterpart.avatarUrl} size={40} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-bold text-[#1a202c]">{c.counterpart.name}</span>
+                      <span className="truncate text-sm font-bold text-foreground">{c.counterpart.name}</span>
                       {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0a66c2] px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}
                     </div>
-                    <p className="truncate text-xs text-[#94a3b8]">{c.listingTitle}</p>
-                    <p className={`truncate text-xs ${c.unread > 0 ? 'font-semibold text-[#1a202c]' : 'text-[#64748b]'}`}>{c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới')}</p>
+                    <p className="truncate text-xs text-ink-4">{c.listingTitle}</p>
+                    <p className={`truncate text-xs ${c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>{c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới')}</p>
                   </div>
                   {c.listingImage && (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -364,28 +364,28 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
 
   return (
     <>
-      <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2.5">
-        <button onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-[#64748b] hover:text-[#0a66c2]"><ChevronLeft className="h-5 w-5" /></button>
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+        <button onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground"><ChevronLeft className="h-5 w-5" /></button>
         <Avatar name={thread?.counterpart.name || '?'} color={thread?.counterpart.avatarColor || '#0a66c2'} url={thread?.counterpart.avatarUrl ?? null} size={32} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-bold text-[#1a202c]">{thread?.counterpart.name || '…'}</div>
-          {peerTyping && <div className="truncate text-[11px] font-medium text-[#0a66c2]">{tr('typing…', 'đang nhập…')}</div>}
+          <div className="truncate text-sm font-bold text-foreground">{thread?.counterpart.name || '…'}</div>
+          {peerTyping && <div className="truncate text-[11px] font-medium text-accent-foreground">{tr('typing…', 'đang nhập…')}</div>}
         </div>
-        <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-[#94a3b8] hover:text-[#1a202c]"><X className="h-5 w-5" /></button>
+        <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-ink-4 hover:text-foreground"><X className="h-5 w-5" /></button>
       </div>
 
       {/* Pinned listing the conversation is about (Shopee-style product context). */}
       {thread && (
-        <Link onClick={onClose} href={`/listings/${thread.listing.id}`} className="flex items-center gap-3 border-b border-slate-200 bg-white px-3 py-2 hover:bg-slate-50">
+        <Link onClick={onClose} href={`/listings/${thread.listing.id}`} className="flex items-center gap-3 border-b border-border bg-card px-3 py-2 hover:bg-muted">
           {thread.listing.image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={thread.listing.image} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
           ) : (
-            <div className="h-10 w-10 shrink-0 rounded-lg bg-slate-100" />
+            <div className="h-10 w-10 shrink-0 rounded-lg bg-tint" />
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold text-[#1a202c]">{thread.listing.title}</p>
-            <Price price={thread.listing.price} currency={thread.listing.currency} priceUnit={thread.listing.priceUnit} className="text-xs font-bold text-[#0a66c2]" />
+            <p className="truncate text-xs font-semibold text-foreground">{thread.listing.title}</p>
+            <Price price={thread.listing.price} currency={thread.listing.currency} priceUnit={thread.listing.priceUnit} className="text-xs font-bold text-accent-foreground" />
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-[#cbd5e1]" />
         </Link>
@@ -394,10 +394,10 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
       {/* Contact is requested IN-CHAT, and only once the seller has replied — this
           is what gets sellers logging in daily to answer + keep listings fresh. */}
       {thread && (
-        <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2">
           {contact ? (
             <>
-              <a href={contact.telHref} className="flex items-center gap-1.5 rounded-full bg-[#e8f1fb] px-3 py-1.5 text-xs font-bold text-[#0a66c2]">
+              <a href={contact.telHref} className="flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground">
                 <Phone className="h-3.5 w-3.5" /> {contact.phone}
               </a>
               <a href={contact.zaloHref} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#0068ff] px-3 py-1.5 text-xs font-bold text-white">
@@ -405,20 +405,20 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
               </a>
             </>
           ) : thread.messages.some((m) => !m.mine) ? (
-            <button onClick={requestContact} disabled={revealing} className="flex items-center gap-1.5 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[#1a202c] hover:bg-slate-50 disabled:opacity-50 cursor-pointer">
+            <button onClick={requestContact} disabled={revealing} className="flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 cursor-pointer">
               {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
               {tr('Request number / Zalo', 'Lấy số / Zalo')}
             </button>
           ) : (
-            <p className="flex items-center gap-1.5 text-[11px] text-[#64748b]">
-              <Phone className="h-3.5 w-3.5 shrink-0 text-[#94a3b8]" />
+            <p className="flex items-center gap-1.5 text-[11px] text-body">
+              <Phone className="h-3.5 w-3.5 shrink-0 text-ink-4" />
               {tr("You can request the seller's number or Zalo once they reply.", 'Bạn có thể xin số hoặc Zalo sau khi người bán trả lời.')}
             </p>
           )}
         </div>
       )}
 
-      <div className="flex-1 space-y-2 overflow-y-auto bg-[#fafafa] px-3 py-3 scroll-thin">
+      <div className="flex-1 space-y-2 overflow-y-auto bg-background px-3 py-3 scroll-thin">
         {!thread && (
           <div className="space-y-2">
             {[60, 42, 70, 50].map((w, i) => (
@@ -430,26 +430,26 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         )}
         {thread?.messages.map((m) => (
           <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-slate-200 bg-white text-[#1a202c]'}`}>
+            <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-border bg-card text-foreground'}`}>
               {m.body}
             </div>
           </div>
         ))}
         {thread && thread.messages.length === 0 && !peerTyping && (
-          <p className="py-10 text-center text-xs text-[#94a3b8]">{tr('Say hello — this seller will be notified.', 'Gửi lời chào — người bán sẽ được thông báo.')}</p>
+          <p className="py-10 text-center text-xs text-ink-4">{tr('Say hello — this seller will be notified.', 'Gửi lời chào — người bán sẽ được thông báo.')}</p>
         )}
         {peerTyping && <TypingDots />}
         <div ref={bottomRef} />
       </div>
 
-      <div className="flex items-end gap-2 border-t border-slate-200 px-3 py-2.5">
+      <div className="flex items-end gap-2 border-t border-border px-3 py-2.5">
         <textarea
           value={text}
           onChange={(e) => { setText(e.target.value); sendTyping() }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
           rows={1}
           placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
-          className="max-h-24 flex-1 resize-none rounded-2xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+          className="max-h-24 flex-1 resize-none rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
         />
         <button onClick={() => send()} disabled={!text.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40">
           <Send className="h-4 w-4" />
