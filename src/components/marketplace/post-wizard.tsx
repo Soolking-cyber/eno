@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { trackPostListing } from '@/lib/analytics'
 import { VndInput } from './vnd-input'
+import { CustomSelect } from './custom-select'
 import { formatMoneyFull } from '@/lib/vnd'
 
 const DISTRICTS = ['District 1', 'District 3', 'District 4', 'District 7 (Phu My Hung)', 'Binh Thanh', 'Thu Duc (Thao Dien)', 'Phu Nhuan', 'Tan Binh']
@@ -211,14 +212,14 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-foreground">{t('Khu vực', 'Area')}</label>
-                <select
+                <CustomSelect
                   value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  className="w-full rounded-xl border border-line-strong bg-card px-3 py-3 text-sm text-foreground outline-none focus:border-[#0a66c2]"
-                >
-                  <option value="">{t('Chọn khu vực', 'Select area')}</option>
-                  {DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
+                  onChange={setDistrict}
+                  options={DISTRICTS.map((d) => ({ value: d, label: d }))}
+                  placeholder={t('Chọn khu vực', 'Select area')}
+                  className="bg-tint text-body py-3"
+                  activeClassName="bg-tint text-body hover:bg-accent hover:text-accent-foreground"
+                />
               </div>
 
               {isGoods && (

@@ -21,7 +21,7 @@ export function Footer() {
       links: [
         { label: tr('About us', 'Giới thiệu'), href: '/about' },
         { label: tr('How it works', 'Cách hoạt động'), href: '/guide' },
-        { label: tr('How verification works', 'Cách xác minh tin'), href: '/guide#verification' },
+        { label: tr('How trust & safety works', 'Uy tín & an toàn'), href: '/guide#trust' },
         { label: tr('Careers', 'Tuyển dụng'), href: '/about' },
       ],
     },
@@ -44,7 +44,7 @@ export function Footer() {
           <div className="col-span-2 md:col-span-1 space-y-3">
             <img src="/logo-mark.svg" alt="eno.vn" width={36} height={36} className="h-9 w-9" />
             <p className="max-w-[220px] text-xs leading-relaxed text-muted-foreground">
-              {tr("eno.vn — the verified marketplace for Vietnam's international community.", 'eno.vn — chợ tin đăng được xác minh cho cộng đồng quốc tế tại Việt Nam.')}
+              {tr("eno.vn — Vietnam's trusted marketplace for the international community.", 'eno.vn — chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
             </p>
             <div className="flex items-center gap-3 pt-1">
               <a href="https://www.facebook.com/profile.php?id=61591370031264" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Facebook" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Facebook className="h-5 w-5" /></a>

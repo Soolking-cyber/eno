@@ -7,6 +7,7 @@ import { ShieldCheck, MessageSquare, BadgeCheck } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInForm } from '@/components/marketplace/sign-in-form'
+import { EnoMascot } from '@/components/marketplace/eno-mascot'
 import { safeNextPath } from '@/lib/url'
 
 // Dedicated split-layout sign-in page (commerce-login pattern, eno.vn blue). Reuses
@@ -29,19 +30,21 @@ function SignInPageInner() {
     <div className="grid min-h-screen w-full bg-background md:grid-cols-2">
       {/* Brand panel (desktop) */}
       <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0a66c2] to-[#004182] p-12 text-white md:flex">
-        <Link href="/" className="text-2xl font-black tracking-tight">eno.vn</Link>
-        <div>
+        {/* Trust mascot imprint */}
+        <EnoMascot className="pointer-events-none absolute -bottom-12 -right-10 h-80 w-80 text-white opacity-[0.09]" />
+        <Link href="/" className="relative text-2xl font-black tracking-tight">eno.vn</Link>
+        <div className="relative">
           <h1 className="text-4xl font-black leading-tight">{tr('e-commerce with no drama', 'Mua bán không drama.')}</h1>
           <p className="mt-3 max-w-sm text-[15px] text-blue-100">
-            {tr("The verified marketplace for Vietnam's international community.", 'Chợ trực tuyến đã xác minh cho cộng đồng quốc tế tại Việt Nam.')}
+            {tr("Vietnam's trusted marketplace for the international community.", 'Chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
           </p>
           <ul className="mt-8 space-y-3 text-sm text-blue-50">
-            <li className="flex items-center gap-2.5"><BadgeCheck className="h-5 w-5 shrink-0" /> {tr('Every listing verified before it goes live', 'Mọi tin được xác minh trước khi đăng')}</li>
-            <li className="flex items-center gap-2.5"><MessageSquare className="h-5 w-5 shrink-0" /> {tr('Message sellers safely, in-app', 'Nhắn tin an toàn với người bán')}</li>
-            <li className="flex items-center gap-2.5"><ShieldCheck className="h-5 w-5 shrink-0" /> {tr('No fakes, no bait prices, no wasted trips', 'Không hàng giả, không giá ảo')}</li>
+            <li className="flex items-center gap-2.5"><BadgeCheck className="h-5 w-5 shrink-0" /> {tr('Sellers earn a trust badge — reputation you can see', 'Người bán xây dựng uy tín — huy hiệu minh bạch')}</li>
+            <li className="flex items-center gap-2.5"><MessageSquare className="h-5 w-5 shrink-0" /> {tr('Message safely in-app — your number stays private', 'Nhắn tin an toàn — số của bạn được giữ kín')}</li>
+            <li className="flex items-center gap-2.5"><ShieldCheck className="h-5 w-5 shrink-0" /> {tr('Spot something off? Report it in one tap', 'Thấy bất thường? Báo cáo chỉ một chạm')}</li>
           </ul>
         </div>
-        <p className="text-xs text-blue-200">© 2026 eno.vn · Made in Saigon</p>
+        <p className="relative text-xs text-blue-200">© 2026 eno.vn · Made in Saigon</p>
       </div>
 
       {/* Form */}
