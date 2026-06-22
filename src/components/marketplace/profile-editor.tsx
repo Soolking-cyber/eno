@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Check, Upload } from 'lucide-react'
+import { Loader2, Check, Plus } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 
 type Profile = { displayName: string | null; avatarUrl: string | null; avatarColor: string; phone: string | null }
@@ -37,9 +37,13 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
   const save = async () => {
     setSaving(true); setError(''); setSaved(false)
     try {
+      // Only send avatarUrl when it actually changed — re-sending an unchanged
+      // default/Google avatar (not a Supabase-bucket URL) would 400 as bad_avatar.
+      const payload: Record<string, unknown> = { displayName: name.trim(), phone }
+      if (avatarUrl !== profile.avatarUrl) payload.avatarUrl = avatarUrl
       const res = await fetch('/api/profile', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ displayName: name.trim(), phone, avatarUrl }),
+        body: JSON.stringify(payload),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -60,18 +64,18 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
 
   return (
     <div>
-      <div className="flex items-center gap-4">
+      <label className="group relative inline-block cursor-pointer" title={tr('Change photo', 'Đổi ảnh')}>
         {avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarUrl} alt="" className="h-16 w-16 rounded-full object-cover" />
+          <img src={avatarUrl} alt="" className="h-20 w-20 rounded-full object-cover" />
         ) : (
-          <span className="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white" style={{ backgroundColor: profile.avatarColor || '#0a66c2' }}>{initials}</span>
+          <span className="flex h-20 w-20 items-center justify-center rounded-full text-xl font-bold text-white" style={{ backgroundColor: profile.avatarColor || '#0a66c2' }}>{initials}</span>
         )}
-        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-tint px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted">
-          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} {tr('Change photo', 'Đổi ảnh')}
-          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f) }} />
-        </label>
-      </div>
+        <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-sm ring-2 ring-background transition-transform group-hover:scale-105">
+          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-4 w-4" />}
+        </span>
+        <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f) }} />
+      </label>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div>

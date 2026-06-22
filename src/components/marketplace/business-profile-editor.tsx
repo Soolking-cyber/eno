@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Check, Upload, LocateFixed } from 'lucide-react'
+import { Loader2, Check, Plus, LocateFixed } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -70,10 +70,14 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
       if (rep.trim() && rep.trim() !== (repName || '')) {
         await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: rep.trim() }) })
       }
+      // Only send avatarUrl when it changed — re-sending an unchanged non-bucket
+      // logo URL would 400 (the API only accepts Supabase-hosted images).
+      const payload: Record<string, unknown> = { name: name.trim(), bio, location, phone }
+      if (avatarUrl !== seller.avatarUrl) payload.avatarUrl = avatarUrl
       const res = await fetch('/api/seller', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), bio, location, phone, avatarUrl }),
+        body: JSON.stringify(payload),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -94,18 +98,18 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
 
   return (
     <div>
-      <div className="flex items-center gap-4">
+      <label className="group relative inline-block cursor-pointer" title={tr('Change logo', 'Đổi logo')}>
         {avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarUrl} alt="" className="h-16 w-16 rounded-full object-cover" />
+          <img src={avatarUrl} alt="" className="h-20 w-20 rounded-full object-cover" />
         ) : (
-          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-lg font-bold text-accent-foreground">{initials}</span>
+          <span className="flex h-20 w-20 items-center justify-center rounded-full bg-accent text-xl font-bold text-accent-foreground">{initials}</span>
         )}
-        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-tint px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted">
-          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} {tr('Change logo', 'Đổi logo')}
-          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
-        </label>
-      </div>
+        <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-sm ring-2 ring-background transition-transform group-hover:scale-105">
+          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-4 w-4" />}
+        </span>
+        <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
+      </label>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div>
