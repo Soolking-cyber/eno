@@ -73,14 +73,6 @@ export function serializeListing(
   }
 }
 
-/** Single-listing detail variant — includes the seller's phone for the contact CTA. */
-export function serializeListingWithContact(
-  l: Listing & { category: Category; seller: Seller & { owner?: { accountType: string | null } | null } },
-): SerializedListing {
-  const base = serializeListing(l)
-  return { ...base, seller: { ...base.seller, phone: l.seller.phone } }
-}
-
 export function formatPrice(price: number, currency: string, priceUnit: string): string {
   const formatted = new Intl.NumberFormat('en-US').format(price)
   if (priceUnit === 'VND') return `${currency}${formatted}`
