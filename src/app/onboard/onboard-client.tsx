@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { User, Store, Loader2, Check } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { LogoWordmark } from '@/components/marketplace/logo-wordmark'
+import { Mascot } from '@/components/marketplace/mascot'
 import { safeNextPath } from '@/lib/url'
 import { cn } from '@/lib/utils'
 
 type Choice = 'individual' | 'business'
+
+const FIELD = 'w-full rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-ring/30'
 
 /** One-time post-sign-in step: are you an individual or a business? The choice
  *  shapes the rest of the experience (businesses get the CRM dashboard, bulk
@@ -24,8 +26,17 @@ export function OnboardClient() {
 
   const [choice, setChoice] = useState<Choice | null>(null)
   const [businessName, setBusinessName] = useState('')
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // Prefill the name from the OAuth profile + phone from a verified OTP login.
+  useEffect(() => {
+    const m = (user?.user_metadata ?? {}) as { full_name?: string; name?: string }
+    if (m.full_name || m.name) setName((p) => p || m.full_name || m.name || '')
+    if (user?.phone) setPhone((p) => p || user.phone || '')
+  }, [user])
 
   // Resolve ?next to a same-origin path only (open-redirect guard, shared with
   // /signin + the auth callback). Computed lazily so it reads the real
@@ -41,8 +52,10 @@ export function OnboardClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user, accountType, rawNext, router])
 
-  const businessOk = choice !== 'business' || businessName.trim().length >= 2
-  const canSubmit = !!choice && businessOk && !submitting
+  const nameOk = name.trim().length >= 2
+  const phoneOk = phone.replace(/\D/g, '').length >= 9
+  const businessOk = choice !== 'business' || (businessName.trim().length >= 2 && phoneOk)
+  const canSubmit = !!choice && nameOk && businessOk && !submitting
 
   const submit = async () => {
     if (!canSubmit || !choice) return
@@ -51,7 +64,12 @@ export function OnboardClient() {
       const res = await fetch('/api/profile/account-type', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountType: choice, businessName: choice === 'business' ? businessName.trim() : undefined }),
+        body: JSON.stringify({
+          accountType: choice,
+          displayName: name.trim(),
+          businessName: choice === 'business' ? businessName.trim() : undefined,
+          phone: phone.trim() || undefined,
+        }),
       })
       if (!res.ok) throw new Error('failed')
       markOnboarded(choice) // updates context so the global gate won't bounce us back
@@ -80,10 +98,10 @@ export function OnboardClient() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
-        <div className="mb-6 flex justify-center">
-          <LogoWordmark className="h-9 w-auto" />
+        <div className="mb-4 flex justify-center">
+          <Mascot name="profile" className="h-24 w-24" />
         </div>
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+        <div>
           <h1 className="text-center text-xl font-bold text-foreground">{t('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h1>
           <p className="mt-1 text-center text-sm text-muted-foreground">{t('How will you use eno.vn? You can ask us to change this later.', 'Bạn sẽ dùng eno.vn như thế nào? Bạn có thể thay đổi sau.')}</p>
 
@@ -97,8 +115,8 @@ export function OnboardClient() {
                   onClick={() => setChoice(key)}
                   aria-pressed={active}
                   className={cn(
-                    'flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors cursor-pointer',
-                    active ? 'border-[#0a66c2] bg-accent ring-2 ring-[#0a66c2]/20' : 'border-line-strong bg-card hover:bg-muted',
+                    'flex w-full items-start gap-3 rounded-2xl p-4 text-left transition-colors cursor-pointer',
+                    active ? 'bg-accent ring-2 ring-[#0a66c2]/30' : 'hover:bg-muted',
                   )}
                 >
                   <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', active ? 'bg-[#0a66c2] text-white' : 'bg-tint text-muted-foreground')}>
@@ -113,17 +131,27 @@ export function OnboardClient() {
             })}
           </div>
 
+          {/* Profile fields revealed once a type is chosen */}
+          {choice === 'individual' && (
+            <div className="mt-5">
+              <label htmlFor="nm" className="mb-1 block text-xs font-semibold text-body">{t('Your name', 'Tên của bạn')}</label>
+              <input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className={FIELD} />
+            </div>
+          )}
           {choice === 'business' && (
-            <div className="mt-4">
-              <label htmlFor="biz" className="mb-1 block text-xs font-semibold text-body">{t('Business name', 'Tên doanh nghiệp')}</label>
-              <input
-                id="biz"
-                value={businessName}
-                onChange={(e) => setBusinessName(e.target.value)}
-                placeholder={t('e.g. Saigon Moto Rentals', 'vd. Saigon Moto Rentals')}
-                maxLength={120}
-                className="w-full rounded-xl border border-line-strong px-4 py-3 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
-              />
+            <div className="mt-5 space-y-3">
+              <div>
+                <label htmlFor="biz" className="mb-1 block text-xs font-semibold text-body">{t('Business name', 'Tên doanh nghiệp')}</label>
+                <input id="biz" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder={t('e.g. Saigon Moto Rentals', 'vd. Saigon Moto Rentals')} maxLength={120} className={FIELD} />
+              </div>
+              <div>
+                <label htmlFor="nm" className="mb-1 block text-xs font-semibold text-body">{t('Your name (contact person)', 'Tên người liên hệ')}</label>
+                <input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className={FIELD} />
+              </div>
+              <div>
+                <label htmlFor="ph" className="mb-1 block text-xs font-semibold text-body">{t('Phone / Zalo', 'Số điện thoại / Zalo')}</label>
+                <input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="0901 234 567" maxLength={20} className={FIELD} />
+              </div>
             </div>
           )}
 

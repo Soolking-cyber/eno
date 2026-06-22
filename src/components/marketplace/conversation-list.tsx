@@ -7,7 +7,8 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
-import { MessageSquare, Search, Trash2, X } from 'lucide-react'
+import { Search, Trash2, X } from 'lucide-react'
+import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 
 // Borderless conversation list — the left pane of the desktop two-pane messenger
@@ -49,14 +50,17 @@ export function ConversationList() {
       <div className="mt-2 flex-1 overflow-y-auto px-2 pb-4 scroll-thin">
         {!loading && !user ? (
           <div className="px-2 py-10 text-center">
-            <MessageSquare className="mx-auto h-9 w-9 text-line-strong" />
+            <Mascot name="chat" className="mx-auto h-20 w-20" />
             <p className="mt-3 text-sm text-muted-foreground">{tr('Sign in to see your messages.', 'Đăng nhập để xem tin nhắn của bạn.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
         ) : convos === null ? (
           <div className="space-y-1.5 px-1">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 rounded-xl shimmer" />)}</div>
         ) : convos.length === 0 ? (
-          <p className="px-3 py-12 text-center text-sm text-ink-4">{tr('No messages yet. Tap "Message" on a listing to start a chat.', 'Chưa có tin nhắn. Nhấn "Nhắn tin" trên một tin đăng để bắt đầu.')}</p>
+          <div className="px-3 py-12 text-center">
+            <Mascot name="chat" className="mx-auto h-20 w-20" />
+            <p className="mt-3 text-sm text-ink-4">{tr('No messages yet. Tap "Message" on a listing to start a chat.', 'Chưa có tin nhắn. Nhấn "Nhắn tin" trên một tin đăng để bắt đầu.')}</p>
+          </div>
         ) : filtered && filtered.length === 0 ? (
           <p className="px-3 py-12 text-center text-sm text-ink-4">{tr('No conversations match.', 'Không có cuộc trò chuyện phù hợp.')}</p>
         ) : (

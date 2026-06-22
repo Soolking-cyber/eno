@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronLeft, ImagePlus, X, BadgeCheck, ShieldCheck } from 'lucide-react'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
@@ -10,6 +10,7 @@ import { containsPhoneNumber } from '@/lib/phone'
 import { trackPostListing } from '@/lib/analytics'
 import { VndInput } from './vnd-input'
 import { CustomSelect } from './custom-select'
+import { Mascot } from './mascot'
 import { formatMoneyFull } from '@/lib/vnd'
 
 const DISTRICTS = ['District 1', 'District 3', 'District 4', 'District 7 (Phu My Hung)', 'Binh Thanh', 'Thu Duc (Thao Dien)', 'Phu Nhuan', 'Tan Binh']
@@ -32,6 +33,19 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
   const [photos, setPhotos] = useState<{ url: string; file: File }[]>([])
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
+  const [postingAs, setPostingAs] = useState<string | null>(null) // business name, if any
+
+  // Pick up contact from the signed-in profile so sellers don't retype it. For a
+  // business, prefill the storefront name + phone and show "Posting as <business>".
+  useEffect(() => {
+    fetch('/api/me').then((r) => r.json()).then((d) => {
+      const u = d.user
+      if (!u) return
+      setContactName((p) => p || u.seller?.name || u.displayName || '')
+      setContactPhone((p) => p || u.seller?.phone || u.phone || '')
+      if (u.accountType === 'business') setPostingAs(u.businessName || u.seller?.name || null)
+    }).catch(() => {})
+  }, [])
 
   const cat = categories.find((c) => c.slug === categorySlug)
   const isGoods = categorySlug === 'electronics' || categorySlug === 'moving-sale'
@@ -120,18 +134,16 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
   if (submitted) {
     return (
       <div className="flex flex-col items-center gap-4 py-16 text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-accent-foreground">
-          <ShieldCheck className="h-8 w-8" />
-        </span>
-        <h1 className="h-title text-foreground">{t('Đã gửi để kiểm duyệt!', 'Submitted for verification!')}</h1>
+        <Mascot name="success" className="h-28 w-28" />
+        <h1 className="h-title text-foreground">{t('Tin của bạn đã được đăng!', 'Your listing is live!')}</h1>
         <p className="max-w-md text-sm text-body">
           {t(
-            'Nhân viên eno.vn sẽ xác minh tin đăng của bạn trong vòng 24 giờ trước khi hiển thị công khai. Đó là cách chúng tôi giữ chợ không có tin ảo.',
-            'An eno.vn agent will verify your listing within 24 hours before it goes live. That’s how we keep the marketplace free of fakes.',
+            'Tin của bạn đã hiển thị công khai. Người mua sẽ nhắn tin cho bạn ngay trong ứng dụng — số điện thoại của bạn được giữ kín cho đến khi bạn trả lời.',
+            'It’s now visible to buyers. They’ll message you in-app — your number stays private until you reply.',
           )}
         </p>
-        <a href="/" className="mt-2 rounded-xl bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
-          {t('Về trang chủ', 'Back to home')}
+        <a href="/dashboard" className="mt-2 rounded-xl bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+          {t('Tới bảng điều khiển', 'Go to dashboard')}
         </a>
       </div>
     )
@@ -187,7 +199,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={t('VD: iPhone 14 128GB — pin 92%', 'e.g. iPhone 14 128GB — battery 92%')}
-                  className="w-full rounded-xl border border-line-strong bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-ink-4"
+                  className="w-full rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
                 />
               </div>
               <div className="space-y-1.5">
@@ -197,7 +209,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                   onChange={(e) => setDescription(e.target.value)}
                   rows={5}
                   placeholder={t('Tình trạng, lý do bán, thông tin liên hệ...', 'Condition, reason for selling, details…')}
-                  className="w-full resize-none rounded-xl border border-line-strong bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-ink-4"
+                  className="w-full resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
                 />
               </div>
             </div>
@@ -267,7 +279,14 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
             <div className="space-y-5">
               <h1 className="h-title text-foreground">{t('Liên hệ & gửi', 'Contact & submit')}</h1>
 
-              {/* Contact capture (no account needed) */}
+              {postingAs && (
+                <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <ShieldCheck className="h-4 w-4 text-accent-foreground" />
+                  {t('Đăng với tư cách', 'Posting as')} <span className="font-semibold text-foreground">{postingAs}</span>
+                </p>
+              )}
+
+              {/* Contact — prefilled from your profile when signed in */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-sm font-semibold text-foreground">{t('Tên của bạn', 'Your name')}</label>
@@ -275,7 +294,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                     value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
                     placeholder={t('VD: Minh', 'e.g. Minh')}
-                    className="w-full rounded-xl border border-line-strong bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-ink-4"
+                    className="w-full rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -285,7 +304,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                     onChange={(e) => setContactPhone(e.target.value)}
                     inputMode="tel"
                     placeholder="0901 234 567"
-                    className="w-full rounded-xl border border-line-strong bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20 placeholder:text-ink-4"
+                    className="w-full rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
                   />
                 </div>
               </div>
