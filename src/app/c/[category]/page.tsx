@@ -36,14 +36,25 @@ export default async function CategoryPage({ params }: Props) {
   const cat = await db.category.findUnique({ where: { slug: category } })
   if (!cat) notFound()
 
-  const raw = await db.listing.findMany({
-    where: { categoryId: cat.id, verified: true, status: 'active' },
-    include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
-    orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
-  })
+  // Cap the landing to a page of listings (was unbounded — fetched the entire
+  // category each ISR render). Independent queries run in parallel; the total
+  // count + distinct districts come from light separate queries so the displayed
+  // count and the "by area" chips still reflect the whole category.
+  const PAGE_SIZE = 48
+  const where = { categoryId: cat.id, verified: true, status: 'active' as const }
+  const [total, raw, otherCats, districtRows] = await Promise.all([
+    db.listing.count({ where }),
+    db.listing.findMany({
+      where,
+      include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+      orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
+      take: PAGE_SIZE,
+    }),
+    db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),
+    db.listing.findMany({ where: { ...where, district: { not: null } }, select: { district: true }, distinct: ['district'], take: 80 }),
+  ])
   const listings = raw.map(serializeListing)
-  const districts = [...new Set(raw.map((r) => r.district).filter((d): d is string => !!d))]
-  const otherCats = await db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } })
+  const districts = [...new Set(districtRows.map((r) => r.district).filter((d): d is string => !!d))]
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
   const jsonLd = {
@@ -79,7 +90,7 @@ export default async function CategoryPage({ params }: Props) {
         <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-body">
           <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on eno.vn is verified by an agent before it goes live — no fakes, no bait prices, no wasted trips." />{' '}
-          {listings.length} <Tr text="verified" /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." />
+          {total} <Tr text="verified" /> {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." />
         </p>
 
         {districts.length > 0 && (
