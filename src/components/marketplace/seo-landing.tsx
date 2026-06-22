@@ -115,14 +115,14 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
           ))}
         </div>
 
-        {/* Verified-trust strip */}
+        {/* Trust strip */}
         <div className="mt-12 flex items-start gap-3 rounded-2xl border border-border bg-card p-5 shadow-pop">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
             <BadgeCheck className="h-5 w-5" />
           </span>
           <p className="text-sm leading-relaxed text-body">
-            Every eno.vn listing is checked before it goes live — no fake photos, no bait prices, no wasted trips.{' '}
-            <Link href="/about" className="font-semibold text-accent-foreground hover:underline">See how verification works</Link>.
+            Every eno.vn seller has a public trust score, and buyers can report bad listings — so fakes and bait prices get caught fast.{' '}
+            <Link href="/about" className="font-semibold text-accent-foreground hover:underline">See how trust works</Link>.
           </p>
         </div>
 
@@ -143,7 +143,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
 
         {/* Brand line */}
         <p className="mt-14 border-t border-border pt-6 text-sm leading-relaxed text-muted-foreground">
-          <strong className="font-semibold text-foreground">eno.vn</strong> — a verified marketplace for Vietnam’s
+          <strong className="font-semibold text-foreground">eno.vn</strong> — the trusted marketplace for Vietnam’s
           international community.
         </p>
       </main>

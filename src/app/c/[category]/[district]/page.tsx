@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   return {
     title: `${data.cat.name} in ${data.districtName} — Verified | eno.vn`,
-    description: `Verified ${data.cat.name.toLowerCase()} in ${data.districtName}. Every listing checked by an eno.vn agent — no fakes, no bait prices.`,
+    description: `${data.cat.name} in ${data.districtName}. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`,
     alternates: { canonical: `${hostUrl}/c/${data.cat.slug}/${district}` },
   }
 }
@@ -90,8 +90,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
 
         <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in" /> <Tr text={districtName} /></h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-body">
-          {listings.length} <Tr text="verified" /> <Tr text={cat.name.toLowerCase()} /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="in" /> <Tr text={districtName} />,{' '}
-          <Tr text="each checked by an eno.vn agent — no fakes, no bait prices." />
+          {listings.length} <Tr text={cat.name.toLowerCase()} /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="in" /> <Tr text={districtName} />,{' '}
+          <Tr text="each from a seller with a public trust score — fewer fakes, fewer bait prices." />
         </p>
 
         <div className="mt-8">

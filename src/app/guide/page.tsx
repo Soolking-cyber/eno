@@ -7,23 +7,23 @@ import { Search, MessageCircle, Tag, MapPin, Plus, BadgeCheck, Bell, Heart, Glob
 
 export const metadata: Metadata = {
   title: 'How eno.vn works — Guide | eno.vn',
-  description: 'A quick guide to eno.vn: how to buy, sell, get verified, message, make offers and trade safely on Vietnam’s verified marketplace.',
+  description: 'A quick guide to eno.vn: how to buy, sell, build trust, message, make offers and trade safely on Vietnam’s marketplace for the international community.',
 }
 
 const BUYER_STEPS: { Icon: typeof Search; title: string; body: string }[] = [
-  { Icon: Search, title: 'Search & filter', body: 'Browse by category, area and price. Every listing you see has been verified by an eno.vn agent.' },
+  { Icon: Search, title: 'Search & filter', body: 'Browse by category, area and price. Every seller has a public trust score, so you can see who’s reliable at a glance.' },
   { Icon: MessageCircle, title: 'Message or make an offer', body: 'Tap Message to chat in-app, or Make an offer to send a price. The seller can accept or counter.' },
   { Icon: MapPin, title: 'Meet & inspect', body: 'Agree a public meeting spot, check the item in person, and only pay once you’re happy.' },
 ]
 
 const SELLER_STEPS: { Icon: typeof Search; title: string; body: string }[] = [
   { Icon: Plus, title: 'Post your listing', body: 'Pick a category, add details, price and photos. The VND price field has quick chips so big numbers are fast to type.' },
-  { Icon: BadgeCheck, title: 'Get verified', body: 'An eno.vn agent reviews your listing — usually within 24 hours — then it goes live with the Verified badge.' },
+  { Icon: BadgeCheck, title: 'Build trust', body: 'Your listing goes live right away. Build a public trust score with good service to earn a Trusted badge.' },
   { Icon: MessageCircle, title: 'Reply & sell', body: 'Buyers message you in-app; you get a notification for every reply and offer. Share your number in chat when ready.' },
 ]
 
 const FEATURES: { Icon: typeof Search; id?: string; title: string; body: string }[] = [
-  { Icon: BadgeCheck, id: 'verification', title: 'Verification & trust', body: 'Listings are hidden until an eno.vn agent confirms them in person, by video, or against documents — so prices, photos and locations are real. The blue “Verified by eno.vn” badge marks a checked listing. Verification confirms the listing is genuine; always still inspect before you pay.' },
+  { Icon: BadgeCheck, id: 'verification', title: 'Trust & reputation', body: 'Listings publish instantly and run automated checks (phone verified, no contact details in the text, at least one real photo). Every seller has a public trust score that rises with good service and falls when buyers report problems — the blue Trusted and gold Exceptional badges are earned, not given. A score is a signal, not a guarantee; always inspect before you pay.' },
   { Icon: Tag, title: 'Messaging & offers', body: 'All contact happens in-app: tap Message to chat, or Make an offer to send a price the seller can accept or counter. Phone/Zalo is exchanged inside the chat, never published on the listing — which keeps spam out.' },
   { Icon: Bell, title: 'Notifications', body: 'The bell at the top-right alerts you to new messages and offers in real time, on desktop and mobile. Each notification links straight to the conversation.' },
   { Icon: Heart, title: 'Saving listings', body: 'Tap the heart on any card or listing to save it. Your saved items live in the Saved tab — handy for comparing places or items before you decide.' },
@@ -39,7 +39,7 @@ export default function GuidePage() {
         <p className="eyebrow text-accent-foreground mb-2"><Tr text="Guide" /></p>
         <h1 className="h-display text-foreground"><Tr text="How eno.vn works" /></h1>
         <p className="mt-3 text-sm leading-relaxed text-body">
-          <Tr text="eno.vn is the verified marketplace for Vietnam’s international community. Here’s everything you need in a couple of minutes." />
+          <Tr text="eno.vn is the trusted marketplace for Vietnam’s international community. Here’s everything you need in a couple of minutes." />
         </p>
 
         {/* For buyers */}

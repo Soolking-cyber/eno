@@ -73,11 +73,11 @@ export function Footer() {
         <nav aria-label={tr('Popular', 'Phổ biến')} className="mt-10 border-t border-border/60 pt-6">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-body">{tr('Popular in Vietnam', 'Phổ biến tại Việt Nam')}</h3>
           <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
-            <a href="/housing-vietnam-expats" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">Housing for expats</a>
-            <a href="/jobs-vietnam-expats" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">Jobs for expats</a>
-            <a href="/motorbikes-for-sale-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">Motorbikes for sale &amp; rent</a>
-            <a href="/moving-sales-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">Moving sales</a>
-            <a href="/services-for-expats-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">Services for expats</a>
+            <a href="/housing-vietnam-expats" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Housing for expats', 'Nhà ở cho người nước ngoài')}</a>
+            <a href="/jobs-vietnam-expats" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Jobs for expats', 'Việc làm cho người nước ngoài')}</a>
+            <a href="/motorbikes-for-sale-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Motorbikes for sale & rent', 'Xe máy mua bán & cho thuê')}</a>
+            <a href="/moving-sales-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Moving sales', 'Thanh lý chuyển nhà')}</a>
+            <a href="/services-for-expats-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Services for expats', 'Dịch vụ cho người nước ngoài')}</a>
           </div>
         </nav>
 

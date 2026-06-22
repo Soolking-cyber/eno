@@ -6,12 +6,12 @@ export const revalidate = 3600
 export const metadata: Metadata = {
   title: 'Moving Sales & Secondhand Furniture in Vietnam | eno.vn',
   description:
-    'Shop expat moving sales in Vietnam — secondhand furniture, appliances and home goods in Ho Chi Minh City. Verified listings on eno.vn, checked before they go live.',
+    'Shop expat moving sales in Vietnam — secondhand furniture, appliances and home goods in Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported.',
   alternates: { canonical: '/moving-sales-vietnam' },
   openGraph: {
     title: 'Moving Sales & Secondhand Furniture in Vietnam | eno.vn',
     description:
-      'Expat moving sales — furniture, appliances and home goods at great prices, verified before they go live.',
+      'Expat moving sales — furniture, appliances and home goods at great prices, with fewer fake photos and bait prices.',
   },
 }
 
@@ -19,9 +19,9 @@ const CONTENT: SeoContent = {
   eyebrow: 'Moving Sales · Vietnam',
   h1: 'Moving Sales & Secondhand Furniture in Vietnam',
   intro:
-    'Furnish your place for less. Expats and internationals leaving Vietnam sell quality furniture, appliances and home goods through moving sales — sofas, beds, fridges, washing machines, kitchenware and more, mostly in Ho Chi Minh City. Every eno.vn listing is checked before it goes live, so the items and prices are real.',
+    'Furnish your place for less. Expats and internationals leaving Vietnam sell quality furniture, appliances and home goods through moving sales — sofas, beds, fridges, washing machines, kitchenware and more, mostly in Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported, so the items and prices are real.',
   categorySlug: 'moving-sale',
-  cta: 'Browse verified moving sales',
+  cta: 'Browse moving sales',
   sections: [
     {
       title: 'What people sell',
@@ -33,7 +33,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'Buy without the guesswork',
-      body: 'Photos and prices are verified before a moving sale goes live, so you don’t waste a trip across town on an item that’s already gone or not as described.',
+      body: 'Every seller has a public trust score and buyers can report bad listings, so misleading photos and prices get caught and penalized — and you don’t waste a trip across town on an item that’s already gone or not as described.',
     },
   ],
   faqs: [
@@ -46,8 +46,8 @@ const CONTENT: SeoContent = {
       a: 'Yes. Message the seller in-app to confirm the item, agree a price and arrange a pickup date — many will bundle several items together.',
     },
     {
-      q: 'Are listings genuine?',
-      a: 'Every moving-sale listing is verified before it goes live, so the photos and prices reflect what’s actually available.',
+      q: 'How does eno.vn keep listings genuine?',
+      a: 'Every moving-sale seller has a public trust score and buyers can report bad listings, so misleading photos and prices get caught and penalized and reflect what’s actually available.',
     },
   ],
 }

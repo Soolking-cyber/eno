@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   return {
     title: `${cat.name} in Vietnam — Verified listings | eno.vn`,
-    description: `Browse verified ${cat.name.toLowerCase()} for expats in Vietnam. Every listing checked by an eno.vn agent — no fakes, no bait prices, no wasted trips.`,
+    description: `Browse ${cat.name.toLowerCase()} for expats in Vietnam. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`,
     alternates: { canonical: `${hostUrl}/c/${cat.slug}` },
   }
 }
@@ -89,8 +89,8 @@ export default async function CategoryPage({ params }: Props) {
 
         <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-body">
-          <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on eno.vn is verified by an agent before it goes live — no fakes, no bait prices, no wasted trips." />{' '}
-          {total} <Tr text="verified" /> {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." />
+          <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on eno.vn comes from a seller with a public trust score, and bad listings get reported — fewer fakes, fewer bait prices." />{' '}
+          {total} {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." />
         </p>
 
         {districts.length > 0 && (

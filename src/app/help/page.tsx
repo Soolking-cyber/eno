@@ -7,13 +7,13 @@ import { Rocket, BadgeCheck, ShieldCheck, Mail, ChevronRight } from 'lucide-reac
 
 export const metadata: Metadata = {
   title: 'Help center | eno.vn',
-  description: 'Answers about buying, selling, verification, messaging, offers and safe trading on eno.vn — the verified marketplace for Vietnam.',
+  description: 'Answers about buying, selling, trust, messaging, offers and safe trading on eno.vn — the trusted marketplace for Vietnam.',
 }
 
 // Quick links to the deeper guides. (Labels are English source — <Tr> auto-translates.)
 const TOPICS: { Icon: typeof Rocket; label: string; href: string }[] = [
   { Icon: Rocket, label: 'How eno.vn works', href: '/guide' },
-  { Icon: BadgeCheck, label: 'Verification & trust', href: '/guide#verification' },
+  { Icon: BadgeCheck, label: 'Trust & reputation', href: '/guide#verification' },
   { Icon: ShieldCheck, label: 'Safe trading', href: '/safety' },
   { Icon: Mail, label: 'Contact support', href: 'mailto:support@eno.forum' },
 ]
@@ -23,7 +23,7 @@ const SECTIONS: { title: string; items: [string, string][] }[] = [
   {
     title: 'Getting started',
     items: [
-      ['What is eno.vn?', 'eno.vn is a verified classifieds marketplace for Vietnam’s international community — housing, motorbikes, furniture, jobs and services. Every listing is checked by an eno.vn agent before it goes live, so the feed stays free of fakes and bait prices.'],
+      ['What is eno.vn?', 'eno.vn is a trusted classifieds marketplace for Vietnam’s international community — housing, motorbikes, furniture, jobs and services. Every seller has a public trust score and buyers can report bad listings, so the feed stays free of fakes and bait prices.'],
       ['Do I need an account to browse?', 'No. Browsing and searching are open to everyone. You only sign in to message a seller, save a listing, make an offer, or post your own.'],
       ['Is eno.vn free to use?', 'Yes. Browsing and saving are always free, and posting a listing is free during the launch period.'],
       ['What areas do you cover?', 'We’re live across Ho Chi Minh City, with Hanoi, Da Nang and more coming soon.'],
@@ -42,18 +42,18 @@ const SECTIONS: { title: string; items: [string, string][] }[] = [
   {
     title: 'Selling & posting',
     items: [
-      ['How do I post a listing?', 'Tap “Post”, choose a category, then add title, description, price, area and up to 6 photos. Submit and an eno.vn agent verifies it — usually within 24 hours — before it goes live.'],
-      ['Why isn’t my listing visible yet?', 'New listings stay hidden until an eno.vn agent verifies them. That short wait is exactly what keeps scams and fake prices out of the marketplace.'],
+      ['How do I post a listing?', 'Tap “Post”, choose a category, then add title, description, price, area and up to 6 photos. Submit and it goes live right away after automated checks.'],
+      ['Why isn’t my listing visible yet?', 'Most listings go live instantly. A few are held briefly by an automated safety check (for example, missing photos or contact details in the text) — fix the issue and it appears.'],
       ['Can I edit or remove my listing?', 'Yes — manage your listings from your account. Mark items sold or remove them anytime.'],
       ['Why can’t I put my phone number in the listing?', 'Contact details aren’t allowed in the public fields — buyers reach you in-app, which protects you from spam and keeps every conversation in one place. You can share your number inside the chat.'],
     ],
   },
   {
-    title: 'Verification & trust',
+    title: 'Trust & reputation',
     items: [
-      ['What does “Verified by eno.vn” mean?', 'An eno.vn agent confirmed the listing in person, by video call, or against documents — so the photos, price and location are accurate. Look for the blue badge.'],
-      ['Does verification guarantee the item?', 'It confirms the listing is genuine and accurately described. Always still inspect the item yourself before paying — see our Safe trading guide.'],
-      ['How long does verification take?', 'Most listings are reviewed within 24 hours.'],
+      ['What do the trust badges mean?', 'Every seller has a public trust score. A blue Trusted badge and a gold Exceptional badge are earned through a clean track record and good service; a low score flags a risky seller.'],
+      ['Does a trust badge guarantee the item?', 'No — it reflects a seller’s track record, not a guarantee. Always inspect the item yourself before paying — see our Safe trading guide.'],
+      ['How fast does my listing go live?', 'Right away — automated checks run instantly. Only a small number of posts are held for a quick safety review.'],
     ],
   },
   {

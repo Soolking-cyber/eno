@@ -6,12 +6,12 @@ export const revalidate = 3600
 export const metadata: Metadata = {
   title: 'Motorbikes for Sale & Rent in Vietnam | eno.vn',
   description:
-    'Buy or rent verified motorbikes in Vietnam — Honda, Yamaha, automatic and manual, monthly rentals and used bikes for sale in Ho Chi Minh City. Checked before they go live on eno.vn.',
+    'Buy or rent motorbikes in Vietnam — Honda, Yamaha, automatic and manual, monthly rentals and used bikes for sale in Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported.',
   alternates: { canonical: '/motorbikes-for-sale-vietnam' },
   openGraph: {
     title: 'Motorbikes for Sale & Rent in Vietnam | eno.vn',
     description:
-      'Verified motorbikes to buy or rent in Vietnam — Honda, Yamaha, automatic & manual. No bait prices, no fake photos.',
+      'Motorbikes to buy or rent in Vietnam — Honda, Yamaha, automatic & manual. Fewer bait prices, fewer fake photos.',
   },
 }
 
@@ -19,9 +19,9 @@ const CONTENT: SeoContent = {
   eyebrow: 'Motorbikes · Vietnam',
   h1: 'Motorbikes for Sale & Rent in Vietnam',
   intro:
-    'Get on the road fast. Buy or rent verified motorbikes in Vietnam — automatic scooters and manual bikes from Honda, Yamaha and more, with monthly rentals and used bikes for sale across Ho Chi Minh City. Every eno.vn listing is checked before it goes live, so the price and condition are real.',
+    'Get on the road fast. Buy or rent motorbikes in Vietnam — automatic scooters and manual bikes from Honda, Yamaha and more, with monthly rentals and used bikes for sale across Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported, so the price and condition are real.',
   categorySlug: 'motorbike-rentals',
-  cta: 'Browse verified motorbikes',
+  cta: 'Browse motorbikes',
   sections: [
     {
       title: 'Rent monthly or buy used',
@@ -33,7 +33,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'Know what you’re getting',
-      body: 'Bike scams and misleading photos are common. eno.vn verifies each listing first, and you can message the owner or shop in-app to arrange a test ride before paying.',
+      body: 'Bike scams and misleading photos are common. On eno.vn every seller has a public trust score and buyers can report bad listings, so problem sellers get caught fast, and you can message the owner or shop in-app to arrange a test ride before paying.',
     },
   ],
   faqs: [
@@ -46,8 +46,8 @@ const CONTENT: SeoContent = {
       a: 'Automatic scooters (e.g. Honda Air Blade, Vision) are easiest for city traffic. Manual or semi-auto bikes suit experienced riders and longer trips.',
     },
     {
-      q: 'Are the bikes and prices verified?',
-      a: 'Yes — every listing is checked before it goes live, so you avoid bait prices and recycled photos. Arrange a test ride through in-app chat.',
+      q: 'How does eno.vn keep bikes and prices trustworthy?',
+      a: 'Every seller has a public trust score and buyers can report bad listings, so bait prices and recycled photos get caught and penalized. Always arrange a test ride through in-app chat before you pay.',
     },
   ],
 }

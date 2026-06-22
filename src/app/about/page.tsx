@@ -9,20 +9,20 @@ export const metadata: Metadata = { title: 'About | eno.vn' }
 export default function AboutPage() {
   const steps = [
     { icon: <Eye className="h-5 w-5" />, title: 'Listing submitted', text: 'A seller posts an item with photos, price and location.' },
-    { icon: <ShieldCheck className="h-5 w-5" />, title: 'eno.vn verifies', text: 'Our agent checks the item in person, by video, or against documents — within 24 hours.' },
-    { icon: <BadgeCheck className="h-5 w-5" />, title: 'It goes live', text: 'Only verified listings appear in the feed. No fakes, no bait prices, no wasted trips.' },
+    { icon: <ShieldCheck className="h-5 w-5" />, title: 'Automated checks', text: 'Every post runs automated checks — phone verified, no contact details in the text, and at least one real photo.' },
+    { icon: <BadgeCheck className="h-5 w-5" />, title: 'It goes live instantly', text: 'Listings publish right away. Sellers build a public trust score and buyers can report problems — so fakes and bait prices don’t last.' },
   ]
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         <p className="eyebrow text-accent-foreground mb-2"><Tr text="About eno.vn" /></p>
-        <h1 className="h-display text-foreground"><Tr text="The verified marketplace for Vietnam." /></h1>
+        <h1 className="h-display text-foreground"><Tr text="The trusted marketplace for Vietnam." /></h1>
         <p className="mt-4 text-[15px] leading-relaxed text-body">
-          <Tr text="eno.vn is a classifieds marketplace built around one promise: every listing is checked before it goes live. Motorbikes, rentals, electronics, jobs and services — without the fakes and bait prices that waste your time." />
+          <Tr text="eno.vn is a classifieds marketplace built around trust: every seller has a public trust score, automated checks run on each post, and the community can report bad listings. Motorbikes, rentals, electronics, jobs and services — with fakes and bait prices caught fast." />
         </p>
 
-        <h2 className="h-section text-foreground mt-10 mb-4"><Tr text="How verification works" /></h2>
+        <h2 className="h-section text-foreground mt-10 mb-4"><Tr text="How trust works" /></h2>
         <div className="grid gap-4 sm:grid-cols-3">
           {steps.map((s, i) => (
             <div key={i} className="rounded-2xl border border-border bg-card p-5 shadow-pop">

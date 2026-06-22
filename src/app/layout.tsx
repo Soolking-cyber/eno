@@ -41,7 +41,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
   title: "eno.vn - Verified Expat Marketplace in Vietnam",
   description:
-    "eno.vn is a verified marketplace for expats and internationals in Vietnam. Find housing, jobs, motorbikes, services, moving sales, and more — every listing is checked before it goes live.",
+    "eno.vn is a trusted marketplace for expats and internationals in Vietnam. Find housing, jobs, motorbikes, services, moving sales, and more — sellers build public trust scores and the community keeps listings honest.",
   applicationName: "eno.vn",
   appleWebApp: { capable: true, title: "eno.vn", statusBarStyle: "default" },
   keywords: [
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "eno.vn - Verified Expat Marketplace in Vietnam",
     description:
-      "A verified marketplace for expats and internationals in Vietnam. Housing, jobs, motorbikes, services and moving sales — every listing checked before it goes live.",
+      "A trusted marketplace for expats and internationals in Vietnam. Housing, jobs, motorbikes, services and moving sales — sellers build trust scores and the community keeps listings honest.",
     siteName: "eno.vn",
     type: "website",
     images: [OG_IMAGE],
