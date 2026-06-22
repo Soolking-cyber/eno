@@ -11,6 +11,7 @@ import { NotificationsProvider } from "@/context/notifications-context";
 import { FavoritesProvider } from "@/context/favorites-context";
 import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
+import { BackToTop } from "@/components/marketplace/back-to-top";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -161,6 +162,7 @@ export default function RootLayout({
                           the page bottom it blends with the footer instead of
                           exposing a grey band. */}
                       <div aria-hidden className="lg:hidden h-[calc(4rem+env(safe-area-inset-bottom))] bg-card" />
+                      <BackToTop />
                       <MobileNav />
                       <CookieConsent />
                     </QueryProvider>
