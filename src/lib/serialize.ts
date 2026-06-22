@@ -46,6 +46,8 @@ export function serializeListing(
       rating: l.seller.rating,
       reviewCount: l.seller.reviewCount,
       verifiedSeller: l.seller.verifiedSeller,
+      trustTier: l.seller.trustTier,
+      trustScore: l.seller.trustScore,
       responseRate: l.seller.responseRate,
       responseTime: l.seller.responseTime,
       // Public-safe by default: phone is omitted from list/feed payloads to prevent

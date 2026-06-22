@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { usePathname, useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { trackSignUp } from '@/lib/analytics'
 
@@ -34,8 +35,10 @@ const SignInDialog = dynamic(
 type AuthCtx = {
   user: User | null
   loading: boolean
+  accountType: string | null
   signOut: () => Promise<void>
   openSignIn: () => void
+  markOnboarded: (type: string) => void
 }
 
 const AuthContext = createContext<AuthCtx | undefined>(undefined)
@@ -44,6 +47,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [signInOpen, setSignInOpen] = useState(false)
+  const [accountType, setAccountType] = useState<string | null>(null)
+  const [identityLoaded, setIdentityLoaded] = useState(false)
+  const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     let cancelled = false
@@ -94,10 +101,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; cleanupTriggers(); unsub?.() }
   }, [])
 
+  // Load the app identity (account type) whenever the auth user changes, so the
+  // onboarding gate below knows whether the one-time business/individual choice is
+  // still pending. Separate from the Supabase boot so it also covers phone OTP,
+  // which has no server callback to gate on.
+  useEffect(() => {
+    if (!user) { setAccountType(null); setIdentityLoaded(false); return }
+    let cancelled = false
+    fetch('/api/me')
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) { setAccountType(d.user?.accountType ?? null); setIdentityLoaded(true) } })
+      // Fail OPEN: on a transient /api/me failure leave identityLoaded=false so
+      // the onboarding gate stays inert — never trap a real user in /onboard
+      // because identity couldn't be read.
+      .catch(() => { /* keep identityLoaded=false */ })
+    return () => { cancelled = true }
+  }, [user])
+
+  // One-time onboarding gate: a signed-in user who hasn't picked individual vs
+  // business is sent to /onboard (covers every sign-in method). We wait for the
+  // identity fetch so we never bounce on a not-yet-loaded null, and we never
+  // intercept the onboarding or auth-callback routes themselves.
+  useEffect(() => {
+    if (!user || !identityLoaded || accountType) return
+    if (!pathname || pathname.startsWith('/onboard') || pathname.startsWith('/auth')) return
+    router.replace(`/onboard?next=${encodeURIComponent(pathname)}`)
+  }, [user, identityLoaded, accountType, pathname, router])
+
   const signOut = async () => {
     const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
     await createSupabaseBrowser().auth.signOut()
     setUser(null)
+    setAccountType(null)
+    setIdentityLoaded(false)
     // Clear the per-user functional caches (inbox, threads, saved) so the next
     // account on this device starts clean.
     try {
@@ -108,8 +144,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }
 
+  const markOnboarded = (type: string) => setAccountType(type)
+
   return (
-    <AuthContext.Provider value={{ user, loading, signOut, openSignIn: () => setSignInOpen(true) }}>
+    <AuthContext.Provider value={{ user, loading, accountType, signOut, openSignIn: () => setSignInOpen(true), markOnboarded }}>
       {children}
       {/* Mounted only once opened, so its chunk loads on demand. */}
       {signInOpen && <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />}

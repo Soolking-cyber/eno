@@ -4,12 +4,14 @@ import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Flag, Loader2, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { cn } from '@/lib/utils'
 
-type Props = { listingId: string; className?: string }
+type Props = { listingId?: string; sellerId?: string; className?: string }
 
 const REASONS: { value: string; vi: string; en: string }[] = [
-  { value: 'scam', vi: 'Lừa đảo / giả mạo', en: 'Scam or fake' },
+  { value: 'scam', vi: 'Lừa đảo', en: 'Scam' },
+  { value: 'counterfeit', vi: 'Hàng giả / nhái', en: 'Counterfeit / fake goods' },
   { value: 'sold', vi: 'Đã bán / hết hàng', en: 'Already sold / unavailable' },
   { value: 'wrong-info', vi: 'Thông tin sai (giá, ảnh…)', en: 'Wrong info (price, photos…)' },
   { value: 'duplicate', vi: 'Tin trùng lặp', en: 'Duplicate listing' },
@@ -17,9 +19,10 @@ const REASONS: { value: string; vi: string; en: string }[] = [
   { value: 'other', vi: 'Khác', en: 'Other' },
 ]
 
-export function ReportButton({ listingId, className }: Props) {
+export function ReportButton({ listingId, sellerId, className }: Props) {
   const { tr } = useLanguage()
   const t = (vi: string, en: string) => tr(en, vi)
+  const { openSignIn } = useAuth()
 
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
@@ -35,8 +38,11 @@ export function ReportButton({ listingId, className }: Props) {
       const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listingId, reason, detail: detail.trim() || undefined }),
+        body: JSON.stringify({ listingId, sellerId, reason, detail: detail.trim() || undefined }),
       })
+      // Reporting requires an account — bounce anonymous users to sign-in.
+      if (res.status === 401) { setOpen(false); openSignIn(); return }
+      if (res.status === 429) { setError(t('Bạn đã báo cáo quá nhiều. Thử lại sau.', 'Too many reports — please try again later.')); return }
       if (!res.ok) throw new Error('failed')
       setDone(true)
     } catch {

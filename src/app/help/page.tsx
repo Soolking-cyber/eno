@@ -59,7 +59,7 @@ const SECTIONS: { title: string; items: [string, string][] }[] = [
   {
     title: 'Account & notifications',
     items: [
-      ['How do I sign in?', 'Tap the account icon and sign in with Google, Facebook, email, or your phone number. If you posted before with a phone number, sign in with that number to claim those listings.'],
+      ['How do I sign in?', 'Tap the account icon and sign in with your phone number, Google, or email. If you posted before with a phone number, sign in with that number to claim those listings.'],
       ['How do notifications work?', 'The bell at the top-right shows new messages and offers in real time. Opening it marks them read; each one links straight to the conversation.'],
       ['How do I change my language?', 'Account → Language. Your choice is remembered on this device.'],
     ],

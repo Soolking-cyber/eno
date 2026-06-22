@@ -8,6 +8,8 @@ import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Star, BadgeCheck, ChevronLeft, MessageSquareText, Clock, CalendarDays } from 'lucide-react'
 import { Tr } from '@/context/language-context'
+import { TrustBadge } from '@/components/marketplace/trust-badge'
+import { ReportButton } from '@/components/marketplace/report-button'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -68,11 +70,7 @@ export default async function SellerPage({ params }: Props) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="h-title text-[#1a202c]">{seller.name}</h1>
-              {seller.verifiedSeller && (
-                <span className="inline-flex items-center gap-1 rounded-xl bg-[#e8f1fb] px-2.5 py-1 text-xs font-semibold text-[#0a66c2]">
-                  <BadgeCheck className="h-4 w-4" /> <Tr text="Verified seller" />
-                </span>
-              )}
+              <TrustBadge tier={seller.trustTier} size="md" />
               {seller.ownerId && (
                 <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                   <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
@@ -85,6 +83,9 @@ export default async function SellerPage({ params }: Props) {
               <span className="text-[#94a3b8]">· {seller.reviewCount} <Tr text="reviews" /></span>
             </div>
             {seller.bio && <p className="mt-2 max-w-2xl text-sm text-[#475569]"><Tr text={seller.bio} /></p>}
+            <div className="mt-3">
+              <ReportButton sellerId={seller.id} />
+            </div>
           </div>
         </div>
 

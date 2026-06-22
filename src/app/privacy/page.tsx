@@ -14,7 +14,7 @@ const sections: [string, string[]][] = [
   [
     'Information we collect',
     [
-      'Account information: when you sign in we receive your email address and/or phone number, and — if you use Google or Facebook sign-in — your name and profile picture from that provider.',
+      'Account information: when you sign in we receive your email address and/or phone number, and — if you use Google sign-in — your name and profile picture from Google.',
       'Listing information: the title, description, price, photos, location and contact phone number you choose to include when you post a listing.',
       'Usage information: basic technical data such as device type, language preference and pages viewed, used to operate and improve the service.',
     ],
@@ -32,7 +32,7 @@ const sections: [string, string[]][] = [
   [
     'Service providers we share data with',
     [
-      'We use trusted providers strictly to run eno.vn, and we do not sell your personal information. These include: Supabase (authentication, database and image storage); Google and Meta/Facebook (only if you choose to sign in with them); Microsoft Azure Translator (to translate content — message text is processed and not retained by the provider for training); and SMS/Zalo messaging providers (to deliver one-time login codes).',
+      'We use trusted providers strictly to run eno.vn, and we do not sell your personal information. These include: Supabase (authentication, database and image storage); Google (only if you choose to sign in with it); Meta (analytics and advertising measurement via the Meta pixel); Microsoft Azure Translator (to translate content — message text is processed and not retained by the provider for training); and SMS/Zalo messaging providers (to deliver one-time login codes).',
     ],
   ],
   [

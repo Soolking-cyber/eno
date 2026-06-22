@@ -443,8 +443,10 @@ export async function GET(req: NextRequest) {
 }
 
 // Create a listing from the post wizard. No auth yet → identify the seller by
-// phone (Chợ Tốt / Craigslist guest-post pattern). Always created verified=false
-// so it stays hidden from the public feed until an eno.vn agent verifies it.
+// phone (Chợ Tốt / Craigslist guest-post pattern). Manual verification is gone:
+// listings PUBLISH INSTANTLY (verified=true) unless the account is Restricted
+// (low trust) or has no photo — see the autoPublish gate below; abuse is handled
+// reactively by the trust score + reporting.
 // normalizePhone is shared (src/lib/phone.ts) so the later verified-phone claim
 // joins on the exact same canonical form.
 // Only accept Supabase Storage URLs for our project (no arbitrary remote images).
@@ -495,6 +497,13 @@ export async function POST(req: NextRequest) {
       : []
     const district = body.district ? String(body.district).trim().slice(0, 80) : null
 
+    // Automated publish gate (manual per-listing verification removed — no
+    // manpower). Listings go LIVE instantly; the reactive control is the trust
+    // score + reporting, not a human reviewing each one. We only HOLD a listing
+    // when the account is Restricted (trust < 60) or it has no photo. Phone text
+    // is already blocked above (`no_phone_in_listing`).
+    const autoPublish = images.length >= 1 && seller.trustTier !== 'restricted'
+
     const listing = await db.listing.create({
       data: {
         title,
@@ -511,7 +520,7 @@ export async function POST(req: NextRequest) {
         searchText: buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi]),
         categoryId: category.id,
         sellerId: seller.id,
-        verified: false,
+        verified: autoPublish,
       },
     })
 
@@ -527,7 +536,7 @@ export async function POST(req: NextRequest) {
     const warmFields = [listing.title, listing.description, listing.location, ...attrValues].filter(Boolean)
     after(() => warmTranslations(warmFields))
 
-    return NextResponse.json({ id: listing.id, verified: false }, { status: 201 })
+    return NextResponse.json({ id: listing.id, verified: autoPublish }, { status: 201 })
   } catch (e) {
     console.error('[POST /api/listings]', e)
     return NextResponse.json({ error: 'Failed to create listing' }, { status: 500 })

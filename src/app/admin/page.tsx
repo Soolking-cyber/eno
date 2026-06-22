@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { Header } from '@/components/marketplace/header'
-import { ModerationClient, type ModItem } from '@/components/admin/moderation-client'
+import { ModerationClient, type ModItem, type AccountReport } from '@/components/admin/moderation-client'
 import { ShieldAlert } from 'lucide-react'
 import type { Metadata } from 'next'
 
@@ -86,7 +86,7 @@ export default async function AdminPage() {
     seller: { select: { name: true, phone: true } },
   }
 
-  const [pendingRows, reportedRows] = await Promise.all([
+  const [pendingRows, reportedRows, accountReportRows] = await Promise.all([
     db.listing.findMany({
       where: { verified: false },
       include: { ...include, reports: { where: { status: 'open' }, orderBy: { createdAt: 'desc' } } },
@@ -99,10 +99,31 @@ export default async function AdminPage() {
       orderBy: { createdAt: 'desc' },
       take: 200,
     }),
+    // Storefront/account reports have no listing — fetch them directly so they're
+    // actionable (scalar target columns have no Prisma relation, so resolve names below).
+    db.report.findMany({
+      where: { status: 'open', listingId: null },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }),
   ])
 
   const pending = pendingRows.map((r) => toItem(r as unknown as Row))
   const reported = reportedRows.map((r) => toItem(r as unknown as Row))
+
+  const sellerIds = [...new Set(accountReportRows.map((r) => r.targetSellerId).filter((x): x is string => !!x))]
+  const sellers = sellerIds.length
+    ? await db.seller.findMany({ where: { id: { in: sellerIds } }, select: { id: true, name: true } })
+    : []
+  const nameById = new Map(sellers.map((s) => [s.id, s.name]))
+  const accountReports: AccountReport[] = accountReportRows.map((r) => ({
+    id: r.id,
+    reason: r.reason,
+    detail: r.detail,
+    createdAt: r.createdAt.toISOString(),
+    targetSellerId: r.targetSellerId,
+    targetName: r.targetSellerId ? nameById.get(r.targetSellerId) ?? null : null,
+  }))
 
   return (
     <div className="flex min-h-screen flex-col bg-[#fafafa]">
@@ -110,9 +131,9 @@ export default async function AdminPage() {
       <main className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6">
         <div className="mb-6">
           <h1 className="h-title text-[#1a202c]">Moderation</h1>
-          <p className="mt-1 text-sm text-[#64748b]">Signed in as {admin}. Approve listings to publish them, or clear reports.</p>
+          <p className="mt-1 text-sm text-[#64748b]">Signed in as {admin}. Resolve reports (confirm docks trust); held listings need a photo or are from restricted accounts.</p>
         </div>
-        <ModerationClient pending={pending} reported={reported} />
+        <ModerationClient pending={pending} reported={reported} accountReports={accountReports} />
       </main>
     </div>
   )

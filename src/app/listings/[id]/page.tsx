@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   ChevronLeft,
 } from 'lucide-react'
-import { CATEGORY_COLOR_CLASSES, VERIFICATION_METHOD_LABELS, timeAgo } from '@/lib/types'
+import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
+import { TrustBadge } from '@/components/marketplace/trust-badge'
 import { Price } from '@/components/marketplace/price'
 import { Tr } from '@/context/language-context'
 import { getServerLang, getDict } from '@/lib/translate-server'
@@ -86,9 +87,6 @@ export default async function ListingPage({ params }: Props) {
   const displayTitle = listing.titleVi || listing.title
   const displayDesc = listing.description
   const color = CATEGORY_COLOR_CLASSES[listing.category.color] ?? CATEGORY_COLOR_CLASSES.brand
-  const methodLabel = listing.verificationMethod
-    ? VERIFICATION_METHOD_LABELS[listing.verificationMethod]
-    : null
 
   const initials = listing.seller.name
     .split(' ')
@@ -111,7 +109,6 @@ export default async function ListingPage({ params }: Props) {
     listing.description,
     listing.location,
     listing.category.name,
-    ...(methodLabel ? [methodLabel.label] : []),
     ...attrs.flatMap(([k, v]) => [k.replace(/([A-Z])/g, ' $1'), String(v)]),
   ])
   const tx = (s: string) => contentDict[s] ?? s
@@ -248,26 +245,12 @@ export default async function ListingPage({ params }: Props) {
                 {listing.negotiable && <span className="text-sm text-[#64748b]">· <Tr text="Negotiable" /></span>}
               </div>
 
-              {listing.verified ? (
-                <div className="rounded-lg bg-[#e8f1fb] px-3 py-2 text-xs text-[#0a66c2]">
-                  <div className="flex items-center gap-2">
-                    <BadgeCheck className="h-4 w-4 shrink-0" />
-                    <span className="font-semibold"><Tr text="Verified by eno.vn" /></span>
-                    {methodLabel && <span>· {tx(methodLabel.label)}</span>}
-                  </div>
-                  {(listing.verifiedBy || listing.verifiedAt || listing.verificationNotes) && (
-                    <div className="mt-1.5 pl-6 text-[11px] leading-relaxed text-[#0052cc]">
-                      {listing.verifiedBy}
-                      {listing.verifiedBy && listing.verifiedAt && ' · '}
-                      {listing.verifiedAt && new Date(listing.verifiedAt).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {listing.verificationNotes && <div className="italic text-[#0a66c2]">“<Tr text={listing.verificationNotes} />”</div>}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span><Tr text="Pending review — this listing is hidden until verified by eno.vn." /></span>
+              {(listing.seller.trustTier === 'trusted' || listing.seller.trustTier === 'exceptional') && (
+                <div className="flex items-center gap-2">
+                  <TrustBadge tier={listing.seller.trustTier} size="md" />
+                  <span className="text-xs text-[#64748b]">
+                    <Tr text="Earned on eno.vn from a clean track record" />
+                  </span>
                 </div>
               )}
 

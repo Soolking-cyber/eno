@@ -7,6 +7,7 @@ import { ShieldCheck, MessageSquare, BadgeCheck } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInForm } from '@/components/marketplace/sign-in-form'
+import { safeNextPath } from '@/lib/url'
 
 // Dedicated split-layout sign-in page (commerce-login pattern, eno.vn blue). Reuses
 // the exact same <SignInForm> as the inline modal. Honors ?next= for post-login
@@ -20,16 +21,8 @@ function SignInPageInner() {
 
   useEffect(() => {
     if (!user) return
-    // Sanitize ?next= to a SAME-ORIGIN path. A string-prefix check is NOT enough:
-    // the URL parser normalizes tricks like /\evil.com or /\t/evil.com to an
-    // external origin, which the Next router would location.assign to. Compare
-    // resolved origins instead (open-redirect guard).
-    let dest = '/'
-    try {
-      const u = new URL(raw, window.location.origin)
-      if (u.origin === window.location.origin) dest = u.pathname + u.search + u.hash
-    } catch { /* malformed → home */ }
-    router.replace(dest)
+    // Sanitize ?next= to a same-origin path (shared open-redirect guard).
+    router.replace(safeNextPath(raw, window.location.origin))
   }, [user, raw, router])
 
   return (

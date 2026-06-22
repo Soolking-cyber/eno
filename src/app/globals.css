@@ -284,3 +284,16 @@ input, select, textarea {
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   TRUST BADGE — reflective sheen (Trusted / Exceptional)
+   The global reduced-motion rule above parks the animation off-screen.
+   ============================================================ */
+@keyframes trust-sheen {
+  0% { transform: translateX(-150%); }
+  60%, 100% { transform: translateX(150%); }
+}
+.trust-sheen {
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%);
+  animation: trust-sheen 3.2s ease-in-out infinite;
+}

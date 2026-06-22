@@ -47,6 +47,8 @@ export type SerializedListing = {
     rating: number
     reviewCount: number
     verifiedSeller: boolean
+    trustTier: string
+    trustScore: number
     responseRate: number
     responseTime: string
     phone: string | null
@@ -121,13 +123,6 @@ export function timeAgo(iso: string, lang: string = 'vi'): string {
     if (mo < 12) return `${mo}mo ago`
     return `${Math.floor(mo / 12)}y ago`
   }
-}
-
-export const VERIFICATION_METHOD_LABELS: Record<string, { label: string; vi: string; desc: string }> = {
-  'in-person': { label: 'In-person check', vi: 'Kiểm tra tận nơi', desc: 'An eno.vn agent visited the item in person.' },
-  'video-call': { label: 'Live video call', vi: 'Gọi video trực tiếp', desc: 'Seller showed the item live on a video call.' },
-  'document-check': { label: 'Document check', vi: 'Kiểm tra giấy tờ', desc: 'Serial / registration documents validated against official records.' },
-  'agent-visit': { label: 'Agent visit', vi: 'Nhân viên đến kiểm tra', desc: 'An agent visited the business / premises.' },
 }
 
 // Single-accent palette: every category renders in the one brand blue.

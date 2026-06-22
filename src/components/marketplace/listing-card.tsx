@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Heart, BadgeCheck, ChevronLeft, ChevronRight, Star } from 'lucide-react'
+import { Heart, ChevronLeft, ChevronRight, Star } from 'lucide-react'
+import { TrustBadge } from './trust-badge'
 import Image from 'next/image'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
@@ -181,11 +182,8 @@ export function ListingCard({
           </span>
         </div>
 
-        {listing.verified && (
-          <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-md bg-[#e8f1fb] px-1.5 py-0.5 text-[10px] font-semibold text-[#0a66c2]">
-            <BadgeCheck className="h-3 w-3" />
-            {t('card.verified')}
-          </span>
+        {(listing.seller.trustTier === 'trusted' || listing.seller.trustTier === 'exceptional') && (
+          <TrustBadge tier={listing.seller.trustTier} size="sm" className="mt-0.5 rounded-md" />
         )}
       </div>
     </div>

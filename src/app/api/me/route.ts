@@ -16,6 +16,7 @@ export async function GET() {
       email: profile.email,
       avatarUrl: profile.avatarUrl,
       avatarColor: profile.avatarColor,
+      accountType: profile.accountType ?? null,
       sellerId: seller?.id ?? null,
     },
   })

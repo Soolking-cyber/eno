@@ -35,6 +35,14 @@ model Profile {
   avatarColor String   @default("#0a66c2")
   phone       String?  @unique             // normalized +84…, mirrored from VERIFIED auth phone
   locale      String?
+  accountType String?                       // 'individual' | 'business' — null until onboarded (drives the one-time choice)
+  businessName String?                      // captured at business onboarding; synced to the Seller storefront later
+  // ── Trust & Reputation (replaces manual verification) ──
+  trustScore           Int       @default(100) // 100 = good standing; never mutate blindly — recompute from TrustEvent
+  trustTier            String    @default("standard") // denormalized: restricted | standard | trusted | exceptional
+  positiveInteractions Int       @default(0)   // track-record gate for the Trusted/Exceptional badge
+  falseReportStrikes   Int       @default(0)   // anti-abuse: confirmed-false reports filed BY this user
+  reportCooldownUntil  DateTime?               // anti-abuse: can't file new reports until this passes
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -44,8 +52,10 @@ model Profile {
   sellerConversations Conversation[] @relation("SellerConversations")
   sentMessages        Message[]
   notifications       Notification[] @relation("RecipientNotifications")
+  trustEvents         TrustEvent[]   @relation("SubjectTrustEvents")
 
   @@index([phone])
+  @@index([trustTier])
 }
 
 model Seller {
@@ -61,6 +71,10 @@ model Seller {
   reviewCount   Int       @default(0)
   verified      Boolean   @default(false)
   verifiedSeller Boolean  @default(false)
+  // Mirror of the owner Profile's trust (denormalized so a storefront card/badge
+  // renders without a Profile join; recomputed whenever the owner's score changes).
+  trustScore    Int       @default(100)
+  trustTier     String    @default("standard") // restricted | standard | trusted | exceptional
   memberSince   DateTime  @default(now())
   responseRate  Int       @default(100)
   responseTime  String    @default("within an hour")
@@ -223,15 +237,42 @@ model Notification {
 // Anonymous — no auth required to report. Feeds the /admin moderation queue.
 model Report {
   id        String   @id @default(cuid())
-  listingId String
-  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  reason    String   // scam | sold | wrong-info | duplicate | offensive | other
+  // A report can target a listing AND/OR an account/storefront (business or user).
+  listingId String?
+  listing   Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reporterProfileId String? @db.Uuid          // who filed it — for trust-weighting + anti-abuse
+  targetProfileId   String? @db.Uuid          // reported account (business/user), if any
+  targetSellerId    String?                    // reported storefront, if any
+  reason    String   // scam | counterfeit | wrong-info | duplicate | offensive | sold | other
   detail    String?
-  status    String   @default("open") // open | resolved | dismissed
+  severity  String?                            // minor | moderate | severe — set/confirmed by admin
+  status    String   @default("open")          // open | confirmed | dismissed | abusive
+  resolvedBy String?                           // admin email/id who resolved it
+  resolvedAt DateTime?
   createdAt DateTime @default(now())
 
   @@index([listingId])
   @@index([status])
+  @@index([reporterProfileId])
+  @@index([targetProfileId])
+  @@index([targetSellerId])
+}
+
+// Append-only audit log of every trust-score change. The score on Profile/Seller
+// is a denormalized cache of 100 + sum(deltas); we never mutate it blindly, so
+// every change is attributable and reversible.
+model TrustEvent {
+  id               String   @id @default(cuid())
+  subjectProfileId String   @db.Uuid
+  subject          Profile  @relation("SubjectTrustEvents", fields: [subjectProfileId], references: [id], onDelete: Cascade)
+  type             String   // report_confirmed | report_dismissed | positive_review | fast_response | engagement | decay_recover | manual_adjust
+  delta            Int      // signed points applied
+  reason           String?
+  actorId          String?  @db.Uuid           // admin/user who triggered it, if any
+  reportId         String?                      // link back to the Report, when applicable
+  createdAt        DateTime @default(now())
+
+  @@index([subjectProfileId, createdAt])
 }
 
 // Machine-translation cache — avoids re-paying the translation API for the
