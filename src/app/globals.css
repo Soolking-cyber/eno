@@ -246,6 +246,17 @@
     font-feature-settings: "cv11", "ss01";
     font-variation-settings: "opsz" 32;
   }
+  /* iOS Safari auto-zooms when a focused field's font-size is < 16px (most of
+     ours are text-sm = 14px). Force a 16px minimum on form controls on small
+     screens to kill the jarring zoom — without disabling pinch-zoom (which would
+     break accessibility). Larger screens keep the designed sizes. */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    textarea,
+    select {
+      font-size: 16px;
+    }
+  }
 }
 
 /* ============================================================
