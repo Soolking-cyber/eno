@@ -14,8 +14,8 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
   const inThread = /^\/messages\/.+/.test(pathname || '') // viewing a specific conversation
 
   return (
-    {/* On mobile, leave room for the fixed bottom nav (4rem) so the chat composer
-        pins right above it and only the message list scrolls. Full height on desktop. */}
+    // On mobile, leave room for the fixed bottom nav (4rem) so the chat composer
+    // pins right above it and only the message list scrolls. Full height on desktop.
     <div className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] flex-col overflow-hidden bg-background lg:h-[100dvh]">
       <Header />
       {/* Same max-width + gutter as the header navbar so the two-pane edges line up

@@ -31,10 +31,12 @@ export function ConversationList() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="px-2 pt-4">
-        <h1 className="h-title text-foreground px-1">{tr('Messages', 'Tin nhắn')}</h1>
+      <div className="px-2 pt-3">
+        {/* Title only on desktop; on mobile the navbar gives context + the search
+            sits right under it. */}
+        <h1 className="h-title text-foreground px-1 hidden lg:block">{tr('Messages', 'Tin nhắn')}</h1>
         {/* Search — filled, borderless */}
-        <div className="relative mt-3">
+        <div className="relative lg:mt-3">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-4" />
           <input
             value={query}
