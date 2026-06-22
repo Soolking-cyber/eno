@@ -134,7 +134,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
   if (submitted) {
     return (
       <div className="flex flex-col items-center gap-4 py-16 text-center">
-        <Mascot name="success" className="h-28 w-28" />
+        <Mascot name="success" className="h-52 w-52" />
         <h1 className="h-title text-foreground">{t('Tin của bạn đã được đăng!', 'Your listing is live!')}</h1>
         <p className="max-w-md text-sm text-body">
           {t(

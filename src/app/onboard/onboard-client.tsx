@@ -99,7 +99,7 @@ export function OnboardClient() {
     <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-4 flex justify-center">
-          <Mascot name="profile" className="h-24 w-24" />
+          <Mascot name="profile" className="h-44 w-44" />
         </div>
         <div>
           <h1 className="text-center text-xl font-bold text-foreground">{t('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h1>

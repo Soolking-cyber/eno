@@ -38,7 +38,7 @@ export default async function CategoryPage({ params }: Props) {
 
   const raw = await db.listing.findMany({
     where: { categoryId: cat.id, verified: true, status: 'active' },
-    include: { category: true, seller: true },
+    include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
     orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
   })
   const listings = raw.map(serializeListing)

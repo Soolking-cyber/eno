@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     if (ids.length === 0) return NextResponse.json({ listings: [], total: 0 })
     const rows = await db.listing.findMany({
       where: { id: { in: ids }, verified: true },
-      include: { category: true, seller: true },
+      include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
     })
     const byId = new Map(rows.map((r) => [r.id, serializeListing(r)]))
     const listings = ids.map((id) => byId.get(id)).filter(Boolean)
@@ -359,7 +359,7 @@ export async function GET(req: NextRequest) {
       orderBy,
       take: limit,
       skip: offset,
-      include: { category: true, seller: true },
+      include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
     }),
     db.listing.count({ where }),
     undefined

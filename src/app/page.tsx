@@ -26,7 +26,7 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
         where: { verified: true, status: 'active' },
         orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
         take: 24,
-        include: { category: true, seller: true },
+        include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
       }),
       db.listing.count({ where: { verified: true, status: 'active' } }),
     ])

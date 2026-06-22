@@ -11,7 +11,7 @@ function safeParse<T>(value: string | null, fallback: T): T {
 }
 
 export function serializeListing(
-  l: Listing & { category: Category; seller: Seller },
+  l: Listing & { category: Category; seller: Seller & { owner?: { accountType: string | null } | null } },
 ): SerializedListing {
   return {
     id: l.id,
@@ -53,6 +53,9 @@ export function serializeListing(
       // Public-safe by default: phone is omitted from list/feed payloads to prevent
       // bulk PII harvesting. Use serializeListingWithContact for single-listing detail.
       phone: null,
+      // True when the storefront is owned by a business account (false unless the
+      // query included seller.owner — safe default).
+      isBusiness: l.seller.owner?.accountType === 'business',
     },
     verified: l.verified,
     status: l.status,
@@ -72,7 +75,7 @@ export function serializeListing(
 
 /** Single-listing detail variant — includes the seller's phone for the contact CTA. */
 export function serializeListingWithContact(
-  l: Listing & { category: Category; seller: Seller },
+  l: Listing & { category: Category; seller: Seller & { owner?: { accountType: string | null } | null } },
 ): SerializedListing {
   const base = serializeListing(l)
   return { ...base, seller: { ...base.seller, phone: l.seller.phone } }

@@ -52,6 +52,7 @@ export type SerializedListing = {
     responseRate: number
     responseTime: string
     phone: string | null
+    isBusiness: boolean
   }
   verified: boolean
   status: string

@@ -47,7 +47,7 @@ export default function NotFound() {
         </div>
 
         <div className="relative w-full max-w-lg text-center">
-          <Mascot name="search" className="mx-auto h-28 w-28" />
+          <Mascot name="search" className="mx-auto h-52 w-52" />
           <p className="eyebrow mt-6 text-accent-foreground"><Tr text="Error 404" /></p>
           <h1 className="h-display mt-2 text-foreground"><Tr text="This page has moved on." /></h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-body">

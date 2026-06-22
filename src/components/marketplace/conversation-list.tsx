@@ -50,7 +50,7 @@ export function ConversationList() {
       <div className="mt-2 flex-1 overflow-y-auto px-2 pb-4 scroll-thin">
         {!loading && !user ? (
           <div className="px-2 py-10 text-center">
-            <Mascot name="chat" className="mx-auto h-20 w-20" />
+            <Mascot name="chat" className="mx-auto h-40 w-40" />
             <p className="mt-3 text-sm text-muted-foreground">{tr('Sign in to see your messages.', 'Đăng nhập để xem tin nhắn của bạn.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
@@ -58,7 +58,7 @@ export function ConversationList() {
           <div className="space-y-1.5 px-1">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 rounded-xl shimmer" />)}</div>
         ) : convos.length === 0 ? (
           <div className="px-3 py-12 text-center">
-            <Mascot name="chat" className="mx-auto h-20 w-20" />
+            <Mascot name="chat" className="mx-auto h-40 w-40" />
             <p className="mt-3 text-sm text-ink-4">{tr('No messages yet. Tap "Message" on a listing to start a chat.', 'Chưa có tin nhắn. Nhấn "Nhắn tin" trên một tin đăng để bắt đầu.')}</p>
           </div>
         ) : filtered && filtered.length === 0 ? (

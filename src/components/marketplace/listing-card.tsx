@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Heart, ChevronLeft, ChevronRight, Star } from 'lucide-react'
+import { Heart, ChevronLeft, ChevronRight, Star, Building2 } from 'lucide-react'
 import { TrustBadge } from './trust-badge'
 import Image from 'next/image'
 import type { SerializedListing } from '@/lib/types'
@@ -182,9 +182,16 @@ export function ListingCard({
           </span>
         </div>
 
-        {(listing.seller.trustTier === 'trusted' || listing.seller.trustTier === 'exceptional') && (
-          <TrustBadge tier={listing.seller.trustTier} size="sm" className="mt-0.5 rounded-md" />
-        )}
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+          {listing.seller.isBusiness && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
+              <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
+            </span>
+          )}
+          {(listing.seller.trustTier === 'trusted' || listing.seller.trustTier === 'exceptional') && (
+            <TrustBadge tier={listing.seller.trustTier} size="sm" className="rounded-md" />
+          )}
+        </div>
       </div>
     </div>
   )

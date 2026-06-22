@@ -178,7 +178,7 @@ export function DashboardClient() {
             <div className="mt-4 space-y-2.5">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[92px] rounded-2xl shimmer" />)}</div>
           ) : d.listings.length === 0 ? (
             <div className="mt-3 py-12 text-center">
-              <Mascot name="wave" className="mx-auto h-24 w-24" />
+              <Mascot name="wave" className="mx-auto h-48 w-48" />
               <p className="mt-3 text-sm text-muted-foreground">{tr('No listings yet — post your first one.', 'Chưa có tin nào — đăng tin đầu tiên.')}</p>
             </div>
           ) : (

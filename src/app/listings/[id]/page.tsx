@@ -13,6 +13,7 @@ import {
   BadgeCheck,
   AlertTriangle,
   ChevronLeft,
+  Building2,
 } from 'lucide-react'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { TrustBadge } from '@/components/marketplace/trust-badge'
@@ -75,7 +76,7 @@ export default async function ListingPage({ params }: Props) {
   const { id } = await params
   const rawListing = await db.listing.findUnique({
     where: { id },
-    include: { category: true, seller: true },
+    include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
   })
 
   // Only publicly-live listings are viewable by direct URL; sold/hidden/held are
@@ -282,6 +283,11 @@ export default async function ListingPage({ params }: Props) {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="truncate text-sm font-semibold text-foreground group-hover:underline">{listing.seller.name}</span>
                     {listing.seller.verifiedSeller && <BadgeCheck className="h-4 w-4 shrink-0 text-accent-foreground" />}
+                    {listing.seller.isBusiness && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-accent-foreground">
+                        <Building2 className="h-3 w-3" /> <Tr text="Business" />
+                      </span>
+                    )}
                   </div>
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Star className="h-3 w-3 fill-foreground text-foreground shrink-0" />

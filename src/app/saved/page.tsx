@@ -38,7 +38,7 @@ export default function SavedPage() {
           </div>
         ) : list.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-            <Mascot name="saved" className="h-28 w-28" />
+            <Mascot name="saved" className="h-52 w-52" />
             <p className="text-base font-semibold text-foreground">
               {tr('No saved listings yet', 'Chưa có tin nào được lưu')}
             </p>
