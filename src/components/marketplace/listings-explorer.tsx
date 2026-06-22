@@ -395,8 +395,11 @@ export function ListingsExplorer({
 
     const newSearch = params.toString()
     const newUrl = newSearch ? `?${newSearch}` : window.location.pathname
-    
+
     window.history.replaceState(null, '', newUrl)
+    // replaceState bypasses Next's router, so the persistent header search bar won't
+    // see the query change — broadcast it so the top bar stays in sync.
+    window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() } }))
   }, [activeCategory, query, activeDistrict, activeSubcategory, customFilters])
 
   // Debounce search query input to avoid making API requests on every keystroke

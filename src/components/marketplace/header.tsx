@@ -96,6 +96,15 @@ export function Header() {
     setSearchVal(new URLSearchParams(window.location.search).get('q') || '')
   }, [pathname])
 
+  // The explorer filters in place (history.replaceState, which Next's router can't
+  // observe) — it broadcasts the active query so the persistent top bar stays in
+  // sync (e.g. after tapping a recent-search chip on the landing hero).
+  useEffect(() => {
+    const onQuery = (e: Event) => setSearchVal((e as CustomEvent<{ query?: string }>).detail?.query ?? '')
+    window.addEventListener('eno:query', onQuery)
+    return () => window.removeEventListener('eno:query', onQuery)
+  }, [])
+
   useEffect(() => {
     let io: IntersectionObserver | null = null
     const detach = () => { if (io) { io.disconnect(); io = null } }
