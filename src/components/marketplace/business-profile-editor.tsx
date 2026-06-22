@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Check, Upload } from 'lucide-react'
+import { Loader2, Check, Upload, LocateFixed } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -20,7 +20,26 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [locating, setLocating] = useState(false)
   const [error, setError] = useState('')
+
+  // One-tap: fill Location from the device's GPS via reverse-geocoding.
+  const useMyLocation = () => {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const r = await fetch(`/api/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`)
+          const d = await r.json()
+          const addr = d.address || [d.ward, d.province].filter(Boolean).join(', ')
+          if (addr) setLocation(addr)
+        } catch { /* keep manual value */ } finally { setLocating(false) }
+      },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    )
+  }
 
   // Re-sync local fields when the saved storefront changes (e.g. after refresh()
   // returns the server-trimmed values) so the form doesn't read perpetually dirty.
@@ -99,7 +118,12 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
           <p className="mt-1 text-[11px] text-ink-4">{tr('The person on this account — buyers see the business name, not this.', 'Người dùng tài khoản này — người mua thấy tên doanh nghiệp, không phải tên này.')}</p>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold text-body">{tr('Location', 'Khu vực')}</label>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label className="block text-xs font-semibold text-body">{tr('Location', 'Khu vực')}</label>
+            <button type="button" onClick={useMyLocation} disabled={locating} className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent-foreground hover:underline disabled:opacity-50 cursor-pointer">
+              {locating ? <Loader2 className="h-3 w-3 animate-spin" /> : <LocateFixed className="h-3 w-3" />} {tr('Use my location', 'Dùng vị trí của tôi')}
+            </button>
+          </div>
           <input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={120} placeholder={tr('e.g. District 1, HCMC', 'vd. Quận 1, TP.HCM')} className={field} />
         </div>
         <div>
