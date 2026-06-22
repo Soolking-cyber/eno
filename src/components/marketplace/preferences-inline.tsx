@@ -10,16 +10,20 @@ import { cn } from '@/lib/utils'
  *  icon segmented control (right). Borderless, dark-mode-safe, portaled menu (no
  *  native OS dropdown). Shared by the desktop account dropdown and the mobile
  *  dashboard so both read the same. */
-export function PreferencesInline({ className }: { className?: string }) {
+export function PreferencesInline({ className, compact = false }: { className?: string; compact?: boolean }) {
   const { tr, lang, setLang } = useLanguage()
   const { theme, setTheme } = useTheme()
+  // Compact (narrow account dropdown): show the 2-letter code on the trigger so it
+  // never truncates to "P…". Full width (dashboard): show the native name.
+  const code = LANGUAGES.find((l) => l.code === lang)?.label
   return (
     <div className={cn('flex items-center gap-2', className)}>
       <CustomSelect
         value={lang}
         onChange={(v) => setLang(v as typeof lang)}
         options={LANGUAGES.map((l) => ({ value: l.code, label: l.native }))}
-        wrapperClassName="min-w-0 flex-1"
+        triggerLabel={compact ? code : undefined}
+        wrapperClassName={compact ? 'shrink-0' : 'min-w-0 flex-1'}
         className="bg-tint text-body"
         activeClassName="bg-tint text-body hover:bg-accent hover:text-accent-foreground"
       />

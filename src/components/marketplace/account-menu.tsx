@@ -77,9 +77,9 @@ export function AccountMenu() {
               <Store className="h-4 w-4 text-accent-foreground" /> {tr('Dashboard', 'Bảng điều khiển')}
             </Link>
 
-            {/* Language + theme — compact one line (shared with the dashboard) */}
+            {/* Language + theme — compact one line (language shows its 2-letter code) */}
             <div className="mt-1 px-1.5 pb-1 pt-2">
-              <PreferencesInline />
+              <PreferencesInline compact />
             </div>
 
             <div className="mt-1 pt-1">

@@ -15,6 +15,8 @@ interface CustomSelectProps {
   icon?: React.ReactNode
   wrapperClassName?: string
   labelClassName?: string
+  /** Override the trigger text (e.g. a short code) while the menu keeps full labels. */
+  triggerLabel?: string
 }
 
 /** Select whose menu MORPHS out of the trigger (Google-style): on open the trigger
@@ -22,7 +24,7 @@ interface CustomSelectProps {
  *  window (same width, shared border + shadow, faint divider). Menu is portaled to
  *  <body> so a scrolling facet row can't clip it. Props-only; no app coupling. */
 export function CustomSelect({
-  value, onChange, options, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName,
+  value, onChange, options, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -84,7 +86,7 @@ export function CustomSelect({
       >
         <span className="flex items-center gap-1.5 truncate">
           {icon}
-          <span className={cn('truncate', labelClassName)}>{selectedOption ? selectedOption.label : placeholder}</span>
+          <span className={cn('truncate', labelClassName)}>{triggerLabel ?? (selectedOption ? selectedOption.label : placeholder)}</span>
         </span>
         <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4 transition-transform', isOpen && 'rotate-180')} />
       </button>
