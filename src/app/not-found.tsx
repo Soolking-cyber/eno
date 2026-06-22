@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { Home, MapPin, Bike, Armchair, Tag, Building2, Briefcase, ShoppingBag, KeyRound, Search } from 'lucide-react'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -53,12 +52,6 @@ export default function NotFound() {
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-body">
             <Tr text="The listing may have sold, been taken down, or the link is broken — let's get you back to the good stuff." />
           </p>
-
-          <div className="mt-7 flex items-center justify-center">
-            <Link href="/" className="flex items-center gap-2 rounded-xl bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
-              <Home className="h-4 w-4" /> <Tr text="Back to home" />
-            </Link>
-          </div>
         </div>
       </main>
       <Footer />
