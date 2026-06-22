@@ -1,5 +1,6 @@
 import { cache } from 'react'
 import { db } from '@/lib/db'
+import { formatMoneyFull } from '@/lib/vnd'
 import { serializeListing } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -55,6 +56,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const images = JSON.parse(listing.images || '[]')
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
+  // Bake the price into the social title/description so it shows in every link
+  // unfurl (Facebook/Zalo/Telegram scrape OG tags, not our share text). Skip when
+  // there's no meaningful price (e.g. some job posts).
+  const priceLabel = listing.price > 0 ? formatMoneyFull(listing.price, listing.currency) : ''
+  const ogTitle = priceLabel ? `${displayTitle} — ${priceLabel}` : displayTitle
+  const ogDesc = priceLabel ? `${priceLabel} · ${desc}` : desc
+
   return {
     title: `${displayTitle} | eno.vn`,
     description: desc,
@@ -64,8 +72,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       canonical: `${hostUrl}/listings/${id}`,
     },
     openGraph: {
-      title: `${displayTitle} | eno.vn`,
-      description: desc,
+      title: ogTitle,
+      description: ogDesc,
       url: `${hostUrl}/listings/${id}`,
       siteName: 'eno.vn',
       type: 'website',
@@ -73,8 +81,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${displayTitle} | eno.vn`,
-      description: desc,
+      title: ogTitle,
+      description: ogDesc,
       images: images[0] ? [images[0]] : undefined,
     },
   }

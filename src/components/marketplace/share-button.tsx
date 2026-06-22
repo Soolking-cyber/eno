@@ -50,12 +50,12 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
   const channels = [
     // Zalo first — the dominant messenger in Vietnam. Its share plugin scrapes the
     // listing page's Open Graph tags (title/image) for the preview.
-    { key: 'zalo', label: 'Zalo', href: `https://sp.zalo.me/plugins/share?url=${u}`, bg: 'bg-[#0068FF]', Icon: MessageCircle },
-    { key: 'wa', label: 'WhatsApp', href: `https://wa.me/?text=${t}%20${u}`, bg: 'bg-[#25D366]', Icon: WhatsAppIcon },
-    { key: 'fb', label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${u}`, bg: 'bg-[#1877F2]', Icon: FacebookIcon },
-    { key: 'tg', label: 'Telegram', href: `https://t.me/share/url?url=${u}&text=${t}`, bg: 'bg-[#26A5E4]', Icon: TelegramIcon },
-    { key: 'x', label: 'X', href: `https://twitter.com/intent/tweet?url=${u}&text=${t}`, bg: 'bg-black', Icon: XIcon },
-    { key: 'mail', label: tr('Email', 'Email'), href: `mailto:?subject=${t}&body=${u}`, bg: 'bg-[#0a66c2]', Icon: Mail },
+    { key: 'zalo', label: 'Zalo', href: `https://sp.zalo.me/plugins/share?url=${u}`, Icon: MessageCircle },
+    { key: 'wa', label: 'WhatsApp', href: `https://wa.me/?text=${t}%20${u}`, Icon: WhatsAppIcon },
+    { key: 'fb', label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${u}`, Icon: FacebookIcon },
+    { key: 'tg', label: 'Telegram', href: `https://t.me/share/url?url=${u}&text=${t}`, Icon: TelegramIcon },
+    { key: 'x', label: 'X', href: `https://twitter.com/intent/tweet?url=${u}&text=${t}`, Icon: XIcon },
+    { key: 'mail', label: tr('Email', 'Email'), href: `mailto:?subject=${t}&body=${u}`, Icon: Mail },
   ]
 
   const copy = async () => {
@@ -88,7 +88,7 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
         <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl bg-card p-3 shadow-pop animate-in fade-in zoom-in-95 origin-top-right duration-150">
           <p className="px-1 pb-2 text-xs font-bold text-foreground">{tr('Share this listing', 'Chia sẻ tin này')}</p>
           <div className="grid grid-cols-3 gap-1">
-            {channels.map(({ key, label, href, bg, Icon }) => (
+            {channels.map(({ key, label, href, Icon }) => (
               // Buttons (not <a href="share-url">) so ad/social blockers (EasyList
               // "Social", Brave, Safari content blockers) can't hide these — they
               // match on anchor hrefs pointing at share URLs.
@@ -96,9 +96,9 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
                 key={key}
                 type="button"
                 onClick={() => { window.open(href, '_blank', 'noopener,noreferrer'); setOpen(false) }}
-                className="flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted cursor-pointer"
+                className="group flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted cursor-pointer"
               >
-                <span className={cn('flex h-9 w-9 items-center justify-center rounded-full text-white', bg)}>
+                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-body transition-colors group-hover:border-[#0a66c2] group-hover:text-accent-foreground">
                   <Icon className="h-[18px] w-[18px]" />
                 </span>
                 <span className="text-[10px] font-medium text-body">{label}</span>
