@@ -14,7 +14,7 @@ export function Mascot({ name, className, white = false }: { name: MascotName; c
   return (
     <span
       aria-hidden
-      className={cn('inline-block bg-current', white ? 'text-white' : 'text-foreground', className)}
+      className={cn('inline-block bg-current', white ? 'text-white' : 'text-line-strong', className)}
       style={{
         maskImage: url,
         WebkitMaskImage: url,
