@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Compass, Home, LifeBuoy, MapPin, Bike, Armchair, Tag, Building2, Briefcase, ShoppingBag, KeyRound, Search } from 'lucide-react'
+import { Home, MapPin, Bike, Armchair, Tag, Building2, Briefcase, ShoppingBag, KeyRound, Search } from 'lucide-react'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Mascot } from '@/components/marketplace/mascot'
@@ -47,22 +47,16 @@ export default function NotFound() {
         </div>
 
         <div className="relative w-full max-w-lg text-center">
-          <Mascot name="search" className="mx-auto h-52 w-52" />
+          <Mascot name="search" className="mx-auto h-72 w-72" />
           <p className="eyebrow mt-6 text-accent-foreground"><Tr text="Error 404" /></p>
           <h1 className="h-display mt-2 text-foreground"><Tr text="This page has moved on." /></h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-body">
             <Tr text="The listing may have sold, been taken down, or the link is broken — let's get you back to the good stuff." />
           </p>
 
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
-            <Link href="/" className="flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+          <div className="mt-7 flex items-center justify-center">
+            <Link href="/" className="flex items-center gap-2 rounded-xl bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
               <Home className="h-4 w-4" /> <Tr text="Back to home" />
-            </Link>
-            <Link href="/" className="flex items-center gap-2 rounded-xl bg-tint px-5 py-2.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-accent-foreground">
-              <Compass className="h-4 w-4" /> <Tr text="Browse listings" />
-            </Link>
-            <Link href="/help" className="flex items-center gap-2 rounded-xl bg-tint px-5 py-2.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-accent-foreground">
-              <LifeBuoy className="h-4 w-4" /> <Tr text="Help center" />
             </Link>
           </div>
         </div>
