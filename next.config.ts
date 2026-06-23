@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Standalone server output for local `npm start` / self-hosting. NOT on Vercel:
+  // standalone targets a Node server and makes Vercel bundle Edge middleware with
+  // Node globals (`__dirname`), crashing it (MIDDLEWARE_INVOCATION_FAILED). Vercel
+  // handles output natively, so disable standalone there.
+  output: process.env.VERCEL ? undefined : "standalone",
   // Inline CSS into the HTML <head> instead of a render-blocking <link>. On
   // Slow-4G mobile the stylesheet round-trip was the #1 render blocker (~570ms
   // in PSI); inlining removes that request so first paint isn't gated on it.
