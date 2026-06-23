@@ -12,6 +12,7 @@ import { VndInput } from './vnd-input'
 import { AreaFilter, type Geo, type Nearby } from './area-filter'
 import { Mascot } from './mascot'
 import { formatMoneyFull } from '@/lib/vnd'
+import { subcategoriesFor, typesFor, facetsFor, LISTING_TYPES } from '@/lib/taxonomy'
 
 const STEPS = 4
 
@@ -24,6 +25,9 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [categorySlug, setCategorySlug] = useState('')
+  const [subcategorySlug, setSubcategorySlug] = useState('')
+  const [listingType, setListingType] = useState('sell')
+  const [attrs, setAttrs] = useState<Record<string, string>>({})
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
@@ -52,7 +56,22 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
   }, [])
 
   const cat = categories.find((c) => c.slug === categorySlug)
-  const isGoods = categorySlug === 'electronics' || categorySlug === 'moving-sale'
+  // Taxonomy-driven facets for the chosen category.
+  const subOptions = subcategoriesFor(categorySlug)
+  const typeOptions = typesFor(categorySlug)
+  const catFacets = facetsFor(categorySlug)
+  const hasCondition = catFacets.some((f) => f.key === 'condition')
+  const attrFacets = catFacets.filter((f) => f.key !== 'condition')
+
+  // Choosing a category resets its dependent fields + defaults the intent.
+  const chooseCategory = (slug: string) => {
+    setCategorySlug(slug)
+    setSubcategorySlug('')
+    setAttrs({})
+    setCondition('')
+    setListingType(typesFor(slug)[0] ?? 'sell')
+  }
+
   const phoneOk = contactPhone.replace(/\D/g, '').length >= 9
 
   // Derive the listing location from the area picker.
@@ -101,6 +120,9 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           categorySlug,
+          subcategorySlug: subcategorySlug || null,
+          listingType,
+          attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),
           title: title.trim(),
           description: description.trim(),
           price: Number(price),
@@ -109,7 +131,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
           location: ward?.name || province?.name || null,
           lat: nearby?.lat ?? null,
           lng: nearby?.lng ?? null,
-          condition: isGoods ? condition || null : null,
+          condition: hasCondition ? condition || null : null,
           images: imageUrls,
           contactName: contactName.trim(),
           contactPhone: contactPhone.trim(),
@@ -189,7 +211,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                 {categories.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => setCategorySlug(c.slug)}
+                    onClick={() => chooseCategory(c.slug)}
                     className={cn(
                       'flex flex-col items-center gap-2 rounded-2xl border p-5 transition-all cursor-pointer',
                       categorySlug === c.slug ? 'border-[#0a66c2] bg-accent' : 'border-border hover:border-[#0a66c2]/40 hover:bg-tint',
@@ -251,7 +273,46 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                 </button>
               </div>
 
-              {isGoods && (
+              {/* Intent (listing type) — only when the category supports more than one */}
+              {typeOptions.length > 1 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-foreground">{t('Loại tin', 'Listing type')}</label>
+                  <div className="flex flex-wrap gap-2">
+                    {LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => (
+                      <button
+                        key={lt.value}
+                        type="button"
+                        onClick={() => setListingType(lt.value)}
+                        className={cn('rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', listingType === lt.value ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')}
+                      >
+                        {lang === 'vi' ? lt.labelVi : lt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Subcategory */}
+              {subOptions.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-foreground">{t('Danh mục con', 'Subcategory')}</label>
+                  <div className="flex flex-wrap gap-2">
+                    {subOptions.map((s) => (
+                      <button
+                        key={s.slug}
+                        type="button"
+                        onClick={() => setSubcategorySlug(s.slug)}
+                        className={cn('rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', subcategorySlug === s.slug ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')}
+                      >
+                        {lang === 'vi' ? s.nameVi : s.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Condition (categories whose taxonomy declares it) */}
+              {hasCondition && (
                 <div className="space-y-1.5">
                   <label className="text-sm font-semibold text-foreground">{t('Tình trạng', 'Condition')}</label>
                   <div className="flex gap-2">
@@ -267,6 +328,25 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                   </div>
                 </div>
               )}
+
+              {/* Category-specific attribute facets (e.g. transmission, brand) */}
+              {attrFacets.map((f) => (
+                <div key={f.key} className="space-y-1.5">
+                  <label className="text-sm font-semibold text-foreground">{lang === 'vi' ? f.labelVi : f.label}</label>
+                  <div className="flex flex-wrap gap-2">
+                    {f.options.map((o) => (
+                      <button
+                        key={o.value}
+                        type="button"
+                        onClick={() => setAttrs((prev) => ({ ...prev, [f.key]: prev[f.key] === o.value ? '' : o.value }))}
+                        className={cn('rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', attrs[f.key] === o.value ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')}
+                      >
+                        {lang === 'vi' ? o.labelVi : o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
 
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-foreground">{t('Ảnh', 'Photos')} <span className="font-normal text-ink-4">({photos.length}/6)</span></label>
@@ -328,10 +408,12 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
               <div className="rounded-2xl bg-card p-5 shadow-pop space-y-3">
                 <Row label={t('Danh mục', 'Category')} value={cat ? (lang === 'vi' ? cat.nameVi : cat.name) : '—'} />
+                {subcategorySlug && <Row label={t('Danh mục con', 'Subcategory')} value={(() => { const s = subOptions.find((x) => x.slug === subcategorySlug); return s ? (lang === 'vi' ? s.nameVi : s.name) : subcategorySlug })()} />}
+                {typeOptions.length > 1 && <Row label={t('Loại tin', 'Type')} value={(() => { const lt = LISTING_TYPES.find((x) => x.value === listingType); return lt ? (lang === 'vi' ? lt.labelVi : lt.label) : listingType })()} />}
                 <Row label={t('Tiêu đề', 'Title')} value={title || '—'} />
                 <Row label={t('Giá', 'Price')} value={price ? formatMoneyFull(Number(price), '₫') : '—'} />
                 <Row label={t('Khu vực', 'Area')} value={district || '—'} />
-                {isGoods && <Row label={t('Tình trạng', 'Condition')} value={condition === 'new' ? t('Mới', 'New') : condition === 'used' ? t('Đã dùng', 'Used') : '—'} />}
+                {hasCondition && <Row label={t('Tình trạng', 'Condition')} value={condition === 'new' ? t('Mới', 'New') : condition === 'used' ? t('Đã dùng', 'Used') : '—'} />}
                 <Row label={t('Ảnh', 'Photos')} value={`${photos.length}`} />
               </div>
 

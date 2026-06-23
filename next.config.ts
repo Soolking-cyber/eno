@@ -27,6 +27,10 @@ const nextConfig: NextConfig = {
         hostname: "xihiryllwmjoouipkyhw.supabase.co",
         pathname: "/storage/v1/object/public/listings/**",
       },
+      // MOCK DATA ONLY — themed stock photos for the seed catalog used in testing.
+      // Remove these two patterns (and reseed without mock listings) before launch.
+      { protocol: "https", hostname: "loremflickr.com" },
+      { protocol: "https", hostname: "picsum.photos" },
     ],
   },
   typescript: {

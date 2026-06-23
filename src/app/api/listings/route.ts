@@ -3,7 +3,7 @@ import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { Prisma } from '@prisma/client'
-import { SUBCATEGORIES } from '@/lib/subcategories'
+import { suggestSubcategory, typesFor, subcategoriesFor } from '@/lib/taxonomy'
 import { fold, buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { syndicateListing } from '@/lib/syndicate'
@@ -134,192 +134,25 @@ export async function GET(req: NextRequest) {
     andFilters.push({ searchText: { contains: fold(q) } })
   }
 
-  if (subcategory && subcategory !== 'all' && category && category !== 'all') {
-    const subcats = SUBCATEGORIES[category]
-    const subcat = subcats?.find((s) => s.slug === subcategory)
-    if (subcat) {
-      const subcatKeywordOrs: Prisma.ListingWhereInput[] = subcat.keywords.flatMap((kw) => [
-        { title: { contains: kw } },
-        { titleVi: { contains: kw } },
-        { description: { contains: kw } }
-      ])
-
-      if (category === 'house-rentals') {
-        if (subcategory === 'studio') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: '"bedrooms":0' } },
-              { attributes: { contains: '"bedrooms": 0' } }
-            ]
-          })
-        } else if (subcategory === '1br') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: '"bedrooms":1' } },
-              { attributes: { contains: '"bedrooms": 1' } }
-            ]
-          })
-        } else if (subcategory === '2br') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: '"bedrooms":2' } },
-              { attributes: { contains: '"bedrooms": 2' } }
-            ]
-          })
-        } else if (subcategory === '3br') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: '"bedrooms":3' } },
-              { attributes: { contains: '"bedrooms": 3' } },
-              { attributes: { contains: '"bedrooms":4' } },
-              { attributes: { contains: '"bedrooms": 4' } },
-              { attributes: { contains: '"bedrooms":5' } },
-              { attributes: { contains: '"bedrooms": 5' } },
-              ...subcatKeywordOrs
-            ]
-          })
-        } else {
-          andFilters.push({ OR: subcatKeywordOrs })
-        }
-      } else {
-        andFilters.push({ OR: subcatKeywordOrs })
-      }
-    }
+  // Subcategory + intent (listingType) filter on dedicated columns now —
+  // taxonomy-aligned, replacing the old per-category keyword heuristics.
+  if (subcategory && subcategory !== 'all') {
+    andFilters.push({ subcategorySlug: subcategory })
+  }
+  const listingType = searchParams.get('type')?.trim()
+  if (listingType && listingType !== 'all') {
+    andFilters.push({ listingType })
   }
   
-  // Custom category-specific attributes filtering (SQLite text contains queries)
+  // Category-specific attribute facets. Both the seed and the post wizard store
+  // attributes as JSON using the taxonomy facet `.value` strings, so a generic
+  // `"key":"value"` contains-match is exact — no per-category special-casing.
   const attrKeys = Array.from(searchParams.keys()).filter((k) => k.startsWith('attr_'))
   for (const k of attrKeys) {
-    const attrName = k.replace('attr_', '')
+    const attrName = k.replace('attr_', '').replace(/[^a-z0-9_]/gi, '')
     const attrVal = searchParams.get(k)
-    if (attrVal && attrVal !== 'all') {
-      if (attrName === 'transmission') {
-        if (attrVal === 'automatic') {
-          andFilters.push({
-            attributes: { contains: '"transmission":"Automatic"' }
-          })
-        } else if (attrVal === 'manual') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: '"transmission":"Manual"' } },
-              { attributes: { contains: '"transmission":"Manual 6-speed"' } }
-            ]
-          })
-        }
-      } else if (attrName === 'cc') {
-        if (attrVal === '110-125') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: '"cc":110' } },
-              { attributes: { contains: '"cc": 110' } },
-              { attributes: { contains: '"cc":125' } },
-              { attributes: { contains: '"cc": 125' } }
-            ]
-          })
-        } else if (attrVal === '150-up') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: '"cc":150' } },
-              { attributes: { contains: '"cc": 150' } },
-              { attributes: { contains: '"cc":155' } },
-              { attributes: { contains: '"cc": 155' } },
-              { attributes: { contains: '"cc":160' } },
-              { attributes: { contains: '"cc": 160' } }
-            ]
-          })
-        }
-      } else if (attrName === 'bedrooms') {
-        const num = parseInt(attrVal, 10)
-        if (!isNaN(num)) {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: `"bedrooms":${num}` } },
-              { attributes: { contains: `"bedrooms": ${num}` } }
-            ]
-          })
-        }
-      } else if (attrName === 'furnishing') {
-        if (attrVal === 'fully') {
-          andFilters.push({
-            OR: [
-              { condition: { contains: 'Furnished' } },
-              { attributes: { contains: '"condition":"Furnished"' } },
-              { description: { contains: 'fully furnished' } }
-            ]
-          })
-        } else if (attrVal === 'partly') {
-          andFilters.push({
-            OR: [
-              { condition: { contains: 'Partly furnished' } },
-              { attributes: { contains: '"condition":"Partly furnished"' } },
-              { description: { contains: 'partly furnished' } }
-            ]
-          })
-        }
-      } else if (attrName === 'material') {
-        if (attrVal === 'wood') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: 'oak' } },
-              { attributes: { contains: 'teak' } },
-              { attributes: { contains: 'wood' } },
-              { title: { contains: 'wooden' } },
-              { titleVi: { contains: 'gỗ' } },
-              { description: { contains: 'wood' } }
-            ]
-          })
-        } else if (attrVal === 'fabric') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: 'fabric' } },
-              { attributes: { contains: 'cushion' } },
-              { description: { contains: 'fabric' } }
-            ]
-          })
-        }
-      } else if (attrName === 'brand') {
-        if (attrVal === 'apple') {
-          andFilters.push({
-            OR: [
-              { title: { contains: 'MacBook' } },
-              { title: { contains: 'iPhone' } },
-              { title: { contains: 'iPad' } },
-              { description: { contains: 'Apple' } }
-            ]
-          })
-        } else if (attrVal === 'sony') {
-          andFilters.push({
-            OR: [
-              { title: { contains: 'Sony' } },
-              { description: { contains: 'Sony' } }
-            ]
-          })
-        }
-      } else if (attrName === 'warranty') {
-        if (attrVal === 'yes') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: 'warranty":"until' } },
-              { description: { contains: 'warranty' } }
-            ]
-          })
-          andFilters.push({
-            NOT: {
-              description: { contains: 'warranty: expired' }
-            }
-          })
-        }
-      } else if (attrName === 'english') {
-        if (attrVal === 'required') {
-          andFilters.push({
-            OR: [
-              { attributes: { contains: '"english":"Required"' } },
-              { description: { contains: 'English-speaking' } },
-              { description: { contains: 'English required' } }
-            ]
-          })
-        }
-      }
+    if (attrName && attrVal && attrVal !== 'all') {
+      andFilters.push({ attributes: { contains: `"${attrName}":"${attrVal}"` } })
     }
   }
 
@@ -388,65 +221,29 @@ export async function GET(req: NextRequest) {
   ]
 
   if (category && category !== 'all') {
-    const subcats = SUBCATEGORIES[category] || []
     const cacheKey = `${category}|${district || 'all'}|${verifiedFilter}`
     const cached = subCountCache.get(cacheKey)
     if (cached && Date.now() - cached.at < SUBCOUNT_TTL) {
       promises[2] = Promise.resolve(cached.data)
     } else {
-    promises[2] = Promise.all(
-      subcats.map(async (sub) => {
-        const subFilters: Prisma.ListingWhereInput[] = [
-          { verified: verifiedFilter !== undefined ? verifiedFilter : true },
-          { status: 'active' },
-        ]
-
-        subFilters.push({ category: { slug: category } })
-        
-        const distFilter = buildDistrictFilter(district || 'all')
-        if (distFilter) {
-          subFilters.push(distFilter)
-        }
-
-        const subcatKeywordOrs = sub.keywords.flatMap((kw) => [
-          { title: { contains: kw } },
-          { titleVi: { contains: kw } },
-          { description: { contains: kw } }
-        ])
-
-        if (category === 'house-rentals') {
-          if (sub.slug === 'studio') {
-            subFilters.push({ OR: [{ attributes: { contains: '"bedrooms":0' } }, { attributes: { contains: '"bedrooms": 0' } }] })
-          } else if (sub.slug === '1br') {
-            subFilters.push({ OR: [{ attributes: { contains: '"bedrooms":1' } }, { attributes: { contains: '"bedrooms": 1' } }] })
-          } else if (sub.slug === '2br') {
-            subFilters.push({ OR: [{ attributes: { contains: '"bedrooms":2' } }, { attributes: { contains: '"bedrooms": 2' } }] })
-          } else if (sub.slug === '3br') {
-            subFilters.push({
-              OR: [
-                { attributes: { contains: '"bedrooms":3' } },
-                { attributes: { contains: '"bedrooms": 3' } },
-                { attributes: { contains: '"bedrooms":4' } },
-                { attributes: { contains: '"bedrooms": 4' } },
-                { attributes: { contains: '"bedrooms":5' } },
-                { attributes: { contains: '"bedrooms": 5' } },
-                ...subcatKeywordOrs
-              ]
-            })
-          } else {
-            subFilters.push({ OR: subcatKeywordOrs })
-          }
-        } else {
-          subFilters.push({ OR: subcatKeywordOrs })
-        }
-
-        const count = await db.listing.count({ where: { AND: subFilters } })
-        return { slug: sub.slug, count }
-      })
-    ).then((data) => {
-      subCountCache.set(cacheKey, { at: Date.now(), data })
-      return data
-    })
+      // One grouped query over the subcategorySlug column (taxonomy-aligned),
+      // replacing the old per-subcategory keyword count fan-out.
+      const subWhere: Prisma.ListingWhereInput[] = [
+        { verified: verifiedFilter !== undefined ? verifiedFilter : true },
+        { status: 'active' },
+        { category: { slug: category } },
+      ]
+      const distFilter = buildDistrictFilter(district || 'all')
+      if (distFilter) subWhere.push(distFilter)
+      promises[2] = db.listing
+        .groupBy({ by: ['subcategorySlug'], where: { AND: subWhere }, _count: { _all: true } })
+        .then((grouped) => {
+          const data = grouped
+            .filter((g) => g.subcategorySlug)
+            .map((g) => ({ slug: g.subcategorySlug as string, count: g._count._all }))
+          subCountCache.set(cacheKey, { at: Date.now(), data })
+          return data
+        })
     }
   }
 
@@ -568,14 +365,37 @@ export async function POST(req: NextRequest) {
     // is already blocked above (`no_phone_in_listing`).
     const autoPublish = images.length >= 1 && seller.trustTier !== 'restricted'
 
+    // Intent + subcategory from the taxonomy. listingType must be valid for the
+    // category (else its primary type); subcategory falls back to keyword-suggest.
+    const allowedTypes = typesFor(categorySlug) as string[]
+    const reqType = String(body.listingType || '').trim()
+    const listingType = allowedTypes.includes(reqType) ? reqType : allowedTypes[0]
+    const subs = subcategoriesFor(categorySlug)
+    let subcategorySlug: string | null = String(body.subcategorySlug || '').trim()
+    if (!subs.some((s) => s.slug === subcategorySlug)) {
+      subcategorySlug = suggestSubcategory(categorySlug, `${title} ${body.description || ''}`) || (subs[0]?.slug ?? null)
+    }
+    // Price unit follows the intent (monthly for rent/job, per-service for service).
+    const priceUnit = listingType === 'rent' || listingType === 'job' ? 'VND/month'
+      : listingType === 'service' ? 'VND/service (from)' : 'VND'
+    // Whitelisted, stringly-typed attribute facets (taxonomy values).
+    let attributes: string | null = null
+    if (body.attributes && typeof body.attributes === 'object' && !Array.isArray(body.attributes)) {
+      const clean: Record<string, string> = {}
+      for (const [k, v] of Object.entries(body.attributes as Record<string, unknown>)) {
+        if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = v.slice(0, 40)
+      }
+      if (Object.keys(clean).length) attributes = JSON.stringify(clean)
+    }
+
     const listing = await db.listing.create({
       data: {
         title,
         description: String(body.description || '').trim().slice(0, 5000),
         price,
-        priceUnit: 'VND',
+        priceUnit,
         currency: '₫',
-        negotiable: false,
+        negotiable: Boolean(body.negotiable),
         location,
         district,
         city,
@@ -585,6 +405,9 @@ export async function POST(req: NextRequest) {
         images: JSON.stringify(images),
         searchText: buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi]),
         categoryId: category.id,
+        subcategorySlug,
+        listingType,
+        attributes,
         sellerId: seller.id,
         verified: autoPublish,
       },

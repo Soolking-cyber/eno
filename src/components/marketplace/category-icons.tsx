@@ -5,6 +5,16 @@ import {
   Smartphone,
   Briefcase,
   Wrench,
+  Sofa,
+  Shirt,
+  Baby,
+  Dumbbell,
+  PawPrint,
+  Users,
+  Plane,
+  UtensilsCrossed,
+  Gift,
+  Search,
   HelpCircle,
   type LucideIcon,
 } from 'lucide-react'
@@ -16,6 +26,16 @@ const ICONS: Record<string, LucideIcon> = {
   Smartphone,
   Briefcase,
   Wrench,
+  Sofa,
+  Shirt,
+  Baby,
+  Dumbbell,
+  PawPrint,
+  Users,
+  Plane,
+  UtensilsCrossed,
+  Gift,
+  Search,
 }
 
 export function CategoryIcon({ name, className }: { name: string; className?: string }) {

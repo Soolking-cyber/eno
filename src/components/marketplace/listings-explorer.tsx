@@ -34,6 +34,7 @@ import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
+import { LISTING_TYPES } from '@/lib/taxonomy'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
@@ -84,6 +85,7 @@ export function ListingsExplorer({
   const [activeWard, setActiveWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null) // {lat,lng,radiusKm} when "search near you" is on
   const [conditionFilter, setConditionFilter] = useState('all') // 'all' | 'new' | 'used'
+  const [listingType, setListingType] = useState('all') // intent axis: all | sell | rent | wanted | free | service | job | event
   const [priceRange, setPriceRange] = useState('all') // 'all' | 'min-max' (VND, empty max = open)
   const [customFilters, setCustomFilters] = useState<Record<string, string>>({})
   const [activeSubcategory, setActiveSubcategory] = useState('all')
@@ -419,7 +421,7 @@ export function ListingsExplorer({
   // Reset page to 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, verifiedOnly, sort, activeSubcategory, customFilters, priceRange, nearby, activeProvince?.code, activeWard?.code])
+  }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, listingType, verifiedOnly, sort, activeSubcategory, customFilters, priceRange, nearby, activeProvince?.code, activeWard?.code])
 
   // Fetch listings dynamically from API on parameter/page modifications using React Query SWR cache
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching } = useQuery({
@@ -433,6 +435,7 @@ export function ListingsExplorer({
         ward: activeWard?.code ?? null,
         near: nearby ? 1 : 0,
         condition: conditionFilter,
+        type: listingType,
         q: debouncedQuery,
         sort,
         verified: verifiedOnly ? 'true' : 'all',
@@ -450,6 +453,7 @@ export function ListingsExplorer({
       if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
       if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
       if (conditionFilter !== 'all') params.set('condition', conditionFilter)
+      if (listingType !== 'all') params.set('type', listingType)
       if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
       params.set('sort', sort)
       params.set('verified', verifiedOnly ? 'true' : 'all')
@@ -483,6 +487,7 @@ export function ListingsExplorer({
     initialData:
       page === 1 && activeCategory === 'all' && activeSubcategory === 'all' &&
       activeDistrict === 'all' && conditionFilter === 'all' && priceRange === 'all' &&
+      listingType === 'all' &&
       sort === 'newest' && verifiedOnly && !debouncedQuery.trim() &&
       Object.keys(customFilters).length === 0
         ? { listings: initialListings, total: initialTotal ?? initialListings.length, subcategoryCounts: {}, categoryTotal: 0 }
@@ -501,10 +506,11 @@ export function ListingsExplorer({
     if (!nearby && activeProvince) p.set('province', activeProvince.nameEn)
     if (!nearby && activeWard) p.set('ward', activeWard.nameEn)
     if (conditionFilter !== 'all') p.set('condition', conditionFilter)
+    if (listingType !== 'all') p.set('type', listingType)
     if (debouncedQuery.trim()) p.set('q', debouncedQuery.trim())
     Object.entries(customFilters).forEach(([k, v]) => { if (v && v !== 'all') p.set(`attr_${k}`, v) })
     return p.toString()
-  }, [activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, debouncedQuery, customFilters])
+  }, [activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, customFilters])
 
   // Synchronize state and trigger history caching when data changes
   useEffect(() => {
@@ -586,6 +592,7 @@ export function ListingsExplorer({
           subcategory: activeSubcategory,
           district: activeDistrict,
           condition: conditionFilter,
+          type: listingType,
           q: debouncedQuery,
           sort,
           verified: verifiedOnly ? 'true' : 'all',
@@ -600,6 +607,7 @@ export function ListingsExplorer({
         if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
         if (activeDistrict !== 'all') params.set('district', activeDistrict)
         if (conditionFilter !== 'all') params.set('condition', conditionFilter)
+        if (listingType !== 'all') params.set('type', listingType)
         if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
         params.set('sort', sort)
         params.set('verified', verifiedOnly ? 'true' : 'all')
@@ -633,6 +641,7 @@ export function ListingsExplorer({
     activeSubcategory,
     activeDistrict,
     conditionFilter,
+    listingType,
     debouncedQuery,
     sort,
     verifiedOnly,
@@ -1337,6 +1346,10 @@ export function ListingsExplorer({
     }
     if (priceRange !== 'all') chips.push({ label: tr('Price range', 'Khoảng giá'), onClear: () => setPriceRange('all') })
     if (conditionFilter !== 'all') chips.push({ label: conditionFilter === 'new' ? tr('New', 'Mới') : tr('Used', 'Đã dùng'), onClear: () => setConditionFilter('all') })
+    if (listingType !== 'all') {
+      const lt = LISTING_TYPES.find((t) => t.value === listingType)
+      chips.push({ label: lt ? (lang === 'vi' ? lt.labelVi : lt.label) : listingType, onClear: () => setListingType('all') })
+    }
     Object.entries(customFilters).forEach(([k, v]) =>
       chips.push({ label: `${k}: ${v}`, onClear: () => setCustomFilters((prev) => { const n = { ...prev }; delete n[k]; return n }) }),
     )
@@ -1373,6 +1386,7 @@ export function ListingsExplorer({
                 setActiveDistrict('all')
                 setPriceRange('all')
                 setConditionFilter('all')
+                setListingType('all')
                 setCustomFilters({})
                 setVerifiedOnly(true)
               }}
@@ -1498,6 +1512,8 @@ export function ListingsExplorer({
               setPriceRange={setPriceRange}
               conditionFilter={conditionFilter}
               setConditionFilter={setConditionFilter}
+              listingType={listingType}
+              setListingType={setListingType}
               customFilters={customFilters}
               setCustomFilters={setCustomFilters}
               verifiedOnly={verifiedOnly}

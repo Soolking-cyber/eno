@@ -31,6 +31,8 @@ export type SerializedListing = {
   condition: string | null
   images: string[]
   categoryId: string
+  subcategorySlug: string | null
+  listingType: string
   category: {
     id: string
     name: string

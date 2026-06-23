@@ -6,6 +6,7 @@ import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useLanguage } from '@/context/language-context'
+import { facetsFor, typesFor, LISTING_TYPES, type ListingType } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
 
 type FacetBarProps = {
@@ -20,6 +21,8 @@ type FacetBarProps = {
   setPriceRange: Dispatch<SetStateAction<string>>
   conditionFilter: string
   setConditionFilter: Dispatch<SetStateAction<string>>
+  listingType: string
+  setListingType: Dispatch<SetStateAction<string>>
   customFilters: Record<string, string>
   setCustomFilters: Dispatch<SetStateAction<Record<string, string>>>
   verifiedOnly: boolean
@@ -27,8 +30,9 @@ type FacetBarProps = {
   histogramQuery: string // active filters (sans price/pagination) for the price histogram
 }
 
-// Compact, category-aware facet bar (faceted-search pattern) — replaces the
-// always-on sidebar. Only the facets relevant to the active category show.
+// Compact, category-aware facet bar (faceted-search pattern) — all facets come
+// from the canonical taxonomy (src/lib/taxonomy.ts). Only the facets relevant to
+// the active category show.
 export function FacetBar({
   activeCategory,
   province,
@@ -41,6 +45,8 @@ export function FacetBar({
   setPriceRange,
   conditionFilter,
   setConditionFilter,
+  listingType,
+  setListingType,
   customFilters,
   setCustomFilters,
   verifiedOnly,
@@ -87,6 +93,15 @@ export function FacetBar({
     />
   )
 
+  // Intent (listingType) options — those valid for the active category, or the
+  // full set on "all". Surfaced as the first facet so Rent/Buy/Free/etc. is one tap.
+  const typeValues: ListingType[] = activeCategory === 'all'
+    ? LISTING_TYPES.map((t) => t.value)
+    : typesFor(activeCategory)
+  const typeOptions = LISTING_TYPES
+    .filter((t) => typeValues.includes(t.value))
+    .map((t) => ({ value: t.value, label: lang === 'vi' ? t.labelVi : t.label }))
+
   const facets: ReactNode[] = [
     <button
       key="area"
@@ -105,6 +120,25 @@ export function FacetBar({
       </span>
       <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', areaOpen && 'rotate-180')} />
     </button>,
+  ]
+
+  // Intent filter (only meaningful when the category offers >1 intent, or on "all").
+  if (typeOptions.length > 1) {
+    facets.push(
+      <CustomSelect
+        key="listingType"
+        value={listingType}
+        onChange={setListingType}
+        options={[{ value: 'all', label: tr('Any type', 'Mọi loại') }, ...typeOptions]}
+        placeholder={tr('Type', 'Loại')}
+        className={cls}
+        activeClassName={active}
+        wrapperClassName={wrap}
+      />,
+    )
+  }
+
+  facets.push(
     <PriceRangeFilter
       key="price"
       value={priceRange}
@@ -114,69 +148,34 @@ export function FacetBar({
       activeClassName={active}
       wrapperClassName={wrap}
     />,
-  ]
+  )
 
-  if (activeCategory === 'motorbike-rentals') {
-    facets.push(Facet('transmission', tr('Transmission', 'Hộp số'), [
-      { value: 'automatic', label: tr('Automatic', 'Xe ga') },
-      { value: 'manual', label: tr('Manual', 'Xe số') },
-    ]))
-    facets.push(Facet('cc', tr('Engine', 'Phân khối'), [
-      { value: '110-125', label: '110–125cc' },
-      { value: '150-up', label: '150cc+' },
-    ]))
-  } else if (activeCategory === 'house-rentals') {
-    facets.push(Facet('bedrooms', tr('Bedrooms', 'Phòng ngủ'), [
-      { value: '0', label: 'Studio' },
-      { value: '1', label: '1 BR' },
-      { value: '2', label: '2 BR' },
-      { value: '3', label: '3+ BR' },
-    ]))
-    facets.push(Facet('furnishing', tr('Furnishing', 'Nội thất'), [
-      { value: 'fully', label: tr('Furnished', 'Đầy đủ') },
-      { value: 'partly', label: tr('Unfurnished', 'Cơ bản') },
-    ]))
-  } else if (activeCategory === 'moving-sale') {
-    facets.push(Facet('material', tr('Material', 'Chất liệu'), [
-      { value: 'wood', label: tr('Wood', 'Gỗ') },
-      { value: 'fabric', label: tr('Fabric', 'Vải') },
-    ]))
-  } else if (activeCategory === 'electronics') {
-    facets.push(Facet('brand', tr('Brand', 'Hãng'), [
-      { value: 'apple', label: 'Apple' },
-      { value: 'sony', label: 'Sony' },
-    ]))
-    facets.push(Facet('warranty', tr('Warranty', 'Bảo hành'), [
-      { value: 'yes', label: tr('In warranty', 'Còn BH') },
-    ]))
-  } else if (activeCategory === 'jobs') {
-    facets.push(Facet('english', tr('English', 'Tiếng Anh'), [
-      { value: 'required', label: tr('Required', 'Yêu cầu') },
-    ]))
-  }
-
-  // Condition is only meaningful for physical goods.
-  if (activeCategory === 'electronics' || activeCategory === 'moving-sale') {
-    facets.push(
-      <CustomSelect
-        key="condition"
-        value={conditionFilter}
-        onChange={setConditionFilter}
-        options={[
-          { value: 'all', label: tr('Condition', 'Tình trạng') },
-          { value: 'new', label: tr('New', 'Mới') },
-          { value: 'used', label: tr('Used', 'Đã dùng') },
-        ]}
-        placeholder={tr('Condition', 'Tình trạng')}
-        className={cls}
-        activeClassName={active}
-        wrapperClassName={wrap}
-      />,
-    )
+  // Category-specific facets from the taxonomy. `condition` is special-cased to the
+  // top-level conditionFilter (it lives in the `condition` column, not attributes);
+  // everything else is a customFilter (attr_*).
+  for (const f of facetsFor(activeCategory)) {
+    const options = f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))
+    if (f.key === 'condition') {
+      facets.push(
+        <CustomSelect
+          key="condition"
+          value={conditionFilter}
+          onChange={setConditionFilter}
+          options={[{ value: 'all', label: lang === 'vi' ? f.labelVi : f.label }, ...options]}
+          placeholder={lang === 'vi' ? f.labelVi : f.label}
+          className={cls}
+          activeClassName={active}
+          wrapperClassName={wrap}
+        />,
+      )
+    } else {
+      facets.push(Facet(f.key, lang === 'vi' ? f.labelVi : f.label, options))
+    }
   }
 
   const hasActive =
-    !!province || !!ward || !!nearby || conditionFilter !== 'all' || priceRange !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
+    !!province || !!ward || !!nearby || conditionFilter !== 'all' || priceRange !== 'all' ||
+    listingType !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
 
   return (
     // Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps.
@@ -190,6 +189,7 @@ export function FacetBar({
             setNearby(null)
             setConditionFilter('all')
             setPriceRange('all')
+            setListingType('all')
             setCustomFilters({})
             setVerifiedOnly(true)
           }}

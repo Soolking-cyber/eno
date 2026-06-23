@@ -30,6 +30,8 @@ export function serializeListing(
     condition: l.condition,
     images: safeParse<string[]>(l.images, []),
     categoryId: l.categoryId,
+    subcategorySlug: l.subcategorySlug,
+    listingType: l.listingType,
     category: {
       id: l.category.id,
       name: l.category.name,

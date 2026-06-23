@@ -135,6 +135,12 @@ model Listing {
   images             String
   categoryId         String
   category           Category  @relation(fields: [categoryId], references: [id])
+  // Subcategory is an explicit slug from the canonical taxonomy (src/lib/taxonomy.ts),
+  // chosen at post time (keyword auto-suggested). Reliable filtering + accurate facets.
+  subcategorySlug    String?
+  // Intent axis, separate from the category: sell | rent | wanted | free | service | job | event.
+  // A motorbike lives in Vehicles whether rented or sold. Defaults to 'sell'.
+  listingType        String    @default("sell")
   sellerId           String
   seller             Seller    @relation(fields: [sellerId], references: [id])
   verified           Boolean   @default(false)
@@ -166,6 +172,9 @@ model Listing {
   @@index([verified, postedAt])
   @@index([verified, status, postedAt])
   @@index([verified, categoryId, postedAt])
+  // Feed path filtered by category + intent (e.g. Vehicles · For rent), recency-sorted.
+  @@index([verified, status, categoryId, listingType, postedAt])
+  @@index([verified, status, categoryId, subcategorySlug, postedAt])
   @@index([verified, price])
   @@index([categoryId])
   @@index([featured])
