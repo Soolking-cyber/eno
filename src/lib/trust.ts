@@ -25,14 +25,15 @@ export const FALSE_REPORT_PENALTY = 10
 export const REPORT_COOLDOWN_DAYS = 14
 
 const SCORE_MIN = 0
-const SCORE_MAX = 130 // small headroom above 100 so "Exceptional" (≥110) is reachable but bounded
+// No upper ceiling: completed transactions earn trust without limit, so the most
+// active, reliable businesses keep climbing (and rank higher). Tiers/colors key
+// off fixed thresholds (≥110 = Exceptional/gold), so any high score reads as gold.
 
 const TRACK_RECORD_MIN_INTERACTIONS = 5 // OR …
 const TRACK_RECORD_MIN_DAYS = 30 // …account age — either satisfies the track-record gate
 const RECENT_BAD_WINDOW_DAYS = 90 // a recent confirmed report blocks the Exceptional tier
 
 const DAY_MS = 86_400_000
-const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n))
 
 // ── Engagement / activity scoring (the "earn by being active" loop) ──
 export const ENGAGEMENT_DELTA = 2       // +trust for a day's activity (e.g. confirming availability)
@@ -41,6 +42,9 @@ export const INACTIVE_DAYS = 7          // active listings unconfirmed this long
 export const INACTIVE_PENALTY = 3       // −trust per inactivity sweep (at most once per INACTIVE_DAYS)
 export const RECOVERY_DELTA = 1         // clean accounts below 100 drift back up by this per day
 export const RECOVERY_CLEAN_DAYS = 14   // …only if no confirmed report / inactivity hit in this window
+export const TRANSACTION_DELTA = 5      // +trust per COMPLETED on-platform transaction — UNCAPPED (the more you transact, the higher you climb + rank)
+export const PROFILE_COMPLETE_DELTA = 3 // one-time bonus for a complete, verified profile
+export const FAST_RESPONSE_DELTA = 1    // capped reward for replying quickly to buyers
 
 /** Map a report reason to a default severity (admin can override on confirm). */
 export function severityForReason(reason: string): 'minor' | 'moderate' | 'severe' {
@@ -79,7 +83,7 @@ export async function recomputeTrust(profileId: string): Promise<{ score: number
     where: { subjectProfileId: profileId },
     _sum: { delta: true },
   })
-  const score = clamp(100 + (agg._sum.delta ?? 0), SCORE_MIN, SCORE_MAX)
+  const score = Math.max(SCORE_MIN, 100 + (agg._sum.delta ?? 0))
 
   const recentBad = await db.trustEvent.count({
     where: {
@@ -109,6 +113,7 @@ export async function applyTrustEvent(
     | 'positive_review'
     | 'fast_response'
     | 'engagement'
+    | 'transaction'
     | 'decay_recover'
     | 'decay_inactive'
     | 'manual_adjust',
@@ -118,7 +123,7 @@ export async function applyTrustEvent(
   await db.trustEvent.create({
     data: { subjectProfileId, type, delta, reason: meta?.reason ?? null, actorId: meta?.actorId ?? null, reportId: meta?.reportId ?? null },
   })
-  if (delta > 0 && (type === 'positive_review' || type === 'engagement' || type === 'fast_response')) {
+  if (delta > 0 && (type === 'positive_review' || type === 'engagement' || type === 'fast_response' || type === 'transaction')) {
     await db.profile.update({ where: { id: subjectProfileId }, data: { positiveInteractions: { increment: 1 } } })
   }
   return recomputeTrust(subjectProfileId)
@@ -138,7 +143,7 @@ export async function penalizeSeller(sellerId: string, delta: number, meta?: { r
     await applyTrustEvent(seller.ownerId, 'report_confirmed', delta, { reason: meta?.reason, reportId: meta?.reportId })
     return
   }
-  const score = clamp(seller.trustScore + delta, SCORE_MIN, SCORE_MAX)
+  const score = Math.max(SCORE_MIN, seller.trustScore + delta)
   await db.seller.update({ where: { id: sellerId }, data: { trustScore: score, trustTier: score < 60 ? 'restricted' : 'standard' } })
 }
 
@@ -154,6 +159,23 @@ export async function recordEngagement(profileId: string, delta = ENGAGEMENT_DEL
   })
   if (today >= perDayCap) return false
   await applyTrustEvent(profileId, 'engagement', delta, { reason: 'activity' })
+  return true
+}
+
+/**
+ * Every COMPLETED on-platform transaction earns trust — UNCAPPED. The more deals
+ * you successfully close through eno.vn, the higher you climb (and rank). Called
+ * from the checkout/settlement flow (the 1% / flat-fee layer).
+ */
+export async function recordTransaction(profileId: string, amountVnd: number): Promise<void> {
+  await applyTrustEvent(profileId, 'transaction', TRANSACTION_DELTA, { reason: `txn:${Math.round(amountVnd)}` })
+}
+
+/** One-time bonus when an account first completes a full, verified profile. */
+export async function recordProfileComplete(profileId: string): Promise<boolean> {
+  const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, type: 'engagement', reason: 'profile_complete' } })
+  if (existing > 0) return false
+  await applyTrustEvent(profileId, 'engagement', PROFILE_COMPLETE_DELTA, { reason: 'profile_complete' })
   return true
 }
 

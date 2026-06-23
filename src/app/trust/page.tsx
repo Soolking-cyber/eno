@@ -60,7 +60,7 @@ export default function TrustPage() {
           <h2 className="h-section text-foreground"><Tr text="How you earn trust" /></h2>
           <div className="space-y-4">
             <Rule icon={<CalendarCheck className="h-5 w-5" />} title="Keep your listings fresh" body="Confirm your listings are still available regularly. Active, up-to-date sellers gain trust (and rise back to the top of the feed)." />
-            <Rule icon={<ShieldCheck className="h-5 w-5" />} title="Complete sales through eno.vn" body="Closing the deal on-platform (a flat 1% fee) records a real, confirmed transaction — the foundation of a trustworthy track record." />
+            <Rule icon={<ShieldCheck className="h-5 w-5" />} title="Complete sales through eno.vn" body="Every transaction closed on-platform earns trust — with no upper limit. The more deals you successfully complete, the higher you climb and the higher you rank. A small safety fee applies (10,000₫ under 1,000,000₫, or 1% above) that covers mediation and buyer protection." />
             <Rule icon={<MessageSquareText className="h-5 w-5" />} title="Earn reviews from verified buyers" body="Only people who actually completed a transaction with you through eno.vn can leave a review — so feedback is real, not farmed." />
             <Rule icon={<Clock className="h-5 w-5" />} title="Respond quickly" body="Fast, helpful replies to buyers build trust over time." />
             <Rule icon={<UserCheck className="h-5 w-5" />} title="Verify and complete your profile" body="A verified phone and a complete profile are a one-time trust boost." />
@@ -79,7 +79,7 @@ export default function TrustPage() {
         <section className="mt-10 space-y-2">
           <h2 className="h-section text-foreground"><Tr text="Why it matters" /></h2>
           <p className="text-sm leading-relaxed text-body">
-            <Tr text="Buyers can instantly see who's reliable by color, so trustworthy sellers get more views, more chats, and more sales. Trust is earned, losable, and always reflects your real, recent track record on eno.vn." />
+            <Tr text="Trust drives ranking: higher-trust sellers appear higher in search and the feed, so reliable businesses get more views, more chats, and more sales. Buyers also see who's reliable at a glance from the color. Trust is earned, losable, and always reflects your real, recent track record on eno.vn — fair to newcomers (everyone starts at 100) and recoverable after a slip." />
           </p>
         </section>
       </main>

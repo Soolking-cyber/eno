@@ -184,7 +184,10 @@ export async function GET(req: NextRequest) {
       break
     case 'newest':
     default:
-      orderBy = { postedAt: 'desc' }
+      // Default ("Recommended") ranking factors trust: featured first, then higher
+      // trust score, then recency. Most accounts sit at 100 (tie → recency rules),
+      // while Exceptional sellers float up and Restricted ones sink — "higher = better".
+      orderBy = [{ featured: 'desc' }, { seller: { trustScore: 'desc' } }, { postedAt: 'desc' }]
   }
 
   // Parallel fetch: Listings, total count, and subcategory counts (if category is set)

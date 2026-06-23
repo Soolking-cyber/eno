@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { containsPhoneNumber, normalizePhone } from '@/lib/phone'
 import { isListingImageUrl } from '@/lib/listing-image'
+import { recordProfileComplete } from '@/lib/trust'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,12 +46,17 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (Object.keys(data).length === 0) return NextResponse.json({ ok: true })
+  let updated
   try {
-    await db.seller.update({ where: { id: seller.id }, data })
+    updated = await db.seller.update({ where: { id: seller.id }, data, select: { name: true, bio: true, location: true, avatarUrl: true, phone: true } })
   } catch (e) {
     // Seller.phone is unique — another storefront already claimed it.
     if ((e as { code?: string })?.code === 'P2002') return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
     throw e
+  }
+  // One-time trust bonus once the storefront is fully filled out (name/bio/location/avatar/phone).
+  if (updated.name && updated.bio && updated.location && updated.avatarUrl && updated.phone) {
+    after(() => recordProfileComplete(profile.id).catch(() => {}))
   }
   return NextResponse.json({ ok: true })
 }
