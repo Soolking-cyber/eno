@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { Plus, User, Search, MapPin, Clock, Heart, MessageSquare } from 'lucide-react'
+import { User, Search, MapPin, Clock, Heart, MessageSquare } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
@@ -314,7 +314,7 @@ export function Header() {
             href="/post"
             className="hidden items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#004182] sm:flex cursor-pointer"
           >
-            <Plus className="h-4 w-4" /> {t('header.postBtn')}
+            {t('header.postBtn')}
           </Link>
         </div>
       </div>

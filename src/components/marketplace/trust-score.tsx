@@ -8,6 +8,9 @@ type Props = {
   score: number
   size?: 'sm' | 'md' | 'lg'
   showLabel?: boolean
+  // 'shield' = the seal (profile/detail); 'number' = just a color-coded number
+  // (cards — low-key, since ranking already surfaces trust).
+  variant?: 'shield' | 'number'
   className?: string
 }
 
@@ -15,21 +18,31 @@ type Props = {
 const PX = { sm: 28, md: 38, lg: 48 } as const
 
 /**
- * The single public trust signal: a color-coded SHIELD with the score INSIDE it —
- * a compact, square seal (not a long pill). Color encodes the hierarchy
- * (red→slate→green→gold→violet). `showLabel` adds the band word beside it.
+ * The single public trust signal, color-coded by tier (red→slate→green→gold→violet).
+ * `variant='shield'` is the seal; `variant='number'` is just a subtle bold number.
  */
-export function TrustScore({ score, size = 'sm', showLabel = false, className }: Props) {
+export function TrustScore({ score, size = 'sm', showLabel = false, variant = 'shield', className }: Props) {
   const { lang, tr } = useLanguage()
   const { hex, label, labelVi } = trustScoreColor(score)
   const n = Math.round(score)
+  const title = `${tr('Trust score', 'Điểm uy tín')}: ${n} · ${lang === 'vi' ? labelVi : label}`
+
+  if (variant === 'number') {
+    const txt = { sm: 'text-xs', md: 'text-sm', lg: 'text-base' }[size]
+    return (
+      <span title={title} className={cn('font-semibold tabular-nums', txt, className)} style={{ color: hex }}>
+        {n}
+      </span>
+    )
+  }
+
   const px = PX[size]
   // Shrink the digits a touch for 3-digit scores so they sit cleanly in the shield.
   const fontSize = n >= 100 ? 7.6 : 9
 
   return (
     <span
-      title={`${tr('Trust score', 'Điểm uy tín')}: ${n} · ${lang === 'vi' ? labelVi : label}`}
+      title={title}
       className={cn('inline-flex items-center gap-1.5 align-middle', className)}
     >
       <svg width={px} height={px} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">

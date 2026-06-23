@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Eye, MessageSquareText, Tag, Clock, Upload, Plus } from 'lucide-react'
+import { Eye, MessageSquareText, Tag, Clock, Upload } from 'lucide-react'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -162,8 +162,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
                 tab === tb ? 'border-[#0a66c2] text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
-              {tb === 'post' && <Plus className="h-4 w-4" />}
-              {tb === 'post' ? tr('Post a listing', 'Đăng tin') : tb === 'listings' ? tr('Listings', 'Tin đăng') : tr('Settings', 'Cài đặt')}
+              {tb === 'post' ? tr('Post', 'Đăng tin') : tb === 'listings' ? tr('Listings', 'Tin đăng') : tr('Settings', 'Cài đặt')}
             </button>
           ))}
         </div>
