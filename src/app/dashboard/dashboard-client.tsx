@@ -14,6 +14,7 @@ import { BusinessProfileEditor } from '@/components/marketplace/business-profile
 import { ProfileEditor } from '@/components/marketplace/profile-editor'
 import { reviewKey, todayStr } from './availability/availability-client'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
+import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switcher'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
 import { PostWizard } from '@/components/marketplace/post-wizard'
 import type { SerializedCategory } from '@/lib/types'
@@ -244,6 +245,14 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             <div className="mt-3"><ProfileEditor profile={d.profile} onSaved={refresh} /></div>
           </section>
         ) : null}
+
+        {/* Account type — self-serve individual ↔ business switch */}
+        {d && (
+          <section className="mt-8">
+            <h2 className="h-section text-foreground">{tr('Account type', 'Loại tài khoản')}</h2>
+            <div className="mt-3"><AccountTypeSwitcher isBusiness={isBusiness} businessName={d.profile.businessName} onSaved={refresh} /></div>
+          </section>
+        )}
 
         {/* Reminders */}
         <section className="mt-8">
