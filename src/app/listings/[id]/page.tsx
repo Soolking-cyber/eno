@@ -240,7 +240,7 @@ export default async function ListingPage({ params }: Props) {
             {attrs.length > 0 && (
               <div className="space-y-1">
                 <h2 className="h-section text-foreground mb-2"><Tr text="Details" /></h2>
-                <dl className="divide-y divide-border text-sm">
+                <dl className="text-sm">
                   {attrs.map(([k, v]) => (
                     <div key={k} className="flex items-start justify-between gap-4 py-2.5">
                       <dt className="capitalize text-muted-foreground"><Tr text={k.replace(/([A-Z])/g, ' $1')} /></dt>
@@ -286,7 +286,7 @@ export default async function ListingPage({ params }: Props) {
                   Type a message or tap "Make an offer", then send → opens the thread. */}
               <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={listing.currency} />
 
-              <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 border-t border-border pt-4 cursor-pointer">
+              <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 pt-4 cursor-pointer">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">
                   {initials}
                 </span>

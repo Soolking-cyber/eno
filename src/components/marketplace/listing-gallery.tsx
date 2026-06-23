@@ -52,7 +52,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
           </div>
           <button
             onClick={() => openAt(0)}
-            className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full border border-line-strong bg-card/95 px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-card cursor-pointer"
+            className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
           >
             <Images className="h-4 w-4" /> <Tr text={showAllLabel} />
           </button>
@@ -68,7 +68,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
           <button
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 cursor-pointer"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
           >
             <X className="h-5 w-5" />
           </button>
@@ -91,7 +91,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
             <button
               onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
               aria-label="Previous"
-              className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 cursor-pointer"
+              className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
@@ -100,7 +100,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
             <button
               onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
               aria-label="Next"
-              className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 cursor-pointer"
+              className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
             >
               <ChevronRight className="h-6 w-6" />
             </button>

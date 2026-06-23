@@ -49,7 +49,7 @@ function PendingThread({ onBack, onClose }: { onBack: () => void; onClose: () =>
   const queue = () => { if (draft.trim()) setPendingSend(true) } // sent by the real thread the instant it mounts
   return (
     <>
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+      <div className="flex items-center gap-2 px-3 py-2.5">
         <button onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground"><ChevronLeft className="h-5 w-5" /></button>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-bold text-foreground">{tr('New message', 'Tin nhắn mới')}</div>
@@ -59,7 +59,7 @@ function PendingThread({ onBack, onClose }: { onBack: () => void; onClose: () =>
       <div className="flex flex-1 items-center justify-center bg-background px-6">
         <p className="text-center text-xs text-ink-4">{tr('Say hello — the seller is notified once you send.', 'Gửi lời chào — người bán sẽ được thông báo khi bạn gửi.')}</p>
       </div>
-      <div className="flex items-end gap-2 border-t border-border px-3 py-2.5">
+      <div className="flex items-end gap-2 px-3 py-2.5">
         <textarea
           autoFocus
           value={draft}
@@ -131,7 +131,7 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
 
   return (
     <>
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <div className="flex items-center justify-between px-4 py-3">
         <h2 className="text-base font-bold text-foreground">{tr('Messages', 'Tin nhắn')}</h2>
         <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-ink-4 hover:text-foreground"><X className="h-5 w-5" /></button>
       </div>
@@ -141,7 +141,7 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
         ) : convos.length === 0 ? (
           <p className="px-6 py-16 text-center text-sm text-ink-4">{tr('No messages yet. Tap "Message" on a listing to start a chat.', 'Chưa có tin nhắn. Nhấn "Nhắn tin" trên một tin đăng để bắt đầu.')}</p>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul>
             {convos.map((c) => (
               <li key={c.id} className="group flex items-center hover:bg-muted">
                 <button onClick={() => onOpenThread(c.id)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left">
@@ -364,7 +364,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
 
   return (
     <>
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+      <div className="flex items-center gap-2 px-3 py-2.5">
         <button onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground"><ChevronLeft className="h-5 w-5" /></button>
         <Avatar name={thread?.counterpart.name || '?'} color={thread?.counterpart.avatarColor || '#0a66c2'} url={thread?.counterpart.avatarUrl ?? null} size={32} />
         <div className="min-w-0 flex-1">
@@ -376,7 +376,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
 
       {/* Pinned listing the conversation is about (Shopee-style product context). */}
       {thread && (
-        <Link onClick={onClose} href={`/listings/${thread.listing.id}`} className="flex items-center gap-3 border-b border-border bg-card px-3 py-2 hover:bg-muted">
+        <Link onClick={onClose} href={`/listings/${thread.listing.id}`} className="flex items-center gap-3 bg-card px-3 py-2 hover:bg-muted">
           {thread.listing.image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={thread.listing.image} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
@@ -394,10 +394,10 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
       {/* Contact is requested IN-CHAT, and only once the seller has replied — this
           is what gets sellers logging in daily to answer + keep listings fresh. */}
       {thread && (
-        <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2">
+        <div className="flex items-center gap-2 bg-card px-3 py-2">
           {contact ? (
             <>
-              <a href={contact.telHref} className="flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground">
+              <a href={contact.telHref} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors">
                 <Phone className="h-3.5 w-3.5" /> {contact.phone}
               </a>
               <a href={contact.zaloHref} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#0068ff] px-3 py-1.5 text-xs font-bold text-white">
@@ -442,7 +442,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         <div ref={bottomRef} />
       </div>
 
-      <div className="flex items-end gap-2 border-t border-border px-3 py-2.5">
+      <div className="flex items-end gap-2 px-3 py-2.5">
         <textarea
           value={text}
           onChange={(e) => { setText(e.target.value); sendTyping() }}

@@ -98,7 +98,7 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
                 onClick={() => { window.open(href, '_blank', 'noopener,noreferrer'); setOpen(false) }}
                 className="group flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted cursor-pointer"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-tint text-body transition-colors group-hover:text-accent-foreground">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full text-body transition-colors group-hover:bg-muted group-hover:text-accent-foreground">
                   <Icon className="h-[18px] w-[18px]" />
                 </span>
                 <span className="text-[10px] font-medium text-body">{label}</span>
@@ -106,16 +106,16 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
             ))}
           </div>
 
-          <div className="mt-2 border-t border-border pt-2">
+          <div className="mt-3 pt-2">
             <button onClick={copy} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-tint">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted">
                 {copied ? <Check className="h-4 w-4 text-accent-foreground" /> : <Link2 className="h-4 w-4" />}
               </span>
               {copied ? tr('Link copied', 'Đã sao chép') : tr('Copy link', 'Sao chép liên kết')}
             </button>
             {hasNative && (
               <button onClick={nativeShare} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-tint"><MoreHorizontal className="h-4 w-4" /></span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></span>
                 {tr('More…', 'Thêm…')}
               </button>
             )}

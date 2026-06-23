@@ -90,7 +90,7 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
                     onClick={() => setReason(r.value)}
                     className={cn(
                       'flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors cursor-pointer',
-                      reason === r.value ? 'border-[#0a66c2] bg-accent font-semibold text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
+                      reason === r.value ? 'border-[#0a66c2] font-semibold text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
                     )}
                   >
                     <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', reason === r.value ? 'border-[#0a66c2]' : 'border-line-strong')}>

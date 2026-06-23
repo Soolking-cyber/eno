@@ -45,7 +45,7 @@ export default function ListingLoading() {
             {/* Details dl */}
             <div className="space-y-1">
               <Skeleton className="mb-2 h-6 w-24" />
-              <div className="divide-y divide-border">
+              <div>
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="flex items-center justify-between gap-4 py-2.5">
                     <Skeleton className="h-4 w-28" />
@@ -78,7 +78,7 @@ export default function ListingLoading() {
               <Skeleton className="h-11 w-full rounded-full" />
 
               {/* Seller row */}
-              <div className="flex items-center gap-3 border-t border-border pt-4">
+              <div className="flex items-center gap-3 pt-4">
                 <Skeleton className="h-11 w-11 rounded-full" />
                 <div className="flex-1 space-y-1.5">
                   <Skeleton className="h-4 w-32" />

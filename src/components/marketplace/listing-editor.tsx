@@ -112,7 +112,7 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
           <label className="mb-1 block text-xs font-semibold text-body">{tr('Condition', 'Tình trạng')}</label>
           <div className="flex gap-2">
             {[['', tr('Not applicable', 'Không áp dụng')], ['new', tr('New', 'Mới')], ['used', tr('Used', 'Đã dùng')]].map(([v, label]) => (
-              <button key={v} type="button" onClick={() => setCondition(v)} className={cn('rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', condition === v ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted')}>
+              <button key={v} type="button" onClick={() => setCondition(v)} className={cn('rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', condition === v ? 'text-accent-foreground' : 'text-body hover:bg-muted')}>
                 {label}
               </button>
             ))}

@@ -69,7 +69,7 @@ export function DashboardListingRow({ listing, onChanged }: { listing: Serialize
           ? { label: tr('Hidden', 'Đã ẩn'), cls: 'bg-tint text-muted-foreground' }
           : { label: tr('Live', 'Đang hiển thị'), cls: 'bg-accent text-accent-foreground' }
 
-  const btn = 'inline-flex items-center gap-1 rounded-lg bg-tint px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer'
+  const btn = 'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer'
 
   // Warm the listing page on hover/touch so opening it is instant.
   const prefetch = () => router.prefetch(`/listings/${listing.id}`)
@@ -99,7 +99,7 @@ export function DashboardListingRow({ listing, onChanged }: { listing: Serialize
         <div className="mt-2 flex flex-wrap gap-1.5">
           {status === 'active' ? (
             <>
-              <button onClick={confirm_} className={cn(btn, stale && 'bg-accent text-accent-foreground')}>
+              <button onClick={confirm_} className={cn(btn, stale && 'text-accent-foreground')}>
                 <RefreshCw className="h-3 w-3" /> {tr('Still available', 'Còn hàng')}
               </button>
               <button onClick={() => setStatus('sold')} className={btn}>

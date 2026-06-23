@@ -150,7 +150,7 @@ export function DashboardClient() {
         </div>
 
         {/* Tabs — keep listings management separate from account details */}
-        <div className="mt-5 flex items-center gap-1 border-b border-border">
+        <div className="mt-5 flex items-center gap-1">
           {(['listings', 'account'] as const).map((tb) => (
             <button
               key={tb}

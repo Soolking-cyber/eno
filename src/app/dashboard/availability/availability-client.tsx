@@ -114,7 +114,7 @@ export function AvailabilityClient() {
 
       {/* Sticky action bar */}
       {listings && total > 0 && (
-        <div className="sticky bottom-0 border-t border-border bg-card px-3 py-3 sm:px-6">
+        <div className="sticky bottom-0 bg-card px-3 py-3 sm:px-6">
           <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
             <button onClick={skip} className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</button>
             <button onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-50 cursor-pointer">

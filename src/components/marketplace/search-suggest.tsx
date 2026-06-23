@@ -49,7 +49,7 @@ export function SearchSuggest({
               onMouseDown={pickDown(() => onPick({ type: 'category', slug: c.slug }))}
               className={cn(
                 'rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer',
-                activeIndex === i ? 'bg-accent text-accent-foreground' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground',
+                activeIndex === i ? 'text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground',
               )}
             >
               {lang === 'vi' ? c.nameVi : c.name}

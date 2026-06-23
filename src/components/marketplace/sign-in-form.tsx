@@ -115,7 +115,7 @@ export function SignInForm({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-3', className)}>
       {/* OAuth */}
-      <button onClick={() => oauth('google')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-tint py-2.5 text-sm font-bold text-foreground hover:bg-muted transition-colors cursor-pointer">
+      <button onClick={() => oauth('google')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-foreground hover:bg-muted transition-colors cursor-pointer">
         <GoogleIcon /> {t('Tiếp tục với Google', 'Continue with Google')}
       </button>
 

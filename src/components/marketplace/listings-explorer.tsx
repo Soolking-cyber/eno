@@ -756,7 +756,7 @@ export function ListingsExplorer({
                 { value: 'manual', label: tr('Manual / Semi-Auto', 'Xe số / Côn tay') },
               ]}
               placeholder={tr('Transmission', 'Hộp số')}
-              activeClassName="bg-accent border-accent-foreground/35 text-accent-foreground"
+              activeClassName="text-accent-foreground border-accent-foreground/35"
             />
           </div>
 
@@ -774,7 +774,7 @@ export function ListingsExplorer({
                 { value: '150-up', label: '150cc+' },
               ]}
               placeholder={tr('Engine Size', 'Phân khối')}
-              activeClassName="bg-accent border-accent-foreground/35 text-accent-foreground"
+              activeClassName="text-accent-foreground border-accent-foreground/35"
             />
           </div>
         </>
@@ -800,7 +800,7 @@ export function ListingsExplorer({
                 { value: '3', label: tr('3+ Bedrooms', '3+ Phòng ngủ') },
               ]}
               placeholder={tr('Bedrooms', 'Số phòng ngủ')}
-              activeClassName="bg-accent border-accent-foreground/35 text-accent-foreground"
+              activeClassName="text-accent-foreground border-accent-foreground/35"
             />
           </div>
 
@@ -818,7 +818,7 @@ export function ListingsExplorer({
                 { value: 'partly', label: tr('Partially / Unfurnished', 'Đồ cơ bản / Trống') },
               ]}
               placeholder={tr('Furnishing', 'Nội thất')}
-              activeClassName="bg-accent border-accent-foreground/35 text-accent-foreground"
+              activeClassName="text-accent-foreground border-accent-foreground/35"
             />
           </div>
         </>
@@ -842,7 +842,7 @@ export function ListingsExplorer({
                 { value: 'fabric', label: tr('Fabric / Cushion', 'Vải bọc / Nệm') },
               ]}
               placeholder={tr('Material', 'Chất liệu')}
-              activeClassName="bg-accent border-accent-foreground/35 text-accent-foreground"
+              activeClassName="text-accent-foreground border-accent-foreground/35"
             />
           </div>
         </>
@@ -866,7 +866,7 @@ export function ListingsExplorer({
                 { value: 'sony', label: 'Sony (Audio/Camera)' },
               ]}
               placeholder={tr('Brand', 'Thương hiệu')}
-              activeClassName="bg-accent border-accent-foreground/35 text-accent-foreground"
+              activeClassName="text-accent-foreground border-accent-foreground/35"
             />
           </div>
 
@@ -883,7 +883,7 @@ export function ListingsExplorer({
                 { value: 'yes', label: tr('Under Active Warranty', 'Còn bảo hành hãng') },
               ]}
               placeholder={tr('Warranty', 'Bảo hành')}
-              activeClassName="bg-accent border-accent-foreground/35 text-accent-foreground"
+              activeClassName="text-accent-foreground border-accent-foreground/35"
             />
           </div>
         </>
@@ -906,7 +906,7 @@ export function ListingsExplorer({
                 { value: 'required', label: tr('English Required', 'Yêu cầu tiếng Anh') },
               ]}
               placeholder={tr('English Requirement', 'Tiếng Anh')}
-              activeClassName="bg-accent border-accent-foreground/35 text-accent-foreground"
+              activeClassName="text-accent-foreground border-accent-foreground/35"
             />
           </div>
         </>
@@ -930,7 +930,7 @@ export function ListingsExplorer({
               className={cn(
                 'flex items-center gap-2 rounded-xl p-2 text-xs font-bold transition-colors cursor-pointer justify-center',
                 activeCategory === 'all'
-                  ? 'bg-accent text-accent-foreground'
+                  ? 'text-accent-foreground'
                   : 'text-body hover:bg-muted'
               )}
             >
@@ -945,7 +945,7 @@ export function ListingsExplorer({
                    className={cn(
                      'flex items-center gap-2 rounded-xl p-2 text-xs font-bold transition-colors cursor-pointer justify-center min-w-0',
                      isActive
-                       ? 'bg-accent text-accent-foreground'
+                       ? 'text-accent-foreground'
                        : 'text-body hover:bg-muted'
                    )}
                 >
@@ -970,7 +970,7 @@ export function ListingsExplorer({
               className={cn(
                 'rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
                 activeSubcategory === 'all'
-                  ? 'bg-accent text-accent-foreground'
+                  ? 'text-accent-foreground'
                   : 'text-body hover:bg-muted'
               )}
             >
@@ -985,7 +985,7 @@ export function ListingsExplorer({
                   className={cn(
                     'rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
                     isSubActive
-                      ? 'bg-accent text-accent-foreground'
+                      ? 'text-accent-foreground'
                       : 'text-body hover:bg-muted'
                   )}
                 >
@@ -1028,7 +1028,7 @@ export function ListingsExplorer({
           onChange={setActiveDistrict}
           options={DISTRICTS.map(d => ({ value: d.slug, label: lang === 'vi' ? d.name : d.nameEn }))}
           placeholder={tr('Select District', 'Chọn Quận / Huyện')}
-          activeClassName="bg-accent border-accent-foreground/35 text-accent-foreground"
+          activeClassName="text-accent-foreground border-accent-foreground/35"
         />
       </div>
 
@@ -1047,7 +1047,7 @@ export function ListingsExplorer({
               className={cn(
                 'flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors cursor-pointer',
                 conditionFilter === cond.slug
-                  ? 'bg-accent text-accent-foreground'
+                  ? 'text-accent-foreground'
                   : 'text-body hover:bg-muted',
               )}
             >
@@ -1508,7 +1508,7 @@ export function ListingsExplorer({
                     title={tr('List view', 'Danh sách')}
                     className={cn(
                       'rounded-lg p-2 transition-colors cursor-pointer',
-                      viewMode === 'compact' ? 'bg-accent text-accent-foreground' : 'text-body',
+                      viewMode === 'compact' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
                     )}
                   >
                     <List className="h-3.5 w-3.5" />
@@ -1520,7 +1520,7 @@ export function ListingsExplorer({
                     title={tr('Grid view', 'Lưới')}
                     className={cn(
                       'rounded-lg p-2 transition-colors cursor-pointer',
-                      viewMode === 'grid' ? 'bg-accent text-accent-foreground' : 'text-body',
+                      viewMode === 'grid' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
                     )}
                   >
                     <Grid className="h-3.5 w-3.5" />
@@ -1532,7 +1532,7 @@ export function ListingsExplorer({
                     title={tr('Map view', 'Xem Bản đồ')}
                     className={cn(
                       'rounded-lg p-2 transition-colors cursor-pointer',
-                      viewMode === 'map' ? 'bg-accent text-accent-foreground' : 'text-body',
+                      viewMode === 'map' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
                     )}
                   >
                     <Map className="h-3.5 w-3.5" />

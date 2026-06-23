@@ -204,7 +204,7 @@ export function Header() {
                   'mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95',
                   province || ward || nearby
                     ? 'bg-[#0a66c2] text-white shadow-sm'
-                    : 'bg-accent text-accent-foreground hover:bg-accent',
+                    : 'text-body hover:bg-muted',
                 )}
               >
                 <MapPin className="h-4 w-4" />

@@ -69,7 +69,7 @@ export function FacetBar({
     })
 
   const cls = ''
-  const active = 'bg-accent text-accent-foreground'
+  const active = 'text-accent-foreground'
   // Content-sized pills (no fixed min-width) so they pack into one swipable
   // row on mobile; widen a touch on desktop where they wrap.
   const wrap = 'w-auto shrink-0 lg:min-w-[7.5rem]'

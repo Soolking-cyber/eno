@@ -72,7 +72,7 @@ export function ConversationList() {
                 key={c.id}
                 onMouseEnter={() => prefetchThread(c.id)}
                 onTouchStart={() => prefetchThread(c.id)}
-                className={cn('group flex items-center gap-1 rounded-xl transition-colors', activeId === c.id ? 'bg-accent' : 'hover:bg-muted')}
+                className={cn('group flex items-center gap-1 rounded-xl transition-colors', activeId === c.id ? 'text-accent-foreground' : 'hover:bg-muted')}
               >
                 <Link href={`/messages/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-2.5">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0a66c2] text-sm font-bold text-white">

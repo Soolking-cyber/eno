@@ -259,7 +259,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                       <button
                         key={v}
                         onClick={() => setCondition(v)}
-                        className={cn('rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', condition === v ? 'bg-[#0a66c2] text-white' : 'bg-tint text-body hover:bg-accent')}
+                        className={cn('rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', condition === v ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')}
                       >
                         {label}
                       </button>
@@ -275,7 +275,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                     <div key={i} className="relative aspect-square overflow-hidden rounded-xl bg-tint">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={p.url} alt={p.file.name} className="h-full w-full object-cover" />
-                      <button aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-foreground shadow-sm cursor-pointer">
+                      <button aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]">
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -383,7 +383,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-border pb-2.5 last:border-0 last:pb-0 text-sm">
+    <div className="flex items-start justify-between gap-4 pb-2.5 last:pb-0 text-sm">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium text-foreground text-right">{value}</span>
     </div>

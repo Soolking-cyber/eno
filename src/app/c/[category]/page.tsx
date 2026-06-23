@@ -120,7 +120,7 @@ export default async function CategoryPage({ params }: Props) {
           </Link>
         </div>
 
-        <div className="mt-12 border-t border-border pt-6">
+        <div className="mt-12 pt-6">
           <h2 className="h-section text-foreground mb-3"><Tr text="Other categories" /></h2>
           <div className="flex flex-wrap gap-2">
             {otherCats.map((c) => (

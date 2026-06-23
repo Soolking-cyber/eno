@@ -119,7 +119,7 @@ export function OnboardClient() {
                     active ? 'bg-accent ring-2 ring-[#0a66c2]/30' : 'hover:bg-muted',
                   )}
                 >
-                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', active ? 'bg-[#0a66c2] text-white' : 'bg-tint text-muted-foreground')}>
+                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', active ? 'bg-[#0a66c2] text-white' : 'text-muted-foreground')}>
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">
