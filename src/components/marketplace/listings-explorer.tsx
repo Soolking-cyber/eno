@@ -484,6 +484,22 @@ export function ListingsExplorer({
     initialDataUpdatedAt: initialFetchedAt,
   })
 
+  // Filter signature (no price/sort/pagination) for the price-histogram fetch, so
+  // the slider's distribution reflects every OTHER active filter.
+  const histogramQuery = useMemo(() => {
+    const p = new URLSearchParams()
+    p.set('histogram', '1')
+    if (activeCategory !== 'all') p.set('category', activeCategory)
+    if (activeSubcategory !== 'all') p.set('subcategory', activeSubcategory)
+    if (!nearby && activeDistrict !== 'all') p.set('district', activeDistrict)
+    if (!nearby && activeProvince) p.set('province', activeProvince.nameEn)
+    if (!nearby && activeWard) p.set('ward', activeWard.nameEn)
+    if (conditionFilter !== 'all') p.set('condition', conditionFilter)
+    if (debouncedQuery.trim()) p.set('q', debouncedQuery.trim())
+    Object.entries(customFilters).forEach(([k, v]) => { if (v && v !== 'all') p.set(`attr_${k}`, v) })
+    return p.toString()
+  }, [activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, debouncedQuery, customFilters])
+
   // Synchronize state and trigger history caching when data changes
   useEffect(() => {
     if (listingsData) {
@@ -1506,6 +1522,7 @@ export function ListingsExplorer({
               setCustomFilters={setCustomFilters}
               verifiedOnly={verifiedOnly}
               setVerifiedOnly={setVerifiedOnly}
+              histogramQuery={histogramQuery}
             />
 
             {/* Sort & View Control Bar (search lives in the header now) */}

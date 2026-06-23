@@ -51,6 +51,10 @@ export async function GET(req: NextRequest) {
   const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0)
   const priceMin = parseInt(searchParams.get('priceMin') || '', 10)
   const priceMax = parseInt(searchParams.get('priceMax') || '', 10)
+  // Price-histogram mode: return the price distribution for the CURRENT filters
+  // (excluding the price range itself) so the slider can show where the user's
+  // range sits in the available inventory.
+  const histogram = searchParams.get('histogram') === '1'
 
   // SECURITY: public callers ALWAYS get verified-only. The `verified` param is
   // ignored here (no auth yet) so the pending moderation queue + the raw
@@ -67,7 +71,7 @@ export async function GET(req: NextRequest) {
   if (featuredOnly) {
     andFilters.push({ featured: true })
   }
-  if (!Number.isNaN(priceMin) || !Number.isNaN(priceMax)) {
+  if (!histogram && (!Number.isNaN(priceMin) || !Number.isNaN(priceMax))) {
     const price: Prisma.FloatFilter = {}
     if (!Number.isNaN(priceMin)) price.gte = priceMin
     if (!Number.isNaN(priceMax)) price.lte = priceMax
@@ -320,6 +324,16 @@ export async function GET(req: NextRequest) {
   }
 
   const where: Prisma.ListingWhereInput = andFilters.length > 0 ? { AND: andFilters } : {}
+
+  // Histogram mode: return just the matching prices (VND) for the active filters.
+  // Capped so a huge catalog stays a small payload; the client buckets them.
+  if (histogram) {
+    const rows = await db.listing.findMany({ where, select: { price: true }, orderBy: { price: 'asc' }, take: 5000 })
+    return NextResponse.json(
+      { prices: rows.map((r) => r.price) },
+      { headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' } },
+    )
+  }
 
   let orderBy: Prisma.ListingOrderByWithRelationInput | Prisma.ListingOrderByWithRelationInput[] = { postedAt: 'desc' }
   switch (sort) {
