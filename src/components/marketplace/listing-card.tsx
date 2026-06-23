@@ -10,6 +10,7 @@ import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
+import { isMockImageUrl } from '@/lib/listing-image'
 
 // Tiny neutral blur (matches the card's bg) so images fade in instead of popping
 // from a grey box. Shared across all cards.
@@ -99,6 +100,7 @@ export function ListingCard({
                   placeholder="blur"
                   blurDataURL={BLUR}
                   quality={60}
+                  unoptimized={isMockImageUrl(src)}
                   // The true LCP image (first card of the first row, first photo) uses
                   // next/image `priority` so Next emits a <link rel=preload> — the preload
                   // scanner fetches it before render. Other above-the-fold images just load

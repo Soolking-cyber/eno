@@ -19,8 +19,10 @@ const nextConfig: NextConfig = {
     // tier + trimmed widths = fewer optimizer variants and smaller payloads.
     minimumCacheTTL: 2592000,
     qualities: [60, 70],
-    deviceSizes: [360, 640, 750, 1080, 1920],
-    imageSizes: [48, 80, 112, 180, 256],
+    // Trimmed widths → fewer optimizer variants per image (each width×quality is a
+    // billed transformation). Keeps mobile-first sizes for VN; drops 750/1920.
+    deviceSizes: [360, 640, 1080],
+    imageSizes: [64, 128, 256],
     remotePatterns: [
       {
         protocol: "https",

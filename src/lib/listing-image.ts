@@ -8,3 +8,11 @@ const PREFIX = HOST ? `${HOST}/storage/v1/object/public/listings/` : null
 export function isListingImageUrl(url: unknown): url is string {
   return typeof url === 'string' && PREFIX !== null && url.startsWith(PREFIX)
 }
+
+// MOCK images (picsum/loremflickr) are already sized + served from a CDN — running
+// them through Vercel's optimizer just burns Image Transformation quota for test
+// data. Render them `unoptimized` so they cost zero transformations. No-op for real
+// Supabase images. Goes away with the mock data at launch.
+export function isMockImageUrl(url: unknown): url is string {
+  return typeof url === 'string' && (url.includes('picsum.photos') || url.includes('loremflickr.com'))
+}

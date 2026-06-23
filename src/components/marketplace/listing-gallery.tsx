@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tr } from '@/context/language-context'
+import { isMockImageUrl } from '@/lib/listing-image'
 
 type Props = {
   images: string[]
@@ -35,18 +36,18 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
       {images.length === 1 ? (
         <button onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer">
           <div className="relative aspect-[16/10] w-full bg-tint">
-            <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 100vw, 60vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority />
+            <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 100vw, 60vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority unoptimized={isMockImageUrl(images[0])} />
           </div>
         </button>
       ) : (
         <div className="relative grid h-[300px] grid-cols-2 gap-2 overflow-hidden rounded-2xl sm:h-[440px]">
           <button onClick={() => openAt(0)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-            <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 50vw, 40vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority />
+            <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 50vw, 40vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority unoptimized={isMockImageUrl(images[0])} />
           </button>
           <div className={cn('grid gap-2', restGrid)}>
             {rest.map((img, i) => (
               <button key={i} onClick={() => openAt(i + 1)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-                <Image src={img} alt={`${title} — photo ${i + 2}`} fill sizes="25vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                <Image src={img} alt={`${title} — photo ${i + 2}`} fill sizes="25vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" unoptimized={isMockImageUrl(img)} />
               </button>
             ))}
           </div>
@@ -84,7 +85,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
               startX.current = null
             }}
           >
-            <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" className="object-contain" />
+            <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" className="object-contain" unoptimized={isMockImageUrl(images[idx])} />
           </div>
 
           {idx > 0 && (

@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { LISTING_TYPES, INTENT_SHORTCUTS } from '@/lib/taxonomy'
+import { isMockImageUrl } from '@/lib/listing-image'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
@@ -775,6 +776,7 @@ export function ListingsExplorer({
               className="object-cover transition-transform duration-200 group-hover:scale-105"
               priority={index < 4}
               loading={index < 4 ? undefined : 'lazy'}
+              unoptimized={isMockImageUrl(cover)}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-tint">
