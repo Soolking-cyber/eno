@@ -15,10 +15,10 @@ import {
   Sliders,
   Clock,
   Map,
-  BadgeCheck,
   Bookmark,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { TrustScore } from './trust-score'
 import type { SerializedListing, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { Price } from './price'
@@ -783,7 +783,7 @@ export function ListingsExplorer({
           )}
         </div>
 
-        {/* One-liner: title on top, price · location · verified on a tight meta line */}
+        {/* One-liner: title on top, price · location · trust score on a tight meta line */}
         <div className="min-w-0 flex-1">
           <h4 className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline">
             <Tr text={displayTitle} />
@@ -792,12 +792,7 @@ export function ListingsExplorer({
             <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 font-bold text-foreground" />
             <span className="h-3 w-px shrink-0 bg-border" />
             <span className="truncate"><Tr text={l.district || l.city} /></span>
-            {l.verified && (
-              <span className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-accent-foreground">
-                <BadgeCheck className="h-3 w-3" />
-                {t('card.verified')}
-              </span>
-            )}
+            <TrustScore score={l.seller.trustScore} size="sm" className="shrink-0" />
           </div>
         </div>
 

@@ -47,12 +47,12 @@ export default function TrustPage() {
 
         <section className="mt-10 space-y-4">
           <h2 className="h-section text-foreground"><Tr text="What the colors mean" /></h2>
-          <p className="text-sm text-body"><Tr text="Everyone starts at 100 — good standing. You rise or fall from there." /></p>
+          <p className="text-sm text-body"><Tr text="New accounts start below 100 and earn up to it by completing their profile and verifying their identity (KYC) — so unverified strangers carry less trust up front. From there you rise or fall on your behavior." /></p>
           <div className="mt-2 space-y-4">
-            <Band score={120} name="Exceptional" range="110–130" note="A long, clean track record. Top sellers and businesses." />
-            <Band score={95} name="Good standing" range="85–109" note="Reliable and active — where most accounts sit. New accounts start at 100." />
-            <Band score={72} name="Needs attention" range="60–84" note="Slipping — inactivity or an unresolved issue is pulling the score down." />
-            <Band score={45} name="Restricted" range="below 60" note="A serious or repeated problem. New listings may be held for review." />
+            <Band score={120} name="Exceptional" range="110 and up" note="A long, clean track record and lots of completed deals. Top sellers and businesses." />
+            <Band score={95} name="Good standing" range="85–109" note="Reliable and verified — full standing, reached with a complete profile + KYC." />
+            <Band score={70} name="Building" range="60–84" note="Where new accounts begin. Complete your profile and verify your identity to reach 100." />
+            <Band score={45} name="Restricted" range="below 60" note="A serious or repeated problem, or an unverified account that's been reported. New listings may be held for review." />
           </div>
         </section>
 
@@ -63,14 +63,14 @@ export default function TrustPage() {
             <Rule icon={<ShieldCheck className="h-5 w-5" />} title="Complete sales through eno.vn" body="Every transaction closed on-platform earns trust — with no upper limit. The more deals you successfully complete, the higher you climb and the higher you rank. A small safety fee applies (10,000₫ under 1,000,000₫, or 1% above) that covers mediation and buyer protection." />
             <Rule icon={<MessageSquareText className="h-5 w-5" />} title="Earn reviews from verified buyers" body="Only people who actually completed a transaction with you through eno.vn can leave a review — so feedback is real, not farmed." />
             <Rule icon={<Clock className="h-5 w-5" />} title="Respond quickly" body="Fast, helpful replies to buyers build trust over time." />
-            <Rule icon={<UserCheck className="h-5 w-5" />} title="Verify and complete your profile" body="A verified phone and a complete profile are a one-time trust boost." />
+            <Rule icon={<UserCheck className="h-5 w-5" />} title="Complete your profile + verify your identity (KYC)" body="A full storefront profile and passing identity verification lift a new account all the way to 100 — full standing — up front. This is the fastest way to earn trust as a newcomer." />
           </div>
         </section>
 
         <section className="mt-10 space-y-4">
           <h2 className="h-section text-foreground"><Tr text="How you lose trust" /></h2>
           <div className="space-y-4">
-            <Rule icon={<Clock className="h-5 w-5" />} title="Going inactive" body="Letting listings go stale without confirming availability for several days lowers your score." />
+            <Rule icon={<Clock className="h-5 w-5" />} title="Letting listings go stale" body="If you have active listings and don't confirm they're still available for several days, your score dips. Accounts with no active listings are never penalized for inactivity." />
             <Rule icon={<TriangleAlert className="h-5 w-5" />} title="Confirmed reports" body="Scams, counterfeits, and misrepresentation cut your score — heavier for more serious issues, and repeats compound." />
             <Rule icon={<TriangleAlert className="h-5 w-5" />} title="False reports" body="Filing reports that turn out to be false hurts the reporter's own score — keeping the system fair." />
           </div>

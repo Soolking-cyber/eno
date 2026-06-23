@@ -43,8 +43,14 @@ export const INACTIVE_PENALTY = 3       // −trust per inactivity sweep (at mos
 export const RECOVERY_DELTA = 1         // clean accounts below 100 drift back up by this per day
 export const RECOVERY_CLEAN_DAYS = 14   // …only if no confirmed report / inactivity hit in this window
 export const TRANSACTION_DELTA = 5      // +trust per COMPLETED on-platform transaction — UNCAPPED (the more you transact, the higher you climb + rank)
-export const PROFILE_COMPLETE_DELTA = 3 // one-time bonus for a complete, verified profile
 export const FAST_RESPONSE_DELTA = 1    // capped reward for replying quickly to buyers
+
+// KYC-gated onboarding: a brand-new account starts BELOW the 100 baseline and earns
+// its way to 100 by completing its profile and passing KYC — so unverified strangers
+// carry less trust up front. 60 (new) + 15 (profile) + 25 (KYC) = 100.
+export const NEW_ACCOUNT_DEFICIT = 40   // new accounts start at 100 − 40 = 60
+export const PROFILE_COMPLETE_DELTA = 15 // one-time: a complete storefront profile
+export const KYC_BONUS = 25             // one-time: passing identity verification (KYC)
 
 /** Map a report reason to a default severity (admin can override on confirm). */
 export function severityForReason(reason: string): 'minor' | 'moderate' | 'severe' {
@@ -179,6 +185,22 @@ export async function recordProfileComplete(profileId: string): Promise<boolean>
   return true
 }
 
+/** Apply the new-account starting deficit once (so new accounts begin at ~60, not 100). */
+export async function recordNewAccount(profileId: string): Promise<boolean> {
+  const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'new_account' } })
+  if (existing > 0) return false
+  await applyTrustEvent(profileId, 'manual_adjust', -NEW_ACCOUNT_DEFICIT, { reason: 'new_account' })
+  return true
+}
+
+/** One-time bonus for passing identity verification (KYC). Lifts a profiled account to 100. */
+export async function recordKyc(profileId: string): Promise<boolean> {
+  const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'kyc' } })
+  if (existing > 0) return false
+  await applyTrustEvent(profileId, 'manual_adjust', KYC_BONUS, { reason: 'kyc' })
+  return true
+}
+
 /**
  * Daily trust maintenance (run from the cron):
  *  • DECAY — accounts whose active listings have gone unconfirmed for INACTIVE_DAYS
@@ -214,16 +236,29 @@ export async function runTrustMaintenance(): Promise<{ decayed: number; recovere
     decayed++
   }
 
-  // Recovery: accounts below 100 with a clean recent window drift up by 1/day.
+  // Recovery: heal BEHAVIORAL penalties (reports / inactivity) over time — but never
+  // beyond what was lost, so it can't lift the new-account KYC deficit up to 100 on
+  // its own (KYC + profile do that). Only accounts that actually have a penalty to
+  // heal recover; capped at the total penalty so it stops exactly at the pre-penalty score.
   const cleanCutoff = new Date(now - RECOVERY_CLEAN_DAYS * DAY_MS)
-  const below = await db.profile.findMany({ where: { trustScore: { lt: 100 } }, select: { id: true }, take: 20000 })
+  const penalized = await db.profile.findMany({
+    where: { trustScore: { lt: 100 }, trustEvents: { some: { type: { in: ['report_confirmed', 'decay_inactive'] } } } },
+    select: { id: true },
+    take: 20000,
+  })
   let recovered = 0
-  for (const p of below) {
-    const recentBad = await db.trustEvent.count({
-      where: { subjectProfileId: p.id, type: { in: ['report_confirmed', 'decay_inactive'] }, createdAt: { gt: cleanCutoff } },
-    })
-    if (recentBad > 0) continue
-    await applyTrustEvent(p.id, 'decay_recover', RECOVERY_DELTA, { reason: 'recovery' })
+  for (const p of penalized) {
+    const [pen, rec, recentBad] = await Promise.all([
+      db.trustEvent.aggregate({ where: { subjectProfileId: p.id, type: { in: ['report_confirmed', 'decay_inactive'] } }, _sum: { delta: true } }),
+      db.trustEvent.aggregate({ where: { subjectProfileId: p.id, type: 'decay_recover' }, _sum: { delta: true } }),
+      db.trustEvent.count({ where: { subjectProfileId: p.id, type: { in: ['report_confirmed', 'decay_inactive'] }, createdAt: { gt: cleanCutoff } } }),
+    ])
+    if (recentBad > 0) continue // not clean recently
+    const penalty = -(pen._sum.delta ?? 0) // positive magnitude of all penalties
+    const healed = rec._sum.delta ?? 0
+    const remaining = penalty - healed
+    if (remaining <= 0) continue // fully healed already
+    await applyTrustEvent(p.id, 'decay_recover', Math.min(RECOVERY_DELTA, remaining), { reason: 'recovery' })
     recovered++
   }
 
