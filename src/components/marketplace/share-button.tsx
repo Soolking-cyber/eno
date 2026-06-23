@@ -85,7 +85,7 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl bg-card p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100">
+        <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl bg-card p-3 shadow-pop animate-in fade-in duration-150">
           <p className="px-1 pb-2 text-xs font-bold text-foreground">{tr('Share this listing', 'Chia sẻ tin này')}</p>
           <div className="grid grid-cols-3 gap-1">
             {channels.map(({ key, label, href, Icon }) => (

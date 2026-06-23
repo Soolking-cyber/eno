@@ -142,7 +142,7 @@ export function PriceRangeFilter({
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W }}
-          className="z-[70] max-w-[calc(100vw-1rem)] rounded-b-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100"
+          className="z-[70] max-w-[calc(100vw-1rem)] rounded-b-2xl bg-card p-4 shadow-pop animate-in fade-in duration-150"
         >
           <div className="flex items-baseline justify-between">
             <p className="text-sm font-bold text-foreground">{tr('Price range', 'Khoảng giá')}</p>

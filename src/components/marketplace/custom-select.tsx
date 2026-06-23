@@ -97,7 +97,7 @@ export function CustomSelect({
           ref={menuRef}
           data-portal-menu
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
-          className="z-[121] max-h-60 overflow-y-auto overflow-x-hidden rounded-b-2xl bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
+          className="z-[121] max-h-60 overflow-y-auto overflow-x-hidden rounded-b-2xl bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in duration-150"
         >
           {options.map((opt) => {
             const isActive = opt.value === value

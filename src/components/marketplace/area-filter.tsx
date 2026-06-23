@@ -201,7 +201,7 @@ export function AreaFilter({
     <div
       ref={panelRef}
       style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
-      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-b-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
+      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-b-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
     >
       <div className="space-y-4">
         {/* Province / city */}
