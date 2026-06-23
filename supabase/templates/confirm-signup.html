@@ -1,0 +1,46 @@
+<!--
+  eno &#x2014; branded Supabase "Confirm signup" email template.
+  Paste into: Supabase Dashboard &#x2192; Authentication &#x2192; Emails &#x2192; Confirm signup &#x2192; Message body (HTML).
+  Uses {{ .ConfirmationURL }}. Pure-ASCII (HTML entities) for email-client safety.
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;margin:0;padding:32px 12px;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(15,23,42,0.06);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+        <tr>
+          <td style="background:#0a66c2;padding:24px 32px;">
+            <span style="color:#ffffff;font-size:26px;font-weight:800;letter-spacing:-0.02em;vertical-align:middle;">eno</span>
+            <span style="color:#bfdbfe;font-size:13px;vertical-align:middle;">&nbsp;&#xB7; marketplace for expats in Vietnam</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px 32px 28px;">
+            <h1 style="margin:0 0 10px;font-size:20px;font-weight:700;color:#0f172a;">Confirm your email</h1>
+            <p style="margin:0 0 4px;font-size:14px;line-height:1.6;color:#475569;">Welcome to eno &#x2014; confirm your email to activate your account and start buying &amp; selling.</p>
+            <p style="margin:0 0 24px;font-size:13px;line-height:1.6;color:#6b7280;">Ch&#xE0;o m&#x1EEB;ng &#x111;&#x1EBF;n eno &#x2014; x&#xE1;c nh&#x1EAD;n email &#x111;&#x1EC3; k&#xED;ch ho&#x1EA1;t t&#xE0;i kho&#x1EA3;n c&#x1EE7;a b&#x1EA1;n.</p>
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="border-radius:12px;background:#0a66c2;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:13px 30px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">Confirm email &#xB7; X&#xE1;c nh&#x1EAD;n</a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:26px 0 0;font-size:12px;line-height:1.6;color:#6b7280;">
+              If the button doesn't work, copy and paste this link:<br>
+              <a href="{{ .ConfirmationURL }}" style="color:#0a66c2;word-break:break-all;">{{ .ConfirmationURL }}</a>
+            </p>
+            <p style="margin:18px 0 0;font-size:12px;line-height:1.6;color:#94a3b8;">Didn't sign up for eno? You can safely ignore this email.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 32px;border-top:1px solid #e2e8f0;">
+            <p style="margin:0;font-size:12px;color:#94a3b8;">
+              <a href="https://eno.vn" style="color:#0a66c2;text-decoration:none;font-weight:600;">eno.vn</a>
+              &nbsp;&#xB7;&nbsp; <a href="mailto:support@eno.forum" style="color:#94a3b8;text-decoration:none;">support@eno.forum</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>

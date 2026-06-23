@@ -14,10 +14,13 @@ export async function GET(req: NextRequest) {
   if (q.length < 2) return NextResponse.json({ q, listings: [], categories: [] })
 
   const folded = fold(q)
+  // AND each ≥2-char token (matches /api/listings) so multi-word typeahead narrows.
+  const tokens = folded.split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
+  const searchAnd = tokens.length ? tokens.map((t) => ({ searchText: { contains: t } })) : [{ searchText: { contains: folded } }]
 
   const [listings, allCategories] = await Promise.all([
     db.listing.findMany({
-      where: { verified: true, status: 'active', searchText: { contains: folded } },
+      where: { verified: true, status: 'active', AND: searchAnd },
       orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
       take: 6,
       select: {

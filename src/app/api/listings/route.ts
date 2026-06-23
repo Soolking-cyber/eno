@@ -131,7 +131,10 @@ export async function GET(req: NextRequest) {
   if (q) {
     // Accent-insensitive + cross-language: match the folded query against the
     // pre-folded searchText blob (covers EN title + VI titleVi + desc + location).
-    andFilters.push({ searchText: { contains: fold(q) } })
+    // AND each ≥2-char token so multi-word queries NARROW: "honda red" must match a
+    // row containing both tokens (any order/field), not the literal substring.
+    const qTokens = fold(q).split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
+    andFilters.push(qTokens.length ? { AND: qTokens.map((t) => ({ searchText: { contains: t } })) } : { searchText: { contains: fold(q) } })
   }
 
   // Subcategory + intent (listingType) filter on dedicated columns now —

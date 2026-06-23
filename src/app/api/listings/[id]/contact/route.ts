@@ -43,10 +43,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // Only verified (public) listings expose contact — never pending/hidden ones.
   if (!listing || !listing.verified) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-  // Resolve via phoneForSeller (handles seeded sellers with null phone via the
-  // seed map + fallback) — never read seller.phone directly.
-  const seller = { id: listing.seller.id, phone: listing.seller.phone }
-  const phone = phoneForSeller(seller)
+  // Only the seller's REAL stored phone — never a synthetic/fallback number.
+  const phone = phoneForSeller({ phone: listing.seller.phone })
+  if (!phone) return NextResponse.json({ error: 'no_contact' }, { status: 404 })
 
   // Log the reveal once per (listing, viewer); bump contactCount only on a NEW row.
   try {
@@ -61,5 +60,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
   }
 
-  return NextResponse.json({ phone, telHref: telHref(seller), zaloHref: zaloHref(seller) })
+  return NextResponse.json({ phone, telHref: telHref(phone), zaloHref: zaloHref(phone) })
 }
