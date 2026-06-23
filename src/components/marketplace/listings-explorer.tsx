@@ -654,10 +654,19 @@ export function ListingsExplorer({
   // as it nears the viewport. Disabled for "near you" (single broad client-filtered
   // fetch) — there's nothing more to page through.
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  // Map view's result list scrolls inside its own column on desktop, so the
+  // infinite-scroll sentinel must live INSIDE that column and observe it as the
+  // root — otherwise a window-level sentinel sits permanently in view (appending
+  // rows never moves it) and fires page after page (the "jerky, again and again").
+  const mapListRef = useRef<HTMLDivElement | null>(null)
+  const mapSentinelRef = useRef<HTMLDivElement | null>(null)
   const hasMore = !nearby && listings.length < totalCount
   useEffect(() => {
     if (!hasMore) return
-    const el = loadMoreRef.current
+    const isMap = viewMode === 'map'
+    // Desktop map view → the left column is the scroll container (Tailwind lg = 1024px).
+    const columnScroll = isMap && typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+    const el = isMap ? mapSentinelRef.current : loadMoreRef.current
     if (!el) return
     const io = new IntersectionObserver(
       (entries) => {
@@ -666,11 +675,11 @@ export function ListingsExplorer({
           setPage((p) => p + 1)
         }
       },
-      { rootMargin: '600px 0px' }, // start loading well before the user hits the end
+      { root: columnScroll ? mapListRef.current : null, rootMargin: isMap ? '300px 0px' : '600px 0px' },
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasMore, queryFetching, prefetchNextPage])
+  }, [hasMore, queryFetching, prefetchNextPage, viewMode])
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
@@ -1670,8 +1679,8 @@ export function ListingsExplorer({
                 {viewMode === 'map' && (
                   /* Airbnb-style split: scrollable list (left) + sticky map (right) */
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                    {/* Left: narrow single-column result list */}
-                    <div className="min-w-0 lg:col-span-4 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 grid grid-cols-1 gap-4 scroll-thin order-2 lg:order-1">
+                    {/* Left: narrow single-column result list (its own scroll container on desktop) */}
+                    <div ref={mapListRef} className="min-w-0 lg:col-span-4 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 grid grid-cols-1 gap-4 scroll-thin order-2 lg:order-1">
                       {shownListings.map((l) => (
                         <div
                           key={l.id}
@@ -1685,6 +1694,20 @@ export function ListingsExplorer({
                           <ListingCard listing={l} onOpen={handleOpen} onLocate={() => locateOnMap(l.id)} />
                         </div>
                       ))}
+                      {/* In-column infinite-scroll sentinel (observed against this column) */}
+                      {!nearby && (
+                        <div ref={mapSentinelRef} className="select-none py-2">
+                          {queryFetching && hasMore && (
+                            <div className="flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-[#0a66c2]" aria-hidden="true" />
+                              {tr('Loading more…', 'Đang tải thêm…')}
+                            </div>
+                          )}
+                          {!hasMore && totalCount > 24 && (
+                            <p className="text-center text-xs font-semibold text-ink-4">{tr("You've reached the end", 'Bạn đã xem hết')}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {/* Right: big sticky map */}
                     <div className="min-w-0 lg:col-span-8 h-[60vh] lg:h-[calc(100dvh-8rem)] lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
@@ -1718,8 +1741,9 @@ export function ListingsExplorer({
 
                 {/* Infinite feed — the sentinel triggers the next page as it nears
                     the viewport (FB-style). "Near you" pulls one broad set, so it's
-                    excluded; once everything is loaded we show an end-cap. */}
-                {!nearby && (
+                    excluded; once everything is loaded we show an end-cap. Map view
+                    uses its own in-column sentinel above, so skip this one there. */}
+                {!nearby && viewMode !== 'map' && (
                   <div ref={loadMoreRef} className="mt-6 select-none">
                     {queryFetching && hasMore && (
                       <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">

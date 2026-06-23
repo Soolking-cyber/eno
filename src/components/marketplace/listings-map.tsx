@@ -80,6 +80,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markersRef = useRef<Map<string, any>>(new Map())
+  const fitKeyRef = useRef<string>('') // last filter signature we auto-fit bounds for
   const [ready, setReady] = useState(false)
   // Airbnb-style: a pin tap opens a small info card (not a direct navigation). The
   // ref mirrors the open card id so marker/map click handlers (captured in effects)
@@ -167,8 +168,15 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       markersRef.current.set(l.id, marker)
     })
 
+    // Only auto-fit when the FILTER context changes (district, or the result set
+    // was replaced — first item changes), NOT when infinite-scroll appends a page.
+    // Re-fitting on every append is what made the map jump repeatedly.
     if (bounds.length > 0) {
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 })
+      const fitKey = `${activeDistrict}|${listings[0]?.id ?? ''}`
+      if (fitKeyRef.current !== fitKey) {
+        fitKeyRef.current = fitKey
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 })
+      }
     }
     setTimeout(() => map.invalidateSize(), 80)
     // eslint-disable-next-line react-hooks/exhaustive-deps
