@@ -195,7 +195,7 @@ export function PriceRangeFilter({
               <div className="mt-5 flex items-end gap-3">
                 <label className="min-w-0 flex-1">
                   <span className="mb-1 block text-[11px] font-semibold text-ink-4">{tr('Minimum', 'Tối thiểu')}</span>
-                  <span className="flex items-center gap-1 rounded-xl bg-tint px-3 py-2 text-sm">
+                  <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted">
                     {currency === 'VND' && <span className="text-ink-4">₫</span>}
                     <input
                       type="text" inputMode="numeric" value={grp(toDisplay(effLo))}
@@ -208,7 +208,7 @@ export function PriceRangeFilter({
                 <span className="pb-2 text-ink-4">–</span>
                 <label className="min-w-0 flex-1">
                   <span className="mb-1 block text-[11px] font-semibold text-ink-4">{tr('Maximum', 'Tối đa')}</span>
-                  <span className="flex items-center gap-1 rounded-xl bg-tint px-3 py-2 text-sm">
+                  <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted">
                     {currency === 'VND' && <span className="text-ink-4">₫</span>}
                     <input
                       type="text" inputMode="numeric" value={grp(toDisplay(effHi))}

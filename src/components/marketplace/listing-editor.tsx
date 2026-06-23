@@ -77,7 +77,7 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
     } catch { setError(tr('Could not save. Try again.', 'Không lưu được. Thử lại.')) } finally { setSaving(false) }
   }
 
-  const field = 'w-full rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-ring/30'
+  const field = 'w-full rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-muted focus:bg-muted'
 
   return (
     <div className="mx-auto w-full max-w-2xl px-3 sm:px-6 lg:px-8 py-6">
@@ -112,7 +112,7 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
           <label className="mb-1 block text-xs font-semibold text-body">{tr('Condition', 'Tình trạng')}</label>
           <div className="flex gap-2">
             {[['', tr('Not applicable', 'Không áp dụng')], ['new', tr('New', 'Mới')], ['used', tr('Used', 'Đã dùng')]].map(([v, label]) => (
-              <button key={v} type="button" onClick={() => setCondition(v)} className={cn('rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', condition === v ? 'bg-[#0a66c2] text-white' : 'bg-tint text-body hover:bg-accent')}>
+              <button key={v} type="button" onClick={() => setCondition(v)} className={cn('rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer', condition === v ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted')}>
                 {label}
               </button>
             ))}

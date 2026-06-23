@@ -93,7 +93,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
     } catch { setError(tr('Could not save. Try again.', 'Không lưu được. Thử lại.')) } finally { setSaving(false) }
   }
 
-  const field = 'w-full rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-ring/30'
+  const field = 'w-full rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-muted focus:bg-muted'
   const initials = name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
 
   return (

@@ -13,7 +13,8 @@ export type Nearby = { lat: number; lng: number; radiusKm: number }
 export type Geo = { code: string; name: string; nameEn: string }
 type Unit = { code: string; name: string; nameEn: string }
 
-const FIELD = 'w-full justify-between rounded-xl bg-tint py-2.5 text-foreground'
+// Text-form (monolith): no resting background, emphasis only on hover.
+const FIELD = 'w-full justify-between rounded-xl py-2.5 text-body hover:bg-muted'
 const HCMC = '79' // Ho Chi Minh City — the live market; default selection
 
 // Normalize a VN admin name for matching: lowercase, strip diacritics, drop the
@@ -35,7 +36,7 @@ function findUnit(list: { code: string; name: string; nameEn: string }[], raw: s
 
 function DisabledField({ label }: { label: string }) {
   return (
-    <div className="flex w-full cursor-not-allowed items-center justify-between rounded-xl bg-tint px-3.5 py-2.5 text-sm text-ink-4">
+    <div className="flex w-full cursor-not-allowed items-center justify-between rounded-xl px-3.5 py-2.5 text-sm text-ink-4">
       <span>{label}</span>
       <ChevronDown className="h-4 w-4 text-slate-300" />
     </div>
@@ -212,7 +213,7 @@ export function AreaFilter({
             options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
             placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
             className={FIELD}
-            activeClassName="bg-tint text-foreground"
+            activeClassName={FIELD}
           />
         </div>
 
@@ -243,7 +244,7 @@ export function AreaFilter({
           </div>
 
           {loc ? (
-            <div className="mt-3 space-y-3 rounded-xl bg-muted p-3.5">
+            <div className="mt-3 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-accent-foreground"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
                 <button onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</button>
@@ -266,11 +267,9 @@ export function AreaFilter({
             <button
               onClick={locate}
               disabled={locating}
-              className="mt-3 flex w-full items-center justify-center gap-2.5 rounded-xl bg-accent py-3 text-sm font-bold text-accent-foreground transition-all hover:bg-accent active:scale-[0.99] disabled:opacity-60"
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted active:scale-[0.99] disabled:opacity-60"
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white">
-                {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-              </span>
+              {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
               {tr('Use my current location', 'Dùng vị trí hiện tại')}
             </button>
           )}
@@ -278,7 +277,7 @@ export function AreaFilter({
       </div>
 
       <div className="mt-4 flex gap-3">
-        <button onClick={reset} className="flex-1 rounded-xl bg-tint py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Delete filter', 'Xóa lọc')}</button>
+        <button onClick={reset} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Delete filter', 'Xóa lọc')}</button>
         <button onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</button>
       </div>
     </div>

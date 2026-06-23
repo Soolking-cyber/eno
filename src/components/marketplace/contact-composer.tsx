@@ -82,7 +82,7 @@ export function ContactComposer({
         <button
           type="button"
           onClick={() => { setOffering(true); setTimeout(() => ref.current?.focus(), 0) }}
-          className="inline-flex items-center gap-1.5 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-muted cursor-pointer"
         >
           <Tag className="h-3.5 w-3.5" /> {tr('Make an offer', 'Trả giá')}
         </button>
@@ -118,7 +118,7 @@ export function ContactComposer({
         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
         rows={2}
         placeholder={offering ? tr('Add a note (optional)…', 'Thêm ghi chú (không bắt buộc)…') : tr('Message the seller…', 'Nhắn tin cho người bán…')}
-        className="w-full resize-none rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-ink-4 focus:ring-2 focus:ring-ring/30"
+        className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-ink-4 hover:bg-muted focus:bg-muted"
       />
 
       <button
