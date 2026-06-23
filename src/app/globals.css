@@ -113,7 +113,7 @@
   --ink: #1a202c;
   --ink-2: #2d3748;
   --ink-3: #64748b;
-  --ink-4: #94a3b8;
+  --ink-4: #6b7280;        /* gray-500 ~4.8:1 on white — AA for placeholder/meta/chevrons (was #94a3b8, failed AA) */
   --body: #475569;        /* slate-600 */
   --tint: #f1f5f9;        /* slate-100 */
   --line-strong: #cbd5e1; /* slate-300 */

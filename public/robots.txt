@@ -1,17 +1,17 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
+# Public marketplace pages (home, listings, categories, seller storefronts, SEO
+# landings) are crawlable. Private/app/API paths are not — and consolidating to a
+# single group closes a leak where named bots (Googlebot/Bingbot) previously had
+# no Disallow and could crawl /admin.
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /api
+Disallow: /signin
+Disallow: /onboard
+Disallow: /post
+Disallow: /account
+Disallow: /saved
+Disallow: /messages
+Disallow: /dashboard
 
 Sitemap: https://eno.vn/sitemap.xml
