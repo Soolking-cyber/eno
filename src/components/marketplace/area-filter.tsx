@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { MapPin, LocateFixed, Loader2, Check, ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
@@ -74,9 +74,10 @@ export function AreaFilter({
     setPos({ top: r.bottom, left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), width })
   }, [anchorRef])
 
-  // Reposition + outside-click/Escape close. Clicks inside a nested CustomSelect's
-  // portaled menu (data-portal-menu) must NOT close this dropdown.
-  useEffect(() => {
+  // Reposition + outside-click/Escape close. useLayoutEffect so position is set
+  // BEFORE paint — otherwise the panel flashes at top-left (0,0) for a frame then
+  // jumps, which reads as a "fly-in from the corner".
+  useLayoutEffect(() => {
     if (!open) return
     reposition()
     // Outside-tap closing is handled by the portaled backdrop (so the tap is absorbed

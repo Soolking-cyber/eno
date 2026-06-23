@@ -126,7 +126,7 @@ export function PriceRangeFilter({
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => { if (!open) place(); setOpen((o) => !o) }}
         className={cn(
           'flex w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
           open ? 'rounded-t-2xl rounded-b-none bg-card text-foreground shadow-pop' : active ? activeClassName : className,
