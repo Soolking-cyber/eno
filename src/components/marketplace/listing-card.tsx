@@ -145,6 +145,11 @@ export function ListingCard({
           </button>
         )}
 
+        {/* Trust score — bottom-left corner (a legible pill, since it carries a number) */}
+        <div className="absolute left-2 bottom-2 z-10 inline-flex items-center rounded-full bg-white/90 px-1.5 py-0.5 shadow-sm backdrop-blur-sm">
+          <TrustScore score={listing.seller.trustScore} size="sm" />
+        </div>
+
         {/* carousel arrows (desktop hover, only when multiple images) */}
         {images.length > 1 && (
           <>
@@ -193,9 +198,8 @@ export function ListingCard({
 
         <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
 
-        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <div className="text-xs text-muted-foreground">
           <span className="truncate">{displayLocation}</span>
-          <TrustScore score={listing.seller.trustScore} size="sm" className="shrink-0" />
         </div>
 
         {listing.seller.isBusiness && (
