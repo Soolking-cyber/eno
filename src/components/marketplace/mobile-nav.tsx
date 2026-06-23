@@ -2,8 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link, { useLinkStatus } from 'next/link'
-import { Compass, Plus, User, MessageSquare } from 'lucide-react'
-import { SavedSearchIcon } from './saved-search-icon'
+import { Compass, Heart, Plus, User, MessageSquare } from 'lucide-react'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -61,7 +60,7 @@ export function MobileNav() {
           active={pathname === '/saved'}
           icon={
             <>
-              <SavedSearchIcon className={cn('h-5 w-5', count > 0 && 'text-[#0a66c2]')} />
+              <Heart className={cn('h-5 w-5', count > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
               {count > 0 && (
                 <span className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[9px] font-bold text-white">
                   {count}

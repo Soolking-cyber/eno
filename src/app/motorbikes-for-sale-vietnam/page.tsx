@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 
-export const revalidate = 3600
+export const revalidate = 86400
 
 export const metadata: Metadata = {
   title: 'Motorbikes for Sale & Rent in Vietnam | eno.vn',

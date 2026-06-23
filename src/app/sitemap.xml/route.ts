@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server'
 // all listings + a serverless cold start) on every request — that ~6s response was
 // timing out Google's fetcher ("Couldn't fetch"). Revalidates hourly in the
 // background, so Google always gets a fast, already-built XML.
-export const revalidate = 3600
+export const revalidate = 86400
 
 export async function GET() {
   try {

@@ -9,7 +9,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
 
-export const revalidate = 600 // ISR
+export const revalidate = 3600 // 1h ISR
 
 type Props = { params: Promise<{ category: string; district: string }> }
 

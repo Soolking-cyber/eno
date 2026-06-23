@@ -7,7 +7,7 @@ import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
 import { Footer } from '@/components/marketplace/footer'
 
 // ISR: near-static homepage data, refreshed at most once a minute (better LCP/TTFB).
-export const revalidate = 60
+export const revalidate = 600 // 10 min — still cache-served instantly; ~10x fewer ISR writes than 60s
 
 // Self-canonical so Google attributes ranking signals to the no-redirect www host.
 export const metadata: Metadata = { alternates: { canonical: '/' } }

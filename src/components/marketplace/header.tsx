@@ -3,8 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { Plus, User, Search, MapPin, Clock, MessageSquare } from 'lucide-react'
-import { SavedSearchIcon } from './saved-search-icon'
+import { Plus, User, Search, MapPin, Clock, Heart, MessageSquare } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
@@ -287,7 +286,7 @@ export function Header() {
           {user && (
             <>
               <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
-                <SavedSearchIcon className="h-5 w-5" />
+                <Heart className="h-5 w-5" />
               </Link>
               <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
                 <MessageSquare className="h-5 w-5" />
