@@ -229,7 +229,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                 aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
                 className="flex h-7 w-7 items-center justify-center rounded-full bg-card/90 shadow-sm transition-transform hover:scale-105 active:scale-95"
               >
-                <Heart className={cn('h-4 w-4 transition-colors', isFavorite(card.id) ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-[#1a202c]')} />
+                <Heart className={cn('h-4 w-4 transition-colors', isFavorite(card.id) ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-foreground')} />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); closeCard() }}
@@ -251,7 +251,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   <p className="truncate text-sm font-bold text-foreground">{lang === 'vi' ? (card.titleVi || card.title) : card.title}</p>
                   {card.seller.reviewCount > 0 && (
                     <span className="flex shrink-0 items-center gap-0.5 text-xs font-semibold text-foreground">
-                      <Star className="h-3 w-3 fill-[#1a202c] text-foreground" /> {card.seller.rating.toFixed(1)}
+                      <Star className="h-3 w-3 fill-foreground text-foreground" /> {card.seller.rating.toFixed(1)}
                     </span>
                   )}
                 </div>

@@ -47,7 +47,7 @@ export default function GuidePage() {
           <h2 className="h-section text-foreground"><Tr text="For buyers" /></h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {BUYER_STEPS.map(({ Icon, title, body }, i) => (
-              <div key={title} className="rounded-2xl border border-border bg-card p-4 shadow-pop">
+              <div key={title} className="rounded-2xl bg-card p-4 shadow-pop">
                 <div className="flex items-center gap-2">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0a66c2] text-xs font-bold text-white">{i + 1}</span>
                   <Icon className="h-4 w-4 text-accent-foreground" />
@@ -64,7 +64,7 @@ export default function GuidePage() {
           <h2 className="h-section text-foreground"><Tr text="For sellers" /></h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {SELLER_STEPS.map(({ Icon, title, body }, i) => (
-              <div key={title} className="rounded-2xl border border-border bg-card p-4 shadow-pop">
+              <div key={title} className="rounded-2xl bg-card p-4 shadow-pop">
                 <div className="flex items-center gap-2">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0a66c2] text-xs font-bold text-white">{i + 1}</span>
                   <Icon className="h-4 w-4 text-accent-foreground" />
@@ -81,7 +81,7 @@ export default function GuidePage() {
           <h2 className="h-section text-foreground"><Tr text="Features & how they work" /></h2>
           <div className="mt-4 space-y-3">
             {FEATURES.map(({ Icon, id, title, body }) => (
-              <div key={title} id={id} className="scroll-mt-24 flex gap-3.5 rounded-2xl border border-border bg-card p-4 shadow-pop">
+              <div key={title} id={id} className="scroll-mt-24 flex gap-3.5 rounded-2xl bg-card p-4 shadow-pop">
                 <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"><Icon className="h-5 w-5" /></span>
                 <div className="min-w-0">
                   <h3 className="text-[15px] font-bold text-foreground"><Tr text={title} /></h3>

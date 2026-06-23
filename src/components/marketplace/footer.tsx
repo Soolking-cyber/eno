@@ -21,7 +21,7 @@ export function Footer() {
       links: [
         { label: tr('About us', 'Giới thiệu'), href: '/about' },
         { label: tr('How it works', 'Cách hoạt động'), href: '/guide' },
-        { label: tr('How trust & safety works', 'Uy tín & an toàn'), href: '/guide#trust' },
+        { label: tr('How trust & safety works', 'Uy tín & an toàn'), href: '/guide#verification' },
         { label: tr('Careers', 'Tuyển dụng'), href: '/about' },
       ],
     },
@@ -30,14 +30,14 @@ export function Footer() {
       links: [
         { label: tr('Post a listing', 'Đăng tin'), href: '/post' },
         { label: tr('Saved listings', 'Tin đã lưu'), href: '/saved' },
-        { label: tr('Map', 'Bản đồ'), href: '/' },
+        { label: tr('Map', 'Bản đồ'), href: '/?view=map' },
         { label: tr('Help', 'Trợ giúp'), href: '/help' },
       ],
     },
   ]
 
   return (
-    <footer className="mt-auto border-t border-border/60 bg-card pt-12 pb-8 text-muted-foreground">
+    <footer className="mt-auto bg-card pt-12 pb-8 text-muted-foreground">
       <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           {/* Brand column */}
@@ -70,7 +70,7 @@ export function Footer() {
 
         {/* Popular keyword landing pages — sitewide internal links so Google can
             discover + rank the expat-intent SEO entry pages. */}
-        <nav aria-label={tr('Popular', 'Phổ biến')} className="mt-10 border-t border-border/60 pt-6">
+        <nav aria-label={tr('Popular', 'Phổ biến')} className="mt-10 pt-6">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-body">{tr('Popular in Vietnam', 'Phổ biến tại Việt Nam')}</h3>
           <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
             <a href="/housing-vietnam-expats" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Housing for expats', 'Nhà ở cho người nước ngoài')}</a>
@@ -81,7 +81,7 @@ export function Footer() {
           </div>
         </nav>
 
-        <div className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-border/60 pt-5 text-xs text-body sm:flex-row">
+        <div className="mt-10 flex flex-col items-center justify-between gap-2 pt-5 text-xs text-body sm:flex-row">
           <p className="flex items-center gap-1.5">
             <span>© {new Date().getFullYear()} eno.vn — {tr('All rights reserved.', 'Mọi quyền được bảo lưu.')}</span>
             <span aria-hidden="true">·</span>

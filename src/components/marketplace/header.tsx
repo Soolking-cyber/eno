@@ -179,7 +179,7 @@ export function Header() {
             <div className={cn(
               'relative z-50 flex items-center transition-all duration-200',
               panelOpen
-                ? 'rounded-t-2xl border border-border border-b-0 bg-card shadow-pop'
+                ? 'rounded-t-2xl bg-card shadow-pop'
                 : 'rounded-2xl border border-transparent bg-tint focus-within:border-ring focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30',
             )}>
               <Search className="pointer-events-none ml-3 h-4 w-4 shrink-0 text-ink-4" />
@@ -202,7 +202,7 @@ export function Header() {
                   'mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95',
                   province || ward || nearby
                     ? 'bg-[#0a66c2] text-white shadow-sm'
-                    : 'bg-accent text-accent-foreground hover:bg-brand-100',
+                    : 'bg-accent text-accent-foreground hover:bg-accent',
                 )}
               >
                 <MapPin className="h-4 w-4" />
@@ -212,7 +212,7 @@ export function Header() {
             {/* Recent searches + recent locations — flush bottom of the same window */}
             {suggestOpen && (
               <>
-                <div className="absolute left-0 right-0 top-full z-50 -mt-px space-y-3.5 rounded-b-2xl border border-t-border border-border bg-card p-3.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="absolute left-0 right-0 top-full z-50 -mt-px space-y-3.5 rounded-b-2xl bg-card p-3.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100">
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -260,7 +260,7 @@ export function Header() {
 
             {/* Instant matches — live listings + categories as you type (≥2 chars) */}
             {instantOpen && (
-              <div className="absolute left-0 right-0 top-full z-50 -mt-px max-h-[70vh] overflow-y-auto rounded-b-2xl border border-t-border border-border bg-card p-2.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="absolute left-0 right-0 top-full z-50 -mt-px max-h-[70vh] overflow-y-auto rounded-b-2xl bg-card p-2.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100">
                 <SearchSuggest
                   listings={live.listings}
                   categories={live.categories}

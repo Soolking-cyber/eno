@@ -75,8 +75,8 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
         aria-label={tr('Share', 'Chia sẻ')}
         aria-expanded={open}
         className={cn(
-          'flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95',
-          open ? 'border-[#0a66c2] bg-accent text-accent-foreground' : 'border-border text-body hover:border-[#0a66c2] hover:text-accent-foreground',
+          'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95',
+          open ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted',
           className,
         )}
       >
@@ -98,7 +98,7 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
                 onClick={() => { window.open(href, '_blank', 'noopener,noreferrer'); setOpen(false) }}
                 className="group flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted cursor-pointer"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-body transition-colors group-hover:border-[#0a66c2] group-hover:text-accent-foreground">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-tint text-body transition-colors group-hover:text-accent-foreground">
                   <Icon className="h-[18px] w-[18px]" />
                 </span>
                 <span className="text-[10px] font-medium text-body">{label}</span>

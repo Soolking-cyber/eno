@@ -104,7 +104,7 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
 
         {/* Result */}
         {result ? (
-          <div className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-pop">
+          <div className="mt-6 rounded-2xl bg-card p-5 shadow-pop">
             <CheckCircle2 className="h-8 w-8 text-accent-foreground" />
             <p className="mt-2 text-sm font-bold text-foreground">{tr('Import complete', 'Hoàn tất')}</p>
             <p className="mt-1 text-sm text-muted-foreground">{result.created} {tr('listings created', 'tin đã tạo')}{result.failed > 0 ? `, ${result.failed} ${tr('failed', 'lỗi')}` : ''}.</p>

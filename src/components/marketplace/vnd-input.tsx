@@ -43,7 +43,7 @@ export function VndInput({
           value={groupVnd(digits)}
           onChange={(e) => set(e.target.value)}
           placeholder={placeholder ?? '0'}
-          className="w-full rounded-xl border border-line-strong bg-card py-2.5 pl-3.5 pr-14 text-lg font-bold tabular-nums text-foreground outline-none transition-colors focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+          className="w-full rounded-xl bg-tint py-2.5 pl-3.5 pr-14 text-lg font-bold tabular-nums text-foreground outline-none transition-colors focus:ring-2 focus:ring-[#0a66c2]/20"
         />
         <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-4">VND</span>
       </div>

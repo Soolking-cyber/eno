@@ -147,7 +147,7 @@ export default function ThreadPage() {
     <div className="flex h-full w-full flex-col bg-background">
       {!loading && !user ? (
         <div className="flex flex-1 items-center justify-center px-3">
-          <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-pop">
+          <div className="rounded-2xl bg-card p-8 text-center shadow-pop">
             <p className="text-sm text-muted-foreground">{tr('Sign in to view this conversation.', 'Đăng nhập để xem cuộc trò chuyện này.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
@@ -174,7 +174,7 @@ export default function ThreadPage() {
           <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4 scroll-thin">
             {thread?.messages.map((m) => (
               <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'bg-card text-foreground border border-border'}`}>
+                <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'bg-card text-foreground'}`}>
                   {m.body}
                 </div>
               </div>

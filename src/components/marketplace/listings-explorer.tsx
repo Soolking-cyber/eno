@@ -89,6 +89,12 @@ export function ListingsExplorer({
   const [activeSubcategory, setActiveSubcategory] = useState('all')
   const [openMobileDistrictDropdown, setOpenMobileDistrictDropdown] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('compact')
+  // Honor ?view=map|grid|compact (e.g. the footer "Map" link opens the map view).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const v = new URLSearchParams(window.location.search).get('view')
+    if (v === 'map' || v === 'grid' || v === 'compact') setViewMode(v)
+  }, [])
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
   const router = useRouter()
@@ -1145,8 +1151,8 @@ export function ListingsExplorer({
               <div className={cn(
                 'flex items-center bg-card transition-all duration-200',
                 showSuggestions
-                  ? 'rounded-t-2xl border border-border border-b-0 shadow-pop'
-                  : 'rounded-2xl border border-line-strong focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30',
+                  ? 'rounded-t-2xl shadow-pop'
+                  : 'rounded-2xl bg-tint focus-within:ring-2 focus-within:ring-ring/30',
               )}>
                 <button
                   onClick={() => handleLandingSearch(landingQuery)}
@@ -1184,7 +1190,7 @@ export function ListingsExplorer({
                 <span className="h-6 w-px shrink-0 bg-border" />
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
-                  className="flex shrink-0 items-center gap-1.5 rounded-r-2xl pl-3.5 pr-4 py-3.5 text-sm font-semibold text-accent-foreground hover:text-[#004182] transition-colors cursor-pointer"
+                  className="flex shrink-0 items-center gap-1.5 rounded-r-2xl pl-3.5 pr-4 py-3.5 text-sm font-semibold text-accent-foreground hover:text-[#0a66c2] transition-colors cursor-pointer"
                 >
                   <Map className="h-4 w-4" />
                   <span>{tr('Map', 'Bản đồ')}</span>
@@ -1195,7 +1201,7 @@ export function ListingsExplorer({
               {showSuggestions && (
                 <>
                   <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowSuggestions(false)} />
-                  <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-2xl border border-t-border border-border bg-card p-4 shadow-pop text-left max-h-[440px] overflow-y-auto scroll-thin space-y-4 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-2xl bg-card p-4 shadow-pop text-left max-h-[440px] overflow-y-auto scroll-thin space-y-4 animate-in fade-in slide-in-from-top-1 duration-100">
                     {landingQuery.trim().length >= 2 ? (
                       <SearchSuggest
                         listings={heroSuggest.listings}
@@ -1306,7 +1312,7 @@ export function ListingsExplorer({
           {/* CURATED BROWSE ROWS (Airbnb-style horizontal carousels) */}
           {listings.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
-              <Inbox className="h-10 w-10 text-[#cbd5e1]" />
+              <Inbox className="h-10 w-10 text-muted-foreground" />
               <p className="text-sm font-semibold text-body">
                 {tr('No listings found.', 'Không có tin đăng nào.')}
               </p>
@@ -1363,7 +1369,7 @@ export function ListingsExplorer({
 
     return (
       <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center">
-        <Inbox className="h-10 w-10 text-[#cbd5e1]" />
+        <Inbox className="h-10 w-10 text-muted-foreground" />
         <p className="text-sm font-semibold text-body">
           {tr('No listings match these filters.', 'Không có tin nào khớp với bộ lọc này.')}
         </p>
@@ -1540,7 +1546,7 @@ export function ListingsExplorer({
                     { value: 'popular', label: tr('Popular', 'Xem nhiều') },
                   ]}
                   placeholder={tr('Sort', 'Sắp xếp')}
-                  className="py-2 pl-3 pr-2.5 w-44 font-semibold border-border text-[#334155]"
+                  className="py-2 pl-3 pr-2.5 w-44 font-semibold border-border text-muted-foreground"
                   activeClassName="border-[#0a66c2]"
                   icon={<SlidersHorizontal className="h-3.5 w-3.5 text-ink-4 shrink-0" />}
                 />
@@ -1724,10 +1730,10 @@ export function ListingsExplorer({
       {/* MOBILE BOTTOM SLIDE-UP DRAWER OVERLAY */}
       {isMobileFilterOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-card rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-4">
+          <div className="bg-card rounded-2xl w-full max-w-md p-5 shadow-overlay space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between border-b pb-2.5">
-              <h4 className="text-sm font-extrabold text-[#034078]">
+              <h4 className="text-sm font-extrabold text-foreground">
                 {tr('Search Filters', 'Bộ lọc tìm kiếm')}
               </h4>
               <button

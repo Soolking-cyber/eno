@@ -116,7 +116,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         </div>
 
         {/* Trust strip */}
-        <div className="mt-12 flex items-start gap-3 rounded-2xl border border-border bg-card p-5 shadow-pop">
+        <div className="mt-12 flex items-start gap-3 rounded-2xl bg-card p-5 shadow-pop">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
             <BadgeCheck className="h-5 w-5" />
           </span>

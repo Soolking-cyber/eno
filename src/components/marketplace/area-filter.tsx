@@ -266,7 +266,7 @@ export function AreaFilter({
             <button
               onClick={locate}
               disabled={locating}
-              className="mt-3 flex w-full items-center justify-center gap-2.5 rounded-xl bg-accent py-3 text-sm font-bold text-accent-foreground transition-all hover:bg-brand-100 active:scale-[0.99] disabled:opacity-60"
+              className="mt-3 flex w-full items-center justify-center gap-2.5 rounded-xl bg-accent py-3 text-sm font-bold text-accent-foreground transition-all hover:bg-accent active:scale-[0.99] disabled:opacity-60"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white">
                 {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}

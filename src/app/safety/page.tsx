@@ -26,7 +26,7 @@ export default function SafetyPage() {
         </p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {tips.map(([title, text], i) => (
-            <div key={i} className="rounded-2xl border border-border bg-card p-5 shadow-pop">
+            <div key={i} className="rounded-2xl bg-card p-5 shadow-pop">
               <h3 className="text-sm font-bold text-foreground"><Tr text={title} /></h3>
               <p className="mt-1 text-sm leading-relaxed text-body"><Tr text={text} /></p>
             </div>

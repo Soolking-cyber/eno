@@ -67,7 +67,7 @@ function ListingRow({ item, mode }: { item: ModItem; mode: 'pending' | 'reported
   }
 
   return (
-    <div className="flex gap-4 rounded-2xl border border-border bg-card p-4">
+    <div className="flex gap-4 rounded-2xl bg-card p-4 shadow-pop">
       <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-tint">
         {item.image ? (
           <Image src={item.image} alt={item.title} fill sizes="96px" className="object-cover" />
@@ -158,7 +158,7 @@ function AccountReportRow({ r }: { r: AccountReport }) {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="rounded-2xl bg-card p-4 shadow-pop">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-bold text-foreground">{r.targetName || r.targetSellerId || 'Unknown storefront'}</p>

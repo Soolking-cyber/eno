@@ -324,7 +324,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border bg-card p-5 shadow-pop space-y-3">
+              <div className="rounded-2xl bg-card p-5 shadow-pop space-y-3">
                 <Row label={t('Danh mục', 'Category')} value={cat ? (lang === 'vi' ? cat.nameVi : cat.name) : '—'} />
                 <Row label={t('Tiêu đề', 'Title')} value={title || '—'} />
                 <Row label={t('Giá', 'Price')} value={price ? formatMoneyFull(Number(price), '₫') : '—'} />

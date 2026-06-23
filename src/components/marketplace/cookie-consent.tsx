@@ -26,7 +26,7 @@ export function CookieConsent() {
 
   return (
     <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-[120] px-3 lg:bottom-4 lg:px-0">
-      <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-overlay sm:flex-row sm:items-center">
+      <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-2xl bg-card p-4 shadow-overlay sm:flex-row sm:items-center">
         <Cookie className="hidden h-6 w-6 shrink-0 text-accent-foreground sm:block" />
         <p className="flex-1 text-xs leading-relaxed text-body">
           {tr(

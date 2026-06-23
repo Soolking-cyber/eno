@@ -108,7 +108,7 @@ export function ListingCard({
           </div>
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-tint">
-            <CategoryIcon name={listing.category.icon} className="h-10 w-10 text-slate-300" />
+            <CategoryIcon name={listing.category.icon} className="h-10 w-10 text-muted-foreground" />
           </div>
         )}
 
@@ -122,7 +122,7 @@ export function ListingCard({
         >
           {/* key remounts on favorite → re-runs the CSS pop (replaces framer scale) */}
           <span key={favorited ? 'on' : 'off'} className={cn('inline-flex', favorited && 'animate-heart-pop')}>
-            <Heart className={cn('h-[18px] w-[18px] transition-colors', favorited ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-[#1a202c]')} />
+            <Heart className={cn('h-[18px] w-[18px] transition-colors', favorited ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-foreground')} />
           </span>
         </button>
 
@@ -177,7 +177,7 @@ export function ListingCard({
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="truncate">{displayLocation}</span>
           <span className="flex shrink-0 items-center gap-0.5 text-foreground">
-            <Star className="h-3 w-3 fill-[#1a202c] text-foreground" />
+            <Star className="h-3 w-3 fill-foreground text-foreground" />
             {listing.seller.rating.toFixed(1)}
           </span>
         </div>

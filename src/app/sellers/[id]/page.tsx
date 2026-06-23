@@ -90,7 +90,7 @@ export default async function SellerPage({ params }: Props) {
         </div>
 
         {/* Trust stats */}
-        <div className="mt-6 grid grid-cols-2 gap-4 rounded-2xl border border-border bg-card p-5 sm:grid-cols-4 shadow-pop">
+        <div className="mt-6 grid grid-cols-2 gap-4 rounded-2xl bg-card p-5 sm:grid-cols-4 shadow-pop">
           <Stat icon={<Star className="h-4 w-4" />} value={`${seller.rating.toFixed(1)}★`} label={<Tr text="Rating" />} />
           <Stat icon={<MessageSquareText className="h-4 w-4" />} value={`${seller.responseRate}%`} label={<Tr text="Response rate" />} />
           <Stat icon={<Clock className="h-4 w-4" />} value={<Tr text={seller.responseTime} />} label={<Tr text="Responds" />} />
@@ -103,7 +103,7 @@ export default async function SellerPage({ params }: Props) {
             <h2 className="h-section text-foreground"><Tr text="Reviews" /> ({seller.reviewCount})</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               {seller.reviews.map((r) => (
-                <div key={r.id} className="rounded-2xl border border-border bg-card p-4">
+                <div key={r.id} className="rounded-2xl bg-card p-4 shadow-pop">
                   <div className="flex items-center gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-tint text-xs font-bold text-body">
                       {r.author.split(' ').map((w) => w[0]).join('').toUpperCase()}

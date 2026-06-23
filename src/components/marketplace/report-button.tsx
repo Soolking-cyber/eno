@@ -107,7 +107,7 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
                 rows={2}
                 maxLength={1000}
                 placeholder={t('Chi tiết (không bắt buộc)', 'Details (optional)')}
-                className="w-full resize-none rounded-xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+                className="w-full resize-none rounded-xl bg-tint px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
               />
 
               {error && <p role="alert" className="text-center text-xs font-semibold text-red-600">{error}</p>}

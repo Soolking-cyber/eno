@@ -91,7 +91,7 @@ export default function HelpPage() {
             <Link
               key={label}
               href={href}
-              className="group flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 shadow-pop transition-colors hover:border-[#0a66c2]"
+              className="group flex flex-col gap-2 rounded-2xl bg-card p-4 shadow-pop transition-colors hover:border-[#0a66c2]"
             >
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-accent-foreground"><Icon className="h-5 w-5" /></span>
               <span className="text-xs font-bold leading-snug text-foreground group-hover:text-accent-foreground"><Tr text={label} /></span>
@@ -117,7 +117,7 @@ export default function HelpPage() {
         </div>
 
         {/* Footer CTA */}
-        <div className="mt-12 flex flex-col items-start gap-3 rounded-2xl border border-border bg-card p-5 shadow-pop sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-12 flex flex-col items-start gap-3 rounded-2xl bg-card p-5 shadow-pop sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
             <p className="text-sm text-body"><Tr text="Our team replies within one business day." /></p>

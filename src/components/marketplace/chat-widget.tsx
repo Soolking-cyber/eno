@@ -31,7 +31,7 @@ function Avatar({ name, color, url, size = 36 }: { name: string; color: string; 
 function TypingDots() {
   return (
     <div className="flex justify-start duration-200 animate-in fade-in slide-in-from-bottom-1">
-      <div className="flex items-center gap-1 rounded-2xl border border-border bg-card px-3.5 py-3">
+      <div className="flex items-center gap-1 rounded-2xl bg-card px-3.5 py-3 shadow-pop">
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
@@ -109,7 +109,7 @@ export function ChatWidget() {
 
       {/* Docked panel */}
       {open && (
-        <div className="fixed inset-x-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-overlay bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] sm:inset-x-auto sm:right-5 sm:left-auto sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px] sm:bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] lg:bottom-5">
+        <div className="fixed inset-x-2 top-16 z-[100] flex flex-col overflow-hidden rounded-2xl bg-card shadow-overlay bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] sm:inset-x-auto sm:right-5 sm:left-auto sm:top-auto sm:h-[560px] sm:max-h-[80vh] sm:w-[380px] sm:bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] lg:bottom-5">
           {view === 'thread' && conversationId ? (
             <ChatThread key={conversationId} id={conversationId} onBack={back} onClose={close} onSent={() => { refreshUnread(); refreshConvos() }} />
           ) : view === 'thread' && starting ? (
