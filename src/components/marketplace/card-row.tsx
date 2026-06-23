@@ -15,10 +15,12 @@ type Props = {
   // The first landing row: its first card holds the LCP image. Render it visible
   // immediately (skip the opacity-0 reveal) and flag its first card for preload.
   lcp?: boolean
+  // "Locate on map" for each card → jump to the map focused on that listing.
+  onLocate?: (l: SerializedListing) => void
 }
 
 /** Airbnb-style horizontally-scrolling row of listing cards with snap + arrows. */
-export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp = false }: Props) {
+export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp = false, onLocate }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const sectionRef = useRef<HTMLElement>(null)
   // Reveal-on-scroll via IntersectionObserver + CSS (replaces framer whileInView).
@@ -92,7 +94,7 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp 
                 actually visible on mobile (card 0 full, card 1 half) — these plus the
                 logo are the only real LCP candidates, so all are fast & discoverable
                 without over-preloading. Card 2+ is off-screen (horizontal scroll) → lazy. */}
-            <ListingCard listing={l} onOpen={onOpen} priority={lcp && i < 2} lcp={lcp && i < 2} sizes="(max-width: 640px) 180px, 220px" />
+            <ListingCard listing={l} onOpen={onOpen} priority={lcp && i < 2} lcp={lcp && i < 2} sizes="(max-width: 640px) 180px, 220px" onLocate={onLocate ? () => onLocate(l) : undefined} />
           </div>
         ))}
       </div>

@@ -71,7 +71,13 @@ export function AreaFilter({
     if (!el) return
     const r = el.getBoundingClientRect()
     const width = Math.min(360, window.innerWidth - 16)
-    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), width })
+    // Symmetry: right-align the panel under triggers on the right half of the
+    // screen (e.g. the header pin) and left-align under those on the left (e.g.
+    // the facet Area pill) so the panel edge lines up with the button.
+    const alignRight = r.left + r.width / 2 > window.innerWidth / 2
+    const rawLeft = alignRight ? r.right - width : r.left
+    const left = Math.max(8, Math.min(rawLeft, window.innerWidth - width - 8))
+    setPos({ top: r.bottom + 6, left, width })
   }, [anchorRef])
 
   // Reposition + outside-click/Escape close. useLayoutEffect so position is set

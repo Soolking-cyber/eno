@@ -117,6 +117,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     }).addTo(map)
+    // Drop Leaflet's default prefix (the Ukraine flag + "Leaflet" branding); keep
+    // the © OpenStreetMap/CARTO credit, which their tile terms require.
+    map.attributionControl.setPrefix(false)
     map.on('click', () => closeCard()) // tap the map background → close the card
     // Keep the card glued to its pin while the map pans/zooms.
     map.on('move zoom', () => {
@@ -146,18 +149,24 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       return keep ? c : null
     })
 
+    // On hover-capable devices (desktop), HOVER reveals the card so the user can
+    // browse pins fast; clicking then opens the listing. On touch, tap reveals the
+    // card and a second tap on the same pin opens it.
+    const hoverable = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+
     const bounds: [number, number][] = []
     listings.forEach((l) => {
       const { lat, lng } = getListingCoordinates(l)
       bounds.push([lat, lng])
       const icon = L.divIcon({ html: pinHtml(compactPrice(l), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
       const marker = L.marker([lat, lng], { icon, riseOnHover: true }).addTo(map)
-      // First tap → open the card; tapping the SAME pin again → open the listing.
-      marker.on('click', () => { if (cardIdRef.current === l.id) onOpenListing(l); else openCard(l) })
-      if (onHover) {
-        marker.on('mouseover', () => onHover(l.id))
-        marker.on('mouseout', () => onHover(null))
-      }
+      marker.on('click', () => {
+        if (hoverable) onOpenListing(l) // desktop: card already shown on hover → click opens
+        else if (cardIdRef.current === l.id) onOpenListing(l) // touch: 2nd tap opens
+        else openCard(l) // touch: 1st tap shows card
+      })
+      marker.on('mouseover', () => { onHover?.(l.id); if (hoverable) openCard(l) })
+      marker.on('mouseout', () => onHover?.(null))
       markersRef.current.set(l.id, marker)
     })
 

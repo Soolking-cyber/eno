@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Heart, ChevronLeft, ChevronRight, Star, Building2 } from 'lucide-react'
+import { Heart, ChevronLeft, ChevronRight, Star, Building2, MapPin } from 'lucide-react'
 import { TrustBadge } from './trust-badge'
 import Image from 'next/image'
 import type { SerializedListing } from '@/lib/types'
@@ -26,6 +26,9 @@ type Props = {
   // Accurate per-context sizing so the browser downloads card-sized images, not
   // full-width. Default = the result grid (2/3/4 cols); CardRow passes fixed px.
   sizes?: string
+  // When set, a "locate on map" pin shows at the image bottom-right (mirrors the
+  // heart) → jump to the map focused on this listing.
+  onLocate?: () => void
 }
 
 export function ListingCard({
@@ -34,6 +37,7 @@ export function ListingCard({
   priority = false,
   lcp = false,
   sizes = '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw',
+  onLocate,
 }: Props) {
   const { lang, t, tr } = useLanguage()
   const images = listing.images
@@ -126,6 +130,18 @@ export function ListingCard({
             <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-[#0a66c2] text-white' : 'fill-black/25 text-white')} />
           </span>
         </button>
+
+        {/* Locate on map — bottom-right, mirrors the heart (icon-only, white + shadow) */}
+        {onLocate && (
+          <button
+            type="button"
+            aria-label={tr('Show on map', 'Xem trên bản đồ')}
+            onClick={(e) => { e.stopPropagation(); onLocate() }}
+            className="absolute right-2 bottom-2 z-10 flex h-8 w-8 items-center justify-center text-white transition-transform hover:scale-110 active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
+          >
+            <MapPin className="h-[20px] w-[20px]" />
+          </button>
+        )}
 
         {/* carousel arrows (desktop hover, only when multiple images) */}
         {images.length > 1 && (

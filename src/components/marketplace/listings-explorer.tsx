@@ -670,6 +670,17 @@ export function ListingsExplorer({
   // so it opens instantly instead of SSR-ing on click. De-duped by Next's prefetch cache.
   const prefetchListing = useCallback((id: string) => { router.prefetch(`/listings/${id}`) }, [router])
 
+  // "Locate on map" from any card/row → switch to the map view focused on this
+  // listing (the map flies to + opens its pin). Scrolls the feed into view so the
+  // map is visible after the mode switch.
+  const locateOnMap = useCallback((id: string) => {
+    setViewMode('map')
+    setShowExplorer(true)
+    setHoveredId(id)
+    setFocusId(id)
+    document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
   const renderCompactRow = useCallback((l: SerializedListing, index: number) => {
     const cover = l.images[0]
     const displayTitle = lang === 'vi' ? (l.titleVi || l.title) : l.title
@@ -680,34 +691,35 @@ export function ListingsExplorer({
         onClick={() => handleOpen(l)}
         onMouseEnter={() => prefetchListing(l.id)}
         onTouchStart={() => prefetchListing(l.id)}
-        className="group flex items-start gap-3 rounded-xl p-2 text-left transition-colors hover:bg-muted cursor-pointer"
+        className="group flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-colors hover:bg-muted cursor-pointer"
       >
-        {/* Thumbnail */}
-        <div className="relative h-20 w-24 sm:w-28 shrink-0 overflow-hidden rounded-lg bg-tint">
+        {/* Thumbnail — small, square-ish so the row reads as one line */}
+        <div className="relative h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-tint">
           {cover ? (
             <Image
               src={cover}
               alt={displayTitle}
               fill
-              sizes="112px"
+              sizes="64px"
               className="object-cover transition-transform duration-200 group-hover:scale-105"
               priority={index < 4}
               loading={index < 4 ? undefined : 'lazy'}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-tint">
-              <CategoryIcon name={l.category.icon} className="h-6 w-6 text-ink-4" />
+              <CategoryIcon name={l.category.icon} className="h-5 w-5 text-ink-4" />
             </div>
           )}
         </div>
 
-        {/* Title → price → meta, stacked so a long price never squeezes the title */}
+        {/* One-liner: title on top, price · location · verified on a tight meta line */}
         <div className="min-w-0 flex-1">
-          <h4 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline">
+          <h4 className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline">
             <Tr text={displayTitle} />
           </h4>
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="mt-1 block text-sm font-bold text-foreground" />
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+          <div className="mt-0.5 flex items-center gap-x-2 text-xs text-muted-foreground">
+            <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 font-bold text-foreground" />
+            <span className="h-3 w-px shrink-0 bg-border" />
             <span className="truncate"><Tr text={l.district || l.city} /></span>
             {l.verified && (
               <span className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-accent-foreground">
@@ -718,10 +730,21 @@ export function ListingsExplorer({
           </div>
         </div>
 
-        <FavoriteHeart id={l.id} className="-mr-1 shrink-0 self-start" />
+        {/* Actions paired together (not stranded): locate-on-map + favorite */}
+        <div className="flex shrink-0 items-center">
+          <button
+            type="button"
+            aria-label={tr('Show on map', 'Xem trên bản đồ')}
+            onClick={(e) => { e.stopPropagation(); locateOnMap(l.id) }}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent"
+          >
+            <MapPin className="h-[18px] w-[18px]" />
+          </button>
+          <FavoriteHeart id={l.id} className="-mr-0.5" />
+        </div>
       </div>
     )
-  }, [lang, t, handleOpen, prefetchListing])
+  }, [lang, t, tr, handleOpen, prefetchListing, locateOnMap])
 
 
   const renderCategorySpecificFilters = () => {
@@ -1274,6 +1297,7 @@ export function ListingsExplorer({
                 onOpen={handleOpen}
                 onViewAll={() => setShowExplorer(true)}
                 viewAllLabel={tr('View all', 'Xem tất cả')}
+                onLocate={(l) => locateOnMap(l.id)}
                 lcp
               />
               {deferredRows && categories.map((cat) => {
@@ -1287,6 +1311,7 @@ export function ListingsExplorer({
                     onOpen={handleOpen}
                     onViewAll={() => handleCategorySelect(cat.slug)}
                     viewAllLabel={tr('View all', 'Xem tất cả')}
+                    onLocate={(l) => locateOnMap(l.id)}
                   />
                 )
               })}
@@ -1597,7 +1622,7 @@ export function ListingsExplorer({
                         onMouseEnter={() => prefetchListing(l.id)}
                         onTouchStart={() => prefetchListing(l.id)}
                       >
-                        <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} />
+                        <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} onLocate={() => locateOnMap(l.id)} />
                       </div>
                     ))}
                   </div>
@@ -1618,7 +1643,7 @@ export function ListingsExplorer({
                             hoveredId === l.id && 'ring-2 ring-inset ring-[#0a66c2]/40',
                           )}
                         >
-                          <ListingCard listing={l} onOpen={handleOpen} />
+                          <ListingCard listing={l} onOpen={handleOpen} onLocate={() => locateOnMap(l.id)} />
                         </div>
                       ))}
                     </div>
@@ -1643,7 +1668,7 @@ export function ListingsExplorer({
                     {shownListings.map((l, index) => (
                       <div
                         key={l.id}
-                        style={{ contentVisibility: 'auto' as any, containIntrinsicSize: 'auto 90px' }}
+                        style={{ contentVisibility: 'auto' as any, containIntrinsicSize: 'auto 72px' }}
                       >
                         {renderCompactRow(l, index)}
                       </div>
