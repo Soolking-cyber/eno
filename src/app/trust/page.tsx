@@ -3,7 +3,6 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { Tr } from '@/context/language-context'
-import { CalendarCheck, MessageSquareText, ShieldCheck, UserCheck, TriangleAlert, Clock, Phone } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'How trust works — eno.vn',
@@ -23,14 +22,19 @@ function Band({ score, name, range, note }: { score: number; name: string; range
   )
 }
 
-function Rule({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
+// Clear action → points table. Green for rewards, red for penalties.
+function Points({ rows }: { rows: [string, number, string][] }) {
   return (
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 shrink-0 text-accent-foreground">{icon}</span>
-      <div className="min-w-0">
-        <div className="text-sm font-semibold text-foreground"><Tr text={title} /></div>
-        <p className="text-sm text-body"><Tr text={body} /></p>
-      </div>
+    <div>
+      {rows.map(([action, pts, sub], i) => (
+        <div key={i} className="flex items-start justify-between gap-4 py-2">
+          <div className="min-w-0">
+            <div className="text-sm text-foreground"><Tr text={action} /></div>
+            {sub && <div className="text-xs text-ink-4"><Tr text={sub} /></div>}
+          </div>
+          <span className={`shrink-0 text-sm font-bold tabular-nums ${pts > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{pts > 0 ? `+${pts}` : pts}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -57,31 +61,51 @@ export default function TrustPage() {
           </div>
         </section>
 
-        <section className="mt-10 space-y-4">
-          <h2 className="h-section text-foreground"><Tr text="How you earn trust" /></h2>
-          <div className="space-y-4">
-            <Rule icon={<CalendarCheck className="h-5 w-5" />} title="Keep your listings fresh" body="Confirm your listings are still available regularly. Active, up-to-date sellers gain trust (and rise back to the top of the feed)." />
-            <Rule icon={<ShieldCheck className="h-5 w-5" />} title="Complete sales through eno.vn" body="Every transaction closed on-platform earns trust — with no upper limit. The more deals you successfully complete, the higher you climb and the higher you rank. A small safety fee applies (10,000₫ under 1,000,000₫, or 1% above) that covers mediation and buyer protection." />
-            <Rule icon={<MessageSquareText className="h-5 w-5" />} title="Earn reviews from verified buyers" body="Only people who actually completed a transaction with you through eno.vn can leave a review — so feedback is real, not farmed." />
-            <Rule icon={<Clock className="h-5 w-5" />} title="Respond quickly" body="Fast, helpful replies to buyers build trust over time." />
-            <Rule icon={<Phone className="h-5 w-5" />} title="Verify your phone + link Zalo" body="A verified phone (+15) and a linked Zalo account (+10) are the quickest trust steps — enough for tourists and individuals to reach good standing. Anyone can do these." />
-            <Rule icon={<UserCheck className="h-5 w-5" />} title="Businesses: complete KYC" body="Passing identity verification (+15) is the key trust step for businesses — it takes a verified account all the way to full standing (100) and signals you're a real, accountable seller." />
+        <section className="mt-10 space-y-3">
+          <h2 className="h-section text-foreground"><Tr text="Verify to reach 100" /></h2>
+          <p className="text-sm text-body"><Tr text="A new account starts at 60. These one-time steps lift it to full standing — phone + Zalo is enough for individuals; businesses add KYC." /></p>
+          <div className="mt-1">
+            <Points rows={[
+              ['Verify your phone', 15, 'Everyone — the baseline trust step'],
+              ['Link your Zalo', 10, 'A trusted contact channel; great for tourists & individuals'],
+              ['Complete KYC (identity)', 15, 'The key step for businesses → full standing'],
+              ['Complete your profile', 5, 'Photo, bio, location, contact'],
+            ]} />
           </div>
         </section>
 
-        <section className="mt-10 space-y-4">
-          <h2 className="h-section text-foreground"><Tr text="How you lose trust" /></h2>
-          <div className="space-y-4">
-            <Rule icon={<Clock className="h-5 w-5" />} title="Letting listings go stale" body="If you have active listings and don't confirm they're still available for several days, your score dips. Accounts with no active listings are never penalized for inactivity." />
-            <Rule icon={<TriangleAlert className="h-5 w-5" />} title="Confirmed reports" body="Scams, counterfeits, and misrepresentation cut your score — heavier for more serious issues, and repeats compound." />
-            <Rule icon={<TriangleAlert className="h-5 w-5" />} title="False reports" body="Filing reports that turn out to be false hurts the reporter's own score — keeping the system fair." />
+        <section className="mt-10 space-y-3">
+          <h2 className="h-section text-foreground"><Tr text="Grow your score" /></h2>
+          <p className="text-sm text-body"><Tr text="Ongoing rewards. Only completed sales are uncapped — and they need real money + a real buyer, so trust can't be faked." /></p>
+          <div className="mt-1">
+            <Points rows={[
+              ['Complete a sale on eno.vn', 5, 'No limit — the more real deals you close, the higher you climb & rank'],
+              ['Get a review from a verified buyer', 3, 'Only real buyers who transacted can review'],
+              ['Keep listings fresh (confirm availability)', 2, 'Max once per day'],
+              ['Reply quickly to buyers', 1, 'Max once per day'],
+            ]} />
           </div>
+        </section>
+
+        <section className="mt-10 space-y-3">
+          <h2 className="h-section text-foreground"><Tr text="What costs you trust" /></h2>
+          <p className="text-sm text-body"><Tr text="Penalties are heavier than rewards by design — trust is hard to earn and easy to lose — but they heal over time for clean accounts." /></p>
+          <div className="mt-1">
+            <Points rows={[
+              ['Confirmed scam or counterfeit', -25, 'Erases ~5 sales. Two of these → Restricted.'],
+              ['Confirmed misrepresentation', -10, 'Wrong info, bait pricing, misleading photos'],
+              ['Filing a false report', -10, 'Applied to the reporter — keeps reporting honest'],
+              ['Confirmed minor issue (spam/duplicate)', -3, ''],
+              ['Letting active listings go stale (7+ days)', -3, 'Per week, and only if you have active listings'],
+            ]} />
+          </div>
+          <p className="text-xs text-muted-foreground"><Tr text="Clean accounts recover about +1/day back toward their pre-penalty score, so an honest mistake never marks you forever — but recent or repeated bad acts pause recovery." /></p>
         </section>
 
         <section className="mt-10 space-y-2">
-          <h2 className="h-section text-foreground"><Tr text="Why it matters" /></h2>
+          <h2 className="h-section text-foreground"><Tr text="Why this is fair to everyone" /></h2>
           <p className="text-sm leading-relaxed text-body">
-            <Tr text="Trust drives ranking: higher-trust sellers appear higher in search and the feed, so reliable businesses get more views, more chats, and more sales. Buyers also see who's reliable at a glance from the color. Trust is earned, losable, and always reflects your real, recent track record on eno.vn — fair to newcomers (everyone starts at 100) and recoverable after a slip." />
+            <Tr text="The numbers are tuned with game theory so honest sellers always come out ahead and bad actors fall behind: the only uncapped reward (completing real sales) requires real money and a real counterparty, so it can't be farmed — while a single confirmed scam wipes five sales. Higher trust ranks higher in search and the feed, so being reliable directly earns more views, chats, and sales. Newcomers can verify their way up, and one slip is recoverable — but repeat offenders sink and get their listings held." />
           </p>
         </section>
       </main>

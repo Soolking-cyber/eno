@@ -56,6 +56,7 @@ export const INACTIVE_PENALTY = 3       // −trust per inactivity sweep (at mos
 export const RECOVERY_DELTA = 1         // clean accounts below 100 drift back up by this per day
 export const RECOVERY_CLEAN_DAYS = 14   // …only if no confirmed report / inactivity hit in this window
 export const TRANSACTION_DELTA = 5      // +trust per COMPLETED on-platform transaction — UNCAPPED (the more you transact, the higher you climb + rank)
+export const REVIEW_DELTA = 3           // +trust per review from a VERIFIED buyer (one per real transaction → can't farm)
 export const FAST_RESPONSE_DELTA = 1    // capped reward for replying quickly to buyers
 
 // Verification-gated onboarding: a brand-new account starts BELOW 100 and earns its
@@ -198,6 +199,11 @@ export async function recordProfileComplete(profileId: string): Promise<boolean>
   if (existing > 0) return false
   await applyTrustEvent(profileId, 'engagement', PROFILE_COMPLETE_DELTA, { reason: 'profile_complete' })
   return true
+}
+
+/** A verified buyer left a review → small uncappable-per-deal reward. */
+export async function recordReview(profileId: string): Promise<void> {
+  await applyTrustEvent(profileId, 'positive_review', REVIEW_DELTA, { reason: 'verified_review' })
 }
 
 /** Apply the new-account starting deficit once (so new accounts begin at ~60, not 100). */
