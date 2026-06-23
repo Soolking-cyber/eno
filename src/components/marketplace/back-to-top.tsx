@@ -28,15 +28,14 @@ export function BackToTop() {
       aria-label="Back to top"
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       className={cn(
-        'fixed z-[60] flex h-10 w-10 items-center justify-center rounded-full',
-        'border border-border bg-card/90 text-body shadow-pop backdrop-blur',
-        'transition-all duration-200 hover:bg-muted hover:text-foreground active:scale-95',
+        'fixed z-[60] flex h-10 w-10 items-center justify-center',
+        'text-body transition-all duration-200 hover:text-foreground active:scale-90',
         'right-4 lg:right-6',
         'bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-6', // clear the mobile bottom-nav
         show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
       )}
     >
-      <ArrowUp className="h-5 w-5" strokeWidth={2.75} />
+      <ArrowUp className="h-7 w-7" strokeWidth={3} />
     </button>,
     document.body,
   )
