@@ -8,9 +8,9 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, Send } from 'lucide-react'
+import { ChevronLeft, Send, Phone, Loader2, Tag, X } from 'lucide-react'
 
-type Msg = { id: string; mine: boolean; body: string; createdAt: string }
+type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
@@ -23,12 +23,16 @@ export default function ThreadPage() {
   const { id } = useParams<{ id: string }>()
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
-  const { getCachedThread, cacheThread } = useChat()
+  const { getCachedThread, cacheThread, refreshUnread, refreshConvos } = useChat()
   // Paint instantly from the cached thread (e.g. one the offer/Message action just
   // seeded) and revalidate in the background — no blank "loading" flash on open.
   const [thread, setThread] = useState<Thread | null>(() => (getCachedThread(id) as Thread | null) ?? null)
   const [notFound, setNotFound] = useState(false)
   const [text, setText] = useState('')
+  const [showOffer, setShowOffer] = useState(false) // offer-amount input visible
+  const [offerInput, setOfferInput] = useState('')
+  const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
+  const [revealing, setRevealing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
@@ -75,6 +79,9 @@ export default function ThreadPage() {
         .on('broadcast', { event: 'new_message' }, ({ payload }) => {
           const p = (payload ?? {}) as { id?: string; senderProfileId?: string; body?: string; createdAt?: string }
           if (!p.id || !p.body) { load(); return }
+          // Offers / offer-actions carry structured fields (kind/amount/status) the
+          // realtime payload doesn't include — refetch to hydrate the offer card.
+          if (/^(💰|✅|❌)/.test(p.body)) { load(); return }
           setThread((t) => {
             if (!t) return t
             if (p.senderProfileId === t.me) return t // my own message: handled by optimistic send + POST
@@ -111,8 +118,8 @@ export default function ThreadPage() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [thread?.messages.length])
 
-  const send = async () => {
-    const body = text.trim()
+  const send = async (override?: string) => {
+    const body = (override ?? text).trim()
     if (!body) return
     // Optimistic: show the bubble the instant Send is tapped — the POST swaps in the
     // real message; realtime ignores my own echo, so the UI never waits on the DB.
@@ -133,6 +140,7 @@ export default function ThreadPage() {
           if (without.some((x) => x.id === m.id)) return { ...t, messages: without }
           return { ...t, messages: [...without, m] }
         })
+        refreshUnread(); refreshConvos()
       } else {
         setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
         setText(body) // restore on failure
@@ -141,6 +149,55 @@ export default function ThreadPage() {
       setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
       setText(body)
     }
+  }
+
+  // Reveal the seller's number + Zalo on request (login-gated + rate-limited +
+  // logged as a lead by the API). Gated in the UI to AFTER the seller has replied.
+  const requestContact = async () => {
+    if (contact || revealing || !thread) return
+    setRevealing(true)
+    try {
+      const res = await fetch(`/api/listings/${thread.listing.id}/contact`, { method: 'POST' })
+      if (res.ok) setContact(await res.json())
+    } finally {
+      setRevealing(false)
+    }
+  }
+
+  // Send a structured offer (a message with kind='offer' + amount). Optimistic,
+  // then refetch to hydrate the real offer fields + supersede prior offers.
+  const sendOffer = async (amount: number) => {
+    const amt = Math.round(amount)
+    if (!amt || amt <= 0) return
+    const tempId = `temp-${Date.now()}`
+    const body = `💰 Offered ${new Intl.NumberFormat('en-US').format(amt)}₫`
+    const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true, kind: 'offer', offerAmount: amt, offerStatus: 'pending' }
+    setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
+    try {
+      const res = await fetch(`/api/conversations/${id}/messages`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerAmount: amt }),
+      })
+      if (res.ok) { await load(); refreshUnread(); refreshConvos() }
+      else setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+    } catch {
+      setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+    }
+  }
+
+  // Accept/decline a pending offer (recipient only). Optimistic flip, then refetch.
+  const actOffer = async (messageId: string, action: 'accept' | 'decline') => {
+    setThread((t) => (t ? { ...t, messages: t.messages.map((m) => (m.id === messageId ? { ...m, offerStatus: action === 'accept' ? 'accepted' : 'declined' } : m)) } : t))
+    try {
+      const res = await fetch(`/api/conversations/${id}/offer`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId, action }),
+      })
+      if (res.ok) await load()
+    } catch { /* next poll reconciles */ }
+  }
+
+  const submitOffer = () => {
+    const n = Number(offerInput.replace(/\D/g, ''))
+    if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') }
   }
 
   return (
@@ -170,13 +227,62 @@ export default function ThreadPage() {
             </div>
           </div>
 
+          {/* Contact is requested IN-CHAT, and only once the seller has replied —
+              this is what gets sellers logging in daily to answer + keep listings fresh. */}
+          {thread && (
+            <div className="flex items-center gap-2 border-t border-border bg-card px-4 py-2">
+              {contact ? (
+                <>
+                  <a href={contact.telHref} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors">
+                    <Phone className="h-3.5 w-3.5" /> {contact.phone}
+                  </a>
+                  <a href={contact.zaloHref} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#0068ff] px-3 py-1.5 text-xs font-bold text-white">
+                    Zalo
+                  </a>
+                </>
+              ) : thread.messages.some((m) => !m.mine) ? (
+                <button onClick={requestContact} disabled={revealing} className="flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 cursor-pointer">
+                  {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+                  {tr('Request number / Zalo', 'Lấy số / Zalo')}
+                </button>
+              ) : (
+                <p className="flex items-center gap-1.5 text-[11px] text-body">
+                  <Phone className="h-3.5 w-3.5 shrink-0 text-ink-4" />
+                  {tr("You can request the seller's number or Zalo once they reply.", 'Bạn có thể xin số hoặc Zalo sau khi người bán trả lời.')}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Messages */}
           <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4 scroll-thin">
             {thread?.messages.map((m) => (
               <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'bg-card text-foreground'}`}>
-                  {m.body}
-                </div>
+                {m.kind === 'offer' ? (
+                  <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-[#0a66c2]/30 bg-[#0a66c2]/5' : 'border-border bg-card'}`}>
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
+                    <div className="mt-0.5 text-base font-bold text-foreground">{new Intl.NumberFormat('en-US').format(m.offerAmount || 0)}₫</div>
+                    {m.offerStatus && m.offerStatus !== 'pending' && (
+                      <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-emerald-600' : m.offerStatus === 'declined' ? 'text-red-500' : 'text-ink-4'}`}>
+                        {m.offerStatus === 'accepted' ? tr('Accepted', 'Đã chấp nhận') : m.offerStatus === 'declined' ? tr('Declined', 'Đã từ chối') : tr('Countered', 'Đã trả giá khác')}
+                      </div>
+                    )}
+                    {!m.mine && m.offerStatus === 'pending' && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button onClick={() => actOffer(m.id, 'accept')} className="rounded-lg bg-[#0a66c2] px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-[#004182] cursor-pointer">{tr('Accept', 'Chấp nhận')}</button>
+                        <button onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted cursor-pointer">{tr('Decline', 'Từ chối')}</button>
+                        <button onClick={() => { setOfferInput(new Intl.NumberFormat('en-US').format(m.offerAmount ?? 0)); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
+                      </div>
+                    )}
+                    {m.mine && m.offerStatus === 'pending' && (
+                      <div className="mt-1 text-xs text-ink-4">{tr('Waiting for a response…', 'Đang chờ phản hồi…')}</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'bg-card text-foreground'}`}>
+                    {m.body}
+                  </div>
+                )}
               </div>
             ))}
             {thread && thread.messages.length === 0 && (
@@ -195,8 +301,37 @@ export default function ThreadPage() {
             <div ref={bottomRef} />
           </div>
 
+          {/* Offer amount input (toggled by the Offer button) */}
+          {showOffer && (
+            <div className="flex items-center gap-2 px-4 pt-2">
+              <input
+                value={offerInput}
+                onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 12); setOfferInput(d ? new Intl.NumberFormat('en-US').format(Number(d)) : '') }}
+                inputMode="numeric"
+                autoFocus
+                placeholder={tr('Offer amount (₫)', 'Số tiền đề nghị (₫)')}
+                className="min-w-0 flex-1 rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+                onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
+              />
+              <button onClick={submitOffer} disabled={!offerInput} className="shrink-0 rounded-2xl bg-[#0a66c2] px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-40 cursor-pointer">
+                {tr('Send offer', 'Gửi đề nghị')}
+              </button>
+              <button onClick={() => { setShowOffer(false); setOfferInput('') }} aria-label={tr('Cancel', 'Hủy')} className="shrink-0 text-ink-4 hover:text-foreground cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           {/* Composer */}
           <div className="flex items-end gap-2 bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            <button
+              onClick={() => setShowOffer((s) => !s)}
+              aria-label={tr('Make an offer', 'Gửi đề nghị giá')}
+              title={tr('Make an offer', 'Gửi đề nghị giá')}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer ${showOffer ? 'text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
+            >
+              <Tag className="h-[18px] w-[18px]" />
+            </button>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -205,7 +340,7 @@ export default function ThreadPage() {
               placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
               className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
             />
-            <button onClick={send} disabled={!text.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40">
+            <button onClick={() => send()} disabled={!text.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40">
               <Send className="h-4 w-4" />
             </button>
           </div>
