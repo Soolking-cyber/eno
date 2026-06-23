@@ -15,6 +15,8 @@ import { ProfileEditor } from '@/components/marketplace/profile-editor'
 import { reviewKey, todayStr } from './availability/availability-client'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
+import { PostWizard } from '@/components/marketplace/post-wizard'
+import type { SerializedCategory } from '@/lib/types'
 import { isStale } from '@/lib/stale'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -52,12 +54,12 @@ function StatCard({ icon, value, label, href, accent }: { icon: React.ReactNode;
 /** Seller CRM dashboard. Cache-first paint (businesses hit it daily) then
  *  revalidate. Tiered: everyone gets stats + listings + messages; business adds
  *  the business-profile editor + bulk upload. Built on semantic tokens (dark-ready). */
-export function DashboardClient() {
+export function DashboardClient({ categories }: { categories: SerializedCategory[] }) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
   const [data, setData] = useState<Dashboard | null>(null)
-  const [tab, setTab] = useState<'listings' | 'account'>('listings')
+  const [tab, setTab] = useState<'post' | 'listings' | 'account'>('listings')
   const reviewedRef = useRef(false)
 
   // Daily availability review: the FIRST time a seller with live listings opens
@@ -149,27 +151,28 @@ export function DashboardClient() {
           <SignOutButton />
         </div>
 
-        {/* Tabs — Post (the primary action) · Listings · Settings */}
+        {/* Tabs — Post · Listings · Settings (Post renders the form inline, no redirect) */}
         <div className="mt-5 flex items-center gap-1">
-          <Link
-            href="/post"
-            className="-mb-px flex items-center gap-1 border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:text-[#0a66c2] cursor-pointer"
-          >
-            <Plus className="h-4 w-4" /> {tr('Post a listing', 'Đăng tin')}
-          </Link>
-          {(['listings', 'account'] as const).map((tb) => (
+          {(['post', 'listings', 'account'] as const).map((tb) => (
             <button
               key={tb}
               onClick={() => setTab(tb)}
               className={cn(
-                '-mb-px border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
+                '-mb-px flex items-center gap-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
                 tab === tb ? 'border-[#0a66c2] text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
-              {tb === 'listings' ? tr('Listings', 'Tin đăng') : tr('Settings', 'Cài đặt')}
+              {tb === 'post' && <Plus className="h-4 w-4" />}
+              {tb === 'post' ? tr('Post a listing', 'Đăng tin') : tb === 'listings' ? tr('Listings', 'Tin đăng') : tr('Settings', 'Cài đặt')}
             </button>
           ))}
         </div>
+
+        {tab === 'post' && (
+          <div className="mt-6">
+            <PostWizard categories={categories} embedded />
+          </div>
+        )}
 
       {tab === 'listings' && (<>
         {/* Action strip — the 3 questions: messages? performance? needs action? */}

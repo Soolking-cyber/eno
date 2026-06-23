@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { Plus, User, Search, MapPin, Clock, Heart, MessageSquare } from 'lucide-react'
+import { Plus, User, Search, MapPin, Clock, MessageSquare } from 'lucide-react'
+import { SavedSearchIcon } from './saved-search-icon'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
@@ -285,12 +286,8 @@ export function Header() {
           {/* Desktop quick actions (mobile uses the bottom nav): Saved · Messages · Bell */}
           {user && (
             <>
-              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="group relative hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
-                <Heart className="h-5 w-5" />
-                {/* Small search badge → signals this also holds saved searches */}
-                <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-background ring-1 ring-border group-hover:bg-accent">
-                  <Search className="h-2.5 w-2.5 text-accent-foreground" />
-                </span>
+              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                <SavedSearchIcon className="h-5 w-5" />
               </Link>
               <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
                 <MessageSquare className="h-5 w-5" />

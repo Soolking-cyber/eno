@@ -17,7 +17,7 @@ import { subcategoriesFor, typesFor, facetsFor, LISTING_TYPES } from '@/lib/taxo
 const TITLE_MAX = 140
 const DESC_MAX = 5000
 
-export function PostWizard({ categories }: { categories: SerializedCategory[] }) {
+export function PostWizard({ categories, embedded = false }: { categories: SerializedCategory[]; embedded?: boolean }) {
   const { lang, tr } = useLanguage()
   const t = (vi: string, en: string) => tr(en, vi)
 
@@ -182,11 +182,13 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
   return (
     <div className="pb-28 lg:pb-0">
-      <a href="/" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer">
-        <ChevronLeft className="h-4 w-4" /> {t('Thoát', 'Exit')}
-      </a>
-      <h1 className="mt-3 h-display text-foreground">{t('Tạo tin đăng', 'Create a listing')}</h1>
-      <p className="mt-1 text-[15px] text-body">{t('Điền các mục bên dưới — bản xem trước cập nhật ngay.', 'Fill in the sections below — your preview updates live.')}</p>
+      {!embedded && (
+        <a href="/" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer">
+          <ChevronLeft className="h-4 w-4" /> {t('Thoát', 'Exit')}
+        </a>
+      )}
+      {!embedded && <h1 className="mt-3 h-display text-foreground">{t('Tạo tin đăng', 'Create a listing')}</h1>}
+      <p className={cn('text-[15px] text-body', !embedded && 'mt-1')}>{t('Điền các mục bên dưới — bản xem trước cập nhật ngay.', 'Fill in the sections below — your preview updates live.')}</p>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_19rem]">
         {/* ── FORM ── */}
