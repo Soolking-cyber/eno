@@ -134,7 +134,10 @@ function pickType(types: ListingType[], r: number): ListingType {
 async function main() {
   console.log(`Seeding ENO — taxonomy + ${PER_CAT} mock listings/category…`)
 
-  // Clean wipe (fresh slugs, no migration — mock data is disposable).
+  // Clean wipe (fresh slugs, no migration — mock data is disposable). Delete in
+  // FK order: reviews reference sellers without cascade, so they go first;
+  // listings cascade their conversations/reports/contact-reveals.
+  await db.review.deleteMany({})
   await db.listing.deleteMany({})
   await db.seller.deleteMany({})
   await db.category.deleteMany({})
