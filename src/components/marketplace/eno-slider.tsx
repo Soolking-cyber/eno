@@ -1,0 +1,36 @@
+'use client'
+
+import { cn } from '@/lib/utils'
+
+/** Single-handle slider with the app's shared look (white thumb + brand-blue ring
+ *  on a blue fill) — same style as the price-range histogram slider. Used for the
+ *  search-radius and make-an-offer sliders so every slider matches. */
+export function EnoSlider({
+  value, min, max, step = 1, onChange, className, 'aria-label': ariaLabel,
+}: {
+  value: number
+  min: number
+  max: number
+  step?: number
+  onChange: (v: number) => void
+  className?: string
+  'aria-label'?: string
+}) {
+  const pct = max > min ? ((value - min) / (max - min)) * 100 : 0
+  return (
+    <div className={cn('relative h-5', className)}>
+      <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-muted" />
+      <div className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#0a66c2]" style={{ width: `${pct}%` }} />
+      <input
+        type="range"
+        className="eno-slider"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={ariaLabel}
+      />
+    </div>
+  )
+}

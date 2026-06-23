@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { MapPin, LocateFixed, Loader2, Check, ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { CustomSelect } from './custom-select'
+import { EnoSlider } from './eno-slider'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -77,20 +78,14 @@ export function AreaFilter({
   useEffect(() => {
     if (!open) return
     reposition()
-    const onDoc = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (anchorRef?.current?.contains(t) || panelRef.current?.contains(t)) return
-      if ((t as Element).closest?.('[data-portal-menu]')) return
-      onClose()
-    }
+    // Outside-tap closing is handled by the portaled backdrop (so the tap is absorbed
+    // and never reaches a card below); here we only keep Escape + repositioning.
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     const onScroll = () => reposition()
-    document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onKey)
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onScroll)
     return () => {
-      document.removeEventListener('mousedown', onDoc)
       document.removeEventListener('keydown', onKey)
       window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onScroll)
@@ -200,10 +195,12 @@ export function AreaFilter({
   if (!open || !mounted) return null
 
   return createPortal(
+    <>
+    <div className="fixed inset-0 z-[99]" aria-hidden onClick={onClose} />
     <div
       ref={panelRef}
       style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
-      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-b-2xl rounded-tr-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
+      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-b-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
     >
       <div className="space-y-4">
         {/* Province / city */}
@@ -261,7 +258,7 @@ export function AreaFilter({
                   <span className="text-muted-foreground">{tr('Search range', 'Bán kính tìm')}</span>
                   <span className="font-bold text-foreground">{radiusKm} km</span>
                 </div>
-                <input type="range" min={1} max={20} step={1} value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} className="w-full accent-[#0a66c2]" aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
+                <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
                 <div className="flex justify-between text-[10px] text-ink-4"><span>1 km</span><span>20 km</span></div>
               </div>
             </div>
@@ -284,7 +281,8 @@ export function AreaFilter({
         <button onClick={reset} className="flex-1 rounded-xl bg-tint py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Delete filter', 'Xóa lọc')}</button>
         <button onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</button>
       </div>
-    </div>,
+    </div>
+    </>,
     document.body,
   )
 }

@@ -6,6 +6,7 @@ import { Lock, Tag, Send, X } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull } from '@/lib/vnd'
+import { EnoSlider } from './eno-slider'
 
 const MAX_DISCOUNT = 50 // % off the asking price the slider allows
 export const COMPOSE_KEY = 'eno-compose' // sessionStorage handoff → /messages/pending
@@ -97,11 +98,11 @@ export function ContactComposer({
             <span className="text-2xl font-bold text-accent-foreground tabular-nums">{formatMoneyFull(offerPrice, currency)}</span>
             <span className="text-xs font-semibold text-muted-foreground">−{discount}%</span>
           </div>
-          <input
-            type="range" min={0} max={MAX_DISCOUNT} step={1} value={discount}
-            onChange={(e) => setDiscount(Number(e.target.value))}
+          <EnoSlider
+            min={0} max={MAX_DISCOUNT} step={1} value={discount}
+            onChange={setDiscount}
             aria-label={tr('Discount', 'Mức giảm')}
-            className="mt-2 w-full cursor-pointer accent-[#0a66c2]"
+            className="mt-2"
           />
           <div className="flex justify-between text-[10px] font-medium text-ink-4">
             <span>{tr('Asking', 'Giá rao')}: {formatMoneyFull(price!, currency)}</span>

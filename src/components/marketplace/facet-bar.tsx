@@ -96,7 +96,7 @@ export function FacetBar({
       className={cn(
         'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
         wrap,
-        areaOpen ? 'rounded-b-none bg-card text-foreground shadow-pop' : areaActive ? active : 'text-body hover:bg-muted',
+        areaOpen ? 'rounded-t-2xl rounded-b-none bg-card text-foreground shadow-pop' : areaActive ? active : 'text-body hover:bg-muted',
       )}
     >
       <span className="flex items-center gap-1.5 truncate">

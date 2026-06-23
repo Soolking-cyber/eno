@@ -96,14 +96,11 @@ export function PriceRangeFilter({
 
   useEffect(() => {
     if (!open) return
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (!triggerRef.current?.contains(t) && !panelRef.current?.contains(t)) setOpen(false)
-    }
+    // Outside-tap closing handled by the portaled backdrop (absorbs the tap so it
+    // never reaches a card below). Here we keep only Escape.
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+    return () => { document.removeEventListener('keydown', onKey) }
   }, [open])
 
   const commit = (nlo: number, nhi: number) => {
@@ -132,7 +129,7 @@ export function PriceRangeFilter({
         onClick={() => setOpen((o) => !o)}
         className={cn(
           'flex w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
-          open ? 'rounded-b-none bg-card text-foreground shadow-pop' : active ? activeClassName : className,
+          open ? 'rounded-t-2xl rounded-b-none bg-card text-foreground shadow-pop' : active ? activeClassName : className,
         )}
       >
         <span className="truncate">{triggerText}</span>
@@ -140,10 +137,12 @@ export function PriceRangeFilter({
       </button>
 
       {mounted && open && createPortal(
+        <>
+        <div className="fixed inset-0 z-[69]" aria-hidden onClick={() => setOpen(false)} />
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W }}
-          className="z-[70] max-w-[calc(100vw-1rem)] rounded-b-2xl rounded-tr-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100"
+          className="z-[70] max-w-[calc(100vw-1rem)] rounded-b-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100"
         >
           <div className="flex items-baseline justify-between">
             <p className="text-sm font-bold text-foreground">{tr('Price range', 'Khoảng giá')}</p>
@@ -239,7 +238,8 @@ export function PriceRangeFilter({
               </div>
             </>
           )}
-        </div>,
+        </div>
+        </>,
         document.body,
       )}
     </div>

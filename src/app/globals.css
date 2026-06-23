@@ -393,12 +393,14 @@ input, select, textarea {
 }
 
 /* ============================================================
-   DUAL-RANGE PRICE SLIDER (Airbnb-style histogram filter)
-   Two overlaid range inputs: the track is transparent and ignores
-   pointer events; only the thumbs are interactive, so both handles
-   work while stacked. Thumbs styled to the app (brand-blue ring).
+   APP SLIDERS — one shared look everywhere (price histogram, search
+   radius, make-an-offer discount): a white thumb with a brand-blue
+   ring on a transparent track (the visible blue fill is a div behind).
+   .eno-range = DUAL handles (overlaid, track ignores pointer events so
+   both thumbs work); .eno-slider = SINGLE handle (whole track tappable).
    ============================================================ */
-.eno-range {
+.eno-range,
+.eno-slider {
   -webkit-appearance: none;
   appearance: none;
   position: absolute;
@@ -407,9 +409,10 @@ input, select, textarea {
   height: 100%;
   margin: 0;
   background: transparent;
-  pointer-events: none;
 }
-.eno-range::-webkit-slider-thumb {
+.eno-range { pointer-events: none; }
+.eno-range::-webkit-slider-thumb,
+.eno-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   pointer-events: auto;
   height: 1.25rem;
@@ -420,7 +423,8 @@ input, select, textarea {
   box-shadow: 0 1px 4px rgba(16, 24, 40, 0.18);
   cursor: pointer;
 }
-.eno-range::-moz-range-thumb {
+.eno-range::-moz-range-thumb,
+.eno-slider::-moz-range-thumb {
   pointer-events: auto;
   height: 1.25rem;
   width: 1.25rem;
@@ -430,5 +434,7 @@ input, select, textarea {
   box-shadow: 0 1px 4px rgba(16, 24, 40, 0.18);
   cursor: pointer;
 }
-.eno-range::-webkit-slider-runnable-track { background: transparent; }
-.eno-range::-moz-range-track { background: transparent; }
+.eno-range::-webkit-slider-runnable-track,
+.eno-slider::-webkit-slider-runnable-track { background: transparent; }
+.eno-range::-moz-range-track,
+.eno-slider::-moz-range-track { background: transparent; }

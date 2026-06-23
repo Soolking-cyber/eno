@@ -67,7 +67,7 @@ export function AccountMenu() {
       </button>
 
       {open && (
-        <div role="menu" className="absolute right-0 top-full mt-1.5 z-50 w-56 rounded-xl border border-border bg-card p-1.5 shadow-lg animate-in fade-in slide-in-from-top-1 duration-100">
+        <div role="menu" className="absolute right-0 top-full mt-1.5 z-50 w-56 rounded-2xl bg-card p-1.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100">
           <div className="border-b border-border px-2.5 pb-2 pt-1">
             <p className="truncate text-sm font-bold text-foreground">{me?.displayName || user.email || user.phone}</p>
             {me?.email && <p className="truncate text-xs text-ink-4">{me.email}</p>}

@@ -48,19 +48,15 @@ export function CustomSelect({
   useEffect(() => {
     if (!isOpen) return
     reposition()
-    const onDocClick = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (containerRef.current?.contains(t) || menuRef.current?.contains(t)) return
-      setIsOpen(false)
-    }
     const onScroll = () => reposition()
-    document.addEventListener('mousedown', onDocClick)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsOpen(false) }
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onScroll)
+    document.addEventListener('keydown', onKey)
     return () => {
-      document.removeEventListener('mousedown', onDocClick)
       window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onScroll)
+      document.removeEventListener('keydown', onKey)
     }
   }, [isOpen, reposition])
 
@@ -73,15 +69,15 @@ export function CustomSelect({
         type="button"
         onClick={() => { if (!isOpen) reposition(); setIsOpen((o) => !o) }}
         className={cn(
-          'flex w-full items-center justify-between px-3.5 py-2 text-sm font-semibold outline-none transition-colors cursor-pointer border',
+          'flex w-full items-center justify-between px-3.5 py-2 text-sm font-semibold outline-none transition-colors cursor-pointer',
           // Closed: consistent rounded-xl (no more pills). Caller className may restyle.
-          !isOpen && 'rounded-xl border-transparent',
+          !isOpen && 'rounded-xl',
           !isOpen && (value !== 'all' && value !== 'newest'
             ? (activeClassName ?? 'bg-accent text-accent-foreground')
             : 'text-body hover:bg-muted'), // flush at rest, color on hover (one-canvas)
           className,
-          // Open: morph into the top of the window (overrides caller styling).
-          isOpen && 'rounded-t-2xl rounded-b-none border-border border-b-transparent bg-card text-foreground shadow-pop',
+          // Open: morph into the top of the window — borderless, flat seam (overrides caller).
+          isOpen && 'rounded-t-2xl rounded-b-none bg-card text-foreground shadow-pop',
         )}
       >
         <span className="flex items-center gap-1.5 truncate">
@@ -92,11 +88,16 @@ export function CustomSelect({
       </button>
 
       {isOpen && mounted && createPortal(
+        <>
+        {/* Transparent backdrop: it's the tap target, so an outside tap CLOSES the
+            menu and is absorbed here — never passing through to a card/button below
+            (the old mousedown-close let the click land on the element underneath). */}
+        <div className="fixed inset-0 z-[120]" aria-hidden onClick={() => setIsOpen(false)} />
         <div
           ref={menuRef}
           data-portal-menu
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
-          className="z-[100] max-h-60 overflow-y-auto overflow-x-hidden rounded-b-2xl border border-t-border border-border bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
+          className="z-[121] max-h-60 overflow-y-auto overflow-x-hidden rounded-b-2xl bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
         >
           {options.map((opt) => {
             const isActive = opt.value === value
@@ -114,7 +115,8 @@ export function CustomSelect({
               </button>
             )
           })}
-        </div>,
+        </div>
+        </>,
         document.body,
       )}
     </div>
