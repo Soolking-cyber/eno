@@ -16,6 +16,7 @@ export function NotificationBell() {
   const { items, unread, markAllRead, remove, clearAll } = useNotifications()
   const { tr, lang } = useLanguage()
   const [open, setOpen] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false) // 2-tap guard on "Clear all"
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -24,6 +25,9 @@ export function NotificationBell() {
     document.addEventListener('mousedown', onClick)
     return () => document.removeEventListener('mousedown', onClick)
   }, [open])
+
+  // Reset the clear-all confirm whenever the panel closes (avoids a stale armed state).
+  useEffect(() => { if (!open) setConfirmClear(false) }, [open])
 
   const toggle = () => {
     if (!user) { openSignIn(); return }
@@ -52,8 +56,11 @@ export function NotificationBell() {
           <div className="flex items-center justify-between px-4 py-3">
             <span className="text-sm font-bold text-foreground">{tr('Notifications', 'Thông báo')}</span>
             {items.length > 0 && (
-              <button onClick={() => clearAll()} className="text-xs font-semibold text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer">
-                {tr('Clear all', 'Xóa tất cả')}
+              <button
+                onClick={() => { if (confirmClear) { clearAll(); setConfirmClear(false) } else setConfirmClear(true) }}
+                className={cn('text-xs font-semibold transition-colors cursor-pointer', confirmClear ? 'text-red-500' : 'text-ink-4 hover:text-accent-foreground')}
+              >
+                {confirmClear ? tr('Tap to delete all', 'Nhấn để xóa hết') : tr('Clear all', 'Xóa tất cả')}
               </button>
             )}
           </div>

@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link, { useLinkStatus } from 'next/link'
-import { Compass, Heart, Plus, User, MessageSquare } from 'lucide-react'
+import { Compass, Heart, Plus, User, MessageSquare, Search } from 'lucide-react'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -61,6 +61,10 @@ export function MobileNav() {
           icon={
             <>
               <Heart className={cn('h-5 w-5', count > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
+              {/* Search badge → signals Saved also holds saved searches */}
+              <span className="absolute -bottom-1 -right-1.5 flex h-3 w-3 items-center justify-center rounded-full bg-background">
+                <Search className="h-2 w-2 text-accent-foreground" />
+              </span>
               {count > 0 && (
                 <span className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[9px] font-bold text-white">
                   {count}

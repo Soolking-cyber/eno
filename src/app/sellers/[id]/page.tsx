@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
-import { BadgeCheck, ChevronLeft, MessageSquareText, Clock, CalendarDays, ShieldCheck } from 'lucide-react'
+import { BadgeCheck, ChevronLeft, MessageSquareText, Clock, CalendarDays } from 'lucide-react'
 import { Tr } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { ReportButton } from '@/components/marketplace/report-button'
@@ -16,7 +16,7 @@ type Props = { params: Promise<{ id: string }> }
 function Stat({ icon, value, label }: { icon: React.ReactNode; value: React.ReactNode; label: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="shrink-0 text-accent-foreground">{icon}</span>
+      {icon && <span className="shrink-0 text-accent-foreground">{icon}</span>}
       <div className="leading-tight">
         <div className="text-sm font-bold text-foreground">{value}</div>
         <div className="text-[11px] text-ink-4">{label}</div>
@@ -91,7 +91,7 @@ export default async function SellerPage({ params }: Props) {
 
         {/* Trust stats — flat (monolith): no box, separation by spacing */}
         <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
-          <Stat icon={<ShieldCheck className="h-4 w-4" />} value={<TrustScore score={seller.trustScore} size="md" />} label={<Tr text="Trust score" />} />
+          <Stat icon={null} value={<TrustScore score={seller.trustScore} size="md" />} label={<Tr text="Trust score" />} />
           <Stat icon={<MessageSquareText className="h-4 w-4" />} value={`${seller.responseRate}%`} label={<Tr text="Response rate" />} />
           <Stat icon={<Clock className="h-4 w-4" />} value={<Tr text={seller.responseTime} />} label={<Tr text="Responds" />} />
           <Stat icon={<CalendarDays className="h-4 w-4" />} value={`${memberYear}`} label={<Tr text="Member since" />} />
