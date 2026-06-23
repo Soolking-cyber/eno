@@ -116,6 +116,8 @@ export function PriceRangeFilter({
   const inRangeCount = prices.filter((p) => p >= effLo && p <= effHi).length
   const toDisplay = (vnd: number) => (rate ? Math.round(vnd * rate) : Math.round(vnd))
   const fromDisplay = (disp: number) => (rate ? disp / rate : disp)
+  const grp = (n: number) => (n ? new Intl.NumberFormat('en-US').format(n) : '')
+  const digits = (s: string) => Number(s.replace(/\D/g, '')) || 0
 
   const active = value !== 'all'
   const triggerText = active && prices.length
@@ -197,8 +199,8 @@ export function PriceRangeFilter({
                   <span className="flex items-center gap-1 rounded-xl bg-tint px-3 py-2 text-sm">
                     {currency === 'VND' && <span className="text-ink-4">₫</span>}
                     <input
-                      type="number" inputMode="numeric" value={toDisplay(effLo) || ''}
-                      onChange={(e) => setLo(Math.min(Math.max(dataMin, fromDisplay(Number(e.target.value) || 0)), effHi))}
+                      type="text" inputMode="numeric" value={grp(toDisplay(effLo))}
+                      onChange={(e) => setLo(Math.min(Math.max(dataMin, fromDisplay(digits(e.target.value))), effHi))}
                       onBlur={() => commit(effLo, effHi)}
                       className="w-full bg-transparent text-foreground outline-none"
                     />
@@ -210,8 +212,8 @@ export function PriceRangeFilter({
                   <span className="flex items-center gap-1 rounded-xl bg-tint px-3 py-2 text-sm">
                     {currency === 'VND' && <span className="text-ink-4">₫</span>}
                     <input
-                      type="number" inputMode="numeric" value={toDisplay(effHi) || ''}
-                      onChange={(e) => setHi(Math.max(Math.min(dataMax, fromDisplay(Number(e.target.value) || 0)), effLo))}
+                      type="text" inputMode="numeric" value={grp(toDisplay(effHi))}
+                      onChange={(e) => setHi(Math.max(Math.min(dataMax, fromDisplay(digits(e.target.value))), effLo))}
                       onBlur={() => commit(effLo, effHi)}
                       className="w-full bg-transparent text-foreground outline-none"
                     />
