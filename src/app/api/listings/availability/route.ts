@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
+import { BUMP_COOLDOWN_DAYS } from '@/lib/stale'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -28,12 +29,20 @@ export async function POST(req: NextRequest) {
     markedSold = r.count
   }
   if (confirm.length) {
-    // Bump = reuse postedAt (the feed sort key) + record the confirmation.
-    const r = await db.listing.updateMany({
-      where: { id: { in: confirm }, sellerId: seller.id, status: 'active' },
-      data: { postedAt: now, availabilityConfirmedAt: now },
-    })
-    confirmed = r.count
+    const cutoff = new Date(now.getTime() - BUMP_COOLDOWN_DAYS * 86_400_000)
+    // Bump feed recency only for listings NOT bumped within the cooldown (anti-gaming);
+    // the rest just record availability so the reminder stops, without re-topping.
+    const [bumped, refreshed] = await Promise.all([
+      db.listing.updateMany({
+        where: { id: { in: confirm }, sellerId: seller.id, status: 'active', postedAt: { lt: cutoff } },
+        data: { postedAt: now, availabilityConfirmedAt: now },
+      }),
+      db.listing.updateMany({
+        where: { id: { in: confirm }, sellerId: seller.id, status: 'active', postedAt: { gte: cutoff } },
+        data: { availabilityConfirmedAt: now },
+      }),
+    ])
+    confirmed = bumped.count + refreshed.count
   }
   // Purge cached detail pages for everything touched (sold → 404, confirmed → fresh).
   for (const id of [...sold, ...confirm]) revalidatePath(`/listings/${id}`)

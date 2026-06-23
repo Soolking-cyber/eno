@@ -24,7 +24,6 @@ import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
-import { CardRow } from './card-row'
 import { LogoWordmark } from './logo-wordmark'
 import { CustomSelect } from './custom-select'
 import { FacetBar } from './facet-bar'
@@ -106,9 +105,7 @@ export function ListingsExplorer({
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
   const [showExplorer, setShowExplorer] = useState(false)
 
-  // The paginated explorer feed starts at the first page (24); the landing's curated
-  // rows use the larger `initialListings` set directly (so they're not sparse).
-  const [listings, setListings] = useState<SerializedListing[]>(() => initialListings.slice(0, 24))
+  const [listings, setListings] = useState<SerializedListing[]>(initialListings)
   // When "search near you" is on, distance-filter + sort the fetched set client-side
   // (listing coordinates are approximate — district-derived — until precise capture).
   const shownListings = useMemo(() => {
@@ -133,7 +130,6 @@ export function ListingsExplorer({
   // Below-the-fold curated rows render only AFTER first paint, so the landing
   // hydrates ~12 cards instead of ~84 — the ~70 extra cards were saturating the
   // mobile main thread and delaying the LCP image paint (3.1s render delay).
-  const [deferredRows, setDeferredRows] = useState(false)
 
   const isLandingMode = useMemo(() => {
     return (
@@ -211,21 +207,6 @@ export function ListingsExplorer({
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProvince?.code, activeWard?.code])
-
-  // Reveal the below-the-fold curated rows after first paint (idle) so the initial
-  // hydration stays light and the LCP image paints without main-thread contention.
-  useEffect(() => {
-    const w = window as unknown as {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number
-      cancelIdleCallback?: (id: number) => void
-    }
-    if (w.requestIdleCallback) {
-      const id = w.requestIdleCallback(() => setDeferredRows(true), { timeout: 1500 })
-      return () => w.cancelIdleCallback?.(id)
-    }
-    const id = setTimeout(() => setDeferredRows(true), 200)
-    return () => clearTimeout(id)
-  }, [])
 
   // Listen to open-mobile-filters event from Header
   useEffect(() => {
@@ -515,7 +496,7 @@ export function ListingsExplorer({
       listingType === 'all' &&
       sort === 'newest' && verifiedOnly && !debouncedQuery.trim() &&
       Object.keys(customFilters).length === 0
-        ? { listings: initialListings.slice(0, 24), total: initialTotal ?? initialListings.length, subcategoryCounts: {}, categoryTotal: 0 }
+        ? { listings: initialListings, total: initialTotal ?? initialListings.length, subcategoryCounts: {}, categoryTotal: 0 }
         : undefined,
     initialDataUpdatedAt: initialFetchedAt,
   })
@@ -1373,9 +1354,8 @@ export function ListingsExplorer({
             </div>
           </div>
 
-          {/* CURATED BROWSE ROWS (Airbnb-style horizontal carousels) — drawn from the
-              full initial set so each category row is populated (not the paginated feed). */}
-          {initialListings.length === 0 ? (
+          {/* INFINITE FEED (Facebook-style) — all listings, loads more on scroll. */}
+          {shownListings.length === 0 && !isLoading ? (
             <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
               <Inbox className="h-10 w-10 text-muted-foreground" />
               <p className="text-sm font-semibold text-body">
@@ -1383,32 +1363,35 @@ export function ListingsExplorer({
               </p>
             </div>
           ) : (
-            <div className="space-y-10">
-              <CardRow
-                title={tr('Recommendations for you', 'Gợi ý dành cho bạn')}
-                listings={initialListings.slice(0, 12)}
-                onOpen={handleOpen}
-                onViewAll={() => setShowExplorer(true)}
-                viewAllLabel={tr('View all', 'Xem tất cả')}
-                onLocate={(l) => locateOnMap(l.id)}
-                lcp
-              />
-              {deferredRows && categories.map((cat) => {
-                const items = initialListings.filter((l) => l.category.slug === cat.slug)
-                if (items.length === 0) return null
-                return (
-                  <CardRow
-                    key={cat.id}
-                    title={<Tr text={lang === 'vi' ? cat.nameVi : cat.name} />}
-                    listings={items}
-                    onOpen={handleOpen}
-                    onViewAll={() => handleCategorySelect(cat.slug)}
-                    viewAllLabel={tr('View all', 'Xem tất cả')}
-                    onLocate={(l) => locateOnMap(l.id)}
-                  />
-                )
-              })}
-            </div>
+            <>
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {shownListings.map((l, index) => (
+                  <div
+                    key={l.id}
+                    className="flex flex-col h-full"
+                    style={{ contentVisibility: 'auto' as any, containIntrinsicSize: 'auto 320px' }}
+                    onMouseEnter={() => prefetchListing(l.id)}
+                    onTouchStart={() => prefetchListing(l.id)}
+                  >
+                    <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} onLocate={() => locateOnMap(l.id)} />
+                  </div>
+                ))}
+              </div>
+              {/* Sentinel loads the next page as it nears the viewport */}
+              {!nearby && (
+                <div ref={loadMoreRef} className="mt-6 select-none">
+                  {queryFetching && hasMore && (
+                    <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-[#0a66c2]" aria-hidden="true" />
+                      {tr('Loading more…', 'Đang tải thêm…')}
+                    </div>
+                  )}
+                  {!hasMore && totalCount > 24 && (
+                    <p className="border-t border-border pt-5 text-center text-xs font-semibold text-ink-4">{tr("You've reached the end", 'Bạn đã xem hết')}</p>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
         </div>
