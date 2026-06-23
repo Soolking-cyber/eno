@@ -21,6 +21,8 @@ type Ctx = {
   unread: number
   refresh: () => void
   markAllRead: () => void
+  remove: (id: string) => void
+  clearAll: () => void
 }
 
 const NotificationsContext = createContext<Ctx | undefined>(undefined)
@@ -63,8 +65,24 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     try { await fetch('/api/notifications/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }) } catch { /* optimistic */ }
   }, [])
 
+  // Delete one notification (optimistic; drops the unread count if it was unread).
+  const remove = useCallback(async (id: string) => {
+    setItems((arr) => {
+      const target = arr.find((n) => n.id === id)
+      if (target && !target.read) setUnread((u) => Math.max(0, u - 1))
+      return arr.filter((n) => n.id !== id)
+    })
+    try { await fetch(`/api/notifications/${id}`, { method: 'DELETE' }) } catch { /* optimistic */ }
+  }, [])
+
+  // Clear all notifications.
+  const clearAll = useCallback(async () => {
+    setItems([]); setUnread(0)
+    try { await fetch('/api/notifications', { method: 'DELETE' }) } catch { /* optimistic */ }
+  }, [])
+
   return (
-    <NotificationsContext.Provider value={{ items, unread, refresh, markAllRead }}>
+    <NotificationsContext.Provider value={{ items, unread, refresh, markAllRead, remove, clearAll }}>
       {children}
     </NotificationsContext.Provider>
   )

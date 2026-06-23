@@ -28,3 +28,11 @@ export async function GET() {
     unread,
   })
 }
+
+// DELETE: clear ALL of my notifications.
+export async function DELETE() {
+  const meId = await getCurrentProfileId()
+  if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+  await db.notification.deleteMany({ where: { recipientId: meId } })
+  return new NextResponse(null, { status: 204 })
+}

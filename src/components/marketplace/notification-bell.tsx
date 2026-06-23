@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Bell, MessageSquare, Tag, Clock, Search } from 'lucide-react'
+import { Bell, MessageSquare, Tag, Clock, Search, X } from 'lucide-react'
 import { useNotifications } from '@/context/notifications-context'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
  *  opening the panel marks everything read. Each row deep-links to the thread/listing. */
 export function NotificationBell() {
   const { user, openSignIn } = useAuth()
-  const { items, unread, markAllRead } = useNotifications()
+  const { items, unread, markAllRead, remove, clearAll } = useNotifications()
   const { tr, lang } = useLanguage()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -49,8 +49,13 @@ export function NotificationBell() {
 
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl bg-card shadow-pop animate-in fade-in duration-150">
-          <div className="px-4 py-3">
+          <div className="flex items-center justify-between px-4 py-3">
             <span className="text-sm font-bold text-foreground">{tr('Notifications', 'Thông báo')}</span>
+            {items.length > 0 && (
+              <button onClick={() => clearAll()} className="text-xs font-semibold text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer">
+                {tr('Clear all', 'Xóa tất cả')}
+              </button>
+            )}
           </div>
           <div className="max-h-[60vh] overflow-y-auto scroll-thin">
             {items.length === 0 ? (
@@ -60,25 +65,30 @@ export function NotificationBell() {
                 const href = n.url ? n.url : n.type === 'reminder' ? '/dashboard' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
                 const Icon = n.type === 'offer' ? Tag : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : MessageSquare
                 return (
-                  <Link
-                    key={n.id}
-                    href={href}
-                    onClick={() => setOpen(false)}
-                    className={cn('flex gap-3 px-4 py-3 transition-colors hover:bg-muted', !n.read && 'bg-accent')}
-                  >
-                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-semibold text-foreground">
-                          {n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.title}
-                        </span>
-                        <span className="shrink-0 text-[10px] text-ink-4">{timeAgo(n.createdAt, lang === 'vi' ? 'vi' : 'en')}</span>
+                  <div key={n.id} className={cn('group relative transition-colors hover:bg-muted', !n.read && 'bg-accent')}>
+                    <Link href={href} onClick={() => setOpen(false)} className="flex gap-3 px-4 py-3 pr-10">
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-semibold text-foreground">
+                            {n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.title}
+                          </span>
+                          <span className="shrink-0 text-[10px] text-ink-4">{timeAgo(n.createdAt, lang === 'vi' ? 'vi' : 'en')}</span>
+                        </div>
+                        {n.body && <p className="truncate text-xs text-muted-foreground">{n.body}</p>}
                       </div>
-                      {n.body && <p className="truncate text-xs text-muted-foreground">{n.body}</p>}
-                    </div>
-                  </Link>
+                    </Link>
+                    {/* Delete — reveals on hover (desktop); always visible on touch */}
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(n.id) }}
+                      aria-label={tr('Delete notification', 'Xóa thông báo')}
+                      className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-4 opacity-0 transition-opacity hover:bg-accent hover:text-foreground cursor-pointer group-hover:opacity-100 focus:opacity-100 max-sm:opacity-100"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )
               })
             )}
