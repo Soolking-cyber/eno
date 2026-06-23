@@ -254,7 +254,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                 maxLength={TITLE_MAX}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={t('VD: iPhone 14 128GB — pin 92%', 'e.g. iPhone 14 128GB — battery 92%')}
-                className="w-full rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                className="w-full max-w-2xl rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
               />
             </Field>
             <Field label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')}>
@@ -264,7 +264,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                 onChange={(e) => setDescription(e.target.value)}
                 rows={5}
                 placeholder={t('Mô tả chi tiết…', 'Describe it in detail…')}
-                className="w-full resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                className="w-full max-w-2xl resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
               />
             </Field>
           </Section>
@@ -287,7 +287,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
 
           {/* Price */}
           <Section title={t('Giá', 'Price')}>
-            <div className="flex items-center gap-2">
+            <div className="flex max-w-xs items-center gap-2">
               <div className="flex-1"><VndInput value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} /></div>
               {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
             </div>
@@ -307,7 +307,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
               type="button"
               ref={areaBtnRef}
               onClick={() => setAreaOpen((o) => !o)}
-              className="flex w-full items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted"
+              className="flex w-full max-w-md items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted"
             >
               <span className={cn('flex min-w-0 items-center gap-2', areaLabel ? 'text-foreground font-medium' : 'text-ink-4')}>
                 <MapPin className="h-4 w-4 shrink-0 text-accent-foreground" />
@@ -325,7 +325,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                 {t('Đăng với tư cách', 'Posting as')} <span className="font-semibold text-foreground">{postingAs}</span>
               </p>
             )}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label={t('Tên của bạn', 'Your name')}>
                 <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder={t('VD: Minh', 'e.g. Minh')} className="w-full rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4" />
               </Field>
