@@ -6,9 +6,9 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
-import { Star, BadgeCheck, ChevronLeft, MessageSquareText, Clock, CalendarDays } from 'lucide-react'
+import { BadgeCheck, ChevronLeft, MessageSquareText, Clock, CalendarDays, ShieldCheck } from 'lucide-react'
 import { Tr } from '@/context/language-context'
-import { TrustBadge } from '@/components/marketplace/trust-badge'
+import { TrustScore } from '@/components/marketplace/trust-score'
 import { ReportButton } from '@/components/marketplace/report-button'
 
 type Props = { params: Promise<{ id: string }> }
@@ -70,18 +70,18 @@ export default async function SellerPage({ params }: Props) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="h-title text-foreground">{seller.name}</h1>
-              <TrustBadge tier={seller.trustTier} size="md" />
+              <TrustScore score={seller.trustScore} size="lg" showLabel />
               {seller.ownerId && (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
                   <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
                 </span>
               )}
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-sm text-body">
-              <Star className="h-4 w-4 fill-foreground text-foreground" />
-              <span className="font-semibold text-foreground">{seller.rating.toFixed(1)}</span>
-              <span className="text-ink-4">· {seller.reviewCount} <Tr text="reviews" /></span>
-            </div>
+            {seller.reviewCount > 0 && (
+              <div className="mt-1 text-sm text-ink-4">
+                {seller.reviewCount} <Tr text="completed reviews" />
+              </div>
+            )}
             {seller.bio && <p className="mt-2 max-w-2xl text-sm text-body"><Tr text={seller.bio} /></p>}
             <div className="mt-3">
               <ReportButton sellerId={seller.id} />
@@ -91,7 +91,7 @@ export default async function SellerPage({ params }: Props) {
 
         {/* Trust stats — flat (monolith): no box, separation by spacing */}
         <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
-          <Stat icon={<Star className="h-4 w-4" />} value={`${seller.rating.toFixed(1)}★`} label={<Tr text="Rating" />} />
+          <Stat icon={<ShieldCheck className="h-4 w-4" />} value={<TrustScore score={seller.trustScore} size="md" />} label={<Tr text="Trust score" />} />
           <Stat icon={<MessageSquareText className="h-4 w-4" />} value={`${seller.responseRate}%`} label={<Tr text="Response rate" />} />
           <Stat icon={<Clock className="h-4 w-4" />} value={<Tr text={seller.responseTime} />} label={<Tr text="Responds" />} />
           <Stat icon={<CalendarDays className="h-4 w-4" />} value={`${memberYear}`} label={<Tr text="Member since" />} />
@@ -109,9 +109,7 @@ export default async function SellerPage({ params }: Props) {
                       {r.author.split(' ').map((w) => w[0]).join('').toUpperCase()}
                     </span>
                     <span className="text-sm font-semibold text-foreground">{r.author}</span>
-                    <span className="ml-auto flex items-center gap-0.5 text-xs text-foreground">
-                      <Star className="h-3 w-3 fill-foreground text-foreground" /> {r.rating.toFixed(1)}
-                    </span>
+                    <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Verified buyer" /></span>
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-body"><Tr text={r.text} /></p>
                 </div>

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Star, X, Heart } from 'lucide-react'
+import { X, Heart } from 'lucide-react'
+import { TrustScore } from './trust-score'
 import type { SerializedListing } from '@/lib/types'
 import { formatPrice } from '@/lib/types'
 import { formatMoneyFull } from '@/lib/vnd'
@@ -263,11 +264,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
               <div className="p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="truncate text-sm font-bold text-foreground">{lang === 'vi' ? (card.titleVi || card.title) : card.title}</p>
-                  {card.seller.reviewCount > 0 && (
-                    <span className="flex shrink-0 items-center gap-0.5 text-xs font-semibold text-foreground">
-                      <Star className="h-3 w-3 fill-foreground text-foreground" /> {card.seller.rating.toFixed(1)}
-                    </span>
-                  )}
+                  <TrustScore score={card.seller.trustScore} size="sm" className="shrink-0" />
                 </div>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
                 <p className="mt-1 text-sm font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</p>

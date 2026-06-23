@@ -11,14 +11,12 @@ import { Footer } from '@/components/marketplace/footer'
 import { CategoryIcon } from '@/components/marketplace/category-icons'
 import {
   MapPin,
-  Star,
-  BadgeCheck,
   AlertTriangle,
   ChevronLeft,
   Building2,
 } from 'lucide-react'
 import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
-import { TrustBadge } from '@/components/marketplace/trust-badge'
+import { TrustScore } from '@/components/marketplace/trust-score'
 import { Price } from '@/components/marketplace/price'
 import { Tr } from '@/context/language-context'
 import { LocalizedTitle, PostedAgo } from '@/components/marketplace/listing-content'
@@ -273,14 +271,12 @@ export default async function ListingPage({ params }: Props) {
                 {listing.negotiable && <span className="text-sm text-muted-foreground">· <Tr text="Negotiable" /></span>}
               </div>
 
-              {(listing.seller.trustTier === 'trusted' || listing.seller.trustTier === 'exceptional') && (
-                <div className="flex items-center gap-2">
-                  <TrustBadge tier={listing.seller.trustTier} size="md" />
-                  <span className="text-xs text-muted-foreground">
-                    <Tr text="Earned on eno.vn from a clean track record" />
-                  </span>
-                </div>
-              )}
+              <Link href="/trust" className="flex items-center gap-2 cursor-pointer">
+                <TrustScore score={listing.seller.trustScore} size="lg" showLabel />
+                <span className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+                  <Tr text="How trust works" />
+                </span>
+              </Link>
 
               {/* Unified contact + offer (auth-gated; number never in this payload).
                   Type a message or tap "Make an offer", then send → opens the thread. */}
@@ -293,16 +289,15 @@ export default async function ListingPage({ params }: Props) {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="truncate text-sm font-semibold text-foreground group-hover:underline">{listing.seller.name}</span>
-                    {listing.seller.verifiedSeller && <BadgeCheck className="h-4 w-4 shrink-0 text-accent-foreground" />}
                     {listing.seller.isBusiness && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-accent-foreground">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
                         <Building2 className="h-3 w-3" /> <Tr text="Business" />
                       </span>
                     )}
                   </div>
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Star className="h-3 w-3 fill-foreground text-foreground shrink-0" />
-                    {listing.seller.rating.toFixed(1)} ({listing.seller.reviewCount}) · <Tr text="View profile" />
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <TrustScore score={listing.seller.trustScore} size="sm" />
+                    · <Tr text="View profile" />
                   </span>
                 </div>
               </Link>

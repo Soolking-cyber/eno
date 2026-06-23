@@ -9,7 +9,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
-import { TrustBadge } from '@/components/marketplace/trust-badge'
+import { TrustScore } from '@/components/marketplace/trust-score'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
 import { ProfileEditor } from '@/components/marketplace/profile-editor'
 import { reviewKey, todayStr } from './availability/availability-client'
@@ -141,7 +141,7 @@ export function DashboardClient() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="truncate text-lg font-bold text-foreground">{d?.profile.businessName || d?.profile.displayName || tr('Your account', 'Tài khoản của bạn')}</h1>
-                {d && <TrustBadge tier={d.profile.trustTier} size="sm" />}
+                {d && <a href="/trust"><TrustScore score={d.profile.trustScore} size="md" showLabel /></a>}
               </div>
               {d?.profile.email && <p className="truncate text-sm text-muted-foreground">{d.profile.email}</p>}
             </div>

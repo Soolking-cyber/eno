@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Heart, ChevronLeft, ChevronRight, Star, Building2, MapPin } from 'lucide-react'
-import { TrustBadge } from './trust-badge'
+import { Heart, ChevronLeft, ChevronRight, Building2, MapPin } from 'lucide-react'
+import { TrustScore } from './trust-score'
 import Image from 'next/image'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
@@ -193,22 +193,14 @@ export function ListingCard({
 
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="truncate">{displayLocation}</span>
-          <span className="flex shrink-0 items-center gap-0.5 text-foreground">
-            <Star className="h-3 w-3 fill-foreground text-foreground" />
-            {listing.seller.rating.toFixed(1)}
-          </span>
+          <TrustScore score={listing.seller.trustScore} size="sm" className="shrink-0" />
         </div>
 
-        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-          {listing.seller.isBusiness && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
-              <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
-            </span>
-          )}
-          {(listing.seller.trustTier === 'trusted' || listing.seller.trustTier === 'exceptional') && (
-            <TrustBadge tier={listing.seller.trustTier} size="sm" className="rounded-md" />
-          )}
-        </div>
+        {listing.seller.isBusiness && (
+          <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
+            <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
+          </span>
+        )}
       </div>
     </div>
   )
