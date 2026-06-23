@@ -15,7 +15,7 @@ const TOPICS: { Icon: typeof Rocket; label: string; href: string }[] = [
   { Icon: Rocket, label: 'How eno.vn works', href: '/guide' },
   { Icon: BadgeCheck, label: 'Trust & reputation', href: '/guide#verification' },
   { Icon: ShieldCheck, label: 'Safe trading', href: '/safety' },
-  { Icon: Mail, label: 'Contact support', href: 'mailto:support@eno.vn' },
+  { Icon: Mail, label: 'Contact support', href: 'mailto:support@eno.forum' },
 ]
 
 // Comprehensive, categorized FAQ. [question, answer] pairs (English source).
@@ -122,8 +122,8 @@ export default function HelpPage() {
             <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
             <p className="text-sm text-body"><Tr text="Our team replies within one business day." /></p>
           </div>
-          <a href="mailto:support@eno.vn" className="flex shrink-0 items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
-            <Mail className="h-4 w-4" /> support@eno.vn
+          <a href="mailto:support@eno.forum" className="flex shrink-0 items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+            <Mail className="h-4 w-4" /> support@eno.forum
           </a>
         </div>
 
