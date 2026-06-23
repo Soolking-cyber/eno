@@ -8,7 +8,7 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, Send, Phone, Loader2, Tag, X } from 'lucide-react'
+import { ChevronLeft, Send, Phone, Loader2, Tag } from 'lucide-react'
 
 type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Thread = {
@@ -200,6 +200,15 @@ export default function ThreadPage() {
     if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') }
   }
 
+  // "+000" chip: append three zeros (the ×1,000 VND shortcut) to the current amount.
+  const addThousand = () => setOfferInput((v) => {
+    const d = v.replace(/\D/g, '')
+    if (!d) return v
+    return new Intl.NumberFormat('en-US').format(Number((d + '000').slice(0, 12)))
+  })
+
+  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput('') }
+
   return (
     <div className="flex h-full w-full flex-col bg-background">
       {!loading && !user ? (
@@ -301,46 +310,58 @@ export default function ThreadPage() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Offer amount input (toggled by the Offer button) */}
-          {showOffer && (
-            <div className="flex items-center gap-2 px-4 pt-2">
-              <input
-                value={offerInput}
-                onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 12); setOfferInput(d ? new Intl.NumberFormat('en-US').format(Number(d)) : '') }}
-                inputMode="numeric"
-                autoFocus
-                placeholder={tr('Offer amount (₫)', 'Số tiền đề nghị (₫)')}
-                className="min-w-0 flex-1 rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
-                onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
-              />
-              <button onClick={submitOffer} disabled={!offerInput} className="shrink-0 rounded-2xl bg-[#0a66c2] px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-40 cursor-pointer">
-                {tr('Send offer', 'Gửi đề nghị')}
-              </button>
-              <button onClick={() => { setShowOffer(false); setOfferInput('') }} aria-label={tr('Cancel', 'Hủy')} className="shrink-0 text-ink-4 hover:text-foreground cursor-pointer">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-
-          {/* Composer */}
+          {/* Composer — the Tag toggle flips this same bar between a message field
+              and the offer-amount field (no separate input bar). In offer mode the
+              field shows an inline +000 chip and Send submits the offer. */}
           <div className="flex items-end gap-2 bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <button
-              onClick={() => setShowOffer((s) => !s)}
+              onClick={toggleOffer}
               aria-label={tr('Make an offer', 'Gửi đề nghị giá')}
               title={tr('Make an offer', 'Gửi đề nghị giá')}
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer ${showOffer ? 'text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer ${showOffer ? 'bg-[#0a66c2]/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
             >
               <Tag className="h-[18px] w-[18px]" />
             </button>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-              rows={1}
-              placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
-              className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
-            />
-            <button onClick={() => send()} disabled={!text.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40">
+
+            {showOffer ? (
+              <div className="relative flex-1">
+                <input
+                  value={offerInput}
+                  onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 12); setOfferInput(d ? new Intl.NumberFormat('en-US').format(Number(d)) : '') }}
+                  inputMode="numeric"
+                  autoFocus
+                  placeholder={tr('Offer amount (₫)', 'Số tiền đề nghị (₫)')}
+                  onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
+                  className="w-full rounded-2xl border border-[#0a66c2] px-3.5 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-[#0a66c2]/20"
+                />
+                {/* +000 chip, inside the input's right corner (×1,000 shortcut) */}
+                <button
+                  type="button"
+                  onClick={addThousand}
+                  aria-label={tr('Add three zeros', 'Thêm 000')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-accent px-2 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-[#0a66c2]/15 cursor-pointer"
+                >
+                  +000
+                </button>
+              </div>
+            ) : (
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+                rows={1}
+                placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
+                className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+              />
+            )}
+
+            <button
+              onClick={() => (showOffer ? submitOffer() : send())}
+              disabled={showOffer ? !offerInput : !text.trim()}
+              aria-label={showOffer ? tr('Send offer', 'Gửi đề nghị') : tr('Send', 'Gửi')}
+              title={showOffer ? tr('Send offer', 'Gửi đề nghị') : tr('Send', 'Gửi')}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40"
+            >
               <Send className="h-4 w-4" />
             </button>
           </div>
