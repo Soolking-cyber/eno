@@ -38,6 +38,7 @@ export function PriceRangeFilter({
   const [mounted, setMounted] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const [prices, setPrices] = useState<number[]>([])
+  const [loaded, setLoaded] = useState(false)
   const [lo, setLo] = useState<number | null>(null)
   const [hi, setHi] = useState<number | null>(null)
 
@@ -47,17 +48,18 @@ export function PriceRangeFilter({
     const r = triggerRef.current?.getBoundingClientRect()
     if (!r) return
     const left = Math.max(8, Math.min(r.left, window.innerWidth - PANEL_W - 8))
-    setPos({ top: r.bottom, left }) // flush under the trigger (morph window)
+    setPos({ top: r.bottom + 6, left }) // drop just below the trigger
   }, [])
 
   useEffect(() => {
     if (!open) return
     place()
     let cancel = false
+    setLoaded(false)
     fetch(`/api/listings?${query}`)
       .then((r) => r.json())
-      .then((d) => { if (!cancel && Array.isArray(d.prices)) setPrices(d.prices) })
-      .catch(() => {})
+      .then((d) => { if (!cancel) { if (Array.isArray(d.prices)) setPrices(d.prices); setLoaded(true) } })
+      .catch(() => { if (!cancel) setLoaded(true) })
     const onWin = () => place()
     window.addEventListener('resize', onWin)
     window.addEventListener('scroll', onWin, true)
@@ -129,7 +131,7 @@ export function PriceRangeFilter({
         onClick={() => { if (!open) place(); setOpen((o) => !o) }}
         className={cn(
           'flex w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
-          open ? 'rounded-t-2xl rounded-b-none bg-card text-foreground shadow-pop' : active ? activeClassName : className,
+          open ? 'text-foreground' : active ? activeClassName : className,
         )}
       >
         <span className="truncate">{triggerText}</span>
@@ -142,17 +144,19 @@ export function PriceRangeFilter({
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W }}
-          className="z-[70] max-w-[calc(100vw-1rem)] rounded-b-2xl bg-card p-4 shadow-pop animate-in fade-in duration-150"
+          className="z-[70] max-w-[calc(100vw-1rem)] rounded-2xl bg-card p-4 shadow-pop animate-in fade-in duration-150"
         >
           <div className="flex items-baseline justify-between">
             <p className="text-sm font-bold text-foreground">{tr('Price range', 'Khoảng giá')}</p>
             <p className="text-xs text-muted-foreground">
-              {prices.length ? tr(`${inRangeCount} available`, `${inRangeCount} món`) : tr('Loading…', 'Đang tải…')}
+              {!loaded ? tr('Loading…', 'Đang tải…') : prices.length ? tr(`${inRangeCount} available`, `${inRangeCount} món`) : ''}
             </p>
           </div>
 
-          {prices.length === 0 ? (
+          {!loaded ? (
             <div className="mt-6 h-24 animate-pulse rounded-xl bg-muted" />
+          ) : prices.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">{tr('No listings match these filters yet.', 'Chưa có tin phù hợp với bộ lọc.')}</p>
           ) : (
             <>
               <div className="mt-4">

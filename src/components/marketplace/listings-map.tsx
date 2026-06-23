@@ -227,16 +227,16 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
               <button
                 onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
                 aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-card/90 shadow-sm transition-transform hover:scale-105 active:scale-95"
+                className="flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90"
               >
-                <Heart className={cn('h-4 w-4 transition-colors', isFavorite(card.id) ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-foreground')} />
+                <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-[#0a66c2] text-white' : 'fill-black/25 text-white')} />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); closeCard() }}
                 aria-label={tr('Close', 'Đóng')}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm transition-transform hover:scale-105 active:scale-95"
+                className="flex h-8 w-8 items-center justify-center text-white transition-transform hover:scale-110 active:scale-90 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
             <button onClick={() => onOpenListing(card)} className="block w-full text-left cursor-pointer">

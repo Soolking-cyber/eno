@@ -723,57 +723,6 @@ export function ListingsExplorer({
     )
   }, [lang, t, handleOpen, prefetchListing])
 
-  // Compact card for the narrow map-view list: stacks title → price → location
-  // so long prices never crush the title.
-  const renderMapCard = useCallback((l: SerializedListing, index: number) => {
-    const cover = l.images[0]
-    const displayTitle = lang === 'vi' ? (l.titleVi || l.title) : l.title
-    return (
-      <div
-        onClick={() => handleOpen(l)}
-        onMouseEnter={() => prefetchListing(l.id)}
-        onTouchStart={() => prefetchListing(l.id)}
-        className="group flex gap-3 rounded-xl p-2 text-left transition-colors hover:bg-muted cursor-pointer"
-      >
-        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-tint">
-          {cover ? (
-            <Image src={cover} alt={displayTitle} fill sizes="80px" className="object-cover" priority={index < 4} loading={index < 4 ? undefined : 'lazy'} />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-tint">
-              <CategoryIcon name={l.category.icon} className="h-6 w-6 text-ink-4" />
-            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <h4 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline">
-            <Tr text={displayTitle} />
-          </h4>
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="mt-1 block text-sm font-bold text-foreground" />
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-            <span className="truncate"><Tr text={l.district || l.city} /></span>
-            {l.verified && (
-              <span className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-accent-foreground">
-                <BadgeCheck className="h-3 w-3" />
-                {t('card.verified')}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center self-center">
-          <FavoriteHeart id={l.id} />
-          {/* Locate this listing on the map */}
-          <button
-            onClick={(e) => { e.stopPropagation(); setFocusId(l.id) }}
-            aria-label={tr('Show on map', 'Xem trên bản đồ')}
-            title={tr('Show on map', 'Xem trên bản đồ')}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-accent-foreground hover:bg-accent transition-colors cursor-pointer"
-          >
-            <MapPin className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    )
-  }, [lang, t, tr, handleOpen, prefetchListing])
 
   const renderCategorySpecificFilters = () => {
     if (activeCategory === 'all') return null
@@ -1658,8 +1607,8 @@ export function ListingsExplorer({
                   /* Airbnb-style split: scrollable list (left) + sticky map (right) */
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                     {/* Left: narrow single-column result list */}
-                    <div className="min-w-0 lg:col-span-3 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 space-y-1.5 scroll-thin order-2 lg:order-1">
-                      {shownListings.map((l, index) => (
+                    <div className="min-w-0 lg:col-span-4 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 grid grid-cols-1 gap-4 scroll-thin order-2 lg:order-1">
+                      {shownListings.map((l) => (
                         <div
                           key={l.id}
                           onMouseEnter={() => setHoveredId(l.id)}
@@ -1669,12 +1618,12 @@ export function ListingsExplorer({
                             hoveredId === l.id && 'ring-2 ring-inset ring-[#0a66c2]/40',
                           )}
                         >
-                          {renderMapCard(l, index)}
+                          <ListingCard listing={l} onOpen={handleOpen} />
                         </div>
                       ))}
                     </div>
                     {/* Right: big sticky map */}
-                    <div className="min-w-0 lg:col-span-9 h-[60vh] lg:h-[calc(100dvh-8rem)] lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
+                    <div className="min-w-0 lg:col-span-8 h-[60vh] lg:h-[calc(100dvh-8rem)] lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
                       <ListingsMap
                         listings={shownListings}
                         activeDistrict={activeDistrict}

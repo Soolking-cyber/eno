@@ -71,7 +71,7 @@ export function AreaFilter({
     if (!el) return
     const r = el.getBoundingClientRect()
     const width = Math.min(360, window.innerWidth - 16)
-    setPos({ top: r.bottom, left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), width })
+    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), width })
   }, [anchorRef])
 
   // Reposition + outside-click/Escape close. useLayoutEffect so position is set
@@ -202,7 +202,7 @@ export function AreaFilter({
     <div
       ref={panelRef}
       style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
-      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-b-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
+      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
     >
       <div className="space-y-4">
         {/* Province / city */}

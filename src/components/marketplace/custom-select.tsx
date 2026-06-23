@@ -42,7 +42,7 @@ export function CustomSelect({
     const r = el.getBoundingClientRect()
     const width = Math.max(r.width, 176) // keep narrow pills' menus readable
     const left = Math.min(r.left, window.innerWidth - width - 8)
-    setPos({ top: r.bottom, left: Math.max(8, left), width })
+    setPos({ top: r.bottom + 6, left: Math.max(8, left), width })
   }, [])
 
   useEffect(() => {
@@ -76,8 +76,9 @@ export function CustomSelect({
             ? (activeClassName ?? 'bg-accent text-accent-foreground')
             : 'text-body hover:bg-muted'), // flush at rest, color on hover (one-canvas)
           className,
-          // Open: morph into the top of the window — borderless, flat seam (overrides caller).
-          isOpen && 'rounded-t-2xl rounded-b-none bg-card text-foreground shadow-pop',
+          // Open: just emphasize the text + rotate the chevron; the menu is a detached
+          // card below (consistent with every other dropdown — no morph).
+          isOpen && 'text-foreground',
         )}
       >
         <span className="flex items-center gap-1.5 truncate">
@@ -97,7 +98,7 @@ export function CustomSelect({
           ref={menuRef}
           data-portal-menu
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
-          className="z-[121] max-h-60 overflow-y-auto overflow-x-hidden rounded-b-2xl bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in duration-150"
+          className="z-[121] max-h-60 overflow-y-auto overflow-x-hidden rounded-2xl bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in duration-150"
         >
           {options.map((opt) => {
             const isActive = opt.value === value

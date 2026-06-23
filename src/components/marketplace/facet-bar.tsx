@@ -96,14 +96,14 @@ export function FacetBar({
       className={cn(
         'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
         wrap,
-        areaOpen ? 'rounded-t-2xl rounded-b-none bg-card text-foreground shadow-pop' : areaActive ? active : 'text-body hover:bg-muted',
+        areaOpen ? 'text-foreground' : areaActive ? active : 'text-body hover:bg-muted',
       )}
     >
       <span className="flex items-center gap-1.5 truncate">
         <MapPin className={cn('h-3.5 w-3.5', areaActive ? 'text-accent-foreground' : 'text-ink-4')} />
         <span className="truncate">{areaLabel}</span>
       </span>
-      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-4" />
+      <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', areaOpen && 'rotate-180')} />
     </button>,
     <PriceRangeFilter
       key="price"

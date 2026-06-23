@@ -118,11 +118,12 @@ export function ListingCard({
           aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
           aria-pressed={favorited}
           onClick={(e) => { e.stopPropagation(); toggle(listing.id) }}
-          className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 shadow-sm transition-transform hover:scale-110 active:scale-90 cursor-pointer"
+          className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer"
         >
-          {/* key remounts on favorite → re-runs the CSS pop (replaces framer scale) */}
+          {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow so
+              it stays legible on ANY photo, in light & dark. Blue fill when saved. */}
           <span key={favorited ? 'on' : 'off'} className={cn('inline-flex', favorited && 'animate-heart-pop')}>
-            <Heart className={cn('h-[18px] w-[18px] transition-colors', favorited ? 'fill-[#0a66c2] text-[#0a66c2]' : 'text-foreground')} />
+            <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-[#0a66c2] text-white' : 'fill-black/25 text-white')} />
           </span>
         </button>
 
@@ -134,9 +135,9 @@ export function ListingCard({
                 type="button"
                 aria-label={tr('Previous photo')}
                 onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 hidden h-7 w-7 items-center justify-center rounded-full bg-white/95 text-foreground shadow-sm opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer"
+                className="absolute left-1 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 items-center justify-center text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-6 w-6" />
               </button>
             )}
             {idx < last && (
@@ -144,9 +145,9 @@ export function ListingCard({
                 type="button"
                 aria-label={tr('Next photo')}
                 onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 hidden h-7 w-7 items-center justify-center rounded-full bg-white/95 text-foreground shadow-sm opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer"
+                className="absolute right-1 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 items-center justify-center text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-6 w-6" />
               </button>
             )}
             {/* dots */}
