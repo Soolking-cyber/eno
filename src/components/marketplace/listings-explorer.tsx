@@ -106,7 +106,9 @@ export function ListingsExplorer({
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
   const [showExplorer, setShowExplorer] = useState(false)
 
-  const [listings, setListings] = useState<SerializedListing[]>(initialListings)
+  // The paginated explorer feed starts at the first page (24); the landing's curated
+  // rows use the larger `initialListings` set directly (so they're not sparse).
+  const [listings, setListings] = useState<SerializedListing[]>(() => initialListings.slice(0, 24))
   // When "search near you" is on, distance-filter + sort the fetched set client-side
   // (listing coordinates are approximate — district-derived — until precise capture).
   const shownListings = useMemo(() => {
@@ -513,7 +515,7 @@ export function ListingsExplorer({
       listingType === 'all' &&
       sort === 'newest' && verifiedOnly && !debouncedQuery.trim() &&
       Object.keys(customFilters).length === 0
-        ? { listings: initialListings, total: initialTotal ?? initialListings.length, subcategoryCounts: {}, categoryTotal: 0 }
+        ? { listings: initialListings.slice(0, 24), total: initialTotal ?? initialListings.length, subcategoryCounts: {}, categoryTotal: 0 }
         : undefined,
     initialDataUpdatedAt: initialFetchedAt,
   })
@@ -1371,8 +1373,9 @@ export function ListingsExplorer({
             </div>
           </div>
 
-          {/* CURATED BROWSE ROWS (Airbnb-style horizontal carousels) */}
-          {listings.length === 0 ? (
+          {/* CURATED BROWSE ROWS (Airbnb-style horizontal carousels) — drawn from the
+              full initial set so each category row is populated (not the paginated feed). */}
+          {initialListings.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
               <Inbox className="h-10 w-10 text-muted-foreground" />
               <p className="text-sm font-semibold text-body">
@@ -1383,7 +1386,7 @@ export function ListingsExplorer({
             <div className="space-y-10">
               <CardRow
                 title={tr('Recommendations for you', 'Gợi ý dành cho bạn')}
-                listings={listings.slice(0, 12)}
+                listings={initialListings.slice(0, 12)}
                 onOpen={handleOpen}
                 onViewAll={() => setShowExplorer(true)}
                 viewAllLabel={tr('View all', 'Xem tất cả')}
@@ -1391,7 +1394,7 @@ export function ListingsExplorer({
                 lcp
               />
               {deferredRows && categories.map((cat) => {
-                const items = listings.filter((l) => l.category.slug === cat.slug)
+                const items = initialListings.filter((l) => l.category.slug === cat.slug)
                 if (items.length === 0) return null
                 return (
                   <CardRow

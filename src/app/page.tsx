@@ -25,7 +25,10 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       db.listing.findMany({
         where: { verified: true, status: 'active' },
         orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
-        take: 24,
+        // Larger set so the landing's per-category carousels are well-populated
+        // (~7/category across 14); below-fold rows still defer-render. The explorer
+        // paginates 24 at a time (seeded from the first 24 of this set).
+        take: 96,
         include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
       }),
       db.listing.count({ where: { verified: true, status: 'active' } }),
