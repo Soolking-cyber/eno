@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface CustomSelectProps {
@@ -108,11 +108,12 @@ export function CustomSelect({
                 type="button"
                 onClick={() => { onChange(opt.value); setIsOpen(false) }}
                 className={cn(
-                  'flex w-full items-center gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer',
-                  isActive ? 'bg-accent text-accent-foreground font-semibold' : 'font-medium text-body hover:bg-tint',
+                  'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer hover:bg-muted',
+                  isActive ? 'font-semibold text-accent-foreground' : 'font-medium text-body',
                 )}
               >
                 <span className="truncate">{opt.label}</span>
+                {isActive && <Check className="h-4 w-4 shrink-0" />}
               </button>
             )
           })}
