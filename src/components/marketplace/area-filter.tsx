@@ -230,7 +230,7 @@ export function AreaFilter({
               options={wards.map((w) => ({ value: w.code, label: label(w) }))}
               placeholder={tr('Select Ward/Commune', 'Chọn Phường/Xã')}
               className={FIELD}
-              activeClassName="bg-tint text-foreground"
+              activeClassName={FIELD}
             />
           ) : (
             <DisabledField label={tr('Select a province first', 'Hãy chọn tỉnh/thành trước')} />

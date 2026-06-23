@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ImagePlus, X, BadgeCheck, ShieldCheck, MapPin, ChevronDown } from 'lucide-react'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
@@ -30,6 +30,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
   const [condition, setCondition] = useState('')
   // Location via the shared AreaFilter (Province/Ward + one-tap "use my location").
   const [areaOpen, setAreaOpen] = useState(false)
+  const areaBtnRef = useRef<HTMLButtonElement>(null)
   const [province, setProvince] = useState<Geo | null>(null)
   const [ward, setWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null)
@@ -238,8 +239,9 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
                 <label className="text-sm font-semibold text-foreground">{t('Khu vực', 'Area')}</label>
                 <button
                   type="button"
-                  onClick={() => setAreaOpen(true)}
-                  className="flex w-full items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted"
+                  ref={areaBtnRef}
+                  onClick={() => setAreaOpen((o) => !o)}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted"
                 >
                   <span className={cn('flex min-w-0 items-center gap-2', areaLabel ? 'text-foreground font-medium' : 'text-ink-4')}>
                     <MapPin className="h-4 w-4 shrink-0 text-accent-foreground" />
@@ -367,6 +369,7 @@ export function PostWizard({ categories }: { categories: SerializedCategory[] })
       {/* Shared area picker — Province/Ward + one-tap "use my current location". */}
       <AreaFilter
         open={areaOpen}
+        anchorRef={areaBtnRef}
         onClose={() => setAreaOpen(false)}
         province={province}
         ward={ward}

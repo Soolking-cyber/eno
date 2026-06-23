@@ -39,6 +39,7 @@ export function Header() {
   const [ward, setWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null)
   const [areaOpen, setAreaOpen] = useState(false)
+  const areaBtnRef = useRef<HTMLButtonElement>(null)
   // Quick-select suggestions (same store as the hero/in-explorer search): the user's
   // recent searches + recently-used areas, shown when the header search is focused.
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -196,7 +197,8 @@ export function Header() {
               {/* Area filter — small location pin inside the search bar (right) */}
               <button
                 type="button"
-                onClick={() => { setAreaOpen(true); setShowSuggestions(false) }}
+                ref={areaBtnRef}
+                onClick={() => { setAreaOpen((o) => !o); setShowSuggestions(false) }}
                 aria-label={tr('Area', 'Khu vực')}
                 className={cn(
                   'mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95',
@@ -319,6 +321,7 @@ export function Header() {
 
       <AreaFilter
         open={areaOpen}
+        anchorRef={areaBtnRef}
         onClose={() => setAreaOpen(false)}
         province={province}
         ward={ward}
