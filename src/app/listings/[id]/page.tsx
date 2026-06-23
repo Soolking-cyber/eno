@@ -271,36 +271,34 @@ export default async function ListingPage({ params }: Props) {
                 {listing.negotiable && <span className="text-sm text-muted-foreground">· <Tr text="Negotiable" /></span>}
               </div>
 
-              <Link href="/trust" className="flex items-center gap-2 cursor-pointer">
-                <TrustScore score={listing.seller.trustScore} size="lg" showLabel />
-                <span className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+              {/* Seller identity + trust in ONE cohesive block right under the price
+                  (single trust badge — no duplicate shields). The block links to the
+                  storefront; "How trust works" is a quiet secondary link. */}
+              <div className="space-y-1.5">
+                <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 cursor-pointer">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">
+                    {initials}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="truncate text-sm font-bold text-foreground group-hover:underline">{listing.seller.name}</span>
+                      {listing.seller.isBusiness && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
+                          <Building2 className="h-3 w-3" /> <Tr text="Business" />
+                        </span>
+                      )}
+                    </div>
+                    <TrustScore score={listing.seller.trustScore} size="sm" showLabel className="mt-0.5" />
+                  </div>
+                </Link>
+                <Link href="/trust" className="inline-block pl-14 text-[11px] text-muted-foreground underline-offset-2 hover:underline">
                   <Tr text="How trust works" />
-                </span>
-              </Link>
+                </Link>
+              </div>
 
               {/* Unified contact + offer (auth-gated; number never in this payload).
                   Type a message or tap "Make an offer", then send → opens the thread. */}
               <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={listing.currency} />
-
-              <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 pt-4 cursor-pointer">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">
-                  {initials}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="truncate text-sm font-semibold text-foreground group-hover:underline">{listing.seller.name}</span>
-                    {listing.seller.isBusiness && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
-                        <Building2 className="h-3 w-3" /> <Tr text="Business" />
-                      </span>
-                    )}
-                  </div>
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <TrustScore score={listing.seller.trustScore} size="sm" />
-                    · <Tr text="View profile" />
-                  </span>
-                </div>
-              </Link>
 
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[11px] text-muted-foreground"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></p>
