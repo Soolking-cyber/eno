@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { after } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { checkListingOwner } from '@/lib/listing-owner'
+import { recordEngagement } from '@/lib/trust'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,5 +23,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     data: { status: 'active', availabilityConfirmedAt: now, postedAt: now },
   })
   revalidatePath(`/listings/${id}`)
+  // Reward the day's activity (daily-capped) — keeping listings fresh earns trust.
+  after(() => recordEngagement(auth.profileId).catch(() => {}))
   return NextResponse.json({ ok: true })
 }

@@ -34,6 +34,14 @@ const RECENT_BAD_WINDOW_DAYS = 90 // a recent confirmed report blocks the Except
 const DAY_MS = 86_400_000
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n))
 
+// ── Engagement / activity scoring (the "earn by being active" loop) ──
+export const ENGAGEMENT_DELTA = 2       // +trust for a day's activity (e.g. confirming availability)
+export const ENGAGEMENT_DAILY_CAP = 1   // at most one engagement bump per account per day (no farming)
+export const INACTIVE_DAYS = 7          // active listings unconfirmed this long → the account decays
+export const INACTIVE_PENALTY = 3       // −trust per inactivity sweep (at most once per INACTIVE_DAYS)
+export const RECOVERY_DELTA = 1         // clean accounts below 100 drift back up by this per day
+export const RECOVERY_CLEAN_DAYS = 14   // …only if no confirmed report / inactivity hit in this window
+
 /** Map a report reason to a default severity (admin can override on confirm). */
 export function severityForReason(reason: string): 'minor' | 'moderate' | 'severe' {
   if (reason === 'scam' || reason === 'counterfeit') return 'severe'
@@ -102,6 +110,7 @@ export async function applyTrustEvent(
     | 'fast_response'
     | 'engagement'
     | 'decay_recover'
+    | 'decay_inactive'
     | 'manual_adjust',
   delta: number,
   meta?: { reason?: string; actorId?: string; reportId?: string },
@@ -131,4 +140,70 @@ export async function penalizeSeller(sellerId: string, delta: number, meta?: { r
   }
   const score = clamp(seller.trustScore + delta, SCORE_MIN, SCORE_MAX)
   await db.seller.update({ where: { id: sellerId }, data: { trustScore: score, trustTier: score < 60 ? 'restricted' : 'standard' } })
+}
+
+/**
+ * Reward day-to-day activity (e.g. confirming a listing is still available),
+ * capped so it can't be farmed. Returns true if a bump was applied. No-op for
+ * guest sellers (no Profile to attach the event to).
+ */
+export async function recordEngagement(profileId: string, delta = ENGAGEMENT_DELTA, perDayCap = ENGAGEMENT_DAILY_CAP): Promise<boolean> {
+  const since = new Date(Date.now() - DAY_MS)
+  const today = await db.trustEvent.count({
+    where: { subjectProfileId: profileId, type: 'engagement', createdAt: { gt: since } },
+  })
+  if (today >= perDayCap) return false
+  await applyTrustEvent(profileId, 'engagement', delta, { reason: 'activity' })
+  return true
+}
+
+/**
+ * Daily trust maintenance (run from the cron):
+ *  • DECAY — accounts whose active listings have gone unconfirmed for INACTIVE_DAYS
+ *    lose trust (at most once per window) → rewards keeping listings fresh.
+ *  • RECOVERY — clean accounts below 100 (no recent report or inactivity hit) drift
+ *    back toward 100, so a single old mistake doesn't mark you forever.
+ */
+export async function runTrustMaintenance(): Promise<{ decayed: number; recovered: number }> {
+  const now = Date.now()
+  const staleCutoff = new Date(now - INACTIVE_DAYS * DAY_MS)
+
+  // Owners with ≥1 live-but-stale listing.
+  const stale = await db.listing.findMany({
+    where: {
+      verified: true,
+      status: 'active',
+      seller: { ownerId: { not: null } },
+      OR: [{ availabilityConfirmedAt: { lt: staleCutoff } }, { availabilityConfirmedAt: null, postedAt: { lt: staleCutoff } }],
+    },
+    select: { seller: { select: { ownerId: true } } },
+    take: 20000,
+  })
+  const staleOwners = [...new Set(stale.map((l) => l.seller.ownerId).filter((x): x is string => !!x))]
+
+  let decayed = 0
+  for (const ownerId of staleOwners) {
+    // Already docked within this window? skip (one penalty per INACTIVE_DAYS).
+    const recent = await db.trustEvent.count({
+      where: { subjectProfileId: ownerId, type: 'decay_inactive', createdAt: { gt: staleCutoff } },
+    })
+    if (recent > 0) continue
+    await applyTrustEvent(ownerId, 'decay_inactive', -INACTIVE_PENALTY, { reason: 'inactivity' })
+    decayed++
+  }
+
+  // Recovery: accounts below 100 with a clean recent window drift up by 1/day.
+  const cleanCutoff = new Date(now - RECOVERY_CLEAN_DAYS * DAY_MS)
+  const below = await db.profile.findMany({ where: { trustScore: { lt: 100 } }, select: { id: true }, take: 20000 })
+  let recovered = 0
+  for (const p of below) {
+    const recentBad = await db.trustEvent.count({
+      where: { subjectProfileId: p.id, type: { in: ['report_confirmed', 'decay_inactive'] }, createdAt: { gt: cleanCutoff } },
+    })
+    if (recentBad > 0) continue
+    await applyTrustEvent(p.id, 'decay_recover', RECOVERY_DELTA, { reason: 'recovery' })
+    recovered++
+  }
+
+  return { decayed, recovered }
 }

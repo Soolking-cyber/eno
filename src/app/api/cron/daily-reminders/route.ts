@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
 import { sendPushToProfile } from '@/lib/push'
 import { STALE_DAYS } from '@/lib/stale'
+import { runTrustMaintenance } from '@/lib/trust'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -91,5 +92,9 @@ export async function GET(req: NextRequest) {
     for (const r of res) { notified += r.notified; pushed += r.pushed }
   }
 
-  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, skipped: optedIn.length - targets.length, notified, pushed })
+  // Trust maintenance: decay inactive accounts, recover clean ones toward 100.
+  let trust = { decayed: 0, recovered: 0 }
+  try { trust = await runTrustMaintenance() } catch (e) { console.error('[cron] trust maintenance', e) }
+
+  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, skipped: optedIn.length - targets.length, notified, pushed, trust })
 }
