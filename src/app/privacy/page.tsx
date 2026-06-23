@@ -44,7 +44,7 @@ const sections: [string, string[]][] = [
   [
     'Your choices and rights',
     [
-      'You can view and update your account details, and request deletion of your account and listings, at any time by contacting support@eno.vn. We retain information only as long as needed to provide the service or meet legal obligations.',
+      'You can view and update your account details, and request deletion of your account and listings, at any time by contacting support@eno.forum. We retain information only as long as needed to provide the service or meet legal obligations.',
     ],
   ],
   [
@@ -60,7 +60,7 @@ const sections: [string, string[]][] = [
   [
     'Changes and contact',
     [
-      'We may update this policy from time to time; material changes will be reflected on this page. Questions about privacy? Email support@eno.vn.',
+      'We may update this policy from time to time; material changes will be reflected on this page. Questions about privacy? Email support@eno.forum.',
     ],
   ],
 ]

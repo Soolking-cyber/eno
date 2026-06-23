@@ -6,7 +6,7 @@ import { db } from './db'
 // without push configured), sending becomes a safe no-op rather than throwing.
 const PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 const PRIVATE = process.env.VAPID_PRIVATE_KEY
-const SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@eno.vn'
+const SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@eno.forum'
 let configured = false
 if (PUBLIC && PRIVATE) {
   webpush.setVapidDetails(SUBJECT, PUBLIC, PRIVATE)

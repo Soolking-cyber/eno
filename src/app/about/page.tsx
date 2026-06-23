@@ -35,7 +35,7 @@ export default function AboutPage() {
 
         <h2 id="contact" className="h-section text-foreground mt-10 mb-2"><Tr text="Contact" /></h2>
         <p className="text-sm text-body">
-          <Tr text="Questions or press:" /> <a href="mailto:support@eno.vn" className="font-semibold text-accent-foreground hover:underline">support@eno.vn</a>
+          <Tr text="Questions or press:" /> <a href="mailto:support@eno.forum" className="font-semibold text-accent-foreground hover:underline">support@eno.forum</a>
         </p>
       </main>
       <Footer />
