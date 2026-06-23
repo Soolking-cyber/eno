@@ -10,6 +10,16 @@ export function safeParse<T>(value: string | null, fallback: T): T {
   }
 }
 
+// MOCK DATA self-heal: older mock rows stored loremflickr image URLs, which now
+// 502. Rewrite them to a stable picsum URL at serialize time so the catalog renders
+// without a re-seed. No-op for real (Supabase) images. Remove with the mock data at launch.
+function fixMockImage(u: string): string {
+  if (typeof u !== 'string' || !u.includes('loremflickr.com')) return u
+  const m = u.match(/lock=(\d+)/)
+  const seed = m ? m[1] : String(Math.abs([...u].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)))
+  return `https://picsum.photos/seed/eno${seed}/600/450`
+}
+
 export function serializeListing(
   l: Listing & { category: Category; seller: Seller & { owner?: { accountType: string | null } | null } },
 ): SerializedListing {
@@ -28,7 +38,7 @@ export function serializeListing(
     lat: l.lat,
     lng: l.lng,
     condition: l.condition,
-    images: safeParse<string[]>(l.images, []),
+    images: safeParse<string[]>(l.images, []).map(fixMockImage),
     categoryId: l.categoryId,
     subcategorySlug: l.subcategorySlug,
     listingType: l.listingType,
