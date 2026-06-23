@@ -47,7 +47,7 @@ export function PriceRangeFilter({
     const r = triggerRef.current?.getBoundingClientRect()
     if (!r) return
     const left = Math.max(8, Math.min(r.left, window.innerWidth - PANEL_W - 8))
-    setPos({ top: r.bottom + 8, left })
+    setPos({ top: r.bottom, left }) // flush under the trigger (morph window)
   }, [])
 
   useEffect(() => {
@@ -132,18 +132,18 @@ export function PriceRangeFilter({
         onClick={() => setOpen((o) => !o)}
         className={cn(
           'flex w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
-          active ? activeClassName : className,
+          open ? 'rounded-b-none bg-card text-foreground shadow-pop' : active ? activeClassName : className,
         )}
       >
         <span className="truncate">{triggerText}</span>
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-4" />
+        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', open && 'rotate-180')} />
       </button>
 
       {mounted && open && createPortal(
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W }}
-          className="z-[70] max-w-[calc(100vw-1rem)] rounded-2xl bg-card p-4 shadow-pop animate-in fade-in zoom-in-95 origin-top-left duration-150"
+          className="z-[70] max-w-[calc(100vw-1rem)] rounded-b-2xl rounded-tr-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100"
         >
           <div className="flex items-baseline justify-between">
             <p className="text-sm font-bold text-foreground">{tr('Price range', 'Khoảng giá')}</p>

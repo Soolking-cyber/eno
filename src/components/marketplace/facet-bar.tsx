@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
+import { useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
 import { MapPin, ChevronDown } from 'lucide-react'
 import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
@@ -49,6 +49,7 @@ export function FacetBar({
 }: FacetBarProps) {
   const { lang, tr } = useLanguage()
   const [areaOpen, setAreaOpen] = useState(false)
+  const areaBtnRef = useRef<HTMLButtonElement>(null)
   // The area pill is "active" when a ward/province or a near-you search is set.
   const areaActive = !!ward || !!province || !!nearby
   const areaLabel = ward
@@ -89,12 +90,13 @@ export function FacetBar({
   const facets: ReactNode[] = [
     <button
       key="area"
+      ref={areaBtnRef}
       type="button"
-      onClick={() => setAreaOpen(true)}
+      onClick={() => setAreaOpen((o) => !o)}
       className={cn(
         'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
         wrap,
-        areaActive ? active : 'text-body hover:bg-muted',
+        areaOpen ? 'rounded-b-none bg-card text-foreground shadow-pop' : areaActive ? active : 'text-body hover:bg-muted',
       )}
     >
       <span className="flex items-center gap-1.5 truncate">
@@ -199,6 +201,7 @@ export function FacetBar({
 
       <AreaFilter
         open={areaOpen}
+        anchorRef={areaBtnRef}
         onClose={() => setAreaOpen(false)}
         province={province}
         ward={ward}

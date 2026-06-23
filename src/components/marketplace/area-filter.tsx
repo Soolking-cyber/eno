@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { MapPin, LocateFixed, Loader2, X, Check, ChevronDown } from 'lucide-react'
+import { MapPin, LocateFixed, Loader2, Check, ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { CustomSelect } from './custom-select'
 import { cn } from '@/lib/utils'
@@ -12,7 +12,7 @@ export type Nearby = { lat: number; lng: number; radiusKm: number }
 export type Geo = { code: string; name: string; nameEn: string }
 type Unit = { code: string; name: string; nameEn: string }
 
-const FIELD = 'w-full justify-between rounded-xl border border-line-strong bg-card py-2.5 text-foreground'
+const FIELD = 'w-full justify-between rounded-xl bg-tint py-2.5 text-foreground'
 const HCMC = '79' // Ho Chi Minh City — the live market; default selection
 
 // Normalize a VN admin name for matching: lowercase, strip diacritics, drop the
@@ -47,9 +47,10 @@ function DisabledField({ label }: { label: string }) {
  * parent owns the applied province/ward/nearby and re-opens it.
  */
 export function AreaFilter({
-  open, onClose, province, ward, nearby, onApply, onReset,
+  open, anchorRef, onClose, province, ward, nearby, onApply, onReset,
 }: {
   open: boolean
+  anchorRef?: RefObject<HTMLElement | null>
   onClose: () => void
   province: Geo | null
   ward: Geo | null
@@ -59,6 +60,42 @@ export function AreaFilter({
 }) {
   const { lang, tr } = useLanguage()
   const [mounted, setMounted] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 320 })
+
+  // Anchor the panel under the trigger like CustomSelect (one design language).
+  const reposition = useCallback(() => {
+    const el = anchorRef?.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const width = Math.min(360, window.innerWidth - 16)
+    setPos({ top: r.bottom, left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), width })
+  }, [anchorRef])
+
+  // Reposition + outside-click/Escape close. Clicks inside a nested CustomSelect's
+  // portaled menu (data-portal-menu) must NOT close this dropdown.
+  useEffect(() => {
+    if (!open) return
+    reposition()
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (anchorRef?.current?.contains(t) || panelRef.current?.contains(t)) return
+      if ((t as Element).closest?.('[data-portal-menu]')) return
+      onClose()
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onScroll = () => reposition()
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onScroll)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [open, reposition, onClose, anchorRef])
   const [provinces, setProvinces] = useState<Unit[]>([])
   const [wards, setWards] = useState<Unit[]>([])
   const [loadingWards, setLoadingWards] = useState(false)
@@ -163,92 +200,89 @@ export function AreaFilter({
   if (!open || !mounted) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-t-2xl bg-card shadow-pop sm:rounded-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-base font-bold text-foreground">{tr('Area', 'Khu vực')}</h2>
-          <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:text-foreground"><X className="h-5 w-5" /></button>
+    <div
+      ref={panelRef}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
+      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-b-2xl rounded-tr-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in slide-in-from-top-1 duration-100"
+    >
+      <div className="space-y-4">
+        {/* Province / city */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-foreground">{tr('Province / City', 'Tỉnh / Thành phố')}</label>
+          <CustomSelect
+            value={provCode}
+            onChange={(c) => { setProvCode(c); setWardCode('') }}
+            options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
+            placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
+            className={FIELD}
+            activeClassName="bg-tint text-foreground"
+          />
         </div>
 
-        <div className="space-y-4 px-5 py-5">
-          {/* Province / city */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground">{tr('Province / City', 'Tỉnh / Thành phố')} <span className="text-red-500">*</span></label>
+        {/* Ward / commune */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-foreground">{tr('Ward / Commune', 'Phường / Xã')}</label>
+          {loadingWards ? (
+            <DisabledField label={tr('Loading wards…', 'Đang tải phường/xã…')} />
+          ) : wards.length ? (
             <CustomSelect
-              value={provCode}
-              onChange={(c) => { setProvCode(c); setWardCode('') }}
-              options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
-              placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
+              value={wardCode}
+              onChange={setWardCode}
+              options={wards.map((w) => ({ value: w.code, label: label(w) }))}
+              placeholder={tr('Select Ward/Commune', 'Chọn Phường/Xã')}
               className={FIELD}
-              activeClassName="bg-card border-[#0a66c2] text-foreground"
+              activeClassName="bg-tint text-foreground"
             />
+          ) : (
+            <DisabledField label={tr('Select a province first', 'Hãy chọn tỉnh/thành trước')} />
+          )}
+        </div>
+
+        {/* Search near you */}
+        <div className="pt-1">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-accent-foreground" />
+            <span className="text-sm font-bold text-foreground">{tr('Search near you', 'Tìm quanh bạn')}</span>
           </div>
 
-          {/* Ward / commune */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground">{tr('Ward / Commune', 'Phường / Xã')}</label>
-            {loadingWards ? (
-              <DisabledField label={tr('Loading wards…', 'Đang tải phường/xã…')} />
-            ) : wards.length ? (
-              <CustomSelect
-                value={wardCode}
-                onChange={setWardCode}
-                options={wards.map((w) => ({ value: w.code, label: label(w) }))}
-                placeholder={tr('Select Ward/Commune', 'Chọn Phường/Xã')}
-                className={FIELD}
-                activeClassName="bg-card border-[#0a66c2] text-foreground"
-              />
-            ) : (
-              <DisabledField label={tr('Select a province first', 'Hãy chọn tỉnh/thành trước')} />
-            )}
-          </div>
-
-          {/* Search near you */}
-          <div className="border-t border-border pt-4">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-accent-foreground" />
-              <span className="text-sm font-bold text-foreground">{tr('Search near you', 'Tìm quanh bạn')}</span>
-            </div>
-
-            {loc ? (
-              <div className="mt-3 space-y-3 rounded-xl bg-muted p-3.5">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-sm font-semibold text-accent-foreground"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
-                  <button onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</button>
-                </div>
-                {resolving ? (
-                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> {tr('Finding your address…', 'Đang tìm địa chỉ…')}</p>
-                ) : address ? (
-                  <p className="text-xs leading-relaxed text-body">{address}</p>
-                ) : null}
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{tr('Search range', 'Bán kính tìm')}</span>
-                    <span className="font-bold text-foreground">{radiusKm} km</span>
-                  </div>
-                  <input type="range" min={1} max={20} step={1} value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} className="w-full accent-[#0a66c2]" aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
-                  <div className="flex justify-between text-[10px] text-ink-4"><span>1 km</span><span>20 km</span></div>
-                </div>
+          {loc ? (
+            <div className="mt-3 space-y-3 rounded-xl bg-muted p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-accent-foreground"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
+                <button onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</button>
               </div>
-            ) : (
-              <button
-                onClick={locate}
-                disabled={locating}
-                className="mt-3 flex w-full items-center justify-center gap-2.5 rounded-xl border-2 border-[#0a66c2] bg-accent py-3 text-sm font-bold text-accent-foreground shadow-sm transition-all hover:bg-brand-100 active:scale-[0.99] disabled:opacity-60"
-              >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white">
-                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-                </span>
-                {tr('Use my current location', 'Dùng vị trí hiện tại')}
-              </button>
-            )}
-          </div>
+              {resolving ? (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> {tr('Finding your address…', 'Đang tìm địa chỉ…')}</p>
+              ) : address ? (
+                <p className="text-xs leading-relaxed text-body">{address}</p>
+              ) : null}
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{tr('Search range', 'Bán kính tìm')}</span>
+                  <span className="font-bold text-foreground">{radiusKm} km</span>
+                </div>
+                <input type="range" min={1} max={20} step={1} value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} className="w-full accent-[#0a66c2]" aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
+                <div className="flex justify-between text-[10px] text-ink-4"><span>1 km</span><span>20 km</span></div>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={locate}
+              disabled={locating}
+              className="mt-3 flex w-full items-center justify-center gap-2.5 rounded-xl bg-accent py-3 text-sm font-bold text-accent-foreground transition-all hover:bg-brand-100 active:scale-[0.99] disabled:opacity-60"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white">
+                {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+              </span>
+              {tr('Use my current location', 'Dùng vị trí hiện tại')}
+            </button>
+          )}
         </div>
+      </div>
 
-        <div className="flex gap-3 border-t border-border px-5 py-4">
-          <button onClick={reset} className="flex-1 rounded-xl border border-line-strong py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Delete filter', 'Xóa lọc')}</button>
-          <button onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</button>
-        </div>
+      <div className="mt-4 flex gap-3">
+        <button onClick={reset} className="flex-1 rounded-xl bg-tint py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Delete filter', 'Xóa lọc')}</button>
+        <button onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</button>
       </div>
     </div>,
     document.body,
