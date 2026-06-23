@@ -11,6 +11,7 @@ export type Notif = {
   actorName: string | null
   conversationId: string | null
   listingId: string | null
+  url: string | null
   read: boolean
   createdAt: string
 }

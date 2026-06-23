@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { ListingCard } from '@/components/marketplace/listing-card'
+import { SavedSearches } from '@/components/marketplace/saved-searches'
 import { Mascot } from '@/components/marketplace/mascot'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
@@ -25,6 +26,9 @@ export default function SavedPage() {
         <p className="text-sm text-muted-foreground mb-6">
           {count} {tr(count === 1 ? 'saved listing' : 'saved listings', 'tin đã lưu')}
         </p>
+
+        {/* Saved searches (alerts on new matches) — hidden when signed out / none */}
+        <SavedSearches />
 
         {loading ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

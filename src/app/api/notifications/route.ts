@@ -17,7 +17,7 @@ export async function GET() {
       take: 30,
       select: {
         id: true, type: true, title: true, body: true, actorName: true,
-        conversationId: true, listingId: true, read: true, createdAt: true,
+        conversationId: true, listingId: true, url: true, read: true, createdAt: true,
       },
     }),
     db.notification.count({ where: { recipientId: meId, read: false } }),

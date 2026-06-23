@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Bell, MessageSquare, Tag, Clock } from 'lucide-react'
+import { Bell, MessageSquare, Tag, Clock, Search } from 'lucide-react'
 import { useNotifications } from '@/context/notifications-context'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -57,8 +57,8 @@ export function NotificationBell() {
               <p className="px-4 py-12 text-center text-sm text-ink-4">{tr('No notifications yet.', 'Chưa có thông báo.')}</p>
             ) : (
               items.map((n) => {
-                const href = n.type === 'reminder' ? '/dashboard' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
-                const Icon = n.type === 'offer' ? Tag : n.type === 'reminder' ? Clock : MessageSquare
+                const href = n.url ? n.url : n.type === 'reminder' ? '/dashboard' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
+                const Icon = n.type === 'offer' ? Tag : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : MessageSquare
                 return (
                   <Link
                     key={n.id}

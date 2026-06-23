@@ -1,0 +1,70 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
+import { db } from '@/lib/db'
+import { sendPushToProfile } from '@/lib/push'
+import { buildListingWhere, toUrlParams, type SavedSearchParams } from '@/lib/saved-search'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
+const MAX_SEARCHES = 5000 // safety cap per run
+const CONCURRENCY = 10
+
+function bearerOk(header: string | null, secret: string): boolean {
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : ''
+  const a = Buffer.from(token)
+  const b = Buffer.from(secret)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+// Saved-search alerts (Vercel Cron → vercel.json). Guarded by CRON_SECRET. For each
+// notify-on saved search, count listings created since the last alert that match its
+// filters; if any, drop one in-app notification (type 'saved_search' → deep-links to
+// the results URL) + a Web Push, then advance lastNotifiedAt so matches don't repeat.
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET
+  if (!secret || !bearerOk(req.headers.get('authorization'), secret)) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 401 })
+  }
+
+  const runStart = new Date()
+  const searches = await db.savedSearch.findMany({
+    where: { notify: true },
+    orderBy: { lastNotifiedAt: 'asc' },
+    take: MAX_SEARCHES,
+    select: { id: true, profileId: true, label: true, params: true, lastNotifiedAt: true },
+  })
+  if (searches.length === 0) return NextResponse.json({ ok: true, notified: 0 })
+
+  let notified = 0
+  let pushed = 0
+  for (let i = 0; i < searches.length; i += CONCURRENCY) {
+    const batch = searches.slice(i, i + CONCURRENCY)
+    const res = await Promise.all(
+      batch.map(async (s) => {
+        let params: SavedSearchParams
+        try { params = JSON.parse(s.params) } catch { return { notified: 0, pushed: 0 } }
+        try {
+          const matches = await db.listing.count({
+            where: { AND: [buildListingWhere(params), { createdAt: { gt: s.lastNotifiedAt } }] },
+          })
+          if (matches === 0) return { notified: 0, pushed: 0 }
+          const title = matches === 1 ? '🔔 New match for your saved search' : `🔔 ${matches} new matches for your saved search`
+          const body = `${s.label} — tap to view.`
+          const url = `/?${toUrlParams(params)}`
+          await db.notification.create({ data: { recipientId: s.profileId, type: 'saved_search', title, body, url } })
+          const sent = await sendPushToProfile(s.profileId, { title, body, url, tag: `eno-saved-${s.id}` })
+          await db.savedSearch.update({ where: { id: s.id }, data: { lastNotifiedAt: runStart } })
+          return { notified: 1, pushed: sent }
+        } catch (e) {
+          console.error('[cron] saved-search alert failed for', s.id, e)
+          return { notified: 0, pushed: 0 }
+        }
+      }),
+    )
+    for (const r of res) { notified += r.notified; pushed += r.pushed }
+  }
+
+  return NextResponse.json({ ok: true, searches: searches.length, notified, pushed })
+}

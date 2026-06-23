@@ -16,7 +16,9 @@ import {
   Clock,
   Map,
   BadgeCheck,
+  Bookmark,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import type { SerializedListing, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { Price } from './price'
@@ -173,11 +175,14 @@ export function ListingsExplorer({
       query.trim() !== '' ||
       activeDistrict !== 'all' ||
       activeSubcategory !== 'all' ||
+      listingType !== 'all' ||
+      conditionFilter !== 'all' ||
+      priceRange !== 'all' ||
       Object.keys(customFilters).length > 0
     ) {
       setShowExplorer(true)
     }
-  }, [activeCategory, query, activeDistrict, activeSubcategory, customFilters])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, customFilters, listingType, conditionFilter, priceRange])
 
   // Load search + location history from localStorage on mount
   useEffect(() => {
@@ -344,6 +349,10 @@ export function ListingsExplorer({
       setActiveCategory(params.get('category') || 'all')
       setActiveDistrict(params.get('district') || 'all')
       setActiveSubcategory(params.get('subcategory') || 'all')
+      setListingType(params.get('type') || 'all')
+      setConditionFilter(params.get('condition') || 'all')
+      const pmin = params.get('priceMin'), pmax = params.get('priceMax')
+      setPriceRange(pmin || pmax ? `${pmin || ''}-${pmax || ''}` : 'all')
 
       // Parse custom filters starting with attr_
       const parsedAttrs: Record<string, string> = {}
@@ -389,6 +398,19 @@ export function ListingsExplorer({
       params.delete('subcategory')
     }
 
+    if (listingType !== 'all') params.set('type', listingType)
+    else params.delete('type')
+
+    if (conditionFilter !== 'all') params.set('condition', conditionFilter)
+    else params.delete('condition')
+
+    params.delete('priceMin'); params.delete('priceMax')
+    if (priceRange !== 'all') {
+      const [mn, mx] = priceRange.split('-')
+      if (mn) params.set('priceMin', mn)
+      if (mx) params.set('priceMax', mx)
+    }
+
     // Clear old attr_ params and set new ones
     Array.from(params.keys()).forEach((key) => {
       if (key.startsWith('attr_')) {
@@ -408,7 +430,7 @@ export function ListingsExplorer({
     // replaceState bypasses Next's router, so the persistent header search bar won't
     // see the query change — broadcast it so the top bar stays in sync.
     window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() } }))
-  }, [activeCategory, query, activeDistrict, activeSubcategory, customFilters])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, customFilters, listingType, conditionFilter, priceRange])
 
   // Debounce search query input to avoid making API requests on every keystroke
   useEffect(() => {
@@ -706,6 +728,29 @@ export function ListingsExplorer({
     setShowExplorer(true)
     document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
+
+  // Save the current filter set → the buyer gets alerted (in-app + push) on new matches.
+  const saveSearch = useCallback(async () => {
+    const [mn, mx] = priceRange !== 'all' ? priceRange.split('-') : ['', '']
+    const params = {
+      category: activeCategory !== 'all' ? activeCategory : undefined,
+      subcategory: activeSubcategory !== 'all' ? activeSubcategory : undefined,
+      listingType: listingType !== 'all' ? listingType : undefined,
+      q: debouncedQuery.trim() || undefined,
+      district: activeDistrict !== 'all' ? activeDistrict : undefined,
+      condition: conditionFilter !== 'all' ? conditionFilter : undefined,
+      priceMin: mn ? Number(mn) : undefined,
+      priceMax: mx ? Number(mx) : undefined,
+      attrs: Object.keys(customFilters).length ? customFilters : undefined,
+    }
+    try {
+      const res = await fetch('/api/saved-searches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ params }) })
+      if (res.status === 401) { toast.error(tr('Sign in to save searches', 'Đăng nhập để lưu tìm kiếm')); return }
+      if (res.status === 409) { toast.error(tr("You've reached the saved-search limit", 'Bạn đã đạt giới hạn tìm kiếm đã lưu')); return }
+      if (!res.ok) throw new Error()
+      toast.success(tr("Saved — we'll alert you on new matches", 'Đã lưu — sẽ báo khi có tin mới phù hợp'))
+    } catch { toast.error(tr('Could not save search', 'Không thể lưu tìm kiếm')) }
+  }, [activeCategory, activeSubcategory, listingType, debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters, tr])
 
   const renderCompactRow = useCallback((l: SerializedListing, index: number) => {
     const cover = l.images[0]
@@ -1280,8 +1325,9 @@ export function ListingsExplorer({
             <h2 className="eyebrow text-body text-center select-none">
               {tr('Browse by Category', 'Khám phá danh mục')}
             </h2>
-            {/* Two fixed rows; extra categories scroll horizontally (no 3rd row). */}
-            <div className="grid grid-rows-2 grid-flow-col auto-cols-[5.5rem] sm:auto-cols-[7.5rem] gap-x-2 gap-y-3 sm:gap-4 overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0">
+            {/* Two fixed rows — bigger tiles, centered on wide screens, swipable on
+                smaller ones. Free & Wanted are intent tiles at the end. */}
+            <div className="grid grid-rows-2 grid-flow-col justify-start xl:justify-center auto-cols-[6rem] sm:auto-cols-[8rem] gap-x-3 gap-y-5 sm:gap-x-5 sm:gap-y-6 overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0">
               {categories.map((cat) => {
                 const cc = CATEGORY_COLOR_CLASSES[cat.color] ?? CATEGORY_COLOR_CLASSES.brand
                 const hex = cc.text.match(/#[0-9a-fA-F]{6}/)?.[0] ?? '#0a66c2'
@@ -1294,7 +1340,7 @@ export function ListingsExplorer({
                   >
                     <CategoryIcon
                       name={cat.icon}
-                      className="h-8 w-8 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
+                      className="h-9 w-9 sm:h-10 sm:w-10 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
                     />
                     <span className="text-xs sm:text-sm font-bold text-foreground leading-tight transition-colors group-hover:text-[var(--cat)]">
                       <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
@@ -1305,18 +1351,23 @@ export function ListingsExplorer({
                   </button>
                 )
               })}
-            </div>
-
-            {/* Intent shortcuts — one-tap Free & Wanted browsing across all categories */}
-            <div className="flex flex-wrap items-center justify-center gap-2">
+              {/* Free & Wanted — intent tiles (filter across all categories) */}
               {INTENT_SHORTCUTS.map((s) => (
                 <button
                   key={s.type}
                   onClick={() => browseIntent(s.type)}
-                  className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer"
+                  className="group flex flex-col items-center justify-center gap-2 p-2 text-center cursor-pointer"
                 >
-                  <CategoryIcon name={s.icon} className="h-4 w-4 text-accent-foreground" />
-                  {lang === 'vi' ? s.nameVi : s.name}
+                  <CategoryIcon
+                    name={s.icon}
+                    className="h-9 w-9 sm:h-10 sm:w-10 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[#0a66c2]"
+                  />
+                  <span className="text-xs sm:text-sm font-bold text-foreground leading-tight transition-colors group-hover:text-[#0a66c2]">
+                    {lang === 'vi' ? s.nameVi : s.name}
+                  </span>
+                  <span className="text-[10px] text-body select-none font-semibold">
+                    {s.type === 'free' ? tr('Giveaways', 'Miễn phí') : tr('In search of', 'Cần tìm')}
+                  </span>
                 </button>
               ))}
             </div>
@@ -1554,7 +1605,15 @@ export function ListingsExplorer({
             />
 
             {/* Sort & View Control Bar (search lives in the header now) */}
-            <div className="flex flex-col sm:flex-row gap-2.5 items-center sm:justify-end">
+            <div className="flex flex-col sm:flex-row gap-2.5 items-center sm:justify-between">
+              {/* Save this search → alerts on new matches */}
+              <button
+                onClick={saveSearch}
+                className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-xl px-3 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer sm:self-auto"
+              >
+                <Bookmark className="h-4 w-4 text-accent-foreground" />
+                {tr('Save search', 'Lưu tìm kiếm')}
+              </button>
               {/* Sorting & Views */}
               <div className="flex items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
                 <CustomSelect

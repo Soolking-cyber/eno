@@ -55,9 +55,26 @@ model Profile {
   notifications       Notification[] @relation("RecipientNotifications")
   trustEvents         TrustEvent[]   @relation("SubjectTrustEvents")
   pushSubscriptions   PushSubscription[]
+  savedSearches       SavedSearch[]
 
   @@index([phone])
   @@index([trustTier])
+}
+
+// A buyer's saved search (their filter set) — alerts them (in-app + web push) when
+// a new matching listing appears. FK within public → Profile (normal flow).
+model SavedSearch {
+  id             String   @id @default(cuid())
+  profileId      String   @db.Uuid
+  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  label          String   // human-readable summary of the filters
+  params         String   // JSON of SavedSearchParams (category/subcategory/type/price/q/district/attrs)
+  notify         Boolean  @default(true) // alert on new matches
+  lastNotifiedAt DateTime @default(now()) // only listings created after this trigger an alert
+  createdAt      DateTime @default(now())
+
+  @@index([profileId, createdAt])
+  @@index([notify])
 }
 
 // Web Push subscription (one row per browser/device that opted in). FK within
@@ -267,6 +284,7 @@ model Notification {
   actorName      String?  // who triggered it (denormalized display name)
   conversationId String?  // deep-link target
   listingId      String?
+  url            String?  // generic deep-link target (e.g. a saved-search results URL)
   read           Boolean  @default(false)
   createdAt      DateTime @default(now())
 
