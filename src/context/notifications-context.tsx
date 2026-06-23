@@ -52,11 +52,16 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       const c = JSON.parse(localStorage.getItem('eno-notifs') || 'null')
       if (c?.userId === user.id) { setItems(c.items || []); setUnread(c.unread || 0) }
     } catch {}
+    // Poll only while the tab is VISIBLE (background tabs shouldn't burn function
+    // invocations); refetch immediately when the tab is shown again.
+    let iv: ReturnType<typeof setInterval> | null = null
+    const stop = () => { if (iv) { clearInterval(iv); iv = null } }
+    const start = () => { if (!iv) iv = setInterval(refresh, 45000) }
+    const onVis = () => { if (document.visibilityState === 'visible') { refresh(); start() } else stop() }
     refresh()
-    const iv = setInterval(refresh, 30000)
-    const onFocus = () => refresh()
-    window.addEventListener('focus', onFocus)
-    return () => { clearInterval(iv); window.removeEventListener('focus', onFocus) }
+    if (document.visibilityState === 'visible') start()
+    document.addEventListener('visibilitychange', onVis)
+    return () => { stop(); document.removeEventListener('visibilitychange', onVis) }
   }, [user, refresh])
 
   const markAllRead = useCallback(async () => {

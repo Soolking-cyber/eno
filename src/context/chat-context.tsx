@@ -124,7 +124,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (!user) { setUnread(0); return }
     let iv: ReturnType<typeof setInterval> | null = null
     const stop = () => { if (iv) { clearInterval(iv); iv = null } }
-    const start = () => { if (!iv) iv = setInterval(refreshUnread, 8000) }
+    // 45s backstop only — realtime ('user:<id>' topic below) updates unread instantly;
+    // a tight poll just multiplies function invocations across every open tab.
+    const start = () => { if (!iv) iv = setInterval(refreshUnread, 45000) }
     const onVis = () => {
       if (document.visibilityState === 'visible') { refreshUnread(); start() } else stop()
     }
