@@ -303,32 +303,21 @@
 .shadow-overlay { box-shadow: var(--shadow-overlay); }
 
 /* ============================================================
-   SCROLLBAR — refined thin blue
+   SCROLLBARS — hidden EVERYWHERE (scrolling still works). User preference:
+   no visible scroll track/thumb anywhere — page, dropdowns, rows, modals.
    ============================================================ */
-.scroll-thin::-webkit-scrollbar {
-  height: 6px;
-  width: 6px;
-}
-.scroll-thin::-webkit-scrollbar-thumb {
-  background: rgba(10, 102, 194, 0.25);
-  border-radius: 999px;
-}
-.scroll-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(10, 102, 194, 0.45);
-}
-.scroll-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* Fully hidden scrollbar (Facebook-Marketplace-style horizontal rows). Used by
-   the curated card rows + facet/subcategory rows — scroll still works, no bar. */
-.scrollbar-none {
+* {
   scrollbar-width: none;        /* Firefox */
   -ms-overflow-style: none;     /* old Edge/IE */
 }
-.scrollbar-none::-webkit-scrollbar {
-  display: none;                /* Chrome/Safari */
+*::-webkit-scrollbar {          /* Chrome/Safari/WebKit */
+  display: none;
+  width: 0;
+  height: 0;
 }
+/* Legacy utility classes kept as no-op aliases so existing usages still hide. */
+.scroll-thin::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 /* ============================================================
    ANIMATIONS
