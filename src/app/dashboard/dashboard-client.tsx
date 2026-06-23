@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Eye, MessageSquareText, Tag, Clock, Upload } from 'lucide-react'
+import { Eye, MessageSquareText, Tag, Clock, Upload, Plus } from 'lucide-react'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -149,8 +149,14 @@ export function DashboardClient() {
           <SignOutButton />
         </div>
 
-        {/* Tabs — keep listings management separate from account details */}
+        {/* Tabs — Post (the primary action) · Listings · Settings */}
         <div className="mt-5 flex items-center gap-1">
+          <Link
+            href="/post"
+            className="-mb-px flex items-center gap-1 border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:text-[#0a66c2] cursor-pointer"
+          >
+            <Plus className="h-4 w-4" /> {tr('Post a listing', 'Đăng tin')}
+          </Link>
           {(['listings', 'account'] as const).map((tb) => (
             <button
               key={tb}
