@@ -1497,9 +1497,9 @@ export function ListingsExplorer({
 
             {/* Top Categories Navigation Bar (Desktop Hover Dropdowns / Mobile Click Dropdowns) */}
             <div className="relative select-none">
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1 lg:flex-wrap lg:overflow-x-visible">
+              <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto scrollbar-none py-1">
                 {/* All Categories Pill */}
-                <div className="relative group shrink-0 lg:shrink">
+                <div className="relative group shrink-0">
                   <button
                     onClick={() => handleCategoryClick('all')}
                     className={cn(
