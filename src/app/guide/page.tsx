@@ -47,9 +47,9 @@ export default function GuidePage() {
           <h2 className="h-section text-foreground"><Tr text="For buyers" /></h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {BUYER_STEPS.map(({ Icon, title, body }, i) => (
-              <div key={title} className="rounded-2xl bg-card p-4 shadow-pop">
+              <div key={title}>
                 <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0a66c2] text-xs font-bold text-white">{i + 1}</span>
+                  <span className="text-base font-bold text-accent-foreground">{i + 1}</span>
                   <Icon className="h-4 w-4 text-accent-foreground" />
                 </div>
                 <h3 className="mt-3 text-sm font-bold text-foreground"><Tr text={title} /></h3>
@@ -64,9 +64,9 @@ export default function GuidePage() {
           <h2 className="h-section text-foreground"><Tr text="For sellers" /></h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {SELLER_STEPS.map(({ Icon, title, body }, i) => (
-              <div key={title} className="rounded-2xl bg-card p-4 shadow-pop">
+              <div key={title}>
                 <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0a66c2] text-xs font-bold text-white">{i + 1}</span>
+                  <span className="text-base font-bold text-accent-foreground">{i + 1}</span>
                   <Icon className="h-4 w-4 text-accent-foreground" />
                 </div>
                 <h3 className="mt-3 text-sm font-bold text-foreground"><Tr text={title} /></h3>
@@ -81,8 +81,8 @@ export default function GuidePage() {
           <h2 className="h-section text-foreground"><Tr text="Features & how they work" /></h2>
           <div className="mt-4 space-y-3">
             {FEATURES.map(({ Icon, id, title, body }) => (
-              <div key={title} id={id} className="scroll-mt-24 flex gap-3.5 rounded-2xl bg-card p-4 shadow-pop">
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"><Icon className="h-5 w-5" /></span>
+              <div key={title} id={id} className="scroll-mt-24 flex gap-3.5">
+                <span className="mt-0.5 shrink-0 text-accent-foreground"><Icon className="h-5 w-5" /></span>
                 <div className="min-w-0">
                   <h3 className="text-[15px] font-bold text-foreground"><Tr text={title} /></h3>
                   <p className="mt-1 text-sm leading-relaxed text-body"><Tr text={body} /></p>
@@ -97,7 +97,7 @@ export default function GuidePage() {
           <Link href="/post" className="flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
             <Plus className="h-4 w-4" /> <Tr text="Post a listing" />
           </Link>
-          <Link href="/" className="flex items-center gap-2 rounded-xl border border-line-strong bg-card px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-[#0a66c2] hover:text-accent-foreground">
+          <Link href="/" className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted hover:text-accent-foreground">
             <Search className="h-4 w-4" /> <Tr text="Browse listings" />
           </Link>
         </div>

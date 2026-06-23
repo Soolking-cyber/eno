@@ -201,7 +201,7 @@ export function AreaFilter({
     <div className="fixed inset-0 z-[99]" aria-hidden onClick={onClose} />
     <div
       ref={panelRef}
-      style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, visibility: pos.top > 0 ? 'visible' : 'hidden' }}
       className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
     >
       <div className="space-y-4">

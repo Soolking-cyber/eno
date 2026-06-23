@@ -25,8 +25,8 @@ export default function AboutPage() {
         <h2 className="h-section text-foreground mt-10 mb-4"><Tr text="How trust works" /></h2>
         <div className="grid gap-4 sm:grid-cols-3">
           {steps.map((s, i) => (
-            <div key={i} className="rounded-2xl bg-card p-5 shadow-pop">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-foreground">{s.icon}</span>
+            <div key={i}>
+              <span className="flex h-8 w-8 items-center justify-center text-accent-foreground">{s.icon}</span>
               <h3 className="mt-3 text-sm font-bold text-foreground">{i + 1}. <Tr text={s.title} /></h3>
               <p className="mt-1 text-sm leading-relaxed text-body"><Tr text={s.text} /></p>
             </div>

@@ -143,7 +143,7 @@ export function PriceRangeFilter({
         <div className="fixed inset-0 z-[69]" aria-hidden onClick={() => setOpen(false)} />
         <div
           ref={panelRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W }}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W, visibility: pos.top > 0 ? 'visible' : 'hidden' }}
           className="z-[70] max-w-[calc(100vw-1rem)] rounded-2xl bg-card p-4 shadow-pop animate-in fade-in duration-150"
         >
           <div className="flex items-baseline justify-between">
