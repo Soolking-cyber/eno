@@ -56,7 +56,7 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
   )
 })
 
-type SortKey = 'newest' | 'price-low' | 'price-high' | 'popular' | 'verified-first'
+type SortKey = 'newest' | 'price-low' | 'price-high' | 'popular'
 type ViewMode = 'compact' | 'grid' | 'map'
 
 type Props = {
@@ -1617,7 +1617,6 @@ export function ListingsExplorer({
                   onChange={(val) => setSort(val as SortKey)}
                   options={[
                     { value: 'newest', label: tr('Newest', 'Mới đăng') },
-                    { value: 'verified-first', label: tr('Verified first', 'Đã xác minh trước') },
                     { value: 'price-low', label: tr('Price: Low to High', 'Giá: thấp-cao') },
                     { value: 'price-high', label: tr('Price: High to Low', 'Giá: cao-thấp') },
                     { value: 'popular', label: tr('Popular', 'Xem nhiều') },

@@ -3,7 +3,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { Tr } from '@/context/language-context'
-import { CalendarCheck, MessageSquareText, ShieldCheck, UserCheck, TriangleAlert, Clock } from 'lucide-react'
+import { CalendarCheck, MessageSquareText, ShieldCheck, UserCheck, TriangleAlert, Clock, Phone } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'How trust works — eno.vn',
@@ -47,11 +47,12 @@ export default function TrustPage() {
 
         <section className="mt-10 space-y-4">
           <h2 className="h-section text-foreground"><Tr text="What the colors mean" /></h2>
-          <p className="text-sm text-body"><Tr text="New accounts start below 100 and earn up to it by completing their profile and verifying their identity (KYC) — so unverified strangers carry less trust up front. From there you rise or fall on your behavior." /></p>
+          <p className="text-sm text-body"><Tr text="New accounts start below 100 and earn up to it by verifying — a phone number and Zalo for individuals and tourists, plus identity verification (KYC) for businesses — so unverified strangers carry less trust up front. From there you rise or fall on your behavior." /></p>
           <div className="mt-2 space-y-4">
-            <Band score={120} name="Exceptional" range="110 and up" note="A long, clean track record and lots of completed deals. Top sellers and businesses." />
-            <Band score={95} name="Good standing" range="85–109" note="Reliable and verified — full standing, reached with a complete profile + KYC." />
-            <Band score={70} name="Building" range="60–84" note="Where new accounts begin. Complete your profile and verify your identity to reach 100." />
+            <Band score={175} name="Elite" range="160 and up" note="The top tier — a long, high-volume, spotless track record. The most trusted businesses on eno.vn." />
+            <Band score={130} name="Exceptional" range="110–159" note="A strong, clean track record with many completed deals." />
+            <Band score={95} name="Good standing" range="85–109" note="Verified and reliable. Individuals reach this with phone + Zalo; businesses by adding KYC." />
+            <Band score={70} name="Building" range="60–84" note="Where new accounts begin. Verify your phone, link Zalo (and KYC for businesses) to climb." />
             <Band score={45} name="Restricted" range="below 60" note="A serious or repeated problem, or an unverified account that's been reported. New listings may be held for review." />
           </div>
         </section>
@@ -63,7 +64,8 @@ export default function TrustPage() {
             <Rule icon={<ShieldCheck className="h-5 w-5" />} title="Complete sales through eno.vn" body="Every transaction closed on-platform earns trust — with no upper limit. The more deals you successfully complete, the higher you climb and the higher you rank. A small safety fee applies (10,000₫ under 1,000,000₫, or 1% above) that covers mediation and buyer protection." />
             <Rule icon={<MessageSquareText className="h-5 w-5" />} title="Earn reviews from verified buyers" body="Only people who actually completed a transaction with you through eno.vn can leave a review — so feedback is real, not farmed." />
             <Rule icon={<Clock className="h-5 w-5" />} title="Respond quickly" body="Fast, helpful replies to buyers build trust over time." />
-            <Rule icon={<UserCheck className="h-5 w-5" />} title="Complete your profile + verify your identity (KYC)" body="A full storefront profile and passing identity verification lift a new account all the way to 100 — full standing — up front. This is the fastest way to earn trust as a newcomer." />
+            <Rule icon={<Phone className="h-5 w-5" />} title="Verify your phone + link Zalo" body="A verified phone (+15) and a linked Zalo account (+10) are the quickest trust steps — enough for tourists and individuals to reach good standing. Anyone can do these." />
+            <Rule icon={<UserCheck className="h-5 w-5" />} title="Businesses: complete KYC" body="Passing identity verification (+15) is the key trust step for businesses — it takes a verified account all the way to full standing (100) and signals you're a real, accountable seller." />
           </div>
         </section>
 

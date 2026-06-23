@@ -2,7 +2,7 @@ import 'server-only'
 import type { User } from '@supabase/supabase-js'
 import { db } from './db'
 import { normalizePhone } from './phone'
-import { recordNewAccount, recomputeTrust } from './trust'
+import { recordNewAccount, recordPhoneVerified, recomputeTrust } from './trust'
 
 /**
  * Idempotent: ensure the authenticated user has exactly one Profile row
@@ -30,9 +30,11 @@ export async function ensureProfile(user: User) {
     update: { email, ...(verifiedPhone ? { phone: verifiedPhone } : {}) },
   })
 
-  // KYC-gated onboarding: a new account starts below the 100 baseline (≈60) and
-  // earns up to 100 via profile completion + KYC. Idempotent (applied once ever).
+  // Verification-gated onboarding: a new account starts below 100 (≈60) and earns
+  // up via verification. Both calls are idempotent (applied once ever).
   await recordNewAccount(profile.id).catch(() => {})
+  // A confirmed phone (e.g. phone-OTP signup) is the baseline trust step → +bonus.
+  if (verifiedPhone) await recordPhoneVerified(profile.id).catch(() => {})
 
   // Auto-claim: if the user has a VERIFIED phone matching an UNOWNED guest Seller,
   // stamp ownership — transferring the storefront + all its listings/reviews with

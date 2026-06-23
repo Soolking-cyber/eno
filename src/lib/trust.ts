@@ -2,13 +2,26 @@ import 'server-only'
 import { db } from './db'
 
 /**
- * Trust & Reputation engine (replaces manual per-listing verification).
+ * Trust & Reputation engine — the single public trust signal (a color-coded score).
  *
- * The score is an append-only function of TrustEvent rows: score = clamp(100 +
- * Σ delta). Profile.trustScore / trustTier (and the Seller mirror) are just a
- * denormalized cache recomputed after every event — never mutated blindly — so
- * every change is auditable and reversible. Everyone starts at 100 ("good
- * standing"); badges are *earned* (score + track record).
+ * Score = max(0, 100 + Σ TrustEvent.delta), no upper ceiling. The cache on
+ * Profile.trustScore (+ Seller mirror) is recomputed after every event — never
+ * mutated blindly — so every change is auditable and reversible.
+ *
+ * DESIGN (a balanced reputation game, per eBay/Airbnb/StackOverflow research):
+ *  • Sybil-resistant baseline — new/unverified accounts start BELOW 100 (deficit
+ *    −40 → 60) and earn up by VERIFYING identity (phone +15, Zalo +10, KYC +15),
+ *    so fake/throwaway accounts can't start trusted.
+ *  • Earn by creating value — completed on-platform transactions (+5, UNCAPPED,
+ *    and gated by a real-money fee so they can't be farmed) are the main climb;
+ *    verified-buyer reviews, fast replies, and daily activity give smaller, CAPPED
+ *    boosts (anti-farming via diminishing returns).
+ *  • Asymmetric, recoverable penalties — trust is easy to lose, hard to fake:
+ *    confirmed reports cost −3/−10/−25 by severity (one bad act erases several
+ *    transactions), inactivity decays −3/window — but clean accounts slowly RECOVER
+ *    (heals penalties only, capped, never the verification deficit) so no permanent death.
+ *  • Tiers (color) with rising privilege: <60 Restricted (held) · 60–84 Building ·
+ *    85–109 Trusted · 110–159 Exceptional · 160+ Elite. Higher score → higher ranking.
  */
 
 export type TrustTier = 'restricted' | 'standard' | 'trusted' | 'exceptional'
@@ -45,12 +58,14 @@ export const RECOVERY_CLEAN_DAYS = 14   // …only if no confirmed report / inac
 export const TRANSACTION_DELTA = 5      // +trust per COMPLETED on-platform transaction — UNCAPPED (the more you transact, the higher you climb + rank)
 export const FAST_RESPONSE_DELTA = 1    // capped reward for replying quickly to buyers
 
-// KYC-gated onboarding: a brand-new account starts BELOW the 100 baseline and earns
-// its way to 100 by completing its profile and passing KYC — so unverified strangers
-// carry less trust up front. 60 (new) + 15 (profile) + 25 (KYC) = 100.
-export const NEW_ACCOUNT_DEFICIT = 40   // new accounts start at 100 − 40 = 60
-export const PROFILE_COMPLETE_DELTA = 15 // one-time: a complete storefront profile
-export const KYC_BONUS = 25             // one-time: passing identity verification (KYC)
+// Verification-gated onboarding: a brand-new account starts BELOW 100 and earns its
+// way up via verification steps, so unverified strangers carry less trust up front.
+// The three verifications fill the deficit exactly: 60 + 15 + 10 + 15 = 100.
+export const NEW_ACCOUNT_DEFICIT = 40    // new accounts start at 100 − 40 = 60
+export const PHONE_VERIFIED_BONUS = 15   // one-time: a verified phone number
+export const ZALO_LINK_BONUS = 10        // one-time: a linked Zalo account (trusted VN contact channel)
+export const KYC_BONUS = 15              // one-time: passing identity verification (KYC)
+export const PROFILE_COMPLETE_DELTA = 5  // one-time: a complete storefront profile (extra polish)
 
 /** Map a report reason to a default severity (admin can override on confirm). */
 export function severityForReason(reason: string): 'minor' | 'moderate' | 'severe' {
@@ -193,7 +208,23 @@ export async function recordNewAccount(profileId: string): Promise<boolean> {
   return true
 }
 
-/** One-time bonus for passing identity verification (KYC). Lifts a profiled account to 100. */
+/** One-time bonus for a verified phone number (everyone — the baseline trust step). */
+export async function recordPhoneVerified(profileId: string): Promise<boolean> {
+  const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'phone_verified' } })
+  if (existing > 0) return false
+  await applyTrustEvent(profileId, 'manual_adjust', PHONE_VERIFIED_BONUS, { reason: 'phone_verified' })
+  return true
+}
+
+/** One-time bonus for linking a Zalo account (a trusted VN contact channel; great for tourists/individuals). */
+export async function recordZaloLinked(profileId: string): Promise<boolean> {
+  const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'zalo_linked' } })
+  if (existing > 0) return false
+  await applyTrustEvent(profileId, 'manual_adjust', ZALO_LINK_BONUS, { reason: 'zalo_linked' })
+  return true
+}
+
+/** One-time bonus for passing identity verification (KYC) — especially important for BUSINESSES. */
 export async function recordKyc(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'kyc' } })
   if (existing > 0) return false
