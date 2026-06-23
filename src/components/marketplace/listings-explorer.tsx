@@ -1325,9 +1325,10 @@ export function ListingsExplorer({
             <h2 className="eyebrow text-body text-center select-none">
               {tr('Browse by Category', 'Khám phá danh mục')}
             </h2>
-            {/* Two fixed rows — bigger tiles, centered on wide screens, swipable on
-                smaller ones. Free & Wanted are intent tiles at the end. */}
-            <div className="grid grid-rows-2 grid-flow-col justify-start xl:justify-center auto-cols-[6rem] sm:auto-cols-[8rem] gap-x-3 gap-y-5 sm:gap-x-5 sm:gap-y-6 overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0">
+            {/* Two fixed rows — big tiles. mx-auto + w-fit + max-w-full centers the row
+                when it fits and scrolls it from the start (no cut-off) when it doesn't.
+                Free & Wanted are intent tiles at the end. */}
+            <div className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-x-auto scrollbar-none px-3">
               {categories.map((cat) => {
                 const cc = CATEGORY_COLOR_CLASSES[cat.color] ?? CATEGORY_COLOR_CLASSES.brand
                 const hex = cc.text.match(/#[0-9a-fA-F]{6}/)?.[0] ?? '#0a66c2'
@@ -1340,12 +1341,12 @@ export function ListingsExplorer({
                   >
                     <CategoryIcon
                       name={cat.icon}
-                      className="h-9 w-9 sm:h-10 sm:w-10 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
+                      className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
                     />
-                    <span className="text-xs sm:text-sm font-bold text-foreground leading-tight transition-colors group-hover:text-[var(--cat)]">
+                    <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-[var(--cat)]">
                       <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
                     </span>
-                    <span className="text-[10px] text-body select-none font-semibold">
+                    <span className="text-[11px] sm:text-xs text-body select-none font-semibold">
                       {cat.verifiedCount || 0} {tr('listings', 'tin')}
                     </span>
                   </button>
@@ -1360,12 +1361,12 @@ export function ListingsExplorer({
                 >
                   <CategoryIcon
                     name={s.icon}
-                    className="h-9 w-9 sm:h-10 sm:w-10 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[#0a66c2]"
+                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[#0a66c2]"
                   />
-                  <span className="text-xs sm:text-sm font-bold text-foreground leading-tight transition-colors group-hover:text-[#0a66c2]">
+                  <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-[#0a66c2]">
                     {lang === 'vi' ? s.nameVi : s.name}
                   </span>
-                  <span className="text-[10px] text-body select-none font-semibold">
+                  <span className="text-[11px] sm:text-xs text-body select-none font-semibold">
                     {s.type === 'free' ? tr('Giveaways', 'Miễn phí') : tr('In search of', 'Cần tìm')}
                   </span>
                 </button>
