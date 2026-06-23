@@ -110,9 +110,9 @@ export function FacetBar({
       value={priceRange}
       onChange={setPriceRange}
       query={histogramQuery}
-      className={cn('text-body hover:bg-muted', wrap)}
-      activeClassName={cn(active, wrap)}
-      wrapperClassName="shrink-0"
+      className="text-body hover:bg-muted"
+      activeClassName={active}
+      wrapperClassName={wrap}
     />,
   ]
 

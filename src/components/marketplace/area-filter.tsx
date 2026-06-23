@@ -80,6 +80,20 @@ export function AreaFilter({
     setPos({ top: r.bottom + 6, left, width })
   }, [anchorRef])
 
+  // Position the panel DURING the render that opens it (React's supported
+  // adjust-state-in-render pattern, guarded by a ref so it runs once per open).
+  // This is the root-cause fix for the "fly-in": relying on a post-mount effect
+  // let the panel paint once at (0,0) and then jump to the trigger. Computing
+  // here means the very first paint is already correctly placed — same as
+  // CustomSelect, which positions in its own onClick before opening.
+  const wasOpen = useRef(false)
+  if (open && !wasOpen.current) {
+    wasOpen.current = true
+    reposition()
+  } else if (!open && wasOpen.current) {
+    wasOpen.current = false
+  }
+
   // Reposition + outside-click/Escape close. useLayoutEffect so position is set
   // BEFORE paint — otherwise the panel flashes at top-left (0,0) for a frame then
   // jumps, which reads as a "fly-in from the corner".
