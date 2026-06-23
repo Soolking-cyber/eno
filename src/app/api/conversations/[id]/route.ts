@@ -19,7 +19,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true } },
       seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
-      messages: { orderBy: { createdAt: 'asc' }, select: { id: true, senderProfileId: true, body: true, createdAt: true } },
+      messages: { orderBy: { createdAt: 'asc' }, select: { id: true, senderProfileId: true, body: true, createdAt: true, kind: true, offerAmount: true, offerStatus: true } },
     },
   })
   if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -46,7 +46,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     counterpart: iAmBuyer
       ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl }
       : { name: convo.buyer.displayName || convo.buyer.email || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl },
-    messages: convo.messages.map((m) => ({ id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString() })),
+    messages: convo.messages.map((m) => ({ id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString(), kind: m.kind, offerAmount: m.offerAmount, offerStatus: m.offerStatus })),
   })
 }
 

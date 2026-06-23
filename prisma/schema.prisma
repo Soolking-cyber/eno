@@ -266,6 +266,11 @@ model Message {
   senderProfileId String       @db.Uuid
   sender          Profile      @relation(fields: [senderProfileId], references: [id], onDelete: Cascade)
   body            String
+  // Structured offers live in the message timeline: kind 'offer' carries an amount
+  // + status the recipient can accept/decline/counter. 'text' = a normal chat message.
+  kind            String       @default("text") // 'text' | 'offer'
+  offerAmount     Float?       // VND, set when kind='offer'
+  offerStatus     String?      // 'pending' | 'accepted' | 'declined' | 'countered'
   createdAt       DateTime     @default(now())
 
   @@index([conversationId, createdAt])

@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { MessageSquare, ChevronLeft, ChevronRight, X, Send, Loader2, Phone, Trash2 } from 'lucide-react'
+import { MessageSquare, ChevronLeft, ChevronRight, X, Send, Loader2, Phone, Trash2, Tag } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { Price } from './price'
 
-type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean }
+type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string }
 type Thread = {
   id: string; me: string; listing: Listing
@@ -194,6 +194,8 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   const [thread, setThread] = useState<Thread | null>(cached)
   // Inherit anything typed in the pending shell so the swap loses nothing.
   const [text, setText] = useState(draft)
+  const [showOffer, setShowOffer] = useState(false) // offer amount input visible
+  const [offerInput, setOfferInput] = useState('')
   const [peerTyping, setPeerTyping] = useState(false)
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
@@ -270,6 +272,9 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           setPeerTyping(false)
           const p = (payload ?? {}) as { id?: string; body?: string; senderProfileId?: string; createdAt?: string }
           if (!p.id || !p.body) { load(); return }
+          // Offers / offer-actions carry structured fields the realtime payload
+          // doesn't include — refetch to hydrate the offer card + status.
+          if (/^(💰|✅|❌)/.test(p.body)) { load(); return }
           setThread((t) => {
             if (!t || t.messages.some((x) => x.id === p.id)) return t // dedup by id
             const msg: Msg = { id: p.id!, mine: p.senderProfileId === t.me, body: p.body!, createdAt: p.createdAt || new Date().toISOString() }
@@ -354,6 +359,37 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     }
   }
 
+  // Send a structured offer (a message with kind='offer' + amount). Optimistic,
+  // then refetch to hydrate the real offer fields + supersede prior offers.
+  const sendOffer = async (amount: number) => {
+    const amt = Math.round(amount)
+    if (!amt || amt <= 0) return
+    const tempId = `temp-${Date.now()}`
+    const body = `💰 Offered ${new Intl.NumberFormat('en-US').format(amt)}₫`
+    const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true, kind: 'offer', offerAmount: amt, offerStatus: 'pending' }
+    setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
+    try {
+      const res = await fetch(`/api/conversations/${id}/messages`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerAmount: amt }),
+      })
+      if (res.ok) { await load(); onSent() }
+      else setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+    } catch {
+      setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+    }
+  }
+
+  // Accept/decline a pending offer (recipient only). Optimistic flip, then refetch.
+  const actOffer = async (messageId: string, action: 'accept' | 'decline') => {
+    setThread((t) => (t ? { ...t, messages: t.messages.map((m) => (m.id === messageId ? { ...m, offerStatus: action === 'accept' ? 'accepted' : 'declined' } : m)) } : t))
+    try {
+      const res = await fetch(`/api/conversations/${id}/offer`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId, action }),
+      })
+      if (res.ok) await load()
+    } catch { /* next poll reconciles */ }
+  }
+
   // Took over from the pending shell: clear the shared draft (already inherited
   // into local text) and auto-send if the user hit send before the convo existed.
   useEffect(() => {
@@ -430,9 +466,31 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         )}
         {thread?.messages.map((m) => (
           <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-border bg-card text-foreground'}`}>
-              {m.body}
-            </div>
+            {m.kind === 'offer' ? (
+              <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-[#0a66c2]/30 bg-[#0a66c2]/5' : 'border-border bg-card'}`}>
+                <div className="text-[11px] font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
+                <div className="mt-0.5 text-base font-bold text-foreground">{new Intl.NumberFormat('en-US').format(m.offerAmount || 0)}₫</div>
+                {m.offerStatus && m.offerStatus !== 'pending' && (
+                  <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-emerald-600' : m.offerStatus === 'declined' ? 'text-red-500' : 'text-ink-4'}`}>
+                    {m.offerStatus === 'accepted' ? tr('Accepted', 'Đã chấp nhận') : m.offerStatus === 'declined' ? tr('Declined', 'Đã từ chối') : tr('Countered', 'Đã trả giá khác')}
+                  </div>
+                )}
+                {!m.mine && m.offerStatus === 'pending' && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <button onClick={() => actOffer(m.id, 'accept')} className="rounded-lg bg-[#0a66c2] px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-[#004182] cursor-pointer">{tr('Accept', 'Chấp nhận')}</button>
+                    <button onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted cursor-pointer">{tr('Decline', 'Từ chối')}</button>
+                    <button onClick={() => { setOfferInput(String(m.offerAmount ?? '')); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
+                  </div>
+                )}
+                {m.mine && m.offerStatus === 'pending' && (
+                  <div className="mt-1 text-xs text-ink-4">{tr('Waiting for a response…', 'Đang chờ phản hồi…')}</div>
+                )}
+              </div>
+            ) : (
+              <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-border bg-card text-foreground'}`}>
+                {m.body}
+              </div>
+            )}
           </div>
         ))}
         {thread && thread.messages.length === 0 && !peerTyping && (
@@ -442,7 +500,40 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         <div ref={bottomRef} />
       </div>
 
+      {/* Offer amount input (toggled by the Offer button) */}
+      {showOffer && (
+        <div className="flex items-center gap-2 px-3 pt-2">
+          <input
+            value={offerInput}
+            onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 12); setOfferInput(d ? new Intl.NumberFormat('en-US').format(Number(d)) : '') }}
+            inputMode="numeric"
+            autoFocus
+            placeholder={tr('Offer amount (₫)', 'Số tiền đề nghị (₫)')}
+            className="min-w-0 flex-1 rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+            onKeyDown={(e) => { if (e.key === 'Enter') { const n = Number(offerInput.replace(/\D/g, '')); if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') } } }}
+          />
+          <button
+            onClick={() => { const n = Number(offerInput.replace(/\D/g, '')); if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') } }}
+            disabled={!offerInput}
+            className="shrink-0 rounded-2xl bg-[#0a66c2] px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-40 cursor-pointer"
+          >
+            {tr('Send offer', 'Gửi đề nghị')}
+          </button>
+          <button onClick={() => { setShowOffer(false); setOfferInput('') }} aria-label={tr('Cancel', 'Hủy')} className="shrink-0 text-ink-4 hover:text-foreground cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-end gap-2 px-3 py-2.5">
+        <button
+          onClick={() => setShowOffer((s) => !s)}
+          aria-label={tr('Make an offer', 'Gửi đề nghị giá')}
+          title={tr('Make an offer', 'Gửi đề nghị giá')}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer ${showOffer ? 'text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
+        >
+          <Tag className="h-[18px] w-[18px]" />
+        </button>
         <textarea
           value={text}
           onChange={(e) => { setText(e.target.value); sendTyping() }}

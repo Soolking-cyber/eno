@@ -20,9 +20,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const rl = await rateLimit('msg:send', meId, 20, '1 m')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
-  let body: { body?: string }
+  let body: { body?: string; offerAmount?: number }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
-  const text = String(body.body || '').trim().slice(0, MAX_LEN)
+
+  // An offer is a structured message: validate the amount and synthesize the text.
+  const rawAmount = Number(body.offerAmount)
+  const isOffer = Number.isFinite(rawAmount) && rawAmount > 0
+  const offerAmount = isOffer ? Math.min(Math.round(rawAmount), 1e12) : undefined
+  const text = isOffer
+    ? `💰 Offered ${new Intl.NumberFormat('en-US').format(offerAmount!)}₫`
+    : String(body.body || '').trim().slice(0, MAX_LEN)
   if (!text) return NextResponse.json({ error: 'empty' }, { status: 400 })
 
   const convo = await db.conversation.findUnique({
@@ -39,6 +46,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     { id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId, listingId: convo.listing.id },
     meId,
     text,
+    isOffer ? { kind: 'offer', offerAmount } : undefined,
   )
   return NextResponse.json(message)
 }
