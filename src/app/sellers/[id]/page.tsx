@@ -16,7 +16,7 @@ type Props = { params: Promise<{ id: string }> }
 function Stat({ icon, value, label }: { icon: React.ReactNode; value: React.ReactNode; label: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">{icon}</span>
+      <span className="shrink-0 text-accent-foreground">{icon}</span>
       <div className="leading-tight">
         <div className="text-sm font-bold text-foreground">{value}</div>
         <div className="text-[11px] text-ink-4">{label}</div>
@@ -72,7 +72,7 @@ export default async function SellerPage({ params }: Props) {
               <h1 className="h-title text-foreground">{seller.name}</h1>
               <TrustBadge tier={seller.trustTier} size="md" />
               {seller.ownerId && (
-                <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
                   <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
                 </span>
               )}
@@ -89,8 +89,8 @@ export default async function SellerPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Trust stats */}
-        <div className="mt-6 grid grid-cols-2 gap-4 rounded-2xl bg-card p-5 sm:grid-cols-4 shadow-pop">
+        {/* Trust stats — flat (monolith): no box, separation by spacing */}
+        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
           <Stat icon={<Star className="h-4 w-4" />} value={`${seller.rating.toFixed(1)}★`} label={<Tr text="Rating" />} />
           <Stat icon={<MessageSquareText className="h-4 w-4" />} value={`${seller.responseRate}%`} label={<Tr text="Response rate" />} />
           <Stat icon={<Clock className="h-4 w-4" />} value={<Tr text={seller.responseTime} />} label={<Tr text="Responds" />} />
@@ -103,9 +103,9 @@ export default async function SellerPage({ params }: Props) {
             <h2 className="h-section text-foreground"><Tr text="Reviews" /> ({seller.reviewCount})</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               {seller.reviews.map((r) => (
-                <div key={r.id} className="rounded-2xl bg-card p-4 shadow-pop">
+                <div key={r.id}>
                   <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-tint text-xs font-bold text-body">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
                       {r.author.split(' ').map((w) => w[0]).join('').toUpperCase()}
                     </span>
                     <span className="text-sm font-semibold text-foreground">{r.author}</span>
@@ -124,7 +124,7 @@ export default async function SellerPage({ params }: Props) {
         {listings.length > 0 && (
           <section className="mt-10 space-y-4">
             <h2 className="h-section text-foreground"><Tr text="Listings by" /> {seller.name} ({listings.length})</h2>
-            <SellerListings listings={listings} />
+            <SellerListings listings={listings} searchable />
           </section>
         )}
       </main>

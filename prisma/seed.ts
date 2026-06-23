@@ -88,12 +88,12 @@ function priceModel(cat: CategoryDef, type: ListingType, r: number): { price: nu
   return { price: niceVnd(between(lo, hi, r)), priceUnit: 'VND' }
 }
 
-// Themed mock photo (removed at launch). loremflickr returns a keyword-matched
-// image; ?lock makes it stable per listing.
-function images(keyword: string, seed: number, count: number): string {
-  const kw = encodeURIComponent(keyword.replace(/\s+/g, ','))
+// Mock photo (removed at launch). picsum.photos is reliable under the next/image
+// optimizer's concurrent load (loremflickr rate-limited and broke); the seed makes
+// each image stable + varied per listing.
+function images(_keyword: string, seed: number, count: number): string {
   const urls = Array.from({ length: count }, (_, i) =>
-    `https://loremflickr.com/600/450/${kw}?lock=${seed * 10 + i}`,
+    `https://picsum.photos/seed/eno${seed * 10 + i}/600/450`,
   )
   return JSON.stringify(urls)
 }

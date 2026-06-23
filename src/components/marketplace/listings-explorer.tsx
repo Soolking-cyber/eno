@@ -34,7 +34,7 @@ import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
-import { LISTING_TYPES } from '@/lib/taxonomy'
+import { LISTING_TYPES, INTENT_SHORTCUTS } from '@/lib/taxonomy'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
@@ -690,6 +690,14 @@ export function ListingsExplorer({
     document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
+  // Intent shortcuts (Free / Wanted) from the landing grid → open the explorer
+  // filtered by listingType across all categories.
+  const browseIntent = useCallback((type: string) => {
+    setListingType(type)
+    setShowExplorer(true)
+    document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
   const renderCompactRow = useCallback((l: SerializedListing, index: number) => {
     const cover = l.images[0]
     const displayTitle = lang === 'vi' ? (l.titleVi || l.title) : l.title
@@ -1263,7 +1271,8 @@ export function ListingsExplorer({
             <h2 className="eyebrow text-body text-center select-none">
               {tr('Browse by Category', 'Khám phá danh mục')}
             </h2>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4">
+            {/* Two fixed rows; extra categories scroll horizontally (no 3rd row). */}
+            <div className="grid grid-rows-2 grid-flow-col auto-cols-[5.5rem] sm:auto-cols-[7.5rem] gap-x-2 gap-y-3 sm:gap-4 overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0">
               {categories.map((cat) => {
                 const cc = CATEGORY_COLOR_CLASSES[cat.color] ?? CATEGORY_COLOR_CLASSES.brand
                 const hex = cc.text.match(/#[0-9a-fA-F]{6}/)?.[0] ?? '#0a66c2'
@@ -1272,7 +1281,7 @@ export function ListingsExplorer({
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.slug)}
                     style={{ '--cat': hex } as CSSProperties}
-                    className="group flex flex-col items-center justify-center gap-2.5 p-4 text-center cursor-pointer"
+                    className="group flex flex-col items-center justify-center gap-2 p-2 text-center cursor-pointer"
                   >
                     <CategoryIcon
                       name={cat.icon}
@@ -1287,6 +1296,20 @@ export function ListingsExplorer({
                   </button>
                 )
               })}
+            </div>
+
+            {/* Intent shortcuts — one-tap Free & Wanted browsing across all categories */}
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {INTENT_SHORTCUTS.map((s) => (
+                <button
+                  key={s.type}
+                  onClick={() => browseIntent(s.type)}
+                  className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer"
+                >
+                  <CategoryIcon name={s.icon} className="h-4 w-4 text-accent-foreground" />
+                  {lang === 'vi' ? s.nameVi : s.name}
+                </button>
+              ))}
             </div>
           </div>
 
