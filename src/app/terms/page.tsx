@@ -57,7 +57,7 @@ const sections: [string, string[]][] = [
   [
     'Changes and contact',
     [
-      'We may update these Terms from time to time; continued use after changes means you accept them. Questions? Email support@eno.forum.',
+      'We may update these Terms from time to time; continued use after changes means you accept them. Questions? Email support@eno.vn.',
     ],
   ],
 ]
