@@ -9,7 +9,7 @@ import { trackContactSeller, currencyCode } from '@/lib/analytics'
 import { COMPOSE_KEY } from '@/components/marketplace/contact-composer'
 import { toast } from 'sonner'
 
-type Compose = { listingId: string; body: string; listingTitle: string; listingImage: string | null; trackPrice: number | null; currency: string }
+type Compose = { listingId: string; body: string; offerAmount?: number | null; listingTitle: string; listingImage: string | null; trackPrice: number | null; currency: string }
 
 // Instant-redirect resolver: the composer pushes here immediately, then this page
 // creates the conversation + sends the first message in the background and
@@ -28,12 +28,13 @@ export default function PendingComposePage() {
 
     let data: Compose | null = null
     try { data = JSON.parse(sessionStorage.getItem(COMPOSE_KEY) || 'null') } catch { /* ignore */ }
-    if (!data || !data.listingId || !data.body) { router.replace('/messages'); return }
+    // Valid if there's a note OR a structured offer.
+    if (!data || !data.listingId || (!data.body && !data.offerAmount)) { router.replace('/messages'); return }
     const d = data
     try { sessionStorage.removeItem(COMPOSE_KEY) } catch { /* ignore */ }
 
     fetch('/api/conversations', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId: d.listingId, message: d.body }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId: d.listingId, message: d.body, offerAmount: d.offerAmount ?? undefined }),
     })
       .then(async (res) => {
         if (res.status === 401) { router.replace(`/listings/${d.listingId}`); return }
@@ -49,7 +50,7 @@ export default function PendingComposePage() {
           me: user?.id ?? '',
           listing: { id: d.listingId, title: d.listingTitle, image: d.listingImage },
           counterpart: { name: '', avatarColor: '#0a66c2', avatarUrl: null },
-          messages: message ? [{ id: message.id, mine: true, body: message.body, createdAt: message.createdAt }] : [],
+          messages: message ? [{ id: message.id, mine: true, body: message.body, createdAt: message.createdAt, kind: message.kind, offerAmount: message.offerAmount, offerStatus: message.offerStatus }] : [],
         })
         if (created) trackContactSeller({ id: d.listingId, title: d.listingTitle, price: d.trackPrice ?? undefined, currency: currencyCode(d.currency) })
         router.replace(`/messages/${id}`)

@@ -27,7 +27,18 @@ export function SignInForm({ className }: { className?: string }) {
   const lastSubmitted = useRef('')
 
   const supabase = createSupabaseBrowser()
-  const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined
+  // Return the user to the page they triggered sign-in from (continuum of their
+  // action) — not always home. Phone OTP stays in place (no redirect; the modal
+  // just closes); OAuth + magic-link round-trip through /auth/callback, which
+  // honors this ?next (and threads it through onboarding).
+  const redirectTo = (() => {
+    if (typeof window === 'undefined') return undefined
+    const { origin, pathname, search } = window.location
+    let next = pathname + search
+    if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/' // use the intended dest, not /signin
+    if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
+    return `${origin}/auth/callback?next=${encodeURIComponent(next)}`
+  })()
 
   // Resend countdown tick.
   useEffect(() => {

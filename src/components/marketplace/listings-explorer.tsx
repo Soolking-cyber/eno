@@ -1788,8 +1788,10 @@ export function ListingsExplorer({
                 )}
 
                 {viewMode === 'compact' && (
-                  /* Compact Row Mode (bonbanh-style list rows) */
-                  <div className="space-y-1.5">
+                  /* Compact Row Mode (bonbanh-style list rows). Two columns on
+                     desktop so the wide row doesn't strand the actions far right
+                     with a big empty middle; single column on mobile. */
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5">
                     {shownListings.map((l, index) => (
                       <div
                         key={l.id}

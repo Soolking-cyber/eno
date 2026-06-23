@@ -106,6 +106,14 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   }
   const openCard = (l: SerializedListing) => { cardIdRef.current = l.id; setCard(l); placeCardFor(l); onHover?.(l.id) }
   const closeCard = () => { cardIdRef.current = null; setCard(null); setCardPos(null); onHover?.(null) }
+  // Desktop hover UX: keep the card open while the cursor is over the marker OR the
+  // card, and close it gracefully a beat after the cursor leaves both — so it never
+  // persists over the cards behind it (and the small grace period lets the cursor
+  // travel from the pin onto the card without it vanishing).
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null } }
+  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => closeCard(), 220) }
+  useEffect(() => () => cancelClose(), [])
 
   useEffect(() => { loadLeaflet(() => setReady(true)) }, [])
 
@@ -164,8 +172,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
         else if (cardIdRef.current === l.id) onOpenListing(l) // touch: 2nd tap opens
         else openCard(l) // touch: 1st tap shows card
       })
-      marker.on('mouseover', () => { onHover?.(l.id); if (hoverable) openCard(l) })
-      marker.on('mouseout', () => onHover?.(null))
+      marker.on('mouseover', () => { if (hoverable) { cancelClose(); openCard(l) } else { onHover?.(l.id) } })
+      marker.on('mouseout', () => { if (hoverable) { scheduleClose() } else { onHover?.(null) } })
       markersRef.current.set(l.id, marker)
     })
 
@@ -232,6 +240,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
           }}
         >
           <div
+            onMouseEnter={cancelClose}
+            onMouseLeave={scheduleClose}
             className={cn(
               'pointer-events-auto relative overflow-hidden rounded-2xl bg-card shadow-pop duration-150 ease-out animate-in fade-in zoom-in-95',
               cardPos.above ? 'origin-bottom' : 'origin-top',

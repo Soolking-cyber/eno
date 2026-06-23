@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile, getCurrentProfileId } from '@/lib/admin'
-import { insertMessage } from '@/lib/messages'
+import { insertMessage, type SerializedMessage } from '@/lib/messages'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,13 +12,19 @@ export async function POST(req: Request) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
 
-  let body: { listingId?: string; message?: string }
+  let body: { listingId?: string; message?: string; offerAmount?: number }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
   const listingId = String(body.listingId || '').trim()
   if (!listingId) return NextResponse.json({ error: 'missing_listing' }, { status: 400 })
   // Optional first message — lets the composer create the thread AND send in one
   // round trip (snappier; the message side effects live in insertMessage).
   const initialMessage = String(body.message || '').trim().slice(0, 2000)
+  // Optional STRUCTURED first offer (kind='offer' → renders as an offer card,
+  // identical to in-thread offers) with an optional note alongside it.
+  const rawAmount = Number(body.offerAmount)
+  const isOffer = Number.isFinite(rawAmount) && rawAmount > 0
+  const offerAmount = isOffer ? Math.min(Math.round(rawAmount), 1e12) : undefined
+  const offerText = isOffer ? `💰 Offered ${new Intl.NumberFormat('en-US').format(offerAmount!)}₫` : ''
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
@@ -47,9 +53,16 @@ export async function POST(req: Request) {
       },
       select: { id: true },
     })
-    const message = initialMessage
-      ? await insertMessage({ id: convo.id, buyerProfileId: profile.id, sellerProfileId, listingId }, profile.id, initialMessage)
-      : null
+    const conv = { id: convo.id, buyerProfileId: profile.id, sellerProfileId, listingId }
+    // Offer is the primary message (returned for the optimistic card); a note, if
+    // present, follows as a plain message.
+    let message: SerializedMessage | null = null
+    if (isOffer) {
+      message = await insertMessage(conv, profile.id, offerText, { kind: 'offer', offerAmount })
+      if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
+    } else if (initialMessage) {
+      message = await insertMessage(conv, profile.id, initialMessage)
+    }
     return NextResponse.json({ id: convo.id, created: true, message })
   } catch (e) {
     if ((e as { code?: string })?.code === 'P2002') {
@@ -58,10 +71,15 @@ export async function POST(req: Request) {
         select: { id: true },
       })
       if (existing) {
-        // Thread already exists → still deliver the message (reuse it).
-        const message = initialMessage
-          ? await insertMessage({ id: existing.id, buyerProfileId: profile.id, sellerProfileId, listingId }, profile.id, initialMessage)
-          : null
+        // Thread already exists → still deliver the offer/message (reuse it).
+        const conv = { id: existing.id, buyerProfileId: profile.id, sellerProfileId, listingId }
+        let message: SerializedMessage | null = null
+        if (isOffer) {
+          message = await insertMessage(conv, profile.id, offerText, { kind: 'offer', offerAmount })
+          if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
+        } else if (initialMessage) {
+          message = await insertMessage(conv, profile.id, initialMessage)
+        }
         return NextResponse.json({ id: existing.id, created: false, message })
       }
     }

@@ -29,7 +29,7 @@ export function ContactComposer({
   currency: string // raw listing currency, e.g. '₫'
 }) {
   const { user, loading, openSignIn } = useAuth()
-  const { tr, lang } = useLanguage()
+  const { tr } = useLanguage()
   const router = useRouter()
   const [text, setText] = useState('')
   const [offering, setOffering] = useState(false)
@@ -38,30 +38,25 @@ export function ContactComposer({
 
   const hasPrice = typeof price === 'number' && price > 0
   const offerPrice = hasPrice ? Math.round(price! * (1 - discount / 100)) : 0
-  const offerLabel = lang === 'vi' ? 'Đề nghị' : 'Offer'
 
-  const buildBody = () => {
-    const note = text.trim()
-    if (offering && hasPrice) {
-      const line = `💰 ${offerLabel}: ${formatMoneyFull(offerPrice, currency)}`
-      return note ? `${line}\n${note}` : line
-    }
-    return note
-  }
   const canSend = (offering && hasPrice) || text.trim().length > 0
 
   const send = () => {
     if (!canSend) return
     if (!user && !loading) { openSignIn(); return }
-    // Stash the message + context and redirect immediately — the /messages/pending
-    // resolver creates the thread and sends in the background, then swaps to it.
+    // Stash a STRUCTURED offer (offerAmount) + optional note — never a baked text
+    // line — so the first message lands as a proper offer card (kind='offer'),
+    // identical to in-thread offers. The /messages/pending resolver posts it and
+    // swaps to the real thread.
+    const offerAmount = offering && hasPrice ? offerPrice : null
     try {
       sessionStorage.setItem(COMPOSE_KEY, JSON.stringify({
         listingId,
-        body: buildBody(),
+        body: text.trim(),
+        offerAmount,
         listingTitle: listingTitle ?? '',
         listingImage: listingImage ?? null,
-        trackPrice: offering && hasPrice ? offerPrice : (price ?? null),
+        trackPrice: offerAmount ?? (price ?? null),
         currency,
       }))
     } catch { /* storage blocked — the pending page falls back to /messages */ }
