@@ -5,6 +5,7 @@ import {
   Search,
   SlidersHorizontal,
   Inbox,
+  AlertTriangle,
   Grid,
   List,
   MapPin,
@@ -430,7 +431,7 @@ export function ListingsExplorer({
   }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, listingType, verifiedOnly, sort, activeSubcategory, customFilters, priceRange, nearby, activeProvince?.code, activeWard?.code])
 
   // Fetch listings dynamically from API on parameter/page modifications using React Query SWR cache
-  const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching } = useQuery({
+  const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isError: queryError, refetch: refetchListings } = useQuery({
     queryKey: [
       'listings',
       {
@@ -1356,12 +1357,20 @@ export function ListingsExplorer({
 
           {/* INFINITE FEED (Facebook-style) — all listings, loads more on scroll. */}
           {shownListings.length === 0 && !isLoading ? (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
-              <Inbox className="h-10 w-10 text-muted-foreground" />
-              <p className="text-sm font-semibold text-body">
-                {tr('No listings found.', 'Không có tin đăng nào.')}
-              </p>
-            </div>
+            queryError ? (
+              <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
+                <AlertTriangle className="h-10 w-10 text-muted-foreground" />
+                <p className="text-sm font-semibold text-body">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
+                <button onClick={() => refetchListings()} className="rounded-xl bg-[#0a66c2] px-4 py-2 text-xs font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer">{tr('Try again', 'Thử lại')}</button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
+                <Inbox className="h-10 w-10 text-muted-foreground" />
+                <p className="text-sm font-semibold text-body">
+                  {tr('No listings found.', 'Không có tin đăng nào.')}
+                </p>
+              </div>
+            )
           ) : (
             <>
               <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -1466,6 +1475,21 @@ export function ListingsExplorer({
       </div>
     )
   }
+
+  // Distinct from the empty state: a failed fetch (DB down, 500) must NOT read as
+  // "no listings" — show an error + retry so the marketplace never looks empty.
+  const renderErrorState = () => (
+    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center">
+      <AlertTriangle className="h-10 w-10 text-muted-foreground" />
+      <p className="text-sm font-semibold text-body">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
+      <button
+        onClick={() => refetchListings()}
+        className="rounded-xl bg-[#0a66c2] px-4 py-2 text-xs font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer"
+      >
+        {tr('Try again', 'Thử lại')}
+      </button>
+    </div>
+  )
 
   return (
     <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden py-5 sm:py-8">
@@ -1693,7 +1717,7 @@ export function ListingsExplorer({
               )
             )}
 
-            {!isLoading && shownListings.length === 0 && renderEmptyState()}
+            {!isLoading && shownListings.length === 0 && (queryError ? renderErrorState() : renderEmptyState())}
 
             {shownListings.length > 0 && (
               <div className={cn(isLoading && 'opacity-60 pointer-events-none transition-opacity')}>
