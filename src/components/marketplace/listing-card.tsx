@@ -187,17 +187,15 @@ export function ListingCard({
 
       {/* Body — title · price · location · verified */}
       <div className="flex flex-1 flex-col gap-1 px-0.5 pt-2.5">
-        <div className="flex items-baseline gap-1.5">
-          <TrustScore score={listing.seller.trustScore} variant="number" className="shrink-0" />
-          <h3 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">
-            {displayTitle}
-          </h3>
-        </div>
+        <h3 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">
+          {displayTitle}
+        </h3>
 
         <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
 
-        <div className="text-xs text-muted-foreground">
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="truncate">{displayLocation}</span>
+          <TrustScore score={listing.seller.trustScore} variant="number" size="sm" className="shrink-0" />
         </div>
 
         {listing.seller.isBusiness && (

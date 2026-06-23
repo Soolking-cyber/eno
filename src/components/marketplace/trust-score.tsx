@@ -30,7 +30,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   if (variant === 'number') {
     const txt = { sm: 'text-xs', md: 'text-sm', lg: 'text-base' }[size]
     return (
-      <span title={title} className={cn('font-semibold tabular-nums', txt, className)} style={{ color: hex }}>
+      <span title={title} className={cn('font-extrabold tabular-nums', txt, className)} style={{ color: hex }}>
         {n}
       </span>
     )
