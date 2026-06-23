@@ -778,7 +778,7 @@ export function ListingsExplorer({
             <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 font-bold text-foreground" />
             <span className="h-3 w-px shrink-0 bg-border" />
             <span className="truncate"><Tr text={l.district || l.city} /></span>
-            <TrustScore score={l.seller.trustScore} size="sm" className="shrink-0" />
+            <TrustScore score={l.seller.trustScore} variant="number" size="sm" className="shrink-0" />
           </div>
         </div>
 
@@ -1303,9 +1303,6 @@ export function ListingsExplorer({
 
           {/* FINN-STYLE CATEGORY GRID */}
           <div className="space-y-4">
-            <h2 className="eyebrow text-body text-center select-none">
-              {tr('Browse by Category', 'Khám phá danh mục')}
-            </h2>
             {/* Two fixed rows — big tiles. mx-auto + w-fit + max-w-full centers the row
                 when it fits and scrolls it from the start (no cut-off) when it doesn't.
                 Free & Wanted are intent tiles at the end. */}

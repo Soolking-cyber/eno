@@ -264,7 +264,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
               <div className="p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="truncate text-sm font-bold text-foreground">{lang === 'vi' ? (card.titleVi || card.title) : card.title}</p>
-                  <TrustScore score={card.seller.trustScore} size="sm" className="shrink-0" />
+                  <TrustScore score={card.seller.trustScore} variant="number" size="sm" className="shrink-0" />
                 </div>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
                 <p className="mt-1 text-sm font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</p>
