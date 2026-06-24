@@ -17,12 +17,16 @@ import { subcategoriesFor, typesFor, facetsFor, LISTING_TYPES } from '@/lib/taxo
 const TITLE_MAX = 140
 const DESC_MAX = 5000
 
-export function PostWizard({ categories, embedded = false }: { categories: SerializedCategory[]; embedded?: boolean }) {
+export function PostWizard({ categories, embedded = false, onPosted }: { categories: SerializedCategory[]; embedded?: boolean; onPosted?: () => void }) {
   const { lang, tr } = useLanguage()
   const t = (vi: string, en: string) => tr(en, vi)
 
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // Synchronous latch — `submitting` state only flips after the next render, so a
+  // fast double-tap can fire submit() twice before disabled takes effect → two
+  // listings + two social cross-posts. This ref blocks the second call immediately.
+  const submittingRef = useRef(false)
   const [error, setError] = useState('')
   const [categorySlug, setCategorySlug] = useState('')
   const [subcategorySlug, setSubcategorySlug] = useState('')
@@ -96,11 +100,12 @@ export function PostWizard({ categories, embedded = false }: { categories: Seria
   }
 
   const submit = async () => {
-    if (!canSubmit) return
+    if (!canSubmit || submittingRef.current) return
     if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsPhoneNumber(contactName)) {
       setError(t('Không được ghi số điện thoại trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng.', "Phone numbers aren't allowed in a listing — buyers message you in the app. Remove it to post."))
       return
     }
+    submittingRef.current = true
     setSubmitting(true)
     setError('')
     try {
@@ -140,6 +145,7 @@ export function PostWizard({ categories, embedded = false }: { categories: Seria
       const created = (await res.json().catch(() => ({}))) as { id?: string }
       trackPostListing({ id: created.id, title: title.trim(), price: Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
       setSubmitted(true)
+      onPosted?.() // embedded in dashboard → refresh listings + switch tab
     } catch (e) {
       const msg = e instanceof Error ? e.message : ''
       setError(
@@ -151,6 +157,7 @@ export function PostWizard({ categories, embedded = false }: { categories: Seria
       )
       console.error(e)
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }

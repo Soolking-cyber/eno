@@ -171,26 +171,30 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  let orderBy: Prisma.ListingOrderByWithRelationInput | Prisma.ListingOrderByWithRelationInput[] = { postedAt: 'desc' }
+  // Every branch ends with { id: 'desc' } — a UNIQUE, monotonic tiebreaker. Without
+  // it, rows tied on the sort key (e.g. the many accounts at trustScore=100, or any
+  // single-column sort) get no stable order across independent LIMIT/OFFSET queries,
+  // so listings appear on two pages AND others are silently skipped as you paginate.
+  let orderBy: Prisma.ListingOrderByWithRelationInput[]
   switch (sort) {
     case 'price-low':
-      orderBy = { price: 'asc' }
+      orderBy = [{ price: 'asc' }, { id: 'desc' }]
       break
     case 'price-high':
-      orderBy = { price: 'desc' }
+      orderBy = [{ price: 'desc' }, { id: 'desc' }]
       break
     case 'popular':
-      orderBy = { views: 'desc' }
+      orderBy = [{ views: 'desc' }, { id: 'desc' }]
       break
     case 'verified-first':
-      orderBy = [{ verified: 'desc' }, { postedAt: 'desc' }]
+      orderBy = [{ verified: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }]
       break
     case 'newest':
     default:
       // Default ("Recommended") ranking factors trust: featured first, then higher
       // trust score, then recency. Most accounts sit at 100 (tie → recency rules),
       // while Exceptional sellers float up and Restricted ones sink — "higher = better".
-      orderBy = [{ featured: 'desc' }, { seller: { trustScore: 'desc' } }, { postedAt: 'desc' }]
+      orderBy = [{ featured: 'desc' }, { seller: { trustScore: 'desc' } }, { postedAt: 'desc' }, { id: 'desc' }]
   }
 
   // Parallel fetch: Listings, total count, and subcategory counts (if category is set)

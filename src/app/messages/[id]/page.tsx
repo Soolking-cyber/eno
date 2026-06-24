@@ -55,7 +55,11 @@ export default function ThreadPage() {
   // A slow poll + focus refetch stay as a backstop if the socket drops.
   useEffect(() => {
     if (!user) return
-    load()
+    // Opening the thread zeroes this conversation's unread server-side (the GET in
+    // load()). Reconcile the inbox caches ONCE so the header Messages badge + the
+    // conversation-list unread pill clear immediately, instead of staying stale for
+    // up to the 45s poll (glaring on the desktop two-pane next to the open thread).
+    load().then(() => { refreshUnread(); refreshConvos() })
 
     const supabase = createSupabaseBrowser()
     let channel: ReturnType<typeof supabase.channel> | null = null
@@ -189,14 +193,25 @@ export default function ThreadPage() {
   }
 
   // Accept/decline a pending offer (recipient only). Optimistic flip, then refetch.
+  const actingOffer = useRef(false)
   const actOffer = async (messageId: string, action: 'accept' | 'decline') => {
+    if (actingOffer.current) return // block double-click double-POST
+    actingOffer.current = true
+    // Optimistic flip.
     setThread((t) => (t ? { ...t, messages: t.messages.map((m) => (m.id === messageId ? { ...m, offerStatus: action === 'accept' ? 'accepted' : 'declined' } : m)) } : t))
     try {
       const res = await fetch(`/api/conversations/${id}/offer`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId, action }),
       })
-      if (res.ok) await load()
-    } catch { /* next poll reconciles */ }
+      // ALWAYS reconcile from the server — on a reject (409/429/403) load() reverts
+      // the optimistic flip so we never leave a phantom "Accepted" the server refused.
+      await load()
+      if (res.ok) { refreshUnread(); refreshConvos() }
+    } catch {
+      await load() // restore true state
+    } finally {
+      actingOffer.current = false
+    }
   }
 
   const submitOffer = () => {

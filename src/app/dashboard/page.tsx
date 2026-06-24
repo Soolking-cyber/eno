@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
+// Authed + personalized, and the client reads ?tab via useSearchParams → dynamic.
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardPage() {
   // Categories power the inline "Post a listing" tab (no redirect).
   const categories = await db.category.findMany({ orderBy: { name: 'asc' } })

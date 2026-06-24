@@ -715,7 +715,10 @@ export function ListingsExplorer({
   }, [])
 
   // Save the current filter set → the buyer gets alerted (in-app + push) on new matches.
+  const savingSearch = useRef(false)
   const saveSearch = useCallback(async () => {
+    if (savingSearch.current) return // block double-tap → duplicate rows → duplicate cron alerts
+    savingSearch.current = true
     const [mn, mx] = priceRange !== 'all' ? priceRange.split('-') : ['', '']
     const params = {
       category: activeCategory !== 'all' ? activeCategory : undefined,
@@ -735,6 +738,7 @@ export function ListingsExplorer({
       if (!res.ok) throw new Error()
       toast.success(tr("Saved — we'll alert you on new matches", 'Đã lưu — sẽ báo khi có tin mới phù hợp'))
     } catch { toast.error(tr('Could not save search', 'Không thể lưu tìm kiếm')) }
+    finally { savingSearch.current = false }
   }, [activeCategory, activeSubcategory, listingType, debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters, tr])
 
   const renderCompactRow = useCallback((l: SerializedListing, index: number) => {

@@ -311,7 +311,7 @@ export function Header() {
           )}
 
           <Link
-            href="/post"
+            href={user ? '/dashboard?tab=post' : '/post'}
             className="hidden items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#004182] sm:flex cursor-pointer"
           >
             {t('header.postBtn')}

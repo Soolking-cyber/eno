@@ -48,6 +48,11 @@ const RECENT_BAD_WINDOW_DAYS = 90 // a recent confirmed report blocks the Except
 
 const DAY_MS = 86_400_000
 
+// Reasons that must apply AT MOST ONCE per account — deduped when summing the
+// score so a double-insert (race) can't double-count. The DB @@unique on
+// (subjectProfileId, reason) is the belt; this is the suspenders.
+const ONE_TIME_REASONS = new Set(['new_account', 'phone_verified', 'zalo_linked', 'kyc', 'profile_complete'])
+
 // ── Engagement / activity scoring (the "earn by being active" loop) ──
 export const ENGAGEMENT_DELTA = 2       // +trust for a day's activity (e.g. confirming availability)
 export const ENGAGEMENT_DAILY_CAP = 1   // at most one engagement bump per account per day (no farming)
@@ -101,11 +106,24 @@ export async function recomputeTrust(profileId: string): Promise<{ score: number
   })
   if (!profile) return null
 
-  const agg = await db.trustEvent.aggregate({
+  // Sum deltas, but count each ONE-TIME reason at most once — so a duplicate
+  // one-time event (e.g. two concurrent ensureProfile both inserting new_account
+  // under a race) can't corrupt the score (the -40 deficit applied twice would
+  // otherwise drop a new user to 20/Restricted). Self-healing regardless of dupes.
+  const events = await db.trustEvent.findMany({
     where: { subjectProfileId: profileId },
-    _sum: { delta: true },
+    select: { delta: true, reason: true },
   })
-  const score = Math.max(SCORE_MIN, 100 + (agg._sum.delta ?? 0))
+  const seenOnce = new Set<string>()
+  let sum = 0
+  for (const e of events) {
+    if (e.reason && ONE_TIME_REASONS.has(e.reason)) {
+      if (seenOnce.has(e.reason)) continue
+      seenOnce.add(e.reason)
+    }
+    sum += e.delta
+  }
+  const score = Math.max(SCORE_MIN, 100 + sum)
 
   const recentBad = await db.trustEvent.count({
     where: {

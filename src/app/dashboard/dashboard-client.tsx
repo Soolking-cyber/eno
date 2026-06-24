@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, MessageSquareText, Tag, Clock, Upload } from 'lucide-react'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Header } from '@/components/marketplace/header'
@@ -60,6 +60,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [data, setData] = useState<Dashboard | null>(null)
   const [tab, setTab] = useState<'post' | 'listings' | 'account'>('listings')
   const reviewedRef = useRef(false)
@@ -74,12 +75,13 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
     if (!done) { reviewedRef.current = true; router.replace('/dashboard/availability') }
   }, [user, data, router])
 
-  // Open the tab from ?tab= so the account-menu's "Listings" / "Settings" entries
-  // deep-link straight to the right view.
+  // Drive the tab from ?tab= REACTIVELY (useSearchParams updates on client nav), so
+  // the account-menu "Listings"/"Settings" links switch tabs even when ALREADY on
+  // /dashboard — a one-time mount effect left them inert in that case.
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (new URLSearchParams(window.location.search).get('tab') === 'account') setTab('account')
-  }, [])
+    const t = searchParams.get('tab')
+    if (t === 'post' || t === 'listings' || t === 'account') setTab(t)
+  }, [searchParams])
 
   const refresh = useCallback(() => {
     const uid = user?.id
@@ -158,7 +160,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
           {(['post', 'listings', 'account'] as const).map((tb) => (
             <button
               key={tb}
-              onClick={() => setTab(tb)}
+              onClick={() => { setTab(tb); router.replace(`/dashboard?tab=${tb}`, { scroll: false }) }}
               className={cn(
                 '-mb-px flex items-center gap-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
                 tab === tb ? 'border-[#0a66c2] text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -171,7 +173,11 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
 
         {tab === 'post' && (
           <div className="mt-6">
-            <PostWizard categories={categories} embedded />
+            <PostWizard
+              categories={categories}
+              embedded
+              onPosted={() => { refresh(); setTab('listings'); router.replace('/dashboard?tab=listings', { scroll: false }) }}
+            />
           </div>
         )}
 
