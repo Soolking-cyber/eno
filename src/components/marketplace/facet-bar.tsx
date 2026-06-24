@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { MapPin, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
@@ -60,6 +61,27 @@ export function FacetBar({
   const [areaOpen, setAreaOpen] = useState(false)
   const [advOpen, setAdvOpen] = useState(false) // advanced per-category filter panel
   const areaBtnRef = useRef<HTMLButtonElement>(null)
+  // The advanced-filter panel is PORTALED to <body> (like the price/area popovers) so
+  // it can't be painted under later page content (the footer). Positioned under the
+  // Filter button via its rect.
+  const advBtnRef = useRef<HTMLButtonElement>(null)
+  const [mounted, setMounted] = useState(false)
+  const [advPos, setAdvPos] = useState({ top: 0, left: 0, width: 0 })
+  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    if (!advOpen) return
+    const place = () => {
+      const r = advBtnRef.current?.getBoundingClientRect()
+      if (!r) return
+      const width = Math.min(416, window.innerWidth - 24) // 26rem, clamped to viewport
+      const left = Math.max(12, Math.min(r.left, window.innerWidth - width - 12))
+      setAdvPos({ top: r.bottom + 6, left, width })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
+  }, [advOpen])
   // The area pill is "active" when a ward/province or a near-you search is set.
   const areaActive = !!ward || !!province || !!nearby
   const areaLabel = ward
@@ -167,6 +189,7 @@ export function FacetBar({
         {/* Advanced per-category filter form — leftmost. Only when the category has facets. */}
         {advFacets.length > 0 && (
           <button
+            ref={advBtnRef}
             type="button"
             onClick={() => setAdvOpen((o) => !o)}
             className={cn(
@@ -213,12 +236,15 @@ export function FacetBar({
         />
       </div>
 
-      {/* Advanced per-category filter form — segmented toggles + selects; a scrollable
-          dropdown anchored under the Filter button, closing on outside click. */}
-      {advOpen && advFacets.length > 0 && (
+      {/* Advanced per-category filter form — segmented toggles + selects. PORTALED to
+          <body> + fixed-positioned so it floats above all page content (incl. the
+          footer), closing on outside click. */}
+      {mounted && advOpen && advFacets.length > 0 && createPortal(
         <>
-          <div className="fixed inset-0 z-40" aria-hidden onClick={() => setAdvOpen(false)} />
-          <div className="absolute left-0 top-full z-50 mt-1 w-[26rem] max-w-[calc(100vw-1.5rem)] max-h-[70vh] overflow-y-auto scroll-thin rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="fixed inset-0 z-[1099]" aria-hidden onClick={() => setAdvOpen(false)} />
+          <div
+            style={{ position: 'fixed', top: advPos.top, left: advPos.left, width: advPos.width || undefined, visibility: advPos.top > 0 ? 'visible' : 'hidden' }}
+            className="z-[1100] max-h-[70vh] overflow-y-auto scroll-thin rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-bold text-foreground">{tr('Filters', 'Bộ lọc')}</span>
               <button onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:bg-muted hover:text-foreground">
@@ -266,7 +292,8 @@ export function FacetBar({
               </button>
             )}
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </div>
   )
