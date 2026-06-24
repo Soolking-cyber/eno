@@ -173,7 +173,7 @@ export default function RootLayout({
             </CurrencyProvider>
           </LanguageProvider>
         </ThemeProvider>
-        <SonnerToaster position="bottom-right" richColors closeButton />
+        <SonnerToaster position="top-center" richColors closeButton />
         <AnalyticsTags />
         <SpeedInsights />
         <Analytics />

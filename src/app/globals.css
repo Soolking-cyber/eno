@@ -427,3 +427,26 @@ input, select, textarea {
 .eno-slider::-webkit-slider-runnable-track { background: transparent; }
 .eno-range::-moz-range-track,
 .eno-slider::-moz-range-track { background: transparent; }
+
+/* ============================================================
+   TOASTS (sonner) — pop in the CENTER of the screen, styled to our
+   design language: rounded-2xl panel, soft pop shadow, design tokens.
+   The toaster is position="top-center" (horizontal centering handled by
+   sonner); we override the vertical anchor to the viewport middle.
+   ============================================================ */
+[data-sonner-toaster][data-x-position="center"] {
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+}
+[data-sonner-toast] {
+  border-radius: 1rem;                 /* rounded-2xl panel */
+  box-shadow: var(--shadow-pop);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+/* Tighten the close button + give it our muted hover. */
+[data-sonner-toast] [data-close-button] {
+  border-radius: 9999px;
+}
