@@ -56,13 +56,17 @@ export async function POST(req: NextRequest) {
   }
 
   const prompt = `You classify product photos for eno.vn, a marketplace for expats in Vietnam.
-Pick the single best category + subcategory from THIS taxonomy (use the exact slugs):
+Focus on the SINGLE main item being sold — the one product in the foreground. IGNORE the background, the surface/table, hands, packaging clutter and any other props. Everything you output describes ONLY that product, never the scene.
+
+First decide "productClear": true if there is one clear, identifiable product that fills enough of the frame to classify confidently; false if the photo is blurry/dark, shows no clear product, is mostly background, or crams in several unrelated items. If productClear is false, leave the other fields empty.
+
+When productClear is true, pick the single best category + subcategory from THIS taxonomy (use the exact slugs):
 ${TAXONOMY_TEXT}
 
-Also pick: listingType (one of the category's listed types; default "sell"); condition ("new" or "used", or "" if not a physical item / can't tell); a concise, factual title in ${titleLang} (max 80 chars, no price, no phone); "brand": ALWAYS identify the product's brand / manufacturer — read it from any visible logo, label or text, and infer it from the product's recognizable design when no logo is shown (e.g. Apple, Samsung, Huawei, Honda, Yamaha, Sony, Dell, Nike, IKEA). Use the well-known canonical English brand name (e.g. "Apple", not "apple iphone"). Return "" ONLY if the item is genuinely unbranded (handmade, generic) or you truly cannot tell. Prefer a confident guess over "". And "description": a SHORT spec sheet in ${titleLang} — only the main specs you can identify (brand, model, size/capacity, colour, key features). 1–3 short lines or comma-separated, factual, NO marketing fluff, NO price, NO phone. If you can't identify specs, return "".
+Also pick: listingType (one of the category's listed types; default "sell"); condition ("new" or "used", or "" if not a physical item / can't tell); a concise, factual title in ${titleLang} (max 80 chars) naming ONLY the product itself — e.g. "iPhone 14 Pro 128GB", NOT "iPhone on a white table" or "phone with charger on desk"; no scene words, no price, no phone; "brand": ALWAYS identify the product's brand / manufacturer — read it from any visible logo, label or text, and infer it from the product's recognizable design when no logo is shown (e.g. Apple, Samsung, Huawei, Honda, Yamaha, Sony, Dell, Nike, IKEA). Use the well-known canonical English brand name (e.g. "Apple", not "apple iphone"). Return "" ONLY if the item is genuinely unbranded (handmade, generic) or you truly cannot tell. Prefer a confident guess over "". And "description": a SHORT spec sheet in ${titleLang} about the product ONLY — main specs you can identify (brand, model, size/capacity, colour, key features). 1–3 short lines or comma-separated, factual, NO scene description, NO marketing fluff, NO price, NO phone. If you can't identify specs, return "".
 Return ONLY JSON.`
 
-  let parsed: { category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; brand?: string; description?: string } = {}
+  let parsed: { productClear?: boolean; category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; brand?: string; description?: string } = {}
   try {
     const res = await ai.models.generateContent({
       model: GEMINI_MODEL,
@@ -78,6 +82,7 @@ Return ONLY JSON.`
         responseSchema: {
           type: Type.OBJECT,
           properties: {
+            productClear: { type: Type.BOOLEAN },
             category: { type: Type.STRING },
             subcategory: { type: Type.STRING },
             listingType: { type: Type.STRING },
@@ -86,8 +91,8 @@ Return ONLY JSON.`
             brand: { type: Type.STRING },
             description: { type: Type.STRING },
           },
-          // brand REQUIRED so the model always emits it (optional fields get dropped).
-          required: ['category', 'brand'],
+          // REQUIRED so the model always emits them (optional fields get dropped).
+          required: ['productClear', 'category', 'brand'],
         },
       },
     })
@@ -100,9 +105,15 @@ Return ONLY JSON.`
     return NextResponse.json({ error: 'ai_failed', detail: (e as Error)?.message?.slice(0, 300) }, { status: 502 })
   }
 
+  // No single clear product → tell the user to retake a close, clear photo of the
+  // item itself (not a scene). Distinct from a plain classify miss.
+  if (parsed.productClear === false) {
+    return NextResponse.json({ unclear: true, categorySlug: null, subcategorySlug: null, listingType: null, condition: null, title: null, brand: null, description: null })
+  }
+
   // Validate against the taxonomy — never trust the model's slugs blindly.
   const cat = TAXONOMY.find((c) => c.slug === parsed.category)
-  if (!cat) return NextResponse.json({ categorySlug: null, subcategorySlug: null, listingType: null, condition: null, title: null, description: null })
+  if (!cat) return NextResponse.json({ categorySlug: null, subcategorySlug: null, listingType: null, condition: null, title: null, brand: null, description: null })
   const sub = cat.subcategories.find((s) => s.slug === parsed.subcategory)
   const listingType = cat.types.includes(parsed.listingType as never) ? parsed.listingType : 'sell'
   const condition = parsed.condition === 'new' || parsed.condition === 'used' ? parsed.condition : null

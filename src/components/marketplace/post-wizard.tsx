@@ -53,6 +53,10 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
         return
       }
       const d = await res.json()
+      if (d.unclear) {
+        toast.error(t('Chưa thấy rõ sản phẩm — chụp cận cảnh chỉ riêng món đồ.', "Couldn't spot a clear product — take a close photo of just the item."))
+        return
+      }
       if (d.categorySlug) {
         setCategorySlug(d.categorySlug)
         setSubcategorySlug(d.subcategorySlug || '')

@@ -69,6 +69,18 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
           const list: SerializedListing[] = d.listings || []
           setSaved(list)
           try { localStorage.setItem(SAVED_KEY, JSON.stringify({ idKey, list })) } catch {}
+          // Self-heal: drop saved ids that no longer resolve to a live listing
+          // (deleted / removed), so count + badge match what's actually shown.
+          // Scoped to the ids THIS request asked for, so a heart tapped while the
+          // fetch was in flight isn't wrongly pruned.
+          const requested = new Set(idKey.split(','))
+          const returned = new Set(list.map((l) => l.id))
+          setIds((prev) => {
+            const next = new Set([...prev].filter((id) => !requested.has(id) || returned.has(id)))
+            if (next.size === prev.size) return prev
+            try { localStorage.setItem(KEY, JSON.stringify([...next])) } catch {}
+            return next
+          })
         })
         .catch(() => {})
     }, 400)
