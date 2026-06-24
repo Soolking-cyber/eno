@@ -47,16 +47,21 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [postingAs, setPostingAs] = useState<string | null>(null)
+  const [meLoaded, setMeLoaded] = useState(false)
 
-  // Prefill contact from the signed-in profile.
+  // Contact name + phone come from the ACCOUNT (not re-typed per post — a number is
+  // unique per account). If the account is missing either, we prompt them to add it
+  // in Settings first and block publishing.
   useEffect(() => {
     fetch('/api/me').then((r) => r.json()).then((d) => {
       const u = d.user
-      if (!u) return
-      setContactName((p) => p || u.seller?.name || u.displayName || '')
-      setContactPhone((p) => p || u.seller?.phone || u.phone || '')
-      if (u.accountType === 'business') setPostingAs(u.businessName || u.seller?.name || null)
-    }).catch(() => {})
+      if (u) {
+        setContactName(u.seller?.name || u.displayName || '')
+        setContactPhone(u.seller?.phone || u.phone || '')
+        if (u.accountType === 'business') setPostingAs(u.businessName || u.seller?.name || null)
+      }
+      setMeLoaded(true)
+    }).catch(() => setMeLoaded(true))
   }, [])
 
   const cat = categories.find((c) => c.slug === categorySlug)
@@ -88,7 +93,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
     { key: 'title', ok: title.trim().length >= 3, label: t('Nhập tiêu đề', 'Add a title') },
     { key: 'price', ok: price.trim().length > 0, label: t('Nhập giá', 'Set a price') },
     { key: 'location', ok: hasLocation, label: t('Chọn khu vực', 'Set the area') },
-    { key: 'contact', ok: contactName.trim().length >= 2 && phoneOk, label: t('Thông tin liên hệ', 'Add contact info') },
+    { key: 'contact', ok: contactName.trim().length >= 2 && phoneOk, label: t('Thêm liên hệ trong Cài đặt', 'Add name & phone in Settings') },
   ]
   const missing = checks.filter((c) => !c.ok)
   const canSubmit = missing.length === 0 && !submitting
@@ -328,22 +333,37 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
             </button>
           </Section>
 
-          {/* Contact */}
+          {/* Contact — taken from your ACCOUNT (a number belongs to one account, so
+              it isn't re-typed per post). Missing name/phone → add it in Settings. */}
           <Section title={t('Liên hệ', 'Contact')} hint={t('Số của bạn được giữ kín — người mua nhắn tin trong ứng dụng, chỉ hiện số sau khi bạn trả lời.', 'Your number stays private — buyers message you in-app; it’s revealed only after you reply.')}>
-            {postingAs && (
-              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 text-accent-foreground" />
-                {t('Đăng với tư cách', 'Posting as')} <span className="font-semibold text-foreground">{postingAs}</span>
-              </p>
+            {!meLoaded ? (
+              <div className="h-5 w-56 rounded shimmer" />
+            ) : contactName.trim().length >= 2 && phoneOk ? (
+              <div className="space-y-1">
+                {postingAs && (
+                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <ShieldCheck className="h-4 w-4 text-accent-foreground" />
+                    {t('Đăng với tư cách', 'Posting as')} <span className="font-semibold text-foreground">{postingAs}</span>
+                  </p>
+                )}
+                <p className="text-sm text-foreground">
+                  <span className="font-semibold">{contactName}</span>
+                  <span className="text-muted-foreground"> · </span>
+                  <span className="tabular-nums text-muted-foreground">{contactPhone}</span>
+                </p>
+                <a href="/dashboard?tab=account" className="inline-block text-xs font-bold text-accent-foreground hover:underline">
+                  {t('Chỉnh sửa trong Cài đặt', 'Edit in Settings')}
+                </a>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">{t('Thêm tên và số điện thoại trước khi đăng', 'Add your name and phone number before you can post')}</p>
+                <p className="max-w-md text-xs text-body">{t('Thông tin liên hệ được lấy từ tài khoản của bạn — mỗi số chỉ dùng cho một tài khoản. Hãy thêm trong Cài đặt.', 'Your contact details come from your account — each number belongs to one account. Add them in Settings.')}</p>
+                <a href="/dashboard?tab=account" className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-[#004182]">
+                  {t('Tới Cài đặt', 'Go to Settings')}
+                </a>
+              </div>
             )}
-            <div className="grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label={t('Tên của bạn', 'Your name')}>
-                <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder={t('VD: Minh', 'e.g. Minh')} className="w-full rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4" />
-              </Field>
-              <Field label={t('Số điện thoại / Zalo', 'Phone / Zalo')}>
-                <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} inputMode="tel" placeholder="0901 234 567" className="w-full rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4" />
-              </Field>
-            </div>
           </Section>
 
           {error && <p role="alert" className="text-sm font-semibold text-red-600">{error}</p>}
