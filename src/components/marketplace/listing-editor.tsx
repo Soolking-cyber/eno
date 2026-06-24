@@ -4,6 +4,8 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Upload, X, ArrowLeft } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { compressImageFile } from '@/lib/normalize-image'
+import { uploadInBatches } from '@/lib/upload-client'
 import { cn } from '@/lib/utils'
 
 export type EditableListing = {
@@ -51,12 +53,11 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
   const addPhotos = async (files: FileList) => {
     setUploading(true); setError('')
     try {
-      const form = new FormData()
-      Array.from(files).slice(0, 8).forEach((f) => form.append('files', f))
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
-      const d = await res.json()
-      if (Array.isArray(d.urls)) setImages((prev) => [...prev, ...d.urls].slice(0, 8))
-      else throw new Error('upload')
+      // Downscale/recompress each photo in-browser (HEIC→JPEG, cap 1600px) so big
+      // phone photos don't 413, then upload in small batches.
+      const prepared = await Promise.all(Array.from(files).slice(0, 8).map((f) => compressImageFile(f)))
+      const urls = await uploadInBatches(prepared)
+      setImages((prev) => [...prev, ...urls].slice(0, 8))
     } catch { setError(tr('Photo upload failed.', 'Tải ảnh thất bại.')) } finally { setUploading(false) }
   }
 

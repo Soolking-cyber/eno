@@ -14,7 +14,8 @@ import { AreaFilter, type Geo, type Nearby } from './area-filter'
 import { Mascot } from './mascot'
 import { formatMoneyFull } from '@/lib/vnd'
 import { subcategoriesFor, typesFor, facetsFor, categoryHasBrand, LISTING_TYPES } from '@/lib/taxonomy'
-import { normalizeImageFile } from '@/lib/normalize-image'
+import { compressImageFile } from '@/lib/normalize-image'
+import { uploadInBatches } from '@/lib/upload-client'
 
 const TITLE_MAX = 140
 const DESC_MAX = 5000
@@ -218,8 +219,9 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
     try {
       for (const f of incoming) {
         try {
-          // HEIC (iPhone) → JPEG in-browser so it previews, uploads, and AI-reads.
-          const norm = await normalizeImageFile(f)
+          // HEIC (iPhone) → JPEG + downscale/recompress in-browser so it previews,
+          // uploads small (no 413 on big phone photos), and AI-reads cleanly.
+          const norm = await compressImageFile(f)
           setPhotos((p) => [...p, { url: URL.createObjectURL(norm), file: norm }])
         } catch {
           toast.error(t('Không đọc được ảnh này.', "Couldn't read that photo."))
@@ -242,11 +244,9 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
     try {
       let imageUrls: string[] = []
       if (photos.length > 0) {
-        const form = new FormData()
-        photos.forEach((p) => form.append('files', p.file))
-        const up = await fetch('/api/upload', { method: 'POST', body: form })
-        if (!up.ok) throw new Error('upload')
-        imageUrls = (await up.json()).urls || []
+        // Photos are already compressed at add time; upload in small batches so the
+        // request body never exceeds the serverless cap.
+        imageUrls = await uploadInBatches(photos.map((p) => p.file))
         if (imageUrls.length < photos.length) throw new Error('upload')
       }
       const res = await fetch('/api/listings', {

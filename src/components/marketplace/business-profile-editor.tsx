@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Loader2, Check, Plus, LocateFixed } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
-import { normalizeImageFile } from '@/lib/normalize-image'
+import { compressImageFile } from '@/lib/normalize-image'
 
 type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; phone: string | null }
 
@@ -54,7 +54,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   const uploadLogo = async (file: File) => {
     setUploading(true); setError('')
     try {
-      file = await normalizeImageFile(file) // iPhone HEIC → JPEG before upload
+      file = await compressImageFile(file) // HEIC→JPEG + downscale so big photos don't 413
       const form = new FormData()
       form.append('files', file)
       const res = await fetch('/api/upload', { method: 'POST', body: form })

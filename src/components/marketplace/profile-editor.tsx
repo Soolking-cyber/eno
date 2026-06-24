@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Check, Plus } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
-import { normalizeImageFile } from '@/lib/normalize-image'
+import { compressImageFile } from '@/lib/normalize-image'
 
 type Profile = { displayName: string | null; avatarUrl: string | null; avatarColor: string; phone: string | null }
 
@@ -28,7 +28,7 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
   const uploadPhoto = async (file: File) => {
     setUploading(true); setError('')
     try {
-      file = await normalizeImageFile(file) // iPhone HEIC → JPEG before upload
+      file = await compressImageFile(file) // HEIC→JPEG + downscale so big photos don't 413
       const form = new FormData(); form.append('files', file)
       const res = await fetch('/api/upload', { method: 'POST', body: form })
       const d = await res.json()
