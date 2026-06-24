@@ -63,10 +63,16 @@ First decide "productClear": true if there is one clear, identifiable product th
 When productClear is true, pick the single best category + subcategory from THIS taxonomy (use the exact slugs):
 ${TAXONOMY_TEXT}
 
-Also pick: listingType (one of the category's listed types; default "sell"); condition ("new" or "used", or "" if not a physical item / can't tell); a concise, factual title in ${titleLang} (max 80 chars) naming ONLY the product itself — e.g. "iPhone 14 Pro 128GB", NOT "iPhone on a white table" or "phone with charger on desk"; no scene words, no price, no phone; "brand": ALWAYS identify the product's brand / manufacturer — read it from any visible logo, label or text, and infer it from the product's recognizable design when no logo is shown (e.g. Apple, Samsung, Huawei, Honda, Yamaha, Sony, Dell, Nike, IKEA). Use the well-known canonical English brand name (e.g. "Apple", not "apple iphone"). Return "" ONLY if the item is genuinely unbranded (handmade, generic) or you truly cannot tell. Prefer a confident guess over "". And "description": a SHORT spec sheet in ${titleLang} about the product ONLY — main specs you can identify (brand, model, size/capacity, colour, key features). 1–3 short lines or comma-separated, factual, NO scene description, NO marketing fluff, NO price, NO phone. If you can't identify specs, return "".
+Then fill:
+- "listingType": one of the category's listed types; default "sell".
+- "condition": "new" or "used", or "" if not a physical item / can't tell.
+- "brandConfident": be STRICT. true ONLY when you can identify the exact brand with ~95%+ certainty — from a clearly legible logo, brand name or model text ON the product, OR a truly unmistakable iconic design. If the brand is not clearly legible and you would be guessing, set false. NEVER infer a premium or luxury brand (e.g. TAG Heuer, Rolex, Omega, Apple) from a generic shape — many smartwatches, watches and gadgets look alike. When unsure, false.
+- "brand": the canonical English brand name (e.g. "Apple", "Huawei", "Honda", "Samsung") ONLY when brandConfident is true; otherwise "".
+- "title" in ${titleLang} (max 80 chars): name the product accurately. Include the brand/model ONLY when brandConfident is true; when NOT confident, use a correct GENERIC descriptor instead of a guessed brand — e.g. "Round smartwatch, steel bracelet" (NOT "TAG Heuer Smartwatch"). Name the product itself, no scene words ("on a table"), no price, no phone.
+- "description" in ${titleLang}: 2–4 short lines describing ONLY what is actually visible — what the item is, then a few concrete specs you can really see (type, colour, material, visible size/features, condition cues). Do NOT invent model numbers, capacities, brands or features you cannot see. If brandConfident is false, do NOT name a brand. No scene description, no marketing fluff, no price, no phone.
 Return ONLY JSON.`
 
-  let parsed: { productClear?: boolean; category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; brand?: string; description?: string } = {}
+  let parsed: { productClear?: boolean; category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; brand?: string; brandConfident?: boolean; description?: string } = {}
   try {
     const res = await ai.models.generateContent({
       model: GEMINI_MODEL,
@@ -88,11 +94,12 @@ Return ONLY JSON.`
             listingType: { type: Type.STRING },
             condition: { type: Type.STRING },
             title: { type: Type.STRING },
+            brandConfident: { type: Type.BOOLEAN },
             brand: { type: Type.STRING },
             description: { type: Type.STRING },
           },
           // REQUIRED so the model always emits them (optional fields get dropped).
-          required: ['productClear', 'category', 'brand'],
+          required: ['productClear', 'category', 'brandConfident', 'brand'],
         },
       },
     })
@@ -118,11 +125,16 @@ Return ONLY JSON.`
   const listingType = cat.types.includes(parsed.listingType as never) ? parsed.listingType : 'sell'
   const condition = parsed.condition === 'new' || parsed.condition === 'used' ? parsed.condition : null
   const title = (parsed.title || '').trim().slice(0, 140) || null
-  // Raw brand string (only for brand-relevant categories) — the server canonicalizes
-  // + typo-dedupes it on save; here we just surface the AI's read for the form.
-  const brand = categoryHasBrand(cat.slug) ? ((parsed.brand || '').trim().slice(0, 40) || null) : null
-  // Concise spec sheet (brand/model/key specs). Guard against a model that slips a
-  // phone number in; cap length so it stays a short spec list, not an essay.
+  // Brand only when the model is genuinely confident (~95%+) — never a guess. The
+  // model was confidently mislabelling look-alikes (a Huawei watch → "TAG Heuer").
+  // For a brand category where it's NOT confident, surface `brandUncertain` so the
+  // wizard asks for a clearer photo of the logo rather than filling a wrong brand.
+  const isBrandCat = categoryHasBrand(cat.slug)
+  const brandConfident = parsed.brandConfident === true
+  const brand = isBrandCat && brandConfident ? ((parsed.brand || '').trim().slice(0, 40) || null) : null
+  const brandUncertain = isBrandCat && !brandConfident
+  // Grounded short description (what's visible). Guard against a model that slips a
+  // phone number in; cap length so it stays concise, not an essay.
   let description = (parsed.description || '').trim().slice(0, 600) || null
   if (description && containsPhoneNumber(description)) description = null
 
@@ -133,6 +145,7 @@ Return ONLY JSON.`
     condition,
     title,
     brand,
+    brandUncertain,
     description,
   })
 }

@@ -28,8 +28,15 @@ export async function POST(req: NextRequest) {
   const lang = body.lang === 'vi' ? 'vi' : 'en'
   const outLang = lang === 'vi' ? 'Vietnamese' : 'English'
 
-  const prompt = `You are improving a product listing description for eno.vn, a marketplace for expats in Vietnam.
-Rewrite the seller's text below to be clear, professional, and trustworthy WITHOUT inventing or changing any facts (do not add specs, prices, or claims not in the original). Keep it concise. Write the result in ${outLang}. Never include a phone number or contact details. Return ONLY the rewritten description, no preamble.
+  const prompt = `You are writing a professional product listing description for eno.vn, a marketplace for expats in Vietnam.
+Rewrite the seller's text below into clear, persuasive, easy-to-skim copy — WITHOUT inventing or changing any facts. Never add specs, prices, model numbers, brands, or claims that are not in the original; if a detail isn't given, leave it out.
+
+Structure the result like this:
+1. Open with a short benefit-led hook (1–2 sentences): what makes the item worth buying and who it suits — lead with benefits, not just features.
+2. Then a few scannable bullet points (each starting with "- ") for the key features / specs that ARE in the seller's text.
+3. End with the practical info if present (condition, what's included, dimensions, reason for selling).
+
+Rules: keep paragraphs short and the language simple, so a buyer grasps the value in seconds. Use the item's natural keywords so it's easy to find in search, but never keyword-stuff. Aim for a complete but tight description — depth without padding (roughly 80–200 words is ideal; never pad to hit a length). Write in ${outLang}. Never include a phone number or contact details. Return ONLY the rewritten description — no preamble, no heading like "Description:".
 
 Seller's text:
 """${text}"""`

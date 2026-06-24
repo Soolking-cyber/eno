@@ -63,11 +63,16 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
         setAttrs({})
         if (d.listingType) setListingType(d.listingType)
         if (d.condition) setCondition(d.condition)
-        if (d.brand) setBrand(d.brand) // AI auto-selects the brand
+        if (d.brand) setBrand(d.brand) // AI auto-selects the brand ONLY when confident
         if (d.title && !title.trim()) setTitle(d.title)
         // AI spec sheet (brand/model/key specs) → seed the description if empty.
         if (d.description && !description.trim()) setDescription(d.description)
         toast.success(t('Đã điền từ ảnh — kiểm tra lại nhé', 'Filled from your photo — double-check it'))
+        // Couldn't confirm the brand → ask for a clearer logo photo rather than
+        // filling a wrong guess. Non-blocking; the rest is already filled.
+        if (d.brandUncertain) {
+          toast(t('Chưa chắc thương hiệu — thêm ảnh rõ logo/nhãn để nhận diện chính xác.', 'Not sure of the brand — add a clear photo of the logo/label so we can identify it.'))
+        }
       } else {
         toast.error(t('Không nhận diện được — chọn danh mục thủ công', "Couldn't read the photo — pick a category"))
       }
