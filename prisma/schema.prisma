@@ -201,6 +201,11 @@ model Listing {
   savedCount         Int       @default(0)
   featured           Boolean   @default(false)
   attributes         String?
+  // Structured numeric specs (vehicles today; queryable as ranges, unlike the JSON
+  // `attributes` blob). All optional — only set for categories that surface them.
+  year               Int?      // model/manufacture year (vehicles)
+  mileageKm          Int?      // odometer in km (vehicles)
+  engineL            Float?    // engine displacement in litres, e.g. 2.0 (cars)
   reports            Report[]
   contactReveals     ContactReveal[]
   conversations      Conversation[]

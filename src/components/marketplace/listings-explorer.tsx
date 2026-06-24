@@ -37,7 +37,7 @@ import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
-import { LISTING_TYPES, INTENT_SHORTCUTS, categoryHasBrand } from '@/lib/taxonomy'
+import { LISTING_TYPES, INTENT_SHORTCUTS, categoryHasBrand, rangeFacetsFor } from '@/lib/taxonomy'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
@@ -45,6 +45,32 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems } from './search-suggest'
+
+// Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
+// engine) travel in the URL + API keyed by their numeric COLUMN as `range_<col>`
+// (so the API can do a numeric range query); everything else is `attr_<key>`.
+function applyFilterParams(p: URLSearchParams, customFilters: Record<string, string>, categorySlug: string) {
+  const rf = rangeFacetsFor(categorySlug)
+  Object.entries(customFilters).forEach(([key, val]) => {
+    if (!val || val === 'all') return
+    const f = rf.find((x) => x.key === key)
+    if (f) p.set(`range_${f.range.column}`, val)
+    else p.set(`attr_${key}`, val)
+  })
+}
+function parseFilterParams(p: URLSearchParams, categorySlug: string): Record<string, string> {
+  const rf = rangeFacetsFor(categorySlug)
+  const out: Record<string, string> = {}
+  p.forEach((value, key) => {
+    if (key.startsWith('attr_')) out[key.replace('attr_', '')] = value
+    else if (key.startsWith('range_')) {
+      const col = key.replace('range_', '')
+      const f = rf.find((x) => x.range.column === col)
+      if (f) out[f.key] = value
+    }
+  })
+  return out
+}
 
 const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.ListingsMap), {
   ssr: false,
@@ -362,14 +388,8 @@ export function ListingsExplorer({
       const pmin = params.get('priceMin'), pmax = params.get('priceMax')
       setPriceRange(pmin || pmax ? `${pmin || ''}-${pmax || ''}` : 'all')
 
-      // Parse custom filters starting with attr_
-      const parsedAttrs: Record<string, string> = {}
-      params.forEach((value, key) => {
-        if (key.startsWith('attr_')) {
-          parsedAttrs[key.replace('attr_', '')] = value
-        }
-      })
-      setCustomFilters(parsedAttrs)
+      // Parse custom filters (attr_* + range_* → keyed back by facet key).
+      setCustomFilters(parseFilterParams(params, params.get('category') || 'all'))
     }
 
     handleUrlChange() // Initial check
@@ -425,17 +445,11 @@ export function ListingsExplorer({
       if (mx) params.set('priceMax', mx)
     }
 
-    // Clear old attr_ params and set new ones
+    // Clear old attr_/range_ params and set the current ones.
     Array.from(params.keys()).forEach((key) => {
-      if (key.startsWith('attr_')) {
-        params.delete(key)
-      }
+      if (key.startsWith('attr_') || key.startsWith('range_')) params.delete(key)
     })
-    Object.entries(customFilters).forEach(([key, val]) => {
-      if (val && val !== 'all') {
-        params.set(`attr_${key}`, val)
-      }
-    })
+    applyFilterParams(params, customFilters, activeCategory)
 
     const newSearch = params.toString()
     const newUrl = newSearch ? `?${newSearch}` : window.location.pathname
@@ -513,12 +527,8 @@ export function ListingsExplorer({
         if (mx) params.set('priceMax', mx)
       }
 
-      // Serialize custom attribute filters
-      Object.entries(customFilters).forEach(([key, val]) => {
-        if (val && val !== 'all') {
-          params.set(`attr_${key}`, val)
-        }
-      })
+      // Serialize custom attribute + range filters.
+      applyFilterParams(params, customFilters, activeCategory)
 
       const limit = nearby ? 100 : 24
       const offset = (page - 1) * limit
@@ -567,7 +577,7 @@ export function ListingsExplorer({
     if (conditionFilter !== 'all') p.set('condition', conditionFilter)
     if (listingType !== 'all') p.set('type', listingType)
     if (debouncedQuery.trim()) p.set('q', debouncedQuery.trim())
-    Object.entries(customFilters).forEach(([k, v]) => { if (v && v !== 'all') p.set(`attr_${k}`, v) })
+    applyFilterParams(p, customFilters, activeCategory)
     return p.toString()
   }, [activeCategory, activeSubcategory, activeBrand, activeModel, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, customFilters])
 

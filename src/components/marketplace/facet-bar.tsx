@@ -4,6 +4,7 @@ import { useRef, useState, type Dispatch, type SetStateAction, type ReactNode } 
 import { MapPin, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
+import { RangeFacetControl } from './range-facet-control'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useLanguage } from '@/context/language-context'
 import { facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
@@ -229,7 +230,9 @@ export function FacetBar({
                 return (
                   <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
                     <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{lang === 'vi' ? f.labelVi : f.label}</label>
-                    {f.kind === 'toggle' ? (
+                    {f.kind === 'range' && f.range ? (
+                      <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacetValue(f, v)} />
+                    ) : f.kind === 'toggle' ? (
                       <div className="flex flex-1 flex-wrap gap-1.5">
                         {opts.map((o) => (
                           <button key={o.value} type="button" onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>

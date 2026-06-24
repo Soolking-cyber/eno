@@ -7,6 +7,7 @@ import { buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { categoryHasBrand, resolveBrand, bumpBrandCount } from '@/lib/brand'
+import { rangeFacetsFor } from '@/lib/taxonomy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -81,6 +82,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.model !== undefined && categoryHasBrand(current.category.slug)) {
     const effectiveBrand = (data.brandSlug as string | null | undefined) ?? current.brandSlug
     data.model = effectiveBrand && body.model ? (String(body.model).trim().slice(0, 60) || null) : null
+  }
+
+  // Range specs (year/mileage/engine) → clamped to the category's declared range.
+  // An explicit null/'' clears the spec; an omitted key leaves it untouched.
+  for (const f of rangeFacetsFor(current.category.slug)) {
+    const col = f.range.column
+    if (body[col] === undefined) continue
+    if (body[col] === null || body[col] === '') { data[col] = null; continue }
+    const raw = Number(body[col])
+    if (!Number.isFinite(raw)) continue
+    const clamped = Math.min(Math.max(raw, f.range.min), f.range.max)
+    data[col] = col === 'engineL' ? Math.round(clamped * 10) / 10 : Math.round(clamped)
   }
 
   if (Object.keys(data).length === 0) return NextResponse.json({ ok: true })

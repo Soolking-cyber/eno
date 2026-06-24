@@ -13,7 +13,8 @@ import { VndInput } from './vnd-input'
 import { AreaFilter, type Geo, type Nearby } from './area-filter'
 import { Mascot } from './mascot'
 import { formatMoneyFull } from '@/lib/vnd'
-import { subcategoriesFor, typesFor, facetsFor, categoryHasBrand, LISTING_TYPES } from '@/lib/taxonomy'
+import { subcategoriesFor, typesFor, facetsFor, rangeFacetsFor, categoryHasBrand, LISTING_TYPES } from '@/lib/taxonomy'
+import { RangeSpecInput } from './range-spec-input'
 import { compressImageFile } from '@/lib/normalize-image'
 import { uploadInBatches } from '@/lib/upload-client'
 
@@ -61,7 +62,8 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
       if (d.categorySlug) {
         setCategorySlug(d.categorySlug)
         setSubcategorySlug(d.subcategorySlug || '')
-        setAttrs({})
+        setAttrs(d.attributes && typeof d.attributes === 'object' ? d.attributes : {})
+        setRanges({})
         if (d.listingType) setListingType(d.listingType)
         if (d.condition) setCondition(d.condition)
         if (d.brand) setBrand(d.brand) // AI auto-selects the brand ONLY when confident
@@ -118,6 +120,8 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const [subcategorySlug, setSubcategorySlug] = useState('')
   const [listingType, setListingType] = useState('sell')
   const [attrs, setAttrs] = useState<Record<string, string>>({})
+  // Precise numeric specs (range facets: year/mileage/engine) → keyed by facet key.
+  const [ranges, setRanges] = useState<Record<string, number | null>>({})
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
@@ -174,6 +178,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
     setCategorySlug(slug)
     setSubcategorySlug('')
     setAttrs({})
+    setRanges({})
     setCondition('')
     if (!categoryHasBrand(slug)) { setBrand(''); setModel('') }
     setListingType(typesFor(slug)[0] ?? 'sell')
@@ -257,6 +262,12 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
           subcategorySlug: subcategorySlug || null,
           listingType,
           attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),
+          // Precise numeric specs → dedicated columns (year/mileageKm/engineL).
+          ...Object.fromEntries(
+            rangeFacetsFor(categorySlug)
+              .filter((f) => ranges[f.key] != null)
+              .map((f) => [f.range.column, ranges[f.key]]),
+          ),
           title: title.trim(),
           description: description.trim(),
           price: Number(price),
@@ -485,7 +496,11 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
               )}
               {attrFacets.map((f) => (
                 <Field key={f.key} label={lang === 'vi' ? f.labelVi : f.label}>
-                  <Chips options={f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))} value={attrs[f.key] || ''} onPick={(v) => setAttrs((prev) => ({ ...prev, [f.key]: prev[f.key] === v ? '' : v }))} />
+                  {f.kind === 'range' && f.range ? (
+                    <RangeSpecInput range={f.range} value={ranges[f.key] ?? null} onChange={(v) => setRanges((prev) => ({ ...prev, [f.key]: v }))} />
+                  ) : (
+                    <Chips options={f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))} value={attrs[f.key] || ''} onPick={(v) => setAttrs((prev) => ({ ...prev, [f.key]: prev[f.key] === v ? '' : v }))} />
+                  )}
                 </Field>
               ))}
             </Section>

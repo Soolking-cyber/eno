@@ -71,9 +71,14 @@ Then fill:
 - "model": the specific model/line WITHOUT the brand word (e.g. brand "Apple" → model "iPhone 14 Pro"; brand "Honda" → model "Wave Alpha"; brand "Kia" → model "Sorento"). Only when you can read or clearly recognize it; otherwise "". Never guess a model.
 - "title" in ${titleLang} (max 80 chars): name the product accurately. Include the brand/model ONLY when brandConfident is true; when NOT confident, use a correct GENERIC descriptor instead of a guessed brand — e.g. "Round smartwatch, steel bracelet" (NOT "TAG Heuer Smartwatch"). Name the product itself, no scene words ("on a table"), no price, no phone.
 - "description" in ${titleLang}: 2–4 short lines describing ONLY what is actually visible — what the item is, then a few concrete specs you can really see (type, colour, material, visible size/features, condition cues). Do NOT invent model numbers, capacities, brands or features you cannot see. If brandConfident is false, do NOT name a brand. No scene description, no marketing fluff, no price, no phone.
+Then infer these visible attributes ONLY when you can actually see/judge them (else ""):
+- "color": the product's dominant colour as ONE simple English word — black, white, grey, silver, red, blue, green, beige or gold.
+- "transmission" (vehicles only): "automatic" or "manual" — only if genuinely clear (e.g. a scooter is automatic, a sport bike with a visible clutch/gear lever is manual). Else "".
+- "fuel" (vehicles only): "petrol", "electric" or "diesel" — only if clear (e.g. an obvious EV / charging port → electric). Else "".
+- "material" (furniture only): "wood", "fabric" or "metal" — the main visible material. Else "".
 Return ONLY JSON.`
 
-  let parsed: { productClear?: boolean; category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; brand?: string; brandConfident?: boolean; model?: string; description?: string } = {}
+  let parsed: { productClear?: boolean; category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; brand?: string; brandConfident?: boolean; model?: string; description?: string; color?: string; transmission?: string; fuel?: string; material?: string } = {}
   try {
     const res = await ai.models.generateContent({
       model: GEMINI_MODEL,
@@ -99,6 +104,10 @@ Return ONLY JSON.`
             brand: { type: Type.STRING },
             model: { type: Type.STRING },
             description: { type: Type.STRING },
+            color: { type: Type.STRING },
+            transmission: { type: Type.STRING },
+            fuel: { type: Type.STRING },
+            material: { type: Type.STRING },
           },
           // REQUIRED so the model always emits them (optional fields get dropped).
           required: ['productClear', 'category', 'brandConfident', 'brand'],
@@ -142,6 +151,27 @@ Return ONLY JSON.`
   let description = (parsed.description || '').trim().slice(0, 600) || null
   if (description && containsPhoneNumber(description)) description = null
 
+  // Visible attributes (color/transmission/fuel/material) → validate each against
+  // the chosen category's facet OPTIONS so we only ever return a real taxonomy
+  // value (the wizard pre-selects these chips; the user confirms). A free word like
+  // "silver" maps to the "grey" option via its label ("Grey / Silver").
+  const matchOption = (f: (typeof cat.facets)[number], raw?: string): string | null => {
+    const v = String(raw || '').trim().toLowerCase()
+    if (!v) return null
+    for (const o of f.options) {
+      if (o.value.toLowerCase() === v) return o.value
+      const words = `${o.label} ${o.labelVi}`.toLowerCase().split(/[\s/]+/).filter(Boolean)
+      if (words.includes(v)) return o.value
+    }
+    return null
+  }
+  const attributes: Record<string, string> = {}
+  for (const key of ['color', 'transmission', 'fuel', 'material'] as const) {
+    const f = cat.facets.find((ff) => ff.key === key)
+    const m = f ? matchOption(f, parsed[key]) : null
+    if (m) attributes[key] = m
+  }
+
   return NextResponse.json({
     categorySlug: cat.slug,
     subcategorySlug: sub?.slug ?? null,
@@ -152,5 +182,6 @@ Return ONLY JSON.`
     brandUncertain,
     model,
     description,
+    attributes,
   })
 }

@@ -122,6 +122,11 @@ export default async function ListingPage({ params }: Props) {
     .toUpperCase()
 
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []
+  // Structured numeric specs (vehicles) — rendered first in Details, with units.
+  const numericSpecs: { label: string; value: string }[] = []
+  if (listing.year != null) numericSpecs.push({ label: 'Year', value: String(listing.year) })
+  if (listing.mileageKm != null) numericSpecs.push({ label: 'Mileage', value: `${new Intl.NumberFormat('en-US').format(listing.mileageKm)} km` })
+  if (listing.engineL != null) numericSpecs.push({ label: 'Engine', value: `${listing.engineL} L` })
   // Brand chip (when the listing carries a canonical brand) — links into the
   // brand-filtered feed. Resolve name + monotone logo server-side.
   const brand = listing.brandSlug
@@ -255,10 +260,16 @@ export default async function ListingPage({ params }: Props) {
               <p className="whitespace-pre-line text-[15px] leading-relaxed text-body"><Tr text={listing.description} /></p>
             </div>
 
-            {attrs.length > 0 && (
+            {(attrs.length > 0 || numericSpecs.length > 0) && (
               <div className="space-y-1">
                 <h2 className="h-section text-foreground mb-2"><Tr text="Details" /></h2>
                 <dl className="text-sm">
+                  {numericSpecs.map((s) => (
+                    <div key={s.label} className="flex items-start justify-between gap-4 py-2.5">
+                      <dt className="text-muted-foreground"><Tr text={s.label} /></dt>
+                      <dd className="font-medium text-foreground text-right">{s.value}</dd>
+                    </div>
+                  ))}
                   {attrs.map(([k, v]) => (
                     <div key={k} className="flex items-start justify-between gap-4 py-2.5">
                       <dt className="capitalize text-muted-foreground"><Tr text={k.replace(/([A-Z])/g, ' $1')} /></dt>

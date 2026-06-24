@@ -71,6 +71,10 @@ export type SerializedListing = {
   availabilityConfirmedAt: string | null
   featured: boolean
   attributes: Record<string, unknown> | null
+  // Structured numeric specs (vehicles) — null when not applicable.
+  year: number | null
+  mileageKm: number | null
+  engineL: number | null
 }
 
 export type Stats = {

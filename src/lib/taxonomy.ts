@@ -42,16 +42,32 @@ export const INTENT_SHORTCUTS: { type: ListingType; name: string; nameVi: string
 ]
 
 // ── Facets (per-category structured attributes) ──────────────────────────────
+// A range facet stores a precise NUMBER on a dedicated Listing column (queryable
+// as a min/max range), not in the stringly-typed `attributes` JSON. `column` is
+// the Listing field; the wizard renders a draggable slider + number input, and the
+// advanced filter renders a min–max range over the same scale.
+export type RangeColumn = 'year' | 'mileageKm' | 'engineL'
+export type RangeMeta = {
+  min: number
+  max: number
+  step: number
+  unit?: string        // shown after the value, e.g. 'km', 'L' (year has none)
+  column: RangeColumn  // dedicated Listing column this facet reads/writes
+}
 export type FacetDef = {
   key: string
   label: string
   labelVi: string
-  // How the advanced filter renders it: 'toggle' = a segmented button group (short
-  // enums — status, gear, fuel); 'select' = a dropdown (longer lists — year, color).
-  // Default 'select'.
-  kind?: 'toggle' | 'select'
+  // How it renders: 'toggle' = segmented button group (short enums — gear, fuel);
+  // 'select' = dropdown (longer lists — color); 'range' = numeric slider + min/max
+  // filter over `range.column`. Default 'select'.
+  kind?: 'toggle' | 'select' | 'range'
+  range?: RangeMeta // required when kind === 'range'
   options: { value: string; label: string; labelVi: string }[]
 }
+
+// Newest selectable model year — current year + 1 (dealers list next-year models).
+const MAX_YEAR = new Date().getFullYear() + 1
 
 // ── Subcategories ────────────────────────────────────────────────────────────
 export type SubcatDef = {
@@ -125,24 +141,14 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'electric', label: 'Electric', labelVi: 'Điện' },
         { value: 'diesel', label: 'Diesel', labelVi: 'Dầu' },
       ] },
-      { key: 'cc', label: 'Engine', labelVi: 'Phân khối', options: [
-        { value: 'under-110', label: 'Under 110cc', labelVi: 'Dưới 110cc' },
-        { value: '110-125', label: '110–125cc', labelVi: '110–125cc' },
-        { value: '126-150', label: '126–150cc', labelVi: '126–150cc' },
-        { value: '150-up', label: '150cc+', labelVi: '150cc+' },
-      ] },
-      { key: 'year', label: 'Year', labelVi: 'Đời xe', options: [
-        { value: '2023-up', label: '2023 or newer', labelVi: '2023 trở lên' },
-        { value: '2020-2022', label: '2020–2022', labelVi: '2020–2022' },
-        { value: '2016-2019', label: '2016–2019', labelVi: '2016–2019' },
-        { value: 'pre-2016', label: 'Before 2016', labelVi: 'Trước 2016' },
-      ] },
-      { key: 'mileage', label: 'Mileage', labelVi: 'Số km đã đi', options: [
-        { value: 'under-10k', label: 'Under 10,000 km', labelVi: 'Dưới 10.000 km' },
-        { value: '10k-30k', label: '10,000–30,000 km', labelVi: '10.000–30.000 km' },
-        { value: '30k-60k', label: '30,000–60,000 km', labelVi: '30.000–60.000 km' },
-        { value: 'over-60k', label: 'Over 60,000 km', labelVi: 'Trên 60.000 km' },
-      ] },
+      // Precise, draggable numeric specs (slider + type-in). Engine is in LITRES at
+      // 0.1 steps — car-appropriate, not motorbike cc. Year & mileage are exact.
+      { key: 'year', label: 'Year', labelVi: 'Đời xe', kind: 'range', options: [],
+        range: { min: 1990, max: MAX_YEAR, step: 1, column: 'year' } },
+      { key: 'mileage', label: 'Mileage', labelVi: 'Số km đã đi', kind: 'range', options: [],
+        range: { min: 0, max: 300000, step: 1000, unit: 'km', column: 'mileageKm' } },
+      { key: 'engine', label: 'Engine', labelVi: 'Dung tích', kind: 'range', options: [],
+        range: { min: 0.8, max: 6.0, step: 0.1, unit: 'L', column: 'engineL' } },
       { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: COLOR_OPTIONS },
     ],
   },
@@ -500,6 +506,18 @@ export function subcategoriesFor(categorySlug: string): SubcatDef[] {
 
 export function facetsFor(categorySlug: string): FacetDef[] {
   return CATEGORY_BY_SLUG[categorySlug]?.facets ?? []
+}
+
+// Range facets (numeric slider + min/max filter) for a category.
+export function rangeFacetsFor(categorySlug: string): (FacetDef & { range: RangeMeta })[] {
+  return facetsFor(categorySlug).filter((f): f is FacetDef & { range: RangeMeta } => f.kind === 'range' && !!f.range)
+}
+
+// Allow-list of columns a `range_<col>` query param may target — guards the API
+// from filtering on an arbitrary client-supplied field name.
+export const RANGE_COLUMNS: readonly RangeColumn[] = ['year', 'mileageKm', 'engineL']
+export function isRangeColumn(s: string): s is RangeColumn {
+  return (RANGE_COLUMNS as readonly string[]).includes(s)
 }
 
 export function typesFor(categorySlug: string): ListingType[] {

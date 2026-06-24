@@ -6,6 +6,8 @@ import { Loader2, Upload, X, ArrowLeft } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { compressImageFile } from '@/lib/normalize-image'
 import { uploadInBatches } from '@/lib/upload-client'
+import { rangeFacetsFor } from '@/lib/taxonomy'
+import { RangeSpecInput } from './range-spec-input'
 import { cn } from '@/lib/utils'
 
 export type EditableListing = {
@@ -18,6 +20,10 @@ export type EditableListing = {
   brand?: string | null      // current brand display name (product categories only)
   model?: string | null      // current model (product categories only)
   showBrand?: boolean        // whether this listing's category supports a brand
+  categorySlug?: string      // drives which range facets (year/mileage/engine) show
+  year?: number | null
+  mileageKm?: number | null
+  engineL?: number | null
   images: string[]
   currency: string
 }
@@ -35,6 +41,13 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
   const [condition, setCondition] = useState(listing.condition || '')
   const [brand, setBrand] = useState(listing.brand || '')
   const [model, setModel] = useState(listing.model || '')
+  // Precise numeric specs (year/mileage/engine), keyed by their Listing column.
+  const rangeFacets = rangeFacetsFor(listing.categorySlug || '')
+  const [ranges, setRanges] = useState<Record<string, number | null>>({
+    year: listing.year ?? null,
+    mileageKm: listing.mileageKm ?? null,
+    engineL: listing.engineL ?? null,
+  })
   const [images, setImages] = useState<string[]>(listing.images)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -74,6 +87,8 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
           district: district.trim() || null,
           condition: condition || null,
           ...(listing.showBrand ? { brand: brand.trim() || null, model: model.trim() || null } : {}),
+          // Range specs — send every applicable column (null clears it).
+          ...Object.fromEntries(rangeFacets.map((f) => [f.range.column, ranges[f.range.column] ?? null])),
           images,
         }),
       })
@@ -150,6 +165,21 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
                 <input value={model} onChange={(e) => setModel(e.target.value)} maxLength={60} placeholder={tr('e.g. iPhone 14 Pro', 'vd. iPhone 14 Pro')} className={field} />
               </div>
             )}
+          </div>
+        )}
+
+        {rangeFacets.length > 0 && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {rangeFacets.map((f) => (
+              <div key={f.key}>
+                <label className="mb-1 block text-xs font-semibold text-body">{tr(f.label, f.labelVi)}</label>
+                <RangeSpecInput
+                  range={f.range}
+                  value={ranges[f.range.column] ?? null}
+                  onChange={(v) => setRanges((prev) => ({ ...prev, [f.range.column]: v }))}
+                />
+              </div>
+            ))}
           </div>
         )}
 

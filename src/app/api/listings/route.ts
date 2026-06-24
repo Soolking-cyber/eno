@@ -3,7 +3,7 @@ import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { Prisma } from '@prisma/client'
-import { suggestSubcategory, typesFor, subcategoriesFor } from '@/lib/taxonomy'
+import { suggestSubcategory, typesFor, subcategoriesFor, rangeFacetsFor, isRangeColumn } from '@/lib/taxonomy'
 import { fold, buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { syndicateListing } from '@/lib/syndicate'
@@ -165,6 +165,21 @@ export async function GET(req: NextRequest) {
     if (attrName && attrVal && attrVal !== 'all') {
       andFilters.push({ attributes: { contains: `"${attrName}":"${attrVal}"` } })
     }
+  }
+
+  // Numeric range facets (year/mileage/engine) live on dedicated columns and filter
+  // as a min–max range: `range_<column>=min-max` (either side may be empty/open).
+  // The column is allow-listed so a caller can't probe an arbitrary field.
+  for (const key of Array.from(searchParams.keys())) {
+    if (!key.startsWith('range_')) continue
+    const col = key.slice('range_'.length)
+    if (!isRangeColumn(col)) continue
+    const [mnStr = '', mxStr = ''] = (searchParams.get(key) || '').split('-')
+    const filter: Prisma.FloatFilter = {}
+    const mn = Number(mnStr), mx = Number(mxStr)
+    if (mnStr !== '' && Number.isFinite(mn)) filter.gte = mn
+    if (mxStr !== '' && Number.isFinite(mx)) filter.lte = mx
+    if (filter.gte !== undefined || filter.lte !== undefined) andFilters.push({ [col]: filter })
   }
 
   const where: Prisma.ListingWhereInput = andFilters.length > 0 ? { AND: andFilters } : {}
@@ -433,6 +448,17 @@ export async function POST(req: NextRequest) {
       if (Object.keys(clean).length) attributes = JSON.stringify(clean)
     }
 
+    // Structured numeric specs (range facets) → dedicated columns, each clamped to
+    // the category's declared range so out-of-range/garbage can't be stored. Engine
+    // keeps one decimal (litres); year/mileage are integers.
+    const rangeData: Record<string, number> = {}
+    for (const f of rangeFacetsFor(categorySlug)) {
+      const raw = Number((body as Record<string, unknown>)[f.range.column])
+      if (!Number.isFinite(raw)) continue
+      const clamped = Math.min(Math.max(raw, f.range.min), f.range.max)
+      rangeData[f.range.column] = f.range.column === 'engineL' ? Math.round(clamped * 10) / 10 : Math.round(clamped)
+    }
+
     // Brand (product categories only): canonicalize + typo-dedupe into the catalogue,
     // growing it on first sight. Never blocks the post if resolution fails.
     let brandSlug: string | null = null
@@ -463,6 +489,7 @@ export async function POST(req: NextRequest) {
         subcategorySlug,
         listingType,
         attributes,
+        ...rangeData,
         brandSlug,
         model,
         sellerId: seller.id,

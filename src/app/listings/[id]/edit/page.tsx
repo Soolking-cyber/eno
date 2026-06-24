@@ -22,7 +22,7 @@ export default async function EditListingPage({ params }: Props) {
   const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
   const listing = await db.listing.findUnique({
     where: { id },
-    select: { id: true, sellerId: true, title: true, description: true, price: true, district: true, condition: true, brandSlug: true, model: true, images: true, currency: true, category: { select: { slug: true } } },
+    select: { id: true, sellerId: true, title: true, description: true, price: true, district: true, condition: true, brandSlug: true, model: true, year: true, mileageKm: true, engineL: true, images: true, currency: true, category: { select: { slug: true } } },
   })
   if (!listing) notFound()
   // Not your storefront's listing → 404 (don't reveal it exists).
@@ -48,6 +48,10 @@ export default async function EditListingPage({ params }: Props) {
             brand,
             model: showBrand ? listing.model : null,
             showBrand,
+            categorySlug: listing.category.slug,
+            year: listing.year,
+            mileageKm: listing.mileageKm,
+            engineL: listing.engineL,
             images: safeParse<string[]>(listing.images, []),
             currency: listing.currency,
           }}

@@ -84,5 +84,8 @@ export function serializeListing(
     availabilityConfirmedAt: l.availabilityConfirmedAt ? l.availabilityConfirmedAt.toISOString() : null,
     featured: l.featured,
     attributes: safeParse<Record<string, unknown> | null>(l.attributes, null),
+    year: l.year,
+    mileageKm: l.mileageKm,
+    engineL: l.engineL,
   }
 }
