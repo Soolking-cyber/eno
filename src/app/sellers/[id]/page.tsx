@@ -70,7 +70,6 @@ export default async function SellerPage({ params }: Props) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="h-title text-foreground">{seller.name}</h1>
-              <TrustScore score={seller.trustScore} size="lg" showLabel />
               {seller.ownerId && (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
                   <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
