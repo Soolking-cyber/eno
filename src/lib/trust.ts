@@ -49,9 +49,24 @@ const RECENT_BAD_WINDOW_DAYS = 90 // a recent confirmed report blocks the Except
 const DAY_MS = 86_400_000
 
 // Reasons that must apply AT MOST ONCE per account — deduped when summing the
-// score so a double-insert (race) can't double-count. The DB @@unique on
-// (subjectProfileId, reason) is the belt; this is the suspenders.
+// score so a double-insert (race) can't double-count. The DB partial unique index
+// on (subjectProfileId, reason) for these reasons is the belt; this is the suspenders.
 const ONE_TIME_REASONS = new Set(['new_account', 'phone_verified', 'zalo_linked', 'kyc', 'profile_complete'])
+
+const isUniqueViolation = (e: unknown): boolean =>
+  !!(e && typeof e === 'object' && 'code' in e && (e as { code?: string }).code === 'P2002')
+
+// Apply a one-time event; if the partial unique index rejects it as a duplicate
+// (the race the count-check can't fully close), treat it as already-applied.
+async function applyOnce(profileId: string, type: Parameters<typeof applyTrustEvent>[1], delta: number, reason: string): Promise<boolean> {
+  try {
+    await applyTrustEvent(profileId, type, delta, { reason })
+    return true
+  } catch (e) {
+    if (isUniqueViolation(e)) return false
+    throw e
+  }
+}
 
 // ── Engagement / activity scoring (the "earn by being active" loop) ──
 export const ENGAGEMENT_DELTA = 2       // +trust for a day's activity (e.g. confirming availability)
@@ -215,8 +230,7 @@ export async function recordTransaction(profileId: string, amountVnd: number): P
 export async function recordProfileComplete(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, type: 'engagement', reason: 'profile_complete' } })
   if (existing > 0) return false
-  await applyTrustEvent(profileId, 'engagement', PROFILE_COMPLETE_DELTA, { reason: 'profile_complete' })
-  return true
+  return applyOnce(profileId, 'engagement', PROFILE_COMPLETE_DELTA, 'profile_complete')
 }
 
 /** A verified buyer left a review → small uncappable-per-deal reward. */
@@ -228,32 +242,28 @@ export async function recordReview(profileId: string): Promise<void> {
 export async function recordNewAccount(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'new_account' } })
   if (existing > 0) return false
-  await applyTrustEvent(profileId, 'manual_adjust', -NEW_ACCOUNT_DEFICIT, { reason: 'new_account' })
-  return true
+  return applyOnce(profileId, 'manual_adjust', -NEW_ACCOUNT_DEFICIT, 'new_account')
 }
 
 /** One-time bonus for a verified phone number (everyone — the baseline trust step). */
 export async function recordPhoneVerified(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'phone_verified' } })
   if (existing > 0) return false
-  await applyTrustEvent(profileId, 'manual_adjust', PHONE_VERIFIED_BONUS, { reason: 'phone_verified' })
-  return true
+  return applyOnce(profileId, 'manual_adjust', PHONE_VERIFIED_BONUS, 'phone_verified')
 }
 
 /** One-time bonus for linking a Zalo account (a trusted VN contact channel; great for tourists/individuals). */
 export async function recordZaloLinked(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'zalo_linked' } })
   if (existing > 0) return false
-  await applyTrustEvent(profileId, 'manual_adjust', ZALO_LINK_BONUS, { reason: 'zalo_linked' })
-  return true
+  return applyOnce(profileId, 'manual_adjust', ZALO_LINK_BONUS, 'zalo_linked')
 }
 
 /** One-time bonus for passing identity verification (KYC) — especially important for BUSINESSES. */
 export async function recordKyc(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'kyc' } })
   if (existing > 0) return false
-  await applyTrustEvent(profileId, 'manual_adjust', KYC_BONUS, { reason: 'kyc' })
-  return true
+  return applyOnce(profileId, 'manual_adjust', KYC_BONUS, 'kyc')
 }
 
 /**

@@ -41,8 +41,18 @@ export async function POST(req: NextRequest) {
   if (count >= MAX_PER_USER) return NextResponse.json({ error: 'limit_reached', max: MAX_PER_USER }, { status: 409 })
 
   const label = (typeof body.label === 'string' && body.label.trim() ? body.label.trim() : describeParams(params)).slice(0, 120)
-  const created = await db.savedSearch.create({
-    data: { profileId: me.id, label, params: paramsJson, notify: true },
-  })
-  return NextResponse.json({ id: created.id, label: created.label, url: `/?${toUrlParams(params)}` }, { status: 201 })
+  try {
+    const created = await db.savedSearch.create({
+      data: { profileId: me.id, label, params: paramsJson, notify: true },
+    })
+    return NextResponse.json({ id: created.id, label: created.label, url: `/?${toUrlParams(params)}` }, { status: 201 })
+  } catch (e) {
+    // Concurrent double-save raced past the findFirst → the unique index caught it.
+    // Return the row that won instead of erroring.
+    if ((e as { code?: string })?.code === 'P2002') {
+      const row = await db.savedSearch.findFirst({ where: { profileId: me.id, params: paramsJson } })
+      if (row) return NextResponse.json({ id: row.id, label: row.label, url: `/?${toUrlParams(params)}` })
+    }
+    throw e
+  }
 }
