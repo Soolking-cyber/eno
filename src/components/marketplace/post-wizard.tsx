@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock } from 'lucide-react'
+import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock, Sparkles, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,57 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   // fast double-tap can fire submit() twice before disabled takes effect → two
   // listings + two social cross-posts. This ref blocks the second call immediately.
   const submittingRef = useRef(false)
+  // AI assist (Gemini via Vertex — uses the GenAI credit). Gated by a public flag so
+  // the ✨ buttons only appear once the server creds are set.
+  const aiEnabled = process.env.NEXT_PUBLIC_AI_ASSIST === '1'
+  const [aiBusy, setAiBusy] = useState<'photo' | 'desc' | null>(null)
+
+  // ✨ Autofill category/subcategory/type/condition/title from the cover photo.
+  const autofillFromPhoto = async () => {
+    if (!photos.length || aiBusy) return
+    setAiBusy('photo')
+    try {
+      const fd = new FormData()
+      fd.append('file', photos[0].file)
+      fd.append('lang', lang)
+      const res = await fetch('/api/ai/classify', { method: 'POST', body: fd })
+      if (!res.ok) throw new Error()
+      const d = await res.json()
+      if (d.categorySlug) {
+        setCategorySlug(d.categorySlug)
+        setSubcategorySlug(d.subcategorySlug || '')
+        setAttrs({})
+        if (d.listingType) setListingType(d.listingType)
+        if (d.condition) setCondition(d.condition)
+        if (d.title && !title.trim()) setTitle(d.title)
+        toast.success(t('Đã điền từ ảnh — kiểm tra lại nhé', 'Filled from your photo — double-check it'))
+      } else {
+        toast.error(t('Không nhận diện được — chọn danh mục thủ công', "Couldn't read the photo — pick a category"))
+      }
+    } catch {
+      toast.error(t('Không thể dùng AI lúc này', 'AI is unavailable right now'))
+    } finally {
+      setAiBusy(null)
+    }
+  }
+
+  // ✨ Polish the description into professional copy (keeps the facts, your language).
+  const polishDescription = async () => {
+    if (description.trim().length < 3 || aiBusy) return
+    setAiBusy('desc')
+    try {
+      const res = await fetch('/api/ai/rephrase', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: description, lang }),
+      })
+      if (!res.ok) throw new Error()
+      const d = await res.json()
+      if (d.text) { setDescription(d.text); toast.success(t('Đã chỉnh lại mô tả', 'Polished your description')) }
+    } catch {
+      toast.error(t('Không thể dùng AI lúc này', 'AI is unavailable right now'))
+    } finally {
+      setAiBusy(null)
+    }
+  }
   const [error, setError] = useState('')
   const [categorySlug, setCategorySlug] = useState('')
   const [subcategorySlug, setSubcategorySlug] = useState('')
@@ -233,6 +285,17 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
                 </label>
               )}
             </div>
+            {aiEnabled && photos.length > 0 && (
+              <button
+                type="button"
+                onClick={autofillFromPhoto}
+                disabled={!!aiBusy}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-line-strong px-3 py-1.5 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-50 cursor-pointer"
+              >
+                {aiBusy === 'photo' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {t('Tự điền từ ảnh', 'Autofill from photo')}
+              </button>
+            )}
           </Section>
 
           {/* Category & type */}
@@ -274,6 +337,20 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
               />
             </Field>
             <Field label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')}>
+              {aiEnabled && (
+                <div className="mb-1.5 flex max-w-2xl justify-end">
+                  <button
+                    type="button"
+                    onClick={polishDescription}
+                    disabled={!!aiBusy || description.trim().length < 3}
+                    title={t('Viết lại chuyên nghiệp bằng AI', 'Rewrite professionally with AI')}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
+                  >
+                    {aiBusy === 'desc' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    {t('Chỉnh bằng AI', 'Polish with AI')}
+                  </button>
+                </div>
+              )}
               <textarea
                 value={description}
                 maxLength={DESC_MAX}
