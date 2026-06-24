@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
@@ -14,6 +15,18 @@ import { ReportButton } from '@/components/marketplace/report-button'
 
 type Props = { params: Promise<{ id: string }> }
 
+// Single per-request DB read shared by generateMetadata + the page (React cache
+// dedupes), so an SEO seller page makes ONE round-trip instead of two.
+const getSeller = cache((id: string) =>
+  db.seller.findUnique({
+    where: { id },
+    include: {
+      reviews: { orderBy: { createdAt: 'desc' } },
+      listings: { where: { verified: true, status: 'active' }, orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
+    },
+  }),
+)
+
 function Stat({ icon, value, label }: { icon: React.ReactNode; value: React.ReactNode; label: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5">
@@ -28,20 +41,14 @@ function Stat({ icon, value, label }: { icon: React.ReactNode; value: React.Reac
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const seller = await db.seller.findUnique({ where: { id } })
+  const seller = await getSeller(id)
   if (!seller) return {}
   return { title: `${seller.name} | eno.vn`, description: `${seller.name} — ${seller.reviewCount} reviews · ${seller.rating.toFixed(1)}★` }
 }
 
 export default async function SellerPage({ params }: Props) {
   const { id } = await params
-  const seller = await db.seller.findUnique({
-    where: { id },
-    include: {
-      reviews: { orderBy: { createdAt: 'desc' } },
-      listings: { where: { verified: true, status: 'active' }, orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
-    },
-  })
+  const seller = await getSeller(id)
   if (!seller) notFound()
 
   const initials = seller.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()

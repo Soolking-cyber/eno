@@ -226,6 +226,11 @@ model Listing {
   @@index([verified, status, brandSlug, postedAt])
   @@index([verified, status, brandSlug, model])
   @@index([verified, price])
+  // Vehicle range facets — narrow to the category, then range-scan the trailing
+  // numeric column (year/mileage apply to all vehicles). A B-tree uses leading
+  // equality cols + ONE trailing range col, so each range column gets its own.
+  @@index([verified, status, categoryId, year])
+  @@index([verified, status, categoryId, mileageKm])
   @@index([categoryId])
   @@index([featured])
   @@index([city])

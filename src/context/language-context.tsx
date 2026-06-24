@@ -1,17 +1,19 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react'
-import { UI_STRINGS } from '@/generated/ui-strings'
 import { VI_OVERRIDES } from '@/generated/vi-overrides'
 
-// Hash of the UI string set → cache-busts the localStorage UI dictionary whenever
-// copy is added/changed, so returning users always warm the latest strings.
-const UI_HASH = (() => {
+// djb2 hash of the UI string set → cache-busts the localStorage UI dictionary when
+// copy changes. A function (not a top-level const over a static import) so the large
+// UI_STRINGS dictionary can be loaded LAZILY — it's only needed when prefetching a
+// third language's machine translations, never for the en/vi audience — keeping
+// ~19KB out of first-load JS on every page.
+function hashStrings(strings: string[]): string {
   let h = 5381
-  const s = UI_STRINGS.join('')
+  const s = strings.join('')
   for (let i = 0; i < s.length; i++) h = (((h << 5) + h + s.charCodeAt(i)) | 0)
   return (h >>> 0).toString(36)
-})()
+}
 
 // English (default/source) + Vietnamese (home market) + the top inbound-tourist
 // languages to Vietnam by 2025 arrivals (GSO): China→Simplified (single Chinese
@@ -267,47 +269,52 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     // skip the machine-translation prefetch entirely. Any string not yet in the
     // overrides falls back to lazy per-string machine translation via tr()/useTr().
     if (lang === 'vi') return
-    // Key the cache by a hash of the CURRENT string set, so adding/changing any
-    // UI copy auto-invalidates stale caches (otherwise new strings stay English).
-    // The "g2" version segment busts every client's cached UI dictionary when the
-    // *translations* change (not the source) — e.g. the Azure→Google re-translate.
-    const cacheKey = `ui-dict:g2:${UI_HASH}:${lang}`
-    const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheKey) : null
-    if (cached) {
-      try { seedFromMap(lang, JSON.parse(cached)); return } catch { /* refetch */ }
-    }
     let cancelled = false
-    // Fetch the dictionary in chunks so a not-yet-warmed language (many cache
-    // misses) stays under the endpoint's per-request billable cap; an already
-    // cached language just resolves in a few cheap parallel hits.
-    const CHUNK = 100
-    const chunks: string[][] = []
-    for (let i = 0; i < UI_STRINGS.length; i += CHUNK) chunks.push(UI_STRINGS.slice(i, i + CHUNK))
-    Promise.all(
-      chunks.map((texts) =>
-        fetch('/api/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ texts, target: lang }),
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d) => (d && Array.isArray(d.translations) ? (d.translations as string[]) : null))
-          .catch(() => null),
-      ),
-    ).then((results) => {
+    // Lazy-load the big UI string list ONLY for a third language (en/vi already
+    // returned above), so it never ships in the en/vi first-load bundle.
+    import('@/generated/ui-strings').then(({ UI_STRINGS }) => {
       if (cancelled) return
-      const map: Record<string, string> = {}
-      let anyFail = false
-      results.forEach((translations, ci) => {
-        if (!translations) anyFail = true
-        chunks[ci].forEach((s, i) => { map[s] = translations ? (translations[i] ?? s) : s })
-      })
-      seedFromMap(lang, map)
-      // Cache only a COMPLETE, actually-translated dictionary — never persist a
-      // partial result from a failed chunk or an English passthrough.
-      if (!anyFail && UI_STRINGS.some((s) => map[s] !== s)) {
-        try { localStorage.setItem(cacheKey, JSON.stringify(map)) } catch { /* ignore */ }
+      // Key the cache by a hash of the CURRENT string set, so adding/changing any
+      // UI copy auto-invalidates stale caches (otherwise new strings stay English).
+      // The "g2" version segment busts every client's cached UI dictionary when the
+      // *translations* change (not the source) — e.g. the Azure→Google re-translate.
+      const cacheKey = `ui-dict:g2:${hashStrings(UI_STRINGS)}:${lang}`
+      const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(cacheKey) : null
+      if (cached) {
+        try { seedFromMap(lang, JSON.parse(cached)); return } catch { /* refetch */ }
       }
+      // Fetch the dictionary in chunks so a not-yet-warmed language (many cache
+      // misses) stays under the endpoint's per-request billable cap; an already
+      // cached language just resolves in a few cheap parallel hits.
+      const CHUNK = 100
+      const chunks: string[][] = []
+      for (let i = 0; i < UI_STRINGS.length; i += CHUNK) chunks.push(UI_STRINGS.slice(i, i + CHUNK))
+      Promise.all(
+        chunks.map((texts) =>
+          fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ texts, target: lang }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => (d && Array.isArray(d.translations) ? (d.translations as string[]) : null))
+            .catch(() => null),
+        ),
+      ).then((results) => {
+        if (cancelled) return
+        const map: Record<string, string> = {}
+        let anyFail = false
+        results.forEach((translations, ci) => {
+          if (!translations) anyFail = true
+          chunks[ci].forEach((s, i) => { map[s] = translations ? (translations[i] ?? s) : s })
+        })
+        seedFromMap(lang, map)
+        // Cache only a COMPLETE, actually-translated dictionary — never persist a
+        // partial result from a failed chunk or an English passthrough.
+        if (!anyFail && UI_STRINGS.some((s) => map[s] !== s)) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(map)) } catch { /* ignore */ }
+        }
+      })
     })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
