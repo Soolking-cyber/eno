@@ -44,12 +44,13 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
       fd.append('lang', lang)
       const res = await fetch('/api/ai/classify', { method: 'POST', body: fd })
       if (!res.ok) {
-        const err = (await res.json().catch(() => ({})))?.error
-        if (err === 'decode_failed' || err === 'no_file' || err === 'empty_file' || err === 'too_big') {
+        const body = await res.json().catch(() => ({}))
+        if (['decode_failed', 'no_file', 'empty_file', 'too_big'].includes(body.error)) {
           toast.error(t('Không đọc được ảnh này — thử ảnh JPG/PNG.', "Couldn't read that photo — try a JPG or PNG."))
           return
         }
-        throw new Error()
+        toast.error(`AI: ${body.detail || body.error || 'failed'}`) // TEMP: surface real error for debugging
+        return
       }
       const d = await res.json()
       if (d.categorySlug) {

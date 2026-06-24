@@ -85,7 +85,7 @@ Return ONLY JSON.`
     parsed = JSON.parse(res.text || '{}')
   } catch (e) {
     console.error('[ai/classify]', e)
-    return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
+    return NextResponse.json({ error: 'ai_failed', detail: (e as Error)?.message?.slice(0, 300) }, { status: 502 })
   }
 
   // Validate against the taxonomy — never trust the model's slugs blindly.

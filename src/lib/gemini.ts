@@ -18,7 +18,10 @@ export function getGemini(): GoogleGenAI | null {
   const rawCreds = process.env.GOOGLE_VERTEX_CREDENTIALS
   if (!project || !rawCreds) { client = null; return null }
   try {
-    const credentials = JSON.parse(rawCreds) as { client_email: string; private_key: string }
+    // Accept the SA key as raw JSON OR base64-encoded JSON. base64 is paste-safe
+    // (no quotes/newlines to mangle in the Vercel dashboard) — preferred.
+    const json = rawCreds.trim().startsWith('{') ? rawCreds : Buffer.from(rawCreds.trim(), 'base64').toString('utf8')
+    const credentials = JSON.parse(json) as { client_email: string; private_key: string }
     client = new GoogleGenAI({
       vertexai: true,
       project,
