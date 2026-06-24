@@ -1,10 +1,12 @@
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ScrollTop } from '@/components/marketplace/scroll-top'
 
 export default function SellerLoading() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
+      <ScrollTop />
       <Header />
       <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         {/* Back link */}

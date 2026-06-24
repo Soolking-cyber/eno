@@ -450,3 +450,18 @@ input, select, textarea {
 [data-sonner-toast] [data-close-button] {
   border-radius: 9999px;
 }
+
+/* ============================================================
+   NO FOCUS-ZOOM ON MOBILE — iOS Safari auto-zooms when a focused form
+   control's font is < 16px. Our inputs use text-sm (14px), so tapping one
+   zoomed the page in. Force 16px on form controls on TOUCH devices only
+   (desktop keeps the smaller text). !important so it beats Tailwind's
+   text-sm utility. Pinch-zoom stays enabled — we only kill the focus jump.
+   ============================================================ */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
+import { ScrollTop } from '@/components/marketplace/scroll-top'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { BadgeCheck, ChevronLeft, MessageSquareText, Clock, CalendarDays } from 'lucide-react'
 import { Tr } from '@/context/language-context'
@@ -49,6 +50,7 @@ export default async function SellerPage({ params }: Props) {
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
+      <ScrollTop />
       <Header />
       <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         <div className="mb-5">
