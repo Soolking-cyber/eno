@@ -11,7 +11,6 @@ import {
   MapPin,
   ChevronRight,
   Phone,
-  Layers,
   X,
   Sliders,
   Clock,
@@ -29,6 +28,7 @@ import { LogoWordmark } from './logo-wordmark'
 import { CustomSelect } from './custom-select'
 import { FacetBar } from './facet-bar'
 import { BrandRail } from './brand-rail'
+import { CategoryRail } from './category-rail'
 import { DISTRICTS } from './listings-explorer.constants'
 import { FavoriteHeart } from './favorite-heart'
 import { type Nearby, type Geo } from './area-filter'
@@ -1554,93 +1554,15 @@ export function ListingsExplorer({
           {/* Listings Main Workspace */}
           <div className="space-y-4">
 
-            {/* Top Categories Navigation Bar (Desktop Hover Dropdowns / Mobile Click Dropdowns) */}
-            <div className="relative select-none">
-              <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto scrollbar-none py-1">
-                {/* All Categories Pill */}
-                <div className="relative group shrink-0">
-                  <button
-                    onClick={() => handleCategoryClick('all')}
-                    className={cn(
-                      'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer select-none whitespace-nowrap',
-                      activeCategory === 'all'
-                        ? 'bg-[#0a66c2] text-white'
-                        : 'text-body hover:bg-muted'
-                    )}
-                  >
-                    <Layers className="h-3.5 w-3.5" />
-                    <span>{tr('All Categories', 'Tất cả danh mục')}</span>
-                  </button>
-                </div>
-
-                {/* Categories Pills — selection only; subcategories live in the chip row below */}
-                {categories.map((cat) => {
-                  const isActive = activeCategory === cat.slug
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => handleCategoryClick(cat.slug)}
-                      className={cn(
-                        'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer select-none whitespace-nowrap',
-                        isActive
-                          ? 'bg-[#0a66c2] text-white'
-                          : 'text-body hover:bg-muted'
-                      )}
-                    >
-                      <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-white' : 'text-accent-foreground')} />
-                      <span><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Subcategory quick-chips — fast drill-down, revealed only once a category is active (progressive disclosure) */}
-            <>
-              {activeCategory !== 'all' && SUBCATEGORIES[activeCategory]?.length > 0 && (
-                <div
-                  key={activeCategory}
-                  className="overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"
-                >
-                  <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 pt-0.5">
-                    <button
-                      onClick={() => setActiveSubcategory('all')}
-                      className={cn(
-                        'shrink-0 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap',
-                        activeSubcategory === 'all'
-                          ? 'bg-[#0a66c2] text-white'
-                          : 'text-body hover:bg-muted'
-                      )}
-                    >
-                      {tr('All', 'Tất cả')}
-                    </button>
-                    {SUBCATEGORIES[activeCategory].map((sub) => {
-                      const isActive = activeSubcategory === sub.slug
-                      const count = subcategoryCounts[sub.slug]
-                      return (
-                        <button
-                          key={sub.slug}
-                          onClick={() => setActiveSubcategory(sub.slug)}
-                          className={cn(
-                            'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap',
-                            isActive
-                              ? 'bg-[#0a66c2] text-white'
-                              : 'text-body hover:bg-muted'
-                          )}
-                        >
-                          <span><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span>
-                          {count != null && (
-                            <span className={cn('text-[10px] font-semibold', isActive ? 'text-white/70' : 'text-ink-4')}>
-                              {count}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </>
+            {/* Line 1 — category rail (square logo + name); tap to expand subcategories */}
+            <CategoryRail
+              categories={categories}
+              activeCategory={activeCategory}
+              activeSubcategory={activeSubcategory}
+              subcategoryCounts={subcategoryCounts}
+              onCategory={handleCategorySelect}
+              onSubcategory={setActiveSubcategory}
+            />
 
             {/* Brand rail — brands present in this category (logo + name), tap to
                 filter + expand the brand's models in the catalogue. Brand categories only. */}
