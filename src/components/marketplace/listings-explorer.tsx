@@ -1375,7 +1375,6 @@ export function ListingsExplorer({
                   <div
                     key={l.id}
                     className="flex flex-col h-full"
-                    style={{ contentVisibility: 'auto' as any, containIntrinsicSize: 'auto 320px' }}
                     onMouseEnter={() => prefetchListing(l.id)}
                     onTouchStart={() => prefetchListing(l.id)}
                   >
@@ -1729,7 +1728,6 @@ export function ListingsExplorer({
                       <div
                         key={l.id}
                         className="flex flex-col h-full"
-                        style={{ contentVisibility: 'auto' as any, containIntrinsicSize: 'auto 320px' }}
                         onMouseEnter={() => prefetchListing(l.id)}
                         onTouchStart={() => prefetchListing(l.id)}
                       >
@@ -1793,10 +1791,7 @@ export function ListingsExplorer({
                      with a big empty middle; single column on mobile. */
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5">
                     {shownListings.map((l, index) => (
-                      <div
-                        key={l.id}
-                        style={{ contentVisibility: 'auto' as any, containIntrinsicSize: 'auto 72px' }}
-                      >
+                      <div key={l.id}>
                         {renderCompactRow(l, index)}
                       </div>
                     ))}

@@ -177,8 +177,12 @@ export default function ThreadPage() {
       const res = await fetch(`/api/conversations/${id}/messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerAmount: amt }),
       })
-      if (res.ok) { await load(); refreshUnread(); refreshConvos() }
-      else setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+      if (res.ok) {
+        // Drop the optimistic temp BEFORE load() — load() re-appends any remaining
+        // temps onto fresh server data, which would duplicate the offer card.
+        setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+        await load(); refreshUnread(); refreshConvos()
+      } else setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
     } catch {
       setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
     }
