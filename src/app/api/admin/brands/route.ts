@@ -47,6 +47,11 @@ export async function PATCH(req: NextRequest) {
         .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
         .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
         .replace(/javascript:/gi, '')
+        // Force the correct SVG namespace (pasted/AI svgs often mangle it → won't
+        // render in an <img>).
+        .replace(/<svg\b[^>]*>/i, (tag) =>
+          tag.replace(/\s+xmlns\s*=\s*("[^"]*"|'[^']*')/i, '').replace(/^<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"'),
+        )
         .slice(0, 20000)
       if (/^<svg[\s\S]*<\/svg>\s*$/i.test(stripped)) clean = stripped
     } else {

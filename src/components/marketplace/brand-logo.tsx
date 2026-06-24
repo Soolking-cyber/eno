@@ -28,10 +28,15 @@ export function BrandLogo({
     // A full <svg> (admin-curated, any viewBox) renders via an <img> data-URI —
     // browser-sandboxed (no script execution) and keeps the logo's own scale/colour.
     if (v.startsWith('<svg')) {
+      // <img>-rendered SVG MUST carry the real SVG namespace; pasted/AI svgs often
+      // omit or mangle it (e.g. "http://w3.org") → blank img. Force the correct one.
+      const svg = v.replace(/<svg\b[^>]*>/i, (tag) =>
+        tag.replace(/\s+xmlns\s*=\s*("[^"]*"|'[^']*')/i, '').replace(/^<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"'),
+      )
       return (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={`data:image/svg+xml,${encodeURIComponent(v)}`}
+          src={`data:image/svg+xml,${encodeURIComponent(svg)}`}
           width={size}
           height={size}
           alt={name}
