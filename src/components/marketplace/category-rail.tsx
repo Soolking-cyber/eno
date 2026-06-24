@@ -48,7 +48,7 @@ export function CategoryRail({
     cn('shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-semibold transition-colors cursor-pointer', active ? 'text-accent-foreground' : 'text-body hover:text-accent-foreground')
 
   return (
-    <div ref={railRef} className="flex items-stretch gap-4 overflow-x-auto scrollbar-none py-1">
+    <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none py-1">
       {/* All */}
       <button data-cat="all" onClick={() => onCategory('all')} className={tileCls}>
         <span className="flex h-11 items-center justify-center">
@@ -75,9 +75,10 @@ export function CategoryRail({
 
             {/* Subcategories roll out to the right of the active category */}
             {subs.length > 0 && (
-              <div className="flex shrink-0 items-center gap-1.5 animate-in fade-in slide-in-from-left-2 duration-200">
-                <span className="mx-1 h-10 w-px shrink-0 bg-border" />
-                <div className="flex flex-col flex-wrap content-center gap-x-1.5 gap-y-1 max-h-[7rem]">
+              <div className="flex shrink-0 items-start gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                <span className="mt-1 h-12 w-px shrink-0 bg-border" />
+                {/* 3 fixed rows; subcategories flow into columns to the right (robust on mobile). */}
+                <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-3 gap-y-1">
                   <button onClick={() => onSubcategory('all')} className={subChip(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
                   {subs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug
