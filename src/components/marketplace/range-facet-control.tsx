@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import type { RangeMeta } from '@/lib/taxonomy'
-import { cn } from '@/lib/utils'
 
 // Min–max range filter for a numeric facet (year / mileage / engine) — a dual-thumb
 // slider with type-in Min/Max boxes, mirroring the price filter's interaction. Emits
 // the "min-max" string the explorer understands ('all' when the full range is open;
-// an empty side means open-ended, e.g. "2020-" = 2020 and newer).
+// an empty side means open-ended, e.g. "2020-" = 2020 and newer). Typing isn't
+// clamped/reformatted mid-keystroke — clamping happens on blur.
 export function RangeFacetControl({
   range, value, onChange,
 }: {
@@ -30,7 +30,15 @@ export function RangeFacetControl({
   }
   const [lo, setLo] = useState<number>(() => fromValue(value)[0])
   const [hi, setHi] = useState<number>(() => fromValue(value)[1])
+  // String mirrors for the type-in boxes (synced from lo/hi when not focused).
+  const [loText, setLoText] = useState('')
+  const [hiText, setHiText] = useState('')
+  const loFoc = useRef(false)
+  const hiFoc = useRef(false)
+
   useEffect(() => { const [a, b] = fromValue(value); setLo(a); setHi(b) /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [value])
+  useEffect(() => { if (!loFoc.current) setLoText(lo <= min ? '' : fmt(lo)) /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [lo])
+  useEffect(() => { if (!hiFoc.current) setHiText(hi >= max ? '' : fmt(hi)) /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [hi])
 
   const commit = (nlo: number, nhi: number) => {
     const mn = nlo <= min ? '' : String(round(nlo))
@@ -40,6 +48,21 @@ export function RangeFacetControl({
   const span = Math.max(step, max - min)
   const pct = (v: number) => ((v - min) / span) * 100
   const digits = (s: string) => (decimals > 0 ? s.replace(/[^0-9.]/g, '') : s.replace(/[^0-9]/g, ''))
+
+  const blurLo = () => {
+    loFoc.current = false
+    let n = loText === '' ? min : Number(loText)
+    if (!Number.isFinite(n)) n = min
+    n = Math.min(Math.max(round(n), min), hi)
+    setLo(n); commit(n, hi); setLoText(n <= min ? '' : fmt(n))
+  }
+  const blurHi = () => {
+    hiFoc.current = false
+    let n = hiText === '' ? max : Number(hiText)
+    if (!Number.isFinite(n)) n = max
+    n = Math.max(Math.min(round(n), max), lo)
+    setHi(n); commit(lo, n); setHiText(n >= max ? '' : fmt(n))
+  }
 
   return (
     <div className="min-w-0 flex-1">
@@ -66,23 +89,25 @@ export function RangeFacetControl({
         <span className="flex items-center gap-1 rounded-lg bg-tint px-2.5 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring/30">
           <input
             type="text" inputMode={decimals > 0 ? 'decimal' : 'numeric'}
-            value={lo <= min ? '' : fmt(lo)} placeholder={tr('Min', 'Tối thiểu')}
-            onChange={(e) => { const d = digits(e.target.value); setLo(d === '' ? min : Math.min(Math.max(min, Number(d)), hi)) }}
-            onBlur={() => commit(lo, hi)}
+            value={loText} placeholder={tr('Min', 'Tối thiểu')}
+            onFocus={() => { loFoc.current = true }}
+            onChange={(e) => setLoText(digits(e.target.value))}
+            onBlur={blurLo}
             className="w-16 bg-transparent text-foreground outline-none placeholder:text-ink-4"
           />
-          {unit && lo > min && <span className="text-ink-4">{unit}</span>}
+          {unit && loText !== '' && <span className="text-ink-4">{unit}</span>}
         </span>
         <span className="text-ink-4">–</span>
         <span className="flex items-center gap-1 rounded-lg bg-tint px-2.5 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring/30">
           <input
             type="text" inputMode={decimals > 0 ? 'decimal' : 'numeric'}
-            value={hi >= max ? '' : fmt(hi)} placeholder={tr('Max', 'Tối đa')}
-            onChange={(e) => { const d = digits(e.target.value); setHi(d === '' ? max : Math.max(Math.min(max, Number(d)), lo)) }}
-            onBlur={() => commit(lo, hi)}
+            value={hiText} placeholder={tr('Max', 'Tối đa')}
+            onFocus={() => { hiFoc.current = true }}
+            onChange={(e) => setHiText(digits(e.target.value))}
+            onBlur={blurHi}
             className="w-16 bg-transparent text-foreground outline-none placeholder:text-ink-4"
           />
-          {unit && hi < max && <span className="text-ink-4">{unit}</span>}
+          {unit && hiText !== '' && <span className="text-ink-4">{unit}</span>}
         </span>
       </div>
     </div>
