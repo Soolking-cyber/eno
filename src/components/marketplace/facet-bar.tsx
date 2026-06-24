@@ -169,7 +169,7 @@ export function FacetBar({
     listingType !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
 
   return (
-    <div className="space-y-2">
+    <div className="relative">
       {/* Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps. */}
       <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
         {/* Advanced per-category filters — leftmost. Only when the category has them. */}
@@ -221,38 +221,42 @@ export function FacetBar({
         />
       </div>
 
-      {/* Advanced filter panel — detailed per-category fields, in a roomy grid. */}
+      {/* Advanced filter panel — a compact dropdown anchored under the Filter
+          button; closes on outside click (like the other dropdowns). */}
       {advOpen && attrFacetDefs.length > 0 && (
-        <div className="rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm font-bold text-foreground">{tr('Filter details', 'Lọc chi tiết')}</span>
-            <button onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:bg-muted hover:text-foreground">
-              <X className="h-4 w-4" />
-            </button>
+        <>
+          <div className="fixed inset-0 z-40" aria-hidden onClick={() => setAdvOpen(false)} />
+          <div className="absolute left-0 top-full z-50 mt-1 w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-bold text-foreground">{tr('Filter details', 'Lọc chi tiết')}</span>
+              <button onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:bg-muted hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              {attrFacetDefs.map((f) => (
+                <div key={f.key} className="space-y-1">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{lang === 'vi' ? f.labelVi : f.label}</label>
+                  <CustomSelect
+                    value={customFilters[f.key] || 'all'}
+                    onChange={(v) => setFacet(f.key, v)}
+                    options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))]}
+                    placeholder={lang === 'vi' ? f.labelVi : f.label}
+                    activeClassName="text-accent-foreground border-accent-foreground/35"
+                  />
+                </div>
+              ))}
+            </div>
+            {activeAttrCount > 0 && (
+              <button
+                onClick={() => setCustomFilters({})}
+                className="mt-3 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
+              >
+                {tr('Clear details', 'Xóa lọc chi tiết')}
+              </button>
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-            {attrFacetDefs.map((f) => (
-              <div key={f.key} className="space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{lang === 'vi' ? f.labelVi : f.label}</label>
-                <CustomSelect
-                  value={customFilters[f.key] || 'all'}
-                  onChange={(v) => setFacet(f.key, v)}
-                  options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))]}
-                  placeholder={lang === 'vi' ? f.labelVi : f.label}
-                  activeClassName="text-accent-foreground border-accent-foreground/35"
-                />
-              </div>
-            ))}
-          </div>
-          {activeAttrCount > 0 && (
-            <button
-              onClick={() => setCustomFilters({})}
-              className="mt-3 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
-            >
-              {tr('Clear details', 'Xóa lọc chi tiết')}
-            </button>
-          )}
-        </div>
+        </>
       )}
     </div>
   )

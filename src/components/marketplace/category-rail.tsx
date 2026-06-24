@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import { Layers } from 'lucide-react'
 import { useLanguage, Tr } from '@/context/language-context'
 import { CategoryIcon } from './category-icons'
@@ -28,6 +28,15 @@ export function CategoryRail({
   onSubcategory: (slug: string) => void
 }) {
   const { lang, tr } = useLanguage()
+  const railRef = useRef<HTMLDivElement>(null)
+
+  // When a category is chosen, slide the rail so that category sits at the left edge
+  // — the user immediately sees their pick with its subcategories rolled out beside it.
+  useEffect(() => {
+    if (activeCategory === 'all') { railRef.current?.scrollTo({ left: 0, behavior: 'smooth' }); return }
+    const el = railRef.current?.querySelector(`[data-cat="${activeCategory}"]`) as HTMLElement | null
+    el?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+  }, [activeCategory])
 
   const tileCls = 'group flex w-[4.75rem] shrink-0 flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
   const iconCls = (active: boolean) =>
@@ -39,9 +48,9 @@ export function CategoryRail({
     cn('shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-semibold transition-colors cursor-pointer', active ? 'text-accent-foreground' : 'text-body hover:text-accent-foreground')
 
   return (
-    <div className="flex items-stretch gap-4 overflow-x-auto scrollbar-none py-1">
+    <div ref={railRef} className="flex items-stretch gap-4 overflow-x-auto scrollbar-none py-1">
       {/* All */}
-      <button onClick={() => onCategory('all')} className={tileCls}>
+      <button data-cat="all" onClick={() => onCategory('all')} className={tileCls}>
         <span className="flex h-11 items-center justify-center">
           <Layers className={iconCls(activeCategory === 'all')} />
         </span>
@@ -57,7 +66,7 @@ export function CategoryRail({
           : []
         return (
           <Fragment key={cat.id}>
-            <button onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={tileCls}>
+            <button data-cat={cat.slug} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={tileCls}>
               <span className="flex h-11 items-center justify-center">
                 <CategoryIcon name={cat.icon} className={iconCls(isActive)} />
               </span>
@@ -68,7 +77,7 @@ export function CategoryRail({
             {subs.length > 0 && (
               <div className="flex shrink-0 items-center gap-1.5 animate-in fade-in slide-in-from-left-2 duration-200">
                 <span className="mx-1 h-10 w-px shrink-0 bg-border" />
-                <div className="flex flex-col flex-wrap content-center gap-x-1.5 gap-y-1 max-h-[5.5rem]">
+                <div className="flex flex-col flex-wrap content-center gap-x-1.5 gap-y-1 max-h-[7rem]">
                   <button onClick={() => onSubcategory('all')} className={subChip(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
                   {subs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug

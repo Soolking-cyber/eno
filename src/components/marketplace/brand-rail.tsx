@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from './brand-logo'
@@ -26,8 +26,16 @@ export function BrandRail({
   onPickModel: (model: string) => void
 }) {
   const { tr } = useLanguage()
+  const railRef = useRef<HTMLDivElement>(null)
   const [brands, setBrands] = useState<BrandItem[]>([])
   const [models, setModels] = useState<{ model: string; count: number }[]>([])
+
+  // Slide the rail so the chosen brand sits at the left edge, models rolled out beside it.
+  useEffect(() => {
+    if (activeBrand === 'all') { railRef.current?.scrollTo({ left: 0, behavior: 'smooth' }); return }
+    const el = railRef.current?.querySelector(`[data-brand="${activeBrand}"]`) as HTMLElement | null
+    el?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+  }, [activeBrand])
 
   useEffect(() => {
     let off = false
@@ -58,14 +66,23 @@ export function BrandRail({
     cn('shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-semibold transition-colors cursor-pointer', active ? 'text-accent-foreground' : 'text-body hover:text-accent-foreground')
 
   return (
-    <div className="flex items-stretch gap-4 overflow-x-auto scrollbar-none py-1">
+    <div ref={railRef} className="flex items-stretch gap-4 overflow-x-auto scrollbar-none py-1">
       {brands.map((b) => {
         const isActive = activeBrand === b.slug
         return (
           <Fragment key={b.slug}>
-            <button onClick={() => { onPickBrand(isActive ? 'all' : b.slug); onPickModel('all') }} className={tileCls}>
-              <span className="flex h-11 w-11 items-center justify-center transition-transform duration-200 group-hover:scale-110">
-                <BrandLogo name={b.name} iconPath={b.iconPath} size={40} flat className={isActive ? '!text-accent-foreground' : ''} />
+            <button data-brand={b.slug} onClick={() => { onPickBrand(isActive ? 'all' : b.slug); onPickModel('all') }} className={tileCls}>
+              {/* Logo mirrors the category icon exactly — same 44px box, slate→blue
+                  on hover/active, same scale animation — so the two rails feel as one.
+                  (Brand marks read a touch bolder than the line icons by nature.) */}
+              <span className="flex h-11 items-center justify-center">
+                <BrandLogo
+                  name={b.name}
+                  iconPath={b.iconPath}
+                  size={44}
+                  flat
+                  className={cn('transition-transform duration-200 group-hover:scale-110', isActive ? '!text-accent-foreground' : '!text-body group-hover:!text-accent-foreground')}
+                />
               </span>
               <span className={nameCls(isActive)}>{b.name}</span>
             </button>
@@ -74,7 +91,7 @@ export function BrandRail({
             {isActive && models.length > 0 && (
               <div className="flex shrink-0 items-center gap-1.5 animate-in fade-in slide-in-from-left-2 duration-200">
                 <span className="mx-1 h-10 w-px shrink-0 bg-border" />
-                <div className="flex flex-col flex-wrap content-center gap-x-1.5 gap-y-1 max-h-[5.5rem]">
+                <div className="flex flex-col flex-wrap content-center gap-x-1.5 gap-y-1 max-h-[7rem]">
                   <button onClick={() => onPickModel('all')} className={modelChip(activeModel === 'all')}>{tr('All', 'Tất cả')}</button>
                   {models.map((m) => {
                     const mActive = activeModel === m.model
