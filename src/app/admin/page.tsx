@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
-import { Header } from '@/components/marketplace/header'
+import { AdminHeader } from '@/components/admin/admin-header'
+import { AdminNav } from '@/components/admin/admin-nav'
 import { ModerationClient, type ModItem, type AccountReport } from '@/components/admin/moderation-client'
 import { ShieldAlert } from 'lucide-react'
 import type { Metadata } from 'next'
@@ -64,7 +65,7 @@ export default async function AdminPage() {
   if (!admin) {
     return (
       <div className="flex min-h-screen flex-col">
-        <Header />
+        <AdminHeader />
         <main className="flex flex-1 items-center justify-center px-3">
           <div className="max-w-sm rounded-2xl bg-card p-8 text-center shadow-pop">
             <ShieldAlert className="mx-auto h-10 w-10 text-ink-4" />
@@ -127,8 +128,9 @@ export default async function AdminPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Header />
+      <AdminHeader />
       <main className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6">
+        <AdminNav active="/admin" />
         <div className="mb-6">
           <h1 className="h-title text-foreground">Moderation</h1>
           <p className="mt-1 text-sm text-muted-foreground">Signed in as {admin}. Resolve reports (confirm docks trust); held listings need a photo or are from restricted accounts.</p>

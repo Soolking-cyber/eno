@@ -1,5 +1,5 @@
 import { getAdmin } from '@/lib/admin'
-import { Header } from '@/components/marketplace/header'
+import { AdminHeader } from '@/components/admin/admin-header'
 import { ShieldAlert } from 'lucide-react'
 import type { Metadata } from 'next'
 import { AdminListingsClient } from '@/components/admin/admin-listings-client'
@@ -13,7 +13,7 @@ export default async function AdminListingsPage() {
   if (!admin) {
     return (
       <div className="flex min-h-screen flex-col">
-        <Header />
+        <AdminHeader />
         <main className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
           <ShieldAlert className="h-10 w-10 text-muted-foreground" />
           <p className="text-sm font-semibold text-body">Admins only.</p>
@@ -23,7 +23,7 @@ export default async function AdminListingsPage() {
   }
   return (
     <div className="flex min-h-screen flex-col blob-bg">
-      <Header />
+      <AdminHeader />
       <main className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-8 pb-16">
         <AdminNav active="/admin/listings" />
         <AdminListingsClient />
