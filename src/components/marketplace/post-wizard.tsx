@@ -49,7 +49,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
           toast.error(t('Không đọc được ảnh này — thử ảnh JPG/PNG.', "Couldn't read that photo — try a JPG or PNG."))
           return
         }
-        toast.error(t('Không thể dùng AI lúc này', 'AI is unavailable right now'))
+        toast.error(aiErrMsg(body.error, res.status))
         return
       }
       const d = await res.json()
@@ -92,7 +92,11 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
       const res = await fetch('/api/ai/rephrase', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: description, lang }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(aiErrMsg(body.error, res.status))
+        return
+      }
       const d = await res.json()
       if (d.text) { setDescription(d.text); toast.success(t('Đã chỉnh lại mô tả', 'Polished your description')) }
     } catch {
@@ -100,6 +104,13 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
     } finally {
       setAiBusy(null)
     }
+  }
+  // Specific AI failure messages — so "AI unavailable" no longer hides the real
+  // cause (most often: not signed in on this device, or rate-limited).
+  const aiErrMsg = (error?: string, status?: number) => {
+    if (error === 'auth_required' || status === 401) return t('Đăng nhập để dùng AI', 'Sign in to use AI')
+    if (error === 'rate_limited' || status === 429) return t('Bạn dùng AI hơi nhiều — thử lại sau ít phút', 'Too many AI requests — try again in a few minutes')
+    return t('Không thể dùng AI lúc này', 'AI is unavailable right now')
   }
   const [error, setError] = useState('')
   const [categorySlug, setCategorySlug] = useState('')
