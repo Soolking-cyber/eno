@@ -454,8 +454,8 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
               <div className="space-y-2">
                 <p className="text-sm font-semibold text-foreground">{t('Thêm tên và số điện thoại trước khi đăng', 'Add your name and phone number before you can post')}</p>
                 <p className="max-w-md text-xs text-body">{t('Thông tin liên hệ được lấy từ tài khoản của bạn — mỗi số chỉ dùng cho một tài khoản. Hãy thêm trong Cài đặt.', 'Your contact details come from your account — each number belongs to one account. Add them in Settings.')}</p>
-                <a href="/dashboard?tab=account" className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-[#004182]">
-                  {t('Tới Cài đặt', 'Go to Settings')}
+                <a href="/dashboard?tab=account" className="inline-block text-sm font-bold text-accent-foreground hover:underline">
+                  {t('Thêm trong Cài đặt', 'Add in Settings')} →
                 </a>
               </div>
             )}
