@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { containsPhoneNumber, normalizePhone } from '@/lib/phone'
+import { phoneTakenByOther } from '@/lib/phone-unique'
 import { isListingImageUrl } from '@/lib/listing-image'
 
 export const runtime = 'nodejs'
@@ -32,6 +33,9 @@ export async function PATCH(req: NextRequest) {
   if (body.phone !== undefined) {
     const phone = normalizePhone(String(body.phone || ''))
     if (body.phone && phone.replace(/\D/g, '').length < 9) return NextResponse.json({ error: 'bad_phone' }, { status: 400 })
+    // One number ↔ one account (any format). Reject if another account already uses
+    // it — as their profile phone or storefront contact.
+    if (phone && await phoneTakenByOther(phone, profile.id)) return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
     data.phone = phone || null
   }
 

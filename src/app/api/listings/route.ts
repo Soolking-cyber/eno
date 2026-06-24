@@ -8,6 +8,7 @@ import { fold, buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { syndicateListing } from '@/lib/syndicate'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
+import { phoneTakenByOther } from '@/lib/phone-unique'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
@@ -330,17 +331,23 @@ export async function POST(req: NextRequest) {
       const owned = await db.seller.findUnique({ where: { ownerId: meId } })
       if (owned) {
         seller = owned
-        // Backfill a missing contact phone on their storefront (best-effort).
+        // Backfill a missing contact phone on their storefront — but never one that
+        // already belongs to another account (any format → normalized key).
         if (!owned.phone && contactPhone) {
+          if (await phoneTakenByOther(contactPhone, meId)) return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
           try { seller = await db.seller.update({ where: { id: owned.id }, data: { phone: contactPhone } }) } catch { /* phone taken elsewhere */ }
         }
       } else {
+        // A number identifies ONE account. If this one is already another account's
+        // (their verified profile phone OR an owned storefront), reject — never
+        // silently attach this listing to someone else's storefront.
+        if (contactPhone && await phoneTakenByOther(contactPhone, meId)) {
+          return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
+        }
         const byPhone = await db.seller.findUnique({ where: { phone: contactPhone } })
         if (byPhone && !byPhone.ownerId) {
           // Claim the unowned guest storefront for this account.
           seller = await db.seller.update({ where: { id: byPhone.id }, data: { ownerId: meId } })
-        } else if (byPhone) {
-          seller = byPhone // phone belongs to another owned seller — use as-is (rare)
         } else {
           seller = await db.seller.create({
             data: { name: contactName || 'eno.vn seller', phone: contactPhone, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
@@ -348,7 +355,11 @@ export async function POST(req: NextRequest) {
         }
       }
     } else {
-      // Guest post (not signed in): resolve/create by phone, ownerId stays null.
+      // Guest post (not signed in): a number already tied to a real account can't be
+      // reused by an anonymous poster (impersonation / cross-account dupe).
+      if (contactPhone && await phoneTakenByOther(contactPhone, null)) {
+        return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
+      }
       const existing = await db.seller.findUnique({ where: { phone: contactPhone } })
       seller = existing
         ? existing

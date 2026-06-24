@@ -153,6 +153,8 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
           ? t('Không tải được ảnh, vui lòng thử lại.', 'Could not upload your photos — please try again.')
           : msg === 'no_phone_in_listing'
           ? t('Không được ghi số điện thoại trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng.', "Phone numbers aren't allowed in a listing — buyers message you in the app. Remove it to post.")
+          : msg === 'phone_taken'
+          ? t('Số điện thoại này đã được một tài khoản khác sử dụng. Mỗi số chỉ dùng cho một tài khoản.', 'This phone number is already used by another account. Each number belongs to one account.')
           : t('Không gửi được, vui lòng thử lại.', 'Could not submit — please try again.'),
       )
       console.error(e)

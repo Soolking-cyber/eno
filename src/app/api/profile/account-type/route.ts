@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { normalizePhone } from '@/lib/phone'
+import { phoneTakenByOther } from '@/lib/phone-unique'
 
 export const runtime = 'nodejs'
 
@@ -31,6 +32,12 @@ export async function POST(req: Request) {
 
   if (accountType === 'business' && !businessName) {
     return NextResponse.json({ error: 'business_name_required' }, { status: 400 })
+  }
+
+  // One number ↔ one account: a business rep's phone can't be a number already tied
+  // to another account (any format — it's normalized). The user's own phone is fine.
+  if (phone && await phoneTakenByOther(phone, profile.id)) {
+    return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
   }
 
   await db.profile.update({
