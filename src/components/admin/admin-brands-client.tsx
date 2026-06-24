@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Search, Check, Sparkles } from 'lucide-react'
+import { Loader2, Search, Check, Sparkles, Upload } from 'lucide-react'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { cn } from '@/lib/utils'
 
@@ -89,6 +89,17 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
   // Live preview: typed custom path wins, then an AI suggestion, then the saved icon.
   const previewPath = logoPath.trim() || aiPath || brand.iconPath
 
+  // Upload an .svg file → load its markup into the logo field for review.
+  const onSvgFile = async (file: File | undefined) => {
+    if (!file) return
+    if (file.size > 200_000) { toast.error('SVG too large (max 200 KB)'); return }
+    const text = (await file.text()).trim()
+    if (!/<svg[\s\S]*<\/svg>/i.test(text)) { toast.error('That file is not a valid SVG'); return }
+    setLogoPath(text)
+    setAiPath(null)
+    toast.success('SVG loaded — review + Save')
+  }
+
   // AI lookup: canonicalize the name + find a real simple-icons logo to approve.
   const aiSuggest = async () => {
     setAiBusy(true); setAiNote(null)
@@ -163,7 +174,14 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
           </Field>
           <Field label="simple-icons slug (e.g. apple)"><input value={iconSlug} onChange={(e) => setIconSlug(e.target.value)} placeholder="leave blank if none" className={INPUT} /></Field>
           <Field label="Aliases (comma-separated, normalized)"><input value={aliases} onChange={(e) => setAliases(e.target.value)} className={INPUT} /></Field>
-          <Field label="Custom logo — paste a full <svg>…</svg> or a monotone path (overrides slug)" full>
+          <Field label="Custom logo — upload an .svg, paste a full <svg>…</svg>, or a monotone path (overrides slug)" full>
+            <div className="mb-1.5 flex items-center gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line-strong px-2.5 py-1 text-xs font-semibold text-body hover:bg-muted">
+                <Upload className="h-3.5 w-3.5" /> Upload .svg
+                <input type="file" accept=".svg,image/svg+xml" className="hidden" onChange={(e) => { onSvgFile(e.target.files?.[0]); e.currentTarget.value = '' }} />
+              </label>
+              {logoPath && <button type="button" onClick={() => { setLogoPath(''); setAiPath(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">Clear logo</button>}
+            </div>
             <textarea value={logoPath} onChange={(e) => setLogoPath(e.target.value)} rows={2} placeholder={'<svg viewBox="0 0 24 24">…</svg>  or  M12 2 4 5v6.2…'} className={cn(INPUT, 'font-mono text-xs')} />
           </Field>
           <div className="flex items-center justify-between gap-3 sm:col-span-2">
