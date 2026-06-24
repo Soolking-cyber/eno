@@ -29,22 +29,35 @@ export function BrandLogo({
     const raw = iconPath.trim()
     const svgAt = raw.search(/<svg[\s>]/i)
     const v = svgAt >= 0 ? raw.slice(svgAt) : raw
-    // A full <svg> (admin-curated, any viewBox) renders via an <img> data-URI —
-    // browser-sandboxed (no script execution) and keeps the logo's own scale/colour.
+    // A full <svg> (admin-curated, any viewBox) is rendered as a CSS MASK filled with
+    // currentColor — so it shows as a MONOTONE silhouette in the theme's foreground
+    // colour and adapts to dark mode automatically (the logo's own — often black —
+    // fills are ignored; only its shape is used). Same data-URI sandbox as an <img>
+    // (no script execution), and consistent with the monotone path rendering below.
     if (v.startsWith('<svg')) {
-      // <img>-rendered SVG MUST carry the real SVG namespace; pasted/AI svgs often
-      // omit or mangle it (e.g. "http://w3.org") → blank img. Force the correct one.
+      // The SVG MUST carry the real namespace; pasted/AI svgs often omit or mangle it
+      // (e.g. "http://w3.org") → blank. Force the correct one.
       const svg = v.replace(/<svg\b[^>]*>/i, (tag) =>
         tag.replace(/\s+xmlns\s*=\s*("[^"]*"|'[^']*')/i, '').replace(/^<svg\b/i, '<svg xmlns="http://www.w3.org/2000/svg"'),
       )
+      const uri = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
       return (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`data:image/svg+xml,${encodeURIComponent(svg)}`}
-          width={size}
-          height={size}
-          alt={name}
-          className={`object-contain ${className}`}
+        <span
+          role="img"
+          aria-label={name}
+          className={`inline-block shrink-0 bg-current text-foreground ${className}`}
+          style={{
+            width: size,
+            height: size,
+            WebkitMaskImage: uri,
+            maskImage: uri,
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center',
+            maskPosition: 'center',
+            WebkitMaskSize: 'contain',
+            maskSize: 'contain',
+          }}
         />
       )
     }
