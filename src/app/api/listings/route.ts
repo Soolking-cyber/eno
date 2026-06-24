@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get('category') || undefined // slug
   const subcategory = searchParams.get('subcategory') || undefined // slug
   const district = searchParams.get('district') || undefined
-  const condition = searchParams.get('condition') || undefined
+  const condition = searchParams.get('condition')?.trim().toLowerCase() || undefined
   const q = searchParams.get('q')?.trim() || undefined
   const sort = searchParams.get('sort') || 'newest'
   const verifiedParam = searchParams.get('verified') // 'true' | 'false' | 'all'
@@ -83,22 +83,15 @@ export async function GET(req: NextRequest) {
     andFilters.push({ category: { slug: category } })
   }
   if (condition && condition !== 'all') {
+    // Case-INSENSITIVE: stored condition values are inconsistently cased
+    // (new/New/Like new/used/Used/Good…). "new" matches anything new-ish; "used"
+    // is everything else that has a condition set (exclude the null/unset rows so a
+    // non-physical/blank item isn't wrongly counted as used).
+    const NEWISH = { OR: [{ condition: { contains: 'new', mode: 'insensitive' as const } }, { condition: { contains: 'mới', mode: 'insensitive' as const } }] }
     if (condition === 'new') {
-      andFilters.push({
-        OR: [
-          { condition: { contains: 'new' } },
-          { condition: { contains: 'mới' } }
-        ]
-      })
+      andFilters.push(NEWISH)
     } else if (condition === 'used') {
-      andFilters.push({
-        NOT: {
-          OR: [
-            { condition: { contains: 'new' } },
-            { condition: { contains: 'mới' } }
-          ]
-        }
-      })
+      andFilters.push({ AND: [{ condition: { not: null } }, { NOT: NEWISH }] })
     }
   }
   // Generic district filter driven by DISTRICTS[].match (EN + VI variants), matched

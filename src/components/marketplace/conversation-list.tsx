@@ -86,7 +86,21 @@ export function ConversationList() {
                       {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0a66c2] px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}
                     </div>
                     <p className="truncate text-xs text-ink-4">{c.listingTitle}</p>
-                    <p className={cn('truncate text-xs', c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới')}</p>
+                    {(() => {
+                      const o = c.lastOffer
+                      // Make offer direction + status legible at a glance: an incoming
+                      // pending offer ("New offer") is the actionable one and stands out.
+                      const amt = o ? `${new Intl.NumberFormat('en-US').format(o.amount || 0)}₫` : ''
+                      const label = o
+                        ? o.status === 'accepted' ? tr('✅ Offer accepted', '✅ Đã chấp nhận đề nghị')
+                          : o.status === 'declined' ? tr('❌ Offer declined', '❌ Đã từ chối đề nghị')
+                          : o.status === 'countered' ? tr('↩️ Counter-offer', '↩️ Đã trả giá khác')
+                          : o.mine ? `${tr('You offered', 'Bạn đề nghị')} ${amt}`
+                          : `💰 ${tr('New offer', 'Đề nghị mới')}: ${amt}`
+                        : (c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới'))
+                      const incoming = !!o && o.status === 'pending' && !o.mine
+                      return <p className={cn('truncate text-xs', incoming ? 'font-bold text-accent-foreground' : c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{label}</p>
+                    })()}
                   </div>
                 </Link>
                 {confirmId === c.id ? (

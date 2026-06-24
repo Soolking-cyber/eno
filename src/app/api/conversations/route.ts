@@ -105,6 +105,8 @@ export async function GET() {
       listing: { select: { id: true, title: true, images: true } },
       seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
+      // Latest message — to show offer direction/status in the inbox row.
+      messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { senderProfileId: true, kind: true, offerStatus: true, offerAmount: true } },
     },
   })
 
@@ -116,6 +118,10 @@ export async function GET() {
   }).map((c) => {
     const iAmBuyer = c.buyerProfileId === meId
     const img = (() => { try { return (JSON.parse(c.listing.images || '[]')[0] as string) ?? null } catch { return null } })()
+    const lastMsg = c.messages[0]
+    const lastOffer = lastMsg?.kind === 'offer'
+      ? { mine: lastMsg.senderProfileId === meId, amount: lastMsg.offerAmount, status: lastMsg.offerStatus }
+      : null
     return {
       id: c.id,
       listingId: c.listing.id,
@@ -123,6 +129,7 @@ export async function GET() {
       listingImage: img,
       lastMessageAt: c.lastMessageAt.toISOString(),
       lastMessageText: c.lastMessageText,
+      lastOffer,
       unread: iAmBuyer ? c.buyerUnread : c.sellerUnread,
       // The OTHER party's display identity.
       counterpart: iAmBuyer

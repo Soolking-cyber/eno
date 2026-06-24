@@ -9,6 +9,7 @@ type View = 'list' | 'thread'
 export type InboxConvo = {
   id: string; listingTitle: string; listingImage: string | null
   lastMessageAt: string; lastMessageText: string | null; unread: number
+  lastOffer?: { mine: boolean; amount: number | null; status: string | null } | null
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null }
 }
 
