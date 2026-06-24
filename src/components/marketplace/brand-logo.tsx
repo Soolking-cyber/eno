@@ -31,7 +31,7 @@ export function BrandLogo({
       return (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={`data:image/svg+xml;utf8,${encodeURIComponent(v)}`}
+          src={`data:image/svg+xml,${encodeURIComponent(v)}`}
           width={size}
           height={size}
           alt={name}
