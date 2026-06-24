@@ -14,6 +14,7 @@ export type EditableListing = {
   district: string | null
   condition: string | null
   brand?: string | null      // current brand display name (product categories only)
+  model?: string | null      // current model (product categories only)
   showBrand?: boolean        // whether this listing's category supports a brand
   images: string[]
   currency: string
@@ -31,6 +32,7 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
   const [district, setDistrict] = useState(listing.district || '')
   const [condition, setCondition] = useState(listing.condition || '')
   const [brand, setBrand] = useState(listing.brand || '')
+  const [model, setModel] = useState(listing.model || '')
   const [images, setImages] = useState<string[]>(listing.images)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -60,7 +62,7 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
           price: Number(price),
           district: district.trim() || null,
           condition: condition || null,
-          ...(listing.showBrand ? { brand: brand.trim() || null } : {}),
+          ...(listing.showBrand ? { brand: brand.trim() || null, model: model.trim() || null } : {}),
           images,
         }),
       })
@@ -124,9 +126,17 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
         </div>
 
         {listing.showBrand && (
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-body">{tr('Brand', 'Thương hiệu')}</label>
-            <input value={brand} onChange={(e) => setBrand(e.target.value)} maxLength={40} placeholder={tr('e.g. Apple, Samsung, Honda', 'vd. Apple, Samsung, Honda')} className={field} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-body">{tr('Brand', 'Thương hiệu')}</label>
+              <input value={brand} onChange={(e) => setBrand(e.target.value)} maxLength={40} placeholder={tr('e.g. Apple, Samsung, Honda', 'vd. Apple, Samsung, Honda')} className={field} />
+            </div>
+            {brand.trim() && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-body">{tr('Model', 'Model')}</label>
+                <input value={model} onChange={(e) => setModel(e.target.value)} maxLength={60} placeholder={tr('e.g. iPhone 14 Pro', 'vd. iPhone 14 Pro')} className={field} />
+              </div>
+            )}
           </div>
         )}
 

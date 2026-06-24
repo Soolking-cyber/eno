@@ -42,6 +42,7 @@ export function serializeListing(
     categoryId: l.categoryId,
     subcategorySlug: l.subcategorySlug,
     brandSlug: l.brandSlug,
+    model: l.model,
     listingType: l.listingType,
     category: {
       id: l.category.id,

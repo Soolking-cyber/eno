@@ -64,6 +64,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
         if (d.listingType) setListingType(d.listingType)
         if (d.condition) setCondition(d.condition)
         if (d.brand) setBrand(d.brand) // AI auto-selects the brand ONLY when confident
+        if (d.model) setModel(d.model)
         if (d.title && !title.trim()) setTitle(d.title)
         // AI spec sheet (brand/model/key specs) → seed the description if empty.
         if (d.description && !description.trim()) setDescription(d.description)
@@ -110,6 +111,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const [price, setPrice] = useState('')
   const [condition, setCondition] = useState('')
   const [brand, setBrand] = useState('')
+  const [model, setModel] = useState('')
   const [brandOptions, setBrandOptions] = useState<string[]>([])
   const [areaOpen, setAreaOpen] = useState(false)
   const areaBtnRef = useRef<HTMLButtonElement>(null)
@@ -161,7 +163,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
     setSubcategorySlug('')
     setAttrs({})
     setCondition('')
-    if (!categoryHasBrand(slug)) setBrand('')
+    if (!categoryHasBrand(slug)) { setBrand(''); setModel('') }
     setListingType(typesFor(slug)[0] ?? 'sell')
   }
 
@@ -244,6 +246,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
           lng: nearby?.lng ?? null,
           condition: hasCondition ? condition || null : null,
           brand: showBrand ? brand.trim() || null : null,
+          model: showBrand ? model.trim() || null : null,
           images: imageUrls,
           contactName: contactName.trim(),
           contactPhone: contactPhone.trim(),
@@ -387,6 +390,17 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
                 <datalist id="brand-options">
                   {brandOptions.map((b) => <option key={b} value={b} />)}
                 </datalist>
+              </Field>
+            )}
+            {showBrand && brand.trim() && (
+              <Field label={t('Mẫu / Model', 'Model')} hint={t('VD: iPhone 14 Pro, Sorento. Giúp người mua lọc theo mẫu.', 'e.g. iPhone 14 Pro, Sorento. Lets buyers filter by model.')}>
+                <input
+                  value={model}
+                  maxLength={60}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder={t('VD: iPhone 14 Pro', 'e.g. iPhone 14 Pro')}
+                  className="w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                />
               </Field>
             )}
           </Section>

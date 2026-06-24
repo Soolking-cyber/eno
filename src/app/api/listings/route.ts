@@ -153,6 +153,11 @@ export async function GET(req: NextRequest) {
   if (brand && brand !== 'all') {
     andFilters.push({ brandSlug: brand })
   }
+  // Model filter — exact display string (chips carry the catalogue's own value).
+  const model = searchParams.get('model')?.trim()
+  if (model && model !== 'all') {
+    andFilters.push({ model })
+  }
   
   // Category-specific attribute facets. Both the seed and the post wizard store
   // attributes as JSON using the taxonomy facet `.value` strings, so a generic
@@ -421,6 +426,9 @@ export async function POST(req: NextRequest) {
     if (categoryHasBrand(categorySlug) && body.brand) {
       try { brandSlug = await resolveBrand(String(body.brand)) } catch { brandSlug = null }
     }
+    // Specific model — only kept alongside a resolved brand (powers the brand rail's
+    // model expansion). Free display string; grouped distinct in the catalogue.
+    const model = brandSlug && body.model ? (String(body.model).trim().slice(0, 60) || null) : null
 
     const listing = await db.listing.create({
       data: {
@@ -437,12 +445,13 @@ export async function POST(req: NextRequest) {
         lng,
         condition: body.condition ? String(body.condition).trim() : null,
         images: JSON.stringify(images),
-        searchText: buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug]),
+        searchText: buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug, model]),
         categoryId: category.id,
         subcategorySlug,
         listingType,
         attributes,
         brandSlug,
+        model,
         sellerId: seller.id,
         verified: autoPublish,
       },

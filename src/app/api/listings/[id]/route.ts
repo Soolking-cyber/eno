@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const current = await db.listing.findUnique({
     where: { id },
-    select: { title: true, description: true, district: true, location: true, brandSlug: true, category: { select: { slug: true, name: true, nameVi: true } } },
+    select: { title: true, description: true, district: true, location: true, brandSlug: true, model: true, category: { select: { slug: true, name: true, nameVi: true } } },
   })
   if (!current) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -74,7 +74,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (next !== current.brandSlug) {
       data.brandSlug = next
       brandChange = { from: current.brandSlug, to: next }
+      if (!next) data.model = null // brand cleared → model is meaningless
     }
+  }
+  // Model edit (product categories only) — kept alongside a brand.
+  if (body.model !== undefined && categoryHasBrand(current.category.slug)) {
+    const effectiveBrand = (data.brandSlug as string | null | undefined) ?? current.brandSlug
+    data.model = effectiveBrand && body.model ? (String(body.model).trim().slice(0, 60) || null) : null
   }
 
   if (Object.keys(data).length === 0) return NextResponse.json({ ok: true })
@@ -84,7 +90,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const newDesc = (data.description as string) ?? current.description
   const newDistrict = (data.district as string | null) ?? current.district
   const newBrand = (data.brandSlug as string | null | undefined) ?? current.brandSlug
-  data.searchText = buildSearchText([newTitle, newDesc, newDistrict, current.category.name, current.category.nameVi, newBrand])
+  const newModel = (data.model as string | null | undefined) ?? current.model
+  data.searchText = buildSearchText([newTitle, newDesc, newDistrict, current.category.name, current.category.nameVi, newBrand, newModel])
 
   await db.listing.update({ where: { id }, data })
   if (brandChange) after(() => Promise.all([

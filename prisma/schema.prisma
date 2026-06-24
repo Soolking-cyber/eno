@@ -178,6 +178,9 @@ model Listing {
   listingType        String    @default("sell")
   // Canonical Brand.slug (product categories only) — typo-deduped at post time.
   brandSlug          String?
+  // Specific model within the brand (e.g. "iPhone 14 Pro", "Sorento"). Display
+  // string; the brand rail groups distinct models present in the catalogue.
+  model              String?
   sellerId           String
   seller             Seller    @relation(fields: [sellerId], references: [id])
   verified           Boolean   @default(false)
@@ -213,6 +216,7 @@ model Listing {
   @@index([verified, status, categoryId, listingType, postedAt])
   @@index([verified, status, categoryId, subcategorySlug, postedAt])
   @@index([verified, status, brandSlug, postedAt])
+  @@index([verified, status, brandSlug, model])
   @@index([verified, price])
   @@index([categoryId])
   @@index([featured])

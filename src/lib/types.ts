@@ -33,6 +33,7 @@ export type SerializedListing = {
   categoryId: string
   subcategorySlug: string | null
   brandSlug: string | null
+  model: string | null
   listingType: string
   category: {
     id: string
