@@ -7,7 +7,7 @@ import { GoogleGenAI } from '@google/genai'
 //   GOOGLE_VERTEX_CREDENTIALS  — the service-account JSON key, as a single-line string
 // Lazy singleton; returns null when unconfigured so the AI routes degrade gracefully.
 
-export const GEMINI_MODEL = 'gemini-2.0-flash' // fast + cheap + multimodal — ideal for classify/rephrase
+export const GEMINI_MODEL = 'gemini-2.5-flash' // fast + cheap + multimodal; verified available on this Vertex project (2.0-flash 404s here)
 
 let client: GoogleGenAI | null | undefined
 
