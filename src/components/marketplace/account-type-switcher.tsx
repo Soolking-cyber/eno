@@ -1,13 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, Building2, User } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 
-// Self-serve account-type switch in dashboard Settings — onboarding promises
-// "you can change this later", and this is the "later". POSTs to the existing
+const FIELD = 'w-full max-w-md rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-muted focus:bg-muted placeholder:text-ink-4'
+
+// Self-serve account-type switch in dashboard Settings — onboarding promises "you
+// can change this later", and this is the "later". POSTs to the existing
 // /api/profile/account-type route (which creates/claims a Seller storefront for
-// business). Switching to business needs a business name.
+// business). Flat layout (no box) to match the single-canvas design.
 export function AccountTypeSwitcher({ isBusiness, businessName, onSaved }: { isBusiness: boolean; businessName: string | null; onSaved: () => void }) {
   const { tr } = useLanguage()
   const [editing, setEditing] = useState(false)
@@ -41,42 +43,41 @@ export function AccountTypeSwitcher({ isBusiness, businessName, onSaved }: { isB
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-        {isBusiness ? <Building2 className="h-4 w-4 text-accent-foreground" /> : <User className="h-4 w-4 text-accent-foreground" />}
+    <div className="space-y-2">
+      <p className="text-sm font-semibold text-foreground">
         {isBusiness ? tr('Business account', 'Tài khoản doanh nghiệp') : tr('Individual account', 'Tài khoản cá nhân')}
-      </div>
+      </p>
 
       {!editing ? (
-        <button onClick={() => { setName(businessName || ''); setErr(''); setEditing(true) }} className="mt-2 text-xs font-bold text-accent-foreground hover:underline cursor-pointer">
+        <button onClick={() => { setName(businessName || ''); setErr(''); setEditing(true) }} className="text-xs font-bold text-accent-foreground hover:underline cursor-pointer">
           {isBusiness ? tr('Switch to individual', 'Chuyển sang cá nhân') : tr('Switch to business', 'Chuyển sang doanh nghiệp')}
         </button>
       ) : (
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2">
           {target === 'business' && (
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={120}
               placeholder={tr('Business name', 'Tên doanh nghiệp')}
-              className="w-full rounded-xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+              className={FIELD}
             />
           )}
-          <p className="text-xs text-body">
+          <p className="max-w-md text-xs text-body">
             {target === 'business'
               ? tr('Switching to business adds a storefront, analytics and bulk upload.', 'Chuyển sang doanh nghiệp sẽ thêm gian hàng, phân tích và đăng hàng loạt.')
               : tr('Switching to individual hides the business storefront tools.', 'Chuyển sang cá nhân sẽ ẩn các công cụ gian hàng doanh nghiệp.')}
           </p>
-          {err && <p className="text-xs font-semibold text-red-500">{err}</p>}
-          <div className="flex gap-2">
+          {err && <p className="text-xs font-semibold text-destructive">{err}</p>}
+          <div className="flex items-center gap-3">
             <button
               onClick={submit}
               disabled={busy || (target === 'business' && name.trim().length < 2)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-xs font-bold text-white hover:bg-[#004182] disabled:opacity-40 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-40 cursor-pointer"
             >
-              {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {tr('Confirm', 'Xác nhận')}
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Confirm', 'Xác nhận')}
             </button>
-            <button onClick={() => { setEditing(false); setErr('') }} className="rounded-xl px-4 py-2 text-xs font-bold text-body hover:bg-muted cursor-pointer">
+            <button onClick={() => { setEditing(false); setErr('') }} className="text-sm font-bold text-body hover:text-foreground cursor-pointer">
               {tr('Cancel', 'Hủy')}
             </button>
           </div>
