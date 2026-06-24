@@ -1,0 +1,36 @@
+# eno.vn
+
+> eno.vn is a verified classifieds marketplace for the international community in Vietnam — housing, motorbikes, electronics, furniture, jobs, services and moving sales. Listings auto-translate into 11 languages, sellers carry a public trust score, and contact happens in-app so phone numbers stay private.
+
+## About
+
+- Marketplace for expats and locals across Ho Chi Minh City, Hanoi and Da Nang.
+- Every listing shows price in VND, condition, location, and the seller's trust tier.
+- Buyers browse and search without an account; messaging, offers, saving and posting require sign-in.
+
+## Key pages
+
+- [Home / search](https://eno.vn/): browse and filter all listings by category, brand, model, area and price.
+- [Browse by brand](https://eno.vn/brands): listings grouped by brand with logos.
+- [How it works](https://eno.vn/guide): buying, selling, trust and safe trading.
+- [Help center](https://eno.vn/help): FAQ on accounts, messaging, offers and safety.
+- [Safe trading](https://eno.vn/safety): tips for meeting, paying and avoiding scams.
+
+## Categories
+
+- [Vehicles](https://eno.vn/c/vehicles): motorbikes, scooters, bicycles, cars, e-bikes, parts.
+- [Property](https://eno.vn/c/property): apartments, houses, rooms, serviced and short-term stays.
+- [Electronics](https://eno.vn/c/electronics): phones, laptops, TVs, audio, cameras, gaming.
+- [Furniture & Appliances](https://eno.vn/c/furniture-appliances): home furnishing and appliances.
+- [Moving Sale](https://eno.vn/c/moving-sale): whole-home liquidations from people leaving Vietnam.
+- [Fashion & Beauty](https://eno.vn/c/fashion-beauty), [Baby & Kids](https://eno.vn/c/baby-kids), [Hobbies, Sports & Books](https://eno.vn/c/hobbies-sports), [Jobs](https://eno.vn/c/jobs), [Services](https://eno.vn/c/services), [Pets](https://eno.vn/c/pets).
+
+## Data feeds
+
+- [Sitemap](https://eno.vn/sitemap.xml)
+- [Google product feed](https://eno.vn/api/feeds/google-shopping)
+
+## Notes
+
+- Listing prices are in Vietnamese đồng (VND).
+- Contact details are exchanged inside the in-app chat, never shown publicly on a listing.

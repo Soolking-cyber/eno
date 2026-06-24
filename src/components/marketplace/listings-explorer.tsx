@@ -1400,6 +1400,10 @@ export function ListingsExplorer({
             </div>
           </div>
 
+          {/* Section heading for the feed — keeps the document outline sequential
+              (h1 → h2 → card h3s); visually hidden. */}
+          <h2 className="sr-only">{tr('Latest listings', 'Tin đăng mới nhất')}</h2>
+
           {/* INFINITE FEED (Facebook-style) — all listings, loads more on scroll. */}
           {shownListings.length === 0 && !isLoading ? (
             queryError ? (
@@ -1547,6 +1551,9 @@ export function ListingsExplorer({
     <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden py-5 sm:py-8">
       {/* Width + edge gutter owned by the parent page <main> (see landing branch). */}
       <div className="relative w-full">
+        {/* Page heading for the search/results view — keeps a sequential outline
+            (h1 → rail/section h2 → card h3s); visually hidden. */}
+        <h1 className="sr-only">{tr('Marketplace listings', 'Tin đăng')}</h1>
 
         {/* Single-column faceted directory */}
         <div className="animate-in fade-in slide-in-from-bottom-3 duration-300">
@@ -1681,13 +1688,13 @@ export function ListingsExplorer({
               </div>
             )}
 
-            {/* Results metadata count */}
+            {/* Results metadata count — also the feed's h2 (keeps headings sequential). */}
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1 select-none">
-              <span>
+              <h2 className="text-xs font-normal text-muted-foreground">
                 {tr('Found', 'Tìm thấy')}{' '}
                 <strong className="text-foreground">{nearby ? shownListings.length : totalCount}</strong>{' '}
                 {tr('listings', 'tin đăng')}
-              </span>
+              </h2>
             </div>
 
             {/* LISTINGS CONTAINER */}
