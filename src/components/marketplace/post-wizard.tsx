@@ -533,6 +533,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
       </div>
 
       <AreaFilter
+        mode="pick"
         open={areaOpen}
         anchorRef={areaBtnRef}
         onClose={() => setAreaOpen(false)}

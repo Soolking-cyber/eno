@@ -49,7 +49,7 @@ function DisabledField({ label }: { label: string }) {
  * parent owns the applied province/ward/nearby and re-opens it.
  */
 export function AreaFilter({
-  open, anchorRef, onClose, province, ward, nearby, onApply, onReset,
+  open, anchorRef, onClose, province, ward, nearby, onApply, onReset, mode = 'search',
 }: {
   open: boolean
   anchorRef?: RefObject<HTMLElement | null>
@@ -59,6 +59,9 @@ export function AreaFilter({
   nearby: Nearby | null
   onApply: (r: { province: Geo | null; ward: Geo | null; nearby: Nearby | null }) => void
   onReset: () => void
+  // 'search' = explorer filter (radius slider). 'pick' = post wizard location
+  // picker — choose/auto-fetch a place, NO search-range slider or search wording.
+  mode?: 'search' | 'pick'
 }) {
   const { lang, tr } = useLanguage()
   const [mounted, setMounted] = useState(false)
@@ -257,11 +260,11 @@ export function AreaFilter({
           )}
         </div>
 
-        {/* Search near you */}
+        {/* Near you / use your location */}
         <div className="pt-1">
           <div className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-accent-foreground" />
-            <span className="text-sm font-bold text-foreground">{tr('Search near you', 'Tìm quanh bạn')}</span>
+            <span className="text-sm font-bold text-foreground">{mode === 'pick' ? tr('Use your location', 'Dùng vị trí của bạn') : tr('Search near you', 'Tìm quanh bạn')}</span>
           </div>
 
           {loc ? (
@@ -275,14 +278,17 @@ export function AreaFilter({
               ) : address ? (
                 <p className="text-xs leading-relaxed text-body">{address}</p>
               ) : null}
-              <div>
-                <div className="mb-1 flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">{tr('Search range', 'Bán kính tìm')}</span>
-                  <span className="font-bold text-foreground">{radiusKm} km</span>
+              {/* Radius slider is search-only — irrelevant when picking a post's location. */}
+              {mode === 'search' && (
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{tr('Search range', 'Bán kính tìm')}</span>
+                    <span className="font-bold text-foreground">{radiusKm} km</span>
+                  </div>
+                  <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
+                  <div className="flex justify-between text-[10px] text-ink-4"><span>1 km</span><span>20 km</span></div>
                 </div>
-                <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
-                <div className="flex justify-between text-[10px] text-ink-4"><span>1 km</span><span>20 km</span></div>
-              </div>
+              )}
             </div>
           ) : (
             <button
@@ -298,7 +304,7 @@ export function AreaFilter({
       </div>
 
       <div className="mt-4 flex gap-3">
-        <button onClick={reset} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Delete filter', 'Xóa lọc')}</button>
+        <button onClick={reset} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{mode === 'pick' ? tr('Clear', 'Xóa') : tr('Delete filter', 'Xóa lọc')}</button>
         <button onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</button>
       </div>
     </div>
