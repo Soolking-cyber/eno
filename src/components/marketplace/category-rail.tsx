@@ -33,7 +33,9 @@ export function CategoryRail({
   // When a category is chosen, slide the rail so that category sits at the left edge
   // — the user immediately sees their pick with its subcategories rolled out beside it.
   useEffect(() => {
-    if (activeCategory === 'all') { railRef.current?.scrollTo({ left: 0, behavior: 'smooth' }); return }
+    // Only scroll when OPENING a category (bring it to the left). On close/clear
+    // ('all') leave the scroll position untouched so the user keeps their place.
+    if (activeCategory === 'all') return
     const el = railRef.current?.querySelector(`[data-cat="${activeCategory}"]`) as HTMLElement | null
     el?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
   }, [activeCategory])

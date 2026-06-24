@@ -32,7 +32,8 @@ export function BrandRail({
 
   // Slide the rail so the chosen brand sits at the left edge, models rolled out beside it.
   useEffect(() => {
-    if (activeBrand === 'all') { railRef.current?.scrollTo({ left: 0, behavior: 'smooth' }); return }
+    // Only scroll when OPENING a brand; on close/clear keep the scroll position.
+    if (activeBrand === 'all') return
     const el = railRef.current?.querySelector(`[data-brand="${activeBrand}"]`) as HTMLElement | null
     el?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
   }, [activeBrand])
