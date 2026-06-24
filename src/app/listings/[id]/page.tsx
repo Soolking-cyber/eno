@@ -10,7 +10,7 @@ import { ListingGallery } from '@/components/marketplace/listing-gallery'
 import { Footer } from '@/components/marketplace/footer'
 import { CategoryIcon } from '@/components/marketplace/category-icons'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
-import { iconPathForSlug } from '@/lib/brand-icons'
+import { brandIconPath } from '@/lib/brand-icons'
 import {
   MapPin,
   AlertTriangle,
@@ -125,9 +125,9 @@ export default async function ListingPage({ params }: Props) {
   // Brand chip (when the listing carries a canonical brand) — links into the
   // brand-filtered feed. Resolve name + monotone logo server-side.
   const brand = listing.brandSlug
-    ? await db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true } })
+    ? await db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true, logoPath: true } })
     : null
-  const brandIconPath = brand ? iconPathForSlug(brand.iconSlug) : null
+  const brandLogoPath = brand ? brandIconPath(brand) : null
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const canonicalUrl = `${hostUrl}/listings/${listing.id}`
 
@@ -228,7 +228,7 @@ export default async function ListingPage({ params }: Props) {
                 href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
                 className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
               >
-                <BrandLogo name={brand.name} iconPath={brandIconPath} size={16} />
+                <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
                 {brand.name}
               </Link>
             )}

@@ -72,9 +72,11 @@ model Brand {
   normalized   String   @unique           // matching key: lowercased, de-accented, alphanumeric only
   aliases      String   @default("[]")    // JSON array of normalized variants/typos merged into this brand
   iconSlug     String?                    // simple-icons slug if recognized; null → monogram fallback
+  logoPath     String?                    // admin-curated monotone SVG path (24x24); overrides iconSlug
   listingCount Int      @default(0)        // ranks the brand directory
   status       String   @default("active") // active | hidden (admin can hide junk)
   createdAt    DateTime @default(now())
+  curatedAt    DateTime?                   // when an admin last reviewed/curated this brand
 
   @@index([status, listingCount])
 }

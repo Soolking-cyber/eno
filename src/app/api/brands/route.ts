@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeBrand } from '@/lib/brand-normalize'
-import { iconPathForSlug } from '@/lib/brand-icons'
+import { brandIconPath } from '@/lib/brand-icons'
 
 export const runtime = 'nodejs'
 
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get('category')?.trim()
   const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 60, 1), 200)
 
-  let rows: { slug: string; name: string; iconSlug: string | null; count: number }[]
+  let rows: { slug: string; name: string; iconSlug: string | null; logoPath: string | null; count: number }[]
 
   if (category && category !== 'all') {
     // Brands present in this category's live listings (rail context), ranked by
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     }
     const brandRows = await db.brand.findMany({
       where: { status: 'active', slug: { in: Array.from(stat.keys()) } },
-      select: { slug: true, name: true, iconSlug: true },
+      select: { slug: true, name: true, iconSlug: true, logoPath: true },
     })
     rows = brandRows
       .map((b) => ({ ...b, count: stat.get(b.slug)?.count ?? 0, demand: stat.get(b.slug)?.demand ?? 0 }))
@@ -53,14 +53,14 @@ export async function GET(req: NextRequest) {
     const where = q ? { status: 'active', normalized: { contains: q } } : { status: 'active' }
     const brandRows = await db.brand.findMany({
       where,
-      select: { slug: true, name: true, iconSlug: true, listingCount: true },
+      select: { slug: true, name: true, iconSlug: true, logoPath: true, listingCount: true },
       orderBy: [{ listingCount: 'desc' }, { name: 'asc' }],
       take: limit,
     })
-    rows = brandRows.map((b) => ({ slug: b.slug, name: b.name, iconSlug: b.iconSlug, count: b.listingCount }))
+    rows = brandRows.map((b) => ({ slug: b.slug, name: b.name, iconSlug: b.iconSlug, logoPath: b.logoPath, count: b.listingCount }))
   }
 
-  const brands = rows.map((b) => ({ slug: b.slug, name: b.name, count: b.count, iconPath: iconPathForSlug(b.iconSlug) }))
+  const brands = rows.map((b) => ({ slug: b.slug, name: b.name, count: b.count, iconPath: brandIconPath(b) }))
 
   return NextResponse.json(
     { brands },

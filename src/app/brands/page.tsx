@@ -5,7 +5,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { Tr } from '@/context/language-context'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { db } from '@/lib/db'
-import { iconPathForSlug } from '@/lib/brand-icons'
+import { brandIconPath } from '@/lib/brand-icons'
 
 export const metadata: Metadata = {
   title: 'Brands | eno.vn',
@@ -23,11 +23,11 @@ export default async function BrandsPage() {
   // fall back to empty rather than failing the render.
   const brands = await db.brand.findMany({
     where: { status: 'active', listingCount: { gt: 0 } },
-    select: { slug: true, name: true, iconSlug: true, listingCount: true },
+    select: { slug: true, name: true, iconSlug: true, logoPath: true, listingCount: true },
     orderBy: [{ listingCount: 'desc' }, { name: 'asc' }],
     take: 300,
   }).catch(() => [])
-  const items = brands.map((b) => ({ ...b, iconPath: iconPathForSlug(b.iconSlug) }))
+  const items = brands.map((b) => ({ ...b, iconPath: brandIconPath(b) }))
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">

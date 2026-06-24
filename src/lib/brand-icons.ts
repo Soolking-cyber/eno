@@ -38,3 +38,9 @@ export function iconPathForSlug(slug: string | null | undefined): string | null 
   ensure()
   return bySlug!.get(slug) ?? null
 }
+
+/** Effective monotone path for a brand: the admin-curated `logoPath` wins, else the
+ *  simple-icons logo for `iconSlug`, else null (→ monogram fallback). */
+export function brandIconPath(brand: { logoPath?: string | null; iconSlug?: string | null }): string | null {
+  return (brand.logoPath && brand.logoPath.trim()) || iconPathForSlug(brand.iconSlug)
+}
