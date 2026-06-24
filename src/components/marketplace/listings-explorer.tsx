@@ -484,10 +484,16 @@ export function ListingsExplorer({
     ],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (activeCategory !== 'all') params.set('category', activeCategory)
-      if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
-      if (activeBrand !== 'all') params.set('brand', activeBrand)
-      if (activeBrand !== 'all' && activeModel !== 'all') params.set('model', activeModel)
+      if (activeBrand !== 'all') {
+        // A brand search spans ALL categories; the browsed category is surfaced first
+        // (priorityCategory), not used as a hard filter.
+        params.set('brand', activeBrand)
+        if (activeModel !== 'all') params.set('model', activeModel)
+        if (activeCategory !== 'all') params.set('priorityCategory', activeCategory)
+      } else {
+        if (activeCategory !== 'all') params.set('category', activeCategory)
+        if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
+      }
       // "Near you" ignores area filters and pulls a broad set to distance-filter client-side.
       if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
       if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
@@ -541,10 +547,13 @@ export function ListingsExplorer({
   const histogramQuery = useMemo(() => {
     const p = new URLSearchParams()
     p.set('histogram', '1')
-    if (activeCategory !== 'all') p.set('category', activeCategory)
-    if (activeSubcategory !== 'all') p.set('subcategory', activeSubcategory)
-    if (activeBrand !== 'all') p.set('brand', activeBrand)
-    if (activeBrand !== 'all' && activeModel !== 'all') p.set('model', activeModel)
+    if (activeBrand !== 'all') {
+      p.set('brand', activeBrand)
+      if (activeModel !== 'all') p.set('model', activeModel)
+    } else {
+      if (activeCategory !== 'all') p.set('category', activeCategory)
+      if (activeSubcategory !== 'all') p.set('subcategory', activeSubcategory)
+    }
     if (!nearby && activeDistrict !== 'all') p.set('district', activeDistrict)
     if (!nearby && activeProvince) p.set('province', activeProvince.nameEn)
     if (!nearby && activeWard) p.set('ward', activeWard.nameEn)

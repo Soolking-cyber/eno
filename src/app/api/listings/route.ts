@@ -158,6 +158,9 @@ export async function GET(req: NextRequest) {
   if (model && model !== 'all') {
     andFilters.push({ model })
   }
+  // Soft hierarchy: a brand search spans ALL categories, but the category the user
+  // was browsing is surfaced FIRST (then the rest of the brand). Not a hard filter.
+  const priorityCategory = searchParams.get('priorityCategory')?.trim()
   
   // Category-specific attribute facets. Both the seed and the post wizard store
   // attributes as JSON using the taxonomy facet `.value` strings, so a generic
@@ -187,26 +190,31 @@ export async function GET(req: NextRequest) {
   // it, rows tied on the sort key (e.g. the many accounts at trustScore=100, or any
   // single-column sort) get no stable order across independent LIMIT/OFFSET queries,
   // so listings appear on two pages AND others are silently skipped as you paginate.
+  // Seller trust is a ranking signal on EVERY sort — higher trust ranks above lower.
+  // It's the primary factor on the default/relevance sorts and a tiebreaker on the
+  // explicit price/popular sorts (so a chosen price order is still honored, but ties
+  // and near-ties favour trusted sellers). Most accounts sit at 100, so among the
+  // bulk the secondary key (recency/price) still decides; Exceptional float up,
+  // Restricted sink.
+  const TRUST: Prisma.ListingOrderByWithRelationInput = { seller: { trustScore: 'desc' } }
   let orderBy: Prisma.ListingOrderByWithRelationInput[]
   switch (sort) {
     case 'price-low':
-      orderBy = [{ price: 'asc' }, { id: 'desc' }]
+      orderBy = [{ price: 'asc' }, TRUST, { id: 'desc' }]
       break
     case 'price-high':
-      orderBy = [{ price: 'desc' }, { id: 'desc' }]
+      orderBy = [{ price: 'desc' }, TRUST, { id: 'desc' }]
       break
     case 'popular':
-      orderBy = [{ views: 'desc' }, { id: 'desc' }]
+      orderBy = [{ views: 'desc' }, TRUST, { id: 'desc' }]
       break
     case 'verified-first':
-      orderBy = [{ verified: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }]
+      orderBy = [{ verified: 'desc' }, TRUST, { postedAt: 'desc' }, { id: 'desc' }]
       break
     case 'newest':
     default:
-      // Default ("Recommended") ranking factors trust: featured first, then higher
-      // trust score, then recency. Most accounts sit at 100 (tie → recency rules),
-      // while Exceptional sellers float up and Restricted ones sink — "higher = better".
-      orderBy = [{ featured: 'desc' }, { seller: { trustScore: 'desc' } }, { postedAt: 'desc' }, { id: 'desc' }]
+      // Default ("Recommended"): featured first, then higher trust, then recency.
+      orderBy = [{ featured: 'desc' }, TRUST, { postedAt: 'desc' }, { id: 'desc' }]
   }
 
   // Parallel fetch: Listings, total count, and subcategory counts (if category is set)
@@ -282,9 +290,21 @@ export async function GET(req: NextRequest) {
     })
   }
 
+  // Hierarchy for a brand search: keep the trust/recency order the DB returned, but
+  // stable-promote the active category's items to the front (current category first,
+  // then the rest of the brand across other categories).
+  let ordered = listings
+  if (priorityCategory && priorityCategory !== 'all') {
+    ordered = [...listings].sort((a, b) => {
+      const ap = a.category?.slug === priorityCategory ? 0 : 1
+      const bp = b.category?.slug === priorityCategory ? 0 : 1
+      return ap - bp // stable: ties keep the DB (trust→recency) order
+    })
+  }
+
   return NextResponse.json(
     {
-      listings: listings.map(serializeListing),
+      listings: ordered.map(serializeListing),
       total,
       offset,
       limit,
