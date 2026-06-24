@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { MapPin, LocateFixed, Loader2, Check, ChevronDown } from 'lucide-react'
+import { LocateFixed, Loader2, Check, ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { CustomSelect } from './custom-select'
 import { EnoSlider } from './eno-slider'
@@ -260,13 +260,9 @@ export function AreaFilter({
           )}
         </div>
 
-        {/* Near you / use your location */}
+        {/* Near you / use your location — the action button below is self-explanatory,
+            so no heading. */}
         <div className="pt-1">
-          <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-accent-foreground" />
-            <span className="text-sm font-bold text-foreground">{mode === 'pick' ? tr('Use your location', 'Dùng vị trí của bạn') : tr('Search near you', 'Tìm quanh bạn')}</span>
-          </div>
-
           {loc ? (
             <div className="mt-3 space-y-3">
               <div className="flex items-center justify-between">
