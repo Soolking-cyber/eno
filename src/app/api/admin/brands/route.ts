@@ -37,9 +37,22 @@ export async function PATCH(req: NextRequest) {
   }
   if (body.iconSlug !== undefined) data.iconSlug = body.iconSlug ? String(body.iconSlug).trim().slice(0, 80) : null
   if (body.logoPath !== undefined) {
-    // Monotone SVG path data only — keep just path-data characters (no markup), capped.
     const raw = body.logoPath ? String(body.logoPath).trim() : ''
-    const clean = raw.replace(/[^0-9A-Za-z.,\-\s]/g, '').slice(0, 20000)
+    let clean = ''
+    if (raw.startsWith('<svg')) {
+      // Full SVG (rendered via an <img> data-URI, so already script-sandboxed) — still
+      // strip script/handlers/foreignObject defensively, and require a well-formed <svg>.
+      const stripped = raw
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
+        .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+        .replace(/javascript:/gi, '')
+        .slice(0, 20000)
+      if (/^<svg[\s\S]*<\/svg>\s*$/i.test(stripped)) clean = stripped
+    } else {
+      // Bare monotone path data — keep only path-data characters.
+      clean = raw.replace(/[^0-9A-Za-z.,\-\s]/g, '').slice(0, 20000)
+    }
     data.logoPath = clean || null
   }
   if (body.status === 'active' || body.status === 'hidden') data.status = body.status

@@ -52,7 +52,7 @@ export function AdminBrandsClient() {
       <h1 className="text-2xl font-bold text-foreground">Brand curation</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         {brands.length} brands · <span className="font-semibold text-accent-foreground">{uncurated} to review</span>. Attach a monotone logo (a{' '}
-        <a href="https://simpleicons.org" target="_blank" rel="noreferrer" className="underline">simple-icons</a> slug, or paste a 24×24 SVG path), tidy names, or merge duplicates.
+        <a href="https://simpleicons.org" target="_blank" rel="noreferrer" className="underline">simple-icons</a> slug, or paste a full SVG / path), tidy names, or merge duplicates.
       </p>
 
       <div className="mt-5 flex items-center gap-2 rounded-xl bg-tint px-3.5 py-2.5">
@@ -163,8 +163,8 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
           </Field>
           <Field label="simple-icons slug (e.g. apple)"><input value={iconSlug} onChange={(e) => setIconSlug(e.target.value)} placeholder="leave blank if none" className={INPUT} /></Field>
           <Field label="Aliases (comma-separated, normalized)"><input value={aliases} onChange={(e) => setAliases(e.target.value)} className={INPUT} /></Field>
-          <Field label="Custom logo — monotone SVG path (24×24, overrides slug)" full>
-            <textarea value={logoPath} onChange={(e) => setLogoPath(e.target.value)} rows={2} placeholder="M12 2 4 5v6.2…" className={cn(INPUT, 'font-mono text-xs')} />
+          <Field label="Custom logo — paste a full <svg>…</svg> or a monotone path (overrides slug)" full>
+            <textarea value={logoPath} onChange={(e) => setLogoPath(e.target.value)} rows={2} placeholder={'<svg viewBox="0 0 24 24">…</svg>  or  M12 2 4 5v6.2…'} className={cn(INPUT, 'font-mono text-xs')} />
           </Field>
           <div className="flex items-center justify-between gap-3 sm:col-span-2">
             <div className="flex items-center gap-2">

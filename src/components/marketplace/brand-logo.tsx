@@ -24,6 +24,23 @@ export function BrandLogo({
   className?: string
 }) {
   if (iconPath) {
+    const v = iconPath.trim()
+    // A full <svg> (admin-curated, any viewBox) renders via an <img> data-URI —
+    // browser-sandboxed (no script execution) and keeps the logo's own scale/colour.
+    if (v.startsWith('<svg')) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`data:image/svg+xml;utf8,${encodeURIComponent(v)}`}
+          width={size}
+          height={size}
+          alt={name}
+          className={`object-contain ${className}`}
+        />
+      )
+    }
+    // Otherwise it's monotone path data (simple-icons, or a pasted 24×24 path):
+    // render in currentColor so it tints with the rail/card.
     return (
       <svg
         viewBox="0 0 24 24"
