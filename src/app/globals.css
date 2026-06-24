@@ -450,6 +450,18 @@ input, select, textarea {
 [data-sonner-toast] [data-close-button] {
   border-radius: 9999px;
 }
+/* On-brand toast icons (no richColors green/red fills — the card stays our
+   popover surface; only the small status icon carries colour). */
+[data-sonner-toast][data-type="success"] [data-icon],
+[data-sonner-toast][data-type="info"] [data-icon] {
+  color: #0a66c2;
+}
+[data-sonner-toast][data-type="error"] [data-icon] {
+  color: #dc2626;
+}
+[data-sonner-toast][data-type="warning"] [data-icon] {
+  color: #b45309;
+}
 
 /* ============================================================
    NO FOCUS-ZOOM ON MOBILE — iOS Safari auto-zooms when a focused form
