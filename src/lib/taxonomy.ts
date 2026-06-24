@@ -434,6 +434,15 @@ export const CATEGORY_BY_SLUG: Record<string, CategoryDef> = Object.fromEntries(
   TAXONOMY.map((c) => [c.slug, c]),
 )
 
+// Categories where a brand is meaningful (product categories). Client-safe; the
+// server-only brand resolver (src/lib/brand.ts) re-exports this same set.
+export const BRAND_CATEGORY_SLUGS = [
+  'electronics', 'fashion-beauty', 'vehicles', 'furniture-appliances', 'baby-kids', 'hobbies-sports',
+] as const
+export function categoryHasBrand(slug: string | null | undefined): boolean {
+  return !!slug && (BRAND_CATEGORY_SLUGS as readonly string[]).includes(slug)
+}
+
 export function subcategoriesFor(categorySlug: string): SubcatDef[] {
   return CATEGORY_BY_SLUG[categorySlug]?.subcategories ?? []
 }

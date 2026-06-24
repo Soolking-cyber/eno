@@ -41,6 +41,7 @@ export function serializeListing(
     images: safeParse<string[]>(l.images, []).map(fixMockImage),
     categoryId: l.categoryId,
     subcategorySlug: l.subcategorySlug,
+    brandSlug: l.brandSlug,
     listingType: l.listingType,
     category: {
       id: l.category.id,

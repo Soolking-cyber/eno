@@ -61,6 +61,24 @@ model Profile {
   @@index([trustTier])
 }
 
+// Brand catalogue (product categories only). Grows automatically: a brand read by
+// the AI or typed by a seller is normalized + typo-deduped against existing entries
+// (so "huawi" merges into "huawei", recorded as an alias) before a new row is added.
+// `iconSlug` maps to a simple-icons monotone logo when recognized, else a monogram.
+model Brand {
+  id           String   @id @default(cuid())
+  slug         String   @unique           // url/canonical slug, e.g. "huawei"
+  name         String                     // display name, e.g. "Huawei"
+  normalized   String   @unique           // matching key: lowercased, de-accented, alphanumeric only
+  aliases      String   @default("[]")    // JSON array of normalized variants/typos merged into this brand
+  iconSlug     String?                    // simple-icons slug if recognized; null → monogram fallback
+  listingCount Int      @default(0)        // ranks the brand directory
+  status       String   @default("active") // active | hidden (admin can hide junk)
+  createdAt    DateTime @default(now())
+
+  @@index([status, listingCount])
+}
+
 // A buyer's saved search (their filter set) — alerts them (in-app + web push) when
 // a new matching listing appears. FK within public → Profile (normal flow).
 model SavedSearch {
@@ -158,6 +176,8 @@ model Listing {
   // Intent axis, separate from the category: sell | rent | wanted | free | service | job | event.
   // A motorbike lives in Vehicles whether rented or sold. Defaults to 'sell'.
   listingType        String    @default("sell")
+  // Canonical Brand.slug (product categories only) — typo-deduped at post time.
+  brandSlug          String?
   sellerId           String
   seller             Seller    @relation(fields: [sellerId], references: [id])
   verified           Boolean   @default(false)
@@ -192,6 +212,7 @@ model Listing {
   // Feed path filtered by category + intent (e.g. Vehicles · For rent), recency-sorted.
   @@index([verified, status, categoryId, listingType, postedAt])
   @@index([verified, status, categoryId, subcategorySlug, postedAt])
+  @@index([verified, status, brandSlug, postedAt])
   @@index([verified, price])
   @@index([categoryId])
   @@index([featured])

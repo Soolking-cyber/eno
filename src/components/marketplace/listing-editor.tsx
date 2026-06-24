@@ -13,6 +13,8 @@ export type EditableListing = {
   price: number
   district: string | null
   condition: string | null
+  brand?: string | null      // current brand display name (product categories only)
+  showBrand?: boolean        // whether this listing's category supports a brand
   images: string[]
   currency: string
 }
@@ -28,6 +30,7 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
   const [price, setPrice] = useState(String(listing.price))
   const [district, setDistrict] = useState(listing.district || '')
   const [condition, setCondition] = useState(listing.condition || '')
+  const [brand, setBrand] = useState(listing.brand || '')
   const [images, setImages] = useState<string[]>(listing.images)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -57,6 +60,7 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
           price: Number(price),
           district: district.trim() || null,
           condition: condition || null,
+          ...(listing.showBrand ? { brand: brand.trim() || null } : {}),
           images,
         }),
       })
@@ -118,6 +122,13 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
             ))}
           </div>
         </div>
+
+        {listing.showBrand && (
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-body">{tr('Brand', 'Thương hiệu')}</label>
+            <input value={brand} onChange={(e) => setBrand(e.target.value)} maxLength={40} placeholder={tr('e.g. Apple, Samsung, Honda', 'vd. Apple, Samsung, Honda')} className={field} />
+          </div>
+        )}
 
         <div>
           <label className="mb-1 block text-xs font-semibold text-body">{tr('Photos', 'Hình ảnh')}</label>

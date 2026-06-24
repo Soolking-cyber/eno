@@ -13,7 +13,7 @@ import { VndInput } from './vnd-input'
 import { AreaFilter, type Geo, type Nearby } from './area-filter'
 import { Mascot } from './mascot'
 import { formatMoneyFull } from '@/lib/vnd'
-import { subcategoriesFor, typesFor, facetsFor, LISTING_TYPES } from '@/lib/taxonomy'
+import { subcategoriesFor, typesFor, facetsFor, categoryHasBrand, LISTING_TYPES } from '@/lib/taxonomy'
 import { normalizeImageFile } from '@/lib/normalize-image'
 
 const TITLE_MAX = 140
@@ -59,6 +59,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
         setAttrs({})
         if (d.listingType) setListingType(d.listingType)
         if (d.condition) setCondition(d.condition)
+        if (d.brand && !brand.trim()) setBrand(d.brand)
         if (d.title && !title.trim()) setTitle(d.title)
         // AI spec sheet (brand/model/key specs) → seed the description if empty.
         if (d.description && !description.trim()) setDescription(d.description)
@@ -99,6 +100,8 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
   const [condition, setCondition] = useState('')
+  const [brand, setBrand] = useState('')
+  const [brandOptions, setBrandOptions] = useState<string[]>([])
   const [areaOpen, setAreaOpen] = useState(false)
   const areaBtnRef = useRef<HTMLButtonElement>(null)
   const [province, setProvince] = useState<Geo | null>(null)
@@ -126,18 +129,30 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
     }).catch(() => setMeLoaded(true))
   }, [])
 
+  // Top brands for the datalist (suggestions only — free text creates new brands).
+  // Fetched once when the user lands on a brand-relevant category.
+  useEffect(() => {
+    if (!categoryHasBrand(categorySlug) || brandOptions.length) return
+    fetch('/api/brands?limit=120')
+      .then((r) => r.json())
+      .then((d) => setBrandOptions((d.brands || []).map((b: { name: string }) => b.name)))
+      .catch(() => {})
+  }, [categorySlug, brandOptions.length])
+
   const cat = categories.find((c) => c.slug === categorySlug)
   const subOptions = subcategoriesFor(categorySlug)
   const typeOptions = typesFor(categorySlug)
   const catFacets = facetsFor(categorySlug)
   const hasCondition = catFacets.some((f) => f.key === 'condition')
   const attrFacets = catFacets.filter((f) => f.key !== 'condition')
+  const showBrand = categoryHasBrand(categorySlug)
 
   const chooseCategory = (slug: string) => {
     setCategorySlug(slug)
     setSubcategorySlug('')
     setAttrs({})
     setCondition('')
+    if (!categoryHasBrand(slug)) setBrand('')
     setListingType(typesFor(slug)[0] ?? 'sell')
   }
 
@@ -219,6 +234,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
           lat: nearby?.lat ?? null,
           lng: nearby?.lng ?? null,
           condition: hasCondition ? condition || null : null,
+          brand: showBrand ? brand.trim() || null : null,
           images: imageUrls,
           contactName: contactName.trim(),
           contactPhone: contactPhone.trim(),
@@ -347,6 +363,21 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
             {categorySlug && subOptions.length > 0 && (
               <Field label={t('Danh mục con', 'Subcategory')}>
                 <Chips options={subOptions.map((s) => ({ value: s.slug, label: lang === 'vi' ? s.nameVi : s.name }))} value={subcategorySlug} onPick={(v) => setSubcategorySlug(v === subcategorySlug ? '' : v)} />
+              </Field>
+            )}
+            {showBrand && (
+              <Field label={t('Thương hiệu', 'Brand')} hint={t('Giúp người mua tìm theo hãng. Bỏ trống nếu không có.', 'Helps buyers find you by brand. Leave blank if none.')}>
+                <input
+                  value={brand}
+                  list="brand-options"
+                  maxLength={40}
+                  onChange={(e) => setBrand(e.target.value)}
+                  placeholder={t('VD: Apple, Samsung, Honda', 'e.g. Apple, Samsung, Honda')}
+                  className="w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                />
+                <datalist id="brand-options">
+                  {brandOptions.map((b) => <option key={b} value={b} />)}
+                </datalist>
               </Field>
             )}
           </Section>

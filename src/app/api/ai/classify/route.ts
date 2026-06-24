@@ -6,6 +6,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { TAXONOMY } from '@/lib/taxonomy'
 import { containsPhoneNumber } from '@/lib/phone'
+import { categoryHasBrand } from '@/lib/brand'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -58,10 +59,10 @@ export async function POST(req: NextRequest) {
 Pick the single best category + subcategory from THIS taxonomy (use the exact slugs):
 ${TAXONOMY_TEXT}
 
-Also pick: listingType (one of the category's listed types; default "sell"); condition ("new" or "used", or "" if not a physical item / can't tell); a concise, factual title in ${titleLang} (max 80 chars, no price, no phone); and "description": a SHORT spec sheet in ${titleLang} — only the main specs you can identify (brand, model, size/capacity, colour, key features). 1–3 short lines or comma-separated, factual, NO marketing fluff, NO price, NO phone. If you can't identify specs, return "".
+Also pick: listingType (one of the category's listed types; default "sell"); condition ("new" or "used", or "" if not a physical item / can't tell); a concise, factual title in ${titleLang} (max 80 chars, no price, no phone); "brand": the product's brand name if clearly identifiable (e.g. Apple, Huawei, Honda, Samsung), else ""; and "description": a SHORT spec sheet in ${titleLang} — only the main specs you can identify (brand, model, size/capacity, colour, key features). 1–3 short lines or comma-separated, factual, NO marketing fluff, NO price, NO phone. If you can't identify specs, return "".
 Return ONLY JSON.`
 
-  let parsed: { category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; description?: string } = {}
+  let parsed: { category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; brand?: string; description?: string } = {}
   try {
     const res = await ai.models.generateContent({
       model: GEMINI_MODEL,
@@ -82,6 +83,7 @@ Return ONLY JSON.`
             listingType: { type: Type.STRING },
             condition: { type: Type.STRING },
             title: { type: Type.STRING },
+            brand: { type: Type.STRING },
             description: { type: Type.STRING },
           },
           required: ['category'],
@@ -104,6 +106,9 @@ Return ONLY JSON.`
   const listingType = cat.types.includes(parsed.listingType as never) ? parsed.listingType : 'sell'
   const condition = parsed.condition === 'new' || parsed.condition === 'used' ? parsed.condition : null
   const title = (parsed.title || '').trim().slice(0, 140) || null
+  // Raw brand string (only for brand-relevant categories) — the server canonicalizes
+  // + typo-dedupes it on save; here we just surface the AI's read for the form.
+  const brand = categoryHasBrand(cat.slug) ? ((parsed.brand || '').trim().slice(0, 40) || null) : null
   // Concise spec sheet (brand/model/key specs). Guard against a model that slips a
   // phone number in; cap length so it stays a short spec list, not an essay.
   let description = (parsed.description || '').trim().slice(0, 600) || null
@@ -115,6 +120,7 @@ Return ONLY JSON.`
     listingType,
     condition,
     title,
+    brand,
     description,
   })
 }

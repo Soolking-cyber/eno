@@ -9,6 +9,8 @@ import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
 import { Footer } from '@/components/marketplace/footer'
 import { CategoryIcon } from '@/components/marketplace/category-icons'
+import { BrandLogo } from '@/components/marketplace/brand-logo'
+import { iconPathForSlug } from '@/lib/brand-icons'
 import {
   MapPin,
   AlertTriangle,
@@ -120,6 +122,12 @@ export default async function ListingPage({ params }: Props) {
     .toUpperCase()
 
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []
+  // Brand chip (when the listing carries a canonical brand) — links into the
+  // brand-filtered feed. Resolve name + monotone logo server-side.
+  const brand = listing.brandSlug
+    ? await db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true } })
+    : null
+  const brandIconPath = brand ? iconPathForSlug(brand.iconSlug) : null
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const canonicalUrl = `${hostUrl}/listings/${listing.id}`
 
@@ -212,6 +220,15 @@ export default async function ListingPage({ params }: Props) {
               <Tr text={listing.category.name} />
             </span>
             <h1 className="h-title text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} /></h1>
+            {brand && (
+              <Link
+                href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
+                className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+              >
+                <BrandLogo name={brand.name} iconPath={brandIconPath} size={16} />
+                {brand.name}
+              </Link>
+            )}
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4 text-ink-4 shrink-0" />
               <span className="truncate"><Tr text={listing.location} /></span>

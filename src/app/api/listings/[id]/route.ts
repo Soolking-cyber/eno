@@ -6,6 +6,7 @@ import { containsPhoneNumber } from '@/lib/phone'
 import { buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl } from '@/lib/listing-image'
+import { categoryHasBrand, resolveBrand, bumpBrandCount } from '@/lib/brand'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const current = await db.listing.findUnique({
     where: { id },
-    select: { title: true, description: true, district: true, location: true, category: { select: { name: true, nameVi: true } } },
+    select: { title: true, description: true, district: true, location: true, brandSlug: true, category: { select: { slug: true, name: true, nameVi: true } } },
   })
   if (!current) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -64,15 +65,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.images = JSON.stringify(images)
   }
 
+  // Brand edit (product categories only) — re-resolve into the catalogue and move
+  // the listing-count from the old brand to the new one. Best-effort; never blocks.
+  let brandChange: { from: string | null; to: string | null } | null = null
+  if (body.brand !== undefined && categoryHasBrand(current.category.slug)) {
+    const raw = body.brand ? String(body.brand) : ''
+    const next = raw.trim() ? await resolveBrand(raw).catch(() => null) : null
+    if (next !== current.brandSlug) {
+      data.brandSlug = next
+      brandChange = { from: current.brandSlug, to: next }
+    }
+  }
+
   if (Object.keys(data).length === 0) return NextResponse.json({ ok: true })
 
   // Rebuild the folded search blob from the new values (fall back to current).
   const newTitle = (data.title as string) ?? current.title
   const newDesc = (data.description as string) ?? current.description
   const newDistrict = (data.district as string | null) ?? current.district
-  data.searchText = buildSearchText([newTitle, newDesc, newDistrict, current.category.name, current.category.nameVi])
+  const newBrand = (data.brandSlug as string | null | undefined) ?? current.brandSlug
+  data.searchText = buildSearchText([newTitle, newDesc, newDistrict, current.category.name, current.category.nameVi, newBrand])
 
   await db.listing.update({ where: { id }, data })
+  if (brandChange) after(() => Promise.all([
+    brandChange!.from ? bumpBrandCount(brandChange!.from, -1) : Promise.resolve(),
+    brandChange!.to ? bumpBrandCount(brandChange!.to, 1) : Promise.resolve(),
+  ]))
   revalidatePath(`/listings/${id}`) // purge the cached (ISR) detail page so the edit shows
 
   // Re-warm translations for any changed user text (after the response flushes).
@@ -87,7 +105,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params
   const auth = await checkListingOwner(id)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.code })
+  const gone = await db.listing.findUnique({ where: { id }, select: { brandSlug: true } })
   await db.listing.delete({ where: { id } })
+  if (gone?.brandSlug) after(() => bumpBrandCount(gone.brandSlug!, -1))
   revalidatePath(`/listings/${id}`)
   return NextResponse.json({ ok: true })
 }

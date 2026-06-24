@@ -57,6 +57,12 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
   )
 })
 
+// Display a brand slug ("louis-vuitton") as a label ("Louis Vuitton") without a
+// catalogue round-trip. Brands recognized by simple-icons keep their canonical name.
+function prettyBrand(slug: string): string {
+  return slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
+
 type SortKey = 'newest' | 'price-low' | 'price-high' | 'popular'
 type ViewMode = 'compact' | 'grid' | 'map'
 
@@ -92,6 +98,7 @@ export function ListingsExplorer({
   const [priceRange, setPriceRange] = useState('all') // 'all' | 'min-max' (VND, empty max = open)
   const [customFilters, setCustomFilters] = useState<Record<string, string>>({})
   const [activeSubcategory, setActiveSubcategory] = useState('all')
+  const [activeBrand, setActiveBrand] = useState('all') // canonical brand slug, or 'all'
   const [openMobileDistrictDropdown, setOpenMobileDistrictDropdown] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('compact')
   // Honor ?view=map|grid|compact (e.g. the footer "Map" link opens the map view).
@@ -149,6 +156,7 @@ export function ListingsExplorer({
     setActiveCategory('all')
     setActiveDistrict('all')
     setActiveSubcategory('all')
+    setActiveBrand('all')
     setCustomFilters({})
     setPriceRange('all')
     setShowExplorer(false)
@@ -175,6 +183,7 @@ export function ListingsExplorer({
       query.trim() !== '' ||
       activeDistrict !== 'all' ||
       activeSubcategory !== 'all' ||
+      activeBrand !== 'all' ||
       listingType !== 'all' ||
       conditionFilter !== 'all' ||
       priceRange !== 'all' ||
@@ -182,7 +191,7 @@ export function ListingsExplorer({
     ) {
       setShowExplorer(true)
     }
-  }, [activeCategory, query, activeDistrict, activeSubcategory, customFilters, listingType, conditionFilter, priceRange])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, customFilters, listingType, conditionFilter, priceRange])
 
   // Load search + location history from localStorage on mount
   useEffect(() => {
@@ -318,6 +327,7 @@ export function ListingsExplorer({
   const handleCategorySelect = (slug: string) => {
     setActiveCategory(slug)
     setActiveSubcategory('all')
+    setActiveBrand('all')
     setCustomFilters({})
     setPriceRange('all') // price brackets are category-specific
   }
@@ -326,6 +336,7 @@ export function ListingsExplorer({
     setOpenMobileDistrictDropdown(false)
     setActiveCategory(slug)
     setActiveSubcategory('all')
+    setActiveBrand('all')
     setCustomFilters({})
     setPriceRange('all')
   }
@@ -338,6 +349,7 @@ export function ListingsExplorer({
       setActiveCategory(params.get('category') || 'all')
       setActiveDistrict(params.get('district') || 'all')
       setActiveSubcategory(params.get('subcategory') || 'all')
+      setActiveBrand(params.get('brand') || 'all')
       setListingType(params.get('type') || 'all')
       setConditionFilter(params.get('condition') || 'all')
       const pmin = params.get('priceMin'), pmax = params.get('priceMax')
@@ -387,6 +399,9 @@ export function ListingsExplorer({
       params.delete('subcategory')
     }
 
+    if (activeBrand !== 'all') params.set('brand', activeBrand)
+    else params.delete('brand')
+
     if (listingType !== 'all') params.set('type', listingType)
     else params.delete('type')
 
@@ -419,7 +434,7 @@ export function ListingsExplorer({
     // replaceState bypasses Next's router, so the persistent header search bar won't
     // see the query change — broadcast it so the top bar stays in sync.
     window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() } }))
-  }, [activeCategory, query, activeDistrict, activeSubcategory, customFilters, listingType, conditionFilter, priceRange])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, customFilters, listingType, conditionFilter, priceRange])
 
   // Debounce search query input to avoid making API requests on every keystroke
   useEffect(() => {
@@ -432,7 +447,7 @@ export function ListingsExplorer({
   // Reset page to 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, listingType, verifiedOnly, sort, activeSubcategory, customFilters, priceRange, nearby, activeProvince?.code, activeWard?.code])
+  }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, listingType, verifiedOnly, sort, activeSubcategory, activeBrand, customFilters, priceRange, nearby, activeProvince?.code, activeWard?.code])
 
   // Fetch listings dynamically from API on parameter/page modifications using React Query SWR cache
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isError: queryError, refetch: refetchListings } = useQuery({
@@ -441,6 +456,7 @@ export function ListingsExplorer({
       {
         category: activeCategory,
         subcategory: activeSubcategory,
+        brand: activeBrand,
         district: activeDistrict,
         province: activeProvince?.code ?? null,
         ward: activeWard?.code ?? null,
@@ -459,6 +475,7 @@ export function ListingsExplorer({
       const params = new URLSearchParams()
       if (activeCategory !== 'all') params.set('category', activeCategory)
       if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
+      if (activeBrand !== 'all') params.set('brand', activeBrand)
       // "Near you" ignores area filters and pulls a broad set to distance-filter client-side.
       if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
       if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
@@ -497,6 +514,7 @@ export function ListingsExplorer({
     // views get no seed and fetch normally. Must match the /api/listings shape.
     initialData:
       page === 1 && activeCategory === 'all' && activeSubcategory === 'all' &&
+      activeBrand === 'all' &&
       activeDistrict === 'all' && conditionFilter === 'all' && priceRange === 'all' &&
       listingType === 'all' &&
       sort === 'newest' && verifiedOnly && !debouncedQuery.trim() &&
@@ -513,6 +531,7 @@ export function ListingsExplorer({
     p.set('histogram', '1')
     if (activeCategory !== 'all') p.set('category', activeCategory)
     if (activeSubcategory !== 'all') p.set('subcategory', activeSubcategory)
+    if (activeBrand !== 'all') p.set('brand', activeBrand)
     if (!nearby && activeDistrict !== 'all') p.set('district', activeDistrict)
     if (!nearby && activeProvince) p.set('province', activeProvince.nameEn)
     if (!nearby && activeWard) p.set('ward', activeWard.nameEn)
@@ -521,7 +540,7 @@ export function ListingsExplorer({
     if (debouncedQuery.trim()) p.set('q', debouncedQuery.trim())
     Object.entries(customFilters).forEach(([k, v]) => { if (v && v !== 'all') p.set(`attr_${k}`, v) })
     return p.toString()
-  }, [activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, customFilters])
+  }, [activeCategory, activeSubcategory, activeBrand, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, customFilters])
 
   // Synchronize state and trigger history caching when data changes
   useEffect(() => {
@@ -1428,6 +1447,9 @@ export function ListingsExplorer({
       const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
       chips.push({ label: sub ? (lang === 'vi' ? sub.nameVi : sub.name) : activeSubcategory, onClear: () => setActiveSubcategory('all') })
     }
+    if (activeBrand !== 'all') {
+      chips.push({ label: prettyBrand(activeBrand), onClear: () => setActiveBrand('all') })
+    }
     if (activeDistrict !== 'all') {
       const d = DISTRICTS.find((x) => x.slug === activeDistrict)
       chips.push({ label: d ? (lang === 'vi' ? d.name : d.nameEn) : activeDistrict, onClear: () => setActiveDistrict('all') })
@@ -1471,6 +1493,7 @@ export function ListingsExplorer({
               onClick={() => {
                 setQuery('')
                 setActiveSubcategory('all')
+                setActiveBrand('all')
                 setActiveDistrict('all')
                 setPriceRange('all')
                 setConditionFilter('all')
@@ -1690,6 +1713,22 @@ export function ListingsExplorer({
                   </button>
                 </div>
               </div>
+
+            {/* Active brand banner — shown when filtering by a brand; clearable. */}
+            {activeBrand !== 'all' && (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-tint px-3 py-2">
+                <span className="text-sm font-semibold text-foreground">
+                  {prettyBrand(activeBrand)}
+                </span>
+                <button
+                  onClick={() => setActiveBrand('all')}
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-muted transition-colors cursor-pointer"
+                >
+                  {tr('Clear brand', 'Bỏ thương hiệu')}
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
 
             {/* Results metadata count */}
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1 select-none">

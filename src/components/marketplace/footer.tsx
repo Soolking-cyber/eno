@@ -78,6 +78,7 @@ export function Footer() {
             <a href="/motorbikes-for-sale-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Motorbikes for sale & rent', 'Xe máy mua bán & cho thuê')}</a>
             <a href="/moving-sales-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Moving sales', 'Thanh lý chuyển nhà')}</a>
             <a href="/services-for-expats-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Services for expats', 'Dịch vụ cho người nước ngoài')}</a>
+            <a href="/brands" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Browse by brand', 'Duyệt theo thương hiệu')}</a>
           </div>
         </nav>
 

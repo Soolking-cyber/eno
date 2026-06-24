@@ -9,6 +9,7 @@ import { warmTranslations } from '@/lib/translate'
 import { syndicateListing } from '@/lib/syndicate'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
+import { categoryHasBrand, resolveBrand, bumpBrandCount } from '@/lib/brand'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
@@ -146,6 +147,11 @@ export async function GET(req: NextRequest) {
   const listingType = searchParams.get('type')?.trim()
   if (listingType && listingType !== 'all') {
     andFilters.push({ listingType })
+  }
+  // Brand filter — canonical slug on the dedicated column (catalogue-aligned).
+  const brand = searchParams.get('brand')?.trim()
+  if (brand && brand !== 'all') {
+    andFilters.push({ brandSlug: brand })
   }
   
   // Category-specific attribute facets. Both the seed and the post wizard store
@@ -409,6 +415,13 @@ export async function POST(req: NextRequest) {
       if (Object.keys(clean).length) attributes = JSON.stringify(clean)
     }
 
+    // Brand (product categories only): canonicalize + typo-dedupe into the catalogue,
+    // growing it on first sight. Never blocks the post if resolution fails.
+    let brandSlug: string | null = null
+    if (categoryHasBrand(categorySlug) && body.brand) {
+      try { brandSlug = await resolveBrand(String(body.brand)) } catch { brandSlug = null }
+    }
+
     const listing = await db.listing.create({
       data: {
         title,
@@ -424,15 +437,17 @@ export async function POST(req: NextRequest) {
         lng,
         condition: body.condition ? String(body.condition).trim() : null,
         images: JSON.stringify(images),
-        searchText: buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi]),
+        searchText: buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug]),
         categoryId: category.id,
         subcategorySlug,
         listingType,
         attributes,
+        brandSlug,
         sellerId: seller.id,
         verified: autoPublish,
       },
     })
+    if (brandSlug) after(() => bumpBrandCount(brandSlug!))
 
     // Pre-translate every user-authored text field into ALL supported languages
     // so the listing renders from cache (no provider round-trip) in any

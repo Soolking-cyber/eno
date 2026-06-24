@@ -5,6 +5,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { ListingEditor } from '@/components/marketplace/listing-editor'
 import { safeParse } from '@/lib/serialize'
+import { categoryHasBrand } from '@/lib/taxonomy'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,11 +22,16 @@ export default async function EditListingPage({ params }: Props) {
   const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
   const listing = await db.listing.findUnique({
     where: { id },
-    select: { id: true, sellerId: true, title: true, description: true, price: true, district: true, condition: true, images: true, currency: true },
+    select: { id: true, sellerId: true, title: true, description: true, price: true, district: true, condition: true, brandSlug: true, images: true, currency: true, category: { select: { slug: true } } },
   })
   if (!listing) notFound()
   // Not your storefront's listing → 404 (don't reveal it exists).
   if (!seller || listing.sellerId !== seller.id) notFound()
+
+  const showBrand = categoryHasBrand(listing.category.slug)
+  const brand = showBrand && listing.brandSlug
+    ? (await db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true } }))?.name ?? null
+    : null
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -39,6 +45,8 @@ export default async function EditListingPage({ params }: Props) {
             price: listing.price,
             district: listing.district,
             condition: listing.condition,
+            brand,
+            showBrand,
             images: safeParse<string[]>(listing.images, []),
             currency: listing.currency,
           }}
