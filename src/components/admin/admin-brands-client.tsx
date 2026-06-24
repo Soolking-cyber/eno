@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Search, Check } from 'lucide-react'
+import { Loader2, Search, Check, Sparkles } from 'lucide-react'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { cn } from '@/lib/utils'
 
@@ -82,9 +82,26 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
   const [aliases, setAliases] = useState(() => { try { return (JSON.parse(brand.aliases) as string[]).join(', ') } catch { return '' } })
   const [mergeId, setMergeId] = useState('')
   const [saving, setSaving] = useState(false)
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiPath, setAiPath] = useState<string | null>(null) // AI-suggested logo preview
+  const [aiNote, setAiNote] = useState<string | null>(null)
 
-  // Live preview: typed path wins, else the server-resolved icon (simple-icons).
-  const previewPath = logoPath.trim() || brand.iconPath
+  // Live preview: typed custom path wins, then an AI suggestion, then the saved icon.
+  const previewPath = logoPath.trim() || aiPath || brand.iconPath
+
+  // AI lookup: canonicalize the name + find a real simple-icons logo to approve.
+  const aiSuggest = async () => {
+    setAiBusy(true); setAiNote(null)
+    try {
+      const res = await fetch('/api/admin/brands/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+      const d = await res.json()
+      if (!res.ok) throw new Error()
+      if (d.name) setName(d.name)
+      if (d.iconSlug) { setIconSlug(d.iconSlug); setAiPath(d.iconPath || null); toast.success('AI found a logo — review + Save') }
+      else { setAiPath(null); toast(d.note ? `No logo match — ${d.note}` : 'No logo match — keep monogram or paste a path') }
+      setAiNote(d.note || null)
+    } catch { toast.error('AI lookup failed') } finally { setAiBusy(false) }
+  }
 
   const save = async () => {
     setSaving(true)
@@ -128,6 +145,14 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
 
       {open && (
         <div className="mt-3 grid gap-3 rounded-2xl bg-card p-4 shadow-pop sm:grid-cols-2">
+          {/* AI assist — canonicalize the name + find a real monotone logo to approve. */}
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+            <button onClick={aiSuggest} disabled={aiBusy} className="inline-flex items-center gap-1.5 rounded-xl border border-[#0a66c2]/30 px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-tint disabled:opacity-50">
+              {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} AI suggest logo &amp; name
+            </button>
+            {aiNote && <span className="text-xs text-muted-foreground">{aiNote}</span>}
+            <span className="text-[11px] text-ink-4">— review, then Save to approve.</span>
+          </div>
           <Field label="Display name"><input value={name} onChange={(e) => setName(e.target.value)} className={INPUT} /></Field>
           <Field label="Status">
             <div className="flex gap-2">
