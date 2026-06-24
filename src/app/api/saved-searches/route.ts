@@ -29,12 +29,20 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() } catch { return NextResponse.json({ error: 'invalid_body' }, { status: 400 }) }
 
   const params = normalizeParams(body.params)
+  const paramsJson = JSON.stringify(params)
+
+  // Idempotent: re-saving the SAME filter set returns the existing row instead of
+  // creating a duplicate (which the alerts cron would amplify into repeated push/
+  // notifications forever). Covers double-tap, concurrent, and multi-device saves.
+  const existing = await db.savedSearch.findFirst({ where: { profileId: me.id, params: paramsJson } })
+  if (existing) return NextResponse.json({ id: existing.id, label: existing.label, url: `/?${toUrlParams(params)}` })
+
   const count = await db.savedSearch.count({ where: { profileId: me.id } })
   if (count >= MAX_PER_USER) return NextResponse.json({ error: 'limit_reached', max: MAX_PER_USER }, { status: 409 })
 
   const label = (typeof body.label === 'string' && body.label.trim() ? body.label.trim() : describeParams(params)).slice(0, 120)
   const created = await db.savedSearch.create({
-    data: { profileId: me.id, label, params: JSON.stringify(params), notify: true },
+    data: { profileId: me.id, label, params: paramsJson, notify: true },
   })
   return NextResponse.json({ id: created.id, label: created.label, url: `/?${toUrlParams(params)}` }, { status: 201 })
 }
