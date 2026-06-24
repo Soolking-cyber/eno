@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { User, Search, MapPin, Clock, Heart, MessageSquare } from 'lucide-react'
+import { User, Search, MapPin, Clock, Heart, MessageSquare, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
@@ -194,6 +194,17 @@ export function Header() {
                 aria-label={tr('Search', 'Tìm kiếm')}
                 className="min-w-0 flex-1 bg-transparent py-2.5 pl-2 pr-2 text-sm text-foreground outline-none placeholder:text-ink-4"
               />
+              {/* Clear — appears once there's text, left of the location picker. */}
+              {searchVal && (
+                <button
+                  type="button"
+                  onClick={() => { setSearchVal(''); submitSearch('') }}
+                  aria-label={tr('Clear search', 'Xóa tìm kiếm')}
+                  className="mr-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
               {/* Area filter — small location pin inside the search bar (right) */}
               <button
                 type="button"

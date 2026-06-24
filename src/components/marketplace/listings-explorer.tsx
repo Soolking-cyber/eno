@@ -1259,6 +1259,16 @@ export function ListingsExplorer({
                   placeholder={tr('Search motorbikes, apartments, moving sales...', 'Tìm xe máy, căn hộ, đồ thanh lý...')}
                   className="min-w-0 flex-1 bg-transparent py-3.5 pr-3 text-sm text-foreground outline-none placeholder:text-ink-4"
                 />
+                {landingQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setLandingQuery('')}
+                    aria-label={tr('Clear', 'Xóa')}
+                    className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
                 <span className="h-6 w-px shrink-0 bg-border" />
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
