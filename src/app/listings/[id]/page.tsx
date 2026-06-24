@@ -268,7 +268,6 @@ export default async function ListingPage({ params }: Props) {
             <div className="lg:sticky lg:top-24 space-y-5 lg:border-l lg:border-border/70 lg:pl-10">
               <div className="flex items-baseline gap-2">
                 <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-foreground tracking-tight" />
-                {listing.negotiable && <span className="text-sm text-muted-foreground">· <Tr text="Negotiable" /></span>}
               </div>
 
               {/* Seller identity + trust in ONE cohesive block right under the price

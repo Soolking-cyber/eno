@@ -60,6 +60,8 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
         if (d.listingType) setListingType(d.listingType)
         if (d.condition) setCondition(d.condition)
         if (d.title && !title.trim()) setTitle(d.title)
+        // AI spec sheet (brand/model/key specs) → seed the description if empty.
+        if (d.description && !description.trim()) setDescription(d.description)
         toast.success(t('Đã điền từ ảnh — kiểm tra lại nhé', 'Filled from your photo — double-check it'))
       } else {
         toast.error(t('Không nhận diện được — chọn danh mục thủ công', "Couldn't read the photo — pick a category"))
@@ -96,7 +98,6 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
-  const [negotiable, setNegotiable] = useState(false)
   const [condition, setCondition] = useState('')
   const [areaOpen, setAreaOpen] = useState(false)
   const areaBtnRef = useRef<HTMLButtonElement>(null)
@@ -145,7 +146,6 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const areaLabel = ward ? `${ward.name}${province ? `, ${province.name}` : ''}` : province ? province.name : (nearby ? t('Vị trí của bạn', 'Your location') : '')
   const hasLocation = !!(province || ward || nearby)
   const priceUnit = listingType === 'rent' || listingType === 'job' ? t('/ tháng', '/ month') : listingType === 'service' ? t('/ dịch vụ', '/ service') : ''
-  const showNegotiable = listingType === 'sell' || listingType === 'rent'
 
   // Required-field checklist (drives the Publish button + the "what's left" hint).
   const checks = [
@@ -213,7 +213,6 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
           title: title.trim(),
           description: description.trim(),
           price: Number(price),
-          negotiable: showNegotiable && negotiable,
           district: district || null,
           city: province?.name || null,
           location: ward?.name || province?.name || null,
@@ -411,14 +410,6 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
               <div className="flex-1"><VndInput value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} /></div>
               {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
             </div>
-            {showNegotiable && (
-              <button onClick={() => setNegotiable((n) => !n)} className="mt-1 inline-flex items-center gap-2 text-sm text-body cursor-pointer">
-                <span className={cn('flex h-5 w-5 items-center justify-center rounded-md border transition-colors', negotiable ? 'border-[#0a66c2] bg-[#0a66c2] text-white' : 'border-line-strong')}>
-                  {negotiable && <Check className="h-3.5 w-3.5" />}
-                </span>
-                {t('Có thể thương lượng', 'Price is negotiable')}
-              </button>
-            )}
           </Section>
 
           {/* Location */}
@@ -478,7 +469,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
           <div className="sticky top-24 space-y-4">
             <div className="space-y-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-ink-4">{t('Xem trước', 'Live preview')}</span>
-              <Preview cover={photos[0]?.url} title={title} price={price} priceUnit={priceUnit} area={areaLabel} categoryIcon={cat?.icon} negotiable={showNegotiable && negotiable} t={t} />
+              <Preview cover={photos[0]?.url} title={title} price={price} priceUnit={priceUnit} area={areaLabel} categoryIcon={cat?.icon} t={t} />
             </div>
             <PublishButton />
             {missing.length > 0 && (
@@ -562,7 +553,7 @@ function Chips({ options, value, onPick }: { options: { value: string; label: st
   )
 }
 
-function Preview({ cover, title, price, priceUnit, area, categoryIcon, negotiable, t }: { cover?: string; title: string; price: string; priceUnit: string; area: string; categoryIcon?: string; negotiable: boolean; t: (vi: string, en: string) => string }) {
+function Preview({ cover, title, price, priceUnit, area, categoryIcon, t }: { cover?: string; title: string; price: string; priceUnit: string; area: string; categoryIcon?: string; t: (vi: string, en: string) => string }) {
   return (
     <div className="w-full">
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-tint">
@@ -578,7 +569,6 @@ function Preview({ cover, title, price, priceUnit, area, categoryIcon, negotiabl
       <h3 className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-foreground">{title || t('Tiêu đề tin của bạn', 'Your listing title')}</h3>
       <p className="mt-0.5 text-sm font-bold text-foreground">
         {price ? formatMoneyFull(Number(price), '₫') : t('Giá', 'Price')}{price && priceUnit ? <span className="font-normal text-ink-4"> {priceUnit}</span> : null}
-        {negotiable && <span className="ml-1 text-xs font-normal text-ink-4">· {t('Thương lượng', 'Negotiable')}</span>}
       </p>
       {area && <p className="text-xs text-muted-foreground">{area}</p>}
     </div>

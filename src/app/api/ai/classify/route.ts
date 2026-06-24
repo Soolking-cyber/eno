@@ -5,6 +5,7 @@ import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { TAXONOMY } from '@/lib/taxonomy'
+import { containsPhoneNumber } from '@/lib/phone'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -57,10 +58,10 @@ export async function POST(req: NextRequest) {
 Pick the single best category + subcategory from THIS taxonomy (use the exact slugs):
 ${TAXONOMY_TEXT}
 
-Also pick: listingType (one of the category's listed types; default "sell"); condition ("new" or "used", or "" if not a physical item / can't tell); and a concise, factual title in ${titleLang} (max 80 chars, no price, no phone).
+Also pick: listingType (one of the category's listed types; default "sell"); condition ("new" or "used", or "" if not a physical item / can't tell); a concise, factual title in ${titleLang} (max 80 chars, no price, no phone); and "description": a SHORT spec sheet in ${titleLang} — only the main specs you can identify (brand, model, size/capacity, colour, key features). 1–3 short lines or comma-separated, factual, NO marketing fluff, NO price, NO phone. If you can't identify specs, return "".
 Return ONLY JSON.`
 
-  let parsed: { category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string } = {}
+  let parsed: { category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; description?: string } = {}
   try {
     const res = await ai.models.generateContent({
       model: GEMINI_MODEL,
@@ -71,7 +72,7 @@ Return ONLY JSON.`
         // budget, truncating the JSON (MAX_TOKENS → partial "{" → parse error).
         // Disable thinking for this structured task; all tokens go to the answer.
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 512,
+        maxOutputTokens: 768,
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -81,6 +82,7 @@ Return ONLY JSON.`
             listingType: { type: Type.STRING },
             condition: { type: Type.STRING },
             title: { type: Type.STRING },
+            description: { type: Type.STRING },
           },
           required: ['category'],
         },
@@ -97,11 +99,15 @@ Return ONLY JSON.`
 
   // Validate against the taxonomy — never trust the model's slugs blindly.
   const cat = TAXONOMY.find((c) => c.slug === parsed.category)
-  if (!cat) return NextResponse.json({ categorySlug: null, subcategorySlug: null, listingType: null, condition: null, title: null })
+  if (!cat) return NextResponse.json({ categorySlug: null, subcategorySlug: null, listingType: null, condition: null, title: null, description: null })
   const sub = cat.subcategories.find((s) => s.slug === parsed.subcategory)
   const listingType = cat.types.includes(parsed.listingType as never) ? parsed.listingType : 'sell'
   const condition = parsed.condition === 'new' || parsed.condition === 'used' ? parsed.condition : null
   const title = (parsed.title || '').trim().slice(0, 140) || null
+  // Concise spec sheet (brand/model/key specs). Guard against a model that slips a
+  // phone number in; cap length so it stays a short spec list, not an essay.
+  let description = (parsed.description || '').trim().slice(0, 600) || null
+  if (description && containsPhoneNumber(description)) description = null
 
   return NextResponse.json({
     categorySlug: cat.slug,
@@ -109,5 +115,6 @@ Return ONLY JSON.`
     listingType,
     condition,
     title,
+    description,
   })
 }
