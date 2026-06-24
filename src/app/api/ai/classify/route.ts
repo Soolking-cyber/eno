@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
 Pick the single best category + subcategory from THIS taxonomy (use the exact slugs):
 ${TAXONOMY_TEXT}
 
-Also pick: listingType (one of the category's listed types; default "sell"); condition ("new" or "used", or "" if not a physical item / can't tell); a concise, factual title in ${titleLang} (max 80 chars, no price, no phone); "brand": the product's brand name if clearly identifiable (e.g. Apple, Huawei, Honda, Samsung), else ""; and "description": a SHORT spec sheet in ${titleLang} — only the main specs you can identify (brand, model, size/capacity, colour, key features). 1–3 short lines or comma-separated, factual, NO marketing fluff, NO price, NO phone. If you can't identify specs, return "".
+Also pick: listingType (one of the category's listed types; default "sell"); condition ("new" or "used", or "" if not a physical item / can't tell); a concise, factual title in ${titleLang} (max 80 chars, no price, no phone); "brand": ALWAYS identify the product's brand / manufacturer — read it from any visible logo, label or text, and infer it from the product's recognizable design when no logo is shown (e.g. Apple, Samsung, Huawei, Honda, Yamaha, Sony, Dell, Nike, IKEA). Use the well-known canonical English brand name (e.g. "Apple", not "apple iphone"). Return "" ONLY if the item is genuinely unbranded (handmade, generic) or you truly cannot tell. Prefer a confident guess over "". And "description": a SHORT spec sheet in ${titleLang} — only the main specs you can identify (brand, model, size/capacity, colour, key features). 1–3 short lines or comma-separated, factual, NO marketing fluff, NO price, NO phone. If you can't identify specs, return "".
 Return ONLY JSON.`
 
   let parsed: { category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; brand?: string; description?: string } = {}
@@ -86,7 +86,8 @@ Return ONLY JSON.`
             brand: { type: Type.STRING },
             description: { type: Type.STRING },
           },
-          required: ['category'],
+          // brand REQUIRED so the model always emits it (optional fields get dropped).
+          required: ['category', 'brand'],
         },
       },
     })

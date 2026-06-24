@@ -59,7 +59,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
         setAttrs({})
         if (d.listingType) setListingType(d.listingType)
         if (d.condition) setCondition(d.condition)
-        if (d.brand && !brand.trim()) setBrand(d.brand)
+        if (d.brand) setBrand(d.brand) // AI auto-selects the brand
         if (d.title && !title.trim()) setTitle(d.title)
         // AI spec sheet (brand/model/key specs) → seed the description if empty.
         if (d.description && !description.trim()) setDescription(d.description)
