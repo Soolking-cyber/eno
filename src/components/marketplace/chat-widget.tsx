@@ -474,6 +474,11 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
               <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-[#0a66c2]/30 bg-[#0a66c2]/5' : 'border-border bg-card'}`}>
                 <div className="text-[11px] font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
                 <div className="mt-0.5 text-base font-bold text-foreground">{new Intl.NumberFormat('en-US').format(m.offerAmount || 0)}₫</div>
+                {m.offerStatus === 'pending' && (
+                  <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#b45309]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#b45309]" /> {tr('Pending', 'Đang chờ')}
+                  </div>
+                )}
                 {m.offerStatus && m.offerStatus !== 'pending' && (
                   <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-emerald-600' : m.offerStatus === 'declined' ? 'text-red-500' : 'text-ink-4'}`}>
                     {m.offerStatus === 'accepted' ? tr('Accepted', 'Đã chấp nhận') : m.offerStatus === 'declined' ? tr('Declined', 'Đã từ chối') : tr('Countered', 'Đã trả giá khác')}
