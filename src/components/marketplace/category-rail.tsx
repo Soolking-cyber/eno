@@ -50,7 +50,11 @@ export function CategoryRail({
 
       {categories.map((cat) => {
         const isActive = activeCategory === cat.slug
-        const subs = isActive ? SUBCATEGORIES[cat.slug] ?? [] : []
+        // Order subcategories by how many listings they hold (most first); ties keep
+        // taxonomy order. Empty counts (pre-load) leave the canonical order.
+        const subs = isActive
+          ? [...(SUBCATEGORIES[cat.slug] ?? [])].sort((a, b) => (subcategoryCounts[b.slug] ?? 0) - (subcategoryCounts[a.slug] ?? 0))
+          : []
         return (
           <Fragment key={cat.id}>
             <button onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={tileCls}>

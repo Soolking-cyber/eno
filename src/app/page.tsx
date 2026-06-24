@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import ReactDOM from 'react-dom'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { getCategoriesByDemand } from '@/lib/categories'
 import type { SerializedCategory, SerializedListing } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
@@ -18,11 +19,9 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
     // verified:true AND status:'active' matches the /api/listings response (GET
     // forces verified+active-only), so this SSR data can seed React Query's
     // default-view cache exactly — and never leaks sold/hidden items on first paint.
-    const [categories, listings, total] = await Promise.all([
-      db.category.findMany({
-        orderBy: { name: 'asc' },
-        include: { _count: { select: { listings: { where: { verified: true, status: 'active' } } } } },
-      }),
+    const [serializedCategories, listings, total] = await Promise.all([
+      // Categories ordered by live DEMAND — most-wanted lead the rail + home grid.
+      getCategoriesByDemand(),
       db.listing.findMany({
         where: { verified: true, status: 'active' },
         orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
@@ -32,17 +31,6 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       }),
       db.listing.count({ where: { verified: true, status: 'active' } }),
     ])
-
-    const serializedCategories: SerializedCategory[] = categories.map((c) => ({
-      id: c.id,
-      name: c.name,
-      nameVi: c.nameVi,
-      slug: c.slug,
-      icon: c.icon,
-      color: c.color as SerializedCategory['color'],
-      description: c.description,
-      verifiedCount: c._count.listings,
-    }))
 
     const serializedListings: SerializedListing[] = listings.map(serializeListing)
 

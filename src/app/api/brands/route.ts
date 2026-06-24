@@ -22,24 +22,33 @@ export async function GET(req: NextRequest) {
   let rows: { slug: string; name: string; iconSlug: string | null; count: number }[]
 
   if (category && category !== 'all') {
-    // Brands present in this category's live listings (rail context).
+    // Brands present in this category's live listings (rail context), ranked by
+    // live DEMAND (views + weighted contacts) so the most-wanted brands lead;
+    // falls back to listing count when there's no traffic yet.
     const grouped = await db.listing.groupBy({
       by: ['brandSlug'],
       where: { verified: true, status: 'active', brandSlug: { not: null }, category: { slug: category } },
       _count: { _all: true },
+      _sum: { views: true, contactCount: true },
     })
-    const counts = new Map(grouped.filter((g) => g.brandSlug).map((g) => [g.brandSlug as string, g._count._all]))
-    if (counts.size === 0) {
+    const stat = new Map(
+      grouped.filter((g) => g.brandSlug).map((g) => [
+        g.brandSlug as string,
+        { count: g._count._all, demand: (g._sum.views ?? 0) + 5 * (g._sum.contactCount ?? 0) },
+      ]),
+    )
+    if (stat.size === 0) {
       return NextResponse.json({ brands: [] }, { headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' } })
     }
     const brandRows = await db.brand.findMany({
-      where: { status: 'active', slug: { in: Array.from(counts.keys()) } },
+      where: { status: 'active', slug: { in: Array.from(stat.keys()) } },
       select: { slug: true, name: true, iconSlug: true },
     })
     rows = brandRows
-      .map((b) => ({ ...b, count: counts.get(b.slug) ?? 0 }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .map((b) => ({ ...b, count: stat.get(b.slug)?.count ?? 0, demand: stat.get(b.slug)?.demand ?? 0 }))
+      .sort((a, b) => b.demand - a.demand || b.count - a.count || a.name.localeCompare(b.name))
       .slice(0, limit)
+      .map(({ demand: _d, ...b }) => b)
   } else {
     const where = q ? { status: 'active', normalized: { contains: q } } : { status: 'active' }
     const brandRows = await db.brand.findMany({

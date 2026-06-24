@@ -20,13 +20,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       ...(category && category !== 'all' ? { category: { slug: category } } : {}),
     },
     _count: { _all: true },
+    _sum: { views: true, contactCount: true },
     orderBy: { _count: { model: 'desc' } },
-    take: 60,
+    take: 200,
   })
 
+  // Rank models by live demand (views + weighted contacts), then count — so the
+  // most-wanted models surface first; falls back to count before any traffic.
   const models = grouped
     .filter((g) => g.model)
-    .map((g) => ({ model: g.model as string, count: g._count._all }))
+    .map((g) => ({ model: g.model as string, count: g._count._all, demand: (g._sum.views ?? 0) + 5 * (g._sum.contactCount ?? 0) }))
+    .sort((a, b) => b.demand - a.demand || b.count - a.count || a.model.localeCompare(b.model))
+    .slice(0, 60)
+    .map(({ demand: _d, ...m }) => m)
 
   return NextResponse.json(
     { models },
