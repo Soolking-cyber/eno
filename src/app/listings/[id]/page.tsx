@@ -62,7 +62,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!listing) return {}
 
-  const displayTitle = listing.titleVi || listing.title
+  // Use the listing's SOURCE title (as posted) for all BAKED, shared output — the
+  // <title> tab, OG tags, JSON-LD, share text. This page is static HTML shared across
+  // users, so it can't vary by language; forcing titleVi made an English app show a
+  // Vietnamese tab. The visible H1 still localizes per-user via <LocalizedTitle>.
+  const displayTitle = listing.title
   const desc = listing.description.slice(0, 160)
   const images = JSON.parse(listing.images || '[]')
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
@@ -110,7 +114,11 @@ export default async function ListingPage({ params }: Props) {
   }
 
   const listing = serializeListing(rawListing)
-  const displayTitle = listing.titleVi || listing.title
+  // Use the listing's SOURCE title (as posted) for all BAKED, shared output — the
+  // <title> tab, OG tags, JSON-LD, share text. This page is static HTML shared across
+  // users, so it can't vary by language; forcing titleVi made an English app show a
+  // Vietnamese tab. The visible H1 still localizes per-user via <LocalizedTitle>.
+  const displayTitle = listing.title
   const displayDesc = listing.description
   const color = CATEGORY_COLOR_CLASSES[listing.category.color] ?? CATEGORY_COLOR_CLASSES.brand
 
