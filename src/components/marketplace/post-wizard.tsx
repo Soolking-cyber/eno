@@ -49,7 +49,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
           toast.error(t('Không đọc được ảnh này — thử ảnh JPG/PNG.', "Couldn't read that photo — try a JPG or PNG."))
           return
         }
-        toast.error(`AI: ${body.detail || body.error || 'failed'}`) // TEMP: surface real error for debugging
+        toast.error(t('Không thể dùng AI lúc này', 'AI is unavailable right now'))
         return
       }
       const d = await res.json()

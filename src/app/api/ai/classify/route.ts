@@ -67,7 +67,11 @@ Return ONLY JSON.`
       contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: b64 } }, { text: prompt }] }],
       config: {
         temperature: 0.2,
-        maxOutputTokens: 300,
+        // 2.5-flash is a THINKING model — leave thinking on and its tokens eat the
+        // budget, truncating the JSON (MAX_TOKENS → partial "{" → parse error).
+        // Disable thinking for this structured task; all tokens go to the answer.
+        thinkingConfig: { thinkingBudget: 0 },
+        maxOutputTokens: 512,
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -82,7 +86,10 @@ Return ONLY JSON.`
         },
       },
     })
-    parsed = JSON.parse(res.text || '{}')
+    // Harden: strip any stray ``` fences, fall back to {} on an empty reply.
+    let txt = (res.text || '').trim()
+    if (txt.startsWith('```')) txt = txt.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
+    parsed = JSON.parse(txt || '{}')
   } catch (e) {
     console.error('[ai/classify]', e)
     return NextResponse.json({ error: 'ai_failed', detail: (e as Error)?.message?.slice(0, 300) }, { status: 502 })

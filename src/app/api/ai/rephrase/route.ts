@@ -39,7 +39,9 @@ Seller's text:
     const res = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents: prompt,
-      config: { temperature: 0.4, maxOutputTokens: 1200 },
+      // Disable thinking (2.5-flash) so its tokens don't eat the budget and truncate
+      // the rewrite; this is a simple rephrase, no reasoning needed.
+      config: { temperature: 0.4, maxOutputTokens: 1200, thinkingConfig: { thinkingBudget: 0 } },
     })
     out = (res.text || '').trim()
   } catch (e) {
