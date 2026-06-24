@@ -106,7 +106,27 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     const x = Math.max(CARD_W / 2 + 8, Math.min(W - CARD_W / 2 - 8, pt.x))
     setCardPos({ x, y: pt.y, above: pt.y > CARD_H + 24 })
   }
-  const openCard = (l: SerializedListing) => { cardIdRef.current = l.id; setCard(l); placeCardFor(l); onHover?.(l.id) }
+  // Pan the map so the tapped pin sits a bit BELOW centre — leaving room for the card
+  // that pops above it, so the whole card lands centred on screen instead of clipped at
+  // an edge (the mobile annoyance). The `move` listener re-runs placeCardFor mid-pan so
+  // the card glides to its final spot.
+  const recenterOnPin = (l: SerializedListing) => {
+    const map = mapInstanceRef.current, el = mapRef.current
+    if (!map || !el) return
+    const L = (window as any).L
+    const { lat, lng } = getListingCoordinates(l)
+    const z = map.getZoom()
+    const pt = map.project([lat, lng], z)
+    // Bias down by ~⅓ of the card height so the above-card is roughly centred; clamp the
+    // shift to the viewport so it never over-pans on a short map.
+    const shift = Math.min(CARD_H * 0.45, el.clientHeight * 0.28)
+    map.panTo(map.unproject(L.point(pt.x, pt.y - shift), z), { animate: true, duration: 0.25 })
+  }
+  const openCard = (l: SerializedListing, center = false) => {
+    cardIdRef.current = l.id; setCard(l)
+    if (center) recenterOnPin(l)
+    placeCardFor(l); onHover?.(l.id)
+  }
   const closeCard = () => { cardIdRef.current = null; setCard(null); setCardPos(null); onHover?.(null) }
   // Desktop hover UX: keep the card open while the cursor is over the marker OR the
   // card, and close it gracefully a beat after the cursor leaves both — so it never
@@ -185,7 +205,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       marker.on('click', () => {
         if (hoverable) onOpenListing(l) // desktop: card already shown on hover → click opens
         else if (cardIdRef.current === l.id) onOpenListing(l) // touch: 2nd tap opens
-        else openCard(l) // touch: 1st tap shows card
+        else openCard(l, true) // touch: 1st tap shows the card AND re-centres the pin
       })
       marker.on('mouseover', () => { if (hoverable) { cancelClose(); openCard(l) } else { onHover?.(l.id) } })
       marker.on('mouseout', () => { if (hoverable) { scheduleClose() } else { onHover?.(null) } })
