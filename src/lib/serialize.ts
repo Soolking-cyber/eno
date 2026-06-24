@@ -84,11 +84,3 @@ export function serializeListing(
     attributes: safeParse<Record<string, unknown> | null>(l.attributes, null),
   }
 }
-
-export function formatPrice(price: number, currency: string, priceUnit: string): string {
-  const formatted = new Intl.NumberFormat('en-US').format(price)
-  if (priceUnit === 'VND') return `${currency}${formatted}`
-  // priceUnit like "VND/month", "VND/service (from)" -> show unit suffix
-  const suffix = priceUnit.replace(/^VND\/?/, '').trim()
-  return suffix ? `${currency}${formatted} / ${suffix}` : `${currency}${formatted}`
-}

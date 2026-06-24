@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const current = await db.listing.findUnique({
     where: { id },
-    select: { title: true, description: true, district: true, category: { select: { name: true, nameVi: true } } },
+    select: { title: true, description: true, district: true, location: true, category: { select: { name: true, nameVi: true } } },
   })
   if (!current) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -53,7 +53,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.district !== undefined) {
     const district = body.district ? String(body.district).trim().slice(0, 80) : null
     data.district = district
-    data.location = district || 'Ho Chi Minh City'
+    // Don't stomp the listing's city with a hardcoded "Ho Chi Minh City" (wrong for
+    // every non-HCMC listing). Use the new district as the display location; if it's
+    // cleared, keep the existing location rather than fabricating one. city untouched.
+    data.location = district || current.location || null
   }
   if (body.condition !== undefined) data.condition = body.condition ? String(body.condition).trim() : null
   if (Array.isArray(body.images)) {

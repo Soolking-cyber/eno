@@ -76,7 +76,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [user])
   const cacheThread = useCallback((id: string, data: unknown) => {
     threadCache.current.set(id, data)
-    if (user) { try { localStorage.setItem(THREAD_PREFIX + id, JSON.stringify({ userId: user.id, data })) } catch {} }
+    // Don't PERSIST a placeholder seed with no counterpart name (e.g. the pending-
+    // compose seed) — it'd instant-paint a blank/'…' header on reload. Keep it in
+    // memory only; persist once a real thread (with identity) has loaded.
+    const name = (data as { counterpart?: { name?: string } } | null)?.counterpart?.name
+    if (user && name) { try { localStorage.setItem(THREAD_PREFIX + id, JSON.stringify({ userId: user.id, data })) } catch {} }
   }, [user])
   const prefetchThread = useCallback((id: string) => {
     if (!id || threadCache.current.has(id)) return

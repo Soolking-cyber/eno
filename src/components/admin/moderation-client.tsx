@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Check, X, Flag, Loader2, ExternalLink, EyeOff } from 'lucide-react'
-import { formatPrice } from '@/lib/types'
+import { formatMoneyFull } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 
 export type ModItem = {
@@ -83,7 +83,7 @@ function ListingRow({ item, mode }: { item: ModItem; mode: 'pending' | 'reported
               <span className="truncate">{item.title}</span>
               <ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
             </a>
-            <p className="mt-0.5 text-sm font-semibold text-accent-foreground">{formatPrice(item.price, item.currency, item.priceUnit)}</p>
+            <p className="mt-0.5 text-sm font-semibold text-accent-foreground">{formatMoneyFull(item.price, item.currency)}</p>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.category} · {item.location}</p>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.sellerName}{item.sellerPhone ? ` · ${item.sellerPhone}` : ''}</p>
           </div>
