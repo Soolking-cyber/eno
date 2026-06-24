@@ -15,7 +15,7 @@ type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
   listing: { id: string; title: string; image: string | null }
-  counterpart: { name: string; avatarColor: string; avatarUrl: string | null }
+  counterpart: { name: string; avatarColor: string; avatarUrl: string | null; sellerId?: string | null }
   messages: Msg[]
 }
 
@@ -264,7 +264,11 @@ export default function ThreadPage() {
               {thread?.counterpart.name.slice(0, 2).toUpperCase()}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-bold text-foreground">{thread?.counterpart.name || '…'}</div>
+              {thread?.counterpart.sellerId ? (
+                <Link href={`/sellers/${thread.counterpart.sellerId}`} className="block truncate text-sm font-bold text-foreground hover:underline">{thread.counterpart.name}</Link>
+              ) : (
+                <div className="truncate text-sm font-bold text-foreground">{thread?.counterpart.name || '…'}</div>
+              )}
               {thread && <Link href={`/listings/${thread.listing.id}`} className="truncate text-xs text-accent-foreground hover:underline">{thread.listing.title}</Link>}
             </div>
           </div>

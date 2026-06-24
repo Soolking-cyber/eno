@@ -13,7 +13,7 @@ type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending
 type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string }
 type Thread = {
   id: string; me: string; listing: Listing
-  counterpart: { name: string; avatarColor: string; avatarUrl: string | null }; messages: Msg[]
+  counterpart: { name: string; avatarColor: string; avatarUrl: string | null; sellerId?: string | null }; messages: Msg[]
 }
 
 function Avatar({ name, color, url, size = 36 }: { name: string; color: string; url: string | null; size?: number }) {
@@ -404,7 +404,11 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         <button onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground"><ChevronLeft className="h-5 w-5" /></button>
         <Avatar name={thread?.counterpart.name || '?'} color={thread?.counterpart.avatarColor || '#0a66c2'} url={thread?.counterpart.avatarUrl ?? null} size={32} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-bold text-foreground">{thread?.counterpart.name || '…'}</div>
+          {thread?.counterpart.sellerId ? (
+            <Link onClick={onClose} href={`/sellers/${thread.counterpart.sellerId}`} className="block truncate text-sm font-bold text-foreground hover:underline">{thread.counterpart.name}</Link>
+          ) : (
+            <div className="truncate text-sm font-bold text-foreground">{thread?.counterpart.name || '…'}</div>
+          )}
           {peerTyping && <div className="truncate text-[11px] font-medium text-accent-foreground">{tr('typing…', 'đang nhập…')}</div>}
         </div>
         <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-ink-4 hover:text-foreground"><X className="h-5 w-5" /></button>

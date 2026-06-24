@@ -38,14 +38,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     })
   }
 
+  // Counterpart's public storefront id (so the chat header name can deep-link to
+  // their seller/business page). As a buyer that's the listing's seller directly;
+  // as the seller it's the buyer's own storefront, if they have one.
+  const counterpartSellerId = iAmBuyer
+    ? convo.seller.id
+    : (await db.seller.findUnique({ where: { ownerId: convo.buyerProfileId }, select: { id: true } }))?.id ?? null
+
   const img = (() => { try { return (JSON.parse(convo.listing.images || '[]')[0] as string) ?? null } catch { return null } })()
   return NextResponse.json({
     id: convo.id,
     me: meId,
     listing: { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit },
     counterpart: iAmBuyer
-      ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl }
-      : { name: convo.buyer.displayName || convo.buyer.email || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl },
+      ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId }
+      : { name: convo.buyer.displayName || convo.buyer.email || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId },
     messages: convo.messages.map((m) => ({ id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString(), kind: m.kind, offerAmount: m.offerAmount, offerStatus: m.offerStatus })),
   })
 }
