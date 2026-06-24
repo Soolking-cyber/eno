@@ -437,7 +437,20 @@ input, select, textarea {
 [data-sonner-toaster][data-x-position="center"] {
   top: 50% !important;
   bottom: auto !important;
+  left: 50% !important;
+  right: auto !important;
   transform: translate(-50%, -50%) !important;
+}
+/* Mobile: sonner goes full-width at an edge by default. Keep it centered and make
+   it a tidy rectangle that fits the screen (full width minus a small gutter). */
+@media (max-width: 600px) {
+  [data-sonner-toaster][data-x-position="center"] {
+    width: calc(100vw - 2rem) !important;
+    max-width: calc(100vw - 2rem) !important;
+  }
+  [data-sonner-toaster][data-x-position="center"] [data-sonner-toast] {
+    width: 100% !important;
+  }
 }
 [data-sonner-toast] {
   border-radius: 1rem;                 /* rounded-2xl panel */
