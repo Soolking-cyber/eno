@@ -100,18 +100,31 @@ export const TAXONOMY: CategoryDef[] = [
     ],
     facets: [
       { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', options: [
-        { value: 'automatic', label: 'Automatic', labelVi: 'Xe ga' },
-        { value: 'manual', label: 'Manual', labelVi: 'Xe số' },
+        { value: 'automatic', label: 'Automatic', labelVi: 'Xe ga / Tự động' },
+        { value: 'manual', label: 'Manual', labelVi: 'Xe số / Côn tay' },
+      ] },
+      { key: 'fuel', label: 'Fuel', labelVi: 'Nhiên liệu', options: [
+        { value: 'petrol', label: 'Petrol', labelVi: 'Xăng' },
+        { value: 'electric', label: 'Electric', labelVi: 'Điện' },
+        { value: 'diesel', label: 'Diesel', labelVi: 'Dầu' },
       ] },
       { key: 'cc', label: 'Engine', labelVi: 'Phân khối', options: [
+        { value: 'under-110', label: 'Under 110cc', labelVi: 'Dưới 110cc' },
         { value: '110-125', label: '110–125cc', labelVi: '110–125cc' },
+        { value: '126-150', label: '126–150cc', labelVi: '126–150cc' },
         { value: '150-up', label: '150cc+', labelVi: '150cc+' },
       ] },
-      { key: 'brand', label: 'Brand', labelVi: 'Hãng', options: [
-        { value: 'honda', label: 'Honda', labelVi: 'Honda' },
-        { value: 'yamaha', label: 'Yamaha', labelVi: 'Yamaha' },
-        { value: 'vinfast', label: 'VinFast', labelVi: 'VinFast' },
-        { value: 'other', label: 'Other', labelVi: 'Khác' },
+      { key: 'year', label: 'Year', labelVi: 'Đời xe', options: [
+        { value: '2023-up', label: '2023 or newer', labelVi: '2023 trở lên' },
+        { value: '2020-2022', label: '2020–2022', labelVi: '2020–2022' },
+        { value: '2016-2019', label: '2016–2019', labelVi: '2016–2019' },
+        { value: 'pre-2016', label: 'Before 2016', labelVi: 'Trước 2016' },
+      ] },
+      { key: 'mileage', label: 'Mileage', labelVi: 'Số km đã đi', options: [
+        { value: 'under-10k', label: 'Under 10,000 km', labelVi: 'Dưới 10.000 km' },
+        { value: '10k-30k', label: '10,000–30,000 km', labelVi: '10.000–30.000 km' },
+        { value: '30k-60k', label: '30,000–60,000 km', labelVi: '30.000–60.000 km' },
+        { value: 'over-60k', label: 'Over 60,000 km', labelVi: 'Trên 60.000 km' },
       ] },
     ],
   },
@@ -139,6 +152,12 @@ export const TAXONOMY: CategoryDef[] = [
         { value: '1', label: '1 BR', labelVi: '1 PN' },
         { value: '2', label: '2 BR', labelVi: '2 PN' },
         { value: '3', label: '3+ BR', labelVi: '3+ PN' },
+      ] },
+      { key: 'area', label: 'Area', labelVi: 'Diện tích', options: [
+        { value: 'under-40', label: 'Under 40 m²', labelVi: 'Dưới 40 m²' },
+        { value: '40-70', label: '40–70 m²', labelVi: '40–70 m²' },
+        { value: '70-100', label: '70–100 m²', labelVi: '70–100 m²' },
+        { value: 'over-100', label: 'Over 100 m²', labelVi: 'Trên 100 m²' },
       ] },
       { key: 'furnishing', label: 'Furnishing', labelVi: 'Nội thất', options: [
         { value: 'fully', label: 'Furnished', labelVi: 'Đầy đủ' },
@@ -215,11 +234,16 @@ export const TAXONOMY: CategoryDef[] = [
     ],
     facets: [
       COND,
-      { key: 'brand', label: 'Brand', labelVi: 'Hãng', options: [
-        { value: 'apple', label: 'Apple', labelVi: 'Apple' },
-        { value: 'samsung', label: 'Samsung', labelVi: 'Samsung' },
-        { value: 'sony', label: 'Sony', labelVi: 'Sony' },
-        { value: 'other', label: 'Other', labelVi: 'Khác' },
+      { key: 'storage', label: 'Storage', labelVi: 'Bộ nhớ', options: [
+        { value: '64', label: '64 GB', labelVi: '64 GB' },
+        { value: '128', label: '128 GB', labelVi: '128 GB' },
+        { value: '256', label: '256 GB', labelVi: '256 GB' },
+        { value: '512-up', label: '512 GB+', labelVi: '512 GB+' },
+      ] },
+      { key: 'ram', label: 'RAM', labelVi: 'RAM', options: [
+        { value: '4-8', label: '4–8 GB', labelVi: '4–8 GB' },
+        { value: '16', label: '16 GB', labelVi: '16 GB' },
+        { value: '32-up', label: '32 GB+', labelVi: '32 GB+' },
       ] },
       { key: 'warranty', label: 'Warranty', labelVi: 'Bảo hành', options: [
         { value: 'yes', label: 'In warranty', labelVi: 'Còn bảo hành' },
@@ -250,6 +274,18 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'women', label: 'Women', labelVi: 'Nữ' },
         { value: 'men', label: 'Men', labelVi: 'Nam' },
         { value: 'unisex', label: 'Unisex', labelVi: 'Unisex' },
+      ] },
+      { key: 'size', label: 'Size', labelVi: 'Kích cỡ', options: [
+        { value: 'xs-s', label: 'XS–S', labelVi: 'XS–S' },
+        { value: 'm', label: 'M', labelVi: 'M' },
+        { value: 'l', label: 'L', labelVi: 'L' },
+        { value: 'xl-up', label: 'XL+', labelVi: 'XL+' },
+      ] },
+      { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: [
+        { value: 'black', label: 'Black', labelVi: 'Đen' },
+        { value: 'white', label: 'White', labelVi: 'Trắng' },
+        { value: 'neutral', label: 'Neutral / Beige', labelVi: 'Trung tính / Be' },
+        { value: 'colorful', label: 'Colorful', labelVi: 'Nhiều màu' },
       ] },
     ],
   },

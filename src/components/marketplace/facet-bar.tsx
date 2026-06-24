@@ -1,12 +1,12 @@
 'use client'
 
 import { useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
-import { MapPin, ChevronDown } from 'lucide-react'
+import { MapPin, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useLanguage } from '@/context/language-context'
-import { facetsFor, typesFor, LISTING_TYPES, type ListingType } from '@/lib/taxonomy'
+import { facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
 
 type FacetBarProps = {
@@ -55,6 +55,7 @@ export function FacetBar({
 }: FacetBarProps) {
   const { lang, tr } = useLanguage()
   const [areaOpen, setAreaOpen] = useState(false)
+  const [advOpen, setAdvOpen] = useState(false) // advanced per-category filter panel
   const areaBtnRef = useRef<HTMLButtonElement>(null)
   // The area pill is "active" when a ward/province or a near-you search is set.
   const areaActive = !!ward || !!province || !!nearby
@@ -79,19 +80,6 @@ export function FacetBar({
   // Content-sized pills (no fixed min-width) so they pack into one swipable
   // row on mobile; widen a touch on desktop where they wrap.
   const wrap = 'w-auto shrink-0 lg:min-w-[7.5rem]'
-
-  const Facet = (key: string, placeholder: string, options: { value: string; label: string }[]) => (
-    <CustomSelect
-      key={key}
-      value={customFilters[key] || 'all'}
-      onChange={(v) => setFacet(key, v)}
-      options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...options]}
-      placeholder={placeholder}
-      className={cls}
-      activeClassName={active}
-      wrapperClassName={wrap}
-    />
-  )
 
   // Intent (listingType) options — those valid for the active category, or the
   // full set on "all". Surfaced as the first facet so Rent/Buy/Free/etc. is one tap.
@@ -150,12 +138,14 @@ export function FacetBar({
     />,
   )
 
-  // Category-specific facets from the taxonomy. `condition` is special-cased to the
-  // top-level conditionFilter (it lives in the `condition` column, not attributes);
-  // everything else is a customFilter (attr_*).
+  // Category-specific facets from the taxonomy. `condition` stays inline (a quick,
+  // universal filter, on the dedicated `condition` column); the deeper per-category
+  // attribute facets (transmission, storage, year, mileage, size…) move behind the
+  // "Filter" button into an advanced panel so the bar stays uncluttered.
+  const attrFacetDefs: FacetDef[] = []
   for (const f of facetsFor(activeCategory)) {
-    const options = f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))
     if (f.key === 'condition') {
+      const options = f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))
       facets.push(
         <CustomSelect
           key="condition"
@@ -169,46 +159,101 @@ export function FacetBar({
         />,
       )
     } else {
-      facets.push(Facet(f.key, lang === 'vi' ? f.labelVi : f.label, options))
+      attrFacetDefs.push(f)
     }
   }
+  const activeAttrCount = attrFacetDefs.filter((f) => customFilters[f.key]).length
 
   const hasActive =
     !!province || !!ward || !!nearby || conditionFilter !== 'all' || priceRange !== 'all' ||
     listingType !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
 
   return (
-    // Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps.
-    <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
-      {facets}
-      {hasActive && (
-        <button
-          onClick={() => {
-            setProvince(null)
-            setWard(null)
-            setNearby(null)
-            setConditionFilter('all')
-            setPriceRange('all')
-            setListingType('all')
-            setCustomFilters({})
-            setVerifiedOnly(true)
-          }}
-          className="shrink-0 px-1 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
-        >
-          {tr('Clear', 'Xóa lọc')}
-        </button>
-      )}
+    <div className="space-y-2">
+      {/* Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps. */}
+      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
+        {/* Advanced per-category filters — leftmost. Only when the category has them. */}
+        {attrFacetDefs.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setAdvOpen((o) => !o)}
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
+              advOpen || activeAttrCount > 0 ? active : 'text-body hover:bg-muted',
+            )}
+          >
+            <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAttrCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
+            <span>{tr('Filter', 'Bộ lọc')}</span>
+            {activeAttrCount > 0 && (
+              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[10px] font-bold text-white">{activeAttrCount}</span>
+            )}
+            <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', advOpen && 'rotate-180')} />
+          </button>
+        )}
+        {facets}
+        {hasActive && (
+          <button
+            onClick={() => {
+              setProvince(null)
+              setWard(null)
+              setNearby(null)
+              setConditionFilter('all')
+              setPriceRange('all')
+              setListingType('all')
+              setCustomFilters({})
+              setVerifiedOnly(true)
+            }}
+            className="shrink-0 px-1 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
+          >
+            {tr('Clear', 'Xóa lọc')}
+          </button>
+        )}
 
-      <AreaFilter
-        open={areaOpen}
-        anchorRef={areaBtnRef}
-        onClose={() => setAreaOpen(false)}
-        province={province}
-        ward={ward}
-        nearby={nearby}
-        onApply={({ province: p, ward: w, nearby: nb }) => { setProvince(p); setWard(w); setNearby(nb) }}
-        onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
-      />
+        <AreaFilter
+          open={areaOpen}
+          anchorRef={areaBtnRef}
+          onClose={() => setAreaOpen(false)}
+          province={province}
+          ward={ward}
+          nearby={nearby}
+          onApply={({ province: p, ward: w, nearby: nb }) => { setProvince(p); setWard(w); setNearby(nb) }}
+          onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
+        />
+      </div>
+
+      {/* Advanced filter panel — detailed per-category fields, in a roomy grid. */}
+      {advOpen && attrFacetDefs.length > 0 && (
+        <div className="rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-bold text-foreground">{tr('Filter details', 'Lọc chi tiết')}</span>
+            <button onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:bg-muted hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+            {attrFacetDefs.map((f) => (
+              <div key={f.key} className="space-y-1">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{lang === 'vi' ? f.labelVi : f.label}</label>
+                <CustomSelect
+                  value={customFilters[f.key] || 'all'}
+                  onChange={(v) => setFacet(f.key, v)}
+                  options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))]}
+                  placeholder={lang === 'vi' ? f.labelVi : f.label}
+                  activeClassName="text-accent-foreground border-accent-foreground/35"
+                />
+              </div>
+            ))}
+          </div>
+          {activeAttrCount > 0 && (
+            <button
+              onClick={() => setCustomFilters({})}
+              className="mt-3 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
+            >
+              {tr('Clear details', 'Xóa lọc chi tiết')}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
