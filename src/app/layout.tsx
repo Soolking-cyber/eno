@@ -97,9 +97,9 @@ export default function RootLayout({
             start downloading sooner. (Map origins — unpkg/cartocdn — are
             preconnected lazily by the map itself, which only mounts on demand.) */}
         <link rel="preconnect" href="https://xihiryllwmjoouipkyhw.supabase.co" crossOrigin="" />
-        {/* Landing LCP element (hero wordmark) — preload at high priority so the
-            preload scanner starts it before render, and keep it out of the HTML. */}
-        <link rel="preload" as="image" href="/logo.svg" fetchPriority="high" />
+        {/* NB: the hero-wordmark preload (/logo.svg) lives on the HOME page only —
+            it's the landing LCP element there and unused elsewhere (preloading it
+            globally warned "preloaded but not used" on every non-home route). */}
         {/* Organization entity — ties the brand "eno.vn" to its official social
             profiles (sameAs) so Google can recognise it as a distinct brand and
             attribute the eno.vn query to this site. */}

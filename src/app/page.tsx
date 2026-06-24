@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import ReactDOM from 'react-dom'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import type { SerializedCategory, SerializedListing } from '@/lib/types'
@@ -55,6 +56,11 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
 
 export default async function Home() {
   const { categories, listings, total } = await getData()
+
+  // Preload the hero wordmark — the landing LCP element — at high priority, but
+  // ONLY here (it's unused on other routes, where a global preload warned). Next
+  // emits this as a <link rel="preload"> in <head>.
+  ReactDOM.preload('/logo.svg', { as: 'image', fetchPriority: 'high' })
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
