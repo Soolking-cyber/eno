@@ -20,6 +20,7 @@ type Ctx = {
   items: Notif[]
   unread: number
   refresh: () => void
+  markRead: (id: string) => void
   markAllRead: () => void
   remove: (id: string) => void
   clearAll: () => void
@@ -68,6 +69,20 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   // stale (pre-mutation) items/unread before refresh() lands.
   const dropCache = () => { try { localStorage.removeItem('eno-notifs') } catch {} }
 
+  // Mark ONE notification read (optimistic) — used when the user opens it. No-op if
+  // it's already read, so re-clicking doesn't churn the unread count.
+  const markRead = useCallback(async (id: string) => {
+    let wasUnread = false
+    setItems((arr) => arr.map((n) => {
+      if (n.id === id && !n.read) { wasUnread = true; return { ...n, read: true } }
+      return n
+    }))
+    if (!wasUnread) return
+    setUnread((u) => Math.max(0, u - 1))
+    dropCache()
+    try { await fetch('/api/notifications/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [id] }) }) } catch { /* optimistic */ }
+  }, [])
+
   const markAllRead = useCallback(async () => {
     setUnread(0)
     setItems((arr) => arr.map((n) => ({ ...n, read: true })))
@@ -94,7 +109,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   }, [])
 
   return (
-    <NotificationsContext.Provider value={{ items, unread, refresh, markAllRead, remove, clearAll }}>
+    <NotificationsContext.Provider value={{ items, unread, refresh, markRead, markAllRead, remove, clearAll }}>
       {children}
     </NotificationsContext.Provider>
   )

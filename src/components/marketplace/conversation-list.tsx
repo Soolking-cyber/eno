@@ -24,10 +24,18 @@ export function ConversationList() {
   useEffect(() => { if (user) refreshConvos() }, [user, refreshConvos])
 
   const filtered = useMemo(() => {
+    if (!convos) return convos
     const q = query.trim().toLowerCase()
-    if (!q || !convos) return convos
-    return convos.filter((c) => `${c.counterpart.name} ${c.listingTitle} ${c.lastMessageText ?? ''}`.toLowerCase().includes(q))
-  }, [convos, query])
+    const base = q
+      ? convos.filter((c) => `${c.counterpart.name} ${c.listingTitle} ${c.lastMessageText ?? ''}`.toLowerCase().includes(q))
+      : convos
+    // Unread threads float to the top (newest first within each group — `convos` is
+    // already newest-first, and Array.sort is stable in modern engines). The OPEN
+    // thread counts as "top" too, so it doesn't jump down the moment opening it marks
+    // it read (it re-sorts to its natural spot only after you leave it).
+    const top = (c: (typeof base)[number]) => (c.unread > 0 || c.id === activeId ? 0 : 1)
+    return [...base].sort((a, b) => top(a) - top(b))
+  }, [convos, query, activeId])
 
   return (
     <div className="flex h-full flex-col">
@@ -72,7 +80,7 @@ export function ConversationList() {
                 key={c.id}
                 onMouseEnter={() => prefetchThread(c.id)}
                 onTouchStart={() => prefetchThread(c.id)}
-                className={cn('group flex items-center gap-1 rounded-xl transition-colors', activeId === c.id ? 'text-accent-foreground' : 'hover:bg-muted')}
+                className={cn('group flex items-center gap-1 rounded-xl transition-colors', activeId === c.id ? 'text-accent-foreground bg-muted' : c.unread > 0 ? 'bg-accent/60 hover:bg-accent' : 'hover:bg-muted')}
               >
                 <Link href={`/messages/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-2.5">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0a66c2] text-sm font-bold text-white">

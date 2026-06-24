@@ -9,15 +9,24 @@ import { useLanguage } from '@/context/language-context'
 import { timeAgo } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-/** Notification bell for the header (desktop + mobile). Badge shows unread count;
- *  opening the panel marks everything read. Each row deep-links to the thread/listing. */
+/** Notification bell for the header (desktop + mobile). Badge shows unread count.
+ *  Unread float to the top and stay highlighted; each row is marked read when
+ *  opened (or all at once via "Mark all read"). Each row deep-links to the thread/listing. */
 export function NotificationBell() {
   const { user, openSignIn } = useAuth()
-  const { items, unread, markAllRead, remove, clearAll } = useNotifications()
+  const { items, unread, markRead, markAllRead, remove, clearAll } = useNotifications()
   const { tr, lang } = useLanguage()
   const [open, setOpen] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false) // 2-tap guard on "Clear all"
   const ref = useRef<HTMLDivElement>(null)
+
+  // Unread float to the top (newest first), read sink below — like an inbox. Opening
+  // the panel does NOT mark everything read (so the distinction survives); each item
+  // is marked read when opened, or all at once via "Mark all read".
+  const sorted = [...items].sort((a, b) => {
+    if (a.read !== b.read) return a.read ? 1 : -1
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
 
   useEffect(() => {
     if (!open) return
@@ -31,9 +40,7 @@ export function NotificationBell() {
 
   const toggle = () => {
     if (!user) { openSignIn(); return }
-    const next = !open
-    setOpen(next)
-    if (next && unread > 0) markAllRead()
+    setOpen((o) => !o)
   }
 
   return (
@@ -53,38 +60,52 @@ export function NotificationBell() {
 
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl bg-card shadow-pop animate-in fade-in duration-150">
-          <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
             <span className="text-sm font-bold text-foreground">{tr('Notifications', 'Thông báo')}</span>
-            {items.length > 0 && (
-              <button
-                onClick={() => { if (confirmClear) { clearAll(); setConfirmClear(false) } else setConfirmClear(true) }}
-                className={cn('text-xs font-semibold transition-colors cursor-pointer', confirmClear ? 'text-red-500' : 'text-ink-4 hover:text-accent-foreground')}
-              >
-                {confirmClear ? tr('Tap to delete all', 'Nhấn để xóa hết') : tr('Clear all', 'Xóa tất cả')}
-              </button>
-            )}
+            <div className="flex shrink-0 items-center gap-3">
+              {unread > 0 && (
+                <button
+                  onClick={() => markAllRead()}
+                  className="whitespace-nowrap text-xs font-semibold text-ink-4 transition-colors hover:text-accent-foreground cursor-pointer"
+                >
+                  {tr('Mark all read', 'Đánh dấu đã đọc')}
+                </button>
+              )}
+              {items.length > 0 && (
+                <button
+                  onClick={() => { if (confirmClear) { clearAll(); setConfirmClear(false) } else setConfirmClear(true) }}
+                  className={cn('whitespace-nowrap text-xs font-semibold transition-colors cursor-pointer', confirmClear ? 'text-red-500' : 'text-ink-4 hover:text-accent-foreground')}
+                >
+                  {confirmClear ? tr('Tap to delete all', 'Nhấn để xóa hết') : tr('Clear all', 'Xóa tất cả')}
+                </button>
+              )}
+            </div>
           </div>
           <div className="max-h-[60vh] overflow-y-auto scroll-thin">
             {items.length === 0 ? (
               <p className="px-4 py-12 text-center text-sm text-ink-4">{tr('No notifications yet.', 'Chưa có thông báo.')}</p>
             ) : (
-              items.map((n) => {
+              sorted.map((n) => {
                 const href = n.url ? n.url : n.type === 'reminder' ? '/dashboard' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
                 const Icon = n.type === 'offer' ? Tag : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : MessageSquare
                 return (
-                  <div key={n.id} className={cn('group relative transition-colors hover:bg-muted', !n.read && 'bg-accent')}>
-                    <Link href={href} onClick={() => setOpen(false)} className="flex gap-3 px-4 py-3 pr-10">
-                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+                  // Unread = brand-tinted with a left rail + dot; read = plain. Opening
+                  // a notification marks just it read (so it sinks below on next view).
+                  <div key={n.id} className={cn('group relative transition-colors', n.read ? 'hover:bg-muted' : 'bg-accent/60 hover:bg-accent')}>
+                    {!n.read && <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-accent-foreground" />}
+                    <Link href={href} onClick={() => { markRead(n.id); setOpen(false) }} className="flex gap-3 px-4 py-3 pr-10">
+                      <span className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full', n.read ? 'bg-muted text-ink-4' : 'bg-accent text-accent-foreground')}>
                         <Icon className="h-4 w-4" />
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm font-semibold text-foreground">
-                            {n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.title}
+                          <span className={cn('flex min-w-0 items-center gap-1.5 truncate text-sm', n.read ? 'font-medium text-body' : 'font-bold text-foreground')}>
+                            {!n.read && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-foreground" />}
+                            <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.title}</span>
                           </span>
                           <span className="shrink-0 text-[10px] text-ink-4">{timeAgo(n.createdAt, lang === 'vi' ? 'vi' : 'en')}</span>
                         </div>
-                        {n.body && <p className="truncate text-xs text-muted-foreground">{n.body}</p>}
+                        {n.body && <p className={cn('truncate text-xs', n.read ? 'text-muted-foreground' : 'text-body')}>{n.body}</p>}
                       </div>
                     </Link>
                     {/* Delete — reveals on hover (desktop); always visible on touch */}

@@ -145,14 +145,16 @@ export function ListingsExplorer({
   const [showExplorer, setShowExplorer] = useState(false)
 
   const [listings, setListings] = useState<SerializedListing[]>(initialListings)
-  // When "search near you" is on, distance-filter + sort the fetched set client-side
-  // (listing coordinates are approximate — district-derived — until precise capture).
+  // When "search near you" is on, distance-FILTER the fetched set client-side, but keep
+  // the TRUST-first ranking the API already applied (higher-trust sellers first), with
+  // distance only as a tiebreaker. So "near you" narrows by radius without throwing away
+  // the trust hierarchy. (Coordinates are approximate — district-derived — for now.)
   const shownListings = useMemo(() => {
     if (!nearby) return listings
     return listings
       .map((l) => ({ l, d: haversineKm(nearby, getListingCoordinates(l)) }))
       .filter((x) => x.d <= nearby.radiusKm)
-      .sort((a, b) => a.d - b.d)
+      .sort((a, b) => (b.l.seller.trustScore - a.l.seller.trustScore) || (a.d - b.d))
       .map((x) => x.l)
   }, [listings, nearby])
   const [totalCount, setTotalCount] = useState(0)
