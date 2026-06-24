@@ -69,11 +69,14 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   // the dashboard each day, send them through the quick review (auto, not opt-in).
   useEffect(() => {
     if (!user || reviewedRef.current || !data) return
+    // Don't hijack an explicit deep-link (e.g. the header "Post" button →
+    // ?tab=post): only auto-redirect when the user landed on a bare /dashboard.
+    if (searchParams.get('tab')) { reviewedRef.current = true; return }
     if (!data.listings.some((l) => l.status === 'active')) return
     let done = false
     try { done = localStorage.getItem(reviewKey(user.id)) === todayStr() } catch {}
     if (!done) { reviewedRef.current = true; router.replace('/dashboard/availability') }
-  }, [user, data, router])
+  }, [user, data, router, searchParams])
 
   // Drive the tab from ?tab= REACTIVELY (useSearchParams updates on client nav), so
   // the account-menu "Listings"/"Settings" links switch tabs even when ALREADY on

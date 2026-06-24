@@ -22,13 +22,26 @@ export async function ensureProfile(user: User) {
     (email ? email.split('@')[0] : null)
   const avatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null
 
-  const profile = await db.profile.upsert({
-    where: { id: user.id },
-    create: { id: user.id, email, phone: verifiedPhone, displayName, avatarUrl },
-    // Don't clobber a user-edited displayName/avatar with provider data on every
-    // login — only backfill email/phone (identity), leave profile-owned fields.
-    update: { email, ...(verifiedPhone ? { phone: verifiedPhone } : {}) },
-  })
+  let profile
+  try {
+    profile = await db.profile.upsert({
+      where: { id: user.id },
+      create: { id: user.id, email, phone: verifiedPhone, displayName, avatarUrl },
+      // Don't clobber a user-edited displayName/avatar with provider data on every
+      // login — only backfill email/phone (identity), leave profile-owned fields.
+      update: { email, ...(verifiedPhone ? { phone: verifiedPhone } : {}) },
+    })
+  } catch (e) {
+    // Phone unique-collision on the rare case the same number is already on another
+    // row — login must NEVER throw, so retry without touching the phone.
+    if ((e as { code?: string })?.code === 'P2002') {
+      profile = await db.profile.upsert({
+        where: { id: user.id },
+        create: { id: user.id, email, displayName, avatarUrl },
+        update: { email },
+      })
+    } else throw e
+  }
 
   // Verification-gated onboarding: a new account starts below 100 (≈60) and earns
   // up via verification. Both calls are idempotent (applied once ever).

@@ -49,8 +49,17 @@ export default function ThreadPage() {
       if (!prev) return data
       const temps = prev.messages.filter((m) => String(m.id).startsWith('temp-'))
       if (!temps.length) return data
-      const serverKeys = new Set(data.messages.map((m: Msg) => `${m.mine}|${m.body}`))
-      const pending = temps.filter((m) => !serverKeys.has(`${m.mine}|${m.body}`))
+      // Count-aware: only drop a temp if the server has an UNMATCHED copy of the same
+      // (mine, body). Sending "ok" twice → two server rows clear two temps; one temp
+      // confirmed + one still pending keeps the pending bubble (no flicker-hide).
+      const counts = new Map<string, number>()
+      for (const m of data.messages as Msg[]) { const k = `${m.mine}|${m.body}`; counts.set(k, (counts.get(k) || 0) + 1) }
+      const pending = temps.filter((m) => {
+        const k = `${m.mine}|${m.body}`
+        const c = counts.get(k) || 0
+        if (c > 0) { counts.set(k, c - 1); return false } // server already has this one
+        return true
+      })
       return pending.length ? { ...data, messages: [...data.messages, ...pending] } : data
     })
   }, [id, cacheThread])

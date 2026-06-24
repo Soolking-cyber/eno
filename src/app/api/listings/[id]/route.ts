@@ -55,8 +55,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.district = district
     // Don't stomp the listing's city with a hardcoded "Ho Chi Minh City" (wrong for
     // every non-HCMC listing). Use the new district as the display location; if it's
-    // cleared, keep the existing location rather than fabricating one. city untouched.
-    data.location = district || current.location || null
+    // cleared, keep the existing location (a non-nullable column — never write null).
+    data.location = district || current.location
   }
   if (body.condition !== undefined) data.condition = body.condition ? String(body.condition).trim() : null
   if (Array.isArray(body.images)) {
