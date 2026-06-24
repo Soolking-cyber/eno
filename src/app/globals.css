@@ -119,6 +119,13 @@
   --line-strong: #cbd5e1; /* slate-300 */
   --skeleton: #eef1f5;             /* loading placeholder base */
   --skeleton-sheen: rgba(255, 255, 255, 0.6); /* sweep highlight */
+  /* Trust-score tiers — LIGHT theme: darkened so the small number passes WCAG AA
+     (≥4.5:1) on white/tint cards (the old amber/green/slate failed contrast). */
+  --trust-restricted: #b91c1c; /* red-700  ~4.9:1 */
+  --trust-standard:   #475569; /* slate-600 */
+  --trust-trusted:    #15803d; /* green-700 ~5.0:1 */
+  --trust-exceptional:#b45309; /* amber-700 ~5.0:1 (was #d97706, failed) */
+  --trust-elite:      #7c3aed; /* violet-600 ~5.7:1 */
 
   /* Semantic — used ONLY to carry meaning, never decoration.
      verified/trust folds into the brand blue; amber = caution; red = destructive. */
@@ -201,6 +208,12 @@
   --body: #c6cdd9;         /* ~8.8:1 on card — comfortable body text */
   --tint: #262c37;
   --line-strong: #3f4757;
+  /* Trust-score tiers — DARK theme: lightened so the number passes AA on dark cards. */
+  --trust-restricted: #f87171; /* red-400 */
+  --trust-standard:   #94a3b8; /* slate-400 */
+  --trust-trusted:    #4ade80; /* green-400 */
+  --trust-exceptional:#fbbf24; /* amber-400 */
+  --trust-elite:      #a78bfa; /* violet-400 */
   --skeleton: #262c37;
   --skeleton-sheen: rgba(255, 255, 255, 0.06);
 
