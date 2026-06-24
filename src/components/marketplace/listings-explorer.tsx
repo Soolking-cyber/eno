@@ -224,10 +224,14 @@ export function ListingsExplorer({
   const saveSearchToHistory = useCallback((searchTerm: string) => {
     const trimmed = searchTerm.trim()
     if (!trimmed || trimmed.length < 2) return
-    const history = localStorage.getItem('eno:recent_searches')
-    let list: string[] = history ? JSON.parse(history) : []
+    // Corrupt/legacy storage must never throw inside the data-sync effect.
+    let list: string[] = []
+    try {
+      const parsed = JSON.parse(localStorage.getItem('eno:recent_searches') || '[]')
+      if (Array.isArray(parsed)) list = parsed.filter((x): x is string => typeof x === 'string')
+    } catch { /* reset on corrupt */ }
     list = [trimmed, ...list.filter((item) => item !== trimmed)].slice(0, 5)
-    localStorage.setItem('eno:recent_searches', JSON.stringify(list))
+    try { localStorage.setItem('eno:recent_searches', JSON.stringify(list)) } catch {}
     setRecentSearches(list)
   }, [])
 
@@ -598,6 +602,9 @@ export function ListingsExplorer({
           category: activeCategory,
           subcategory: activeSubcategory,
           district: activeDistrict,
+          province: activeProvince?.code ?? null,
+          ward: activeWard?.code ?? null,
+          near: nearby ? 1 : 0,
           condition: conditionFilter,
           type: listingType,
           q: debouncedQuery,
@@ -612,7 +619,9 @@ export function ListingsExplorer({
         const params = new URLSearchParams()
         if (activeCategory !== 'all') params.set('category', activeCategory)
         if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
-        if (activeDistrict !== 'all') params.set('district', activeDistrict)
+        if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
+        if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
+        if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
         if (conditionFilter !== 'all') params.set('condition', conditionFilter)
         if (listingType !== 'all') params.set('type', listingType)
         if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
@@ -647,6 +656,9 @@ export function ListingsExplorer({
     activeCategory,
     activeSubcategory,
     activeDistrict,
+    activeProvince,
+    activeWard,
+    nearby,
     conditionFilter,
     listingType,
     debouncedQuery,

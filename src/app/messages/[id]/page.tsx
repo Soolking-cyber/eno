@@ -42,11 +42,16 @@ export default function ThreadPage() {
     const data = await res.json()
     cacheThread(id, data) // keep the cache warm for an instant paint next time
     // Preserve any still-pending optimistic messages so a background poll never
-    // makes a just-sent message flicker away before the POST confirms it.
+    // makes a just-sent message flicker away before the POST confirms it — but DROP
+    // any temp the server already returned (match on mine+body), so a poll landing
+    // mid-POST can't render the message twice (server-confirmed wins).
     setThread((prev) => {
       if (!prev) return data
       const temps = prev.messages.filter((m) => String(m.id).startsWith('temp-'))
-      return temps.length ? { ...data, messages: [...data.messages, ...temps] } : data
+      if (!temps.length) return data
+      const serverKeys = new Set(data.messages.map((m: Msg) => `${m.mine}|${m.body}`))
+      const pending = temps.filter((m) => !serverKeys.has(`${m.mine}|${m.body}`))
+      return pending.length ? { ...data, messages: [...data.messages, ...pending] } : data
     })
   }, [id, cacheThread])
 

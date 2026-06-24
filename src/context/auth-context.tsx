@@ -124,8 +124,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // intercept the onboarding or auth-callback routes themselves.
   useEffect(() => {
     if (!user || !identityLoaded || accountType) return
-    if (!pathname || pathname.startsWith('/onboard') || pathname.startsWith('/auth')) return
-    router.replace(`/onboard?next=${encodeURIComponent(pathname)}`)
+    // Skip /signin too — it owns its own post-auth redirect; gating it would double
+    // -redirect and capture next=/signin, dropping the user's original intent.
+    if (!pathname || pathname.startsWith('/onboard') || pathname.startsWith('/auth') || pathname.startsWith('/signin')) return
+    // Preserve the query string so the page we bounce from is restored intact.
+    const here = pathname + (typeof window !== 'undefined' ? window.location.search : '')
+    router.replace(`/onboard?next=${encodeURIComponent(here)}`)
   }, [user, identityLoaded, accountType, pathname, router])
 
   const signOut = async () => {

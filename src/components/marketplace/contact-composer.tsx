@@ -43,7 +43,10 @@ export function ContactComposer({
 
   const send = () => {
     if (!canSend) return
-    if (!user && !loading) { openSignIn(); return }
+    // Until auth resolves, treat as not-ready: don't push to /messages/pending
+    // (which would 401-bounce and lose the typed message). Prompt only once we know
+    // they're truly logged out.
+    if (!user) { if (!loading) openSignIn(); return }
     // Stash a STRUCTURED offer (offerAmount) + optional note — never a baked text
     // line — so the first message lands as a proper offer card (kind='offer'),
     // identical to in-thread offers. The /messages/pending resolver posts it and

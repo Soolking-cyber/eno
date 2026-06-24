@@ -64,9 +64,14 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     return () => { stop(); document.removeEventListener('visibilitychange', onVis) }
   }, [user, refresh])
 
+  // Drop the cached snapshot on any mutation so a reload doesn't instant-paint the
+  // stale (pre-mutation) items/unread before refresh() lands.
+  const dropCache = () => { try { localStorage.removeItem('eno-notifs') } catch {} }
+
   const markAllRead = useCallback(async () => {
     setUnread(0)
     setItems((arr) => arr.map((n) => ({ ...n, read: true })))
+    dropCache()
     try { await fetch('/api/notifications/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }) } catch { /* optimistic */ }
   }, [])
 
@@ -77,12 +82,14 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       if (target && !target.read) setUnread((u) => Math.max(0, u - 1))
       return arr.filter((n) => n.id !== id)
     })
+    dropCache()
     try { await fetch(`/api/notifications/${id}`, { method: 'DELETE' }) } catch { /* optimistic */ }
   }, [])
 
   // Clear all notifications.
   const clearAll = useCallback(async () => {
     setItems([]); setUnread(0)
+    dropCache()
     try { await fetch('/api/notifications', { method: 'DELETE' }) } catch { /* optimistic */ }
   }, [])
 

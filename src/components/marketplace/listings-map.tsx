@@ -56,7 +56,7 @@ function loadLeaflet(cb: () => void) {
   const existing = document.getElementById('leaflet-js') as HTMLScriptElement | null
   if (existing) {
     if (w.L) cb()
-    else existing.addEventListener('load', cb)
+    else existing.addEventListener('load', cb, { once: true })
     return
   }
   const s = document.createElement('script')
@@ -115,7 +115,11 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => closeCard(), 220) }
   useEffect(() => () => cancelClose(), [])
 
-  useEffect(() => { loadLeaflet(() => setReady(true)) }, [])
+  useEffect(() => {
+    let cancelled = false
+    loadLeaflet(() => { if (!cancelled) setReady(true) })
+    return () => { cancelled = true } // don't setReady after unmount (stale script 'load')
+  }, [])
 
   // Init map once Leaflet is ready.
   useEffect(() => {
@@ -136,7 +140,16 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       if (l) placeCardFor(l)
     })
     mapInstanceRef.current = map
-    setTimeout(() => map.invalidateSize(), 80)
+    const sizer = setTimeout(() => map.invalidateSize(), 80)
+    // Destroy the map + its global listeners on unmount (e.g. toggling away from
+    // map view) — otherwise each toggle leaks a Leaflet instance + DOM listeners.
+    return () => {
+      clearTimeout(sizer)
+      map.off()
+      map.remove()
+      mapInstanceRef.current = null
+      markersRef.current.clear()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready])
 
