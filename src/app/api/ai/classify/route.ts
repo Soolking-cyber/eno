@@ -30,14 +30,16 @@ export async function POST(req: NextRequest) {
 
   const form = await req.formData()
   const file = form.get('file')
-  if (!(file instanceof File) || file.size === 0 || file.size > MAX_BYTES) {
-    return NextResponse.json({ error: 'bad_image' }, { status: 400 })
-  }
+  if (!(file instanceof File)) return NextResponse.json({ error: 'no_file' }, { status: 400 })
+  if (file.size === 0) return NextResponse.json({ error: 'empty_file' }, { status: 400 })
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: 'too_big' }, { status: 400 })
   // Title follows the app's chosen language.
   const lang = String(form.get('lang') || 'en') === 'vi' ? 'vi' : 'en'
   const titleLang = lang === 'vi' ? 'Vietnamese' : 'English'
 
   // Downscale to keep the vision call fast + cheap (512px is plenty to classify).
+  // sharp decodes JPG/PNG/WebP/HEIC; on failure we log the real reason + bytes/type
+  // so we can tell a HEIC/codec issue from a corrupt upload.
   let b64: string
   try {
     const buf = await sharp(Buffer.from(await file.arrayBuffer()))
@@ -46,7 +48,10 @@ export async function POST(req: NextRequest) {
       .jpeg({ quality: 80 })
       .toBuffer()
     b64 = buf.toString('base64')
-  } catch { return NextResponse.json({ error: 'bad_image' }, { status: 400 }) }
+  } catch (e) {
+    console.error('[ai/classify] decode failed', { type: file.type, size: file.size, msg: (e as Error)?.message })
+    return NextResponse.json({ error: 'decode_failed', type: file.type }, { status: 400 })
+  }
 
   const prompt = `You classify product photos for eno.vn, a marketplace for expats in Vietnam.
 Pick the single best category + subcategory from THIS taxonomy (use the exact slugs):
