@@ -24,7 +24,9 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       getCategoriesByDemand(),
       db.listing.findMany({
         where: { verified: true, status: 'active' },
-        orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
+        // Match /api/listings' default sort EXACTLY (trust-first, then featured, then
+        // recency, id tiebreaker) so this SSR seed doesn't reshuffle on hydration.
+        orderBy: [{ seller: { trustScore: 'desc' } }, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
         // First page of the infinite home feed; it paginates 24 at a time on scroll.
         take: 24,
         include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },

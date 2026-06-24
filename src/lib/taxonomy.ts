@@ -46,7 +46,7 @@ export const INTENT_SHORTCUTS: { type: ListingType; name: string; nameVi: string
 // as a min/max range), not in the stringly-typed `attributes` JSON. `column` is
 // the Listing field; the wizard renders a draggable slider + number input, and the
 // advanced filter renders a min–max range over the same scale.
-export type RangeColumn = 'year' | 'mileageKm' | 'engineL'
+export type RangeColumn = 'year' | 'mileageKm' | 'engineL' | 'engineCc'
 export type RangeMeta = {
   min: number
   max: number
@@ -63,6 +63,9 @@ export type FacetDef = {
   // filter over `range.column`. Default 'select'.
   kind?: 'toggle' | 'select' | 'range'
   range?: RangeMeta // required when kind === 'range'
+  // Restrict this facet to certain subcategory slugs (e.g. cc engine for motorbikes
+  // vs litre engine for cars). Absent = applies to every subcategory in the category.
+  subcats?: string[]
   options: { value: string; label: string; labelVi: string }[]
 }
 
@@ -141,13 +144,17 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'electric', label: 'Electric', labelVi: 'Điện' },
         { value: 'diesel', label: 'Diesel', labelVi: 'Dầu' },
       ] },
-      // Precise, draggable numeric specs (slider + type-in). Engine is in LITRES at
-      // 0.1 steps — car-appropriate, not motorbike cc. Year & mileage are exact.
+      // Precise, draggable numeric specs (slider + type-in). Engine is subcategory-
+      // aware: cc for motorbikes, LITRES (0.1 steps) for cars. Year & mileage exact.
       { key: 'year', label: 'Year', labelVi: 'Đời xe', kind: 'range', options: [],
         range: { min: 1990, max: MAX_YEAR, step: 1, column: 'year' } },
       { key: 'mileage', label: 'Mileage', labelVi: 'Số km đã đi', kind: 'range', options: [],
         range: { min: 0, max: 300000, step: 1000, unit: 'km', column: 'mileageKm' } },
-      { key: 'engine', label: 'Engine', labelVi: 'Dung tích', kind: 'range', options: [],
+      { key: 'engineCc', label: 'Engine', labelVi: 'Phân khối', kind: 'range', options: [],
+        subcats: ['motorbike-scooter', 'motorbike-manual'],
+        range: { min: 50, max: 1500, step: 5, unit: 'cc', column: 'engineCc' } },
+      { key: 'engineL', label: 'Engine', labelVi: 'Dung tích', kind: 'range', options: [],
+        subcats: ['car'],
         range: { min: 0.8, max: 6.0, step: 0.1, unit: 'L', column: 'engineL' } },
       { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: COLOR_OPTIONS },
     ],
@@ -504,18 +511,23 @@ export function subcategoriesFor(categorySlug: string): SubcatDef[] {
   return CATEGORY_BY_SLUG[categorySlug]?.subcategories ?? []
 }
 
-export function facetsFor(categorySlug: string): FacetDef[] {
-  return CATEGORY_BY_SLUG[categorySlug]?.facets ?? []
+// Facets for a category, narrowed to a subcategory when given. A facet with
+// `subcats` only shows for those subcategories (e.g. cc engine for motorbikes, L
+// for cars); facets without `subcats` always show. Passing no subcategory hides
+// subcategory-specific facets (can't know which engine unit applies yet).
+export function facetsFor(categorySlug: string, subcategorySlug?: string | null): FacetDef[] {
+  const all = CATEGORY_BY_SLUG[categorySlug]?.facets ?? []
+  return all.filter((f) => !f.subcats || (!!subcategorySlug && f.subcats.includes(subcategorySlug)))
 }
 
-// Range facets (numeric slider + min/max filter) for a category.
-export function rangeFacetsFor(categorySlug: string): (FacetDef & { range: RangeMeta })[] {
-  return facetsFor(categorySlug).filter((f): f is FacetDef & { range: RangeMeta } => f.kind === 'range' && !!f.range)
+// Range facets (numeric slider + min/max filter) for a category (+subcategory).
+export function rangeFacetsFor(categorySlug: string, subcategorySlug?: string | null): (FacetDef & { range: RangeMeta })[] {
+  return facetsFor(categorySlug, subcategorySlug).filter((f): f is FacetDef & { range: RangeMeta } => f.kind === 'range' && !!f.range)
 }
 
 // Allow-list of columns a `range_<col>` query param may target — guards the API
 // from filtering on an arbitrary client-supplied field name.
-export const RANGE_COLUMNS: readonly RangeColumn[] = ['year', 'mileageKm', 'engineL']
+export const RANGE_COLUMNS: readonly RangeColumn[] = ['year', 'mileageKm', 'engineL', 'engineCc']
 export function isRangeColumn(s: string): s is RangeColumn {
   return (RANGE_COLUMNS as readonly string[]).includes(s)
 }

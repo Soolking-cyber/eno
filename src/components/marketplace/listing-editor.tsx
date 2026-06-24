@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Upload, X, ArrowLeft } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
@@ -8,6 +8,7 @@ import { compressImageFile } from '@/lib/normalize-image'
 import { uploadInBatches } from '@/lib/upload-client'
 import { rangeFacetsFor } from '@/lib/taxonomy'
 import { RangeSpecInput } from './range-spec-input'
+import { usePointerReorder } from '@/hooks/use-pointer-reorder'
 import { cn } from '@/lib/utils'
 
 export type EditableListing = {
@@ -21,9 +22,11 @@ export type EditableListing = {
   model?: string | null      // current model (product categories only)
   showBrand?: boolean        // whether this listing's category supports a brand
   categorySlug?: string      // drives which range facets (year/mileage/engine) show
+  subcategorySlug?: string | null // engine unit (cc vs L) depends on the subcategory
   year?: number | null
   mileageKm?: number | null
   engineL?: number | null
+  engineCc?: number | null
   images: string[]
   currency: string
 }
@@ -42,18 +45,18 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
   const [brand, setBrand] = useState(listing.brand || '')
   const [model, setModel] = useState(listing.model || '')
   // Precise numeric specs (year/mileage/engine), keyed by their Listing column.
-  const rangeFacets = rangeFacetsFor(listing.categorySlug || '')
+  const rangeFacets = rangeFacetsFor(listing.categorySlug || '', listing.subcategorySlug)
   const [ranges, setRanges] = useState<Record<string, number | null>>({
     year: listing.year ?? null,
     mileageKm: listing.mileageKm ?? null,
     engineL: listing.engineL ?? null,
+    engineCc: listing.engineCc ?? null,
   })
   const [images, setImages] = useState<string[]>(listing.images)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  // Drag-to-reorder photos — index 0 is the cover. (Touch: "Make cover" button.)
-  const imgDrag = useRef<number | null>(null)
+  // Drag-to-reorder photos (touch + mouse) — index 0 is the cover.
   const moveImage = (from: number, to: number) =>
     setImages((arr) => {
       if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return arr
@@ -62,6 +65,7 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
       next.splice(to, 0, m)
       return next
     })
+  const { bind: bindImg } = usePointerReorder(moveImage)
 
   const addPhotos = async (files: FileList) => {
     setUploading(true); setError('')
@@ -190,15 +194,11 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
             {images.map((src, i) => (
               <div
                 key={src}
-                draggable
-                onDragStart={(e) => { imgDrag.current = i; e.dataTransfer.effectAllowed = 'move' }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => { e.preventDefault(); if (imgDrag.current !== null) moveImage(imgDrag.current, i); imgDrag.current = null }}
-                onDragEnd={() => { imgDrag.current = null }}
-                className="group relative h-20 w-20 cursor-move overflow-hidden rounded-xl bg-tint"
+                {...bindImg(i)}
+                className="group relative h-20 w-20 cursor-move touch-none select-none overflow-hidden rounded-xl bg-tint"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt="" draggable={false} className="h-full w-full object-cover" />
+                <img src={src} alt="" draggable={false} className="pointer-events-none h-full w-full object-cover" />
                 {i === 0 ? (
                   <span className="absolute left-1 top-1 rounded-md bg-[#0a66c2] px-1.5 py-0.5 text-[9px] font-bold text-white">{tr('Cover', 'Bìa')}</span>
                 ) : (

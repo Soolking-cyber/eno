@@ -221,8 +221,13 @@ export async function GET(req: NextRequest) {
       break
     case 'newest':
     default:
-      // Default ("Recommended"): featured first, then higher trust, then recency.
-      orderBy = [{ featured: 'desc' }, TRUST, { postedAt: 'desc' }, { id: 'desc' }]
+      // Default ("Recommended"): TRUST is the dominant signal — a higher-trust seller
+      // outranks a lower-trust one even with nothing filtered, so a low-trust listing
+      // never floats to the top of an unfiltered feed. featured + recency only break
+      // ties among equal trust. (Most accounts sit at 100, so recency still decides
+      // among the bulk; Exceptional float up, Restricted sink. Filters are a separate
+      // WHERE clause — selecting a location/category still narrows, then this ranks.)
+      orderBy = [TRUST, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }]
   }
 
   // Parallel fetch: Listings, total count, and subcategory counts (if category is set)
@@ -452,7 +457,7 @@ export async function POST(req: NextRequest) {
     // the category's declared range so out-of-range/garbage can't be stored. Engine
     // keeps one decimal (litres); year/mileage are integers.
     const rangeData: Record<string, number> = {}
-    for (const f of rangeFacetsFor(categorySlug)) {
+    for (const f of rangeFacetsFor(categorySlug, subcategorySlug)) {
       const raw = Number((body as Record<string, unknown>)[f.range.column])
       if (!Number.isFinite(raw)) continue
       const clamped = Math.min(Math.max(raw, f.range.min), f.range.max)

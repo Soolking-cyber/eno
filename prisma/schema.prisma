@@ -206,6 +206,7 @@ model Listing {
   year               Int?      // model/manufacture year (vehicles)
   mileageKm          Int?      // odometer in km (vehicles)
   engineL            Float?    // engine displacement in litres, e.g. 2.0 (cars)
+  engineCc           Int?      // engine displacement in cc, e.g. 150 (motorbikes)
   reports            Report[]
   contactReveals     ContactReveal[]
   conversations      Conversation[]

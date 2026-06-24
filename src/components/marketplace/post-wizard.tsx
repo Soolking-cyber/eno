@@ -17,6 +17,7 @@ import { subcategoriesFor, typesFor, facetsFor, rangeFacetsFor, categoryHasBrand
 import { RangeSpecInput } from './range-spec-input'
 import { compressImageFile } from '@/lib/normalize-image'
 import { uploadInBatches } from '@/lib/upload-client'
+import { usePointerReorder } from '@/hooks/use-pointer-reorder'
 
 const TITLE_MAX = 140
 const DESC_MAX = 5000
@@ -169,7 +170,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const cat = categories.find((c) => c.slug === categorySlug)
   const subOptions = subcategoriesFor(categorySlug)
   const typeOptions = typesFor(categorySlug)
-  const catFacets = facetsFor(categorySlug)
+  const catFacets = facetsFor(categorySlug, subcategorySlug)
   const hasCondition = catFacets.some((f) => f.key === 'condition')
   const attrFacets = catFacets.filter((f) => f.key !== 'condition')
   const showBrand = categoryHasBrand(categorySlug)
@@ -203,8 +204,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const canSubmit = missing.length === 0 && !submitting
 
   const [converting, setConverting] = useState(false)
-  // Drag-to-reorder photos — index 0 is the cover. (Touch: "Make cover" button.)
-  const photoDrag = useRef<number | null>(null)
+  // Drag-to-reorder photos (touch + mouse) — index 0 is the cover.
   const movePhoto = (from: number, to: number) =>
     setPhotos((arr) => {
       if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return arr
@@ -213,6 +213,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
       next.splice(to, 0, m)
       return next
     })
+  const { bind: bindPhoto } = usePointerReorder(movePhoto)
   const addPhotos = async (files: FileList | null) => {
     if (!files) return
     // Accept images incl. HEIC/HEIF (which lack an image/* type on some browsers).
@@ -264,7 +265,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
           attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),
           // Precise numeric specs → dedicated columns (year/mileageKm/engineL).
           ...Object.fromEntries(
-            rangeFacetsFor(categorySlug)
+            rangeFacetsFor(categorySlug, subcategorySlug)
               .filter((f) => ranges[f.key] != null)
               .map((f) => [f.range.column, ranges[f.key]]),
           ),
@@ -356,15 +357,11 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
               {photos.map((p, i) => (
                 <div
                   key={i}
-                  draggable
-                  onDragStart={(e) => { photoDrag.current = i; e.dataTransfer.effectAllowed = 'move' }}
-                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
-                  onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (photoDrag.current !== null) movePhoto(photoDrag.current, i); photoDrag.current = null }}
-                  onDragEnd={() => { photoDrag.current = null }}
-                  className="group relative aspect-square cursor-move overflow-hidden rounded-xl bg-tint"
+                  {...bindPhoto(i)}
+                  className="group relative aspect-square cursor-move touch-none select-none overflow-hidden rounded-xl bg-tint"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.url} alt="" draggable={false} className="h-full w-full object-cover" />
+                  <img src={p.url} alt="" draggable={false} className="pointer-events-none h-full w-full object-cover" />
                   {i === 0 ? (
                     <span className="absolute left-1.5 top-1.5 rounded-md bg-[#0a66c2] px-1.5 py-0.5 text-[10px] font-bold text-white">{t('Bìa', 'Cover')}</span>
                   ) : (

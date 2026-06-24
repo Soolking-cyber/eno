@@ -37,7 +37,7 @@ import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
-import { LISTING_TYPES, INTENT_SHORTCUTS, categoryHasBrand, rangeFacetsFor } from '@/lib/taxonomy'
+import { LISTING_TYPES, INTENT_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor } from '@/lib/taxonomy'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
@@ -49,17 +49,20 @@ import { SearchSuggest, buildSuggestItems } from './search-suggest'
 // Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
 // engine) travel in the URL + API keyed by their numeric COLUMN as `range_<col>`
 // (so the API can do a numeric range query); everything else is `attr_<key>`.
-function applyFilterParams(p: URLSearchParams, customFilters: Record<string, string>, categorySlug: string) {
-  const rf = rangeFacetsFor(categorySlug)
+function applyFilterParams(p: URLSearchParams, customFilters: Record<string, string>, categorySlug: string, subcategorySlug: string) {
+  const sub = subcategorySlug === 'all' ? null : subcategorySlug
+  const facets = facetsFor(categorySlug, sub)
   Object.entries(customFilters).forEach(([key, val]) => {
     if (!val || val === 'all') return
-    const f = rf.find((x) => x.key === key)
-    if (f) p.set(`range_${f.range.column}`, val)
+    const f = facets.find((x) => x.key === key)
+    if (!f) return // facet not valid for this (category, subcategory) — drop stale value
+    if (f.kind === 'range' && f.range) p.set(`range_${f.range.column}`, val)
     else p.set(`attr_${key}`, val)
   })
 }
-function parseFilterParams(p: URLSearchParams, categorySlug: string): Record<string, string> {
-  const rf = rangeFacetsFor(categorySlug)
+function parseFilterParams(p: URLSearchParams, categorySlug: string, subcategorySlug: string): Record<string, string> {
+  const sub = subcategorySlug === 'all' ? null : subcategorySlug
+  const rf = rangeFacetsFor(categorySlug, sub)
   const out: Record<string, string> = {}
   p.forEach((value, key) => {
     if (key.startsWith('attr_')) out[key.replace('attr_', '')] = value
@@ -389,7 +392,7 @@ export function ListingsExplorer({
       setPriceRange(pmin || pmax ? `${pmin || ''}-${pmax || ''}` : 'all')
 
       // Parse custom filters (attr_* + range_* → keyed back by facet key).
-      setCustomFilters(parseFilterParams(params, params.get('category') || 'all'))
+      setCustomFilters(parseFilterParams(params, params.get('category') || 'all', params.get('subcategory') || 'all'))
     }
 
     handleUrlChange() // Initial check
@@ -449,7 +452,7 @@ export function ListingsExplorer({
     Array.from(params.keys()).forEach((key) => {
       if (key.startsWith('attr_') || key.startsWith('range_')) params.delete(key)
     })
-    applyFilterParams(params, customFilters, activeCategory)
+    applyFilterParams(params, customFilters, activeCategory, activeSubcategory)
 
     const newSearch = params.toString()
     const newUrl = newSearch ? `?${newSearch}` : window.location.pathname
@@ -528,7 +531,7 @@ export function ListingsExplorer({
       }
 
       // Serialize custom attribute + range filters.
-      applyFilterParams(params, customFilters, activeCategory)
+      applyFilterParams(params, customFilters, activeCategory, activeSubcategory)
 
       const limit = nearby ? 100 : 24
       const offset = (page - 1) * limit
@@ -577,7 +580,7 @@ export function ListingsExplorer({
     if (conditionFilter !== 'all') p.set('condition', conditionFilter)
     if (listingType !== 'all') p.set('type', listingType)
     if (debouncedQuery.trim()) p.set('q', debouncedQuery.trim())
-    applyFilterParams(p, customFilters, activeCategory)
+    applyFilterParams(p, customFilters, activeCategory, activeSubcategory)
     return p.toString()
   }, [activeCategory, activeSubcategory, activeBrand, activeModel, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, customFilters])
 
@@ -1622,6 +1625,7 @@ export function ListingsExplorer({
             {/* Category-aware facet bar (replaces the old sidebar) */}
             <FacetBar
               activeCategory={activeCategory}
+              activeSubcategory={activeSubcategory}
               province={activeProvince}
               setProvince={setActiveProvince}
               ward={activeWard}

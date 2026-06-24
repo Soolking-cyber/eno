@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 
 type FacetBarProps = {
   activeCategory: string
+  activeSubcategory: string // drives subcategory-specific facets (e.g. cc vs L engine)
   province: Geo | null
   setProvince: Dispatch<SetStateAction<Geo | null>>
   ward: Geo | null
@@ -36,6 +37,7 @@ type FacetBarProps = {
 // the active category show.
 export function FacetBar({
   activeCategory,
+  activeSubcategory,
   province,
   setProvince,
   ward,
@@ -141,7 +143,7 @@ export function FacetBar({
 
   // All category facets live in the advanced "Filter" panel — a real per-category
   // form (condition + the per-category fields). The quick bar keeps area/type/price.
-  const advFacets = facetsFor(activeCategory)
+  const advFacets = facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory)
   const activeAdvCount =
     (conditionFilter !== 'all' ? 1 : 0) +
     advFacets.filter((f) => f.key !== 'condition' && customFilters[f.key]).length

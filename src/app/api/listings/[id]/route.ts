@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const current = await db.listing.findUnique({
     where: { id },
-    select: { title: true, description: true, district: true, location: true, brandSlug: true, model: true, category: { select: { slug: true, name: true, nameVi: true } } },
+    select: { title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, category: { select: { slug: true, name: true, nameVi: true } } },
   })
   if (!current) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -86,7 +86,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Range specs (year/mileage/engine) → clamped to the category's declared range.
   // An explicit null/'' clears the spec; an omitted key leaves it untouched.
-  for (const f of rangeFacetsFor(current.category.slug)) {
+  for (const f of rangeFacetsFor(current.category.slug, current.subcategorySlug)) {
     const col = f.range.column
     if (body[col] === undefined) continue
     if (body[col] === null || body[col] === '') { data[col] = null; continue }

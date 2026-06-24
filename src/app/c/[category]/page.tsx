@@ -47,7 +47,7 @@ export default async function CategoryPage({ params }: Props) {
     db.listing.findMany({
       where,
       include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
-      orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
+      orderBy: [{ seller: { trustScore: 'desc' } }, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
       take: PAGE_SIZE,
     }),
     db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),

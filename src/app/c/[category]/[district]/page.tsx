@@ -28,7 +28,7 @@ async function load(categorySlug: string, districtSlug: string) {
   const raw = await db.listing.findMany({
     where: { categoryId: cat.id, verified: true, status: 'active', NOT: { district: null } },
     include: { category: true, seller: true },
-    orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
+    orderBy: [{ seller: { trustScore: 'desc' } }, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
   })
   const matched = raw.filter((r) => r.district && slugify(r.district) === districtSlug)
   if (matched.length === 0) return null
