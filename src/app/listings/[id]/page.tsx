@@ -150,6 +150,9 @@ export default async function ListingPage({ params }: Props) {
     'description': displayDesc,
     'sku': listing.id,
     'mpn': listing.id,
+    // Real product brand (drives Google free product listings + matching). Only
+    // emitted when the listing carries a canonical brand.
+    ...(brand ? { 'brand': { '@type': 'Brand', 'name': brand.name } } : {}),
     'category': listing.category.name,
     'offers': {
       '@type': 'Offer',
