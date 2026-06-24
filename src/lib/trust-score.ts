@@ -1,6 +1,6 @@
 // Trust score → color hierarchy. The trust score is the SINGLE public trust signal
 // — stars and badges are gone. Colors follow human intuition so the hierarchy reads
-// instantly: red = bad, yellow = warning, green = good, emerald = great,
+// instantly: red = bad, yellow = warning, green = good, blue = great (brand),
 // purple = royal (top). Colors are THEME-AWARE CSS variables
 // (src/app/globals.css) tuned to pass WCAG AA (≥4.5:1) on both light and dark cards
 // — a single fixed hex can't be AA on white AND on the dark surface.

@@ -46,6 +46,10 @@ export type FacetDef = {
   key: string
   label: string
   labelVi: string
+  // How the advanced filter renders it: 'toggle' = a segmented button group (short
+  // enums — status, gear, fuel); 'select' = a dropdown (longer lists — year, color).
+  // Default 'select'.
+  kind?: 'toggle' | 'select'
   options: { value: string; label: string; labelVi: string }[]
 }
 
@@ -74,11 +78,24 @@ const COND: FacetDef = {
   key: 'condition',
   label: 'Condition',
   labelVi: 'Tình trạng',
+  kind: 'toggle',
   options: [
     { value: 'new', label: 'New / Like new', labelVi: 'Mới / Như mới' },
     { value: 'used', label: 'Used', labelVi: 'Đã dùng' },
   ],
 }
+
+// Shared colour palette — used by several product categories.
+const COLOR_OPTIONS = [
+  { value: 'black', label: 'Black', labelVi: 'Đen' },
+  { value: 'white', label: 'White', labelVi: 'Trắng' },
+  { value: 'grey', label: 'Grey / Silver', labelVi: 'Xám / Bạc' },
+  { value: 'red', label: 'Red', labelVi: 'Đỏ' },
+  { value: 'blue', label: 'Blue', labelVi: 'Xanh dương' },
+  { value: 'green', label: 'Green', labelVi: 'Xanh lá' },
+  { value: 'neutral', label: 'Beige / Gold', labelVi: 'Be / Vàng' },
+  { value: 'other', label: 'Other', labelVi: 'Khác' },
+]
 
 export const TAXONOMY: CategoryDef[] = [
   // 1 ── VEHICLES ─────────────────────────────────────────────────────────────
@@ -99,11 +116,11 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'parts-gear', name: 'Parts & gear', nameVi: 'Phụ tùng & đồ bảo hộ', keywords: ['helmet', 'parts', 'tire', 'phụ tùng', 'mũ bảo hiểm', 'nón'] },
     ],
     facets: [
-      { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', options: [
+      { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', kind: 'toggle', options: [
         { value: 'automatic', label: 'Automatic', labelVi: 'Xe ga / Tự động' },
         { value: 'manual', label: 'Manual', labelVi: 'Xe số / Côn tay' },
       ] },
-      { key: 'fuel', label: 'Fuel', labelVi: 'Nhiên liệu', options: [
+      { key: 'fuel', label: 'Fuel', labelVi: 'Nhiên liệu', kind: 'toggle', options: [
         { value: 'petrol', label: 'Petrol', labelVi: 'Xăng' },
         { value: 'electric', label: 'Electric', labelVi: 'Điện' },
         { value: 'diesel', label: 'Diesel', labelVi: 'Dầu' },
@@ -126,6 +143,7 @@ export const TAXONOMY: CategoryDef[] = [
         { value: '30k-60k', label: '30,000–60,000 km', labelVi: '30.000–60.000 km' },
         { value: 'over-60k', label: 'Over 60,000 km', labelVi: 'Trên 60.000 km' },
       ] },
+      { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: COLOR_OPTIONS },
     ],
   },
 
@@ -147,7 +165,7 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'office-retail', name: 'Office & retail', nameVi: 'Văn phòng & Mặt bằng', keywords: ['office', 'retail', 'commercial', 'shop', 'văn phòng', 'mặt bằng'] },
     ],
     facets: [
-      { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', options: [
+      { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', kind: 'toggle', options: [
         { value: '0', label: 'Studio', labelVi: 'Studio' },
         { value: '1', label: '1 BR', labelVi: '1 PN' },
         { value: '2', label: '2 BR', labelVi: '2 PN' },
@@ -159,7 +177,7 @@ export const TAXONOMY: CategoryDef[] = [
         { value: '70-100', label: '70–100 m²', labelVi: '70–100 m²' },
         { value: 'over-100', label: 'Over 100 m²', labelVi: 'Trên 100 m²' },
       ] },
-      { key: 'furnishing', label: 'Furnishing', labelVi: 'Nội thất', options: [
+      { key: 'furnishing', label: 'Furnishing', labelVi: 'Nội thất', kind: 'toggle', options: [
         { value: 'fully', label: 'Furnished', labelVi: 'Đầy đủ' },
         { value: 'partly', label: 'Unfurnished', labelVi: 'Cơ bản' },
       ] },
@@ -234,19 +252,21 @@ export const TAXONOMY: CategoryDef[] = [
     ],
     facets: [
       COND,
-      { key: 'storage', label: 'Storage', labelVi: 'Bộ nhớ', options: [
+      { key: 'storage', label: 'Storage', labelVi: 'Bộ nhớ', kind: 'toggle', options: [
         { value: '64', label: '64 GB', labelVi: '64 GB' },
         { value: '128', label: '128 GB', labelVi: '128 GB' },
         { value: '256', label: '256 GB', labelVi: '256 GB' },
         { value: '512-up', label: '512 GB+', labelVi: '512 GB+' },
       ] },
-      { key: 'ram', label: 'RAM', labelVi: 'RAM', options: [
+      { key: 'ram', label: 'RAM', labelVi: 'RAM', kind: 'toggle', options: [
         { value: '4-8', label: '4–8 GB', labelVi: '4–8 GB' },
         { value: '16', label: '16 GB', labelVi: '16 GB' },
         { value: '32-up', label: '32 GB+', labelVi: '32 GB+' },
       ] },
-      { key: 'warranty', label: 'Warranty', labelVi: 'Bảo hành', options: [
+      { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: COLOR_OPTIONS },
+      { key: 'warranty', label: 'Warranty', labelVi: 'Bảo hành', kind: 'toggle', options: [
         { value: 'yes', label: 'In warranty', labelVi: 'Còn bảo hành' },
+        { value: 'no', label: 'No warranty', labelVi: 'Hết bảo hành' },
       ] },
     ],
   },
@@ -270,23 +290,18 @@ export const TAXONOMY: CategoryDef[] = [
     ],
     facets: [
       COND,
-      { key: 'gender', label: 'For', labelVi: 'Dành cho', options: [
+      { key: 'gender', label: 'For', labelVi: 'Dành cho', kind: 'toggle', options: [
         { value: 'women', label: 'Women', labelVi: 'Nữ' },
         { value: 'men', label: 'Men', labelVi: 'Nam' },
         { value: 'unisex', label: 'Unisex', labelVi: 'Unisex' },
       ] },
-      { key: 'size', label: 'Size', labelVi: 'Kích cỡ', options: [
+      { key: 'size', label: 'Size', labelVi: 'Kích cỡ', kind: 'toggle', options: [
         { value: 'xs-s', label: 'XS–S', labelVi: 'XS–S' },
         { value: 'm', label: 'M', labelVi: 'M' },
         { value: 'l', label: 'L', labelVi: 'L' },
         { value: 'xl-up', label: 'XL+', labelVi: 'XL+' },
       ] },
-      { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: [
-        { value: 'black', label: 'Black', labelVi: 'Đen' },
-        { value: 'white', label: 'White', labelVi: 'Trắng' },
-        { value: 'neutral', label: 'Neutral / Beige', labelVi: 'Trung tính / Be' },
-        { value: 'colorful', label: 'Colorful', labelVi: 'Nhiều màu' },
-      ] },
+      { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: COLOR_OPTIONS },
     ],
   },
 

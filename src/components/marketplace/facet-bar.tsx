@@ -138,54 +138,43 @@ export function FacetBar({
     />,
   )
 
-  // Category-specific facets from the taxonomy. `condition` stays inline (a quick,
-  // universal filter, on the dedicated `condition` column); the deeper per-category
-  // attribute facets (transmission, storage, year, mileage, size…) move behind the
-  // "Filter" button into an advanced panel so the bar stays uncluttered.
-  const attrFacetDefs: FacetDef[] = []
-  for (const f of facetsFor(activeCategory)) {
-    if (f.key === 'condition') {
-      const options = f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))
-      facets.push(
-        <CustomSelect
-          key="condition"
-          value={conditionFilter}
-          onChange={setConditionFilter}
-          options={[{ value: 'all', label: lang === 'vi' ? f.labelVi : f.label }, ...options]}
-          placeholder={lang === 'vi' ? f.labelVi : f.label}
-          className={cls}
-          activeClassName={active}
-          wrapperClassName={wrap}
-        />,
-      )
-    } else {
-      attrFacetDefs.push(f)
-    }
-  }
-  const activeAttrCount = attrFacetDefs.filter((f) => customFilters[f.key]).length
+  // All category facets live in the advanced "Filter" panel — a real per-category
+  // form (condition + the per-category fields). The quick bar keeps area/type/price.
+  const advFacets = facetsFor(activeCategory)
+  const activeAdvCount =
+    (conditionFilter !== 'all' ? 1 : 0) +
+    advFacets.filter((f) => f.key !== 'condition' && customFilters[f.key]).length
 
   const hasActive =
     !!province || !!ward || !!nearby || conditionFilter !== 'all' || priceRange !== 'all' ||
     listingType !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
 
+  // A segmented toggle button (selected = filled blue; same height either way).
+  const segBtn = (selected: boolean) =>
+    cn('rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer',
+      selected ? 'border-[#0a66c2] bg-[#0a66c2] text-white' : 'border-line-strong text-body hover:bg-muted')
+  // condition maps to the dedicated column; everything else to attr_* customFilters.
+  const facetValue = (f: FacetDef) => (f.key === 'condition' ? conditionFilter : customFilters[f.key] || 'all')
+  const setFacetValue = (f: FacetDef, v: string) => { if (f.key === 'condition') setConditionFilter(v); else setFacet(f.key, v) }
+
   return (
     <div className="relative">
       {/* Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps. */}
       <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
-        {/* Advanced per-category filters — leftmost. Only when the category has them. */}
-        {attrFacetDefs.length > 0 && (
+        {/* Advanced per-category filter form — leftmost. Only when the category has facets. */}
+        {advFacets.length > 0 && (
           <button
             type="button"
             onClick={() => setAdvOpen((o) => !o)}
             className={cn(
               'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
-              advOpen || activeAttrCount > 0 ? active : 'text-body hover:bg-muted',
+              advOpen || activeAdvCount > 0 ? active : 'text-body hover:bg-muted',
             )}
           >
-            <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAttrCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
+            <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
             <span>{tr('Filter', 'Bộ lọc')}</span>
-            {activeAttrCount > 0 && (
-              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[10px] font-bold text-white">{activeAttrCount}</span>
+            {activeAdvCount > 0 && (
+              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[10px] font-bold text-white">{activeAdvCount}</span>
             )}
             <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', advOpen && 'rotate-180')} />
           </button>
@@ -221,38 +210,54 @@ export function FacetBar({
         />
       </div>
 
-      {/* Advanced filter panel — a compact dropdown anchored under the Filter
-          button; closes on outside click (like the other dropdowns). */}
-      {advOpen && attrFacetDefs.length > 0 && (
+      {/* Advanced per-category filter form — segmented toggles + selects; a scrollable
+          dropdown anchored under the Filter button, closing on outside click. */}
+      {advOpen && advFacets.length > 0 && (
         <>
           <div className="fixed inset-0 z-40" aria-hidden onClick={() => setAdvOpen(false)} />
-          <div className="absolute left-0 top-full z-50 mt-1 w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="absolute left-0 top-full z-50 mt-1 w-[26rem] max-w-[calc(100vw-1.5rem)] max-h-[70vh] overflow-y-auto scroll-thin rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-bold text-foreground">{tr('Filter details', 'Lọc chi tiết')}</span>
+              <span className="text-sm font-bold text-foreground">{tr('Filters', 'Bộ lọc')}</span>
               <button onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:bg-muted hover:text-foreground">
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="space-y-3">
-              {attrFacetDefs.map((f) => (
-                <div key={f.key} className="space-y-1">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{lang === 'vi' ? f.labelVi : f.label}</label>
-                  <CustomSelect
-                    value={customFilters[f.key] || 'all'}
-                    onChange={(v) => setFacet(f.key, v)}
-                    options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))]}
-                    placeholder={lang === 'vi' ? f.labelVi : f.label}
-                    activeClassName="text-accent-foreground border-accent-foreground/35"
-                  />
-                </div>
-              ))}
+            <div className="space-y-3.5">
+              {advFacets.map((f) => {
+                const value = facetValue(f)
+                const opts = f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))
+                return (
+                  <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{lang === 'vi' ? f.labelVi : f.label}</label>
+                    {f.kind === 'toggle' ? (
+                      <div className="flex flex-1 flex-wrap gap-1.5">
+                        {opts.map((o) => (
+                          <button key={o.value} type="button" onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="min-w-0 flex-1">
+                        <CustomSelect
+                          value={value}
+                          onChange={(v) => setFacetValue(f, v)}
+                          options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...opts]}
+                          placeholder={lang === 'vi' ? f.labelVi : f.label}
+                          activeClassName="text-accent-foreground border-accent-foreground/35"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-            {activeAttrCount > 0 && (
+            {activeAdvCount > 0 && (
               <button
-                onClick={() => setCustomFilters({})}
-                className="mt-3 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
+                onClick={() => { setConditionFilter('all'); setCustomFilters({}) }}
+                className="mt-3.5 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
               >
-                {tr('Clear details', 'Xóa lọc chi tiết')}
+                {tr('Clear all', 'Xóa tất cả')}
               </button>
             )}
           </div>

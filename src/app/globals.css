@@ -125,7 +125,7 @@
   --trust-restricted: #b91c1c; /* red-700    ~4.9:1 — bad */
   --trust-standard:   #b45309; /* amber-700  ~5.0:1 — warning (dropped below baseline) */
   --trust-trusted:    #15803d; /* green-700  ~5.0:1 — good (the healthy default) */
-  --trust-exceptional:#047857; /* emerald-700 ~5.5:1 — great (earned above baseline) */
+  --trust-exceptional:#0a66c2; /* brand blue ~5.7:1 — great (sits next to green) */
   --trust-elite:      #7c3aed; /* violet-600 ~5.7:1 — royal (top) */
 
   /* Semantic — used ONLY to carry meaning, never decoration.
@@ -214,7 +214,7 @@
   --trust-restricted: #f87171; /* red-400     — bad */
   --trust-standard:   #fbbf24; /* amber-400   — warning */
   --trust-trusted:    #4ade80; /* green-400   — good */
-  --trust-exceptional:#34d399; /* emerald-400 — great */
+  --trust-exceptional:#60a5fa; /* blue-400    — great (brand blue, lightened) */
   --trust-elite:      #a78bfa; /* violet-400  — royal */
   --skeleton: #262c37;
   --skeleton-sheen: rgba(255, 255, 255, 0.06);
