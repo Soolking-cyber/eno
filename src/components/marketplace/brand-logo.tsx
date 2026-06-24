@@ -12,11 +12,15 @@ export function BrandLogo({
   name,
   iconPath,
   size = 40,
+  flat = false,
   className = '',
 }: {
   name: string
   iconPath?: string | null
   size?: number
+  // flat = monolith style: square monogram with a hairline border, no fill (for
+  // the on-canvas brand rail). Default keeps the tinted circle (cards/chips).
+  flat?: boolean
   className?: string
 }) {
   if (iconPath) {
@@ -37,8 +41,8 @@ export function BrandLogo({
   return (
     <span
       aria-label={name}
-      className={`inline-flex items-center justify-center rounded-full bg-tint font-bold text-accent-foreground ${className}`}
-      style={{ width: size, height: size, fontSize: size * 0.38 }}
+      className={`inline-flex items-center justify-center font-bold text-accent-foreground ${flat ? 'rounded-xl border border-line-strong' : 'rounded-full bg-tint'} ${className}`}
+      style={{ width: size, height: size, fontSize: size * 0.36 }}
     >
       {monogram(name)}
     </span>

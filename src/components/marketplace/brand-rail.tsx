@@ -1,16 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from './brand-logo'
 
 type BrandItem = { slug: string; name: string; count: number; iconPath: string | null }
 
-// Horizontal, scrollable brand rail for the search page. Shows the brands that
-// have live listings in the current category (logo + name). Tapping a brand
-// filters by it AND expands its models present in the catalogue (Carousell /
-// Chợ Tốt pattern); tapping a model narrows further. Controlled by the explorer.
+// Line 2 of the search header. Large, flat square brand tiles (logo in a square
+// field + name under, on the canvas — no fill) in one horizontally scrollable
+// line. Tapping a brand filters by it and rolls its MODELS out to the right
+// (pushing the brands after it); tapping again collapses. Matches the category
+// rail's interaction + the home grid's flat look.
 export function BrandRail({
   category,
   activeBrand,
@@ -19,16 +20,15 @@ export function BrandRail({
   onPickModel,
 }: {
   category: string
-  activeBrand: string // canonical slug or 'all'
-  activeModel: string // model display string or 'all'
-  onPickBrand: (slug: string) => void   // 'all' to clear
-  onPickModel: (model: string) => void  // 'all' to clear
+  activeBrand: string
+  activeModel: string
+  onPickBrand: (slug: string) => void
+  onPickModel: (model: string) => void
 }) {
   const { tr } = useLanguage()
   const [brands, setBrands] = useState<BrandItem[]>([])
   const [models, setModels] = useState<{ model: string; count: number }[]>([])
 
-  // Brands for the active category.
   useEffect(() => {
     let off = false
     fetch(`/api/brands?category=${encodeURIComponent(category)}&limit=40`)
@@ -38,7 +38,6 @@ export function BrandRail({
     return () => { off = true }
   }, [category])
 
-  // Models for the selected brand (lazy — only when a brand is active).
   useEffect(() => {
     if (activeBrand === 'all') { setModels([]); return }
     let off = false
@@ -52,58 +51,46 @@ export function BrandRail({
 
   if (brands.length === 0) return null
 
-  return (
-    <div className="space-y-2 pt-0.5">
-      {/* Brand chips */}
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
-        {brands.map((b) => {
-          const isActive = activeBrand === b.slug
-          return (
-            <button
-              key={b.slug}
-              onClick={() => { onPickBrand(isActive ? 'all' : b.slug); onPickModel('all') }}
-              className={cn(
-                'flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap',
-                isActive ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted',
-              )}
-            >
-              <BrandLogo name={b.name} iconPath={b.iconPath} size={18} className={isActive ? 'text-white' : ''} />
-              <span>{b.name}</span>
-              <span className={cn('text-[10px] font-semibold', isActive ? 'text-white/70' : 'text-ink-4')}>{b.count}</span>
-            </button>
-          )
-        })}
-      </div>
+  const tileCls = 'group flex w-[4.75rem] shrink-0 flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
+  const nameCls = (active: boolean) =>
+    cn('line-clamp-2 text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
+  const modelChip = (active: boolean) =>
+    cn('shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-semibold transition-colors cursor-pointer', active ? 'text-accent-foreground' : 'text-body hover:text-accent-foreground')
 
-      {/* Model sub-row — revealed once a brand is selected (its models in catalogue) */}
-      {activeBrand !== 'all' && models.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
-          <button
-            onClick={() => onPickModel('all')}
-            className={cn(
-              'rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer',
-              activeModel === 'all' ? 'bg-tint text-accent-foreground' : 'text-body hover:bg-muted',
+  return (
+    <div className="flex items-stretch gap-4 overflow-x-auto scrollbar-none py-1">
+      {brands.map((b) => {
+        const isActive = activeBrand === b.slug
+        return (
+          <Fragment key={b.slug}>
+            <button onClick={() => { onPickBrand(isActive ? 'all' : b.slug); onPickModel('all') }} className={tileCls}>
+              <span className="flex h-11 w-11 items-center justify-center transition-transform duration-200 group-hover:scale-110">
+                <BrandLogo name={b.name} iconPath={b.iconPath} size={40} flat className={isActive ? '!text-accent-foreground' : ''} />
+              </span>
+              <span className={nameCls(isActive)}>{b.name}</span>
+            </button>
+
+            {/* Models roll out to the right of the active brand */}
+            {isActive && models.length > 0 && (
+              <div className="flex shrink-0 items-center gap-1.5 animate-in fade-in slide-in-from-left-2 duration-200">
+                <span className="mx-1 h-10 w-px shrink-0 bg-border" />
+                <div className="flex flex-col flex-wrap content-center gap-x-1.5 gap-y-1 max-h-[5.5rem]">
+                  <button onClick={() => onPickModel('all')} className={modelChip(activeModel === 'all')}>{tr('All', 'Tất cả')}</button>
+                  {models.map((m) => {
+                    const mActive = activeModel === m.model
+                    return (
+                      <button key={m.model} onClick={() => onPickModel(mActive ? 'all' : m.model)} className={modelChip(mActive)}>
+                        {m.model}
+                        <span className="ml-1 text-[10px] font-semibold text-ink-4">{m.count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             )}
-          >
-            {tr('All models', 'Tất cả mẫu')}
-          </button>
-          {models.map((m) => {
-            const isActive = activeModel === m.model
-            return (
-              <button
-                key={m.model}
-                onClick={() => onPickModel(isActive ? 'all' : m.model)}
-                className={cn(
-                  'rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap',
-                  isActive ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted',
-                )}
-              >
-                {m.model}
-              </button>
-            )
-          })}
-        </div>
-      )}
+          </Fragment>
+        )
+      })}
     </div>
   )
 }
