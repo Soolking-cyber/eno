@@ -2,14 +2,16 @@
 // Core differentiator: every listing is verification-checked so buyers
 // never waste time on fake / wrong-priced posts.
 
+// Prisma 7: the `prisma-client` generator emits an ESM client to an explicit path.
+// Runtime connects via a driver adapter (see src/lib/db.ts) — NOT this datasource —
+// so the URL lives in prisma.config.ts (used only by the CLI: db push / studio).
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL") // Supabase pooled connection (Supavisor, port 6543, ?pgbouncer=true)
-  directUrl = env("DIRECT_URL")   // Supabase direct connection (port 5432) — used by migrations
+  provider = "postgresql"
 }
 
 model Category {

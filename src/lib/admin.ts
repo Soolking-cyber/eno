@@ -1,7 +1,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { ensureProfile } from '@/lib/profile'
-import type { Profile } from '@prisma/client'
+import type { Profile } from '@/generated/prisma/client'
 
 /** Comma-separated allowlist from ADMIN_EMAILS (server-only env). */
 function adminEmails(): string[] {

@@ -1,4 +1,4 @@
-import type { Listing, Category, Seller } from '@prisma/client'
+import type { Listing, Category, Seller } from '@/generated/prisma/client'
 import type { SerializedListing, CategoryColor } from './types'
 
 export function safeParse<T>(value: string | null, fallback: T): T {

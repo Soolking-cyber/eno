@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+import { Prisma } from '@/generated/prisma/client'
 import { fold } from './fold'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { CATEGORY_BY_SLUG, LISTING_TYPE_LABEL, type ListingType } from './taxonomy'

@@ -1,4 +1,5 @@
-import { PrismaClient, type Prisma } from '@prisma/client'
+import { PrismaClient, type Prisma } from '../src/generated/prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
 import { TAXONOMY, type CategoryDef, type ListingType } from '../src/lib/taxonomy'
 import { buildSearchText } from '../src/lib/fold'
 
@@ -14,7 +15,9 @@ import { buildSearchText } from '../src/lib/fold'
 //   • MOCK_PER_CATEGORY (default 180) — listings generated per category.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const db = new PrismaClient({ log: ['warn', 'error'] })
+// Seed writes go over the DIRECT connection (bulk inserts, not the txn pooler).
+const adapter = new PrismaPg({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL })
+const db = new PrismaClient({ adapter, log: ['warn', 'error'] })
 
 const PER_CAT = Number(process.env.MOCK_PER_CATEGORY ?? 180)
 

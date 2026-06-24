@@ -41,3 +41,6 @@ server.log
 # Azure deployment templates (contain subscription/resource ids)
 Deployment-*/
 .vercel
+
+# Prisma 7 generated client (regenerated on install/build)
+/src/generated/prisma/
