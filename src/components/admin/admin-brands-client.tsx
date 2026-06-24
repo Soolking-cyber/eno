@@ -93,8 +93,10 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
   const onSvgFile = async (file: File | undefined) => {
     if (!file) return
     if (file.size > 200_000) { toast.error('SVG too large (max 200 KB)'); return }
-    const text = (await file.text()).trim()
+    let text = (await file.text()).trim()
     if (!/<svg[\s\S]*<\/svg>/i.test(text)) { toast.error('That file is not a valid SVG'); return }
+    const svgAt = text.search(/<svg[\s>]/i) // drop any <?xml …?> prolog
+    if (svgAt > 0) text = text.slice(svgAt)
     setLogoPath(text)
     setAiPath(null)
     toast.success('SVG loaded — review + Save')

@@ -37,7 +37,10 @@ export async function PATCH(req: NextRequest) {
   }
   if (body.iconSlug !== undefined) data.iconSlug = body.iconSlug ? String(body.iconSlug).trim().slice(0, 80) : null
   if (body.logoPath !== undefined) {
-    const raw = body.logoPath ? String(body.logoPath).trim() : ''
+    let raw = body.logoPath ? String(body.logoPath).trim() : ''
+    // Drop any leading XML prolog / comments so "<?xml …?><svg>" files are detected.
+    const svgAt = raw.search(/<svg[\s>]/i)
+    if (svgAt > 0) raw = raw.slice(svgAt)
     let clean = ''
     if (raw.startsWith('<svg')) {
       // Full SVG (rendered via an <img> data-URI, so already script-sandboxed) — still

@@ -24,7 +24,11 @@ export function BrandLogo({
   className?: string
 }) {
   if (iconPath) {
-    const v = iconPath.trim()
+    // Drop any leading XML prolog / comments so files that start with
+    // "<?xml …?>" are still recognized as SVG (not mistaken for path data).
+    const raw = iconPath.trim()
+    const svgAt = raw.search(/<svg[\s>]/i)
+    const v = svgAt >= 0 ? raw.slice(svgAt) : raw
     // A full <svg> (admin-curated, any viewBox) renders via an <img> data-URI —
     // browser-sandboxed (no script execution) and keeps the logo's own scale/colour.
     if (v.startsWith('<svg')) {
