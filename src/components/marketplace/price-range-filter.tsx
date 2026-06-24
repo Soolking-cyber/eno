@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
@@ -112,6 +112,19 @@ export function PriceRangeFilter({
   }
 
   const pct = (v: number) => ((v - dataMin) / span) * 100
+  // Click the track → jump the NEAREST handle to that point (the dual inputs have
+  // pointer-events:none on the track, so a bare track click would otherwise do nothing).
+  const onTrackDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).tagName === 'INPUT') return // a handle → native drag
+    const rect = e.currentTarget.getBoundingClientRect()
+    if (!rect.width) return
+    const f = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+    const v = Math.round(dataMin + f * span)
+    if (v <= effLo) { setLo(v); commit(v, effHi) }
+    else if (v >= effHi) { setHi(v); commit(effLo, v) }
+    else if (v - effLo <= effHi - v) { setLo(v); commit(v, effHi) }
+    else { setHi(v); commit(effLo, v) }
+  }
   const inRangeCount = prices.filter((p) => p >= effLo && p <= effHi).length
   const toDisplay = (vnd: number) => (rate ? Math.round(vnd * rate) : Math.round(vnd))
   const fromDisplay = (disp: number) => (rate ? disp / rate : disp)
@@ -175,7 +188,7 @@ export function PriceRangeFilter({
                   })}
                 </div>
 
-                <div className="relative mt-1 h-5">
+                <div className="relative mt-1 h-5 cursor-pointer" onPointerDown={onTrackDown}>
                   <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-muted" />
                   <div
                     className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#0a66c2]"

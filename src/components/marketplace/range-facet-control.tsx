@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import type { RangeMeta } from '@/lib/taxonomy'
 
@@ -64,9 +64,23 @@ export function RangeFacetControl({
     setHi(n); commit(lo, n); setHiText(n >= max ? '' : fmt(n))
   }
 
+  // Click anywhere on the track → jump the NEAREST thumb to that point (the dual
+  // inputs have pointer-events:none on the track, so this fills that gap).
+  const onTrackDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).tagName === 'INPUT') return // a thumb → let it drag natively
+    const rect = e.currentTarget.getBoundingClientRect()
+    if (!rect.width) return
+    const f = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+    const v = round(min + f * (max - min))
+    if (v <= lo) { setLo(v); commit(v, hi) }
+    else if (v >= hi) { setHi(v); commit(lo, v) }
+    else if (v - lo <= hi - v) { setLo(v); commit(v, hi) }
+    else { setHi(v); commit(lo, v) }
+  }
+
   return (
     <div className="min-w-0 flex-1">
-      <div className="relative h-5">
+      <div className="relative h-5 cursor-pointer" onPointerDown={onTrackDown}>
         <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-muted" />
         <div
           className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#0a66c2]"
