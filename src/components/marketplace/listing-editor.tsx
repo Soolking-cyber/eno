@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Upload, X, ArrowLeft } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
@@ -37,6 +37,16 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Drag-to-reorder photos — index 0 is the cover. (Touch: "Make cover" button.)
+  const imgDrag = useRef<number | null>(null)
+  const moveImage = (from: number, to: number) =>
+    setImages((arr) => {
+      if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return arr
+      const next = [...arr]
+      const [m] = next.splice(from, 1)
+      next.splice(to, 0, m)
+      return next
+    })
 
   const addPhotos = async (files: FileList) => {
     setUploading(true); setError('')
@@ -144,11 +154,25 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
 
         <div>
           <label className="mb-1 block text-xs font-semibold text-body">{tr('Photos', 'Hình ảnh')}</label>
+          <p className="mb-1.5 text-[11px] text-ink-4">{tr('Drag to reorder — the first photo is the cover.', 'Kéo để sắp xếp — ảnh đầu là ảnh bìa.')}</p>
           <div className="flex flex-wrap gap-2">
             {images.map((src, i) => (
-              <div key={src} className="relative h-20 w-20 overflow-hidden rounded-xl bg-tint">
+              <div
+                key={src}
+                draggable
+                onDragStart={(e) => { imgDrag.current = i; e.dataTransfer.effectAllowed = 'move' }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); if (imgDrag.current !== null) moveImage(imgDrag.current, i); imgDrag.current = null }}
+                onDragEnd={() => { imgDrag.current = null }}
+                className="group relative h-20 w-20 cursor-move overflow-hidden rounded-xl bg-tint"
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt="" className="h-full w-full object-cover" />
+                <img src={src} alt="" draggable={false} className="h-full w-full object-cover" />
+                {i === 0 ? (
+                  <span className="absolute left-1 top-1 rounded-md bg-[#0a66c2] px-1.5 py-0.5 text-[9px] font-bold text-white">{tr('Cover', 'Bìa')}</span>
+                ) : (
+                  <button type="button" onClick={() => moveImage(i, 0)} className="absolute bottom-1 left-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer">{tr('Cover', 'Bìa')}</button>
+                )}
                 <button type="button" onClick={() => setImages((p) => p.filter((_, j) => j !== i))} aria-label={tr('Remove', 'Xóa')} className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white">
                   <X className="h-3 w-3" />
                 </button>

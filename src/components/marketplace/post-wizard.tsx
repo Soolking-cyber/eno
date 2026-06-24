@@ -197,6 +197,16 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const canSubmit = missing.length === 0 && !submitting
 
   const [converting, setConverting] = useState(false)
+  // Drag-to-reorder photos — index 0 is the cover. (Touch: "Make cover" button.)
+  const photoDrag = useRef<number | null>(null)
+  const movePhoto = (from: number, to: number) =>
+    setPhotos((arr) => {
+      if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return arr
+      const next = [...arr]
+      const [m] = next.splice(from, 1)
+      next.splice(to, 0, m)
+      return next
+    })
   const addPhotos = async (files: FileList | null) => {
     if (!files) return
     // Accept images incl. HEIC/HEIF (which lack an image/* type on some browsers).
@@ -333,10 +343,22 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
               className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'ring-2 ring-[#0a66c2]/40')}
             >
               {photos.map((p, i) => (
-                <div key={i} className="group relative aspect-square overflow-hidden rounded-xl bg-tint">
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={(e) => { photoDrag.current = i; e.dataTransfer.effectAllowed = 'move' }}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
+                  onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (photoDrag.current !== null) movePhoto(photoDrag.current, i); photoDrag.current = null }}
+                  onDragEnd={() => { photoDrag.current = null }}
+                  className="group relative aspect-square cursor-move overflow-hidden rounded-xl bg-tint"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.url} alt="" className="h-full w-full object-cover" />
-                  {i === 0 && <span className="absolute left-1.5 top-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white">{t('Bìa', 'Cover')}</span>}
+                  <img src={p.url} alt="" draggable={false} className="h-full w-full object-cover" />
+                  {i === 0 ? (
+                    <span className="absolute left-1.5 top-1.5 rounded-md bg-[#0a66c2] px-1.5 py-0.5 text-[10px] font-bold text-white">{t('Bìa', 'Cover')}</span>
+                  ) : (
+                    <button type="button" onClick={() => movePhoto(i, 0)} className="absolute bottom-1 left-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer">{t('Đặt làm bìa', 'Make cover')}</button>
+                  )}
                   <button aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]">
                     <X className="h-4 w-4" />
                   </button>
