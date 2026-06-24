@@ -83,7 +83,9 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
     } catch { setError(tr('Could not save. Try again.', 'Không lưu được. Thử lại.')) } finally { setSaving(false) }
   }
 
-  const field = 'w-full rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-muted focus:bg-muted'
+  // Visible field surface (matches the post wizard) so inputs read as editable boxes
+  // on the canvas — not plain text with blank gaps.
+  const field = 'w-full rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-shadow focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4'
 
   return (
     <div className="mx-auto w-full max-w-2xl px-3 sm:px-6 lg:px-8 py-6">
@@ -100,7 +102,7 @@ export function ListingEditor({ listing }: { listing: EditableListing }) {
 
         <div>
           <label className="mb-1 block text-xs font-semibold text-body">{tr('Description', 'Mô tả')}</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={6} maxLength={5000} className={cn(field, 'resize-none')} />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} maxLength={5000} className={cn(field, 'resize-none')} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
