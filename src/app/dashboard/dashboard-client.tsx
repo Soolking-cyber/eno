@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, MessageSquareText, Tag, Clock, Upload } from 'lucide-react'
+import { Eye, MessageSquareText, Tag, Clock, Upload, List, LayoutGrid } from 'lucide-react'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -63,6 +63,10 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   const searchParams = useSearchParams()
   const [data, setData] = useState<Dashboard | null>(null)
   const [tab, setTab] = useState<'post' | 'listings' | 'account'>('listings')
+  // Listings layout: line (rows) vs grid (cards). Persisted per device.
+  const [listView, setListView] = useState<'list' | 'grid'>('list')
+  useEffect(() => { try { const v = localStorage.getItem('eno-dash-view'); if (v === 'grid' || v === 'list') setListView(v) } catch {} }, [])
+  const setView = (v: 'list' | 'grid') => { setListView(v); try { localStorage.setItem('eno-dash-view', v) } catch {} }
   const reviewedRef = useRef(false)
 
   // Daily availability review: the FIRST time a seller with live listings opens
@@ -225,7 +229,25 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
 
         {/* All listings */}
         <section className="mt-8">
-          <h2 className="h-section text-foreground">{tr('My listings', 'Tin của tôi')}{d ? ` (${d.listings.length})` : ''}</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="h-section text-foreground">{tr('My listings', 'Tin của tôi')}{d ? ` (${d.listings.length})` : ''}</h2>
+            {/* Line ↔ grid view toggle (mirrors the explorer's). */}
+            {d && d.listings.length > 0 && (
+              <div className="flex items-center gap-0.5 rounded-xl bg-tint p-0.5">
+                {([['list', List], ['grid', LayoutGrid]] as const).map(([v, Icon]) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    aria-label={v === 'list' ? tr('List view', 'Dạng danh sách') : tr('Grid view', 'Dạng lưới')}
+                    aria-pressed={listView === v}
+                    className={cn('flex h-7 w-7 items-center justify-center rounded-lg transition-colors cursor-pointer', listView === v ? 'bg-card text-accent-foreground shadow-sm' : 'text-ink-4 hover:text-foreground')}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {!d ? (
             <div className="mt-4 space-y-2.5">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[92px] rounded-2xl shimmer" />)}</div>
           ) : d.listings.length === 0 ? (
@@ -234,7 +256,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
               <p className="mt-3 text-sm text-muted-foreground">{tr('No listings yet — post your first one.', 'Chưa có tin nào — đăng tin đầu tiên.')}</p>
             </div>
           ) : (
-            <div className="mt-3 space-y-2.5">
+            <div className={cn('mt-3', listView === 'grid' ? 'grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-2.5')}>
               {d.listings.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />)}
             </div>
           )}

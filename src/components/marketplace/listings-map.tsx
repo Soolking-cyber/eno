@@ -13,12 +13,14 @@ import { useFavorites } from '@/context/favorites-context'
 import { getListingCoordinates } from '@/lib/geo'
 import { cn } from '@/lib/utils'
 
-// Compact price for map labels (Airbnb-style price pins).
-function compactPrice(l: SerializedListing): string {
+// Compact price for map labels (Airbnb-style price pins) — language-aware suffixes:
+// EN uses B/M/K, VI uses tỷ/tr/k. (`+(…).toFixed(1)` drops a trailing ".0".)
+function compactPrice(l: SerializedListing, lang: Language): string {
   if (l.currency === '₫') {
-    if (l.price >= 1_000_000_000) return `${(l.price / 1_000_000_000).toFixed(1)}tỷ`
-    if (l.price >= 1_000_000) return `${Math.round(l.price / 1_000_000)}tr`
-    if (l.price >= 1_000) return `${Math.round(l.price / 1_000)}k`
+    const vi = lang === 'vi'
+    if (l.price >= 1_000_000_000) return `${+(l.price / 1_000_000_000).toFixed(1)}${vi ? ' tỷ' : 'B'}`
+    if (l.price >= 1_000_000) return `${Math.round(l.price / 1_000_000)}${vi ? ' tr' : 'M'}`
+    if (l.price >= 1_000) return `${Math.round(l.price / 1_000)}${vi ? 'k' : 'K'}`
     return `${l.price}`
   }
   return formatPrice(l.price, l.currency, l.priceUnit)
@@ -178,7 +180,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     listings.forEach((l) => {
       const { lat, lng } = getListingCoordinates(l)
       bounds.push([lat, lng])
-      const icon = L.divIcon({ html: pinHtml(compactPrice(l), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
+      const icon = L.divIcon({ html: pinHtml(compactPrice(l, lang), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
       const marker = L.marker([lat, lng], { icon, riseOnHover: true }).addTo(map)
       marker.on('click', () => {
         if (hoverable) onOpenListing(l) // desktop: card already shown on hover → click opens
@@ -211,7 +213,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     markersRef.current.forEach((marker, id) => {
       const l = listings.find((x) => x.id === id)
       if (!l) return
-      marker.setIcon(L.divIcon({ html: pinHtml(compactPrice(l), selectedId === id), className: 'eno-pin', iconSize: [0, 0] }))
+      marker.setIcon(L.divIcon({ html: pinHtml(compactPrice(l, lang), selectedId === id), className: 'eno-pin', iconSize: [0, 0] }))
       if (selectedId === id) marker.setZIndexOffset(1000)
       else marker.setZIndexOffset(0)
     })

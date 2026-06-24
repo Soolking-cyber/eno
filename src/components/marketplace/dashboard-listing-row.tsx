@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Eye, MessageSquareText, RefreshCw, CheckCircle2, RotateCcw, Trash2, Clock, ExternalLink, Pencil } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
+import { ShareButton } from './share-button'
 import { useLanguage } from '@/context/language-context'
 import { isStale } from '@/lib/stale'
 import { cn } from '@/lib/utils'
@@ -117,6 +118,17 @@ export function DashboardListingRow({ listing, onChanged }: { listing: Serialize
           <button onClick={() => router.push(`/listings/${listing.id}`)} className={btn}>
             <ExternalLink className="h-3 w-3" /> {tr('View', 'Xem')}
           </button>
+          {/* Quick share — only meaningful for a LIVE listing (a held/sold one has no
+              public page). Reuses the curated share popover from the detail page. */}
+          {status === 'active' && listing.verified && (
+            <ShareButton
+              url={`${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/listings/${listing.id}`}
+              title={title}
+              price={listing.price}
+              currency={listing.currency}
+              className="gap-1 rounded-lg px-2.5 py-1 text-xs [&_svg]:h-3 [&_svg]:w-3"
+            />
+          )}
           <button onClick={() => { if (confirm(tr('Delete this listing permanently?', 'Xóa vĩnh viễn tin này?'))) del() }} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30')}>
             <Trash2 className="h-3 w-3" />
           </button>
