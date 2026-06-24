@@ -2,13 +2,13 @@ import { getAdmin } from '@/lib/admin'
 import { Header } from '@/components/marketplace/header'
 import { ShieldAlert } from 'lucide-react'
 import type { Metadata } from 'next'
-import { AdminBrandsClient } from '@/components/admin/admin-brands-client'
+import { AdminListingsClient } from '@/components/admin/admin-listings-client'
 import { AdminNav } from '@/components/admin/admin-nav'
 
 export const dynamic = 'force-dynamic'
-export const metadata: Metadata = { title: 'Brand curation — eno.vn', robots: { index: false, follow: false } }
+export const metadata: Metadata = { title: 'Listings — eno.vn admin', robots: { index: false, follow: false } }
 
-export default async function AdminBrandsPage() {
+export default async function AdminListingsPage() {
   const admin = await getAdmin()
   if (!admin) {
     return (
@@ -25,8 +25,8 @@ export default async function AdminBrandsPage() {
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-8 pb-16">
-        <AdminNav active="/admin/brands" />
-        <AdminBrandsClient />
+        <AdminNav active="/admin/listings" />
+        <AdminListingsClient />
       </main>
     </div>
   )

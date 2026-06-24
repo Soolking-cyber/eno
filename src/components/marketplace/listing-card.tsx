@@ -17,6 +17,11 @@ import { isMockImageUrl } from '@/lib/listing-image'
 const BLUR =
   'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjYiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjYiIGZpbGw9IiNlZWYyZjYiLz48L3N2Zz4='
 
+// Brand slug → label ("louis-vuitton" → "Louis Vuitton") for the card's brand line.
+function prettyBrand(slug: string): string {
+  return slug.split('-').map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(' ')
+}
+
 type Props = {
   listing: SerializedListing
   onOpen: (listing: SerializedListing) => void
@@ -190,6 +195,13 @@ export function ListingCard({
         <h3 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">
           {displayTitle}
         </h3>
+
+        {/* Brand · model — shown when the listing carries them (product categories). */}
+        {(listing.brandSlug || listing.model) && (
+          <span className="truncate text-[11px] font-semibold text-accent-foreground">
+            {[listing.brandSlug ? prettyBrand(listing.brandSlug) : null, listing.model].filter(Boolean).join(' · ')}
+          </span>
+        )}
 
         <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
 
