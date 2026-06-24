@@ -14,6 +14,7 @@ import { AreaFilter, type Geo, type Nearby } from './area-filter'
 import { Mascot } from './mascot'
 import { formatMoneyFull } from '@/lib/vnd'
 import { subcategoriesFor, typesFor, facetsFor, LISTING_TYPES } from '@/lib/taxonomy'
+import { normalizeImageFile } from '@/lib/normalize-image'
 
 const TITLE_MAX = 140
 const DESC_MAX = 5000
@@ -157,10 +158,28 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const missing = checks.filter((c) => !c.ok)
   const canSubmit = missing.length === 0 && !submitting
 
-  const addPhotos = (files: FileList | null) => {
+  const [converting, setConverting] = useState(false)
+  const addPhotos = async (files: FileList | null) => {
     if (!files) return
-    const next = Array.from(files).filter((f) => f.type.startsWith('image/')).slice(0, 6 - photos.length).map((f) => ({ url: URL.createObjectURL(f), file: f }))
-    setPhotos((p) => [...p, ...next])
+    // Accept images incl. HEIC/HEIF (which lack an image/* type on some browsers).
+    const incoming = Array.from(files)
+      .filter((f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name))
+      .slice(0, 6 - photos.length)
+    if (!incoming.length) return
+    setConverting(true)
+    try {
+      for (const f of incoming) {
+        try {
+          // HEIC (iPhone) → JPEG in-browser so it previews, uploads, and AI-reads.
+          const norm = await normalizeImageFile(f)
+          setPhotos((p) => [...p, { url: URL.createObjectURL(norm), file: norm }])
+        } catch {
+          toast.error(t('Không đọc được ảnh này.', "Couldn't read that photo."))
+        }
+      }
+    } finally {
+      setConverting(false)
+    }
   }
 
   const submit = async () => {
@@ -286,9 +305,9 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
               ))}
               {photos.length < 6 && (
                 <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-[#0a66c2] hover:text-accent-foreground">
-                  <ImagePlus className="h-6 w-6" />
-                  <span className="text-[10px] font-semibold">{t('Thêm ảnh', 'Add')}</span>
-                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
+                  {converting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}
+                  <span className="text-[10px] font-semibold">{converting ? t('Đang xử lý…', 'Processing…') : t('Thêm ảnh', 'Add')}</span>
+                  <input type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
                 </label>
               )}
             </div>

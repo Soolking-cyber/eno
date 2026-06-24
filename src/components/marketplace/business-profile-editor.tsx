@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Loader2, Check, Plus, LocateFixed } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { normalizeImageFile } from '@/lib/normalize-image'
 
 type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; phone: string | null }
 
@@ -53,6 +54,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   const uploadLogo = async (file: File) => {
     setUploading(true); setError('')
     try {
+      file = await normalizeImageFile(file) // iPhone HEIC → JPEG before upload
       const form = new FormData()
       form.append('files', file)
       const res = await fetch('/api/upload', { method: 'POST', body: form })
@@ -108,7 +110,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
         <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-sm ring-2 ring-background transition-transform group-hover:scale-105">
           {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-4 w-4" />}
         </span>
-        <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
+        <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
       </label>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
