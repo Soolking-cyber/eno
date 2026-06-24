@@ -44,7 +44,10 @@ export async function POST(req: NextRequest) {
     ])
     confirmed = bumped.count + refreshed.count
   }
-  // Purge cached detail pages for everything touched (sold → 404, confirmed → fresh).
-  for (const id of [...sold, ...confirm]) revalidatePath(`/listings/${id}`)
+  // Only SOLD listings must purge their cached page (it 404s non-active). A plain
+  // availability confirm just bumps feed recency — surfaced live via the client
+  // /api/listings fetch — so revalidating its detail page every day per listing is
+  // pure ISR-write waste (the dominant write driver). Let it ride its time window.
+  for (const id of sold) revalidatePath(`/listings/${id}`)
   return NextResponse.json({ ok: true, confirmed, markedSold })
 }

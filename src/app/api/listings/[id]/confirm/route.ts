@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
-import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { checkListingOwner } from '@/lib/listing-owner'
 import { recordEngagement } from '@/lib/trust'
@@ -26,7 +25,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     where: { id },
     data: { status: 'active', availabilityConfirmedAt: now, ...(bump ? { postedAt: now } : {}) },
   })
-  revalidatePath(`/listings/${id}`)
+  // No revalidatePath here: a confirm only bumps feed recency (surfaced live via the
+  // client /api/listings fetch) + an "updated" label — regenerating the cached
+  // detail page on every daily confirm, per listing, was the top ISR-write driver.
+  // The page rides its own time window; real edits/status changes still revalidate.
   // Reward the day's activity (daily-capped) — keeping listings fresh earns trust.
   after(() => recordEngagement(auth.profileId).catch(() => {}))
   return NextResponse.json({ ok: true })

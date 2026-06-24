@@ -9,7 +9,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
 
-export const revalidate = 3600 // 1h ISR
+export const revalidate = 86400 // 1d — long-tail SEO combo; client fetches live, so daily regen is plenty
 
 type Props = { params: Promise<{ category: string; district: string }> }
 

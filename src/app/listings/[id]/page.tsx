@@ -40,7 +40,7 @@ type Props = {
 // so an edit/sold/hidden/delete purges it immediately (a sold listing must 404).
 // Content renders in the visitor's language CLIENT-side (LocalizedTitle + <Tr>),
 // same as the cards — so no per-request server translation forces it dynamic.
-export const revalidate = 86400 // 1 day — edits/status/confirm revalidate this page on-demand, so background churn is wasteful
+export const revalidate = 604800 // 7d — real edits/status/sold revalidate on-demand, so background churn is pure waste
 export async function generateStaticParams() {
   return []
 }

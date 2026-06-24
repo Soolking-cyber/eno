@@ -9,7 +9,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
 
-export const revalidate = 3600 // 1h ISR
+export const revalidate = 21600 // 6h — client fetches live listings; ISR HTML is first-paint+SEO only
 
 type Props = { params: Promise<{ category: string }> }
 
