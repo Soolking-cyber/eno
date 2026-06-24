@@ -485,11 +485,15 @@ export function ListingsExplorer({
     queryFn: async () => {
       const params = new URLSearchParams()
       if (activeBrand !== 'all') {
-        // A brand search spans ALL categories; the browsed category is surfaced first
-        // (priorityCategory), not used as a hard filter.
         params.set('brand', activeBrand)
-        if (activeModel !== 'all') params.set('model', activeModel)
-        if (activeCategory !== 'all') params.set('priorityCategory', activeCategory)
+        if (activeModel !== 'all') {
+          // A MODEL is specific → keep it scoped to the browsed category, not global.
+          params.set('model', activeModel)
+          if (activeCategory !== 'all') params.set('category', activeCategory)
+        } else if (activeCategory !== 'all') {
+          // A BRAND alone spans ALL categories; the browsed category just ranks first.
+          params.set('priorityCategory', activeCategory)
+        }
       } else {
         if (activeCategory !== 'all') params.set('category', activeCategory)
         if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
@@ -549,7 +553,10 @@ export function ListingsExplorer({
     p.set('histogram', '1')
     if (activeBrand !== 'all') {
       p.set('brand', activeBrand)
-      if (activeModel !== 'all') p.set('model', activeModel)
+      if (activeModel !== 'all') {
+        p.set('model', activeModel)
+        if (activeCategory !== 'all') p.set('category', activeCategory)
+      }
     } else {
       if (activeCategory !== 'all') p.set('category', activeCategory)
       if (activeSubcategory !== 'all') p.set('subcategory', activeSubcategory)
