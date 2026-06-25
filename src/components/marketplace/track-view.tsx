@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { trackViewListing, type Currency } from '@/lib/analytics'
+import { recordView } from '@/lib/reco-signals'
 
 /**
  * Fires the GA4 view_item / Meta ViewContent conversion once per listing view.
@@ -10,12 +11,14 @@ import { trackViewListing, type Currency } from '@/lib/analytics'
  * StrictMode's double-invoke and re-fires correctly on soft-nav to another listing.
  * Renders nothing.
  */
-export function TrackView({ id, title, price, currency, category }: { id: string; title: string; price: number; currency: Currency; category: string }) {
+export function TrackView({ id, title, price, currency, category, categorySlug, brandSlug }: { id: string; title: string; price: number; currency: Currency; category: string; categorySlug?: string | null; brandSlug?: string | null }) {
   const fired = useRef<string | null>(null)
   useEffect(() => {
     if (fired.current === id) return
     fired.current = id
     trackViewListing({ id, title, price, currency, category })
-  }, [id, title, price, currency, category])
+    // Personalization signal for the "For You" rail (first-party, on-site).
+    recordView(categorySlug, brandSlug)
+  }, [id, title, price, currency, category, categorySlug, brandSlug])
   return null
 }

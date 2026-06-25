@@ -2,47 +2,57 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Cookie } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
-import { CONSENT_KEY, setConsent } from '@/lib/consent'
+import { getConsent, setConsent } from '@/lib/consent'
+import { Mascot } from './mascot'
 
-/** One-time consent bar. Accepting lets us cache your own data (inbox, prefs) to
- *  localStorage so the app loads instantly next time. Sits above the mobile nav. */
+/** One-time consent card. The mascot offers a cookie 🍪. "Allow" turns on
+ *  personalized recommendations + ad-network signals; "Essential only" keeps just
+ *  the functional caching (inbox/prefs) that makes repeat visits instant. Sits above
+ *  the mobile nav. */
 export function CookieConsent() {
   const { tr } = useLanguage()
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    try {
-      if (localStorage.getItem(CONSENT_KEY) !== 'accepted') setShow(true)
-    } catch {
-      /* storage blocked — don't nag */
-    }
+    // Show only until a choice is made (legacy 'accepted' counts as decided).
+    if (getConsent() === null) setShow(true)
   }, [])
 
   if (!show) return null
 
-  const accept = () => { setConsent(); setShow(false) }
+  const choose = (level: 'all' | 'essential') => { setConsent(level); setShow(false) }
 
   return (
     <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-[120] px-3 lg:bottom-4 lg:px-0">
-      <div className="mx-auto flex max-w-2xl flex-col gap-3 rounded-2xl bg-card p-4 shadow-overlay sm:flex-row sm:items-center">
-        <Cookie className="hidden h-6 w-6 shrink-0 text-accent-foreground sm:block" />
-        <p className="flex-1 text-xs leading-relaxed text-body">
-          {tr(
-            'We use cookies to keep you signed in and load faster.',
-            'Chúng tôi dùng cookie để giữ đăng nhập và tải nhanh hơn.',
-          )}{' '}
-          <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">
-            {tr('Read our privacy policy', 'Xem chính sách quyền riêng tư')}
-          </Link>
-        </p>
-        <button
-          onClick={accept}
-          className="shrink-0 rounded-xl bg-[#0a66c2] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] active:scale-95 cursor-pointer"
-        >
-          {tr('Accept', 'Đồng ý')}
-        </button>
+      <div className="mx-auto flex max-w-2xl items-center gap-4 rounded-2xl bg-card p-4 shadow-overlay">
+        <Mascot name="cookie" className="hidden h-20 w-20 shrink-0 self-center text-accent-foreground sm:block" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-foreground">{tr('Want recommendations made for you?', 'Muốn gợi ý dành riêng cho bạn?')}</p>
+          <p className="mt-1 text-xs leading-relaxed text-body">
+            {tr(
+              'Allow cookies so we can suggest the most relevant products for you and keep you signed in.',
+              'Cho phép cookie để chúng tôi gợi ý sản phẩm phù hợp nhất và giữ bạn đăng nhập.',
+            )}{' '}
+            <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">
+              {tr('Privacy policy', 'Chính sách quyền riêng tư')}
+            </Link>
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => choose('all')}
+              className="rounded-xl bg-[#0a66c2] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] active:scale-95 cursor-pointer"
+            >
+              {tr('Allow', 'Cho phép')}
+            </button>
+            <button
+              onClick={() => choose('essential')}
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted active:scale-95 cursor-pointer"
+            >
+              {tr('Essential only', 'Chỉ cần thiết')}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

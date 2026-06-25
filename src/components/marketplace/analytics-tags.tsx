@@ -2,6 +2,7 @@
 
 import Script from 'next/script'
 import { useEffect, useState } from 'react'
+import { hasPersonalizationConsent } from '@/lib/consent'
 
 // Google Analytics (GA4) only. The Meta Pixel was removed (heaviest 3rd-party,
 // ~233 KiB; only useful for paid Meta-ad retargeting — re-add if you run Meta ads).
@@ -13,9 +14,20 @@ import { useEffect, useState } from 'react'
 // PageView is never dropped. Helpers in lib/analytics.ts guard window.gtag.
 //   NEXT_PUBLIC_GA_ID e.g. G-XXXXXXXXXX (env overrides the public default below)
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-CKTZK62B0X'
+// Meta Pixel (ad-network retargeting) — OFF unless an id is configured AND the visitor
+// granted personalization consent ('Allow'). Keeps the heavy pixel off by default.
+const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID
 
 export function AnalyticsTags() {
   const [ready, setReady] = useState(false)
+  // Ad-network consent — reactive: flips on the instant the user clicks "Allow".
+  const [adConsent, setAdConsent] = useState(false)
+  useEffect(() => {
+    setAdConsent(hasPersonalizationConsent())
+    const on = () => setAdConsent(hasPersonalizationConsent())
+    window.addEventListener('eno:consent', on)
+    return () => window.removeEventListener('eno:consent', on)
+  }, [])
 
   useEffect(() => {
     if (!GA_ID) return
@@ -40,14 +52,25 @@ export function AnalyticsTags() {
     return cleanup
   }, [])
 
-  if (!ready || !GA_ID) return null
+  if (!ready) return null
 
   return (
     <>
-      <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
-      <Script id="ga-init" strategy="afterInteractive">
-        {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA_ID}');`}
-      </Script>
+      {GA_ID && (
+        <>
+          <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
+          <Script id="ga-init" strategy="afterInteractive">
+            {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA_ID}');`}
+          </Script>
+        </>
+      )}
+      {/* Meta Pixel — only with personalization consent + a configured id. Enables the
+          (otherwise dormant) Meta retargeting events in lib/analytics.ts. */}
+      {adConsent && META_PIXEL_ID && (
+        <Script id="fb-pixel" strategy="afterInteractive">
+          {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${META_PIXEL_ID}');fbq('track','PageView');`}
+        </Script>
+      )}
     </>
   )
 }

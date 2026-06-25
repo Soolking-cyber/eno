@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Shield-mascot holding a chocolate-chip cookie. Monoline so it renders as a
+       currentColor CSS mask (dark line-art in light mode, light in dark) like the
+       other eno mascots. All paint is opaque → the mask alpha is the line drawing. -->
+  <g stroke="#0b1220" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
+    <!-- shield body (double border) -->
+    <path d="M256 150 C232 138 196 142 178 152 C168 158 162 170 162 200 C162 286 182 350 248 398 C252 401 254 403 256 404 C258 403 260 401 264 398 C330 350 350 286 350 200 C350 170 344 158 334 152 C316 142 280 138 256 150 Z"/>
+    <path d="M256 172 C238 162 208 166 194 174 C186 179 182 190 182 210 C182 282 198 340 252 380 C254 382 255 383 256 384 C257 383 258 382 260 380 C314 340 330 282 330 210 C330 190 326 179 318 174 C304 166 274 162 256 172 Z"/>
+    <!-- eyebrows -->
+    <path d="M214 234 Q228 226 242 234"/>
+    <path d="M270 234 Q284 226 298 234"/>
+    <!-- left arm reaching to the cookie + a hand cupping its base -->
+    <path d="M170 298 Q150 302 146 324"/>
+    <path d="M118 392 Q150 410 182 392"/>
+    <!-- right arm hanging, with a little hand -->
+    <path d="M352 298 Q384 316 378 358 Q376 374 360 372"/>
+    <!-- legs -->
+    <path d="M248 400 L242 436"/>
+    <path d="M268 400 L276 436"/>
+    <!-- cookie -->
+    <circle cx="150" cy="360" r="46"/>
+  </g>
+  <g fill="#0b1220">
+    <!-- eyes -->
+    <circle cx="228" cy="252" r="8.5"/>
+    <circle cx="284" cy="252" r="8.5"/>
+    <!-- happy open mouth -->
+    <path d="M232 276 Q256 272 280 276 Q256 304 232 276 Z"/>
+    <!-- chocolate chips -->
+    <circle cx="134" cy="348" r="5"/>
+    <circle cx="161" cy="342" r="5"/>
+    <circle cx="150" cy="366" r="5"/>
+    <circle cx="167" cy="375" r="5"/>
+    <circle cx="139" cy="379" r="5"/>
+    <circle cx="156" cy="357" r="4.5"/>
+    <!-- little feet -->
+    <ellipse cx="236" cy="442" rx="16" ry="9"/>
+    <ellipse cx="282" cy="442" rx="16" ry="9"/>
+  </g>
+</svg>

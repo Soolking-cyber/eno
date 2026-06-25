@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 
-export type MascotName = 'wave' | 'saved' | 'help' | 'key' | 'search' | 'profile' | 'chat' | 'success'
+export type MascotName = 'wave' | 'saved' | 'help' | 'key' | 'search' | 'profile' | 'chat' | 'success' | 'cookie'
 
 /**
  * eno.vn's hand-drawn shield mascots — vector-traced from the originals

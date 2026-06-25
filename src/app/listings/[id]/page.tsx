@@ -212,6 +212,8 @@ export default async function ListingPage({ params }: Props) {
         price={listing.price}
         currency={currencyCode(listing.currency)}
         category={listing.category.name}
+        categorySlug={listing.category.slug}
+        brandSlug={listing.brandSlug}
       />
 
       <Header />
