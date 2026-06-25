@@ -25,13 +25,14 @@ export function PageTransitions({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const finishRef = useRef<(() => void) | null>(null)
 
-  // The route committed (new DOM is on screen) → let the View Transition snapshot the
-  // new page and run the slide.
+  // The route committed → let the View Transition snapshot the new page and run the
+  // slide. Wait TWO frames first so the incoming page has actually PAINTED — resolving
+  // on commit can snapshot a blank/skeleton frame, which flashes darker mid-slide.
   useEffect(() => {
-    if (finishRef.current) {
-      finishRef.current()
-      finishRef.current = null
-    }
+    if (!finishRef.current) return
+    const finish = finishRef.current
+    finishRef.current = null
+    requestAnimationFrame(() => requestAnimationFrame(finish))
   }, [pathname])
 
   const navigate = useCallback((href: string, dir: Dir) => {

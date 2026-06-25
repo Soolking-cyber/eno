@@ -408,11 +408,15 @@ input, select, textarea {
 /* Clean push/pop: ONE page is held fully opaque underneath while the other slides
    over/off. No opacity fade and normal blend → no dimmed/washed "window" (the default
    cross-fade overlaps two semi-transparent layers, which reads as a dark filter). */
+/* Kill the default isolated blend group — that `isolation: isolate` + `plus-lighter`
+   pairing is what dims the overlapping snapshots mid-slide. */
+::view-transition-image-pair(root) { isolation: auto; }
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: 280ms;
   animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
   mix-blend-mode: normal;
+  opacity: 1; /* never let either snapshot fade (no dim) */
 }
 /* forward (push): old held underneath; new slides in from the right on top */
 html[data-nav-dir='forward']::view-transition-old(root) { animation-name: eno-nav-hold; z-index: 0; }
