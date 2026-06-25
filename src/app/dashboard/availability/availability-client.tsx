@@ -89,7 +89,7 @@ export function AvailabilityClient() {
           </div>
         )}
 
-        <div className="mt-4 space-y-1.5 pb-28">
+        <div className="mt-4 space-y-1.5 pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-24">
           {!listings ? (
             Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 rounded-2xl shimmer" />)
           ) : filtered.map((l) => {
@@ -112,9 +112,14 @@ export function AvailabilityClient() {
         </div>
       </main>
 
-      {/* Sticky action bar */}
+      {/* Action bar — FIXED above the mobile bottom-nav, not `sticky bottom-0`. Sticky
+          put it exactly where the global fixed MobileNav (z-40) sits, so at scroll-top
+          it hid BEHIND the nav (and below the fold via min-h-screen + mobile chrome),
+          only lifting into view once you scrolled past the nav spacer. Now the bg runs
+          to bottom-0 (no gap when the nav auto-hides) while the buttons are padded up
+          clear of the nav; on lg there's no nav, so normal padding. */}
       {listings && total > 0 && (
-        <div className="sticky bottom-0 bg-card px-3 py-3 sm:px-6">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card px-3 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-3">
           <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
             <button onClick={skip} className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</button>
             <button onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-50 cursor-pointer">
