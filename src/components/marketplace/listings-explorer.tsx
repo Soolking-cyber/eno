@@ -200,6 +200,7 @@ export function ListingsExplorer({
     setCustomFilters({})
     setPriceRange('all')
     setShowExplorer(false)
+    setFeedUnlocked(false) // re-gate the home feed (footer reachable again)
   }, [])
 
   // Clicking the header logo while already on the homepage resets the explorer back
@@ -803,6 +804,9 @@ export function ListingsExplorer({
   // Infinite feed (FB-style): an off-screen sentinel below the list bumps the page
   // as it nears the viewport. Disabled for "near you" (single broad client-filtered
   // fetch) — there's nothing more to page through.
+  // Home feed: don't auto-infinite-scroll until the user opts in. They see the first
+  // page + can reach the footer; a "Load more" button then unlocks infinite scroll.
+  const [feedUnlocked, setFeedUnlocked] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   // Map view's result list scrolls inside its own column on desktop, so the
   // infinite-scroll sentinel must live INSIDE that column and observe it as the
@@ -814,6 +818,7 @@ export function ListingsExplorer({
   const hasMore = !nearby && listings.length < totalCount
   useEffect(() => {
     if (!hasMore) return
+    if (isLandingMode && !feedUnlocked) return // home feed: gated behind the "Load more" button
     const isMap = viewMode === 'map'
     // Desktop map view → the left column is the scroll container (Tailwind lg = 1024px).
     const columnScroll = isMap && typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
@@ -830,7 +835,7 @@ export function ListingsExplorer({
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasMore, queryFetching, prefetchNextPage, viewMode])
+  }, [hasMore, queryFetching, prefetchNextPage, viewMode, isLandingMode, feedUnlocked])
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
@@ -1597,9 +1602,21 @@ export function ListingsExplorer({
                   </div>
                 ))}
               </div>
-              {/* Sentinel loads the next page as it nears the viewport */}
+              {/* Home feed: a "Load more" button instead of auto-infinite, so the footer
+                  is reachable. Clicking it loads the next page AND unlocks infinite
+                  scroll (the sentinel below takes over from there). */}
               {!nearby && (
                 <div ref={loadMoreRef} className="mt-6 select-none">
+                  {hasMore && !feedUnlocked && !queryFetching && (
+                    <div className="flex justify-center border-t border-border pt-6">
+                      <button
+                        onClick={() => { prefetchNextPage(); setPage((p) => p + 1); setFeedUnlocked(true) }}
+                        className="rounded-xl border border-line-strong px-6 py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted cursor-pointer"
+                      >
+                        {tr('Load more', 'Xem thêm')}
+                      </button>
+                    </div>
+                  )}
                   {queryFetching && hasMore && (
                     <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-[#0a66c2]" aria-hidden="true" />
