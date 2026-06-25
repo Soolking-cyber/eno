@@ -66,7 +66,7 @@ export function CookieConsent() {
                 )}
                 <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
               </p>
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <div className="mt-5 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
                 <button onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</button>
                 <button onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</button>
               </div>
@@ -91,7 +91,7 @@ export function CookieConsent() {
                   desc={tr('Allow ad-network signals (Meta/Google) for retargeting.', 'Cho phép tín hiệu mạng quảng cáo (Meta/Google) để tiếp thị lại.')}
                 />
               </div>
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
                 <button onClick={save} className={primary}>{tr('Save choices', 'Lưu lựa chọn')}</button>
                 <button onClick={decline} className={ghost}>{tr('Decline all', 'Từ chối tất cả')}</button>
               </div>
