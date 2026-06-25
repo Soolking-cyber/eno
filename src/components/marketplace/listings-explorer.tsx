@@ -800,6 +800,25 @@ export function ListingsExplorer({
     return () => window.removeEventListener('eno:locate', onLocate)
   }, [locateOnMap])
 
+  // Deep-link from a card on another page (seller storefront, /saved): `/?focus=<id>`
+  // opens THAT listing on the map view, zoomed in — even if it isn't in the home feed
+  // (we fetch it by id and inject it). Runs once on mount.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('focus')
+    if (!id) return
+    setViewMode('map'); setShowExplorer(true) // switch immediately, no landing-mode flash
+    fetch(`/api/listings?ids=${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const l = d?.listings?.[0] as SerializedListing | undefined
+        if (l) { setFocusListing(l); locateOnMap(l.id) }
+      })
+      .catch(() => {})
+    // Strip the param so a later filter change / refresh doesn't re-trigger.
+    const u = new URLSearchParams(window.location.search); u.delete('focus')
+    window.history.replaceState(null, '', u.toString() ? `?${u}` : window.location.pathname)
+  }, [locateOnMap])
+
   // Intent shortcuts (Free / Wanted) from the landing grid → open the explorer
   // filtered by listingType across all categories.
   const browseIntent = useCallback((type: string) => {
