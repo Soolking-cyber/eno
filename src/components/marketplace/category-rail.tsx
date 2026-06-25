@@ -36,8 +36,13 @@ export function CategoryRail({
     // Only scroll when OPENING a category (bring it to the left). On close/clear
     // ('all') leave the scroll position untouched so the user keeps their place.
     if (activeCategory === 'all') return
-    const el = railRef.current?.querySelector(`[data-cat="${activeCategory}"]`) as HTMLElement | null
-    el?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+    const container = railRef.current
+    const el = container?.querySelector(`[data-cat="${activeCategory}"]`) as HTMLElement | null
+    if (!container || !el) return
+    // Scroll ONLY this rail (see brand-rail): el.scrollIntoView would also scroll the
+    // document horizontally and clip the whole results view. Move scrollLeft instead.
+    const left = container.scrollLeft + (el.getBoundingClientRect().left - container.getBoundingClientRect().left)
+    container.scrollTo({ left, behavior: 'smooth' })
   }, [activeCategory])
 
   const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'

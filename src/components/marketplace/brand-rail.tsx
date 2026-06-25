@@ -34,8 +34,14 @@ export function BrandRail({
   useEffect(() => {
     // Only scroll when OPENING a brand; on close/clear keep the scroll position.
     if (activeBrand === 'all') return
-    const el = railRef.current?.querySelector(`[data-brand="${activeBrand}"]`) as HTMLElement | null
-    el?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+    const container = railRef.current
+    const el = container?.querySelector(`[data-brand="${activeBrand}"]`) as HTMLElement | null
+    if (!container || !el) return
+    // Scroll ONLY this rail — NOT via el.scrollIntoView, which walks up and scrolls
+    // every scrollable ancestor (incl. the document), shifting the whole results view
+    // sideways and clipping the left edge. Move the container's own scrollLeft instead.
+    const left = container.scrollLeft + (el.getBoundingClientRect().left - container.getBoundingClientRect().left)
+    container.scrollTo({ left, behavior: 'smooth' })
   }, [activeBrand])
 
   useEffect(() => {
