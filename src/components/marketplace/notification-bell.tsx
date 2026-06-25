@@ -48,7 +48,7 @@ export function NotificationBell() {
       <button
         onClick={toggle}
         aria-label={tr('Notifications', 'Thông báo')}
-        className="relative flex h-10 w-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
       >
         {/* Match the bottom-nav icon size on mobile (28px) for top↔bottom symmetry;
             stay 20px on desktop where it sits beside the 20px Saved/Messages icons. */}

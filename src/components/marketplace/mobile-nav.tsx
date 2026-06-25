@@ -30,7 +30,7 @@ function TabBody({ active, icon }: { active: boolean; icon: React.ReactNode }) {
   const { pending } = useLinkStatus()
   const on = active || pending
   return (
-    <span className={cn('relative flex h-full w-full items-center justify-center transition-colors', on ? 'text-accent-foreground' : 'text-muted-foreground')}>
+    <span className={cn('relative flex h-full w-full items-center justify-center transition-colors', on ? 'text-accent-foreground' : 'text-body')}>
       {on && <span aria-hidden className="absolute top-0 h-0.5 w-8 rounded-full bg-accent-foreground" />}
       <span className="relative">{icon}</span>
     </span>
@@ -47,7 +47,7 @@ function GatedTab({ href, active, icon, label, gate, onNavigate }: { href: strin
   if (gate) {
     return (
       <button type="button" onClick={openSignIn} aria-label={label} className={TAB}>
-        <span className="flex h-full w-full items-center justify-center text-muted-foreground transition-colors">
+        <span className="flex h-full w-full items-center justify-center text-body transition-colors">
           <span className="relative">{icon}</span>
         </span>
       </button>

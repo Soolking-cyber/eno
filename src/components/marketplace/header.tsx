@@ -298,10 +298,10 @@ export function Header() {
           {/* Desktop quick actions (mobile uses the bottom nav): Saved · Messages · Bell */}
           {user && (
             <>
-              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
+              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
                 <Heart className="h-5 w-5" />
               </Link>
-              <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
+              <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
                 <MessageSquare className="h-5 w-5" />
                 {unread > 0 && (
                   <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[9px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>
@@ -315,7 +315,7 @@ export function Header() {
           ) : (
             <Link
               href="/signin"
-              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
               aria-label={tr('Sign in', 'Đăng nhập')}
             >
               <User className="h-5 w-5" />
