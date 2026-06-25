@@ -294,15 +294,38 @@ export function ListingsExplorer({
   const [heroActiveIdx, setHeroActiveIdx] = useState(-1)
   useEffect(() => { setHeroActiveIdx(-1) }, [landingQuery])
 
-  const handleLandingSearch = useCallback((searchTerm: string) => {
+  // Open a resolved brand/model as facets (category + brand + model) instead of a
+  // text search — a precise facet beats a keyword match. Clears `query` so the feed
+  // isn't double-filtered (text AND brand); the bar keeps showing the brand label
+  // via the eno:query broadcast below.
+  const applyResolved = useCallback((d: { brand: string; model?: string | null; category?: string | null }) => {
+    setQuery('')
+    setActiveCategory(d.category || 'all')
+    setActiveSubcategory('all')
+    setActiveBrand(d.brand)
+    setActiveModel(d.model || 'all')
+    setCustomFilters({})
+    setPriceRange('all')
+  }, [])
+
+  const handleLandingSearch = useCallback(async (searchTerm: string) => {
     const trimmed = searchTerm.trim()
-    setQuery(trimmed)
     setShowExplorer(true)
+    setShowSuggestions(false)
     if (trimmed.length >= 2) {
       saveSearchToHistory(trimmed)
+      // Brand/model intent: "huawei" / "matepad 11" open the matching category +
+      // brand (+ model) facets. Short queries only (a sentence wants a text search).
+      if (trimmed.split(/\s+/).length <= 4) {
+        try {
+          const r = await fetch(`/api/search/resolve?q=${encodeURIComponent(trimmed)}`)
+          const d = r.ok ? await r.json() : null
+          if (d?.brand) { applyResolved(d); return }
+        } catch {}
+      }
     }
-    setShowSuggestions(false)
-  }, [saveSearchToHistory])
+    setQuery(trimmed)
+  }, [saveSearchToHistory, applyResolved])
 
   // Header ↔ explorer bridge (custom events, same pattern as 'open-mobile-filters').
   // The header's search box + area selector drive the explorer here, and we tell the
@@ -407,6 +430,22 @@ export function ListingsExplorer({
     return () => window.removeEventListener('popstate', handleUrlChange)
   }, [])
 
+  // Arrived via ?q=<brand> from a search bar on another page (header routes off-page
+  // searches to /?q=…). Upgrade a brand/model query to the matching facets too, so
+  // resolution works from EVERY search bar — not just the in-page ones. Runs once.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const q = (params.get('q') || '').trim()
+    if (!q || params.get('brand') || params.get('category')) return
+    if (q.length < 2 || q.split(/\s+/).length > 4) return
+    let cancelled = false
+    fetch(`/api/search/resolve?q=${encodeURIComponent(q)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d?.brand) applyResolved(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [applyResolved])
+
   // URL state synchronization: Write back to URL as filters change
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -466,8 +505,13 @@ export function ListingsExplorer({
 
     window.history.replaceState(null, '', newUrl)
     // replaceState bypasses Next's router, so the persistent header search bar won't
-    // see the query change — broadcast it so the top bar stays in sync.
-    window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() } }))
+    // see the query change — broadcast it so the top bar stays in sync. When a search
+    // resolved to a brand/model (no text query), show the brand label so the bar still
+    // reflects what was searched (e.g. "Huawei MatePad 11").
+    const brandLabel = activeBrand !== 'all'
+      ? [prettyBrand(activeBrand), activeModel !== 'all' ? activeModel : null].filter(Boolean).join(' ')
+      : ''
+    window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() || brandLabel } }))
   }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, priceRange])
 
   // Debounce search query input to avoid making API requests on every keystroke

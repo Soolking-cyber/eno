@@ -84,6 +84,39 @@ export async function resolveBrand(raw: string): Promise<string | null> {
   }
 }
 
+/**
+ * READ-ONLY brand match (never creates) — for search resolution: does a typed query
+ * name an existing brand? Exact normalized → alias → tight fuzzy (typos only). The
+ * fuzzy budget is capped (`maxDist`, default 2; search passes 1) so generic words
+ * don't get yanked onto a near-spelled brand ("macbook" must NOT become "facebook").
+ * Returns the canonical slug, or null.
+ */
+export async function matchBrand(raw: string, maxDist = 2): Promise<string | null> {
+  const norm = normalizeBrand(raw)
+  if (norm.length < MIN_LEN || norm.length > MAX_LEN) return null
+
+  const exact = await db.brand.findUnique({ where: { normalized: norm }, select: { slug: true, status: true } })
+  if (exact) return exact.status === 'active' ? exact.slug : null
+
+  const all = await db.brand.findMany({ where: { status: 'active' }, select: { slug: true, normalized: true, aliases: true } })
+
+  for (const b of all) {
+    let aliases: string[] = []
+    try { aliases = JSON.parse(b.aliases) } catch {}
+    if (aliases.includes(norm)) return b.slug
+  }
+
+  const budget = Math.min(fuzzyBudget(norm.length), maxDist)
+  if (budget < 1) return null
+  let best: { slug: string } | null = null
+  let bestDist = budget + 1
+  for (const b of all) {
+    const d = levenshtein(norm, b.normalized, budget)
+    if (d <= budget && d < bestDist) { best = b; bestDist = d }
+  }
+  return best?.slug ?? null
+}
+
 /** Bump a brand's listing count (best-effort; for ranking the directory). */
 export async function bumpBrandCount(slug: string, delta = 1): Promise<void> {
   try { await db.brand.update({ where: { slug }, data: { listingCount: { increment: delta } } }) } catch {}
