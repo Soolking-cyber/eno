@@ -39,7 +39,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
     <section>
       <div className="mb-2.5 flex items-center justify-between gap-2">
         <button onClick={() => onCategory(cat.slug)} className="group flex items-center gap-2 cursor-pointer">
-          <CategoryIcon name={cat.icon} className="h-4 w-4 text-body group-hover:text-accent-foreground" />
+          <CategoryIcon name={cat.icon} className="h-4 w-4 text-accent-foreground" />
           <h2 className="text-base font-bold text-foreground transition-colors group-hover:text-accent-foreground">
             {lang === 'vi' ? cat.nameVi : cat.name}
           </h2>

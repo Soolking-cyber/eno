@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull } from '@/lib/vnd'
@@ -30,12 +31,41 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
   const { tr } = useLanguage()
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [mounted, setMounted] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
 
-  // Close on outside-click / Escape.
+  useEffect(() => setMounted(true), [])
+
+  // The popover is PORTALED to <body> + fixed-positioned so a tight/overflow-hidden
+  // parent (e.g. a dashboard grid card) can't clip it. Anchor it under the button,
+  // clamped to the viewport (flip above when there's no room below).
   useEffect(() => {
     if (!open) return
-    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    const place = () => {
+      const r = btnRef.current?.getBoundingClientRect()
+      if (!r) return
+      const W = 256, H = 300, M = 12
+      const left = Math.max(M, Math.min(r.right - W, window.innerWidth - W - M))
+      let top = r.bottom + 8
+      if (top + H > window.innerHeight - M) top = Math.max(M, r.top - H - 8)
+      setPos({ top, left })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
+  }, [open])
+
+  // Close on outside-click / Escape — must allow clicks inside the portaled popover.
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (btnRef.current?.contains(t) || popRef.current?.contains(t)) return
+      setOpen(false)
+    }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
@@ -68,8 +98,9 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
   const hasNative = typeof navigator !== 'undefined' && !!navigator.share
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label={tr('Share', 'Chia sẻ')}
@@ -84,8 +115,8 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
         <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl bg-card p-3 shadow-pop animate-in fade-in duration-150">
+      {mounted && open && createPortal(
+        <div ref={popRef} style={{ position: 'fixed', top: pos.top, left: pos.left, width: 256 }} className="z-[1100] rounded-2xl bg-card p-3 shadow-pop animate-in fade-in duration-150">
           <p className="px-1 pb-2 text-xs font-bold text-foreground">{tr('Share this listing', 'Chia sẻ tin này')}</p>
           <div className="grid grid-cols-3 gap-1">
             {channels.map(({ key, label, href, Icon }) => (
@@ -120,8 +151,9 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   )
 }
