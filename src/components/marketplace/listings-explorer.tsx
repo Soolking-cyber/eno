@@ -141,6 +141,9 @@ export function ListingsExplorer({
   }, [])
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
+  // A listing to show on the map that isn't necessarily in the loaded feed (set when a
+  // card outside the feed — e.g. the For You rail — asks to be located).
+  const [focusListing, setFocusListing] = useState<SerializedListing | null>(null)
   const router = useRouter()
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
   const [showExplorer, setShowExplorer] = useState(false)
@@ -782,11 +785,15 @@ export function ListingsExplorer({
     document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
-  // The "For You" rail (a separate component) asks us to open a listing on the map.
+  // A card outside the feed (e.g. the For You rail) asks us to open it on the map. It
+  // passes the full listing so we can inject it into the map even if it isn't in the
+  // currently-loaded feed (otherwise focus would find nothing to fly to).
   useEffect(() => {
     const onLocate = (e: Event) => {
-      const id = (e as CustomEvent<{ id?: string }>).detail?.id
-      if (id) locateOnMap(id)
+      const d = (e as CustomEvent<{ id?: string; listing?: SerializedListing }>).detail
+      if (!d?.id) return
+      if (d.listing) setFocusListing(d.listing)
+      locateOnMap(d.id)
     }
     window.addEventListener('eno:locate', onLocate)
     return () => window.removeEventListener('eno:locate', onLocate)
@@ -1844,7 +1851,7 @@ export function ListingsExplorer({
                     {/* Right: big sticky map */}
                     <div className="min-w-0 lg:col-span-8 h-[60vh] lg:h-[calc(100dvh-8rem)] lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
                       <ListingsMap
-                        listings={shownListings}
+                        listings={focusListing && !shownListings.some((l) => l.id === focusListing.id) ? [focusListing, ...shownListings] : shownListings}
                         activeDistrict={activeDistrict}
                         onOpenListing={handleOpen}
                         lang={lang}

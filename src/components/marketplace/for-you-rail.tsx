@@ -95,7 +95,7 @@ export function ForYouRail() {
                 <ListingCard
                   listing={l}
                   onOpen={(x) => router.push(`/listings/${x.id}`)}
-                  onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id } }))}
+                  onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
                 />
               </div>
             ))}
