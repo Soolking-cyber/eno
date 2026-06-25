@@ -407,29 +407,47 @@ export function ListingsExplorer({
     setPriceRange('all')
   }
 
+  // Parse a query-string into the explorer's filter state. Shared by the mount/popstate
+  // reader and the notification deep-link handler below.
+  const applyParams = useCallback((params: URLSearchParams) => {
+    setQuery(params.get('q') || '')
+    setActiveCategory(params.get('category') || 'all')
+    setActiveDistrict(params.get('district') || 'all')
+    setActiveSubcategory(params.get('subcategory') || 'all')
+    setActiveBrand(params.get('brand') || 'all')
+    setActiveModel(params.get('model') || 'all')
+    setListingType(params.get('type') || 'all')
+    setConditionFilter(params.get('condition') || 'all')
+    const pmin = params.get('priceMin'), pmax = params.get('priceMax')
+    setPriceRange(pmin || pmax ? `${pmin || ''}-${pmax || ''}` : 'all')
+    // Parse custom filters (attr_* + range_* → keyed back by facet key).
+    setCustomFilters(parseFilterParams(params, params.get('category') || 'all', params.get('subcategory') || 'all'))
+  }, [])
+
   // URL state synchronization: Read from URL on mount and on popstate
   useEffect(() => {
-    const handleUrlChange = () => {
-      const params = new URLSearchParams(window.location.search)
-      setQuery(params.get('q') || '')
-      setActiveCategory(params.get('category') || 'all')
-      setActiveDistrict(params.get('district') || 'all')
-      setActiveSubcategory(params.get('subcategory') || 'all')
-      setActiveBrand(params.get('brand') || 'all')
-      setActiveModel(params.get('model') || 'all')
-      setListingType(params.get('type') || 'all')
-      setConditionFilter(params.get('condition') || 'all')
-      const pmin = params.get('priceMin'), pmax = params.get('priceMax')
-      setPriceRange(pmin || pmax ? `${pmin || ''}-${pmax || ''}` : 'all')
-
-      // Parse custom filters (attr_* + range_* → keyed back by facet key).
-      setCustomFilters(parseFilterParams(params, params.get('category') || 'all', params.get('subcategory') || 'all'))
-    }
-
+    const handleUrlChange = () => applyParams(new URLSearchParams(window.location.search))
     handleUrlChange() // Initial check
     window.addEventListener('popstate', handleUrlChange)
     return () => window.removeEventListener('popstate', handleUrlChange)
-  }, [])
+  }, [applyParams])
+
+  // A notification / deep-link (e.g. a saved-search alert) routes to `/?<filters>`. When
+  // we're ALREADY on the home route that's a soft <Link> nav the reader above can't see
+  // (no popstate, no remount), so the bell also fires `eno:apply-url` with the target —
+  // apply those filters here and switch to the results view.
+  useEffect(() => {
+    const onApply = (e: Event) => {
+      const url = (e as CustomEvent<{ url?: string }>).detail?.url
+      if (!url) return
+      const qs = url.includes('?') ? url.slice(url.indexOf('?') + 1) : ''
+      applyParams(new URLSearchParams(qs))
+      setShowExplorer(true)
+      requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    }
+    window.addEventListener('eno:apply-url', onApply)
+    return () => window.removeEventListener('eno:apply-url', onApply)
+  }, [applyParams])
 
   // Arrived via ?q=<brand> from a search bar on another page (header routes off-page
   // searches to /?q=…). Upgrade a brand/model query to the matching facets too, so

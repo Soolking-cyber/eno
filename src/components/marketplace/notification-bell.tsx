@@ -93,7 +93,17 @@ export function NotificationBell() {
                   // a notification marks just it read (so it sinks below on next view).
                   <div key={n.id} className={cn('group relative transition-colors', n.read ? 'hover:bg-muted' : 'bg-accent/60 hover:bg-accent')}>
                     {!n.read && <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-accent-foreground" />}
-                    <Link href={href} onClick={() => { markRead(n.id); setOpen(false) }} className="flex gap-3 px-4 py-3 pr-10">
+                    <Link
+                      href={href}
+                      onClick={() => {
+                        markRead(n.id); setOpen(false)
+                        // Home-filter deep-links (saved-search alerts → `/?<filters>`) are a
+                        // soft nav the in-page explorer can't see when we're already on `/`;
+                        // tell it to apply the filters. Harmless on other routes (no listener).
+                        if (href.startsWith('/?')) window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url: href } }))
+                      }}
+                      className="flex gap-3 px-4 py-3 pr-10"
+                    >
                       <span className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full', n.read ? 'bg-muted text-ink-4' : 'bg-accent text-accent-foreground')}>
                         <Icon className="h-4 w-4" />
                       </span>
