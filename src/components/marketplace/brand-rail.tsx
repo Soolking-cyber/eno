@@ -60,14 +60,14 @@ export function BrandRail({
 
   if (brands.length === 0) return null
 
-  const tileCls = 'group flex w-[4.75rem] shrink-0 flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
+  const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
   const nameCls = (active: boolean) =>
     cn('line-clamp-2 text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
   const modelChip = (active: boolean) =>
     cn('shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-semibold transition-colors cursor-pointer', active ? 'text-accent-foreground' : 'text-body hover:text-accent-foreground')
 
   return (
-    <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none py-1">
+    <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none snap-x py-1">
       {brands.map((b) => {
         const isActive = activeBrand === b.slug
         return (

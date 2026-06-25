@@ -86,7 +86,7 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp 
 
       <div
         ref={ref}
-        className="flex gap-4 overflow-x-auto scrollbar-none snap-x snap-mandatory pb-1 -mx-1 px-1"
+        className="flex gap-4 overflow-x-auto scrollbar-none snap-x pb-1 -mx-1 px-1"
       >
         {listings.map((l, i) => (
           <div key={l.id} className="w-[180px] sm:w-[220px] shrink-0 snap-start">

@@ -1406,7 +1406,7 @@ export function ListingsExplorer({
             {/* Two fixed rows — big tiles. mx-auto + w-fit + max-w-full centers the row
                 when it fits and scrolls it from the start (no cut-off) when it doesn't.
                 Free & Wanted are intent tiles at the end. */}
-            <div className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-x-auto scrollbar-none px-3">
+            <div className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-x-auto scrollbar-none snap-x px-3">
               {categories.map((cat) => {
                 const cc = CATEGORY_COLOR_CLASSES[cat.color] ?? CATEGORY_COLOR_CLASSES.brand
                 const hex = cc.text.match(/#[0-9a-fA-F]{6}/)?.[0] ?? '#0a66c2'
@@ -1415,7 +1415,7 @@ export function ListingsExplorer({
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.slug)}
                     style={{ '--cat': hex } as CSSProperties}
-                    className="group flex flex-col items-center justify-center gap-2 p-2 text-center cursor-pointer"
+                    className="group flex snap-start flex-col items-center justify-center gap-2 p-2 text-center cursor-pointer"
                   >
                     <CategoryIcon
                       name={cat.icon}

@@ -40,7 +40,7 @@ export function CategoryRail({
     el?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
   }, [activeCategory])
 
-  const tileCls = 'group flex w-[4.75rem] shrink-0 flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
+  const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
   const iconCls = (active: boolean) =>
     cn('h-11 w-11 transition-transform duration-200 group-hover:scale-110', active ? 'text-accent-foreground' : 'text-body group-hover:text-accent-foreground')
   const nameCls = (active: boolean) =>
@@ -50,7 +50,7 @@ export function CategoryRail({
     cn('shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-semibold transition-colors cursor-pointer', active ? 'text-accent-foreground' : 'text-body hover:text-accent-foreground')
 
   return (
-    <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none py-1">
+    <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none snap-x py-1">
       {/* All */}
       <button data-cat="all" onClick={() => onCategory('all')} className={tileCls}>
         <span className="flex h-11 items-center justify-center">
