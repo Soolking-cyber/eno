@@ -838,13 +838,6 @@ export function ListingsExplorer({
     )
   }, [])
 
-  // Pin the header + bottom nav while the map is open (broadcast to both) so they
-  // don't slide/drift on the programmatic scroll or while panning the map.
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent('eno:mapview', { detail: { active: viewMode === 'map' && showExplorer } }))
-  }, [viewMode, showExplorer])
-  useEffect(() => () => { window.dispatchEvent(new CustomEvent('eno:mapview', { detail: { active: false } })) }, [])
-
   // A card outside the feed (e.g. the For You rail) asks us to open it on the map. It
   // passes the full listing so we can inject it into the map even if it isn't in the
   // currently-loaded feed (otherwise focus would find nothing to fly to).
@@ -1931,12 +1924,13 @@ export function ListingsExplorer({
                         </div>
                       )}
                     </div>
-                    {/* Right: big sticky map. On mobile it fills the screen from just
-                        under the header down to the top of the bottom nav (scroll-mt
-                        clears the sticky header so locate lands ON the map). */}
+                    {/* Right: big sticky map. On mobile it's a tall-but-not-full 60dvh
+                        so the listings peek below it stays a thumb-scrollable strip (a
+                        full-bleed map would swallow every touch as pan/zoom). scroll-mt
+                        clears the sticky header so locate lands ON the map. */}
                     <div
                       ref={mapWrapRef}
-                      className="min-w-0 lg:col-span-8 h-[calc(100dvh-8rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-8rem)] scroll-mt-[calc(4rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
+                      className="min-w-0 lg:col-span-8 h-[60dvh] lg:h-[calc(100dvh-8rem)] scroll-mt-[calc(4rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
                       <ListingsMap
                         listings={focusListing && !shownListings.some((l) => l.id === focusListing.id) ? [focusListing, ...shownListings] : shownListings}
                         activeDistrict={activeDistrict}

@@ -8,7 +8,6 @@ import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
-import { useMapViewPinned } from '@/hooks/use-map-view-pinned'
 import { cn } from '@/lib/utils'
 
 const TAB = 'flex flex-1 cursor-pointer transition-transform active:scale-90'
@@ -59,11 +58,8 @@ export function MobileNav() {
   const { tr } = useLanguage()
   const { user, loading } = useAuth()
   const { unread } = useChat()
-  // Slide the bar down out of view on scroll-down, back up on scroll-up — but stay
-  // pinned while the map view is open (don't drift on the map).
-  const hideOnScroll = useHideOnScroll()
-  const mapPinned = useMapViewPinned()
-  const hidden = hideOnScroll && !mapPinned
+  // Slide the bar down out of view on scroll-down, back up on scroll-up.
+  const hidden = useHideOnScroll()
 
   // Hidden on listing detail (own sticky CTA), chat threads (full-screen composer),
   // and the full-screen sign-in page.
