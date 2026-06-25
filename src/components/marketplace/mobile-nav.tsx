@@ -12,16 +12,17 @@ import { cn } from '@/lib/utils'
 
 const TAB = 'flex flex-1 cursor-pointer transition-transform active:scale-90'
 
-/** Content of a navigating tab. Lives INSIDE <Link> so useLinkStatus can light
- *  the tab blue the instant it's tapped — instant feedback before the destination
- *  loads (no spinner). */
-function TabBody({ active, icon, label }: { active: boolean; icon: React.ReactNode; label: string }) {
+/** Content of a navigating tab. Facebook-style: a big, clear, label-LESS icon (the
+ *  accessible name lives on the parent <Link>'s aria-label). Active = blue icon + a
+ *  short bar at the top of the bar. Lives INSIDE <Link> so useLinkStatus can light it
+ *  blue the instant it's tapped — instant feedback before the destination loads. */
+function TabBody({ active, icon }: { active: boolean; icon: React.ReactNode }) {
   const { pending } = useLinkStatus()
   const on = active || pending
   return (
-    <span className={cn('flex h-full w-full flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors', on ? 'text-accent-foreground' : 'text-muted-foreground')}>
+    <span className={cn('relative flex h-full w-full items-center justify-center transition-colors', on ? 'text-accent-foreground' : 'text-muted-foreground')}>
+      {on && <span aria-hidden className="absolute top-0 h-0.5 w-8 rounded-full bg-accent-foreground" />}
       <span className="relative">{icon}</span>
-      <span>{label}</span>
     </span>
   )
 }
@@ -36,16 +37,15 @@ function GatedTab({ href, active, icon, label, gate }: { href: string; active: b
   if (gate) {
     return (
       <button type="button" onClick={openSignIn} aria-label={label} className={TAB}>
-        <span className="flex h-full w-full flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-muted-foreground transition-colors">
+        <span className="flex h-full w-full items-center justify-center text-muted-foreground transition-colors">
           <span className="relative">{icon}</span>
-          <span>{label}</span>
         </span>
       </button>
     )
   }
   return (
-    <Link href={href} className={TAB}>
-      <TabBody active={active} icon={icon} label={label} />
+    <Link href={href} aria-label={label} className={TAB}>
+      <TabBody active={active} icon={icon} />
     </Link>
   )
 }
@@ -83,26 +83,25 @@ export function MobileNav() {
       {/* Fixed 64px tab row; the safe-area padding sits BELOW it (filled white) so
           the home-indicator inset never compresses the icons out of the bar. */}
       <div className="flex h-16 items-stretch">
-      <Link href="/" className={TAB}>
-        <TabBody active={pathname === '/'} icon={<Compass className="h-5 w-5" />} label={tr('Explore', 'Khám phá')} />
+      <Link href="/" aria-label={tr('Explore', 'Khám phá')} className={TAB}>
+        <TabBody active={pathname === '/'} icon={<Compass className="h-7 w-7" />} />
       </Link>
 
       {/* Saved is public — favorites are stored device-local (localStorage), so a
           logged-out visitor can save and review listings without an account. */}
-      <Link href="/saved" className={TAB}>
+      <Link href="/saved" aria-label={tr('Saved', 'Đã lưu')} className={TAB}>
         <TabBody
           active={pathname === '/saved'}
           icon={
             <>
-              <Heart className={cn('h-5 w-5', count > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
+              <Heart className={cn('h-7 w-7', count > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
               {count > 0 && (
-                <span className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[9px] font-bold text-white">
+                <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[10px] font-bold text-white">
                   {count}
                 </span>
               )}
             </>
           }
-          label={tr('Saved', 'Đã lưu')}
         />
       </Link>
 
@@ -111,8 +110,8 @@ export function MobileNav() {
         active={pathname === '/post'}
         gate={gate}
         icon={
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white">
-            <Plus className="h-4 w-4" />
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-sm">
+            <Plus className="h-6 w-6" />
           </span>
         }
         label={tr('Post', 'Đăng tin')}
@@ -124,9 +123,9 @@ export function MobileNav() {
         gate={gate}
         icon={
           <>
-            <MessageSquare className="h-5 w-5" />
+            <MessageSquare className="h-7 w-7" />
             {user && unread > 0 && (
-              <span className="absolute -right-1.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[9px] font-bold text-white">
+              <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[10px] font-bold text-white">
                 {unread > 9 ? '9+' : unread}
               </span>
             )}
@@ -139,7 +138,7 @@ export function MobileNav() {
         href="/dashboard"
         active={pathname === '/dashboard'}
         gate={gate}
-        icon={<User className="h-5 w-5" />}
+        icon={<User className="h-7 w-7" />}
         label={tr('Account', 'Tài khoản')}
       />
       </div>
