@@ -121,3 +121,27 @@ export async function matchBrand(raw: string, maxDist = 2): Promise<string | nul
 export async function bumpBrandCount(slug: string, delta = 1): Promise<void> {
   try { await db.brand.update({ where: { slug }, data: { listingCount: { increment: delta } } }) } catch {}
 }
+
+/**
+ * Give a brand a monotone logo from theSVG when it has NEITHER a simple-icons match nor
+ * a curated logo (so it would otherwise show a monogram). Best-effort + idempotent —
+ * runs in the listing route's `after()` (off the hot path). `force` re-fetches even when
+ * a logo exists (used by the bulk backfill). Returns true if it set a logo.
+ */
+export async function enrichBrandLogoIfMissing(slug: string, force = false): Promise<boolean> {
+  const { fetchThesvgLogo } = await import('./thesvg')
+  const b = await db.brand.findUnique({
+    where: { slug },
+    select: { name: true, slug: true, normalized: true, iconSlug: true, logoPath: true },
+  })
+  if (!b) return false
+  if (!force && (b.iconSlug || (b.logoPath && b.logoPath.trim()))) return false
+  const svg = await fetchThesvgLogo(b.name, b.slug, b.normalized)
+  if (!svg) return false
+  try {
+    await db.brand.update({ where: { slug }, data: { logoPath: svg, curatedAt: new Date() } })
+    return true
+  } catch {
+    return false
+  }
+}

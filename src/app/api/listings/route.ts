@@ -9,7 +9,7 @@ import { warmTranslations } from '@/lib/translate'
 import { syndicateListing } from '@/lib/syndicate'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
-import { categoryHasBrand, resolveBrand, bumpBrandCount } from '@/lib/brand'
+import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
@@ -501,7 +501,7 @@ export async function POST(req: NextRequest) {
         verified: autoPublish,
       },
     })
-    if (brandSlug) after(() => bumpBrandCount(brandSlug!))
+    if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch(() => {}) })
 
     // Pre-translate every user-authored text field into ALL supported languages
     // so the listing renders from cache (no provider round-trip) in any
