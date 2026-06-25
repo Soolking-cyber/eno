@@ -74,20 +74,19 @@ export function ForYouRail() {
         {personalized ? <Sparkles className="h-4 w-4 text-accent-foreground" /> : <TrendingUp className="h-4 w-4 text-accent-foreground" />}
         <h2 className="text-base font-bold text-foreground">{personalized ? tr('For you', 'Dành cho bạn') : tr('Trending now', 'Đang thịnh hành')}</h2>
       </div>
-      {/* No edge-bleed: the parent landing <section> is overflow-hidden, which would
-          clip a negative-margin bleed (the first card looked cut on mobile). Cards
-          match the feed grid's size (≈grid-cols-2 / -3 / -4) so the rail reads as one
-          family with the feed below. */}
+      {/* Cards are PIXEL-IDENTICAL to the feed grid below: same gaps (gap-2 / sm:gap-4)
+          and each card == one grid column width (cols-2 / -3 / -4), so a card width
+          exactly equals (100% − N·gap) / cols. No edge-bleed (the parent landing
+          <section> is overflow-hidden and would clip it). Default sizes too. */}
       <div className="flex gap-2 overflow-x-auto scrollbar-none snap-x sm:gap-4">
         {listings === null
-          ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="aspect-[3/4] w-[44vw] shrink-0 snap-start rounded-2xl shimmer sm:w-[30vw] lg:w-[288px]" />)
+          ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="aspect-[3/4] w-[calc((100%-0.5rem)/2)] shrink-0 snap-start rounded-2xl shimmer sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]" />)
           : listings.map((l) => (
-              <div key={l.id} className="w-[44vw] shrink-0 snap-start sm:w-[30vw] lg:w-[288px]">
+              <div key={l.id} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]">
                 <ListingCard
                   listing={l}
                   onOpen={(x) => router.push(`/listings/${x.id}`)}
                   onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id } }))}
-                  sizes="(max-width: 640px) 44vw, (max-width: 1024px) 30vw, 270px"
                 />
               </div>
             ))}
