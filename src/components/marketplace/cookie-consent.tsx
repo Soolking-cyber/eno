@@ -52,8 +52,8 @@ export function CookieConsent() {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" aria-hidden onClick={close} />
       {/* Mobile: vertical, mascot top-centre. Desktop: a long horizontal card, mascot
           to the LEFT of the text. */}
-      <div className="relative flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl bg-card p-6 text-center shadow-overlay animate-in fade-in zoom-in-95 duration-150 sm:max-w-2xl sm:flex-row sm:items-center sm:gap-6 sm:p-7 sm:text-left">
-        <Mascot name="cookie" className="h-28 w-28 shrink-0 text-foreground sm:h-36 sm:w-36" />
+      <div className="relative flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl bg-card p-6 text-center shadow-overlay animate-in fade-in zoom-in-95 duration-150 sm:max-w-lg sm:flex-row sm:items-center sm:gap-5 sm:p-6 sm:text-left">
+        <Mascot name="cookie" className="h-24 w-24 shrink-0 text-foreground sm:h-28 sm:w-28" />
 
         <div className="min-w-0 flex-1">
           {view === 'ask' ? (
