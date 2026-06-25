@@ -1442,6 +1442,11 @@ export function ListingsExplorer({
             </div>
           </div>
 
+          {/* For You — horizontal rail between the category grid and the vertical feed
+              (search → categories → horizontal For You → vertical). Self-hides once a
+              filter/search is active. */}
+          <ForYouRail />
+
           {/* Section heading for the feed — keeps the document outline sequential
               (h1 → h2 → card h3s); visually hidden. */}
           <h2 className="sr-only">{tr('Latest listings', 'Tin đăng mới nhất')}</h2>
@@ -1730,11 +1735,6 @@ export function ListingsExplorer({
                 </button>
               </div>
             )}
-
-            {/* For You — horizontal rail BETWEEN the category controls and the vertical
-                feed (search → categories → horizontal For You → vertical). Self-hides
-                when the feed is filtered/searched. */}
-            <ForYouRail />
 
             {/* Results metadata count — also the feed's h2 (keeps headings sequential). */}
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1 select-none">
