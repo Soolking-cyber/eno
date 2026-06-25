@@ -290,7 +290,7 @@ export default async function ListingPage({ params }: Props) {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div id="location-on-map" className="space-y-2 scroll-mt-20">
               <h2 className="h-section text-foreground"><Tr text="Location" /></h2>
               <div className="h-[260px] rounded-2xl overflow-hidden relative">
                 <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} />
