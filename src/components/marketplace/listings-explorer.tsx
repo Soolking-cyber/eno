@@ -31,6 +31,7 @@ import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
 import { ForYouRail } from './for-you-rail'
 import { BusinessRail } from './business-rail'
+import { CategoryRails } from './category-rails'
 import { DISTRICTS } from './listings-explorer.constants'
 import { FavoriteHeart } from './favorite-heart'
 import { type Nearby, type Geo } from './area-filter'
@@ -1539,6 +1540,10 @@ export function ListingsExplorer({
           {/* Outstanding businesses — second horizontal rail: the highest-trust business
               storefronts (only on the home landing view). */}
           <BusinessRail />
+
+          {/* Browse by category — one horizontal rail per category, most-used first.
+              Tapping a heading / "See all" opens that category (same as the grid). */}
+          <CategoryRails categories={categories} onCategory={handleCategorySelect} />
 
           {/* Section heading for the feed — keeps the document outline sequential
               (h1 → h2 → card h3s); visually hidden. */}
