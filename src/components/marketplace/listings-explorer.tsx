@@ -1217,7 +1217,7 @@ export function ListingsExplorer({
                        : 'text-body hover:bg-muted'
                    )}
                 >
-                  <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-accent-foreground' : 'text-accent-foreground')} />
+                  <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-accent-foreground' : 'text-body')} />
                   <span className="text-[10px] truncate"><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
                 </button>
               )

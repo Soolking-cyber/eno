@@ -45,7 +45,7 @@ export function BrandLogo({
         <span
           role="img"
           aria-label={name}
-          className={`inline-block shrink-0 bg-current text-foreground ${className}`}
+          className={`inline-block shrink-0 bg-current text-body ${className}`}
           style={{
             width: size,
             height: size,
@@ -70,7 +70,7 @@ export function BrandLogo({
         height={size}
         role="img"
         aria-label={name}
-        className={`text-foreground ${className}`}
+        className={`text-body ${className}`}
         fill="currentColor"
       >
         <path d={iconPath} />

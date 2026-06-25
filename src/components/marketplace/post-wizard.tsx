@@ -426,7 +426,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
                   onClick={() => chooseCategory(c.slug)}
                   className={cn('inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')}
                 >
-                  <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-accent-foreground')} />
+                  <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')} />
                   {lang === 'vi' ? c.nameVi : c.name}
                 </button>
               ))}
