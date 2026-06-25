@@ -11,6 +11,7 @@ import { NotificationsProvider } from "@/context/notifications-context";
 import { FavoritesProvider } from "@/context/favorites-context";
 import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
+import { PageTransitions } from "@/components/marketplace/page-transitions";
 import { BackToTop } from "@/components/marketplace/back-to-top";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
@@ -158,6 +159,7 @@ export default function RootLayout({
                 <ChatProvider>
                   <FavoritesProvider>
                     <QueryProvider>
+                      <PageTransitions>
                       {children}
                       {/* Reserve room for the fixed mobile bottom-nav. A WHITE
                           spacer (not body padding) so when the nav auto-hides at
@@ -167,6 +169,7 @@ export default function RootLayout({
                       <BackToTop />
                       <MobileNav />
                       <CookieConsent />
+                      </PageTransitions>
                     </QueryProvider>
                   </FavoritesProvider>
                 </ChatProvider>
