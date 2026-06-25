@@ -49,7 +49,7 @@ function DisabledField({ label }: { label: string }) {
  * parent owns the applied province/ward/nearby and re-opens it.
  */
 export function AreaFilter({
-  open, anchorRef, onClose, province, ward, nearby, onApply, onReset, mode = 'search',
+  open, anchorRef, onClose, province, ward, nearby, onApply, onReset, mode = 'search', hideLocate = false,
 }: {
   open: boolean
   anchorRef?: RefObject<HTMLElement | null>
@@ -62,6 +62,9 @@ export function AreaFilter({
   // 'search' = explorer filter (radius slider). 'pick' = post wizard location
   // picker — choose/auto-fetch a place, NO search-range slider or search wording.
   mode?: 'search' | 'pick'
+  // Hide the in-panel "Use my current location" action (when the parent provides its
+  // own quick geolocate button — e.g. the post wizard).
+  hideLocate?: boolean
 }) {
   const { lang, tr } = useLanguage()
   const [mounted, setMounted] = useState(false)
@@ -261,7 +264,8 @@ export function AreaFilter({
         </div>
 
         {/* Near you / use your location — the action button below is self-explanatory,
-            so no heading. */}
+            so no heading. Hidden when the parent provides its own geolocate button. */}
+        {!hideLocate && (
         <div className="pt-1">
           {loc ? (
             <div className="mt-3 space-y-3">
@@ -297,6 +301,7 @@ export function AreaFilter({
             </button>
           )}
         </div>
+        )}
       </div>
 
       <div className="mt-4 flex gap-3">

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock, Sparkles, Loader2 } from 'lucide-react'
+import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock, Sparkles, Loader2, LocateFixed } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
@@ -135,6 +135,30 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const [province, setProvince] = useState<Geo | null>(null)
   const [ward, setWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null)
+  const [locating, setLocating] = useState(false)
+  // Quick "use my current location": geolocate → reverse-geocode → set the precise pin
+  // (lat/lng) + the province/ward name for display + submit. No dropdown needed.
+  const useMyLocation = () => {
+    if (!('geolocation' in navigator)) { toast.error(t('Thiết bị không hỗ trợ định vị.', 'Location not available on this device.')); return }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude
+        try {
+          const r = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}&lang=${lang}`)
+          const d = await r.json()
+          setNearby({ lat, lng, radiusKm: 5 })
+          setProvince(d.province ? { code: '', name: d.province, nameEn: d.province } : null)
+          setWard(d.ward ? { code: '', name: d.ward, nameEn: d.ward } : null)
+          toast.success(t('Đã dùng vị trí hiện tại', 'Using your current location'))
+        } catch {
+          setNearby({ lat, lng, radiusKm: 5 }) // keep the pin even if address lookup fails
+        } finally { setLocating(false) }
+      },
+      () => { setLocating(false); toast.error(t('Không lấy được vị trí. Hãy cho phép truy cập vị trí và thử lại.', 'Could not get your location. Allow location access and try again.')) },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    )
+  }
   const [photos, setPhotos] = useState<{ url: string; file: File }[]>([])
   const [dragOver, setDragOver] = useState(false)
   const [contactName, setContactName] = useState('')
@@ -513,18 +537,31 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
 
           {/* Location */}
           <Section title={t('Khu vực', 'Location')}>
-            <button
-              type="button"
-              ref={areaBtnRef}
-              onClick={() => setAreaOpen((o) => !o)}
-              className="flex w-full max-w-md items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted"
-            >
-              <span className={cn('flex min-w-0 items-center gap-2', areaLabel ? 'text-foreground font-medium' : 'text-ink-4')}>
-                <MapPin className="h-4 w-4 shrink-0 text-accent-foreground" />
-                <span className="truncate">{areaLabel || t('Chọn khu vực — hoặc dùng vị trí của bạn', 'Set area — or use your location')}</span>
-              </span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-ink-4" />
-            </button>
+            <div className="flex max-w-md items-center gap-2">
+              <button
+                type="button"
+                ref={areaBtnRef}
+                onClick={() => setAreaOpen((o) => !o)}
+                className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted"
+              >
+                <span className={cn('flex min-w-0 items-center gap-2', areaLabel ? 'text-foreground font-medium' : 'text-ink-4')}>
+                  <MapPin className="h-4 w-4 shrink-0 text-accent-foreground" />
+                  <span className="truncate">{areaLabel || t('Chọn khu vực', 'Set area')}</span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-ink-4" />
+              </button>
+              {/* Quick "use my current location" */}
+              <button
+                type="button"
+                onClick={useMyLocation}
+                disabled={locating}
+                aria-label={t('Dùng vị trí hiện tại', 'Use my current location')}
+                title={t('Dùng vị trí hiện tại', 'Use my current location')}
+                className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl bg-tint text-accent-foreground transition-colors hover:bg-muted active:scale-95 disabled:opacity-60 cursor-pointer"
+              >
+                {locating ? <Loader2 className="h-5 w-5 animate-spin" /> : <LocateFixed className="h-5 w-5" />}
+              </button>
+            </div>
           </Section>
 
           {/* Contact — taken from your ACCOUNT (a number belongs to one account, so
@@ -598,6 +635,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
 
       <AreaFilter
         mode="pick"
+        hideLocate
         open={areaOpen}
         anchorRef={areaBtnRef}
         onClose={() => setAreaOpen(false)}
