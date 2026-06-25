@@ -610,7 +610,7 @@ export function ListingsExplorer({
       // Serialize custom attribute + range filters.
       applyFilterParams(params, customFilters, activeCategory, activeSubcategory)
 
-      const limit = nearby ? 100 : 24
+      const limit = nearby ? 100 : 12
       const offset = (page - 1) * limit
       params.set('limit', String(limit))
       params.set('offset', String(offset))
@@ -777,7 +777,7 @@ export function ListingsExplorer({
           }
         })
 
-        const limit = 24
+        const limit = 12
         const offset = (nextPage - 1) * limit
         params.set('limit', String(limit))
         params.set('offset', String(offset))
