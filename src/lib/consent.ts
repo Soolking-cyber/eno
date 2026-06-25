@@ -19,10 +19,14 @@ export function hasConsent(): boolean {
   return v === 'all' || v === 'personalized' || v === 'essential' || v === 'accepted'
 }
 
-// On-site personalization (the "For You" rail using stored activity) — 'all' or 'personalized'.
-export function hasPersonalizationConsent(): boolean {
-  const v = read()
-  return v === 'all' || v === 'personalized'
+// On-site personalization (the "For You" rail using the user's OWN stored activity —
+// their eno.vn searches/views, first-party, ranked on our own server) is ON by default:
+// it's functional and never leaves us. Only an EXPLICIT "Essential only / Decline" opts
+// out. (Legacy 'accepted' and an undecided null both keep it on — so a returning user
+// with local searches gets "For You" without re-consenting.) This is independent of the
+// ad-network tier — works even if Meta/Google aren't available.
+export function personalizationAllowed(): boolean {
+  return read() !== 'essential'
 }
 
 // Ad-network signals (Meta/Google retargeting pixels) — only 'all'.

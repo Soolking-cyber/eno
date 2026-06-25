@@ -6,7 +6,7 @@ import { Sparkles, TrendingUp } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { useLanguage } from '@/context/language-context'
-import { hasPersonalizationConsent } from '@/lib/consent'
+import { personalizationAllowed } from '@/lib/consent'
 import { getRecoSignals, getInboundQuery } from '@/lib/reco-signals'
 
 const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district', 'province', 'ward', 'condition', 'priceMin', 'priceMax']
@@ -29,8 +29,9 @@ export function ForYouRail() {
     // stored-history consent, since it's the explicit intent they arrived with.
     const inbound = getInboundQuery()
     if (inbound) terms.push(inbound)
-    // Stored on-site history (searches + viewed categories/brands) only with consent.
-    if (hasPersonalizationConsent()) {
+    // Stored on-site history (searches + viewed categories/brands) — first-party, on by
+    // default (only an explicit "Essential only / Decline" opts out).
+    if (personalizationAllowed()) {
       const s = getRecoSignals()
       terms.push(...s.terms)
       if (s.categories.length) params.set('cats', s.categories.join(','))
