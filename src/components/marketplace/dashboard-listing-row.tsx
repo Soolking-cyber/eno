@@ -2,12 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Eye, MessageSquareText, RefreshCw, CheckCircle2, RotateCcw, Trash2, Clock, ExternalLink, Pencil } from 'lucide-react'
+import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { ShareButton } from './share-button'
 import { useLanguage } from '@/context/language-context'
-import { isStale } from '@/lib/stale'
 import { cn } from '@/lib/utils'
 
 // One row in the seller dashboard's listings table. Lifecycle actions are
@@ -18,15 +17,12 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
   const { lang, tr } = useLanguage()
   const router = useRouter()
   const [gone, setGone] = useState(false)
-  // Local optimistic overrides (null = use the prop / server value).
+  // Local optimistic status override (null = use the prop / server value).
   const [optStatus, setOptStatus] = useState<string | null>(null)
-  const [optConfirmed, setOptConfirmed] = useState<string | null>(null)
 
   const title = lang === 'vi' ? (listing.titleVi || listing.title) : listing.title
   const img = listing.images[0] || null
   const status = optStatus ?? listing.status
-  const confirmedAt = optConfirmed ?? listing.availabilityConfirmedAt
-  const stale = status === 'active' && isStale(confirmedAt, listing.postedAt)
 
   // Fire-and-reconcile: apply the optimistic change, then send. On failure, roll
   // back the local override and pull fresh server state.
@@ -43,11 +39,6 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
       .catch(() => { rollback(); onChanged() })
   }
 
-  const confirm_ = () => act(
-    () => { setOptStatus('active'); setOptConfirmed(new Date().toISOString()) },
-    () => { setOptStatus(null); setOptConfirmed(null) },
-    `/api/listings/${listing.id}/confirm`, 'POST',
-  )
   const setStatus = (s: 'sold' | 'active') => act(
     () => setOptStatus(s),
     () => setOptStatus(null),
@@ -81,21 +72,16 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
       <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{listing.views}</span>
       <span className="inline-flex items-center gap-1"><MessageSquareText className="h-3 w-3" />{listing.contactCount} {tr('leads', 'liên hệ')}</span>
-      {stale && <span className="inline-flex items-center gap-1 font-semibold text-amber-600"><Clock className="h-3 w-3" />{tr('Confirm availability', 'Xác nhận còn hàng')}</span>}
     </div>
   )
 
   const actions = (
     <div className="flex flex-wrap gap-1.5">
+      {/* Availability confirmation lives in the daily review popup now — not here. */}
       {status === 'active' ? (
-        <>
-          <button onClick={confirm_} className={cn(btn, stale && 'text-accent-foreground')}>
-            <RefreshCw className="h-3 w-3" /> {tr('Still available', 'Còn hàng')}
-          </button>
-          <button onClick={() => setStatus('sold')} className={btn}>
-            <CheckCircle2 className="h-3 w-3" /> {tr('Mark sold', 'Đã bán')}
-          </button>
-        </>
+        <button onClick={() => setStatus('sold')} className={btn}>
+          <CheckCircle2 className="h-3 w-3" /> {tr('Mark sold', 'Đã bán')}
+        </button>
       ) : (
         <button onClick={() => setStatus('active')} className={btn}>
           <RotateCcw className="h-3 w-3" /> {tr('Relist', 'Đăng lại')}

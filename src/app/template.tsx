@@ -1,7 +1,6 @@
-/** Per-navigation wrapper (App Router re-mounts template on route change). Kept as a
- *  plain passthrough: the bottom-nav uses the View Transitions API for a directional
- *  slide, and an opacity fade here would taint the transition's snapshot of the
- *  incoming page (captured mid-fade). Other navigations are instant. */
+/** Subtle fade on every route change (App Router re-mounts template on navigation).
+ *  CSS-only so framer-motion isn't on every navigation's critical path. No initial
+ *  opacity:0 hold — content paints immediately. */
 export default function Template({ children }: { children: React.ReactNode }) {
-  return <div>{children}</div>
+  return <div className="animate-in fade-in duration-150">{children}</div>
 }
