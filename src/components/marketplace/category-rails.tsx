@@ -38,11 +38,12 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
   return (
     <section>
       <div className="mb-2.5 flex items-center justify-between gap-2">
+        {/* span, NOT h2 — a heading can't be a child of <button> (invalid HTML → React #418). */}
         <button onClick={() => onCategory(cat.slug)} className="group flex items-center gap-2 cursor-pointer">
           <CategoryIcon name={cat.icon} className="h-4 w-4 text-accent-foreground" />
-          <h2 className="text-base font-bold text-foreground transition-colors group-hover:text-accent-foreground">
+          <span className="text-base font-bold text-foreground transition-colors group-hover:text-accent-foreground">
             {lang === 'vi' ? cat.nameVi : cat.name}
-          </h2>
+          </span>
         </button>
         <button onClick={() => onCategory(cat.slug)} className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
           {tr('See all', 'Xem tất cả')}
