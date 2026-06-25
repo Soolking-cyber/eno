@@ -791,6 +791,7 @@ export function ListingsExplorer({
   // rows never moves it) and fires page after page (the "jerky, again and again").
   const mapListRef = useRef<HTMLDivElement | null>(null)
   const mapSentinelRef = useRef<HTMLDivElement | null>(null)
+  const mapWrapRef = useRef<HTMLDivElement | null>(null)
   const hasMore = !nearby && listings.length < totalCount
   useEffect(() => {
     if (!hasMore) return
@@ -827,8 +828,22 @@ export function ListingsExplorer({
     setShowExplorer(true)
     setHoveredId(id)
     setFocusId(id)
-    document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // Land ON the map (under the sticky header) — NOT at the top of the rails. The
+    // map mounts on this same render; wait two frames for the commit, then scroll the
+    // map element itself (its scroll-mt clears the header).
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        (mapWrapRef.current ?? document.getElementById('listings'))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }),
+    )
   }, [])
+
+  // Pin the header + bottom nav while the map is open (broadcast to both) so they
+  // don't slide/drift on the programmatic scroll or while panning the map.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('eno:mapview', { detail: { active: viewMode === 'map' && showExplorer } }))
+  }, [viewMode, showExplorer])
+  useEffect(() => () => { window.dispatchEvent(new CustomEvent('eno:mapview', { detail: { active: false } })) }, [])
 
   // A card outside the feed (e.g. the For You rail) asks us to open it on the map. It
   // passes the full listing so we can inject it into the map even if it isn't in the
@@ -1916,8 +1931,12 @@ export function ListingsExplorer({
                         </div>
                       )}
                     </div>
-                    {/* Right: big sticky map */}
-                    <div className="min-w-0 lg:col-span-8 h-[60vh] lg:h-[calc(100dvh-8rem)] lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
+                    {/* Right: big sticky map. On mobile it fills the screen from just
+                        under the header down to the top of the bottom nav (scroll-mt
+                        clears the sticky header so locate lands ON the map). */}
+                    <div
+                      ref={mapWrapRef}
+                      className="min-w-0 lg:col-span-8 h-[calc(100dvh-8rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-8rem)] scroll-mt-[calc(4rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
                       <ListingsMap
                         listings={focusListing && !shownListings.some((l) => l.id === focusListing.id) ? [focusListing, ...shownListings] : shownListings}
                         activeDistrict={activeDistrict}

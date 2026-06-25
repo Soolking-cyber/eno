@@ -8,6 +8,7 @@ import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
+import { useMapViewPinned } from '@/hooks/use-map-view-pinned'
 import { cn } from '@/lib/utils'
 import { AccountMenu } from './account-menu'
 import { NotificationBell } from './notification-bell'
@@ -22,8 +23,10 @@ export function Header() {
   const pathname = usePathname()
   const router = useRouter()
   // Roll the bar up on scroll-down, back down on scroll-up (mobile only — desktop
-  // stays pinned via lg:translate-y-0).
-  const hidden = useHideOnScroll()
+  // stays pinned via lg:translate-y-0). Stay pinned while the map view is open.
+  const hideOnScroll = useHideOnScroll()
+  const mapPinned = useMapViewPinned()
+  const hidden = hideOnScroll && !mapPinned
 
   // Explorer pages (home + category) mount the ListingsExplorer, which listens for
   // our search/district custom events. Elsewhere we navigate to the home explorer.
