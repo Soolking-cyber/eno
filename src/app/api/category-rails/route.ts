@@ -8,8 +8,8 @@ export const runtime = 'nodejs'
 // live DEMAND (views + weighted contacts) so the most-used category leads, mirroring
 // the category-icon hierarchy. Listings within each rail are trust-first (same default
 // ordering as the main feed). Public, lightly cached.
-const PER_RAIL = 12 // listings per category rail
-const MAX_RAILS = 12 // cap the page length
+const PER_RAIL = 8 // listings per category rail (kept lean; rail scrolls for more)
+const MAX_RAILS = 10 // cap the page length
 const MIN_LISTINGS = 4 // skip near-empty rails (can't fill a desktop row)
 
 export async function GET() {
