@@ -74,7 +74,7 @@ export function MobileNav() {
   return (
     <nav
       className={cn(
-        'lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-200 ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        'lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style: slide DOWN off-screen + fade out at the same rate on scroll-down;
         // slide up + fade in on scroll-up.
         hidden ? 'translate-y-full opacity-0' : 'translate-y-0 opacity-100',

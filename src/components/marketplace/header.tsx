@@ -153,7 +153,7 @@ export function Header() {
   return (
     <header
       className={cn(
-        'sticky top-0 z-40 border-b border-border/60 bg-card pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-200 ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        'sticky top-0 z-40 border-b border-border/60 bg-card pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style: slide UP off-screen + fade out at the same rate on scroll-down;
         // slide down + fade in on scroll-up. Desktop (lg) stays pinned + fully opaque.
         hidden ? '-translate-y-full opacity-0 lg:translate-y-0 lg:opacity-100' : 'translate-y-0 opacity-100',
