@@ -96,15 +96,27 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   const listingsRef = useRef(listings)
   listingsRef.current = listings
 
-  const CARD_W = 300, CARD_H = 250
+  // Card sizes ADAPT to the map viewport: on a short map (e.g. the listing-detail
+  // location map ~260px tall) we use a slim, image-less horizontal card so the popup
+  // never dwarfs the map; on a full-screen map it's the tall Airbnb-style card.
+  const cardDims = () => {
+    const el = mapRef.current
+    const mapW = el?.clientWidth ?? 360
+    const mapH = el?.clientHeight ?? 500
+    const compact = mapH < 360
+    const w = Math.round(Math.min(compact ? 248 : 300, mapW - 24))
+    const h = compact ? 78 : Math.round(w * 0.625 + 84) // approx card height for the flip/recenter math
+    return { w, h, compact }
+  }
   const placeCardFor = (l: SerializedListing) => {
     const map = mapInstanceRef.current, el = mapRef.current
     if (!map || !el) return
+    const { w: cw, h: ch } = cardDims()
     const { lat, lng } = getListingCoordinates(l)
     const pt = map.latLngToContainerPoint([lat, lng])
     const W = el.clientWidth
-    const x = Math.max(CARD_W / 2 + 8, Math.min(W - CARD_W / 2 - 8, pt.x))
-    setCardPos({ x, y: pt.y, above: pt.y > CARD_H + 24 })
+    const x = Math.max(cw / 2 + 8, Math.min(W - cw / 2 - 8, pt.x))
+    setCardPos({ x, y: pt.y, above: pt.y > ch + 24 })
   }
   // Pan the map so the tapped pin sits a bit BELOW centre — leaving room for the card
   // that pops above it, so the whole card lands centred on screen instead of clipped at
@@ -119,7 +131,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     const pt = map.project([lat, lng], z)
     // Bias down by ~⅓ of the card height so the above-card is roughly centred; clamp the
     // shift to the viewport so it never over-pans on a short map.
-    const shift = Math.min(CARD_H * 0.45, el.clientHeight * 0.28)
+    const shift = Math.min(cardDims().h * 0.45, el.clientHeight * 0.28)
     map.panTo(map.unproject(L.point(pt.x, pt.y - shift), z), { animate: true, duration: 0.25 })
   }
   const openCard = (l: SerializedListing, center = false) => {
@@ -281,40 +293,65 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
               'pointer-events-auto relative overflow-hidden rounded-2xl bg-card shadow-pop duration-150 ease-out animate-in fade-in zoom-in-95',
               cardPos.above ? 'origin-bottom' : 'origin-top',
             )}
-            style={{ width: CARD_W }}
+            style={{ width: cardDims().w }}
           >
-            <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
-              <button
-                onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
-                aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
-                className="flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90"
-              >
-                <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-[#0a66c2] text-white' : 'fill-black/25 text-white')} />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); closeCard() }}
-                aria-label={tr('Close', 'Đóng')}
-                className="flex h-8 w-8 items-center justify-center text-white transition-transform hover:scale-110 active:scale-90 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <button onClick={() => onOpenListing(card)} className="block w-full text-left cursor-pointer">
-              <div className="aspect-[16/10] w-full bg-tint">
-                {card.images[0] && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={card.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
-                )}
+            {cardDims().compact ? (
+              // Short map (listing detail) → slim horizontal card: thumb + title + price
+              // + a close ✕. Fits within a ~260px-tall map without dwarfing it.
+              <div className="flex items-center gap-2.5 p-2">
+                <button onClick={() => onOpenListing(card)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left cursor-pointer">
+                  <span className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-tint">
+                    {card.images[0] && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={card.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold text-foreground">{lang === 'vi' ? (card.titleVi || card.title) : card.title}</span>
+                    <span className="block text-xs font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</span>
+                  </span>
+                </button>
+                <TrustScore score={card.seller.trustScore} variant="number" size="sm" className="shrink-0" />
+                <button onClick={(e) => { e.stopPropagation(); closeCard() }} aria-label={tr('Close', 'Đóng')} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <div className="p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="truncate text-sm font-bold text-foreground">{lang === 'vi' ? (card.titleVi || card.title) : card.title}</p>
-                  <TrustScore score={card.seller.trustScore} variant="number" size="sm" className="shrink-0" />
+            ) : (
+              <>
+                <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
+                    aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
+                    className="flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90"
+                  >
+                    <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-[#0a66c2] text-white' : 'fill-black/25 text-white')} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); closeCard() }}
+                    aria-label={tr('Close', 'Đóng')}
+                    className="flex h-8 w-8 items-center justify-center text-white transition-transform hover:scale-110 active:scale-90 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
-                <p className="mt-1 text-sm font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</p>
-              </div>
-            </button>
+                <button onClick={() => onOpenListing(card)} className="block w-full text-left cursor-pointer">
+                  <div className="aspect-[16/10] w-full bg-tint">
+                    {card.images[0] && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={card.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="truncate text-sm font-bold text-foreground">{lang === 'vi' ? (card.titleVi || card.title) : card.title}</p>
+                      <TrustScore score={card.seller.trustScore} variant="number" size="sm" className="shrink-0" />
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
+                    <p className="mt-1 text-sm font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</p>
+                  </div>
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
