@@ -256,8 +256,8 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
               <p className="mt-3 text-sm text-muted-foreground">{tr('No listings yet — post your first one.', 'Chưa có tin nào — đăng tin đầu tiên.')}</p>
             </div>
           ) : (
-            <div className={cn('mt-3', listView === 'grid' ? 'grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-2.5')}>
-              {d.listings.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />)}
+            <div className={cn('mt-3', listView === 'grid' ? 'grid grid-cols-2 gap-2.5 lg:grid-cols-3' : 'space-y-2.5')}>
+              {d.listings.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} variant={listView === 'grid' ? 'grid' : 'row'} />)}
             </div>
           )}
         </section>

@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 // OPTIMISTIC: the row's status/availability flips INSTANTLY (local override), the
 // request fires in the background, and we only revert + revalidate if it fails.
 // No blocking spinner — the user never waits on the network for feedback.
-export function DashboardListingRow({ listing, onChanged }: { listing: SerializedListing; onChanged: () => void }) {
+export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { listing: SerializedListing; onChanged: () => void; variant?: 'row' | 'grid' }) {
   const { lang, tr } = useLanguage()
   const router = useRouter()
   const [gone, setGone] = useState(false)
@@ -74,10 +74,82 @@ export function DashboardListingRow({ listing, onChanged }: { listing: Serialize
 
   // Warm the listing page on hover/touch so opening it is instant.
   const prefetch = () => router.prefetch(`/listings/${listing.id}`)
+  const open = () => router.push(`/listings/${listing.id}`)
 
+  // Shared between the row + square-card layouts.
+  const meta = (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{listing.views}</span>
+      <span className="inline-flex items-center gap-1"><MessageSquareText className="h-3 w-3" />{listing.contactCount} {tr('leads', 'liên hệ')}</span>
+      {stale && <span className="inline-flex items-center gap-1 font-semibold text-amber-600"><Clock className="h-3 w-3" />{tr('Confirm availability', 'Xác nhận còn hàng')}</span>}
+    </div>
+  )
+
+  const actions = (
+    <div className="flex flex-wrap gap-1.5">
+      {status === 'active' ? (
+        <>
+          <button onClick={confirm_} className={cn(btn, stale && 'text-accent-foreground')}>
+            <RefreshCw className="h-3 w-3" /> {tr('Still available', 'Còn hàng')}
+          </button>
+          <button onClick={() => setStatus('sold')} className={btn}>
+            <CheckCircle2 className="h-3 w-3" /> {tr('Mark sold', 'Đã bán')}
+          </button>
+        </>
+      ) : (
+        <button onClick={() => setStatus('active')} className={btn}>
+          <RotateCcw className="h-3 w-3" /> {tr('Relist', 'Đăng lại')}
+        </button>
+      )}
+      <button onClick={() => router.push(`/listings/${listing.id}/edit`)} onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} className={btn}>
+        <Pencil className="h-3 w-3" /> {tr('Edit', 'Sửa')}
+      </button>
+      <button onClick={open} className={btn}>
+        <ExternalLink className="h-3 w-3" /> {tr('View', 'Xem')}
+      </button>
+      {/* Quick share — only meaningful for a LIVE listing (a held/sold one has no
+          public page). Reuses the curated share popover from the detail page. */}
+      {status === 'active' && listing.verified && (
+        <ShareButton
+          url={`${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/listings/${listing.id}`}
+          title={title}
+          price={listing.price}
+          currency={listing.currency}
+          className="gap-1 rounded-lg px-2.5 py-1 text-xs [&_svg]:h-3 [&_svg]:w-3"
+        />
+      )}
+      <button onClick={() => { if (confirm(tr('Delete this listing permanently?', 'Xóa vĩnh viễn tin này?'))) del() }} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30')}>
+        <Trash2 className="h-3 w-3" />
+      </button>
+    </div>
+  )
+
+  // Square card (grid view): square cover with the status chip on it, then title /
+  // price / stats, with the quick-action buttons pinned to the bottom.
+  if (variant === 'grid') {
+    return (
+      <div className="flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-card transition-colors hover:border-line-strong" onMouseEnter={prefetch} onTouchStart={prefetch}>
+        <button onClick={open} className="relative aspect-square w-full overflow-hidden bg-tint cursor-pointer" aria-label={title}>
+          {img && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
+          )}
+          <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
+        </button>
+        <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
+          <p className="line-clamp-2 text-sm font-semibold text-foreground">{title}</p>
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
+          {meta}
+          <div className="mt-auto pt-2">{actions}</div>
+        </div>
+      </div>
+    )
+  }
+
+  // Row (list view) — horizontal thumbnail + details.
   return (
     <div className="flex gap-3 rounded-2xl p-3 transition-colors hover:bg-muted" onMouseEnter={prefetch} onTouchStart={prefetch}>
-      <button onClick={() => router.push(`/listings/${listing.id}`)} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-tint cursor-pointer" aria-label={title}>
+      <button onClick={open} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-tint cursor-pointer" aria-label={title}>
         {img && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -90,49 +162,8 @@ export function DashboardListingRow({ listing, onChanged }: { listing: Serialize
           <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold', statusChip.cls)}>{statusChip.label}</span>
         </div>
         <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
-
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{listing.views}</span>
-          <span className="inline-flex items-center gap-1"><MessageSquareText className="h-3 w-3" />{listing.contactCount} {tr('leads', 'liên hệ')}</span>
-          {stale && <span className="inline-flex items-center gap-1 font-semibold text-amber-600"><Clock className="h-3 w-3" />{tr('Confirm availability', 'Xác nhận còn hàng')}</span>}
-        </div>
-
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {status === 'active' ? (
-            <>
-              <button onClick={confirm_} className={cn(btn, stale && 'text-accent-foreground')}>
-                <RefreshCw className="h-3 w-3" /> {tr('Still available', 'Còn hàng')}
-              </button>
-              <button onClick={() => setStatus('sold')} className={btn}>
-                <CheckCircle2 className="h-3 w-3" /> {tr('Mark sold', 'Đã bán')}
-              </button>
-            </>
-          ) : (
-            <button onClick={() => setStatus('active')} className={btn}>
-              <RotateCcw className="h-3 w-3" /> {tr('Relist', 'Đăng lại')}
-            </button>
-          )}
-          <button onClick={() => router.push(`/listings/${listing.id}/edit`)} onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} className={btn}>
-            <Pencil className="h-3 w-3" /> {tr('Edit', 'Sửa')}
-          </button>
-          <button onClick={() => router.push(`/listings/${listing.id}`)} className={btn}>
-            <ExternalLink className="h-3 w-3" /> {tr('View', 'Xem')}
-          </button>
-          {/* Quick share — only meaningful for a LIVE listing (a held/sold one has no
-              public page). Reuses the curated share popover from the detail page. */}
-          {status === 'active' && listing.verified && (
-            <ShareButton
-              url={`${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/listings/${listing.id}`}
-              title={title}
-              price={listing.price}
-              currency={listing.currency}
-              className="gap-1 rounded-lg px-2.5 py-1 text-xs [&_svg]:h-3 [&_svg]:w-3"
-            />
-          )}
-          <button onClick={() => { if (confirm(tr('Delete this listing permanently?', 'Xóa vĩnh viễn tin này?'))) del() }} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30')}>
-            <Trash2 className="h-3 w-3" />
-          </button>
-        </div>
+        <div className="mt-0.5">{meta}</div>
+        <div className="mt-2">{actions}</div>
       </div>
     </div>
   )
