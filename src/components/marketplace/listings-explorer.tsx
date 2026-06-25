@@ -30,6 +30,7 @@ import { FacetBar } from './facet-bar'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
 import { ForYouRail } from './for-you-rail'
+import { BusinessRail } from './business-rail'
 import { DISTRICTS } from './listings-explorer.constants'
 import { FavoriteHeart } from './favorite-heart'
 import { type Nearby, type Geo } from './area-filter'
@@ -1463,6 +1464,10 @@ export function ListingsExplorer({
               (search → categories → horizontal For You → vertical). Self-hides once a
               filter/search is active. */}
           <ForYouRail />
+
+          {/* Outstanding businesses — second horizontal rail: the highest-trust business
+              storefronts (only on the home landing view). */}
+          <BusinessRail />
 
           {/* Section heading for the feed — keeps the document outline sequential
               (h1 → h2 → card h3s); visually hidden. */}
