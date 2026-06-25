@@ -26,12 +26,8 @@ import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
 import { LogoWordmark } from './logo-wordmark'
 import { CustomSelect } from './custom-select'
-import { FacetBar } from './facet-bar'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
-import { ForYouRail } from './for-you-rail'
-import { BusinessRail } from './business-rail'
-import { CategoryRails } from './category-rails'
 import { DISTRICTS } from './listings-explorer.constants'
 import { FavoriteHeart } from './favorite-heart'
 import { type Nearby, type Geo } from './area-filter'
@@ -77,6 +73,14 @@ function parseFilterParams(p: URLSearchParams, categorySlug: string, subcategory
   })
   return out
 }
+
+// Below-the-fold curated rails + the filter-only FacetBar are code-split out of the
+// landing's initial bundle (all client-only — they fetch on mount / render on a filter).
+// Cuts the JS that hydrates on first paint (main-thread / unused-JS wins).
+const ForYouRail = dynamic(() => import('./for-you-rail').then((m) => m.ForYouRail), { ssr: false })
+const BusinessRail = dynamic(() => import('./business-rail').then((m) => m.BusinessRail), { ssr: false })
+const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.CategoryRails), { ssr: false })
+const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { ssr: false })
 
 const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.ListingsMap), {
   ssr: false,
