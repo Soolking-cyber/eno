@@ -50,51 +50,60 @@ export function CookieConsent() {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" aria-hidden onClick={close} />
-      {/* Mobile: vertical, mascot top-centre. Desktop: a long horizontal card, mascot
-          to the LEFT of the text. */}
-      <div className="relative flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl bg-card p-6 text-center shadow-overlay animate-in fade-in zoom-in-95 duration-150 sm:max-w-lg sm:flex-row sm:items-center sm:gap-5 sm:p-6 sm:text-left">
-        <Mascot name="cookie" className="h-24 w-24 shrink-0 text-foreground sm:h-28 sm:w-28" />
+      {/* Mobile: vertical, mascot top-centre. Desktop: mascot LEFT of the text on top,
+          with the action buttons in their own row centred across the FULL card width. */}
+      <div className="relative flex w-full max-w-sm flex-col gap-5 rounded-3xl bg-card p-6 text-center shadow-overlay animate-in fade-in zoom-in-95 duration-150 sm:max-w-lg sm:p-6 sm:text-left">
+        {/* Row 1 — mascot + copy */}
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-5">
+          <Mascot name="cookie" className="h-24 w-24 shrink-0 text-foreground sm:h-28 sm:w-28" />
+          <div className="min-w-0 flex-1">
+            {view === 'ask' ? (
+              <>
+                <h2 className="text-lg font-bold text-foreground">{tr('Want results made for you?', 'Muốn kết quả dành riêng cho bạn?')}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-body">
+                  {tr(
+                    'Allow cookies and we’ll put the most relevant products first — and keep you signed in. ',
+                    'Cho phép cookie để chúng tôi đưa sản phẩm phù hợp nhất lên đầu — và giữ bạn đăng nhập. ',
+                  )}
+                  <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-foreground">{tr('Your choices', 'Lựa chọn của bạn')}</h2>
+                <div className="mt-3 space-y-1 text-left">
+                  <Toggle
+                    locked value
+                    title={tr('Essential', 'Cần thiết')}
+                    desc={tr('Keeps you signed in and the app fast. Always on.', 'Giữ đăng nhập và tải nhanh. Luôn bật.')}
+                  />
+                  <Toggle
+                    value={perso} onChange={setPerso}
+                    title={tr('Personalized recommendations', 'Gợi ý cá nhân hoá')}
+                    desc={tr('Use your activity on eno.vn to rank the most relevant items first.', 'Dùng hoạt động của bạn trên eno.vn để xếp hạng mục phù hợp nhất.')}
+                  />
+                  <Toggle
+                    value={ads} onChange={setAds}
+                    title={tr('Ad personalization', 'Quảng cáo cá nhân hoá')}
+                    desc={tr('Allow ad-network signals (Meta/Google) for retargeting.', 'Cho phép tín hiệu mạng quảng cáo (Meta/Google) để tiếp thị lại.')}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
-        <div className="min-w-0 flex-1">
+        {/* Row 2 — actions, centred across the WHOLE card with breathing room between */}
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-5">
           {view === 'ask' ? (
             <>
-              <h2 className="text-lg font-bold text-foreground">{tr('Want results made for you?', 'Muốn kết quả dành riêng cho bạn?')}</h2>
-              <p className="mt-1.5 text-sm leading-relaxed text-body">
-                {tr(
-                  'Allow cookies and we’ll put the most relevant products first — and keep you signed in. ',
-                  'Cho phép cookie để chúng tôi đưa sản phẩm phù hợp nhất lên đầu — và giữ bạn đăng nhập. ',
-                )}
-                <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
-              </p>
-              <div className="mt-5 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
-                <button onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</button>
-                <button onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</button>
-              </div>
+              <button onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</button>
+              <button onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</button>
             </>
           ) : (
             <>
-              <h2 className="text-lg font-bold text-foreground">{tr('Your choices', 'Lựa chọn của bạn')}</h2>
-              <div className="mt-3 space-y-1 text-left">
-                <Toggle
-                  locked value
-                  title={tr('Essential', 'Cần thiết')}
-                  desc={tr('Keeps you signed in and the app fast. Always on.', 'Giữ đăng nhập và tải nhanh. Luôn bật.')}
-                />
-                <Toggle
-                  value={perso} onChange={setPerso}
-                  title={tr('Personalized recommendations', 'Gợi ý cá nhân hoá')}
-                  desc={tr('Use your activity on eno.vn to rank the most relevant items first.', 'Dùng hoạt động của bạn trên eno.vn để xếp hạng mục phù hợp nhất.')}
-                />
-                <Toggle
-                  value={ads} onChange={setAds}
-                  title={tr('Ad personalization', 'Quảng cáo cá nhân hoá')}
-                  desc={tr('Allow ad-network signals (Meta/Google) for retargeting.', 'Cho phép tín hiệu mạng quảng cáo (Meta/Google) để tiếp thị lại.')}
-                />
-              </div>
-              <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
-                <button onClick={save} className={primary}>{tr('Save choices', 'Lưu lựa chọn')}</button>
-                <button onClick={decline} className={ghost}>{tr('Decline all', 'Từ chối tất cả')}</button>
-              </div>
+              <button onClick={save} className={primary}>{tr('Save choices', 'Lưu lựa chọn')}</button>
+              <button onClick={decline} className={ghost}>{tr('Decline all', 'Từ chối tất cả')}</button>
             </>
           )}
         </div>
