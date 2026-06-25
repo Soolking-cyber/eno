@@ -36,10 +36,10 @@ export async function GET(req: NextRequest) {
 
   const personalized = or.length > 0
   const where: Prisma.ListingWhereInput = personalized ? { AND: [base, { OR: or }] } : base
-  // Personalized: trust then popularity then recency. Trending: popularity-led.
-  const orderBy: Prisma.ListingOrderByWithRelationInput[] = personalized
-    ? [TRUST, { views: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }]
-    : [{ views: 'desc' }, TRUST, { postedAt: 'desc' }, { id: 'desc' }]
+  // TRUST FIRST for both modes — same hierarchy as the rest of the app: higher-trust
+  // sellers lead, then popularity (views), then recency. (Personalization/trending only
+  // changes the WHERE, not the ranking — a low-trust listing never tops the rail.)
+  const orderBy: Prisma.ListingOrderByWithRelationInput[] = [TRUST, { views: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }]
 
   const rows = await db.listing.findMany({
     where,
