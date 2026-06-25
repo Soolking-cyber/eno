@@ -405,22 +405,24 @@ input, select, textarea {
    view-transition-named so they stay put. Direction comes from data-nav-dir set
    on <html> before navigating. Transforms only → GPU-composited.
    ============================================================ */
+/* Clean push/pop: ONE page is held fully opaque underneath while the other slides
+   over/off. No opacity fade and normal blend → no dimmed/washed "window" (the default
+   cross-fade overlaps two semi-transparent layers, which reads as a dark filter). */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 300ms;
+  animation-duration: 280ms;
   animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
   mix-blend-mode: normal;
 }
-/* forward (push): new in from the right ON TOP; old parallax out to the left */
-html[data-nav-dir='forward']::view-transition-new(root) { animation-name: eno-nav-in-right; z-index: 2; }
-html[data-nav-dir='forward']::view-transition-old(root) { animation-name: eno-nav-out-left; z-index: 1; }
-/* back (pop): old out to the right ON TOP; new parallax in from the left */
-html[data-nav-dir='back']::view-transition-old(root) { animation-name: eno-nav-out-right; z-index: 2; }
-html[data-nav-dir='back']::view-transition-new(root) { animation-name: eno-nav-in-left; z-index: 1; }
+/* forward (push): old held underneath; new slides in from the right on top */
+html[data-nav-dir='forward']::view-transition-old(root) { animation-name: eno-nav-hold; z-index: 0; }
+html[data-nav-dir='forward']::view-transition-new(root) { animation-name: eno-nav-in-right; z-index: 1; }
+/* back (pop): new held underneath; old slides out to the right on top */
+html[data-nav-dir='back']::view-transition-new(root) { animation-name: eno-nav-hold; z-index: 0; }
+html[data-nav-dir='back']::view-transition-old(root) { animation-name: eno-nav-out-right; z-index: 1; }
+@keyframes eno-nav-hold { from { transform: translateX(0); } to { transform: translateX(0); } }
 @keyframes eno-nav-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
-@keyframes eno-nav-out-left { from { transform: translateX(0); } to { transform: translateX(-25%); } }
 @keyframes eno-nav-out-right { from { transform: translateX(0); } to { transform: translateX(100%); } }
-@keyframes eno-nav-in-left { from { transform: translateX(-25%); } to { transform: translateX(0); } }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
   ::view-transition-old(*),
