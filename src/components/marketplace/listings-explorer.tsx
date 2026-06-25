@@ -316,7 +316,7 @@ export function ListingsExplorer({
       saveSearchToHistory(trimmed)
       // Brand/model intent: "huawei" / "matepad 11" open the matching category +
       // brand (+ model) facets. Short queries only (a sentence wants a text search).
-      if (trimmed.split(/\s+/).length <= 4) {
+      if (trimmed.split(/\s+/).length <= 5) {
         try {
           const r = await fetch(`/api/search/resolve?q=${encodeURIComponent(trimmed)}`)
           const d = r.ok ? await r.json() : null
@@ -437,7 +437,7 @@ export function ListingsExplorer({
     const params = new URLSearchParams(window.location.search)
     const q = (params.get('q') || '').trim()
     if (!q || params.get('brand') || params.get('category')) return
-    if (q.length < 2 || q.split(/\s+/).length > 4) return
+    if (q.length < 2 || q.split(/\s+/).length > 5) return
     let cancelled = false
     fetch(`/api/search/resolve?q=${encodeURIComponent(q)}`)
       .then((r) => (r.ok ? r.json() : null))

@@ -5,16 +5,17 @@ import { fold } from '@/lib/fold'
 
 export const runtime = 'nodejs'
 
-// Search intent resolver: does a typed query NAME a brand or a known model? If so,
-// the search bars open the matching category + brand (+ model) facets instead of a
-// keyword search (a precise facet beats a text match). Read-only; never mutates.
-//   "huawei"     → { brand: 'huawei', category: 'electronics' }
-//   "matepad 11" → { brand: 'huawei', model: 'MatePad 11', category: 'electronics' }
-//   anything else→ { brand: null }  (caller falls back to a plain text search)
-const empty = NextResponse.json(
-  { brand: null },
-  { headers: { 'Cache-Control': 'public, max-age=120, stale-while-revalidate=600' } },
-)
+// Search intent resolver — "best match", not exact. Does a typed query name a brand
+// and/or a model? Opens the matching category + brand (+ model) facets instead of a
+// keyword search. Read-only; never mutates.
+//   "huawei watch" → exact brand Huawei + best model "Watch GT 4"
+//   "watch gt"     → best model "Watch GT 4" (its brand + category)
+//   "matepad"      → best model "MatePad 11"
+//   "hawei"        → typo → closest brand "Huawei"
+//   anything else  → { brand: null }  (caller falls back to a text search)
+const headers = { 'Cache-Control': 'public, max-age=120, stale-while-revalidate=600' }
+const ok = (body: object) => NextResponse.json(body, { headers })
+const empty = ok({ brand: null })
 
 /** The category where this brand has the most live listings — the one to open. */
 async function dominantCategory(brandSlug: string): Promise<string | null> {
@@ -31,56 +32,87 @@ async function dominantCategory(brandSlug: string): Promise<string | null> {
   return cat?.slug ?? null
 }
 
-export async function GET(req: NextRequest) {
-  const q = (new URL(req.url).searchParams.get('q') || '').trim()
-  // A brand/model is a few words; skip sentences (those want a keyword search).
-  if (q.length < 2 || q.length > 40 || q.split(/\s+/).length > 4) return empty
+type ModelHit = { brand: string; model: string; category: string | null }
 
-  const foldedQ = fold(q)
-
-  // 1) Exact model hit (most specific) — a listing's `model` that folds to the query
-  //    (e.g. "matepad 11" === fold("MatePad 11")). Carries its brand + category.
-  const modelRows = await db.listing.findMany({
+// Best-match a model from the given query tokens (each must appear in the model,
+// order-insensitive), scoped to a brand when we have one. Ranks exact > prefix >
+// substring > token-match, tie-broken by length-closeness then live demand.
+async function bestModelMatch(tokens: string[], brand: string | null): Promise<ModelHit | null> {
+  if (tokens.length === 0) return null
+  const rows = await db.listing.findMany({
     where: {
       verified: true,
       status: 'active',
-      brandSlug: { not: null },
-      model: { contains: q, mode: 'insensitive' },
+      brandSlug: brand ? brand : { not: null },
+      AND: tokens.map((t) => ({ model: { contains: t, mode: 'insensitive' as const } })),
     },
-    select: { model: true, brandSlug: true, category: { select: { slug: true } } },
-    take: 80,
+    select: { model: true, brandSlug: true, views: true, contactCount: true, category: { select: { slug: true } } },
+    take: 120,
   })
-  const tally = new Map<string, { brand: string; model: string; cats: Map<string, number>; n: number }>()
-  for (const r of modelRows) {
-    if (!r.brandSlug || !r.model || fold(r.model) !== foldedQ) continue
+
+  const fq = tokens.join(' ')
+  const groups = new Map<string, { brand: string; model: string; cats: Map<string, number>; n: number; demand: number }>()
+  for (const r of rows) {
+    if (!r.model || !r.brandSlug) continue
     const key = `${r.brandSlug}|${r.model}`
-    const cur = tally.get(key) || { brand: r.brandSlug, model: r.model, cats: new Map(), n: 0 }
-    cur.n++
+    const g = groups.get(key) || { brand: r.brandSlug, model: r.model, cats: new Map(), n: 0, demand: 0 }
+    g.n++
+    g.demand += (r.views ?? 0) + 5 * (r.contactCount ?? 0)
     const cs = r.category?.slug
-    if (cs) cur.cats.set(cs, (cur.cats.get(cs) || 0) + 1)
-    tally.set(key, cur)
-  }
-  const bestModel = [...tally.values()].sort((a, b) => b.n - a.n)[0]
-  if (bestModel) {
-    const category = [...bestModel.cats.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null
-    return NextResponse.json(
-      { brand: bestModel.brand, model: bestModel.model, category },
-      { headers: { 'Cache-Control': 'public, max-age=120, stale-while-revalidate=600' } },
-    )
+    if (cs) g.cats.set(cs, (g.cats.get(cs) || 0) + 1)
+    groups.set(key, g)
   }
 
-  // 2) Brand name (exact / alias / 1-edit typo). Tight fuzzy so generic words don't
-  //    snap onto a near-spelled brand.
-  const brand = await matchBrand(q, 1)
+  const scored = [...groups.values()].map((g) => {
+    const fm = fold(g.model)
+    let s = fm === fq ? 100 : fm.startsWith(fq) ? 60 : fm.includes(fq) ? 40 : 20
+    s -= Math.abs(fm.length - fq.length) * 0.5 // prefer the model closest to the query
+    s += Math.min(g.demand, 100) * 0.05 + Math.min(g.n, 20) * 0.2 // popularity tiebreak
+    return { g, s }
+  }).sort((a, b) => b.s - a.s)
+
+  const best = scored[0]?.g
+  if (!best) return null
+  const category = [...best.cats.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null
+  return { brand: best.brand, model: best.model, category }
+}
+
+export async function GET(req: NextRequest) {
+  const q = (new URL(req.url).searchParams.get('q') || '').trim()
+  // A brand/model is a few words; skip sentences (those want a keyword search).
+  if (q.length < 2 || q.length > 40 || q.split(/\s+/).length > 5) return empty
+
+  const tokens = fold(q).split(' ').filter(Boolean)
+
+  // 1) Exact/alias brand from the leading token(s) — safe to strip ("Huawei Watch"
+  //    → brand Huawei, rest "watch"). Try a 2-word brand first ("Louis Vuitton").
+  let brand: string | null = null
+  let used = 0
+  for (const take of [2, 1]) {
+    if (tokens.length < take) continue
+    const m = await matchBrand(tokens.slice(0, take).join(' '), 0) // exact/alias only
+    if (m) { brand = m; used = take; break }
+  }
+
+  // 2) Best model on the remaining tokens (or the whole query when no brand). Drop
+  //    1-char tokens so a stray "4" can't broaden the match.
+  const rest = tokens.slice(used).filter((t) => t.length >= 2)
+  const modelTokens = rest.length ? rest : brand ? [] : tokens.filter((t) => t.length >= 2)
+  const model = await bestModelMatch(modelTokens, brand)
+  if (model) return ok({ brand: model.brand, model: model.model, category: model.category })
+
+  // 3) Exact brand with no model → open the brand.
   if (brand) {
     const category = await dominantCategory(brand)
-    // Only worth opening if the brand actually has a (brand-capable) home category.
-    if (category && categoryHasBrand(category)) {
-      return NextResponse.json(
-        { brand, model: null, category },
-        { headers: { 'Cache-Control': 'public, max-age=120, stale-while-revalidate=600' } },
-      )
-    }
+    if (category && categoryHasBrand(category)) return ok({ brand, model: null, category })
+  }
+
+  // 4) Typo fallback: the whole query is a misspelled brand ("hawei" → Huawei). Only
+  //    now (no exact brand, no model) so a real word can't get yanked onto a brand.
+  const fuzzy = await matchBrand(q, 2)
+  if (fuzzy) {
+    const category = await dominantCategory(fuzzy)
+    if (category && categoryHasBrand(category)) return ok({ brand: fuzzy, model: null, category })
   }
 
   return empty
