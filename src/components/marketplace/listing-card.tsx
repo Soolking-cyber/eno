@@ -72,7 +72,7 @@ export function ListingCard({
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(listing) }
       }}
-      className="group flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-150 active:scale-[0.985] active:duration-75 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="group flex flex-col h-full w-full snap-start scroll-mt-24 text-left rounded-xl cursor-pointer transition-transform duration-150 active:scale-[0.985] active:duration-75 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       {/* Image carousel / placeholder.
           transform-gpu/isolate force a compositing layer so the rounded

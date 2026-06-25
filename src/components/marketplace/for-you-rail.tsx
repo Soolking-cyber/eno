@@ -80,7 +80,16 @@ export function ForYouRail() {
           <section> is overflow-hidden and would clip it). Default sizes too. */}
       <div className="flex gap-2 overflow-x-auto scrollbar-none snap-x sm:gap-4">
         {listings === null
-          ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="aspect-[3/4] w-[calc((100%-0.5rem)/2)] shrink-0 snap-start rounded-2xl shimmer sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]" />)
+          ? Array.from({ length: 6 }).map((_, i) => (
+              // Same shape as the feed skeleton (4:3 image + title/price/location lines)
+              // so it matches the real card size — not a tall block.
+              <div key={i} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start space-y-3 sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]">
+                <div className="aspect-[4/3] w-full rounded-xl shimmer" />
+                <div className="h-4 w-2/3 rounded shimmer" />
+                <div className="h-3 w-1/2 rounded shimmer" />
+                <div className="h-3 w-1/3 rounded shimmer" />
+              </div>
+            ))
           : listings.map((l) => (
               <div key={l.id} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]">
                 <ListingCard
