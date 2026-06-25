@@ -1,68 +1,54 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { BadgeCheck } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Award } from 'lucide-react'
+import type { SerializedListing } from '@/lib/types'
+import { ListingCard } from './listing-card'
 import { useLanguage } from '@/context/language-context'
-import { TrustScore } from './trust-score'
 
-type Business = {
-  id: string
-  name: string
-  avatarUrl: string | null
-  avatarColor: string
-  trustScore: number
-  trustTier: string
-  location: string | null
-  reviewCount: number
-  listingCount: number
-}
-
-/** "Outstanding businesses" — a horizontal rail of the highest-trust business
- *  storefronts, below the For You rail on the home view. Each card links to the
- *  storefront. Hides itself when there are none. */
+/** "Outstanding businesses" — a horizontal rail of ONE flagship listing (most-viewed)
+ *  from each of the highest-trust business storefronts. A reward for good standing.
+ *  Reuses the standard ListingCard (heart, locate→map, trust). Hides when empty. */
 export function BusinessRail() {
   const { tr } = useLanguage()
-  const [items, setItems] = useState<Business[] | null>(null)
+  const router = useRouter()
+  const [listings, setListings] = useState<SerializedListing[] | null>(null)
 
   useEffect(() => {
     fetch('/api/businesses/top')
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d) setItems(d.businesses || []) })
+      .then((d) => { if (d) setListings(d.listings || []) })
       .catch(() => {})
   }, [])
 
-  if (items !== null && items.length === 0) return null
+  if (listings !== null && listings.length === 0) return null
 
   return (
     <section className="mb-7">
       <div className="mb-2.5 flex items-center gap-2">
-        <BadgeCheck className="h-4 w-4 text-accent-foreground" />
+        <Award className="h-4 w-4 text-accent-foreground" />
         <h2 className="text-base font-bold text-foreground">{tr('Outstanding businesses', 'Doanh nghiệp nổi bật')}</h2>
       </div>
-      <div className="flex gap-3 overflow-x-auto scrollbar-none snap-x">
-        {items === null
-          ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[168px] w-[150px] shrink-0 snap-start rounded-2xl shimmer" />)
-          : items.map((b) => (
-              <Link
-                key={b.id}
-                href={`/sellers/${b.id}`}
-                className="group flex w-[150px] shrink-0 snap-start flex-col items-center gap-2 rounded-2xl bg-card p-4 text-center shadow-sm transition-colors hover:bg-muted"
-              >
-                {b.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={b.avatarUrl} alt="" className="h-16 w-16 rounded-full object-cover" loading="lazy" />
-                ) : (
-                  <span className="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white" style={{ backgroundColor: b.avatarColor }}>
-                    {b.name.slice(0, 2).toUpperCase()}
-                  </span>
-                )}
-                <div className="min-w-0 w-full">
-                  <p className="truncate text-sm font-bold text-foreground">{b.name}</p>
-                  {b.location && <p className="truncate text-[11px] text-muted-foreground">{b.location}</p>}
-                </div>
-                <TrustScore score={b.trustScore} size="sm" showLabel />
-              </Link>
+      {/* Same card size/gaps as the feed grid (cols-2 / -3 / -4) so it reads as one family. */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-none snap-x sm:gap-4">
+        {listings === null
+          ? Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start space-y-3 sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]">
+                <div className="aspect-[4/3] w-full rounded-xl shimmer" />
+                <div className="h-4 w-2/3 rounded shimmer" />
+                <div className="h-3 w-1/2 rounded shimmer" />
+                <div className="h-3 w-1/3 rounded shimmer" />
+              </div>
+            ))
+          : listings.map((l) => (
+              <div key={l.id} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]">
+                <ListingCard
+                  listing={l}
+                  onOpen={(x) => router.push(`/listings/${x.id}`)}
+                  onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
+                />
+              </div>
             ))}
       </div>
     </section>
