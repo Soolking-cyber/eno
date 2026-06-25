@@ -116,7 +116,7 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
       </button>
 
       {mounted && open && createPortal(
-        <div ref={popRef} style={{ position: 'fixed', top: pos.top, left: pos.left, width: 256 }} className="z-[1100] rounded-2xl bg-card p-3 shadow-pop animate-in fade-in duration-150">
+        <div ref={popRef} style={{ position: 'fixed', top: pos.top, left: pos.left, width: 256, visibility: pos.top > 0 ? 'visible' : 'hidden' }} className="z-[1100] rounded-2xl bg-card p-3 shadow-pop animate-in fade-in duration-150">
           <p className="px-1 pb-2 text-xs font-bold text-foreground">{tr('Share this listing', 'Chia sẻ tin này')}</p>
           <div className="grid grid-cols-3 gap-1">
             {channels.map(({ key, label, href, Icon }) => (

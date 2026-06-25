@@ -97,7 +97,9 @@ export function CustomSelect({
         <div
           ref={menuRef}
           data-portal-menu
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
+          // Hidden until positioned so it never paints at (0,0) and "flies in" from the
+          // top-left on the first frame (pos is computed in an effect after open).
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, visibility: pos.top > 0 ? 'visible' : 'hidden' }}
           className="z-[121] max-h-60 overflow-y-auto overflow-x-hidden rounded-2xl bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in duration-150"
         >
           {options.map((opt) => {
