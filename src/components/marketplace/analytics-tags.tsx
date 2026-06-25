@@ -2,7 +2,7 @@
 
 import Script from 'next/script'
 import { useEffect, useState } from 'react'
-import { hasPersonalizationConsent } from '@/lib/consent'
+import { hasAdConsent } from '@/lib/consent'
 
 // Google Analytics (GA4) only. The Meta Pixel was removed (heaviest 3rd-party,
 // ~233 KiB; only useful for paid Meta-ad retargeting — re-add if you run Meta ads).
@@ -23,8 +23,8 @@ export function AnalyticsTags() {
   // Ad-network consent — reactive: flips on the instant the user clicks "Allow".
   const [adConsent, setAdConsent] = useState(false)
   useEffect(() => {
-    setAdConsent(hasPersonalizationConsent())
-    const on = () => setAdConsent(hasPersonalizationConsent())
+    setAdConsent(hasAdConsent())
+    const on = () => setAdConsent(hasAdConsent())
     window.addEventListener('eno:consent', on)
     return () => window.removeEventListener('eno:consent', on)
   }, [])

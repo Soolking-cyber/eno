@@ -69,7 +69,7 @@ export function FacetBar({
   const [advPos, setAdvPos] = useState({ top: 0, left: 0, width: 0 })
   useEffect(() => { setMounted(true) }, [])
   useEffect(() => {
-    if (!advOpen) return
+    if (!advOpen) { setAdvPos({ top: 0, left: 0, width: 0 }); return } // reset so it never paints at (0,0)
     const place = () => {
       const r = advBtnRef.current?.getBoundingClientRect()
       if (!r) return
@@ -239,11 +239,11 @@ export function FacetBar({
       {/* Advanced per-category filter form — segmented toggles + selects. PORTALED to
           <body> + fixed-positioned so it floats above all page content (incl. the
           footer), closing on outside click. */}
-      {mounted && advOpen && advFacets.length > 0 && createPortal(
+      {mounted && advOpen && advFacets.length > 0 && advPos.top > 0 && createPortal(
         <>
           <div className="fixed inset-0 z-[1099]" aria-hidden onClick={() => setAdvOpen(false)} />
           <div
-            style={{ position: 'fixed', top: advPos.top, left: advPos.left, width: advPos.width || undefined, visibility: advPos.top > 0 ? 'visible' : 'hidden' }}
+            style={{ position: 'fixed', top: advPos.top, left: advPos.left, width: advPos.width || undefined }}
             className="z-[1100] max-h-[70vh] overflow-y-auto scroll-thin rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-bold text-foreground">{tr('Filters', 'Bộ lọc')}</span>

@@ -38,3 +38,32 @@ export function getRecoSignals(): RecoSignals {
 export function hasRecoSignals(s: RecoSignals): boolean {
   return s.terms.length > 0 || s.categories.length > 0 || s.brands.length > 0
 }
+
+// Inbound search INTENT — the one honest way to act on "what they searched elsewhere":
+// the query the visitor arrived WITH. We can read it from our own campaign params
+// (utm_term / keyword — e.g. a Google Ad with keyword insertion: a user who searched
+// "honda accord" and clicked our ad lands on ...?utm_term=honda+accord) or from a
+// referrer that carries its query. We can NOT read a user's search history on another
+// platform — no site can; this captures the intent only at the moment they land.
+// `q` is intentionally NOT read here — that drives the explorer's own search instead.
+export function getInboundQuery(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    const p = new URLSearchParams(window.location.search)
+    for (const k of ['utm_term', 'keyword', 'kw', 'intent']) {
+      const v = p.get(k)?.trim()
+      if (v) return v.slice(0, 80)
+    }
+    const ref = document.referrer
+    if (ref) {
+      const u = new URL(ref)
+      if (u.hostname && u.hostname !== window.location.hostname) {
+        for (const k of ['q', 'query', 'search', 'p', 'text', 'wd']) {
+          const v = u.searchParams.get(k)?.trim()
+          if (v) return v.slice(0, 80)
+        }
+      }
+    }
+  } catch { /* malformed referrer/url — ignore */ }
+  return ''
+}

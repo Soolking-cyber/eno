@@ -29,6 +29,7 @@ import { CustomSelect } from './custom-select'
 import { FacetBar } from './facet-bar'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
+import { ForYouRail } from './for-you-rail'
 import { DISTRICTS } from './listings-explorer.constants'
 import { FavoriteHeart } from './favorite-heart'
 import { type Nearby, type Geo } from './area-filter'
@@ -1729,6 +1730,11 @@ export function ListingsExplorer({
                 </button>
               </div>
             )}
+
+            {/* For You — horizontal rail BETWEEN the category controls and the vertical
+                feed (search → categories → horizontal For You → vertical). Self-hides
+                when the feed is filtered/searched. */}
+            <ForYouRail />
 
             {/* Results metadata count — also the feed's h2 (keeps headings sequential). */}
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1 select-none">

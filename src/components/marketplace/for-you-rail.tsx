@@ -7,7 +7,7 @@ import type { SerializedListing } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { useLanguage } from '@/context/language-context'
 import { hasPersonalizationConsent } from '@/lib/consent'
-import { getRecoSignals, hasRecoSignals } from '@/lib/reco-signals'
+import { getRecoSignals, getInboundQuery } from '@/lib/reco-signals'
 
 const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district', 'province', 'ward', 'condition', 'priceMin', 'priceMax']
 
@@ -24,14 +24,20 @@ export function ForYouRail() {
 
   const load = useCallback(() => {
     const params = new URLSearchParams()
+    const terms: string[] = []
+    // Inbound intent (campaign/referrer query) is contextual — used even without
+    // stored-history consent, since it's the explicit intent they arrived with.
+    const inbound = getInboundQuery()
+    if (inbound) terms.push(inbound)
+    // Stored on-site history (searches + viewed categories/brands) only with consent.
     if (hasPersonalizationConsent()) {
       const s = getRecoSignals()
-      if (hasRecoSignals(s)) {
-        if (s.categories.length) params.set('cats', s.categories.join(','))
-        if (s.brands.length) params.set('brands', s.brands.join(','))
-        if (s.terms.length) params.set('terms', s.terms.join(','))
-      }
+      terms.push(...s.terms)
+      if (s.categories.length) params.set('cats', s.categories.join(','))
+      if (s.brands.length) params.set('brands', s.brands.join(','))
     }
+    const uniqTerms = Array.from(new Set(terms.filter(Boolean))).slice(0, 6)
+    if (uniqTerms.length) params.set('terms', uniqTerms.join(','))
     fetch(`/api/recommendations?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d) { setListings(d.listings || []); setPersonalized(!!d.personalized) } })

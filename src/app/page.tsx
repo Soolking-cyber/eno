@@ -6,7 +6,6 @@ import { getCategoriesByDemand } from '@/lib/categories'
 import type { SerializedCategory, SerializedListing } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
-import { ForYouRail } from '@/components/marketplace/for-you-rail'
 import { Footer } from '@/components/marketplace/footer'
 
 // ISR: near-static homepage data, refreshed at most once a minute (better LCP/TTFB).
@@ -57,7 +56,6 @@ export default async function Home() {
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
-        <ForYouRail />
         <ListingsExplorer
           categories={categories}
           initialListings={listings}
