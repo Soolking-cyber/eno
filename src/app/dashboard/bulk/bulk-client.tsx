@@ -154,7 +154,7 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
                       <span className="min-w-0 flex-1 truncate font-medium text-foreground">{r.title || <span className="italic text-ink-4">{tr('(no title)', '(không có tiêu đề)')}</span>}</span>
                       <span className="shrink-0 text-muted-foreground">{r.category_slug}</span>
                       {r._error ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-destructive"><AlertTriangle className="h-3 w-3" />{r._error}</span>
+                        <span className="flex min-w-0 max-w-[55%] shrink items-center gap-1 font-semibold text-destructive"><AlertTriangle className="h-3 w-3 shrink-0" /><span className="truncate">{r._error}</span></span>
                       ) : (
                         <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
                       )}

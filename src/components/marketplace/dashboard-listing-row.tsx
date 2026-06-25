@@ -127,9 +127,11 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
   // Square card (grid view): square cover with the status chip on it, then title /
   // price / stats, with the quick-action buttons pinned to the bottom.
   if (variant === 'grid') {
+    // No overflow-hidden on the card — it would clip the Share popover. The image
+    // rounds its own top corners instead.
     return (
-      <div className="flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-card transition-colors hover:border-line-strong" onMouseEnter={prefetch} onTouchStart={prefetch}>
-        <button onClick={open} className="relative aspect-square w-full overflow-hidden bg-tint cursor-pointer" aria-label={title}>
+      <div className="flex flex-col rounded-2xl border border-border/70 bg-card transition-colors hover:border-line-strong" onMouseEnter={prefetch} onTouchStart={prefetch}>
+        <button onClick={open} className="relative aspect-square w-full overflow-hidden rounded-t-2xl bg-tint cursor-pointer" aria-label={title}>
           {img && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
