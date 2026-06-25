@@ -255,10 +255,9 @@
   html {
     background-color: var(--card);
     overscroll-behavior-y: none;
-    /* Gentle vertical scroll-snap on the document — PROXIMITY only, so it never fights
-       free scrolling; it just softly aligns a card row when you settle near one. Card
-       elements opt in via .snap-start (ListingCard). Mirrors the rails' horizontal snap. */
-    scroll-snap-type: y proximity;
+    /* NOTE: no document-level vertical scroll-snap — it auto-aligns a card on page load
+       (jumping the scroll on short pages like /saved) and fights the auto-hide nav.
+       Horizontal rail snap (contained scrollers) is kept; vertical feeds scroll freely. */
   }
   body {
     @apply bg-background text-foreground antialiased;
