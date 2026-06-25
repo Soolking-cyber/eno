@@ -153,7 +153,7 @@ export function Header() {
   return (
     <header
       className={cn(
-        'sticky top-0 z-40 border-b border-border/60 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none',
+        'sticky top-0 z-40 border-b border-border/60 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-200 ease-out will-change-transform motion-reduce:transition-none',
         hidden ? '-translate-y-full lg:translate-y-0' : 'translate-y-0',
       )}
     >

@@ -74,7 +74,7 @@ export function MobileNav() {
   return (
     <nav
       className={cn(
-        'lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none',
+        'lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-transform duration-200 ease-out will-change-transform motion-reduce:transition-none',
         hidden ? 'translate-y-full' : 'translate-y-0',
       )}
     >
