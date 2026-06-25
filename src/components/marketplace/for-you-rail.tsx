@@ -74,12 +74,21 @@ export function ForYouRail() {
         {personalized ? <Sparkles className="h-4 w-4 text-accent-foreground" /> : <TrendingUp className="h-4 w-4 text-accent-foreground" />}
         <h2 className="text-base font-bold text-foreground">{personalized ? tr('For you', 'Dành cho bạn') : tr('Trending now', 'Đang thịnh hành')}</h2>
       </div>
-      <div className="flex gap-3 overflow-x-auto scrollbar-none snap-x -mx-3 px-3 lg:mx-0 lg:px-0">
+      {/* No edge-bleed: the parent landing <section> is overflow-hidden, which would
+          clip a negative-margin bleed (the first card looked cut on mobile). Cards
+          match the feed grid's size (≈grid-cols-2 / -3 / -4) so the rail reads as one
+          family with the feed below. */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-none snap-x sm:gap-4">
         {listings === null
-          ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-60 w-[160px] shrink-0 snap-start rounded-2xl shimmer sm:w-[184px]" />)
+          ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="aspect-[3/4] w-[44vw] shrink-0 snap-start rounded-2xl shimmer sm:w-[30vw] lg:w-[288px]" />)
           : listings.map((l) => (
-              <div key={l.id} className="w-[160px] shrink-0 snap-start sm:w-[184px]">
-                <ListingCard listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} sizes="184px" />
+              <div key={l.id} className="w-[44vw] shrink-0 snap-start sm:w-[30vw] lg:w-[288px]">
+                <ListingCard
+                  listing={l}
+                  onOpen={(x) => router.push(`/listings/${x.id}`)}
+                  onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id } }))}
+                  sizes="(max-width: 640px) 44vw, (max-width: 1024px) 30vw, 270px"
+                />
               </div>
             ))}
       </div>

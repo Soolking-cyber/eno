@@ -782,6 +782,16 @@ export function ListingsExplorer({
     document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
+  // The "For You" rail (a separate component) asks us to open a listing on the map.
+  useEffect(() => {
+    const onLocate = (e: Event) => {
+      const id = (e as CustomEvent<{ id?: string }>).detail?.id
+      if (id) locateOnMap(id)
+    }
+    window.addEventListener('eno:locate', onLocate)
+    return () => window.removeEventListener('eno:locate', onLocate)
+  }, [locateOnMap])
+
   // Intent shortcuts (Free / Wanted) from the landing grid → open the explorer
   // filtered by listingType across all categories.
   const browseIntent = useCallback((type: string) => {
