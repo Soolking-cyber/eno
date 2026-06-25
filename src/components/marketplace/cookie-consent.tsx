@@ -61,17 +61,15 @@ export function CookieConsent() {
               <h2 className="text-lg font-bold text-foreground">{tr('Want results made for you?', 'Muốn kết quả dành riêng cho bạn?')}</h2>
               <p className="mt-1.5 text-sm leading-relaxed text-body">
                 {tr(
-                  'Allow cookies and we’ll put the most relevant products first — and keep you signed in.',
-                  'Cho phép cookie để chúng tôi đưa sản phẩm phù hợp nhất lên đầu — và giữ bạn đăng nhập.',
+                  'Allow cookies and we’ll put the most relevant products first — and keep you signed in. ',
+                  'Cho phép cookie để chúng tôi đưa sản phẩm phù hợp nhất lên đầu — và giữ bạn đăng nhập. ',
                 )}
+                <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
               </p>
               <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                 <button onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</button>
                 <button onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</button>
               </div>
-              <p className="mt-3 text-[11px] text-ink-4">
-                <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
-              </p>
             </>
           ) : (
             <>
