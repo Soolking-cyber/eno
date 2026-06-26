@@ -1,6 +1,6 @@
 import { PrismaClient, type Prisma } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { TAXONOMY, type CategoryDef, type ListingType } from '../src/lib/taxonomy'
+import { TAXONOMY, categoryHasBrand, type CategoryDef, type ListingType } from '../src/lib/taxonomy'
 import { buildSearchText } from '../src/lib/fold'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -60,6 +60,66 @@ const AREAS = [
 
 const COND_VALUES = ['New', 'Like new', 'Good', 'Used']
 const ADJ = ['Great', 'Clean', 'Barely used', 'Quality', 'Reliable', 'Modern', 'Spacious', 'Cozy', 'Premium', 'Affordable']
+
+// Per-category brand catalogue for mock data — sets Listing.brandSlug + model so the
+// brand rail + model chips have real data to show. `icon` = simple-icons slug for the
+// logo (empty/missing → monogram fallback, harmless). Brand-relevant categories only.
+const BRAND_CATALOG: Record<string, { name: string; icon: string; models: string[] }[]> = {
+  vehicles: [
+    { name: 'Honda', icon: 'honda', models: ['Wave Alpha', 'Vision', 'Air Blade', 'SH 150i', 'Winner X'] },
+    { name: 'Yamaha', icon: 'yamahamotorcorporation', models: ['Exciter 155', 'Sirius', 'Janus', 'Grande', 'NVX'] },
+    { name: 'Suzuki', icon: 'suzuki', models: ['Raider', 'Address'] },
+    { name: 'Vespa', icon: 'vespa', models: ['Primavera', 'Sprint', 'GTS'] },
+    { name: 'Toyota', icon: 'toyota', models: ['Vios', 'Corolla Cross', 'Camry', 'Fortuner'] },
+    { name: 'Mazda', icon: 'mazda', models: ['Mazda 3', 'CX-5'] },
+    { name: 'Kia', icon: 'kia', models: ['Morning', 'Seltos', 'Sorento'] },
+    { name: 'VinFast', icon: '', models: ['Klara S', 'Theon', 'VF e34'] },
+  ],
+  rentals: [
+    { name: 'Honda', icon: 'honda', models: ['Vision', 'Air Blade', 'Wave Alpha', 'PCX'] },
+    { name: 'Yamaha', icon: 'yamahamotorcorporation', models: ['Janus', 'Grande', 'NVX'] },
+    { name: 'Vespa', icon: 'vespa', models: ['Primavera', 'Sprint'] },
+    { name: 'Toyota', icon: 'toyota', models: ['Vios', 'Innova'] },
+    { name: 'VinFast', icon: '', models: ['Klara S', 'VF e34'] },
+  ],
+  electronics: [
+    { name: 'Apple', icon: 'apple', models: ['iPhone 15 Pro', 'iPhone 14', 'MacBook Air M2', 'iPad Air', 'AirPods Pro'] },
+    { name: 'Samsung', icon: 'samsung', models: ['Galaxy S24', 'Galaxy A55', 'Galaxy Tab S9'] },
+    { name: 'Xiaomi', icon: 'xiaomi', models: ['Redmi Note 13', 'Mi 13', 'Pad 6'] },
+    { name: 'Sony', icon: 'sony', models: ['WH-1000XM5', 'Alpha A7 IV', 'PlayStation 5'] },
+    { name: 'Dell', icon: 'dell', models: ['XPS 13', 'Latitude 5440'] },
+    { name: 'Asus', icon: 'asus', models: ['ZenBook 14', 'ROG Strix'] },
+  ],
+  'fashion-beauty': [
+    { name: 'Nike', icon: 'nike', models: ['Air Force 1', 'Air Max', 'Dunk Low'] },
+    { name: 'Adidas', icon: 'adidas', models: ['Ultraboost', 'Samba', 'Stan Smith'] },
+    { name: 'Uniqlo', icon: 'uniqlo', models: ['Ultra Light Down', 'Airism'] },
+    { name: 'Zara', icon: 'zara', models: ['Blazer', 'Linen Dress'] },
+    { name: 'Louis Vuitton', icon: 'louisvuitton', models: ['Neverfull', 'Speedy'] },
+  ],
+  'furniture-appliances': [
+    { name: 'IKEA', icon: 'ikea', models: ['MALM', 'BILLY', 'POÄNG'] },
+    { name: 'Samsung', icon: 'samsung', models: ['Inverter Fridge', 'WindFree AC'] },
+    { name: 'LG', icon: 'lg', models: ['InstaView Fridge', 'Dual Inverter AC'] },
+    { name: 'Panasonic', icon: 'panasonic', models: ['Inverter Fridge', 'Nanoe AC'] },
+    { name: 'Electrolux', icon: 'electrolux', models: ['UltimateCare Washer'] },
+  ],
+  'baby-kids': [
+    { name: 'Chicco', icon: '', models: ['Bravo Stroller', 'KeyFit Car Seat'] },
+    { name: 'Combi', icon: '', models: ['Sugocal Stroller'] },
+    { name: 'Fisher-Price', icon: 'fisher-price', models: ['Deluxe Kick Play', 'Jumperoo'] },
+    { name: 'Pigeon', icon: '', models: ['SofTouch Bottle'] },
+  ],
+  'hobbies-sports': [
+    { name: 'Nike', icon: 'nike', models: ['Pegasus', 'Mercurial'] },
+    { name: 'Adidas', icon: 'adidas', models: ['Predator', 'Adizero'] },
+    { name: 'Decathlon', icon: 'decathlon', models: ['Rockrider', 'Quechua Tent'] },
+    { name: 'Yonex', icon: 'yonex', models: ['Astrox 88', 'Nanoflare'] },
+    { name: 'Specialized', icon: '', models: ['Rockhopper', 'Allez'] },
+  ],
+}
+const brandNorm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+const brandSlugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 // Per-listing-type price model (VND). [min, max] of the BASE figure.
 function priceModel(cat: CategoryDef, type: ListingType, r: number): { price: number; priceUnit: string } {
@@ -159,6 +219,29 @@ async function main() {
   )
   const catIdBySlug = new Map(catRows.map((c) => [c.slug, c.id]))
 
+  // ---------- Brands (catalogue + per-category map for the brand rail) ----------
+  const uniqBrands = new Map<string, { slug: string; name: string; icon: string }>()
+  for (const list of Object.values(BRAND_CATALOG)) {
+    for (const b of list) {
+      const n = brandNorm(b.name)
+      if (!uniqBrands.has(n)) uniqBrands.set(n, { slug: brandSlugify(b.name), name: b.name, icon: b.icon })
+    }
+  }
+  await db.$transaction(
+    [...uniqBrands.values()].map((b) =>
+      db.brand.upsert({
+        where: { normalized: brandNorm(b.name) },
+        update: { iconSlug: b.icon || null },
+        create: { slug: b.slug, name: b.name, normalized: brandNorm(b.name), iconSlug: b.icon || null, aliases: '[]', status: 'active' },
+      }),
+    ),
+  )
+  // Per-category brands with resolved canonical slugs (assigned to listings below).
+  const catBrands = new Map(
+    Object.entries(BRAND_CATALOG).map(([cat, list]) => [cat, list.map((b) => ({ slug: brandSlugify(b.name), name: b.name, models: b.models }))]),
+  )
+  void categoryHasBrand // (taxonomy gate is mirrored by catBrands presence)
+
   // ---------- Sellers ----------
   const sellerSeeds = [
     { id: 'seller-minh', name: 'Minh Nguyễn', color: '#375efb', rating: 4.9, reviews: 47, loc: 'Thao Dien, District 2', tier: 'trusted', score: 120 },
@@ -225,8 +308,18 @@ async function main() {
         ? pick(COND_VALUES, r())
         : null
 
-      const title = titleFor(cat, sub.name, type, area.district, adj)
+      let title = titleFor(cat, sub.name, type, area.district, adj)
       const titleVi = titleViFor(sub.nameVi, type, area.district)
+      // Brand + model for brand-relevant product categories → powers the brand rail.
+      let brandSlug: string | null = null
+      let model: string | null = null
+      const catBrandList = catBrands.get(cat.slug)
+      if (catBrandList && catBrandList.length && (type === 'sell' || type === 'rent')) {
+        const br = catBrandList[Math.floor(r() * catBrandList.length) % catBrandList.length]
+        model = pick(br.models, r())
+        brandSlug = br.slug
+        title = type === 'rent' ? `${br.name} ${model} for rent — ${area.district}` : `${adj} ${br.name} ${model} — ${area.district}`
+      }
       const description =
         `${adj} ${sub.name.toLowerCase()} in ${area.location}. ` +
         `${type === 'rent' ? 'Available now for monthly rental. ' : type === 'free' ? 'Free to a good home, pickup only. ' : type === 'wanted' ? 'Looking for this — reasonable condition, fair price. ' : ''}` +
@@ -254,10 +347,12 @@ async function main() {
         categoryId,
         subcategorySlug: sub.slug,
         listingType: type,
+        brandSlug,
+        model,
         sellerId: sellerIds[Math.floor(r() * sellerIds.length)],
         verified,
         status: 'active',
-        searchText: buildSearchText([title, titleVi, description, area.location, cat.name, sub.name, sub.nameVi]),
+        searchText: buildSearchText([title, titleVi, description, area.location, cat.name, sub.name, sub.nameVi, brandSlug || '', model || '']),
         postedAt: agoDays(daysAgo),
         availabilityConfirmedAt: agoDays(daysAgo),
         views: Math.floor(r() * 2500),
@@ -276,7 +371,14 @@ async function main() {
     console.log(`  inserted ${Math.min(i + BATCH, rows.length)}/${rows.length}`)
   }
 
-  console.log(`Done. ${TAXONOMY.length} categories, ${sellerSeeds.length} sellers, ${rows.length} listings.`)
+  // Brand directory counts (ranks /brands + powers the brand rail order).
+  for (const b of uniqBrands.values()) {
+    const slug = brandSlugify(b.name)
+    const cnt = await db.listing.count({ where: { brandSlug: slug, verified: true, status: 'active' } })
+    await db.brand.update({ where: { slug }, data: { listingCount: cnt } }).catch(() => {})
+  }
+
+  console.log(`Done. ${TAXONOMY.length} categories, ${uniqBrands.size} brands, ${sellerSeeds.length} sellers, ${rows.length} listings.`)
 }
 
 main()
