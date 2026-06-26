@@ -70,8 +70,9 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
         if (d.brand) setBrand(d.brand) // AI auto-selects the brand ONLY when confident
         if (d.model) setModel(d.model)
         if (d.title && !title.trim()) setTitle(d.title)
-        // AI spec sheet (brand/model/key specs) → seed the description if empty.
-        if (d.description && !description.trim()) setDescription(d.description)
+        // NOTE: intentionally do NOT auto-write the description. Sellers describe the
+        // item in their OWN words (what actually matters — condition, quirks, why
+        // selling), then optionally "Polish with AI" to tidy their own text.
         toast.success(t('Đã điền từ ảnh — kiểm tra lại nhé', 'Filled from your photo — double-check it'))
         // Couldn't confirm the brand → ask for a clearer logo photo rather than
         // filling a wrong guess. Non-blocking; the rest is already filled.
