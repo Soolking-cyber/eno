@@ -31,11 +31,16 @@ export default function SavedPage() {
         <SavedSearches />
 
         {loading ? (
+          // Reserve the REAL grid height while loading: one placeholder per saved item
+          // (count is known from the device-local favorites set, which loads before the
+          // listings fetch), each matching a card's height — so no layout shift (CLS)
+          // when the actual cards swap in.
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: Math.min(Math.max(count, 2), 24) }).map((_, i) => (
               <div key={i} className="space-y-2">
                 <div className="aspect-[4/3] w-full rounded-xl shimmer" />
                 <div className="h-4 w-2/3 rounded shimmer" />
+                <div className="h-4 w-1/3 rounded shimmer" />
                 <div className="h-3 w-1/2 rounded shimmer" />
               </div>
             ))}
