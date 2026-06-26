@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       if (excludeMock && isMockImages(listing.images)) continue
       const baseTitle = listing.titleVi || listing.title
       const displayDesc = listing.description
-      const itemUrl = `${hostUrl}/listings/${listing.id}`
+      const itemUrl = `${hostUrl}/listings/${listing.id}?utm_source=google&utm_medium=shopping`
       const imageUrl = listing.images[0] || `${hostUrl}/placeholder.png`
       const extraImages = listing.images.slice(1, 11)
 
@@ -72,11 +72,10 @@ export async function GET(req: Request) {
         ? `${bName} ${baseTitle}`
         : baseTitle
 
-      // Condition
-      let condition = 'used'
-      if (listing.condition === 'new' || listing.condition?.toLowerCase().includes('mới')) {
-        condition = 'new'
-      }
+      // Condition → new | used | refurbished (match the Meta feed)
+      const cond = listing.condition?.toLowerCase() || ''
+      const condition = listing.condition === 'new' || cond.includes('mới') ? 'new'
+        : cond.includes('refurb') ? 'refurbished' : 'used'
 
       const currencyCode = listing.currency === '₫' ? 'VND' : 'USD'
       const formattedPrice = `${listing.price} ${currencyCode}`
