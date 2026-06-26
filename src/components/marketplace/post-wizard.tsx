@@ -23,6 +23,24 @@ import { usePointerReorder } from '@/hooks/use-pointer-reorder'
 const TITLE_MAX = 140
 const DESC_MAX = 5000
 
+// Rentable items live in a sale category (Vehicles/Property) OR the dedicated Rentals
+// category. Choosing "For rent" moves a sale item into Rentals (and back), mapping the
+// subcategory across — so AI's default-to-sale classification is one tap from rental.
+const RENTABLE_SALE_CATS = new Set(['vehicles', 'property'])
+const SALE_TO_RENT: Record<string, Record<string, string>> = {
+  vehicles: { 'motorbike-scooter': 'motorbike-rental', 'motorbike-manual': 'motorbike-rental', car: 'car-rental', bicycle: 'bicycle-rental', 'ebike-scooter': 'ebike-rental' },
+  property: { apartment: 'apartment-rental', house: 'house-rental', 'room-shared': 'room-rental' },
+}
+const RENT_TO_SALE: Record<string, { category: string; sub: string }> = {
+  'motorbike-rental': { category: 'vehicles', sub: 'motorbike-scooter' },
+  'car-rental': { category: 'vehicles', sub: 'car' },
+  'bicycle-rental': { category: 'vehicles', sub: 'bicycle' },
+  'ebike-rental': { category: 'vehicles', sub: 'ebike-scooter' },
+  'apartment-rental': { category: 'property', sub: 'apartment' },
+  'house-rental': { category: 'property', sub: 'house' },
+  'room-rental': { category: 'property', sub: 'room-shared' },
+}
+
 // Data to PREFILL the wizard for editing an existing listing (Manage listings → Edit).
 // Same shape the wizard collects, so editing is literally "post again" with values set.
 export type ListingEditData = {
@@ -246,6 +264,27 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const hasCondition = catFacets.some((f) => f.key === 'condition')
   const attrFacets = catFacets.filter((f) => f.key !== 'condition')
   const showBrand = categoryHasBrand(categorySlug)
+
+  // Sale-vs-rent quick switch for rentable items (Vehicles/Property ↔ Rentals). AI
+  // defaults rentable items to a sale category; one tap flips the WHOLE category to
+  // Rentals (mapping the subcategory), so "this is actually a rental" just works.
+  const intent: 'sell' | 'rent' = categorySlug === 'rentals' ? 'rent' : 'sell'
+  const showRentToggle = !edit && (categorySlug === 'rentals' || RENTABLE_SALE_CATS.has(categorySlug))
+  const switchIntent = (to: 'sell' | 'rent') => {
+    if (to === intent) return
+    if (to === 'rent') {
+      setSubcategorySlug(SALE_TO_RENT[categorySlug]?.[subcategorySlug] ?? '')
+      setCategorySlug('rentals')
+      setListingType('rent')
+    } else {
+      const map = RENT_TO_SALE[subcategorySlug]
+      setCategorySlug(map?.category ?? 'property') // stays/homestays w/o a sale twin → Property
+      setSubcategorySlug(map?.sub ?? '')
+      setListingType('sell')
+    }
+    // Facets differ across sale ↔ rentals → reset attribute/range/condition state.
+    setAttrs({}); setRanges({}); setCondition('')
+  }
 
   const chooseCategory = (slug: string) => {
     setCategorySlug(slug)
@@ -479,6 +518,22 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
           {/* Category & type */}
           <Section title={t('Danh mục', 'Category')} hint={t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
+            {showRentToggle && (
+              <Field label={t('Bán hay cho thuê?', 'For sale or for rent?')}>
+                <div className="inline-flex rounded-xl bg-tint p-1">
+                  {(['sell', 'rent'] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => switchIntent(v)}
+                      className={cn('rounded-lg px-4 py-1.5 text-sm font-bold transition-colors cursor-pointer', intent === v ? 'bg-[#0a66c2] text-white' : 'text-body hover:text-foreground')}
+                    >
+                      {v === 'sell' ? t('Bán', 'For sale') : t('Cho thuê', 'For rent')}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            )}
             {edit ? (
               // Category is fixed when editing (changing it would re-derive subcategory/
               // brand/facets). To switch category, delete + repost.
