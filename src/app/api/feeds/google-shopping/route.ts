@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
+import { FEED_CATEGORIES, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
 
 // Helper to escape XML special characters
 function escapeXml(unsafe: string): string {
@@ -12,26 +13,17 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, '&apos;')
 }
 
-// Google Merchant Center accepts physical PRODUCTS only. Rentals, jobs, services,
-// events, tickets and property aren't products — feeding them gets the whole feed
-// flagged. Restrict to the sellable product categories.
-const FEED_CATEGORIES = ['electronics', 'fashion-beauty', 'vehicles', 'furniture-appliances', 'baby-kids', 'hobbies-sports', 'pets', 'food-drink', 'moving-sale']
+export async function GET(req: Request) {
+  // Same Basic-Auth protection as the Meta feed (Google Merchant supports a
+  // scheduled-fetch login). Open until FEED_USER/FEED_PASSWORD are set.
+  const authError = feedAuthError(req)
+  if (authError) return authError
 
-// Map our top-level categories → Google product taxonomy IDs (broad + safe; Google
-// refines from title/description). Omitted categories let Google auto-categorize.
-const GOOGLE_PRODUCT_CATEGORY: Record<string, string> = {
-  electronics: '222',            // Electronics
-  'fashion-beauty': '166',       // Apparel & Accessories
-  vehicles: '888',               // Vehicles & Parts
-  'furniture-appliances': '536', // Home & Garden
-  'baby-kids': '537',            // Baby & Toddler
-  'hobbies-sports': '988',       // Sporting Goods
-  pets: '1',                     // Animals & Pet Supplies
-  'food-drink': '422',           // Food, Beverages & Tobacco
-}
-
-export async function GET() {
   try {
+    const excludeMock =
+      new URL(req.url).searchParams.get('exclude_mock') === '1' ||
+      process.env.CATALOG_EXCLUDE_MOCK === 'true'
+
     const listings = await db.listing.findMany({
       // Only items actually FOR SALE (not rent/wanted/job/service/free/event) and
       // only in product categories — everything else isn't Shopping-eligible.
@@ -66,6 +58,7 @@ export async function GET() {
 
     for (const l of listings) {
       const listing = serializeListing(l)
+      if (excludeMock && isMockImages(listing.images)) continue
       const baseTitle = listing.titleVi || listing.title
       const displayDesc = listing.description
       const itemUrl = `${hostUrl}/listings/${listing.id}`
@@ -109,7 +102,7 @@ ${gpc ? `      <g:google_product_category>${gpc}</g:google_product_category>\n` 
     return new Response(xml, {
       headers: {
         'Content-Type': 'application/xml; charset=utf-8',
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=600',
+        ...feedCacheHeaders(),
       },
     })
   } catch (error) {
