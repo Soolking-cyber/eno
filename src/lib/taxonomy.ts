@@ -124,8 +124,8 @@ export const TAXONOMY: CategoryDef[] = [
     nameVi: 'Xe cộ',
     icon: 'Bike',
     color: 'sky',
-    description: 'Motorbikes to rent or buy, bicycles, cars, e-bikes, parts & gear.',
-    types: ['rent', 'sell', 'wanted'],
+    description: 'Buy or sell motorbikes, bicycles, cars, e-bikes, parts & gear. (To rent, see the Rentals category.)',
+    types: ['sell', 'wanted'],
     subcategories: [
       { slug: 'motorbike-scooter', name: 'Motorbike (Scooter)', nameVi: 'Xe tay ga', keywords: ['scooter', 'vision', 'airblade', 'air blade', 'lead', 'sh', 'vespa', 'xe ga', 'tay ga'] },
       { slug: 'motorbike-manual', name: 'Motorbike (Manual)', nameVi: 'Xe số / Côn tay', keywords: ['manual', 'wave', 'sirius', 'exciter', 'winner', 'xe số', 'côn tay'] },
@@ -160,21 +160,86 @@ export const TAXONOMY: CategoryDef[] = [
     ],
   },
 
-  // 2 ── PROPERTY ─────────────────────────────────────────────────────────────
+  // ★ RENTALS (tourists & expats) ──────────────────────────────────────────────
+  // The ONE place anything is rented. Tourists/expats look for "rent a bike",
+  // "rent an apartment", "hotel" as nouns — not "Vehicles → filter Rent". So every
+  // rental (transport + homes + short stays) lives here, intent always `rent`, with
+  // the KeyRound 🔑 icon + "Cho thuê" (literally "for rent") as the visual signal.
+  // Vehicles & Property are therefore BUY/SELL-ONLY — clean, non-overlapping split.
+  {
+    slug: 'rentals',
+    name: 'Rentals',
+    nameVi: 'Cho thuê',
+    icon: 'KeyRound',
+    color: 'sky',
+    description: 'Rent — never buy. Motorbikes, cars, bicycles, e-bikes, plus apartments, houses, rooms, hotels & serviced stays. By the day, week or month. Built for tourists & expats.',
+    types: ['rent'],
+    subcategories: [
+      // Transport rentals
+      { slug: 'motorbike-rental', name: 'Motorbike & scooter', nameVi: 'Thuê xe máy', keywords: ['motorbike rental', 'scooter rental', 'rent a bike', 'bike rental', 'rent motorbike', 'vision', 'airblade', 'air blade', 'wave', 'monthly bike', 'thuê xe máy', 'thuê xe ga', 'thuê xe số'] },
+      { slug: 'car-rental', name: 'Car (self-drive / with driver)', nameVi: 'Thuê ô tô', keywords: ['car rental', 'rent a car', 'self drive', 'self-drive', 'with driver', 'car hire', 'thuê ô tô', 'thuê xe hơi', 'thuê xe tự lái', 'thuê xe có tài'] },
+      { slug: 'bicycle-rental', name: 'Bicycle', nameVi: 'Thuê xe đạp', keywords: ['bicycle rental', 'bike hire', 'rent bicycle', 'thuê xe đạp'] },
+      { slug: 'ebike-rental', name: 'E-bike / e-scooter', nameVi: 'Thuê xe điện', keywords: ['e-bike rental', 'ebike rental', 'electric scooter rental', 'thuê xe điện'] },
+      // Home rentals (long-term residential — moved out of Property, which is buy/sell-only)
+      { slug: 'apartment-rental', name: 'Apartment / condo', nameVi: 'Thuê căn hộ', keywords: ['apartment rental', 'rent apartment', 'condo for rent', 'apartment for rent', 'thuê căn hộ', 'thuê chung cư'] },
+      { slug: 'house-rental', name: 'House / villa', nameVi: 'Thuê nhà', keywords: ['house rental', 'rent house', 'villa for rent', 'townhouse for rent', 'thuê nhà', 'thuê nhà nguyên căn', 'thuê biệt thự'] },
+      { slug: 'room-rental', name: 'Room / shared', nameVi: 'Thuê phòng / Ở ghép', keywords: ['room rental', 'rent room', 'roommate', 'shared room', 'thuê phòng', 'phòng trọ', 'ở ghép'] },
+      // Short-term / serviced stays (tourists + arriving expats)
+      { slug: 'hotel-short-stay', name: 'Hotel & short-stay', nameVi: 'Khách sạn & ngắn hạn', keywords: ['hotel', 'hostel', 'guesthouse', 'short stay', 'short-term stay', 'nightly', 'airbnb', 'khách sạn', 'nhà nghỉ', 'lưu trú ngắn hạn'] },
+      { slug: 'homestay-serviced', name: 'Homestay & serviced apartment', nameVi: 'Homestay & căn hộ dịch vụ', keywords: ['homestay', 'serviced apartment', 'service apartment', 'furnished stay', 'căn hộ dịch vụ'] },
+    ],
+    facets: [
+      { key: 'rentalPeriod', label: 'Rental period', labelVi: 'Kỳ thuê', kind: 'toggle', options: [
+        { value: 'daily', label: 'Daily', labelVi: 'Theo ngày' },
+        { value: 'weekly', label: 'Weekly', labelVi: 'Theo tuần' },
+        { value: 'monthly', label: 'Monthly', labelVi: 'Theo tháng' },
+      ] },
+      { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', kind: 'toggle',
+        subcats: ['motorbike-rental', 'car-rental'], options: [
+        { value: 'automatic', label: 'Automatic', labelVi: 'Tự động / Xe ga' },
+        { value: 'manual', label: 'Manual', labelVi: 'Số / Côn tay' },
+      ] },
+      { key: 'delivery', label: 'Delivery', labelVi: 'Giao nhận', kind: 'toggle',
+        subcats: ['motorbike-rental', 'car-rental', 'bicycle-rental', 'ebike-rental'], options: [
+        { value: 'delivered', label: 'Delivered to you', labelVi: 'Giao tận nơi' },
+        { value: 'pickup', label: 'Self-pickup', labelVi: 'Tự đến lấy' },
+      ] },
+      { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', kind: 'toggle',
+        subcats: ['apartment-rental', 'house-rental', 'room-rental'], options: [
+        { value: '0', label: 'Studio', labelVi: 'Studio' },
+        { value: '1', label: '1 BR', labelVi: '1 PN' },
+        { value: '2', label: '2 BR', labelVi: '2 PN' },
+        { value: '3', label: '3+ BR', labelVi: '3+ PN' },
+      ] },
+      { key: 'furnishing', label: 'Furnishing', labelVi: 'Nội thất', kind: 'toggle',
+        subcats: ['apartment-rental', 'house-rental', 'room-rental', 'homestay-serviced'], options: [
+        { value: 'fully', label: 'Furnished', labelVi: 'Đầy đủ' },
+        { value: 'partly', label: 'Unfurnished', labelVi: 'Cơ bản' },
+      ] },
+      { key: 'guests', label: 'Guests', labelVi: 'Số khách', kind: 'toggle',
+        subcats: ['hotel-short-stay', 'homestay-serviced'], options: [
+        { value: '1-2', label: '1–2', labelVi: '1–2' },
+        { value: '3-4', label: '3–4', labelVi: '3–4' },
+        { value: '5-up', label: '5+', labelVi: '5+' },
+      ] },
+    ],
+  },
+
+  // 2 ── PROPERTY (buy/sell only) ──────────────────────────────────────────────
+  // Real estate to BUY or SELL. Anything for rent (apartments, houses, rooms) lives
+  // in the Rentals category instead — Property never carries the `rent` intent.
   {
     slug: 'property',
     name: 'Property',
-    nameVi: 'Nhà ở',
+    nameVi: 'Nhà đất',
     icon: 'Home',
     color: 'teal',
-    description: 'Apartments, houses, rooms, serviced & short-term stays, offices, and property for sale.',
-    types: ['rent', 'sell', 'wanted'],
+    description: 'Apartments, houses, land, offices & retail — to buy or sell. (To rent a home, see the Rentals category.)',
+    types: ['sell', 'wanted'],
     subcategories: [
-      { slug: 'apartment', name: 'Apartment / Condo', nameVi: 'Căn hộ / Chung cư', keywords: ['apartment', 'condo', 'căn hộ', 'chung cư'] },
-      { slug: 'house', name: 'House (whole)', nameVi: 'Nhà nguyên căn', keywords: ['house', 'villa', 'townhouse', 'nhà nguyên căn', 'nhà phố', 'biệt thự'] },
-      { slug: 'room-shared', name: 'Room / Shared', nameVi: 'Phòng trọ / Ở ghép', keywords: ['room', 'roommate', 'shared', 'phòng trọ', 'ở ghép'] },
-      { slug: 'serviced', name: 'Serviced apartment', nameVi: 'Căn hộ dịch vụ', keywords: ['serviced', 'service apartment', 'căn hộ dịch vụ'] },
-      { slug: 'short-term', name: 'Short-term / Monthly', nameVi: 'Ngắn hạn / Theo tháng', keywords: ['short term', 'short-term', 'monthly', 'airbnb', 'ngắn hạn', 'theo tháng'] },
+      { slug: 'apartment', name: 'Apartment / Condo', nameVi: 'Căn hộ / Chung cư', keywords: ['apartment', 'condo', 'buy apartment', 'căn hộ', 'chung cư', 'mua căn hộ'] },
+      { slug: 'house', name: 'House / Villa', nameVi: 'Nhà / Biệt thự', keywords: ['house', 'villa', 'townhouse', 'buy house', 'nhà nguyên căn', 'nhà phố', 'biệt thự', 'mua nhà'] },
+      { slug: 'land', name: 'Land & plots', nameVi: 'Đất nền', keywords: ['land', 'plot', 'lot', 'đất', 'đất nền', 'lô đất', 'thổ cư'] },
       { slug: 'office-retail', name: 'Office & retail', nameVi: 'Văn phòng & Mặt bằng', keywords: ['office', 'retail', 'commercial', 'shop', 'văn phòng', 'mặt bằng'] },
     ],
     facets: [
@@ -422,6 +487,8 @@ export const TAXONOMY: CategoryDef[] = [
     subcategories: [
       { slug: 'visa-legal', name: 'Visa, legal & tax', nameVi: 'Visa, Pháp lý & Thuế', keywords: ['visa', 'work permit', 'legal', 'tax', 'permit', 'giấy tờ', 'thuế', 'pháp lý'] },
       { slug: 'language-lessons', name: 'Language lessons', nameVi: 'Lớp ngoại ngữ', keywords: ['vietnamese lesson', 'english class', 'language', 'học tiếng việt', 'dạy tiếng', 'ngoại ngữ'] },
+      { slug: 'coworking', name: 'Coworking & desks', nameVi: 'Coworking & bàn làm việc', keywords: ['coworking', 'co-working', 'hot desk', 'day pass', 'dedicated desk', 'shared office', 'workspace', 'không gian làm việc chung', 'văn phòng chia sẻ'] },
+      { slug: 'airport-transfer', name: 'Airport transfer & driver', nameVi: 'Đưa đón sân bay & tài xế', keywords: ['airport transfer', 'airport pickup', 'private transfer', 'driver', 'car with driver', 'đưa đón sân bay', 'tài xế', 'thuê xe có tài'] },
       { slug: 'cleaning', name: 'Cleaning & maid', nameVi: 'Dọn dẹp & Giúp việc', keywords: ['cleaning', 'maid', 'housekeeping', 'dọn dẹp', 'giúp việc', 'vệ sinh'] },
       { slug: 'moving-delivery', name: 'Moving & delivery', nameVi: 'Chuyển nhà & Giao hàng', keywords: ['moving', 'delivery', 'transport', 'chuyển nhà', 'vận chuyển', 'giao hàng'] },
       { slug: 'repair', name: 'Repair & handyman', nameVi: 'Sửa chữa', keywords: ['repair', 'handyman', 'plumber', 'electrician', 'fix', 'sửa chữa', 'thợ'] },
@@ -501,7 +568,7 @@ export const CATEGORY_BY_SLUG: Record<string, CategoryDef> = Object.fromEntries(
 // Categories where a brand is meaningful (product categories). Client-safe; the
 // server-only brand resolver (src/lib/brand.ts) re-exports this same set.
 export const BRAND_CATEGORY_SLUGS = [
-  'electronics', 'fashion-beauty', 'vehicles', 'furniture-appliances', 'baby-kids', 'hobbies-sports',
+  'electronics', 'fashion-beauty', 'vehicles', 'rentals', 'furniture-appliances', 'baby-kids', 'hobbies-sports',
 ] as const
 export function categoryHasBrand(slug: string | null | undefined): boolean {
   return !!slug && (BRAND_CATEGORY_SLUGS as readonly string[]).includes(slug)

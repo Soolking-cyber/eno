@@ -4,7 +4,7 @@ import { TAXONOMY, type CategoryDef, type ListingType } from '../src/lib/taxonom
 import { buildSearchText } from '../src/lib/fold'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MOCK SEED — builds the full taxonomy (14 categories) and HUNDREDS of mock
+// MOCK SEED — builds the full taxonomy (15 categories) and HUNDREDS of mock
 // listings per category for end-to-end testing of the new categories, the
 // subcategory column, the listingType (intent) axis, facets, map, and search.
 //
@@ -71,6 +71,8 @@ function priceModel(cat: CategoryDef, type: ListingType, r: number): { price: nu
   if (type === 'rent') {
     if (cat.slug === 'property') return { price: niceVnd(between(6_000_000, 45_000_000, r)), priceUnit: 'VND/month' }
     if (cat.slug === 'vehicles') return { price: niceVnd(between(800_000, 4_000_000, r)), priceUnit: 'VND/month' }
+    // Rentals span cheap daily bikes → monthly cars, serviced stays & home leases.
+    if (cat.slug === 'rentals') return { price: niceVnd(between(700_000, 22_000_000, r)), priceUnit: 'VND/month' }
     return { price: niceVnd(between(500_000, 5_000_000, r)), priceUnit: 'VND/month' }
   }
   // sell

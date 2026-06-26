@@ -1,6 +1,7 @@
 import {
   PackageOpen,
   Bike,
+  KeyRound,
   Home,
   Smartphone,
   Briefcase,
@@ -22,6 +23,7 @@ import {
 const ICONS: Record<string, LucideIcon> = {
   PackageOpen,
   Bike,
+  KeyRound,
   Home,
   Smartphone,
   Briefcase,
