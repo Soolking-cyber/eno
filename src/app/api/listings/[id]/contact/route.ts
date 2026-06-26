@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { phoneForSeller, telHref, zaloHref } from '@/lib/contact'
 import { rateLimit } from '@/lib/ratelimit'
+import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -53,6 +54,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       data: { listingId: listing.id, viewerId: user.id, ipHash: hashIp(ip) },
     })
     await db.listing.update({ where: { id: listing.id }, data: { contactCount: { increment: 1 } } })
+    // New buyer lead → Meta CAPI Contact (server-side, after response flushes — zero
+    // client cost; no-ops until CAPI env is set). Only on a NEW reveal (this try block).
+    after(() =>
+      sendMetaCapiEvent('Contact', {
+        eventSourceUrl: req.headers.get('referer') || undefined,
+        userData: metaUserDataFromHeaders(req.headers, { externalId: user.id }),
+        customData: { content_ids: [listing.id], content_type: 'product' },
+      }),
+    )
   } catch (e: unknown) {
     // P2002 = already revealed by this viewer → no double count, still return contact.
     if (!(e && typeof e === 'object' && 'code' in e && (e as { code: string }).code === 'P2002')) {

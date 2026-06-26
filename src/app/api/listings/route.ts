@@ -7,6 +7,7 @@ import { suggestSubcategory, typesFor, subcategoriesFor, rangeFacetsFor, isRange
 import { fold, buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { syndicateListing } from '@/lib/syndicate'
+import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
@@ -528,6 +529,15 @@ export async function POST(req: NextRequest) {
         image: images[0] || null,
         categoryName: category.name,
       }))
+      // Supply conversion → Meta CAPI Lead (server-side, after response flushes — zero
+      // client cost; no-ops until CAPI env is set). Only for listings that go live.
+      after(() =>
+        sendMetaCapiEvent('Lead', {
+          eventSourceUrl: req.headers.get('referer') || undefined,
+          userData: metaUserDataFromHeaders(req.headers, { phone: seller.phone, externalId: seller.id }),
+          customData: { content_ids: [listing.id], content_type: 'product', content_category: category.name, value: listing.price, currency: 'VND' },
+        }),
+      )
     }
 
     return NextResponse.json({ id: listing.id, verified: autoPublish }, { status: 201 })

@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
+import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 
 export const runtime = 'nodejs'
 
@@ -17,6 +18,9 @@ const TYPES = new Set(['individual', 'business'])
 export async function POST(req: Request) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+  // True only on the genuine FIRST onboarding (accountType still null) → so the
+  // CompleteRegistration conversion below isn't re-sent if the type is changed later.
+  const firstOnboard = !profile.accountType
 
   let body: { accountType?: string; businessName?: string; displayName?: string; phone?: string } = {}
   try { body = await req.json() } catch { /* empty body → invalid below */ }
@@ -70,6 +74,18 @@ export async function POST(req: Request) {
         await db.seller.create({ data: { name: businessName!, ownerId: profile.id, responseRate: 100 } })
       }
     }
+  }
+
+  // Server-side conversion (CompleteRegistration) for Meta ad optimization. Fires
+  // AFTER the response flushes (zero added latency) and no-ops until CAPI env is set.
+  if (firstOnboard) {
+    after(() =>
+      sendMetaCapiEvent('CompleteRegistration', {
+        eventSourceUrl: req.headers.get('referer') || undefined,
+        userData: metaUserDataFromHeaders(req.headers, { phone, externalId: profile.id }),
+        customData: { content_name: 'eno_account', status: accountType },
+      }),
+    )
   }
 
   return NextResponse.json({ ok: true, accountType })

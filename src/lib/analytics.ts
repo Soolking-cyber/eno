@@ -1,7 +1,15 @@
-// GA4 conversion events (+ Meta Pixel events kept wired but DORMANT). The Meta
-// Pixel script was removed from analytics-tags.tsx for performance, so window.fbq
-// is never defined and every fb() call below no-ops — re-adding the Pixel script
-// re-enables them with no other change. GA (gtag) is installed interaction-gated.
+// Client-side GA4 events (+ Meta Pixel BROWSING events, kept wired but DORMANT).
+// The Meta Pixel script was removed from analytics-tags.tsx for performance, so
+// window.fbq is never defined and every fb() call below no-ops — re-adding the Pixel
+// script re-enables them with no other change. GA (gtag) is installed interaction-gated.
+//
+// IMPORTANT — conversions are server-side now: CompleteRegistration / Contact / Lead
+// fire from the API routes via the Meta Conversions API (src/lib/meta-capi.ts), which
+// adds ZERO client/first-load cost and isn't blocked by ad-blockers. So the client
+// helpers below only keep the *browsing* pixel events (ViewContent/Search) — the ones
+// the conversions don't cover. This keeps the two channels non-overlapping: no shared
+// event_id / dedup needed, and no double-counting if the browser pixel is switched on.
+//
 // Every call here is guarded: it no-ops on the server / before the script loads and
 // never throws inside a click handler — a dropped event always beats a broken UX.
 
@@ -63,20 +71,20 @@ export function trackSearch(p: { term: string; results?: number; category?: stri
   }))
 }
 
-/** A buyer starts a NEW conversation with a seller. GA4 generate_lead / Meta Contact. */
+/** A buyer starts a NEW conversation with a seller. GA4 generate_lead. (Meta Contact
+ *  is sent server-side via CAPI from the contact route — not here.) */
 export function trackContactSeller(p: { id: string; title?: string; price?: number; currency?: Currency }): void {
   ga('generate_lead', clean({ method: 'message_seller', item_id: p.id, item_name: p.title, value: p.price, currency: p.currency }))
-  fb('Contact', clean({ content_ids: [p.id], content_type: 'product', content_name: p.title, value: p.price, currency: p.currency }))
 }
 
-/** A seller publishes a listing. GA4 post_listing (custom) / Meta Lead. */
+/** A seller publishes a listing. GA4 post_listing (custom). (Meta Lead is sent
+ *  server-side via CAPI from POST /api/listings — not here.) */
 export function trackPostListing(p: { id?: string; title: string; price: number; currency: Currency; category: string; district?: string }): void {
   ga('post_listing', clean({ currency: p.currency, value: p.price, item_category: p.category, item_name: p.title, item_id: p.id, district: p.district }))
-  fb('Lead', clean({ content_category: p.category, content_name: p.title, content_ids: p.id ? [p.id] : undefined, value: p.price, currency: p.currency }))
 }
 
-/** A brand-new account is created. GA4 sign_up / Meta CompleteRegistration. */
+/** A brand-new account is created. GA4 sign_up. (Meta CompleteRegistration is sent
+ *  server-side via CAPI from the account-type route — not here.) */
 export function trackSignUp(method: string): void {
   ga('sign_up', { method })
-  fb('CompleteRegistration', { status: true, content_name: 'eno_account', method })
 }
