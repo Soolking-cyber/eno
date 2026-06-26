@@ -376,9 +376,10 @@ export async function POST(req: NextRequest) {
       const owned = await db.seller.findUnique({ where: { ownerId: meId } })
       if (owned) {
         seller = owned
-        // Backfill a missing contact phone on their storefront — but never one that
-        // already belongs to another account (any format → normalized key).
-        if (!owned.phone && contactPhone) {
+        // Set OR update the contact phone on their storefront (the post wizard's inline
+        // quick-edit) — but never one that already belongs to another account (any
+        // format → normalized key).
+        if (contactPhone && contactPhone !== owned.phone) {
           if (await phoneTakenByOther(contactPhone, meId)) return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
           try { seller = await db.seller.update({ where: { id: owned.id }, data: { phone: contactPhone } }) } catch { /* phone taken elsewhere */ }
         }

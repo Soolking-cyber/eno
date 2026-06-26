@@ -163,6 +163,7 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
   const [dragOver, setDragOver] = useState(false)
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
+  const [editingPhone, setEditingPhone] = useState(false) // quick-edit the contact number inline
   const [postingAs, setPostingAs] = useState<string | null>(null)
   const [meLoaded, setMeLoaded] = useState(false)
 
@@ -569,29 +570,70 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
           <Section title={t('Liên hệ', 'Contact')} hint={t('Số của bạn được giữ kín — người mua nhắn tin trong ứng dụng, chỉ hiện số sau khi bạn trả lời.', 'Your number stays private — buyers message you in-app; it’s revealed only after you reply.')}>
             {!meLoaded ? (
               <div className="h-5 w-56 rounded shimmer" />
-            ) : contactName.trim().length >= 2 && phoneOk ? (
-              <div className="space-y-1">
+            ) : (
+              <div className="space-y-3">
                 {postingAs && (
                   <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <ShieldCheck className="h-4 w-4 text-accent-foreground" />
                     {t('Đăng với tư cách', 'Posting as')} <span className="font-semibold text-foreground">{postingAs}</span>
                   </p>
                 )}
-                <p className="text-sm text-foreground">
-                  <span className="font-semibold">{contactName}</span>
-                  <span className="text-muted-foreground"> · </span>
-                  <span className="tabular-nums text-muted-foreground">{contactPhone}</span>
-                </p>
+
+                {/* Name — inline-editable if it's not set on the account yet. */}
+                {contactName.trim().length >= 2 ? (
+                  <p className="text-sm font-semibold text-foreground">{contactName}</p>
+                ) : (
+                  <Field label={t('Tên của bạn', 'Your name')}>
+                    <input
+                      value={contactName}
+                      maxLength={80}
+                      onChange={(e) => setContactName(e.target.value)}
+                      placeholder={t('Tên hiển thị cho người mua', 'Name buyers will see')}
+                      className="w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                    />
+                  </Field>
+                )}
+
+                {/* Phone — quick-edit inline (no trip to Settings). Shows the saved number
+                    with a "Change" toggle; an input when it's missing or being edited. */}
+                {!editingPhone && phoneOk ? (
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="tabular-nums text-muted-foreground">{contactPhone}</span>
+                    <button type="button" onClick={() => setEditingPhone(true)} className="text-xs font-bold text-accent-foreground hover:underline cursor-pointer">
+                      {t('Đổi số', 'Change number')}
+                    </button>
+                  </div>
+                ) : (
+                  <Field label={t('Số điện thoại', 'Phone number')} hint={t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')}>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                      placeholder="+84…"
+                      className="w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                    />
+                    {/* Zalo OTP verification — BUILT but gated until Zalo is wired up. Posting
+                        works now with an unverified number; verifying later boosts trust. */}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled
+                        aria-disabled
+                        title={t('Sắp ra mắt', 'Coming soon')}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground opacity-70 cursor-not-allowed"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        {t('Xác minh bằng Zalo OTP', 'Verify with Zalo OTP')}
+                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-ink-4">{t('Sắp có', 'Soon')}</span>
+                      </button>
+                      <span className="text-xs text-ink-4">{t('Xác minh để tăng uy tín — sắp có. Bạn vẫn đăng được ngay.', 'Verify to boost trust — coming soon. You can post now.')}</span>
+                    </div>
+                  </Field>
+                )}
+
                 <a href="/dashboard?tab=account" className="inline-block text-xs font-bold text-accent-foreground hover:underline">
                   {t('Chỉnh sửa trong Cài đặt', 'Edit in Settings')}
-                </a>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">{t('Thêm tên và số điện thoại trước khi đăng', 'Add your name and phone number before you can post')}</p>
-                <p className="max-w-md text-xs text-body">{t('Thông tin liên hệ được lấy từ tài khoản của bạn — mỗi số chỉ dùng cho một tài khoản. Hãy thêm trong Cài đặt.', 'Your contact details come from your account — each number belongs to one account. Add them in Settings.')}</p>
-                <a href="/dashboard?tab=account" className="inline-block text-sm font-bold text-accent-foreground hover:underline">
-                  {t('Thêm trong Cài đặt', 'Add in Settings')} →
                 </a>
               </div>
             )}
