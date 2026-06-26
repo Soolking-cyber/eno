@@ -7,7 +7,7 @@ import { buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { categoryHasBrand, resolveBrand, bumpBrandCount } from '@/lib/brand'
-import { rangeFacetsFor } from '@/lib/taxonomy'
+import { rangeFacetsFor, subcategoriesFor, typesFor } from '@/lib/taxonomy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -65,6 +65,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const images = (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     data.images = JSON.stringify(images)
   }
+
+  // Subcategory — must belong to the listing's (unchanged) category.
+  if (body.subcategorySlug !== undefined) {
+    const sc = body.subcategorySlug ? String(body.subcategorySlug).trim() : null
+    if (!sc || subcategoriesFor(current.category.slug).some((s) => s.slug === sc)) data.subcategorySlug = sc
+  }
+  // Intent (listingType) — must be valid for the category.
+  if (body.listingType !== undefined) {
+    const lt = String(body.listingType).trim()
+    if ((typesFor(current.category.slug) as string[]).includes(lt)) data.listingType = lt
+  }
+  // Attribute facets — whitelisted stringly-typed taxonomy values (same rule as create).
+  if (body.attributes !== undefined) {
+    const clean: Record<string, string> = {}
+    if (body.attributes && typeof body.attributes === 'object' && !Array.isArray(body.attributes)) {
+      for (const [k, v] of Object.entries(body.attributes as Record<string, unknown>)) {
+        if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = v.slice(0, 40)
+      }
+    }
+    data.attributes = Object.keys(clean).length ? JSON.stringify(clean) : null
+  }
+  // Precise pin from "use my current location".
+  if (body.city !== undefined && body.city) data.city = String(body.city).trim().slice(0, 80)
+  if (body.lat !== undefined) { const n = Number(body.lat); data.lat = Number.isFinite(n) && n >= -90 && n <= 90 ? n : null }
+  if (body.lng !== undefined) { const n = Number(body.lng); data.lng = Number.isFinite(n) && n >= -180 && n <= 180 ? n : null }
 
   // Brand edit (product categories only) — re-resolve into the catalogue and move
   // the listing-count from the old brand to the new one. Best-effort; never blocks.

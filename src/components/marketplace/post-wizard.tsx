@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock, Sparkles, Loader2, LocateFixed } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
@@ -22,7 +23,44 @@ import { usePointerReorder } from '@/hooks/use-pointer-reorder'
 const TITLE_MAX = 140
 const DESC_MAX = 5000
 
-export function PostWizard({ categories, embedded = false, onPosted }: { categories: SerializedCategory[]; embedded?: boolean; onPosted?: () => void }) {
+// Data to PREFILL the wizard for editing an existing listing (Manage listings → Edit).
+// Same shape the wizard collects, so editing is literally "post again" with values set.
+export type ListingEditData = {
+  id: string
+  title: string
+  description: string
+  price: number
+  categorySlug: string
+  subcategorySlug: string | null
+  listingType: string
+  condition: string | null
+  brand: string | null
+  model: string | null
+  attributes: Record<string, string>
+  year: number | null
+  mileageKm: number | null
+  engineL: number | null
+  engineCc: number | null
+  district: string | null
+  city: string | null
+  lat: number | null
+  lng: number | null
+  images: string[]
+}
+
+// Seed the range-facet state (keyed by facet key) from the listing's dedicated columns.
+function initRangesFromEdit(edit?: ListingEditData): Record<string, number | null> {
+  if (!edit) return {}
+  const out: Record<string, number | null> = {}
+  for (const f of rangeFacetsFor(edit.categorySlug, edit.subcategorySlug)) {
+    const v = (edit as unknown as Record<string, unknown>)[f.range.column]
+    if (typeof v === 'number') out[f.key] = v
+  }
+  return out
+}
+
+export function PostWizard({ categories, embedded = false, onPosted, edit }: { categories: SerializedCategory[]; embedded?: boolean; onPosted?: () => void; edit?: ListingEditData }) {
+  const router = useRouter()
   const { lang, tr } = useLanguage()
   const t = (vi: string, en: string) => tr(en, vi)
 
@@ -39,11 +77,12 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
 
   // ✨ Autofill category/subcategory/type/condition/title from the cover photo.
   const autofillFromPhoto = async () => {
-    if (!photos.length || aiBusy) return
+    const coverFile = photos[0]?.file
+    if (!coverFile || aiBusy) return
     setAiBusy('photo')
     try {
       const fd = new FormData()
-      fd.append('file', photos[0].file)
+      fd.append('file', coverFile)
       fd.append('lang', lang)
       const res = await fetch('/api/ai/classify', { method: 'POST', body: fd })
       if (!res.ok) {
@@ -118,24 +157,24 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
     return t('Không thể dùng AI lúc này', 'AI is unavailable right now')
   }
   const [error, setError] = useState('')
-  const [categorySlug, setCategorySlug] = useState('')
-  const [subcategorySlug, setSubcategorySlug] = useState('')
-  const [listingType, setListingType] = useState('sell')
-  const [attrs, setAttrs] = useState<Record<string, string>>({})
+  const [categorySlug, setCategorySlug] = useState(edit?.categorySlug ?? '')
+  const [subcategorySlug, setSubcategorySlug] = useState(edit?.subcategorySlug ?? '')
+  const [listingType, setListingType] = useState(edit?.listingType ?? 'sell')
+  const [attrs, setAttrs] = useState<Record<string, string>>(edit?.attributes ?? {})
   // Precise numeric specs (range facets: year/mileage/engine) → keyed by facet key.
-  const [ranges, setRanges] = useState<Record<string, number | null>>({})
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [price, setPrice] = useState('')
-  const [condition, setCondition] = useState('')
-  const [brand, setBrand] = useState('')
-  const [model, setModel] = useState('')
+  const [ranges, setRanges] = useState<Record<string, number | null>>(() => initRangesFromEdit(edit))
+  const [title, setTitle] = useState(edit?.title ?? '')
+  const [description, setDescription] = useState(edit?.description ?? '')
+  const [price, setPrice] = useState(edit ? String(edit.price) : '')
+  const [condition, setCondition] = useState(edit?.condition ?? '')
+  const [brand, setBrand] = useState(edit?.brand ?? '')
+  const [model, setModel] = useState(edit?.model ?? '')
   const [brandOptions, setBrandOptions] = useState<string[]>([])
   const [areaOpen, setAreaOpen] = useState(false)
   const areaBtnRef = useRef<HTMLButtonElement>(null)
-  const [province, setProvince] = useState<Geo | null>(null)
-  const [ward, setWard] = useState<Geo | null>(null)
-  const [nearby, setNearby] = useState<Nearby | null>(null)
+  const [province, setProvince] = useState<Geo | null>(edit?.city ? { code: '', name: edit.city, nameEn: edit.city } : null)
+  const [ward, setWard] = useState<Geo | null>(edit?.district ? { code: '', name: edit.district, nameEn: edit.district } : null)
+  const [nearby, setNearby] = useState<Nearby | null>(edit?.lat != null && edit?.lng != null ? { lat: edit.lat, lng: edit.lng, radiusKm: 5 } : null)
   const [locating, setLocating] = useState(false)
   // Quick "use my current location": geolocate → reverse-geocode → set the precise pin
   // (lat/lng) + the province/ward name for display + submit. No dropdown needed.
@@ -165,7 +204,9 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     )
   }
-  const [photos, setPhotos] = useState<{ url: string; file: File }[]>([])
+  // In edit mode, existing images seed as URL-only entries (no File); new uploads add a
+  // File. Submit uploads only the File ones and keeps the URL ones (preserving order).
+  const [photos, setPhotos] = useState<{ url: string; file?: File }[]>(() => edit?.images?.map((url) => ({ url })) ?? [])
   const [dragOver, setDragOver] = useState(false)
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
@@ -279,44 +320,52 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
     setSubmitting(true)
     setError('')
     try {
-      let imageUrls: string[] = []
-      if (photos.length > 0) {
-        // Photos are already compressed at add time; upload in small batches so the
-        // request body never exceeds the serverless cap.
-        imageUrls = await uploadInBatches(photos.map((p) => p.file))
-        if (imageUrls.length < photos.length) throw new Error('upload')
+      // Upload only NEW photos (those with a File); keep already-hosted URLs (edit mode)
+      // in their original order so the cover + sequence are preserved.
+      const toUpload = photos.filter((p) => p.file)
+      const uploaded = toUpload.length ? await uploadInBatches(toUpload.map((p) => p.file!)) : []
+      if (uploaded.length < toUpload.length) throw new Error('upload')
+      let ui = 0
+      const imageUrls = photos.map((p) => (p.file ? uploaded[ui++] : p.url))
+
+      const payload = {
+        categorySlug,
+        subcategorySlug: subcategorySlug || null,
+        listingType,
+        attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),
+        // Precise numeric specs → dedicated columns (year/mileageKm/engineL).
+        ...Object.fromEntries(
+          rangeFacetsFor(categorySlug, subcategorySlug)
+            .filter((f) => ranges[f.key] != null)
+            .map((f) => [f.range.column, ranges[f.key]]),
+        ),
+        title: title.trim(),
+        description: description.trim(),
+        price: Number(price),
+        district: district || null,
+        city: province?.name || null,
+        location: ward?.name || province?.name || null,
+        lat: nearby?.lat ?? null,
+        lng: nearby?.lng ?? null,
+        condition: hasCondition ? condition || null : null,
+        brand: showBrand ? brand.trim() || null : null,
+        model: showBrand ? model.trim() || null : null,
+        images: imageUrls,
+        contactName: contactName.trim(),
+        contactPhone: contactPhone.trim(),
       }
-      const res = await fetch('/api/listings', {
-        method: 'POST',
+      // Edit → PATCH the existing listing; new post → POST.
+      const res = await fetch(edit ? `/api/listings/${edit.id}` : '/api/listings', {
+        method: edit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          categorySlug,
-          subcategorySlug: subcategorySlug || null,
-          listingType,
-          attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),
-          // Precise numeric specs → dedicated columns (year/mileageKm/engineL).
-          ...Object.fromEntries(
-            rangeFacetsFor(categorySlug, subcategorySlug)
-              .filter((f) => ranges[f.key] != null)
-              .map((f) => [f.range.column, ranges[f.key]]),
-          ),
-          title: title.trim(),
-          description: description.trim(),
-          price: Number(price),
-          district: district || null,
-          city: province?.name || null,
-          location: ward?.name || province?.name || null,
-          lat: nearby?.lat ?? null,
-          lng: nearby?.lng ?? null,
-          condition: hasCondition ? condition || null : null,
-          brand: showBrand ? brand.trim() || null : null,
-          model: showBrand ? model.trim() || null : null,
-          images: imageUrls,
-          contactName: contactName.trim(),
-          contactPhone: contactPhone.trim(),
-        }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Failed')
+      if (edit) {
+        toast.success(t('Đã lưu thay đổi', 'Changes saved'))
+        router.push(`/listings/${edit.id}`)
+        return
+      }
       const created = (await res.json().catch(() => ({}))) as { id?: string }
       trackPostListing({ id: created.id, title: title.trim(), price: Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
       setSubmitted(true)
@@ -360,7 +409,11 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
       disabled={!canSubmit}
       className={cn('w-full rounded-xl bg-[#0a66c2] px-7 py-3 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
     >
-      {submitting ? t('Đang đăng…', 'Posting…') : missing.length ? t(`Còn ${missing.length} mục`, `${missing.length} left to finish`) : t('Đăng tin', 'Publish listing')}
+      {submitting
+        ? (edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…'))
+        : missing.length
+        ? t(`Còn ${missing.length} mục`, `${missing.length} left to finish`)
+        : (edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing'))}
     </button>
   )
 
@@ -426,18 +479,28 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
 
           {/* Category & type */}
           <Section title={t('Danh mục', 'Category')} hint={t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
-            <div className="flex flex-wrap gap-2">
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => chooseCategory(c.slug)}
-                  className={cn('inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')}
-                >
-                  <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')} />
-                  {lang === 'vi' ? c.nameVi : c.name}
-                </button>
-              ))}
-            </div>
+            {edit ? (
+              // Category is fixed when editing (changing it would re-derive subcategory/
+              // brand/facets). To switch category, delete + repost.
+              <div className="inline-flex items-center gap-1.5 rounded-xl bg-muted px-3.5 py-2 text-sm font-semibold text-body">
+                {cat && <CategoryIcon name={cat.icon} className="h-4 w-4 text-body" />}
+                {cat ? (lang === 'vi' ? cat.nameVi : cat.name) : categorySlug}
+                <span className="ml-1 text-xs font-normal text-ink-4">{t('(không đổi khi sửa)', '(fixed when editing)')}</span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {categories.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => chooseCategory(c.slug)}
+                    className={cn('inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')}
+                  >
+                    <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')} />
+                    {lang === 'vi' ? c.nameVi : c.name}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {categorySlug && typeOptions.length > 1 && (
               <Field label={t('Loại tin', 'Listing type')}>
