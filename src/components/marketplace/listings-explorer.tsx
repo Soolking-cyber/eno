@@ -930,6 +930,8 @@ export function ListingsExplorer({
     const params = {
       category: activeCategory !== 'all' ? activeCategory : undefined,
       subcategory: activeSubcategory !== 'all' ? activeSubcategory : undefined,
+      brand: activeBrand !== 'all' ? activeBrand : undefined,
+      model: activeBrand !== 'all' && activeModel !== 'all' ? activeModel : undefined,
       listingType: listingType !== 'all' ? listingType : undefined,
       q: debouncedQuery.trim() || undefined,
       district: activeDistrict !== 'all' ? activeDistrict : undefined,
@@ -946,7 +948,7 @@ export function ListingsExplorer({
       toast.success(tr("Saved — we'll alert you on new matches", 'Đã lưu — sẽ báo khi có tin mới phù hợp'))
     } catch { toast.error(tr('Could not save search', 'Không thể lưu tìm kiếm')) }
     finally { savingSearch.current = false }
-  }, [activeCategory, activeSubcategory, listingType, debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters, tr])
+  }, [activeCategory, activeSubcategory, activeBrand, activeModel, listingType, debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters, tr])
 
   const renderCompactRow = useCallback((l: SerializedListing, index: number) => {
     const cover = l.images[0]

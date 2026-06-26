@@ -8,6 +8,8 @@ import { CATEGORY_BY_SLUG, LISTING_TYPE_LABEL, type ListingType } from './taxono
 export type SavedSearchParams = {
   category?: string
   subcategory?: string
+  brand?: string // canonical brand slug
+  model?: string // exact model display string
   listingType?: string
   q?: string
   district?: string
@@ -34,6 +36,8 @@ export function normalizeParams(input: unknown): SavedSearchParams {
   return {
     category: str(o.category),
     subcategory: str(o.subcategory),
+    brand: str(o.brand),
+    model: str(o.model),
     listingType: str(o.listingType),
     q: typeof o.q === 'string' ? o.q.trim().slice(0, 120) || undefined : undefined,
     district: str(o.district),
@@ -60,6 +64,8 @@ export function buildListingWhere(p: SavedSearchParams): Prisma.ListingWhereInpu
   const and: Prisma.ListingWhereInput[] = [{ verified: true }, { status: 'active' }]
   if (p.category) and.push({ category: { slug: p.category } })
   if (p.subcategory) and.push({ subcategorySlug: p.subcategory })
+  if (p.brand) and.push({ brandSlug: p.brand })
+  if (p.model) and.push({ model: p.model })
   if (p.listingType) and.push({ listingType: p.listingType })
   if (p.condition === 'new') and.push({ OR: [{ condition: { contains: 'new' } }, { condition: { contains: 'mới' } }] })
   else if (p.condition === 'used') and.push({ NOT: { OR: [{ condition: { contains: 'new' } }, { condition: { contains: 'mới' } }] } })
@@ -81,6 +87,8 @@ export function toUrlParams(p: SavedSearchParams): string {
   const sp = new URLSearchParams()
   if (p.category) sp.set('category', p.category)
   if (p.subcategory) sp.set('subcategory', p.subcategory)
+  if (p.brand) sp.set('brand', p.brand)
+  if (p.model) sp.set('model', p.model)
   if (p.listingType) sp.set('type', p.listingType)
   if (p.q) sp.set('q', p.q)
   if (p.district) sp.set('district', p.district)
@@ -95,7 +103,11 @@ export function toUrlParams(p: SavedSearchParams): string {
 export function describeParams(p: SavedSearchParams, lang: 'en' | 'vi' = 'en'): string {
   const parts: string[] = []
   if (p.q) parts.push(`"${p.q}"`)
-  if (p.category) {
+  if (p.brand || p.model) {
+    // Brand/model lead the label when present (e.g. "Honda Wave Alpha").
+    const b = p.brand ? p.brand.replace(/-/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) : ''
+    parts.push([b, p.model].filter(Boolean).join(' '))
+  } else if (p.category) {
     const c = CATEGORY_BY_SLUG[p.category]
     if (c) parts.push(lang === 'vi' ? c.nameVi : c.name)
   }
