@@ -7,6 +7,7 @@ import { User, Search, MapPin, Clock, Heart, MessageSquare, X } from 'lucide-rea
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
+import { useFavorites } from '@/context/favorites-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 import { AccountMenu } from './account-menu'
@@ -19,6 +20,7 @@ export function Header() {
   const { t, tr, lang } = useLanguage()
   const { user } = useAuth()
   const { unread } = useChat()
+  const { count: savedCount } = useFavorites()
   const pathname = usePathname()
   const router = useRouter()
   // Roll the bar up on scroll-down, back down on scroll-up (mobile only — desktop
@@ -298,8 +300,11 @@ export function Header() {
           {/* Desktop quick actions (mobile uses the bottom nav): Saved · Messages · Bell */}
           {user && (
             <>
-              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
-                <Heart className="h-5 w-5" />
+              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                <Heart className={cn('h-5 w-5', savedCount > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
+                {savedCount > 0 && (
+                  <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[9px] font-bold text-white">{savedCount > 9 ? '9+' : savedCount}</span>
+                )}
               </Link>
               <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
                 <MessageSquare className="h-5 w-5" />
