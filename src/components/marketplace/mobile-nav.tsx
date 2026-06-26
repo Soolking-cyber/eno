@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link, { useLinkStatus } from 'next/link'
 import { Compass, Heart, Plus, User, MessageSquare } from 'lucide-react'
@@ -74,6 +75,16 @@ export function MobileNav() {
   // Slide the bar down out of view on scroll-down, back up on scroll-up.
   const hidden = useHideOnScroll()
 
+  // Don't apply the active-tab state until after mount. On a STATICALLY prerendered
+  // page (the home feed), usePathname() in the build-time render can differ from the
+  // client's, so the active tab's colour + indicator <span> would mismatch → React #418
+  // hydration error. Rendering every tab inactive on the server + first client paint
+  // keeps them identical; the active tab lights up a frame later (imperceptible).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const at = (p: string) => mounted && pathname === p
+  const atPrefix = (p: string) => mounted && (pathname?.startsWith(p) ?? false)
+
   // Navigate with an FB-style directional slide: right if the target tab is further
   // right than the current one, left otherwise.
   const go = (href: string) => {
@@ -105,14 +116,14 @@ export function MobileNav() {
           the home-indicator inset never compresses the icons out of the bar. */}
       <div className="flex h-16 items-stretch">
       <Link href="/" aria-label={tr('Explore', 'Khám phá')} className={TAB} onClick={(e) => { e.preventDefault(); go('/') }}>
-        <TabBody active={pathname === '/'} icon={<Compass className="h-7 w-7" />} />
+        <TabBody active={at('/')} icon={<Compass className="h-7 w-7" />} />
       </Link>
 
       {/* Saved is public — favorites are stored device-local (localStorage), so a
           logged-out visitor can save and review listings without an account. */}
       <Link href="/saved" aria-label={tr('Saved', 'Đã lưu')} className={TAB} onClick={(e) => { e.preventDefault(); go('/saved') }}>
         <TabBody
-          active={pathname === '/saved'}
+          active={at('/saved')}
           icon={
             <>
               <Heart className={cn('h-7 w-7', count > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
@@ -128,7 +139,7 @@ export function MobileNav() {
 
       <GatedTab
         href="/post"
-        active={pathname === '/post'}
+        active={at('/post')}
         gate={gate}
         onNavigate={() => go('/post')}
         icon={
@@ -141,7 +152,7 @@ export function MobileNav() {
 
       <GatedTab
         href="/messages"
-        active={pathname?.startsWith('/messages') ?? false}
+        active={atPrefix('/messages')}
         gate={gate}
         onNavigate={() => go('/messages')}
         icon={
@@ -159,7 +170,7 @@ export function MobileNav() {
 
       <GatedTab
         href="/dashboard"
-        active={pathname === '/dashboard'}
+        active={at('/dashboard')}
         gate={gate}
         onNavigate={() => go('/dashboard')}
         icon={<User className="h-7 w-7" />}
