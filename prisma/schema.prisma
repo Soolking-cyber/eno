@@ -46,6 +46,12 @@ model Profile {
   falseReportStrikes   Int       @default(0)   // anti-abuse: confirmed-false reports filed BY this user
   reportCooldownUntil  DateTime?               // anti-abuse: can't file new reports until this passes
   dailyReminderOptIn   Boolean   @default(true) // receive the daily "confirm availability" reminder
+  // ── Acquisition attribution (FIRST-touch) — measure CAC per channel ──
+  attrSource    String?  // 'facebook' | 'google' | 'reddit' | 'direct' | utm_source…
+  attrMedium    String?  // 'social' | 'cpc' | 'organic' | 'referral' | 'none' | utm_medium…
+  attrCampaign  String?  // utm_campaign
+  attrReferrer  String?  // referring hostname on first landing
+  attrLandingAt DateTime? // first-touch timestamp
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -61,6 +67,7 @@ model Profile {
 
   @@index([phone])
   @@index([trustTier])
+  @@index([attrSource])
 }
 
 // Brand catalogue (product categories only). Grows automatically: a brand read by

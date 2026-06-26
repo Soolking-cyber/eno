@@ -15,6 +15,7 @@ import { PageTransitions } from "@/components/marketplace/page-transitions";
 import { BackToTop } from "@/components/marketplace/back-to-top";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
+import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -180,6 +181,7 @@ export default function RootLayout({
         </ThemeProvider>
         <SonnerToaster position="top-center" closeButton />
         <AnalyticsTags />
+        <AttributionCapture />
         <SpeedInsights />
         <Analytics />
       </body>

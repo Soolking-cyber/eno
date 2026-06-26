@@ -59,7 +59,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     after(() =>
       sendMetaCapiEvent('Contact', {
         eventSourceUrl: req.headers.get('referer') || undefined,
-        userData: metaUserDataFromHeaders(req.headers, { externalId: user.id }),
+        userData: metaUserDataFromHeaders(req.headers, { email: user.email, phone: user.phone, externalId: user.id }),
         customData: { content_ids: [listing.id], content_type: 'product' },
       }),
     )

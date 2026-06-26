@@ -4,6 +4,7 @@ import { getCurrentProfile } from '@/lib/admin'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
+import { parseAttributionCookie } from '@/lib/attribution'
 
 export const runtime = 'nodejs'
 
@@ -76,14 +77,44 @@ export async function POST(req: Request) {
     }
   }
 
-  // Server-side conversion (CompleteRegistration) for Meta ad optimization. Fires
-  // AFTER the response flushes (zero added latency) and no-ops until CAPI env is set.
+  // First-touch acquisition channel for THIS signup (from the eno_attr cookie set on
+  // the visitor's first landing) — powers exact CAC-per-channel in our own DB.
+  const attr = firstOnboard ? parseAttributionCookie(req.headers.get('cookie')) : null
+
   if (firstOnboard) {
+    // Persist the channel onto the Profile — AFTER the response flushes (never delays
+    // onboarding) and wrapped so a not-yet-migrated DB (columns missing until the
+    // schema push runs) can't break signup. Exact + queryable once migrated.
+    if (attr) {
+      after(async () => {
+        try {
+          await db.profile.update({
+            where: { id: profile.id },
+            data: {
+              attrSource: attr.source,
+              attrMedium: attr.medium,
+              attrCampaign: attr.campaign ?? null,
+              attrReferrer: attr.referrer ?? null,
+              attrLandingAt: attr.landingAt ? new Date(attr.landingAt) : new Date(),
+            },
+          })
+        } catch (e) {
+          console.error('[attr] persist failed (run the Profile schema push?)', e)
+        }
+      })
+    }
+
+    // Server-side conversion (CompleteRegistration) for Meta ad optimization. Fires
+    // AFTER the response flushes (zero added latency) and no-ops until CAPI env is set.
     after(() =>
       sendMetaCapiEvent('CompleteRegistration', {
         eventSourceUrl: req.headers.get('referer') || undefined,
-        userData: metaUserDataFromHeaders(req.headers, { phone, externalId: profile.id }),
-        customData: { content_name: 'eno_account', status: accountType },
+        userData: metaUserDataFromHeaders(req.headers, { email: profile.email, phone, externalId: profile.id }),
+        customData: {
+          content_name: 'eno_account',
+          status: accountType,
+          ...(attr ? { source: attr.source, medium: attr.medium, campaign: attr.campaign } : {}),
+        },
       }),
     )
   }

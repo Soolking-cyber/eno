@@ -21,6 +21,8 @@ declare global {
   }
 }
 
+import { getAttribution } from './attribution'
+
 export type Currency = 'VND' | 'USD'
 
 // Convert eno.vn's display symbol ('₫' / '$') to an ISO currency code for analytics.
@@ -86,5 +88,8 @@ export function trackPostListing(p: { id?: string; title: string; price: number;
 /** A brand-new account is created. GA4 sign_up. (Meta CompleteRegistration is sent
  *  server-side via CAPI from the account-type route — not here.) */
 export function trackSignUp(method: string): void {
-  ga('sign_up', { method })
+  // Enrich the GA4 sign_up with our first-touch channel so GA's own reports can break
+  // signups down by the channel that originally brought the user (CAC per channel).
+  const a = getAttribution()
+  ga('sign_up', clean({ method, source: a?.source, medium: a?.medium, campaign: a?.campaign }))
 }
