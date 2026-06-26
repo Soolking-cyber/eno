@@ -184,7 +184,7 @@ export function Header() {
             <div className={cn(
               'relative z-50 flex items-center transition-all duration-200',
               panelOpen
-                ? 'rounded-t-2xl bg-card shadow-pop'
+                ? 'rounded-2xl bg-card shadow-pop sm:rounded-b-none'
                 : 'rounded-2xl border border-transparent bg-tint focus-within:border-ring focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30',
             )}>
               <Search className="pointer-events-none ml-3 h-4 w-4 shrink-0 text-ink-4" />
@@ -229,7 +229,7 @@ export function Header() {
             {/* Recent searches + recent locations — flush bottom of the same window */}
             {suggestOpen && (
               <>
-                <div className="absolute left-0 right-0 top-full z-50 -mt-px space-y-3.5 rounded-b-2xl bg-card p-3.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100">
+                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.5rem)] z-50 space-y-3.5 rounded-2xl bg-card p-3.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -277,7 +277,7 @@ export function Header() {
 
             {/* Instant matches — live listings + categories as you type (≥2 chars) */}
             {instantOpen && (
-              <div className="absolute left-0 right-0 top-full z-50 -mt-px max-h-[70vh] overflow-y-auto rounded-b-2xl bg-card p-2.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100">
+              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.5rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-card p-2.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                 <SearchSuggest
                   listings={live.listings}
                   categories={live.categories}
