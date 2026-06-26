@@ -379,15 +379,22 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     }
   }
 
-  // Accept/decline a pending offer (recipient only). Optimistic flip, then refetch.
+  // Accept/decline a pending offer (recipient only). Optimistic flip, then ALWAYS
+  // reconcile from the server (whether it succeeded or was rejected 409 — already
+  // countered/not actionable) so the optimistic flip never sticks wrongly. A ref guard
+  // blocks double-clicks from firing duplicate POSTs.
+  const actingOffer = useRef(false)
   const actOffer = async (messageId: string, action: 'accept' | 'decline') => {
+    if (actingOffer.current) return
+    actingOffer.current = true
     setThread((t) => (t ? { ...t, messages: t.messages.map((m) => (m.id === messageId ? { ...m, offerStatus: action === 'accept' ? 'accepted' : 'declined' } : m)) } : t))
     try {
-      const res = await fetch(`/api/conversations/${id}/offer`, {
+      await fetch(`/api/conversations/${id}/offer`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId, action }),
       })
-      if (res.ok) await load()
-    } catch { /* next poll reconciles */ }
+    } catch { /* network error — the reconcile below re-syncs */ }
+    await load().catch(() => {})
+    actingOffer.current = false
   }
 
   // Took over from the pending shell: clear the shared draft (already inherited
@@ -488,7 +495,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <button onClick={() => actOffer(m.id, 'accept')} className="rounded-lg bg-[#0a66c2] px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-[#004182] cursor-pointer">{tr('Accept', 'Chấp nhận')}</button>
                     <button onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted cursor-pointer">{tr('Decline', 'Từ chối')}</button>
-                    <button onClick={() => { setOfferInput(String(m.offerAmount ?? '')); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
+                    <button onClick={() => { setOfferInput(m.offerAmount ? new Intl.NumberFormat('en-US').format(m.offerAmount) : ''); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
                   </div>
                 )}
                 {m.mine && m.offerStatus === 'pending' && (

@@ -146,11 +146,16 @@ export function PostWizard({ categories, embedded = false, onPosted }: { categor
         const lat = pos.coords.latitude, lng = pos.coords.longitude
         try {
           const r = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}&lang=${lang}`)
-          const d = await r.json()
+          const d = r.ok ? await r.json().catch(() => ({})) : {}
           setNearby({ lat, lng, radiusKm: 5 })
-          setProvince(d.province ? { code: '', name: d.province, nameEn: d.province } : null)
-          setWard(d.ward ? { code: '', name: d.ward, nameEn: d.ward } : null)
-          toast.success(t('Đã dùng vị trí hiện tại', 'Using your current location'))
+          if (d.province || d.ward) {
+            setProvince(d.province ? { code: '', name: d.province, nameEn: d.province } : null)
+            setWard(d.ward ? { code: '', name: d.ward, nameEn: d.ward } : null)
+            toast.success(t('Đã dùng vị trí hiện tại', 'Using your current location'))
+          } else {
+            // Pin kept, but the address lookup returned nothing — don't claim success on a name.
+            toast.success(t('Đã ghim vị trí của bạn', 'Pinned your location'))
+          }
         } catch {
           setNearby({ lat, lng, radiusKm: 5 }) // keep the pin even if address lookup fails
         } finally { setLocating(false) }

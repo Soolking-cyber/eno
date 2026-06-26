@@ -71,7 +71,18 @@ export function OnboardClient() {
           phone: phone.trim() || undefined,
         }),
       })
-      if (!res.ok) throw new Error('failed')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setSubmitting(false)
+        setError(
+          data?.error === 'phone_taken'
+            ? t('This phone number is already used by another account. Try a different one.', 'Số điện thoại này đã được tài khoản khác sử dụng. Hãy dùng số khác.')
+            : data?.error === 'business_name_required'
+            ? t('Please enter your business name.', 'Vui lòng nhập tên doanh nghiệp.')
+            : t('Something went wrong. Please try again.', 'Đã xảy ra lỗi. Vui lòng thử lại.'),
+        )
+        return
+      }
       markOnboarded(choice) // updates context so the global gate won't bounce us back
       router.replace(computeNext())
     } catch {

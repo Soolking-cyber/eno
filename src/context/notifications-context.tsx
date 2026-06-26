@@ -92,11 +92,15 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
   // Delete one notification (optimistic; drops the unread count if it was unread).
   const remove = useCallback(async (id: string) => {
+    // Compute the unread delta OUTSIDE the items updater (updaters must be pure — a
+    // setUnread nested in setItems can be dropped by React batching → stale badge).
+    let wasUnread = false
     setItems((arr) => {
       const target = arr.find((n) => n.id === id)
-      if (target && !target.read) setUnread((u) => Math.max(0, u - 1))
+      if (target && !target.read) wasUnread = true
       return arr.filter((n) => n.id !== id)
     })
+    if (wasUnread) setUnread((u) => Math.max(0, u - 1))
     dropCache()
     try { await fetch(`/api/notifications/${id}`, { method: 'DELETE' }) } catch { /* optimistic */ }
   }, [])

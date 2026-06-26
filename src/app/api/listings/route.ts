@@ -381,7 +381,13 @@ export async function POST(req: NextRequest) {
         // format → normalized key).
         if (contactPhone && contactPhone !== owned.phone) {
           if (await phoneTakenByOther(contactPhone, meId)) return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
-          try { seller = await db.seller.update({ where: { id: owned.id }, data: { phone: contactPhone } }) } catch { /* phone taken elsewhere */ }
+          try {
+            seller = await db.seller.update({ where: { id: owned.id }, data: { phone: contactPhone } })
+          } catch {
+            // Lost a race for the number (unique constraint) → surface it; never post
+            // with the stale phone (which would also send the wrong CAPI/contact data).
+            return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
+          }
         }
       } else {
         // A number identifies ONE account. If this one is already another account's

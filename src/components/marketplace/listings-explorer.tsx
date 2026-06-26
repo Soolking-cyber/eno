@@ -739,6 +739,8 @@ export function ListingsExplorer({
         {
           category: activeCategory,
           subcategory: activeSubcategory,
+          brand: activeBrand,
+          model: activeModel,
           district: activeDistrict,
           province: activeProvince?.code ?? null,
           ward: activeWard?.code ?? null,
@@ -755,8 +757,20 @@ export function ListingsExplorer({
       ],
       queryFn: async () => {
         const params = new URLSearchParams()
-        if (activeCategory !== 'all') params.set('category', activeCategory)
-        if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
+        // Mirror the live query EXACTLY (brand/model scoping + applyFilterParams) so the
+        // prefetched page matches the filtered results and populates the right cache key.
+        if (activeBrand !== 'all') {
+          params.set('brand', activeBrand)
+          if (activeModel !== 'all') {
+            params.set('model', activeModel)
+            if (activeCategory !== 'all') params.set('category', activeCategory)
+          } else if (activeCategory !== 'all') {
+            params.set('priorityCategory', activeCategory)
+          }
+        } else {
+          if (activeCategory !== 'all') params.set('category', activeCategory)
+          if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
+        }
         if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
         if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
         if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
@@ -771,11 +785,7 @@ export function ListingsExplorer({
           if (mx) params.set('priceMax', mx)
         }
 
-        Object.entries(customFilters).forEach(([key, val]) => {
-          if (val && val !== 'all') {
-            params.set(`attr_${key}`, val)
-          }
-        })
+        applyFilterParams(params, customFilters, activeCategory, activeSubcategory)
 
         const limit = 12
         const offset = (nextPage - 1) * limit
@@ -793,6 +803,8 @@ export function ListingsExplorer({
     totalCount,
     activeCategory,
     activeSubcategory,
+    activeBrand,
+    activeModel,
     activeDistrict,
     activeProvince,
     activeWard,
