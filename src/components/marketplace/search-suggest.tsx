@@ -48,7 +48,7 @@ export function SearchSuggest({
               type="button"
               onMouseDown={pickDown(() => onPick({ type: 'category', slug: c.slug }))}
               className={cn(
-                'rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer',
+                'rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
                 activeIndex === i ? 'text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground',
               )}
             >

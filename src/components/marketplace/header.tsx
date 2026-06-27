@@ -205,7 +205,7 @@ export function Header() {
                 ? 'rounded-2xl bg-card shadow-pop sm:rounded-b-none'
                 : 'rounded-2xl border border-transparent bg-tint focus-within:border-ring focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30',
             )}>
-              <Search className="pointer-events-none ml-3 h-4 w-4 shrink-0 text-ink-4" />
+              <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" />
               <input
                 value={searchVal}
                 onChange={(e) => setSearchVal(e.target.value)}
@@ -221,7 +221,7 @@ export function Header() {
                 autoComplete="off"
                 placeholder={tr('Find products…', 'Tìm sản phẩm…')}
                 aria-label={tr('Search', 'Tìm kiếm')}
-                className="min-w-0 flex-1 bg-transparent py-2.5 pl-2 pr-2 text-sm text-foreground outline-none placeholder:text-ink-4"
+                className="min-w-0 flex-1 bg-transparent py-3 pl-2 pr-2 text-base text-foreground outline-none placeholder:text-ink-4"
               />
               {/* Clear — appears once there's text, left of the location picker. */}
               {searchVal && (
@@ -229,15 +229,15 @@ export function Header() {
                   type="button"
                   onClick={() => { setSearchVal(''); submitSearch('') }}
                   aria-label={tr('Clear search', 'Xóa tìm kiếm')}
-                  className="mr-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
+                  className="mr-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" />
                 </button>
               )}
               {/* Visual search — take/upload/paste a photo, search by its subject. Left of the area pin. */}
               <ImageSearchButton
-                iconClassName="h-[18px] w-[18px]"
-                className="mr-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-body transition-colors hover:bg-muted disabled:opacity-60"
+                iconClassName="h-6 w-6"
+                className="mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-body transition-colors hover:bg-muted disabled:opacity-60"
                 onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
                 onResult={(r) => { toast.dismiss('vis'); setSearchVal(r.query); setShowSuggestions(false); submitVisual(r) }}
                 onError={(m) => toast.error(m, { id: 'vis' })}
@@ -249,25 +249,25 @@ export function Header() {
                 onClick={() => { setAreaOpen((o) => !o); setShowSuggestions(false) }}
                 aria-label={tr('Area', 'Khu vực')}
                 className={cn(
-                  'mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95',
+                  'mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95',
                   province || ward || nearby
                     ? 'bg-[#0a66c2] text-white shadow-sm'
                     : 'text-body hover:bg-muted',
                 )}
               >
-                <MapPin className="h-4 w-4" />
+                <MapPin className="h-6 w-6" />
               </button>
             </div>
 
             {/* Recent searches + recent locations — flush bottom of the same window */}
             {suggestOpen && (
               <>
-                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.5rem)] z-50 space-y-3.5 rounded-2xl bg-card p-3.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 space-y-4 rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
-                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }} className="text-[10px] font-semibold text-muted-foreground hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
+                        <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
+                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }} className="text-[11px] font-semibold text-muted-foreground hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {recentSearches.map((term, i) => (
@@ -275,7 +275,7 @@ export function Header() {
                             key={i}
                             type="button"
                             onClick={() => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
-                            className="rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                            className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
                           >
                             {term}
                           </button>
@@ -286,8 +286,8 @@ export function Header() {
                   {recentLocations.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
-                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }} className="text-[10px] font-semibold text-muted-foreground hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
+                        <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
+                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }} className="text-[11px] font-semibold text-muted-foreground hover:text-red-500 cursor-pointer">{tr('Clear', 'Xóa')}</button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {recentLocations.map((loc, i) => (
@@ -295,9 +295,9 @@ export function Header() {
                             key={i}
                             type="button"
                             onClick={() => { applyArea({ province: loc.province, ward: loc.ward, nearby: null }); setShowSuggestions(false) }}
-                            className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
                           >
-                            <MapPin className="h-3 w-3" />
+                            <MapPin className="h-3.5 w-3.5" />
                             {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
                           </button>
                         ))}
@@ -310,7 +310,7 @@ export function Header() {
 
             {/* Instant matches — live listings + categories as you type (≥2 chars) */}
             {instantOpen && (
-              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.5rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-card p-2.5 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-card p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                 <SearchSuggest
                   listings={live.listings}
                   categories={live.categories}

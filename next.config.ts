@@ -57,11 +57,11 @@ const nextConfig: NextConfig = {
       "frame-ancestors 'self'",
       "form-action 'self'",
       // Next.js needs inline + eval without a nonce setup; GTM/Meta/Leaflet scripts.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://unpkg.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://unpkg.com https://static.cloudflareinsights.com",
       "style-src 'self' 'unsafe-inline' https://unpkg.com",
       "img-src 'self' data: blob: https://*.supabase.co https://*.basemaps.cartocdn.com https://picsum.photos https://loremflickr.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
       "frame-src 'self' https://www.facebook.com https://td.doubleclick.net",
       "worker-src 'self' blob:",
       "manifest-src 'self'",

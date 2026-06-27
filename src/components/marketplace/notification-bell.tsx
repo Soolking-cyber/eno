@@ -50,9 +50,9 @@ export function NotificationBell() {
         aria-label={tr('Notifications', 'Thông báo')}
         className="relative flex h-10 w-10 items-center justify-center rounded-full text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
       >
-        {/* Unified nav/search icon scale: 24px on mobile (balanced small), 28px from
-            sm: (matches the bottom-nav + the Saved/Messages icons on desktop). */}
-        <Bell className={cn('h-6 w-6 sm:h-7 sm:w-7', user && unread > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
+        {/* 28px everywhere — matches the bottom-nav icons on mobile and the
+            Saved/Messages action icons on desktop (one consistent nav scale). */}
+        <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
         {user && unread > 0 && (
           <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
             {unread > 9 ? '9+' : unread}

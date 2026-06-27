@@ -110,7 +110,7 @@ const HERO_PRICE_OPTS: [string, string, string][] = [
   ['5000000-20000000', '5–20M', '5–20tr'], ['20000000-', '20M+', '20tr+'],
 ]
 const heroChipCls = (active: boolean) => cn(
-  'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer',
+  'rounded-full px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
   active ? 'bg-[#0a66c2] text-white' : 'bg-muted text-body hover:bg-accent hover:text-accent-foreground',
 )
 
@@ -1482,15 +1482,15 @@ export function ListingsExplorer({
                   onClick={() => { setFiltersOpen((o) => !o); setShowSuggestions(false) }}
                   aria-label={tr('Filters', 'Bộ lọc')}
                   aria-expanded={filtersOpen}
+                  title={tr('Filters', 'Bộ lọc')}
                   className={cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-l-2xl pl-5 pr-3.5 py-3.5 sm:py-4.5 text-base font-bold transition-colors cursor-pointer',
+                    'flex shrink-0 items-center justify-center rounded-l-2xl pl-4 pr-3 py-3.5 transition-colors cursor-pointer sm:pl-5 sm:py-4.5',
                     filtersOpen || activeCategory !== 'all' || listingType !== 'all' || conditionFilter !== 'all' || priceRange !== 'all'
                       ? 'text-accent-foreground'
                       : 'text-ink-4 hover:text-accent-foreground',
                   )}
                 >
                   <SlidersHorizontal className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
-                  <span className="hidden sm:inline">{tr('Filters', 'Bộ lọc')}</span>
                 </button>
                 <span className="h-6 w-px shrink-0 bg-border sm:h-7" />
                 <button
