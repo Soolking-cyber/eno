@@ -49,12 +49,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'decode_failed' }, { status: 400 })
   }
 
-  const prompt = `You help shoppers SEARCH a marketplace (eno.vn, for expats in Vietnam) by photo.
-Look only at the SINGLE main item in the foreground — ignore the background, hands, surface, packaging and clutter.
-Return JSON:
-- "query": a short ENGLISH search query a shopper would type to find this item — the product TYPE, plus the brand/model ONLY if a logo or name is clearly legible on the item (e.g. "Honda Wave motorbike", "wooden dining table", "iPhone 14 Pro", "office chair", "road bike"). 2–5 words, no scene words ("on a table"), no price. If you genuinely cannot tell what the item is, return "".
-- "category": the single best-matching category slug from this list, or "" if unsure: ${TAXONOMY_TEXT}
-- "brand": the canonical brand name ONLY if clearly legible on the item, else "".
+  const prompt = `You turn a shopper's photo into a marketplace SEARCH for eno.vn.
+Look ONLY at the single main item in the foreground; ignore background, hands, surface, packaging and clutter.
+
+Write "query": the FEWEST English words that you are CERTAIN describe the item, so the search returns plenty of matches (the search requires every word to match, so each extra word narrows it — when in doubt, use fewer).
+- Start from the plain product noun on its own: "pen", "chair", "motorbike", "sofa", "watch", "laptop".
+- Add ONE attribute (colour OR material) only if it is obvious and defining: "blue pen", "wooden chair", "leather sofa".
+- Add the brand, then the model, ONLY when a logo / name / model text is clearly legible or the design is unmistakable: "Honda Wave", "iPhone 14 Pro", "Samsung TV", "Toyota Vios".
+- Be certain. If you are unsure of an attribute, brand or model, LEAVE IT OUT — a shorter, broader query is always better than a wrong or too-narrow one. Never guess a brand from a generic shape.
+- No scene words, no condition, no price, no quotes. Usually 1–3 words; never more than 4.
+- If you cannot confidently name the item at all, return "".
+
+Also return "category": the single best-matching slug from this list, or "" if unsure: ${TAXONOMY_TEXT}
+And "brand": the canonical brand name ONLY if clearly legible on the item, else "".
 Return ONLY JSON.`
 
   let parsed: { query?: string; category?: string; brand?: string } = {}
@@ -63,9 +70,10 @@ Return ONLY JSON.`
       model: GEMINI_MODEL,
       contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: b64 } }, { text: prompt }] }],
       config: {
-        temperature: 0.2,
+        // Low temperature → deterministic, certain wording (no creative over-specifying).
+        temperature: 0.1,
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 256,
+        maxOutputTokens: 128,
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
