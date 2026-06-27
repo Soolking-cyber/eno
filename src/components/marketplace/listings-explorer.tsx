@@ -98,6 +98,22 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
   )
 })
 
+// Hero "Filters" dropdown options ([value, English, Tiếng Việt]). Values map to the
+// explorer's existing listingType / conditionFilter / priceRange state.
+const HERO_TYPE_OPTS: [string, string, string][] = [
+  ['all', 'Any', 'Tất cả'], ['sell', 'For sale', 'Cần bán'], ['rent', 'For rent', 'Cho thuê'],
+  ['free', 'Free', 'Miễn phí'], ['service', 'Services', 'Dịch vụ'], ['job', 'Jobs', 'Việc làm'],
+]
+const HERO_COND_OPTS: [string, string, string][] = [['all', 'Any', 'Tất cả'], ['new', 'New', 'Mới'], ['used', 'Used', 'Đã dùng']]
+const HERO_PRICE_OPTS: [string, string, string][] = [
+  ['all', 'Any price', 'Mọi giá'], ['-1000000', 'Under 1M', 'Dưới 1tr'], ['1000000-5000000', '1–5M', '1–5tr'],
+  ['5000000-20000000', '5–20M', '5–20tr'], ['20000000-', '20M+', '20tr+'],
+]
+const heroChipCls = (active: boolean) => cn(
+  'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer',
+  active ? 'bg-[#0a66c2] text-white' : 'bg-muted text-body hover:bg-accent hover:text-accent-foreground',
+)
+
 // Display a brand slug ("louis-vuitton") as a label ("Louis Vuitton") without a
 // catalogue round-trip. Brands recognized by simple-icons keep their canonical name.
 function prettyBrand(slug: string): string {
@@ -182,6 +198,7 @@ export function ListingsExplorer({
   const [debouncedQuery, setDebouncedQuery] = useState(query)
 
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false) // hero "Filters" dropdown
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const [recentLocations, setRecentLocations] = useState<{ province: Geo; ward: Geo | null }[]>([])
   const [landingQuery, setLandingQuery] = useState('')
@@ -1445,19 +1462,36 @@ export function ListingsExplorer({
 
             {/* Centered Search Bar (the header reveals its own search once this
                 scrolls out of view — id is the IntersectionObserver target). */}
-            <div id="eno-hero-search" className="relative max-w-3xl w-full mx-auto select-none">
+            <div id="eno-hero-search" className="relative max-w-4xl w-full mx-auto select-none">
               {/* One cohesive search pill that morphs into a seamless suggestions
                   panel on focus (Google-style): flat bottom + shared shadow/border. */}
               <div className={cn(
                 'flex items-center bg-card transition-all duration-200',
-                showSuggestions
+                showSuggestions || filtersOpen
                   ? 'rounded-t-2xl shadow-pop'
                   : 'rounded-2xl bg-tint focus-within:ring-2 focus-within:ring-ring/30',
               )}>
+                {/* Advanced filters — opens a recents-style dropdown. Left of search. */}
+                <button
+                  type="button"
+                  onClick={() => { setFiltersOpen((o) => !o); setShowSuggestions(false) }}
+                  aria-label={tr('Filters', 'Bộ lọc')}
+                  aria-expanded={filtersOpen}
+                  className={cn(
+                    'flex shrink-0 items-center gap-1.5 rounded-l-2xl pl-5 pr-3.5 py-4.5 text-base font-bold transition-colors cursor-pointer',
+                    filtersOpen || activeCategory !== 'all' || listingType !== 'all' || conditionFilter !== 'all' || priceRange !== 'all'
+                      ? 'text-accent-foreground'
+                      : 'text-ink-4 hover:text-accent-foreground',
+                  )}
+                >
+                  <SlidersHorizontal className="h-5 w-5" strokeWidth={2.25} />
+                  <span className="hidden sm:inline">{tr('Filters', 'Bộ lọc')}</span>
+                </button>
+                <span className="h-7 w-px shrink-0 bg-border" />
                 <button
                   onClick={() => handleLandingSearch(landingQuery)}
                   aria-label={tr('Search', 'Tìm kiếm')}
-                  className="shrink-0 pl-5 pr-2.5 py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  className="shrink-0 pl-3 pr-2.5 py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
                   <Search className="h-6 w-6" strokeWidth={2.25} />
                 </button>
@@ -1469,7 +1503,7 @@ export function ListingsExplorer({
                   spellCheck={false}
                   value={landingQuery}
                   onChange={(e) => setLandingQuery(e.target.value)}
-                  onFocus={() => setShowSuggestions(true)}
+                  onFocus={() => { setShowSuggestions(true); setFiltersOpen(false) }}
                   onPaste={async (e) => {
                     const f = imageFromPaste(e); if (!f) return; e.preventDefault()
                     toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })
@@ -1521,6 +1555,62 @@ export function ListingsExplorer({
                   <span>{tr('Map', 'Bản đồ')}</span>
                 </button>
               </div>
+
+              {/* Advanced filters dropdown — mirrors the recents/suggestions panel */}
+              {filtersOpen && (
+                <>
+                  <div className="fixed inset-0 z-40 cursor-default" onClick={() => setFiltersOpen(false)} />
+                  <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-2xl bg-card p-5 shadow-pop text-left max-h-[70vh] overflow-y-auto scroll-thin space-y-5 animate-in fade-in slide-in-from-top-1 duration-100">
+                    <div>
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr('Category', 'Danh mục')}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button type="button" onClick={() => { setActiveCategory('all'); setActiveSubcategory('all') }} className={heroChipCls(activeCategory === 'all')}>{tr('All', 'Tất cả')}</button>
+                        {categories.map((c) => (
+                          <button key={c.slug} type="button" onClick={() => { setActiveCategory(c.slug); setActiveSubcategory('all') }} className={heroChipCls(activeCategory === c.slug)}>
+                            {lang === 'vi' ? c.nameVi : c.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr('Type', 'Loại')}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {HERO_TYPE_OPTS.map(([v, en, vi]) => (
+                          <button key={v} type="button" onClick={() => setListingType(v)} className={heroChipCls(listingType === v)}>{tr(en, vi)}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr('Condition', 'Tình trạng')}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {HERO_COND_OPTS.map(([v, en, vi]) => (
+                          <button key={v} type="button" onClick={() => setConditionFilter(v)} className={heroChipCls(conditionFilter === v)}>{tr(en, vi)}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr('Price', 'Giá')}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {HERO_PRICE_OPTS.map(([v, en, vi]) => (
+                          <button key={v} type="button" onClick={() => setPriceRange(v)} className={heroChipCls(priceRange === v)}>{tr(en, vi)}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border pt-4">
+                      <button type="button" onClick={() => { setActiveCategory('all'); setActiveSubcategory('all'); setListingType('all'); setConditionFilter('all'); setPriceRange('all') }} className="text-sm font-semibold text-body hover:text-foreground transition-colors cursor-pointer">
+                        {tr('Clear all', 'Xóa tất cả')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setFiltersOpen(false); setShowExplorer(true); requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }}
+                        className="rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer"
+                      >
+                        {tr('Show results', 'Xem kết quả')}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Suggestions Overlay in Landing Page */}
               {showSuggestions && (
