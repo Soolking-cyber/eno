@@ -8,6 +8,7 @@ import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
+import { isMockImageUrl } from '@/lib/listing-image'
 import { useLanguage, useTr } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 
@@ -104,6 +105,11 @@ export function ListingCard({
                   placeholder="blur"
                   blurDataURL={BLUR}
                   quality={60}
+                  // Mock/seed photos (picsum/loremflickr) skip the Vercel optimizer — they're
+                  // already CDN-sized test data and would burn the Image-Optimization
+                  // transformation quota; real Supabase photos stay optimized. Goes away with
+                  // the mock data at launch.
+                  unoptimized={isMockImageUrl(src)}
                   // The true LCP image (first card of the first row, first photo) uses
                   // next/image `priority` so Next emits a <link rel=preload> — the preload
                   // scanner fetches it before render. Other above-the-fold images just load

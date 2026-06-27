@@ -42,7 +42,7 @@ type Props = {
 // so an edit/sold/hidden/delete purges it immediately (a sold listing must 404).
 // Content renders in the visitor's language CLIENT-side (LocalizedTitle + <Tr>),
 // same as the cards — so no per-request server translation forces it dynamic.
-export const revalidate = 604800 // 7d — real edits/status/sold revalidate on-demand, so background churn is pure waste
+export const revalidate = 2592000 // 30d — HIGH-cardinality route (one page per listing). Real edits/status/sold/moderation revalidate ON-DEMAND, so the only time-based regen is for off-listing changes (e.g. a seller renaming their storefront). A long 30d window keeps eventual freshness while cutting ISR writes hugely.
 export async function generateStaticParams() {
   return []
 }

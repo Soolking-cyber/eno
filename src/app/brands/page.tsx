@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 // Brand directory refreshes hourly — the catalogue grows slowly and rankings are
 // listing-count based, so first-paint can be cached aggressively.
-export const revalidate = 3600
+export const revalidate = 21600 // 6h — fewer ISR writes; the catalogue grows slowly
 
 export default async function BrandsPage() {
   // Active brands that actually have listings, most-listed first. Resolve each

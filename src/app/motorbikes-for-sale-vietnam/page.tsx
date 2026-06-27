@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 
-export const revalidate = 86400
+export const revalidate = 604800 // 7d — static SEO copy; weekly regen is plenty (fewer ISR writes)
 
 export const metadata: Metadata = {
   title: 'Motorbikes for Sale & Rent in Vietnam | eno.vn',
