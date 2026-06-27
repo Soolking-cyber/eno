@@ -130,7 +130,13 @@ export async function GET(req: NextRequest) {
     // AND each ≥2-char token so multi-word queries NARROW: "honda red" must match a
     // row containing both tokens (any order/field), not the literal substring.
     const qTokens = fold(q).split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
-    andFilters.push(qTokens.length ? { AND: qTokens.map((t) => ({ searchText: { contains: t } })) } : { searchText: { contains: fold(q) } })
+    // Default AND narrows ("honda red" needs both). Visual search (and any "loose"
+    // caller) passes match=any → match ANY token, so a descriptive phrase like
+    // "blue pen" still surfaces the closest items ("pen") instead of returning nothing.
+    const looseMatch = searchParams.get('match') === 'any'
+    const tokenClauses = qTokens.map((t) => ({ searchText: { contains: t } }))
+    if (qTokens.length) andFilters.push(looseMatch ? { OR: tokenClauses } : { AND: tokenClauses })
+    else andFilters.push({ searchText: { contains: fold(q) } })
   }
 
   // Subcategory + intent (listingType) filter on dedicated columns now —

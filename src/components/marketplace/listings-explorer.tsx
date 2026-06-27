@@ -127,6 +127,9 @@ export function ListingsExplorer({
   const { lang, t, tr } = useLanguage()
   const [activeCategory, setActiveCategory] = useState('all')
   const [query, setQuery] = useState('')
+  // Loose (any-word) text match — set by visual search so a photo-derived phrase
+  // surfaces the closest items instead of needing an exact multi-word match.
+  const [looseMatch, setLooseMatch] = useState(false)
   const [sort, setSort] = useState<SortKey>('newest')
   const [verifiedOnly, setVerifiedOnly] = useState(true)
   const [activeDistrict, setActiveDistrict] = useState('all')
@@ -310,6 +313,7 @@ export function ListingsExplorer({
   // via the eno:query broadcast below.
   const applyResolved = useCallback((d: { brand: string; model?: string | null; category?: string | null }) => {
     setQuery('')
+    setLooseMatch(false)
     setActiveCategory(d.category || 'all')
     setActiveSubcategory('all')
     setActiveBrand(d.brand)
@@ -322,6 +326,7 @@ export function ListingsExplorer({
     const trimmed = searchTerm.trim()
     setShowExplorer(true)
     setShowSuggestions(false)
+    setLooseMatch(false) // a typed search is strict (AND); only visual search is loose
     if (trimmed.length >= 2) {
       saveSearchToHistory(trimmed)
       // Brand/model intent: "huawei" / "matepad 11" open the matching category +
@@ -335,6 +340,32 @@ export function ListingsExplorer({
       }
     }
     setQuery(trimmed)
+  }, [saveSearchToHistory, applyResolved])
+
+  // Apply a VISUAL search result (photo → query + best-guess category/brand). Branded
+  // items route exactly (category + brand facets); generic items scope to the detected
+  // category and use a LOOSE any-word text match so the closest listings surface.
+  const applyVisualSearch = useCallback(async (r: { query: string; category?: string | null; brand?: string | null }) => {
+    const q = (r.query || '').trim()
+    setShowExplorer(true)
+    setShowSuggestions(false)
+    if (q.length < 2) return
+    saveSearchToHistory(q)
+    try {
+      const res = await fetch(`/api/search/resolve?q=${encodeURIComponent(q)}`)
+      const d = res.ok ? await res.json() : null
+      if (d?.brand) { applyResolved(d); return }
+    } catch {}
+    if (r.category) {
+      setActiveCategory(r.category)
+      setActiveSubcategory('all')
+      setActiveBrand('all')
+      setActiveModel('all')
+      setCustomFilters({})
+      setPriceRange('all')
+    }
+    setLooseMatch(true)
+    setQuery(q)
   }, [saveSearchToHistory, applyResolved])
 
   // Header ↔ explorer bridge (custom events, same pattern as 'open-mobile-filters').
@@ -356,6 +387,13 @@ export function ListingsExplorer({
       handleLandingSearch(q)
       document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
+    // Visual search applied from the header camera button (on the explorer page).
+    const onVisual = (e: Event) => {
+      const d = (e as CustomEvent<{ query: string; category?: string | null; brand?: string | null }>).detail
+      if (d) applyVisualSearch(d)
+      document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    window.addEventListener('eno:visual-search', onVisual)
     // Area filter (district + "near you") applied from the header search bar.
     const onArea = (e: Event) => {
       const d = (e as CustomEvent<{ province?: Geo | null; ward?: Geo | null; nearby?: Nearby | null }>).detail
@@ -368,10 +406,11 @@ export function ListingsExplorer({
     window.addEventListener('eno:search', onSearch)
     window.addEventListener('eno:set-area', onArea)
     return () => {
+      window.removeEventListener('eno:visual-search', onVisual)
       window.removeEventListener('eno:search', onSearch)
       window.removeEventListener('eno:set-area', onArea)
     }
-  }, [handleLandingSearch])
+  }, [handleLandingSearch, applyVisualSearch])
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('eno:hero', { detail: { present: isLandingMode } }))
@@ -398,6 +437,7 @@ export function ListingsExplorer({
   }, [])
 
   const handleCategorySelect = (slug: string) => {
+    setLooseMatch(false)
     setActiveCategory(slug)
     setActiveSubcategory('all')
     setActiveBrand('all')
@@ -408,6 +448,7 @@ export function ListingsExplorer({
 
   const handleCategoryClick = (slug: string) => {
     setOpenMobileDistrictDropdown(false)
+    setLooseMatch(false)
     setActiveCategory(slug)
     setActiveSubcategory('all')
     setActiveBrand('all')
@@ -420,6 +461,7 @@ export function ListingsExplorer({
   // reader and the notification deep-link handler below.
   const applyParams = useCallback((params: URLSearchParams) => {
     setQuery(params.get('q') || '')
+    setLooseMatch(params.get('match') === 'any') // visual search lands with ?match=any
     setActiveCategory(params.get('category') || 'all')
     setActiveDistrict(params.get('district') || 'all')
     setActiveSubcategory(params.get('subcategory') || 'all')
@@ -571,6 +613,7 @@ export function ListingsExplorer({
         condition: conditionFilter,
         type: listingType,
         q: debouncedQuery,
+        match: looseMatch ? 'any' : 'all',
         sort,
         verified: verifiedOnly ? 'true' : 'all',
         price: priceRange,
@@ -601,6 +644,7 @@ export function ListingsExplorer({
       if (conditionFilter !== 'all') params.set('condition', conditionFilter)
       if (listingType !== 'all') params.set('type', listingType)
       if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
+      if (looseMatch && debouncedQuery.trim()) params.set('match', 'any')
       params.set('sort', sort)
       params.set('verified', verifiedOnly ? 'true' : 'all')
       if (priceRange !== 'all') {
@@ -1413,7 +1457,7 @@ export function ListingsExplorer({
                     const f = imageFromPaste(e); if (!f) return; e.preventDefault()
                     toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })
                     const r = await runVisualSearch(f)
-                    if (r?.query) { toast.dismiss('vis'); setLandingQuery(r.query); setShowSuggestions(false); handleLandingSearch(r.query) }
+                    if (r?.query) { toast.dismiss('vis'); setLandingQuery(r.query); applyVisualSearch(r) }
                     else toast.error(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'), { id: 'vis' })
                   }}
                   onKeyDown={(e) => {
@@ -1448,7 +1492,7 @@ export function ListingsExplorer({
                   iconClassName="h-5 w-5"
                   className="flex shrink-0 items-center justify-center px-2 py-3.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-60"
                   onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
-                  onResult={(r) => { toast.dismiss('vis'); setLandingQuery(r.query); setShowSuggestions(false); handleLandingSearch(r.query) }}
+                  onResult={(r) => { toast.dismiss('vis'); setLandingQuery(r.query); applyVisualSearch(r) }}
                   onError={(m) => toast.error(m, { id: 'vis' })}
                 />
                 <span className="h-6 w-px shrink-0 bg-border" />

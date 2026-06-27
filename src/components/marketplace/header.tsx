@@ -144,6 +144,21 @@ export function Header() {
     }
   }
 
+  // Visual search → loose (any-word) match + detected category, so a photo returns the
+  // closest items, not an exact-phrase match. On the explorer it hands off via event;
+  // elsewhere it navigates with ?match=any (read by the explorer's param parser).
+  const submitVisual = (r: { query: string; category?: string | null; brand?: string | null }) => {
+    const q = (r.query || '').trim()
+    if (!q) return
+    if (isExplorerPage) {
+      window.dispatchEvent(new CustomEvent('eno:visual-search', { detail: r }))
+    } else {
+      const p = new URLSearchParams({ q, match: 'any' })
+      if (r.category) p.set('category', r.category)
+      router.push(`/?${p.toString()}`)
+    }
+  }
+
   const applyArea = ({ province: p, ward: w, nearby: nb }: { province: Geo | null; ward: Geo | null; nearby: Nearby | null }) => {
     setProvince(p)
     setWard(w)
@@ -200,7 +215,7 @@ export function Header() {
                   const f = imageFromPaste(e); if (!f) return; e.preventDefault()
                   toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })
                   const r = await runVisualSearch(f)
-                  if (r?.query) { toast.dismiss('vis'); setSearchVal(r.query); submitSearch(r.query); setShowSuggestions(false) }
+                  if (r?.query) { toast.dismiss('vis'); setSearchVal(r.query); setShowSuggestions(false); submitVisual(r) }
                   else toast.error(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'), { id: 'vis' })
                 }}
                 autoComplete="off"
@@ -224,7 +239,7 @@ export function Header() {
                 iconClassName="h-[18px] w-[18px]"
                 className="mr-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-body transition-colors hover:bg-muted disabled:opacity-60"
                 onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
-                onResult={(r) => { toast.dismiss('vis'); setSearchVal(r.query); submitSearch(r.query); setShowSuggestions(false) }}
+                onResult={(r) => { toast.dismiss('vis'); setSearchVal(r.query); setShowSuggestions(false); submitVisual(r) }}
                 onError={(m) => toast.error(m, { id: 'vis' })}
               />
               {/* Area filter — small location pin inside the search bar (right) */}
