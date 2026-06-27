@@ -1459,7 +1459,7 @@ export function ListingsExplorer({
             <div className="flex flex-col items-center justify-center mb-6">
               {/* SEO: a real <h1> with the exact brand phrase (the logo is an image). */}
               <h1 className="sr-only">eno.vn — Verified Expat Marketplace in Vietnam</h1>
-              <LogoWordmark className="h-20 w-auto mb-4 select-none" />
+              <LogoWordmark className="h-14 w-auto mb-3 select-none sm:h-20 sm:mb-4" />
               <p className="eyebrow text-body">
                 {tr('e-commerce with no drama', 'Mua bán không drama.')}
               </p>

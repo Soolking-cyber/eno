@@ -138,13 +138,16 @@
   --shadow-card: 0 6px 20px rgba(16, 24, 40, 0.10);    /* card hover lift */
   --shadow-overlay: 0 16px 48px rgba(16, 24, 40, 0.16); /* dialogs / modals */
 
-  /* ── Type scale (1.25 ratio) & rhythm — base 15px ────────────────── */
-  --text-display: 2rem;     /* 32px — hero */
-  --text-title: 1.375rem;   /* 22px — page / detail title */
-  --text-section: 1.125rem; /* 18px — section heading */
-  --text-body: 0.9375rem;   /* 15px — body */
-  --text-small: 0.8125rem;  /* 13px */
-  --text-caption: 0.6875rem;/* 11px — meta / eyebrow */
+  /* ── Type scale (~1.25 modular ratio) & rhythm — base 15px ──────────
+     Display + title are FLUID (clamp) so they scale smoothly from phone to
+     desktop with no breakpoint jumps; the smaller steps stay fixed for rhythm.
+     Range  →  display 28→40px · title 20→24px · section 18 · body 15 · caption 12. */
+  --text-display: clamp(1.75rem, 1.4rem + 1.5vw, 2.5rem);   /* 28 → 40px — hero / page title */
+  --text-title:   clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);   /* 20 → 24px — detail title */
+  --text-section: 1.125rem;  /* 18px — section heading */
+  --text-body:    0.9375rem; /* 15px — body */
+  --text-small:   0.8125rem; /* 13px */
+  --text-caption: 0.75rem;   /* 12px — meta / eyebrow (was 11px, a touch small) */
   /* Spacing rhythm uses an 8pt grid: 4 · 8 · 12 · 16 · 24 · 32 · 48 */
 
   --chart-1: #0a66c2;
