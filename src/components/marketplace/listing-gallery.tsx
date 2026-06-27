@@ -35,19 +35,22 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
     <>
       {images.length === 1 ? (
         <button onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer">
-          <div className="relative aspect-[16/10] w-full bg-tint">
+          <div data-protected className="relative aspect-[16/10] w-full bg-tint">
             <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 100vw, 60vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority unoptimized={isMockImageUrl(images[0])} />
+            <span className="img-watermark" aria-hidden />
           </div>
         </button>
       ) : (
-        <div className="relative grid h-[300px] grid-cols-2 gap-2 overflow-hidden rounded-2xl sm:h-[440px]">
+        <div data-protected className="relative grid h-[300px] grid-cols-2 gap-2 overflow-hidden rounded-2xl sm:h-[440px]">
           <button onClick={() => openAt(0)} className="group relative h-full w-full overflow-hidden cursor-pointer">
             <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 50vw, 40vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority unoptimized={isMockImageUrl(images[0])} />
+            <span className="img-watermark" aria-hidden />
           </button>
           <div className={cn('grid gap-2', restGrid)}>
             {rest.map((img, i) => (
               <button key={i} onClick={() => openAt(i + 1)} className="group relative h-full w-full overflow-hidden cursor-pointer">
                 <Image src={img} alt={`${title} — photo ${i + 2}`} fill sizes="25vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" unoptimized={isMockImageUrl(img)} />
+                <span className="img-watermark" aria-hidden />
               </button>
             ))}
           </div>
@@ -75,6 +78,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
           </button>
 
           <div
+            data-protected
             className="relative h-[78vh] w-[92vw] max-w-5xl"
             onClick={(e) => e.stopPropagation()}
             onTouchStart={(e) => { startX.current = e.touches[0].clientX }}
@@ -86,6 +90,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
             }}
           >
             <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" className="object-contain" unoptimized={isMockImageUrl(images[idx])} />
+            <span className="img-watermark" aria-hidden />
           </div>
 
           {idx > 0 && (

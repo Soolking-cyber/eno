@@ -79,6 +79,7 @@ export function ListingCard({
           overflow-hidden actually clips the translateX-transformed carousel row
           — otherwise the adjacent (next) image leaks through at the edge on hover. */}
       <div
+        data-protected
         className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
         onMouseEnter={() => { if (images.length > 1) setExpanded(true) }}
         onTouchStart={(e) => { if (images.length > 1) setExpanded(true); touchStartX.current = e.touches[0].clientX }}
@@ -126,6 +127,9 @@ export function ListingCard({
             <CategoryIcon name={listing.category.icon} className="h-10 w-10 text-muted-foreground" />
           </div>
         )}
+
+        {/* eno.vn watermark — hidden until a save/copy/drag attempt (ImageShield) */}
+        {images.length > 0 && <span className="img-watermark" aria-hidden />}
 
         {/* favorite heart */}
         <button

@@ -361,6 +361,50 @@
   animation: shimmer 1.4s ease-in-out infinite;
 }
 
+/* Branded skeleton — a centred, faint eno wordmark over the shimmer so loading
+   photo tiles read as eno.vn instead of blank grey. Uses ::before so the shimmer
+   sweep (::after) is left untouched; the parent .shimmer is already relative. */
+.skeleton-photo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image: url('/logo.svg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 42% auto;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+/* ── Image protection ─────────────────────────────────────────────────────────
+   A diagonal "eno.vn" watermark that is INVISIBLE in normal viewing and only
+   flashes over protected photos when someone tries to save / copy / drag /
+   screenshot (<ImageShield> toggles .show-watermark on <html>). It deters casual
+   right-click/drag saving and brands any capture. Honest limits: OS-level
+   screenshots (e.g. macOS ⌘⇧4) and direct image-URL fetches can't be intercepted
+   client-side — those need a server-baked watermark. */
+[data-protected] img {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.img-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease;
+  background-image: url('/watermark.svg');
+  background-repeat: repeat;
+  background-size: 200px 138px;
+}
+html.show-watermark .img-watermark { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .img-watermark { transition: none; }
+}
+
 /* Hide number input spinners etc. not needed but keep base clean */
 input, select, textarea {
   font-family: inherit;

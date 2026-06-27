@@ -46,13 +46,14 @@ export function BackToTop() {
           <ChevronUp className="h-7 w-7" strokeWidth={3} />
         </button>
 
-        {/* Help — bare "?", always present */}
+        {/* Help — bare "?", DESKTOP ONLY (on mobile, Help lives in the profile page
+            next to Post/Listings/Settings, so it's not a floating popup there). */}
         <button
           type="button"
           aria-label="Help"
           aria-haspopup="dialog"
           onClick={() => setHelpOpen(true)}
-          className="flex h-9 w-9 items-center justify-center text-body transition-all duration-200 hover:text-foreground active:scale-90"
+          className="hidden h-9 w-9 items-center justify-center text-body transition-all duration-200 hover:text-foreground active:scale-90 lg:flex"
         >
           <span className="text-[26px] font-bold leading-none">?</span>
         </button>

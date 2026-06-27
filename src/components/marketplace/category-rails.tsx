@@ -65,7 +65,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
           : // Same-size skeletons hold the row height until it mounts (no images, no shift).
             Array.from({ length: Math.min(listings.length, 4) }).map((_, i) => (
               <div key={i} className={`${CARD_W} space-y-3`}>
-                <div className="aspect-[4/3] w-full rounded-xl shimmer" />
+                <div className="aspect-[4/3] w-full rounded-xl shimmer skeleton-photo" />
                 <div className="h-4 w-2/3 rounded shimmer" />
                 <div className="h-3 w-1/2 rounded shimmer" />
               </div>

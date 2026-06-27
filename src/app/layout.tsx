@@ -14,6 +14,7 @@ import { MobileNav } from "@/components/marketplace/mobile-nav";
 import { PageTransitions } from "@/components/marketplace/page-transitions";
 import { BackToTop } from "@/components/marketplace/back-to-top";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
+import { ImageShield } from "@/components/marketplace/image-shield";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -170,6 +171,7 @@ export default function RootLayout({
                       <BackToTop />
                       <MobileNav />
                       <CookieConsent />
+                      <ImageShield />
                       </PageTransitions>
                     </QueryProvider>
                   </FavoritesProvider>

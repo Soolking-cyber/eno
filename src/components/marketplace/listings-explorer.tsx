@@ -1904,7 +1904,7 @@ export function ListingsExplorer({
                 <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="space-y-3">
-                      <div className="aspect-[4/3] w-full rounded-xl shimmer" />
+                      <div className="aspect-[4/3] w-full rounded-xl shimmer skeleton-photo" />
                       <div className="h-4 w-2/3 rounded shimmer" />
                       <div className="h-3 w-1/2 rounded shimmer" />
                       <div className="h-3 w-1/3 rounded shimmer" />

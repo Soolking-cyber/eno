@@ -176,6 +176,14 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
               {tb === 'post' ? tr('Post', 'Đăng tin') : tb === 'listings' ? tr('Listings', 'Tin đăng') : tr('Settings', 'Cài đặt')}
             </button>
           ))}
+          {/* Help — a real subpage (the Help Center), sat next to the tabs so it's
+              reachable from the profile page on mobile (where there's no "?" FAB). */}
+          <Link
+            href="/help"
+            className="-mb-px flex items-center gap-1 border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {tr('Help', 'Trợ giúp')}
+          </Link>
         </div>
 
         {tab === 'post' && (
