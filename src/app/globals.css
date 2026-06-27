@@ -113,7 +113,7 @@
   --ink: #1a202c;
   --ink-2: #2d3748;
   --ink-3: #64748b;
-  --ink-4: #6b7280;        /* gray-500 ~4.8:1 on white — AA for placeholder/meta/chevrons (was #94a3b8, failed AA) */
+  --ink-4: #586173;        /* slate-gray ~5.6:1 on tint / 6:1 on white — AA for placeholder/meta/chevrons/small icons on BOTH white and bg-tint (was #6b7280 gray-500, 4.1:1 on tint → failed AA on the tinted search pill) */
   --body: #475569;        /* slate-600 */
   --tint: #f1f5f9;        /* slate-100 */
   --line-strong: #cbd5e1; /* slate-300 */
@@ -205,7 +205,7 @@
   --ink: #eef1f6;
   --ink-2: #d2d9e3;
   --ink-3: #b4bdca;
-  --ink-4: #8995a6;        /* ~4.9:1 on canvas — AA for meta text */
+  --ink-4: #9aa5b7;        /* ~5.9:1 on canvas / AA on the dark bg-tint too (was #8995a6, ~4.4:1 on dark tint) */
   --body: #c6cdd9;         /* ~8.8:1 on card — comfortable body text */
   --tint: #262c37;
   --line-strong: #3f4757;
