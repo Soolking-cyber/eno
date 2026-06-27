@@ -1483,22 +1483,22 @@ export function ListingsExplorer({
                   aria-label={tr('Filters', 'Bộ lọc')}
                   aria-expanded={filtersOpen}
                   className={cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-l-2xl pl-5 pr-3.5 py-4.5 text-base font-bold transition-colors cursor-pointer',
+                    'flex shrink-0 items-center gap-1.5 rounded-l-2xl pl-5 pr-3.5 py-3.5 sm:py-4.5 text-base font-bold transition-colors cursor-pointer',
                     filtersOpen || activeCategory !== 'all' || listingType !== 'all' || conditionFilter !== 'all' || priceRange !== 'all'
                       ? 'text-accent-foreground'
                       : 'text-ink-4 hover:text-accent-foreground',
                   )}
                 >
-                  <SlidersHorizontal className="h-5 w-5" strokeWidth={2.25} />
+                  <SlidersHorizontal className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                   <span className="hidden sm:inline">{tr('Filters', 'Bộ lọc')}</span>
                 </button>
-                <span className="h-7 w-px shrink-0 bg-border" />
+                <span className="h-6 w-px shrink-0 bg-border sm:h-7" />
                 <button
                   onClick={() => handleLandingSearch(landingQuery)}
                   aria-label={tr('Search', 'Tìm kiếm')}
-                  className="shrink-0 pl-3 pr-2.5 py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  className="shrink-0 pl-3 pr-2.5 py-3.5 sm:py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
-                  <Search className="h-6 w-6" strokeWidth={2.25} />
+                  <Search className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                 </button>
                 <input
                   id="listings-search-input"
@@ -1531,7 +1531,7 @@ export function ListingsExplorer({
                     if (e.key === 'Enter') handleLandingSearch(landingQuery)
                   }}
                   placeholder={tr('Search motorbikes, apartments, moving sales...', 'Tìm xe máy, căn hộ, đồ thanh lý...')}
-                  className="min-w-0 flex-1 bg-transparent py-4.5 pr-3 text-base font-medium text-foreground outline-none placeholder:text-ink-4 placeholder:font-medium"
+                  className="min-w-0 flex-1 bg-transparent py-3.5 sm:py-4.5 pr-3 text-base font-medium text-foreground outline-none placeholder:text-ink-4 placeholder:font-medium"
                 />
                 {landingQuery && (
                   <button
@@ -1545,20 +1545,20 @@ export function ListingsExplorer({
                 )}
                 {/* Visual search — take/upload/paste a photo, search by its subject. Left of Map. */}
                 <ImageSearchButton
-                  iconClassName="h-6 w-6"
-                  className="flex shrink-0 items-center justify-center px-2.5 py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-60"
+                  iconClassName="h-6 w-6 sm:h-7 sm:w-7"
+                  className="flex shrink-0 items-center justify-center px-2.5 py-3.5 sm:py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-60"
                   onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
                   onResult={(r) => { toast.dismiss('vis'); setLandingQuery(r.query); applyVisualSearch(r) }}
                   onError={(m) => toast.error(m, { id: 'vis' })}
                 />
-                <span className="h-7 w-px shrink-0 bg-border" />
+                <span className="h-6 w-px shrink-0 bg-border sm:h-7" />
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
                   aria-label={tr('Map', 'Bản đồ')}
                   title={tr('Map', 'Bản đồ')}
-                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-3.5 sm:py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
-                  <Map className="h-6 w-6" strokeWidth={2.25} />
+                  <Map className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                 </button>
               </div>
 
