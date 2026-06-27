@@ -516,6 +516,23 @@ export function ListingsExplorer({
     return () => { cancelled = true }
   }, [applyResolved])
 
+  // Safety net for brand searches: if a brand ends up active but its category never
+  // stuck (a stale/raced resolution leaves the top nav on "All"), open the brand's
+  // dominant category so the rail highlights it + category facets appear. At most once
+  // per brand, and it never overrides a category the user picks themselves.
+  const healedBrandRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (activeBrand === 'all' || activeModel !== 'all' || activeCategory !== 'all') return
+    if (healedBrandRef.current === activeBrand) return
+    healedBrandRef.current = activeBrand
+    let cancelled = false
+    fetch(`/api/search/resolve?q=${encodeURIComponent(activeBrand.replace(/-/g, ' '))}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d?.category) setActiveCategory((c) => (c === 'all' ? d.category : c)) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [activeBrand, activeModel, activeCategory])
+
   // URL state synchronization: Write back to URL as filters change
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
