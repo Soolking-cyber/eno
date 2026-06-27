@@ -46,6 +46,8 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems } from './search-suggest'
+import { ImageSearchButton } from './image-search-button'
+import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 
 // Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
 // engine) travel in the URL + API keyed by their numeric COLUMN as `range_<col>`
@@ -1407,6 +1409,13 @@ export function ListingsExplorer({
                   value={landingQuery}
                   onChange={(e) => setLandingQuery(e.target.value)}
                   onFocus={() => setShowSuggestions(true)}
+                  onPaste={async (e) => {
+                    const f = imageFromPaste(e); if (!f) return; e.preventDefault()
+                    toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })
+                    const r = await runVisualSearch(f)
+                    if (r?.query) { toast.dismiss('vis'); setLandingQuery(r.query); setShowSuggestions(false); handleLandingSearch(r.query) }
+                    else toast.error(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'), { id: 'vis' })
+                  }}
                   onKeyDown={(e) => {
                     if (showSuggestions && landingQuery.trim().length >= 2 && heroSuggestItems.length) {
                       if (e.key === 'ArrowDown') { e.preventDefault(); setHeroActiveIdx((i) => Math.min(heroSuggestItems.length - 1, i + 1)); return }
@@ -1434,6 +1443,14 @@ export function ListingsExplorer({
                     <X className="h-4 w-4" />
                   </button>
                 )}
+                {/* Visual search — take/upload/paste a photo, search by its subject. Left of Map. */}
+                <ImageSearchButton
+                  iconClassName="h-5 w-5"
+                  className="flex shrink-0 items-center justify-center px-2 py-3.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-60"
+                  onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
+                  onResult={(r) => { toast.dismiss('vis'); setLandingQuery(r.query); setShowSuggestions(false); handleLandingSearch(r.query) }}
+                  onError={(m) => toast.error(m, { id: 'vis' })}
+                />
                 <span className="h-6 w-px shrink-0 bg-border" />
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}

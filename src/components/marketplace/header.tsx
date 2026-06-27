@@ -15,6 +15,9 @@ import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
+import { ImageSearchButton } from './image-search-button'
+import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
+import { toast } from 'sonner'
 
 export function Header() {
   const { t, tr, lang } = useLanguage()
@@ -193,6 +196,13 @@ export function Header() {
                 onChange={(e) => setSearchVal(e.target.value)}
                 onFocus={openSuggestions}
                 onKeyDown={onSearchKeyDown}
+                onPaste={async (e) => {
+                  const f = imageFromPaste(e); if (!f) return; e.preventDefault()
+                  toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })
+                  const r = await runVisualSearch(f)
+                  if (r?.query) { toast.dismiss('vis'); setSearchVal(r.query); submitSearch(r.query); setShowSuggestions(false) }
+                  else toast.error(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'), { id: 'vis' })
+                }}
                 autoComplete="off"
                 placeholder={tr('Find products…', 'Tìm sản phẩm…')}
                 aria-label={tr('Search', 'Tìm kiếm')}
@@ -209,6 +219,14 @@ export function Header() {
                   <X className="h-4 w-4" />
                 </button>
               )}
+              {/* Visual search — take/upload/paste a photo, search by its subject. Left of the area pin. */}
+              <ImageSearchButton
+                iconClassName="h-[18px] w-[18px]"
+                className="mr-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-body transition-colors hover:bg-muted disabled:opacity-60"
+                onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
+                onResult={(r) => { toast.dismiss('vis'); setSearchVal(r.query); submitSearch(r.query); setShowSuggestions(false) }}
+                onError={(m) => toast.error(m, { id: 'vis' })}
+              />
               {/* Area filter — small location pin inside the search bar (right) */}
               <button
                 type="button"
