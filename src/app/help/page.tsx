@@ -18,6 +18,21 @@ const TOPICS: { Icon: typeof Rocket; label: string; href: string }[] = [
   { Icon: Mail, label: 'Contact support', href: 'mailto:support@eno.forum' },
 ]
 
+// Everything else from the footer, gathered so the Help Center doubles as a nav hub.
+const MORE_LINKS: { label: string; href: string }[] = [
+  { label: 'About eno.vn', href: '/about' },
+  { label: 'How it works', href: '/guide' },
+  { label: 'How trust works', href: '/trust' },
+  { label: 'Safe trading', href: '/safety' },
+  { label: 'Report a listing', href: '/safety' },
+  { label: 'Post a listing', href: '/post' },
+  { label: 'Saved listings', href: '/saved' },
+  { label: 'Browse by brand', href: '/brands' },
+  { label: 'Contact us', href: '/about#contact' },
+  { label: 'Terms of use', href: '/terms' },
+  { label: 'Privacy policy', href: '/privacy' },
+]
+
 // Comprehensive, categorized FAQ. [question, answer] pairs (English source).
 const SECTIONS: { title: string; items: [string, string][] }[] = [
   {
@@ -115,6 +130,23 @@ export default function HelpPage() {
             </section>
           ))}
         </div>
+
+        {/* More from eno.vn — every footer destination, in one place */}
+        <section className="mt-12 border-t border-border pt-8">
+          <h2 className="h-section text-foreground"><Tr text="More from eno.vn" /></h2>
+          <div className="mt-3 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+            {MORE_LINKS.map(({ label, href }) => (
+              <Link
+                key={label}
+                href={href}
+                className="group flex items-center justify-between border-b border-border/60 py-3 text-sm font-semibold text-foreground transition-colors hover:text-accent-foreground"
+              >
+                <Tr text={label} />
+                <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-accent-foreground" />
+              </Link>
+            ))}
+          </div>
+        </section>
 
         {/* Footer CTA */}
         <div className="mt-12 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
