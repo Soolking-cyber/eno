@@ -1515,7 +1515,7 @@ export function ListingsExplorer({
                 <span className="h-6 w-px shrink-0 bg-border" />
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
-                  className="flex shrink-0 items-center gap-1.5 rounded-r-2xl pl-3.5 pr-4 py-3.5 text-sm font-semibold text-accent-foreground hover:text-[#0a66c2] transition-colors cursor-pointer"
+                  className="flex shrink-0 items-center gap-1.5 rounded-r-2xl pl-3.5 pr-4 py-3.5 text-sm font-semibold text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
                   <Map className="h-4 w-4" />
                   <span>{tr('Map', 'Bản đồ')}</span>
