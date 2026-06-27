@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   // vision call fast + cheap.
   let b64: string
   try {
-    const buf = await sharp(Buffer.from(await file.arrayBuffer()))
+    const buf = await sharp(Buffer.from(await file.arrayBuffer()), { limitInputPixels: 50_000_000 })
       .rotate()
       .resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 80 })

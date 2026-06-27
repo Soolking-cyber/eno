@@ -6,6 +6,7 @@ import { buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { getSupabaseAdmin, LISTINGS_BUCKET } from '@/lib/supabase-admin'
 import { isListingImageUrl } from '@/lib/listing-image'
+import { safeFetch } from '@/lib/ssrf'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,9 +23,10 @@ type RowResult = { row: number; id?: string; error?: string }
 // Supabase URLs pass through. Returns null on any failure (bad type/size/fetch).
 async function rehost(url: string): Promise<string | null> {
   if (isListingImageUrl(url)) return url
-  if (!/^https:\/\//i.test(url)) return null
   try {
-    const res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(8000) })
+    // SSRF-guarded: https-only, re-validates the host at every redirect hop and
+    // rejects any URL that resolves to a private/loopback/link-local address.
+    const res = await safeFetch(url, { timeoutMs: 8000 })
     if (!res.ok) return null
     const type = (res.headers.get('content-type') || '').split(';')[0].trim()
     const ext = IMG_EXT[type]

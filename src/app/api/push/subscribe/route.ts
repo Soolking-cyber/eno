@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
+import { isAllowedPushEndpoint } from '@/lib/ssrf'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,9 @@ export async function POST(req: NextRequest) {
   const endpoint = String(body.endpoint || '')
   const p256dh = String(body.keys?.p256dh || '')
   const auth = String(body.keys?.auth || '')
-  if (!endpoint.startsWith('https://') || !p256dh || !auth) {
+  // The endpoint is later fetched server-side by web-push, so it must belong to a
+  // real push service — never an arbitrary (internal) URL (SSRF).
+  if (!isAllowedPushEndpoint(endpoint) || !p256dh || !auth) {
     return NextResponse.json({ error: 'invalid_subscription' }, { status: 400 })
   }
 

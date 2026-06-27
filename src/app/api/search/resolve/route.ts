@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { matchBrand, categoryHasBrand } from '@/lib/brand'
 import { fold } from '@/lib/fold'
+import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
 
@@ -81,6 +82,12 @@ export async function GET(req: NextRequest) {
   const q = (new URL(req.url).searchParams.get('q') || '').trim()
   // A brand/model is a few words; skip sentences (those want a keyword search).
   if (q.length < 2 || q.length > 40 || q.split(/\s+/).length > 5) return empty
+
+  // Public + runs Levenshtein over the brand catalogue + a 120-row ILIKE scan per
+  // call → IP throttle to bound DB amplification.
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+  const rl = await rateLimit('search-resolve', ip, 120, '1 m')
+  if (!rl.success) return empty
 
   const tokens = fold(q).split(' ').filter(Boolean)
 

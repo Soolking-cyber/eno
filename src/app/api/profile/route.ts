@@ -4,6 +4,7 @@ import { getCurrentProfile } from '@/lib/admin'
 import { containsPhoneNumber, normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { isListingImageUrl } from '@/lib/listing-image'
+import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,11 @@ export const dynamic = 'force-dynamic'
 export async function PATCH(req: NextRequest) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+
+  // The distinct 409 phone_taken response is an account-existence oracle; throttle
+  // so it can't be looped to enumerate which phone numbers have eno.vn accounts.
+  const rl = await rateLimit('profile-update', profile.id, 20, '1 h')
+  if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }

@@ -114,7 +114,11 @@ export async function actOnOffer(
   if (!offer || offer.senderProfileId === actorId) return false
 
   const status = action === 'accept' ? 'accepted' : 'declined'
-  await db.message.update({ where: { id: offer.id }, data: { offerStatus: status } })
+  // Atomic claim: only transition while STILL pending, so two concurrent
+  // accept/decline (or double-clicks) can't both emit the confirmation message +
+  // notification/push (TOCTOU). count===0 means another request already won.
+  const claim = await db.message.updateMany({ where: { id: offer.id, offerStatus: 'pending' }, data: { offerStatus: status } })
+  if (claim.count === 0) return false
 
   // Confirmation line in the timeline (plain text → broadcasts to both sides).
   const amt = offer.offerAmount != null ? new Intl.NumberFormat('en-US').format(offer.offerAmount) + '₫' : ''

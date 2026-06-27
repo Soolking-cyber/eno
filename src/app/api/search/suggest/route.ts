@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { fold } from '@/lib/fold'
+import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
 
@@ -12,6 +13,11 @@ export const runtime = 'nodejs'
 export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get('q') || '').trim().slice(0, 80)
   if (q.length < 2) return NextResponse.json({ q, listings: [], categories: [] })
+
+  // Public + unindexed-ILIKE per keystroke → IP throttle to bound DB amplification.
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+  const rl = await rateLimit('search-suggest', ip, 120, '1 m')
+  if (!rl.success) return NextResponse.json({ q, listings: [], categories: [] })
 
   const folded = fold(q)
   // AND each ≥2-char token (matches /api/listings) so multi-word typeahead narrows.

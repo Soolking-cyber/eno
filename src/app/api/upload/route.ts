@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       // decodable raster, which also rejects disguised/corrupt files.
       let out: Buffer
       try {
-        out = await sharp(Buffer.from(await file.arrayBuffer()))
+        out = await sharp(Buffer.from(await file.arrayBuffer()), { limitInputPixels: 50_000_000 })
           .rotate()
           .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
           .webp({ quality: WEBP_QUALITY })

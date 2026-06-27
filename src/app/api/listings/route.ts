@@ -14,6 +14,7 @@ import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissin
 import { isListingImageUrl } from '@/lib/listing-image'
 import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
+import { rateLimit } from '@/lib/ratelimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -349,6 +350,11 @@ export async function GET(req: NextRequest) {
 // host-pinned isListingImageUrl() (our project's bucket only).
 
 export async function POST(req: NextRequest) {
+  // Guest posting is allowed (resolve-by-phone), and each create can fan out paid
+  // translation + social syndication → IP throttle to cap floods.
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+  const rl = await rateLimit('listing-create', ip, 15, '1 h')
+  if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   try {
     const body = await req.json()
     const categorySlug = String(body.categorySlug || '').trim()
