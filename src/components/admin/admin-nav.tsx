@@ -1,10 +1,11 @@
 import Link from 'next/link'
-import { ShieldCheck, List, Tag } from 'lucide-react'
+import { ShieldCheck, List, Tag, MessageSquareText } from 'lucide-react'
 
 const TABS = [
   { href: '/admin', label: 'Moderation', icon: ShieldCheck },
   { href: '/admin/listings', label: 'Listings', icon: List },
   { href: '/admin/brands', label: 'Brands', icon: Tag },
+  { href: '/admin/feedback', label: 'Feedback', icon: MessageSquareText },
 ]
 
 // Small nav shared across the admin tools.

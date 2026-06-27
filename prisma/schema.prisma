@@ -369,6 +369,23 @@ model Report {
   @@index([targetSellerId])
 }
 
+// User feedback + technical-problem reports from the Help sheet / Help Center.
+// Anonymous-friendly (no auth required) so it's frictionless; surfaces in the
+// /admin/feedback queue. No Profile relation (plain optional id) to avoid FK churn.
+model Feedback {
+  id        String   @id @default(cuid())
+  kind      String   @default("feedback") // feedback | technical | other
+  message   String
+  email     String?                        // optional reply-to the sender gave
+  profileId String?  @db.Uuid              // filled when sent while signed in
+  url       String?                        // the page they were on
+  userAgent String?
+  status    String   @default("open")      // open | resolved
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+}
+
 // Append-only audit log of every trust-score change. The score on Profile/Seller
 // is a denormalized cache of 100 + sum(deltas); we never mutate it blindly, so
 // every change is attributable and reversible.

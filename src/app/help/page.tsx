@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Tr } from '@/context/language-context'
+import { HelpFeedback } from '@/components/marketplace/help-feedback'
 import { Rocket, BadgeCheck, ShieldCheck, Mail, ChevronRight } from 'lucide-react'
 
 export const metadata: Metadata = {
@@ -146,6 +147,15 @@ export default function HelpPage() {
               </Link>
             ))}
           </div>
+        </section>
+
+        {/* Send feedback / report a problem — goes straight to our team */}
+        <section className="mt-12 border-t border-border pt-8">
+          <h2 className="h-section text-foreground"><Tr text="Send us a message" /></h2>
+          <p className="mt-1.5 mb-4 text-sm text-body">
+            <Tr text="Share feedback or report a technical problem — it goes straight to our team." />
+          </p>
+          <HelpFeedback />
         </section>
 
         {/* Footer CTA */}
