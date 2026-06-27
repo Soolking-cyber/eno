@@ -239,7 +239,12 @@ export function ListingsExplorer({
       setActiveProvince(null)
       setActiveWard(null)
       setNearby(null)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      setFiltersOpen(false)
+      setShowSuggestions(false)
+      // Instant jump AFTER the landing layout re-renders (the feed unmounts → the
+      // page shrinks): a smooth scroll from deep in the feed gets clamped by the
+      // shrink and lands mid-page, so the logo "didn't go home". rAF + auto fixes it.
+      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'auto' }))
     }
     window.addEventListener('eno:reset-home', onResetHome)
     return () => window.removeEventListener('eno:reset-home', onResetHome)
@@ -1549,10 +1554,11 @@ export function ListingsExplorer({
                 <span className="h-7 w-px shrink-0 bg-border" />
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
-                  className="flex shrink-0 items-center gap-1.5 rounded-r-2xl pl-4 pr-5 py-4.5 text-base font-bold text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  aria-label={tr('Map', 'Bản đồ')}
+                  title={tr('Map', 'Bản đồ')}
+                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
-                  <Map className="h-5 w-5" strokeWidth={2.25} />
-                  <span>{tr('Map', 'Bản đồ')}</span>
+                  <Map className="h-6 w-6" strokeWidth={2.25} />
                 </button>
               </div>
 

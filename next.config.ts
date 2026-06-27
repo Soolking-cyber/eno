@@ -45,10 +45,27 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  // Baseline security headers on every response. (No strict CSP yet — it would
-  // need to allow Supabase, CARTO map tiles, and unpkg/Leaflet; add once those
-  // origins are enumerated and tested.)
+  // Baseline security headers on every response. CSP is shipped REPORT-ONLY first
+  // (logs violations, blocks nothing) so we can confirm every origin — Supabase
+  // (+ realtime wss), CARTO map tiles, unpkg/Leaflet, GA/GTM, Meta pixel, mock
+  // image hosts — before promoting it to an enforcing `Content-Security-Policy`.
   async headers() {
+    const csp = [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'self'",
+      "form-action 'self'",
+      // Next.js needs inline + eval without a nonce setup; GTM/Meta/Leaflet scripts.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://unpkg.com",
+      "style-src 'self' 'unsafe-inline' https://unpkg.com",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.basemaps.cartocdn.com https://picsum.photos https://loremflickr.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com",
+      "frame-src 'self' https://www.facebook.com https://td.doubleclick.net",
+      "worker-src 'self' blob:",
+      "manifest-src 'self'",
+    ].join("; ");
     return [
       {
         source: "/:path*",
@@ -59,6 +76,7 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), payment=()" },
           { key: "X-DNS-Prefetch-Control", value: "on" },
+          { key: "Content-Security-Policy-Report-Only", value: csp },
         ],
       },
     ];

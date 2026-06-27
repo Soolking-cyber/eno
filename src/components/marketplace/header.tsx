@@ -183,7 +183,7 @@ export function Header() {
         {/* Logo */}
         <Link
           href="/"
-          onClick={() => { if (pathname === '/') window.dispatchEvent(new CustomEvent('eno:reset-home')) }}
+          onClick={() => window.dispatchEvent(new CustomEvent('eno:reset-home'))}
           className="flex shrink-0 items-center"
           aria-label="eno.vn"
         >
