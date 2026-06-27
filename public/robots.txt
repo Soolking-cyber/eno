@@ -14,4 +14,23 @@ Disallow: /saved
 Disallow: /messages
 Disallow: /dashboard
 
+# AI-training + pure-scraper crawlers that ingest our content (incl. listing photos)
+# but send no traffic back — blocked entirely. AI *search / answer* crawlers
+# (OAI-SearchBot, ChatGPT-User, PerplexityBot, Google-Extended, Applebot, Bingbot,
+# and Meta/social link-preview bots) are intentionally NOT listed here, so they fall
+# under "User-agent: *" above and keep indexing public pages — eno.vn stays
+# discoverable in search AND in AI answers, while Cloudflare's AI Labyrinth traps any
+# of these that ignore the rules below.
+User-agent: GPTBot
+User-agent: CCBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: Bytespider
+User-agent: ImagesiftBot
+User-agent: img2dataset
+User-agent: Diffbot
+User-agent: Omgilibot
+User-agent: Applebot-Extended
+Disallow: /
+
 Sitemap: https://eno.vn/sitemap.xml
