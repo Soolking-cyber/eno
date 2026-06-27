@@ -1445,7 +1445,7 @@ export function ListingsExplorer({
 
             {/* Centered Search Bar (the header reveals its own search once this
                 scrolls out of view — id is the IntersectionObserver target). */}
-            <div id="eno-hero-search" className="relative max-w-2xl w-full mx-auto select-none">
+            <div id="eno-hero-search" className="relative max-w-3xl w-full mx-auto select-none">
               {/* One cohesive search pill that morphs into a seamless suggestions
                   panel on focus (Google-style): flat bottom + shared shadow/border. */}
               <div className={cn(
@@ -1457,9 +1457,9 @@ export function ListingsExplorer({
                 <button
                   onClick={() => handleLandingSearch(landingQuery)}
                   aria-label={tr('Search', 'Tìm kiếm')}
-                  className="shrink-0 pl-4 pr-2 py-3.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  className="shrink-0 pl-5 pr-2.5 py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
-                  <Search className="h-5 w-5" />
+                  <Search className="h-6 w-6" strokeWidth={2.25} />
                 </button>
                 <input
                   id="listings-search-input"
@@ -1492,32 +1492,32 @@ export function ListingsExplorer({
                     if (e.key === 'Enter') handleLandingSearch(landingQuery)
                   }}
                   placeholder={tr('Search motorbikes, apartments, moving sales...', 'Tìm xe máy, căn hộ, đồ thanh lý...')}
-                  className="min-w-0 flex-1 bg-transparent py-3.5 pr-3 text-sm text-foreground outline-none placeholder:text-ink-4"
+                  className="min-w-0 flex-1 bg-transparent py-4.5 pr-3 text-base font-medium text-foreground outline-none placeholder:text-ink-4 placeholder:font-medium"
                 />
                 {landingQuery && (
                   <button
                     type="button"
                     onClick={() => setLandingQuery('')}
                     aria-label={tr('Clear', 'Xóa')}
-                    className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
+                    className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-5 w-5" />
                   </button>
                 )}
                 {/* Visual search — take/upload/paste a photo, search by its subject. Left of Map. */}
                 <ImageSearchButton
-                  iconClassName="h-5 w-5"
-                  className="flex shrink-0 items-center justify-center px-2 py-3.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-60"
+                  iconClassName="h-6 w-6"
+                  className="flex shrink-0 items-center justify-center px-2.5 py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-60"
                   onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
                   onResult={(r) => { toast.dismiss('vis'); setLandingQuery(r.query); applyVisualSearch(r) }}
                   onError={(m) => toast.error(m, { id: 'vis' })}
                 />
-                <span className="h-6 w-px shrink-0 bg-border" />
+                <span className="h-7 w-px shrink-0 bg-border" />
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
-                  className="flex shrink-0 items-center gap-1.5 rounded-r-2xl pl-3.5 pr-4 py-3.5 text-sm font-semibold text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  className="flex shrink-0 items-center gap-1.5 rounded-r-2xl pl-4 pr-5 py-4.5 text-base font-bold text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
-                  <Map className="h-4 w-4" />
+                  <Map className="h-5 w-5" strokeWidth={2.25} />
                   <span>{tr('Map', 'Bản đồ')}</span>
                 </button>
               </div>
