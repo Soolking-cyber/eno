@@ -162,8 +162,8 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
           <SignOutButton />
         </div>
 
-        {/* Tabs — Post · Listings · Settings (Post renders the form inline, no redirect) */}
-        <div className="mt-5 flex items-center gap-1">
+        {/* Tabs — Post · Listings · Settings · Help (Post renders the form inline, no redirect) */}
+        <div className="mt-5 flex flex-wrap items-center gap-1">
           {(['post', 'listings', 'account'] as const).map((tb) => (
             <button
               key={tb}
