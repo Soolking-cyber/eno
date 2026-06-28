@@ -46,6 +46,12 @@ export async function PATCH(req: NextRequest) {
   const id = String(body.id || '')
   if (!id) return NextResponse.json({ error: 'no_id' }, { status: 400 })
   const status = body.status === 'resolved' ? 'resolved' : 'open'
-  await db.feedback.update({ where: { id }, data: { status } })
+  try {
+    await db.feedback.update({ where: { id }, data: { status } })
+  } catch {
+    // Mirror the POST path: degrade to a clean 503 instead of an unhandled 500 if
+    // the Feedback table is missing/unavailable.
+    return NextResponse.json({ error: 'save_failed' }, { status: 503 })
+  }
   return NextResponse.json({ ok: true })
 }
