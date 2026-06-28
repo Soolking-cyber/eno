@@ -100,7 +100,7 @@ export default function AiThreadPage() {
               {m.content}
             </div>
             {m.listings && m.listings.length > 0 && (
-              <div className="mt-2 grid w-full max-w-[20rem] grid-cols-2 gap-2 sm:max-w-[22rem]">
+              <div className="mt-2 grid w-full grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
                 {m.listings.map((l) => (
                   <ListingCard key={l.id} listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} />
                 ))}

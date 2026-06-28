@@ -63,10 +63,11 @@ export async function POST(req: NextRequest) {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user')
   if (!lastUser) return NextResponse.json({ error: 'bad_request' }, { status: 400 })
 
-  // Light multi-turn context: prepend the previous user turn so "show me cheaper ones"
-  // still carries the subject. Vertex handles the natural-language understanding.
-  const prevUser = [...messages].reverse().filter((m) => m.role === 'user')[1]
-  const query = `${prevUser ? prevUser.content + ' ' : ''}${lastUser.content}`.trim().slice(0, 240)
+  // Search ONLY the latest message. (Earlier we prepended the previous turn for
+  // "context", but that polluted the query — asking "what about bmw" after "i need a
+  // pen" searched "i need a pen what about bmw" and returned pens. Per-message is
+  // correct; true multi-turn would need the Answer API with a session.)
+  const query = lastUser.content.trim().slice(0, 200)
 
   let reply = ''
   let source: 'vertex' | 'fallback' = 'fallback'
