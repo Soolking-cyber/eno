@@ -33,6 +33,13 @@ export function normalizePhoneNoPlus(raw: string): string {
 // separators (1.080.000.000), which must not be mistaken for a phone number.
 const EMBEDDED_PHONE_RE = /(?:\+?84|0)[\s-]?[2-9](?:[\s-]?\d){7,9}|\+\d(?:[\s-]?\d){7,}/
 
+// Dot-separated phones (090.123.4567) — a VERY common VN format — evade the regex above
+// (which excludes dots so it doesn't trip on dotted VND prices). Strip ONLY dots, then
+// look for a STANDALONE VN number anchored on 0/84 (10–11 contiguous digits). The
+// digit-boundary lookarounds + the 0/84 anchor keep prices out: "1.080.000.000" →
+// "1080000000" (starts with 1, and any inner 0[2-9]… run is bounded by digits).
+const DOTTED_PHONE_RE = /(?<!\d)(?:84|0)[2-9]\d{8}(?!\d)/
+
 // Full-width digits (０９…) → ASCII so they can't slip past the regex.
 function toAsciiDigits(s: string): string {
   return s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
@@ -66,5 +73,9 @@ function hasSpelledDigitRun(text: string): boolean {
 export function containsPhoneNumber(text: string | null | undefined): boolean {
   if (!text) return false
   const norm = toAsciiDigits(text)
-  return EMBEDDED_PHONE_RE.test(norm) || hasSpelledDigitRun(norm)
+  if (EMBEDDED_PHONE_RE.test(norm) || hasSpelledDigitRun(norm)) return true
+  // Dotted fallback: strip dots only (keep spaces so separate numbers stay separate)
+  // and check for a standalone VN number. Catches "090.123.4567" without merging a
+  // dotted price that sits next to another number.
+  return DOTTED_PHONE_RE.test(norm.replace(/[.·]/g, ''))
 }

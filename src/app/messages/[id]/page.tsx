@@ -41,6 +41,9 @@ export default function ThreadPage() {
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  // Current user's profile id, in a ref so the realtime handler (a stable closure)
+  // can tell an incoming counterpart message from my own echo without re-subscribing.
+  const meRef = useRef<string | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/conversations/${id}`)
@@ -113,6 +116,13 @@ export default function ThreadPage() {
             if (t.messages.some((x) => x.id === p.id)) return t // dedup (poll may have it)
             return { ...t, messages: [...t.messages, { id: p.id!, mine: false, body: p.body!, createdAt: p.createdAt || new Date().toISOString() }] }
           })
+          // A counterpart message arrived while this thread is open → mark it read
+          // server-side (the GET zeroes this conversation's unread) and reconcile the
+          // inbox row + header badge, so they don't drift to "unread" for an already-
+          // read thread until the next backstop poll. Skips my own echo.
+          if (p.senderProfileId && p.senderProfileId !== meRef.current) {
+            void load().then(() => { refreshUnread(); refreshConvos() })
+          }
         })
         .on('broadcast', { event: 'message_deleted' }, ({ payload }) => {
           const did = (payload as { id?: string } | null)?.id
@@ -142,6 +152,7 @@ export default function ThreadPage() {
   }, [user, load, id])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [thread?.messages.length])
+  useEffect(() => { meRef.current = thread?.me ?? null }, [thread?.me])
 
   const send = async (override?: string) => {
     const body = (override ?? text).trim()
