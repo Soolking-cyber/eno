@@ -16,6 +16,7 @@ import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
 import { ImageSearchButton } from './image-search-button'
+import { AISearchButton, AIConciergePanel } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 import { toast } from 'sonner'
 
@@ -47,6 +48,7 @@ export function Header() {
   const [ward, setWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null)
   const [areaOpen, setAreaOpen] = useState(false)
+  const [aiMode, setAiMode] = useState(false)
   const areaBtnRef = useRef<HTMLButtonElement>(null)
   // Quick-select suggestions (same store as the hero/in-explorer search): the user's
   // recent searches + recently-used areas, shown when the header search is focused.
@@ -241,29 +243,21 @@ export function Header() {
                   <X className="h-5 w-5" />
                 </button>
               )}
-              {/* Visual search — take/upload/paste a photo, search by its subject. Left of the area pin. */}
+              {/* AI shopping concierge — pressable: press to enter AI mode (filled), press
+                  again for normal search. Sits left of the camera in every search bar. */}
+              <AISearchButton
+                active={aiMode}
+                onClick={() => { setAiMode((a) => !a); setShowSuggestions(false) }}
+                className="mr-0.5 h-10 w-10"
+              />
+              {/* Visual search — take/upload/paste a photo, search by its subject. */}
               <ImageSearchButton
                 iconClassName="h-6 w-6"
-                className="mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-body transition-colors hover:bg-muted disabled:opacity-60 tap-44 relative"
+                className="mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-body transition-colors hover:bg-muted disabled:opacity-60 tap-44 relative"
                 onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
                 onResult={(r) => { toast.dismiss('vis'); setSearchVal(r.query); setShowSuggestions(false); submitVisual(r) }}
                 onError={(m) => toast.error(m, { id: 'vis' })}
               />
-              {/* Area filter — small location pin inside the search bar (right) */}
-              <button
-                type="button"
-                ref={areaBtnRef}
-                onClick={() => { setAreaOpen((o) => !o); setShowSuggestions(false) }}
-                aria-label={tr('Area', 'Khu vực')}
-                className={cn(
-                  'mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95 tap-44 relative',
-                  province || ward || nearby
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-body hover:bg-muted',
-                )}
-              >
-                <MapPin className="h-6 w-6" />
-              </button>
             </div>
 
             {/* Recent searches + recent locations — flush bottom of the same window */}
@@ -389,6 +383,8 @@ export function Header() {
         onApply={applyArea}
         onReset={() => applyArea({ province: null, ward: null, nearby: null })}
       />
+
+      <AIConciergePanel open={aiMode} onClose={() => setAiMode(false)} />
     </header>
   )
 }

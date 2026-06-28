@@ -49,6 +49,7 @@ import { useRouter } from 'next/navigation'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems } from './search-suggest'
 import { ImageSearchButton } from './image-search-button'
+import { AISearchButton, AIConciergePanel } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 
 // Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
@@ -216,6 +217,7 @@ export function ListingsExplorer({
   const [debouncedQuery, setDebouncedQuery] = useState(query)
 
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [aiMode, setAiMode] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false) // hero "Filters" dropdown
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const [recentLocations, setRecentLocations] = useState<{ province: Geo; ward: Geo | null }[]>([])
@@ -1632,6 +1634,13 @@ export function ListingsExplorer({
                     <X className="h-5 w-5" />
                   </button>
                 )}
+                {/* AI concierge — pressable, left of the camera (consistent with the navbar bar). */}
+                <AISearchButton
+                  active={aiMode}
+                  onClick={() => { setAiMode((a) => !a); setShowSuggestions(false) }}
+                  className="px-2.5 py-3.5 sm:py-4.5"
+                  iconClassName="h-6 w-6 sm:h-7 sm:w-7"
+                />
                 {/* Visual search — take/upload/paste a photo, search by its subject. Left of Map. */}
                 <ImageSearchButton
                   iconClassName="h-6 w-6 sm:h-7 sm:w-7"
@@ -2414,6 +2423,7 @@ export function ListingsExplorer({
         </div>
       )}
 
+      <AIConciergePanel open={aiMode} onClose={() => setAiMode(false)} />
     </section>
   )
 }
