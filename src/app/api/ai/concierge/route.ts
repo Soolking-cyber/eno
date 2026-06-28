@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   // Primary: Vertex AI Search (draws the credit).
   if (vertexConfigured()) {
-    const r = await conciergeSearch(query, { take: 8 }).catch((e) => { console.error('[ai/concierge] vertex', e); return null })
+    const r = await conciergeSearch(query, { take: 8, lang }).catch((e) => { console.error('[ai/concierge] vertex', e); return null })
     if (r && r.listingIds.length) { listingIds = r.listingIds; reply = r.answer; source = 'vertex' }
   }
 

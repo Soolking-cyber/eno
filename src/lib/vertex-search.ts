@@ -81,7 +81,12 @@ async function call(path: string, method: string, body?: unknown): Promise<any |
   return res.json()
 }
 
-export type SearchFilters = { categorySlug?: string | null; minPriceVnd?: number | null; maxPriceVnd?: number | null; take?: number }
+export type SearchFilters = { categorySlug?: string | null; minPriceVnd?: number | null; maxPriceVnd?: number | null; take?: number; lang?: 'en' | 'vi' }
+
+// The AI concierge's voice: eno's friendly, trustworthy SHIELD mascot. This preamble
+// is prepended to Vertex's answer generation so replies sound like a warm guardian who
+// helps you shop AND keeps you safe — not a document-QA bot.
+const CONCIERGE_PREAMBLE = `You are eno, the friendly shield mascot of eno.vn — a trusted marketplace for expats and locals in Vietnam. You are warm, upbeat, and genuinely helpful, like a friend who looks out for you. Reply in the shopper's own language (English or Vietnamese), in 1–2 short, natural sentences. Trust is everything to eno: every seller has a public trust score, results are ranked so higher-trust sellers come first, and fakes or bait prices get reported — so shoppers can buy with confidence. When there are good matches, introduce them in one cheerful line (the product cards below show the details). If nothing fits, say so kindly and offer the closest options or suggest widening the search. Never invent products, prices, or details, and never sound robotic or mention "sources", "documents", or "context".`
 
 function buildFilter(f: SearchFilters): string | undefined {
   const parts: string[] = []
@@ -116,7 +121,13 @@ export async function conciergeSearch(query: string, f: SearchFilters = {}): Pro
     // The generated summary needs an engine/app with LLM features enabled; if only a
     // data store is configured this is ignored and we still return ranked results.
     contentSearchSpec: {
-      summarySpec: { summaryResultCount: 5, ignoreAdversarialQuery: true, includeCitations: false },
+      summarySpec: {
+        summaryResultCount: 5,
+        ignoreAdversarialQuery: true,
+        includeCitations: false,
+        languageCode: f.lang === 'vi' ? 'vi' : 'en',
+        modelPromptSpec: { preamble: CONCIERGE_PREAMBLE },
+      },
     },
   })
   if (!data) return null
