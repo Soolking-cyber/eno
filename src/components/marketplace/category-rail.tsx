@@ -5,6 +5,7 @@ import { Layers } from 'lucide-react'
 import { useLanguage, Tr } from '@/context/language-context'
 import { CategoryIcon } from './category-icons'
 import { SUBCATEGORIES } from '@/lib/subcategories'
+import { MoreOverflow } from './more-overflow'
 import { cn } from '@/lib/utils'
 import type { SerializedCategory } from '@/lib/types'
 
@@ -71,6 +72,10 @@ export function CategoryRail({
         const subs = isActive
           ? [...(SUBCATEGORIES[cat.slug] ?? [])].sort((a, b) => (subcategoryCounts[b.slug] ?? 0) - (subcategoryCounts[a.slug] ?? 0))
           : []
+        // Show the 8 most-used inline; the rest live in a "More" dropdown (auto-adjusts
+        // as the listing counts above re-rank them).
+        const visibleSubs = subs.slice(0, 8)
+        const overflowSubs = subs.slice(8)
         return (
           <Fragment key={cat.id}>
             <button data-cat={cat.slug} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={tileCls}>
@@ -87,7 +92,7 @@ export function CategoryRail({
                 {/* 3 fixed rows; subcategories flow into columns to the right (robust on mobile). */}
                 <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-3 gap-y-1">
                   <button onClick={() => onSubcategory('all')} className={subChip(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
-                  {subs.map((sub) => {
+                  {visibleSubs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug
                     const count = subcategoryCounts[sub.slug]
                     return (
@@ -97,6 +102,24 @@ export function CategoryRail({
                       </button>
                     )
                   })}
+                  {overflowSubs.length > 0 && (
+                    <MoreOverflow count={overflowSubs.length}>
+                      {overflowSubs.map((sub) => {
+                        const subActive = activeSubcategory === sub.slug
+                        const count = subcategoryCounts[sub.slug]
+                        return (
+                          <button
+                            key={sub.slug}
+                            onClick={() => onSubcategory(subActive ? 'all' : sub.slug)}
+                            className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted')}
+                          >
+                            <span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span>
+                            {count != null && <span className="shrink-0 text-[10px] font-semibold text-ink-4">{count}</span>}
+                          </button>
+                        )
+                      })}
+                    </MoreOverflow>
+                  )}
                 </div>
               </div>
             )}

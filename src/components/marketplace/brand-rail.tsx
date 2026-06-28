@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from './brand-logo'
+import { MoreOverflow } from './more-overflow'
 
 type BrandItem = { slug: string; name: string; count: number; iconPath: string | null }
 
@@ -66,6 +67,15 @@ export function BrandRail({
 
   if (brands.length === 0) return null
 
+  // Most-used first (by listing count), 8 inline + the rest in a "More" dropdown.
+  // The active item is always kept visible so its models can still roll out beside it.
+  const sortedBrands = [...brands].sort((a, b) => b.count - a.count)
+  const visibleBrands = sortedBrands.filter((b, i) => i < 8 || b.slug === activeBrand)
+  const overflowBrands = sortedBrands.filter((b, i) => i >= 8 && b.slug !== activeBrand)
+  const sortedModels = [...models].sort((a, b) => b.count - a.count)
+  const visibleModels = sortedModels.filter((m, i) => i < 8 || m.model === activeModel)
+  const overflowModels = sortedModels.filter((m, i) => i >= 8 && m.model !== activeModel)
+
   const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
   const nameCls = (active: boolean) =>
     cn('line-clamp-2 text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
@@ -74,7 +84,7 @@ export function BrandRail({
 
   return (
     <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none snap-x py-1">
-      {brands.map((b) => {
+      {visibleBrands.map((b) => {
         const isActive = activeBrand === b.slug
         return (
           <Fragment key={b.slug}>
@@ -101,7 +111,7 @@ export function BrandRail({
                 {/* 3 fixed rows; models flow into columns to the right (robust on mobile). */}
                 <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-3 gap-y-1">
                   <button onClick={() => onPickModel('all')} className={modelChip(activeModel === 'all')}>{tr('All', 'Tất cả')}</button>
-                  {models.map((m) => {
+                  {visibleModels.map((m) => {
                     const mActive = activeModel === m.model
                     return (
                       <button key={m.model} onClick={() => onPickModel(mActive ? 'all' : m.model)} className={modelChip(mActive)}>
@@ -110,12 +120,46 @@ export function BrandRail({
                       </button>
                     )
                   })}
+                  {overflowModels.length > 0 && (
+                    <MoreOverflow count={overflowModels.length}>
+                      {overflowModels.map((m) => {
+                        const mActive = activeModel === m.model
+                        return (
+                          <button
+                            key={m.model}
+                            onClick={() => onPickModel(mActive ? 'all' : m.model)}
+                            className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted')}
+                          >
+                            <span className="truncate">{m.model}</span>
+                            <span className="shrink-0 text-[10px] font-semibold text-ink-4">{m.count}</span>
+                          </button>
+                        )
+                      })}
+                    </MoreOverflow>
+                  )}
                 </div>
               </div>
             )}
           </Fragment>
         )
       })}
+      {overflowBrands.length > 0 && (
+        <div className="shrink-0 self-start pt-3">
+          <MoreOverflow count={overflowBrands.length}>
+            {overflowBrands.map((b) => (
+              <button
+                key={b.slug}
+                onClick={() => { onPickBrand(b.slug); onPickModel('all') }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm font-semibold text-body transition-colors hover:bg-muted"
+              >
+                <BrandLogo name={b.name} iconPath={b.iconPath} size={22} flat className="!text-body shrink-0" />
+                <span className="truncate">{b.name}</span>
+                <span className="ml-auto shrink-0 text-[10px] font-semibold text-ink-4">{b.count}</span>
+              </button>
+            ))}
+          </MoreOverflow>
+        </div>
+      )}
     </div>
   )
 }
