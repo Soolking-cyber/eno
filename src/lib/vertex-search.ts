@@ -118,6 +118,10 @@ export async function conciergeSearch(query: string, f: SearchFilters = {}): Pro
     pageSize: f.take || 8,
     filter: buildFilter(f),
     boostSpec: BOOST_SPEC,
+    // Drop weak matches so a query like "iphone" returns phones — not the apartments/
+    // TVs Vertex would otherwise pad the page with. MEDIUM is the sweet spot (HIGH
+    // returns nothing on a sparse catalog; the route then falls back to keyword search).
+    relevanceThreshold: 'MEDIUM',
     // The generated summary needs an engine/app with LLM features enabled; if only a
     // data store is configured this is ignored and we still return ranked results.
     contentSearchSpec: {
