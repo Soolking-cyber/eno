@@ -29,6 +29,29 @@ Target architecture (decided 2026-06-28):
 - **Edge cache headers** — the feed (`/api/listings`), price histogram, category rails and businesses rail send `Cache-Control` with `s-maxage` + `stale-while-revalidate`, so Cloudflare can serve them from the VN edge.
 - **Cron routes** — `/api/cron/daily-reminders` and `/api/cron/saved-search-alerts` exist and are guarded by a `CRON_SECRET` bearer. We just re-point them from `vercel.json` to Cloud Scheduler.
 
+## Phase 0: run Vercel + Cloud Run in parallel, cut over at launch
+
+Both run off the **same commit** (the `VERCEL ? undefined : "standalone"` toggle picks
+the right output per platform) against the **same Supabase + Upstash** — they're stateless
+app servers, so this is just "more instances of the app." Each keeps its own connection
+pool; the transaction pooler is built for that. Rules for the parallel window:
+
+- **GCP on a staging hostname, not the live domain.** Keep `eno.vn` on Vercel; expose
+  Cloud Run at its `*.run.app` URL or `staging.eno.vn` (proxied). Validate against real
+  infra without touching real users. Set `NEXT_PUBLIC_APP_URL`/`BASE_URL` to the staging
+  host on the GCP deploy.
+- **⚠️ Crons must be single-homed.** The cron routes send notifications + mutate state, so
+  running them on *both* platforms double-sends. **Keep crons on Vercel only — do NOT
+  create the Cloud Scheduler jobs (§4) until cutover.** Cloud Run never self-triggers them.
+- **Don't split real users across both** for the same domain — independent ISR/CF caches +
+  server-side Meta CAPI mean split traffic risks stale-cache divergence and double-counted
+  conversions. Keep live users on Vercel; flip wholesale at launch.
+- **Cost:** Cloud Run `min-instances=1` ≈ $10–30/mo + usage; Vercel unchanged.
+
+**Launch = a DNS flip:** point the proxied `eno.vn` record Vercel → Cloud Run, create the
+Scheduler jobs (§4), delete the `vercel.json` crons. Rollback = flip the record back (keep
+Vercel up a few days). See §7 for the full cutover checklist.
+
 ## 0. Prerequisite: confirm Supabase region
 
 Dashboard → Project → Settings → General → Region. It **must be** `ap-southeast-1 (Singapore)` to sit next to Cloud Run. If it's elsewhere, moving regions = create a new Singapore project and `pg_dump`/`pg_restore` the data (the connection strings change). Do this first — everything else assumes the project is in Singapore.
