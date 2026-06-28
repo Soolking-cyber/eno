@@ -2,6 +2,7 @@
 
 import { useLanguage, useTr } from '@/context/language-context'
 import { timeAgo } from '@/lib/types'
+import { detectContentLang } from '@/lib/detect-lang'
 
 /**
  * Client-side localized listing title — mirrors the card: Vietnamese uses the
@@ -11,7 +12,11 @@ import { timeAgo } from '@/lib/types'
  */
 export function LocalizedTitle({ title, titleVi }: { title: string; titleVi: string | null }) {
   const { lang } = useLanguage()
-  return <>{useTr(lang === 'vi' ? titleVi || title : title)}</>
+  const out = useTr(lang === 'vi' ? titleVi || title : title)
+  // Tag the title's language when it differs from the page so a screen reader
+  // voices it correctly (WCAG 3.1.2). Never mislabels — see detectContentLang.
+  const cl = detectContentLang(out)
+  return cl && cl !== lang ? <span lang={cl}>{out}</span> : <>{out}</>
 }
 
 /** Relative "x ago" in the active language (client — keeps the page cacheable). */

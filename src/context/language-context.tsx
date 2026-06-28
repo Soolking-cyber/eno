@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react'
 import { VI_OVERRIDES } from '@/generated/vi-overrides'
+import { detectContentLang } from '@/lib/detect-lang'
 
 // djb2 hash of the UI string set → cache-busts the localStorage UI dictionary when
 // copy changes. A function (not a top-level const over a static import) so the large
@@ -457,7 +458,15 @@ export function useTr(text: string | null | undefined): string {
   return val
 }
 
-/** Renders a string translated to the active language (safe to use inside .map()). */
+/** Renders a string translated to the active language (safe to use inside .map()).
+ *  When the resolved text is in a DIFFERENT language than the page (e.g. an
+ *  untranslated Vietnamese title on an English page), it's wrapped in
+ *  `<span lang>` so assistive tech voices it correctly (WCAG 3.1.2). Detection only
+ *  fires on unambiguous scripts / VI-exclusive letters, so chrome in the page
+ *  language is never wrapped. */
 export function Tr({ text }: { text?: string | null }) {
-  return <>{useTr(text)}</>
+  const { lang } = useLanguage()
+  const out = useTr(text)
+  const cl = detectContentLang(out)
+  return cl && cl !== lang ? <span lang={cl}>{out}</span> : <>{out}</>
 }
