@@ -190,7 +190,7 @@ export function Header() {
           className="flex shrink-0 items-center"
           aria-label="eno.vn"
         >
-          <img src="/logo-mark.svg" alt="eno.vn" width={40} height={40} className="h-10 w-10" />
+          <img src="/logo-mark.svg" alt="eno.vn" width={48} height={48} className="h-12 w-12" />
         </Link>
 
         {showSearch ? (
