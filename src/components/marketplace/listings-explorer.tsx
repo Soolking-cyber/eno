@@ -42,7 +42,6 @@ import { useLanguage, Tr } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { LISTING_TYPES, INTENT_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor } from '@/lib/taxonomy'
-import { isMockImageUrl } from '@/lib/listing-image'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
@@ -1145,7 +1144,7 @@ export function ListingsExplorer({
               sizes="64px"
               className="object-cover transition-transform duration-200 group-hover:scale-105"
               loading={index < 6 ? 'eager' : 'lazy'}
-              unoptimized={isMockImageUrl(cover)}
+             
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-tint">
