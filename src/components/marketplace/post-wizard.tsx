@@ -232,6 +232,41 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [postingAs, setPostingAs] = useState<string | null>(null)
   const [meLoaded, setMeLoaded] = useState(false)
 
+  // ── Draft autosave (new listings only; photos aren't persisted). Restores the
+  // typed fields on return so an accidental close doesn't lose the work. ──
+  const draftHydrated = useRef(false)
+  useEffect(() => {
+    if (edit) { draftHydrated.current = true; return }
+    try {
+      const d = JSON.parse(localStorage.getItem('eno-listing-draft') || 'null')
+      if (d && (d.title || d.description || d.categorySlug || d.price)) {
+        if (d.categorySlug != null) setCategorySlug(d.categorySlug)
+        if (d.subcategorySlug != null) setSubcategorySlug(d.subcategorySlug)
+        if (d.listingType) setListingType(d.listingType)
+        if (d.attrs) setAttrs(d.attrs)
+        if (d.ranges) setRanges(d.ranges)
+        if (d.title) setTitle(d.title)
+        if (d.description) setDescription(d.description)
+        if (d.price) setPrice(d.price)
+        if (d.condition) setCondition(d.condition)
+        if (d.brand) setBrand(d.brand)
+        if (d.model) setModel(d.model)
+        if (d.province) setProvince(d.province)
+        if (d.ward) setWard(d.ward)
+        if (d.nearby) setNearby(d.nearby)
+        toast.success(t('Đã khôi phục bản nháp', 'Draft restored'))
+      }
+    } catch {}
+    draftHydrated.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edit])
+  useEffect(() => {
+    if (edit || !draftHydrated.current) return
+    try {
+      localStorage.setItem('eno-listing-draft', JSON.stringify({ categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, condition, brand, model, province, ward, nearby }))
+    } catch {}
+  }, [edit, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, condition, brand, model, province, ward, nearby])
+
   // Contact name + phone come from the ACCOUNT (not re-typed per post — a number is
   // unique per account). If the account is missing either, we prompt them to add it
   // in Settings first and block publishing.
@@ -416,6 +451,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       }
       const created = (await res.json().catch(() => ({}))) as { id?: string }
       trackPostListing({ id: created.id, title: title.trim(), price: Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
+      try { localStorage.removeItem('eno-listing-draft') } catch {}
       setSubmitted(true)
       onPosted?.() // embedded in dashboard → refresh listings + switch tab
     } catch (e) {
