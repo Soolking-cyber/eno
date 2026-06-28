@@ -1646,7 +1646,7 @@ export function ListingsExplorer({
                               <span className="eyebrow flex items-center gap-1 text-body"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }}
-                                className="text-[10px] font-semibold text-body hover:text-red-500 cursor-pointer"
+                                className="text-[11px] font-semibold text-body hover:text-red-500 cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
                               </button>
@@ -1656,7 +1656,7 @@ export function ListingsExplorer({
                                 <button
                                   key={i}
                                   onClick={() => { setLandingQuery(term); handleLandingSearch(term) }}
-                                  className="rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                                  className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
                                 >
                                   {term}
                                 </button>
@@ -1671,7 +1671,7 @@ export function ListingsExplorer({
                               <span className="eyebrow flex items-center gap-1 text-body"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }}
-                                className="text-[10px] font-semibold text-body hover:text-red-500 cursor-pointer"
+                                className="text-[11px] font-semibold text-body hover:text-red-500 cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
                               </button>
@@ -1681,9 +1681,9 @@ export function ListingsExplorer({
                                 <button
                                   key={i}
                                   onClick={() => applyRecentLocation(loc)}
-                                  className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                                  className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
                                 >
-                                  <MapPin className="h-3 w-3" />
+                                  <MapPin className="h-3.5 w-3.5" />
                                   {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
                                 </button>
                               ))}
