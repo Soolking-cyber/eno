@@ -107,9 +107,9 @@ export function BrandRail({
             {/* Models roll out to the right of the active brand */}
             {isActive && models.length > 0 && (
               <div className="flex shrink-0 items-start gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                <span className="h-11 w-px shrink-0 bg-border" />
-                {/* One horizontal row: All · 7 most-used · More — aligned with the logos. */}
-                <div className="flex h-11 items-center gap-2.5">
+                <span className="mt-1 h-12 w-px shrink-0 bg-border" />
+                {/* 3×3 grid (column-fill): All first, 7 most-used in between, More last. */}
+                <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-3 gap-y-1">
                   <button onClick={() => onPickModel('all')} className={modelChip(activeModel === 'all')}>{tr('All', 'Tất cả')}</button>
                   {visibleModels.map((m) => {
                     const mActive = activeModel === m.model
