@@ -263,7 +263,7 @@ export default function ThreadPage() {
         <div className="flex h-full w-full flex-col overflow-hidden">
           {/* Thread header (back arrow only on mobile — the list is always shown on desktop) */}
           <div className="flex items-center gap-3 bg-card px-4 py-3">
-            <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground lg:hidden"><ChevronLeft className="h-5 w-5" /></Link>
+            <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" /></Link>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-xs font-bold text-white">
               {thread?.counterpart.name.slice(0, 2).toUpperCase()}
             </span>
@@ -384,7 +384,7 @@ export default function ThreadPage() {
               onClick={toggleOffer}
               aria-label={tr('Make an offer', 'Gửi đề nghị giá')}
               title={tr('Make an offer', 'Gửi đề nghị giá')}
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer ${showOffer ? 'bg-[#0a66c2]/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer relative tap-44 ${showOffer ? 'bg-[#0a66c2]/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
             >
               <Tag className="h-[18px] w-[18px]" />
             </button>
@@ -405,7 +405,7 @@ export default function ThreadPage() {
                   type="button"
                   onClick={addThousand}
                   aria-label={tr('Add three zeros', 'Thêm 000')}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-accent px-2 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-[#0a66c2]/15 cursor-pointer"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-accent px-2 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-[#0a66c2]/15 cursor-pointer tap-44"
                 >
                   +000
                 </button>
@@ -426,7 +426,7 @@ export default function ThreadPage() {
               disabled={showOffer ? !offerInput : !text.trim()}
               aria-label={showOffer ? tr('Send offer', 'Gửi đề nghị') : tr('Send', 'Gửi')}
               title={showOffer ? tr('Send offer', 'Gửi đề nghị') : tr('Send', 'Gửi')}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
             >
               <Send className="h-4 w-4" />
             </button>

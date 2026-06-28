@@ -69,14 +69,14 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp 
             <button
               onClick={() => scroll(-1)}
               aria-label="Scroll left"
-              className="flex h-8 w-8 items-center justify-center text-ink-4 transition-colors hover:text-foreground cursor-pointer"
+              className="flex h-8 w-8 items-center justify-center text-ink-4 transition-colors hover:text-foreground cursor-pointer tap-44 relative"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
             <button
               onClick={() => scroll(1)}
               aria-label="Scroll right"
-              className="flex h-8 w-8 items-center justify-center text-ink-4 transition-colors hover:text-foreground cursor-pointer"
+              className="flex h-8 w-8 items-center justify-center text-ink-4 transition-colors hover:text-foreground cursor-pointer tap-44 relative"
             >
               <ChevronRight className="h-5 w-5" />
             </button>

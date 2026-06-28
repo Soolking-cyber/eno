@@ -104,7 +104,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
           className="gap-1 rounded-lg px-2.5 py-1 text-xs [&_svg]:h-3 [&_svg]:w-3"
         />
       )}
-      <button onClick={() => { if (confirm(tr('Delete this listing permanently?', 'Xóa vĩnh viễn tin này?'))) del() }} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30')}>
+      <button onClick={() => { if (confirm(tr('Delete this listing permanently?', 'Xóa vĩnh viễn tin này?'))) del() }} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 relative tap-44')}>
         <Trash2 className="h-3 w-3" />
       </button>
     </div>

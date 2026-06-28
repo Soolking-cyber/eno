@@ -48,7 +48,7 @@ export function NotificationBell() {
       <button
         onClick={toggle}
         aria-label={tr('Notifications', 'Thông báo')}
-        className="relative flex h-10 w-10 items-center justify-center rounded-full text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44"
       >
         {/* 28px everywhere — matches the bottom-nav icons on mobile and the
             Saved/Messages action icons on desktop (one consistent nav scale). */}
@@ -124,7 +124,7 @@ export function NotificationBell() {
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(n.id) }}
                       aria-label={tr('Delete notification', 'Xóa thông báo')}
-                      className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-4 opacity-0 transition-opacity hover:bg-accent hover:text-foreground cursor-pointer group-hover:opacity-100 focus:opacity-100 max-sm:opacity-100"
+                      className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-4 opacity-0 transition-opacity hover:bg-accent hover:text-foreground cursor-pointer group-hover:opacity-100 focus:opacity-100 max-sm:opacity-100 tap-44"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>

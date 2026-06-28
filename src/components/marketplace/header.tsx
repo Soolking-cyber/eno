@@ -229,7 +229,7 @@ export function Header() {
                   type="button"
                   onClick={() => { setSearchVal(''); submitSearch('') }}
                   aria-label={tr('Clear search', 'Xóa tìm kiếm')}
-                  className="mr-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
+                  className="mr-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground tap-44 relative"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -237,7 +237,7 @@ export function Header() {
               {/* Visual search — take/upload/paste a photo, search by its subject. Left of the area pin. */}
               <ImageSearchButton
                 iconClassName="h-6 w-6"
-                className="mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-body transition-colors hover:bg-muted disabled:opacity-60"
+                className="mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-body transition-colors hover:bg-muted disabled:opacity-60 tap-44 relative"
                 onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
                 onResult={(r) => { toast.dismiss('vis'); setSearchVal(r.query); setShowSuggestions(false); submitVisual(r) }}
                 onError={(m) => toast.error(m, { id: 'vis' })}
@@ -249,7 +249,7 @@ export function Header() {
                 onClick={() => { setAreaOpen((o) => !o); setShowSuggestions(false) }}
                 aria-label={tr('Area', 'Khu vực')}
                 className={cn(
-                  'mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95',
+                  'mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95 tap-44 relative',
                   province || ward || nearby
                     ? 'bg-[#0a66c2] text-white shadow-sm'
                     : 'text-body hover:bg-muted',
@@ -333,13 +333,13 @@ export function Header() {
           {/* Desktop quick actions (mobile uses the bottom nav): Saved · Messages · Bell */}
           {user && (
             <>
-              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
+              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44">
                 <Heart className={cn('h-6 w-6 sm:h-7 sm:w-7', savedCount > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
                 {savedCount > 0 && (
                   <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{savedCount > 9 ? '9+' : savedCount}</span>
                 )}
               </Link>
-              <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
+              <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44">
                 <MessageSquare className={cn('h-6 w-6 sm:h-7 sm:w-7', unread > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
                 {unread > 0 && (
                   <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>
@@ -353,7 +353,7 @@ export function Header() {
           ) : (
             <Link
               href="/signin"
-              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44 relative"
               aria-label={tr('Sign in', 'Đăng nhập')}
             >
               <User className="h-6 w-6 sm:h-7 sm:w-7" />

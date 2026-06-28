@@ -59,7 +59,7 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cn('inline-flex items-center gap-1 text-[11px] text-ink-4 hover:text-red-600 transition-colors cursor-pointer', className)}
+        className={cn('inline-flex items-center gap-1 text-[11px] text-ink-4 hover:text-red-600 transition-colors cursor-pointer tap-44 relative', className)}
       >
         <Flag className="h-3 w-3" /> {t('Báo cáo', 'Report')}
       </button>

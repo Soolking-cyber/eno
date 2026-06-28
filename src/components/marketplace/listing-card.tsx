@@ -137,7 +137,7 @@ export function ListingCard({
           aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
           aria-pressed={favorited}
           onClick={(e) => { e.stopPropagation(); toggle(listing.id) }}
-          className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer"
+          className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer tap-44"
         >
           {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow so
               it stays legible on ANY photo, in light & dark. Blue fill when saved. */}
@@ -152,7 +152,7 @@ export function ListingCard({
             type="button"
             aria-label={tr('Show on map', 'Xem trên bản đồ')}
             onClick={(e) => { e.stopPropagation(); onLocate() }}
-            className="absolute right-2 bottom-2 z-10 flex h-8 w-8 items-center justify-center text-white transition-transform hover:scale-110 active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
+            className="absolute right-2 bottom-2 z-10 flex h-8 w-8 items-center justify-center text-white transition-transform hover:scale-110 active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44"
           >
             <MapPin className="h-[20px] w-[20px]" />
           </button>
@@ -166,7 +166,7 @@ export function ListingCard({
                 type="button"
                 aria-label={tr('Previous photo')}
                 onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
-                className="absolute left-1 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 items-center justify-center text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
+                className="absolute left-1 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 items-center justify-center text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))] tap-44"
               >
                 <ChevronLeft className="h-6 w-6" />
               </button>
@@ -176,7 +176,7 @@ export function ListingCard({
                 type="button"
                 aria-label={tr('Next photo')}
                 onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
-                className="absolute right-1 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 items-center justify-center text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
+                className="absolute right-1 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 items-center justify-center text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))] tap-44"
               >
                 <ChevronRight className="h-6 w-6" />
               </button>

@@ -114,13 +114,13 @@ export function ConversationList() {
                 {confirmId === c.id ? (
                   <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
                     <button onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="rounded-xl bg-red-500 px-3 py-1.5 text-xs font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
-                    <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1.5 text-ink-4 hover:text-foreground"><X className="h-4 w-4" /></button>
+                    <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1.5 text-ink-4 hover:text-foreground relative tap-44"><X className="h-4 w-4" /></button>
                   </div>
                 ) : (
                   <button
                     onClick={() => setConfirmId(c.id)}
                     aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
-                    className="mr-2 ml-1 shrink-0 rounded-full p-2 text-ink-4 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+                    className="mr-2 ml-1 shrink-0 rounded-full p-2 text-ink-4 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100 relative tap-44"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

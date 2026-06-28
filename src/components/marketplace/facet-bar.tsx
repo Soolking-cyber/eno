@@ -247,7 +247,7 @@ export function FacetBar({
             className="z-[1100] max-h-[70vh] overflow-y-auto scroll-thin rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-bold text-foreground">{tr('Filters', 'Bộ lọc')}</span>
-              <button onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:bg-muted hover:text-foreground">
+              <button onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:bg-muted hover:text-foreground tap-44 relative">
                 <X className="h-4 w-4" />
               </button>
             </div>

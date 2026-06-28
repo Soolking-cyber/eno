@@ -47,7 +47,7 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         aria-label={tr('Dark mode', 'Chế độ tối')}
         title={isDark ? tr('Dark', 'Tối') : tr('Light', 'Sáng')}
         onClick={() => setTheme(isDark ? 'light' : 'dark')}
-        className="relative flex h-9 w-[3.75rem] shrink-0 items-center rounded-full bg-muted px-1 transition-colors cursor-pointer"
+        className="relative flex h-9 w-[3.75rem] shrink-0 items-center rounded-full bg-muted px-1 transition-colors cursor-pointer tap-44"
       >
         <span
           className={cn(

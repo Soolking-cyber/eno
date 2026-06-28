@@ -58,7 +58,7 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
         aria-haspopup="menu"
         aria-expanded={open}
         className={cn(
-          'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-semibold transition-colors cursor-pointer',
+          'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-semibold transition-colors cursor-pointer tap-44 relative',
           open ? 'text-accent-foreground' : 'text-body hover:text-accent-foreground',
         )}
       >

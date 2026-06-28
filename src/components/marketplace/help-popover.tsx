@@ -68,7 +68,7 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
           ) : (
             <span className="text-base font-bold text-foreground">{tr('Help', 'Trợ giúp')}</span>
           )}
-          <button type="button" onClick={onClose} aria-label={tr('Close', 'Đóng')} className="flex h-8 w-8 items-center justify-center rounded-full text-body transition-colors hover:bg-muted cursor-pointer">
+          <button type="button" onClick={onClose} aria-label={tr('Close', 'Đóng')} className="flex h-8 w-8 items-center justify-center rounded-full text-body transition-colors hover:bg-muted cursor-pointer relative tap-44">
             <X className="h-5 w-5" />
           </button>
         </div>

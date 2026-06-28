@@ -106,7 +106,7 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
         aria-label={tr('Share', 'Chia sẻ')}
         aria-expanded={open}
         className={cn(
-          'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95',
+          'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95 tap-44 relative',
           open ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted',
           className,
         )}

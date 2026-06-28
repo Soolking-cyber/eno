@@ -72,7 +72,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
           <button
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))] tap-44"
           >
             <X className="h-5 w-5" />
           </button>
