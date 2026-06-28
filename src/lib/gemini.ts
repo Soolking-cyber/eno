@@ -13,9 +13,14 @@ let client: GoogleGenAI | null | undefined
 
 export function getGemini(): GoogleGenAI | null {
   if (client !== undefined) return client
-  const project = process.env.GOOGLE_VERTEX_PROJECT
-  const location = process.env.GOOGLE_VERTEX_LOCATION || 'us-central1'
-  const rawCreds = process.env.GOOGLE_VERTEX_CREDENTIALS
+  // Gemini bills REAL money — the $1000 GenAI credit covers Vertex AI SEARCH, NOT the
+  // Gemini API — so it can run on its OWN project/billing, separate from Vertex Search.
+  // Prefer GEMINI_* env (e.g. the eno-translate project on the $300 free trial); fall
+  // back to the shared GOOGLE_VERTEX_* (eno-vn) when unset. vertex-search.ts keeps using
+  // GOOGLE_VERTEX_* (where the data store lives), so the two stay decoupled.
+  const project = process.env.GEMINI_PROJECT || process.env.GOOGLE_VERTEX_PROJECT
+  const location = process.env.GEMINI_LOCATION || process.env.GOOGLE_VERTEX_LOCATION || 'us-central1'
+  const rawCreds = process.env.GEMINI_CREDENTIALS || process.env.GOOGLE_VERTEX_CREDENTIALS
   if (!project || !rawCreds) { client = null; return null }
   try {
     // Accept the SA key as raw JSON OR base64-encoded JSON. base64 is paste-safe
