@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
@@ -81,7 +82,7 @@ export async function GET(req: Request) {
   }
 
   // It's a paid call — rate-limit per IP so it can't be hammered.
-  const ip = (req.headers.get('x-forwarded-for') || 'anon').split(',')[0].trim()
+  const ip = clientIp(req)
   const rl = await rateLimit('geocode', ip, 30, '1 m')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 

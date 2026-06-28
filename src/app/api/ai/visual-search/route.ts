@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   // Search is open to everyone, so allow anonymous — but bound cost/abuse by
   // rate-limiting on the profile when signed in, else the client IP.
   const profileId = await getCurrentProfileId()
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+  const ip = clientIp(req)
   const limit = await rateLimit('ai-visual-search', profileId || ip, 30, '1 h')
   if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 

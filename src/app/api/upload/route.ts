@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import sharp from 'sharp'
 import { getSupabaseAdmin, LISTINGS_BUCKET } from '@/lib/supabase-admin'
 import { getCurrentProfileId } from '@/lib/admin'
@@ -24,7 +25,7 @@ const WEBP_QUALITY = 82
 export async function POST(req: NextRequest) {
   try {
     const profileId = await getCurrentProfileId()
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+    const ip = clientIp(req)
     const limit = profileId
       ? await rateLimit('upload-user', profileId, 120, '1 h')
       : await rateLimit('upload-ip', ip, 30, '1 h')

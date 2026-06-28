@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
 import { getCurrentProfileId, getAdmin } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
@@ -13,7 +14,7 @@ const KINDS = ['feedback', 'technical', 'other'] as const
 // when signed in, else by IP, to bound abuse + cost. Lands in /admin/feedback.
 export async function POST(req: NextRequest) {
   const profileId = await getCurrentProfileId()
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+  const ip = clientIp(req)
   const rl = await rateLimit('feedback', profileId || ip, 8, '1 h')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 

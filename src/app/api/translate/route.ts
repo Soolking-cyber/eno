@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import { translateBatch, uncachedStats, LANGS, type Lang } from '@/lib/translate'
 import { rateLimit } from '@/lib/ratelimit'
 
 export async function POST(req: Request) {
   // Public + triggers PAID translation on a cache miss → cross-request IP throttle
   // so the per-request size guard below can't be looped to drain the budget.
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+  const ip = clientIp(req)
   const rl = await rateLimit('translate', ip, 60, '1 m')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   try {

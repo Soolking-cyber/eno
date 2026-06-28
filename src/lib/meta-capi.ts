@@ -1,4 +1,5 @@
 import 'server-only'
+import { clientIp } from '@/lib/client-ip'
 import crypto from 'crypto'
 
 // ── Meta Conversions API (server-side) ───────────────────────────────────────
@@ -67,7 +68,8 @@ export function metaUserDataFromHeaders(
   headers: Headers,
   extra: { email?: string | null; phone?: string | null; externalId?: string | null } = {},
 ): MetaUserData {
-  const ip = (headers.get('x-forwarded-for') || '').split(',')[0].trim() || undefined
+  const resolved = clientIp(headers)
+  const ip = resolved === 'anon' ? undefined : resolved
   const ua = headers.get('user-agent') || undefined
   const cookie = headers.get('cookie') || ''
   const read = (name: string) => {

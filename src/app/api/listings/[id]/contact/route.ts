@@ -1,4 +1,5 @@
 import { NextResponse, after } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { createSupabaseServer } from '@/lib/supabase/server'
@@ -26,7 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
 
-  const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
+  const ip = clientIp(req)
 
   // Rate limit per user AND per IP (sliding window). Both must pass.
   const [byUser, byIp] = await Promise.all([

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
@@ -352,7 +353,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   // Guest posting is allowed (resolve-by-phone), and each create can fan out paid
   // translation + social syndication → IP throttle to cap floods.
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+  const ip = clientIp(req)
   const rl = await rateLimit('listing-create', ip, 15, '1 h')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   try {

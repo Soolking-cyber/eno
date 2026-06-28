@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
 import { fold } from '@/lib/fold'
 import { rateLimit } from '@/lib/ratelimit'
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (q.length < 2) return NextResponse.json({ q, listings: [], categories: [] })
 
   // Public + unindexed-ILIKE per keystroke → IP throttle to bound DB amplification.
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+  const ip = clientIp(req)
   const rl = await rateLimit('search-suggest', ip, 120, '1 m')
   if (!rl.success) return NextResponse.json({ q, listings: [], categories: [] })
 

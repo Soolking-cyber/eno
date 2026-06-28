@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
 import { matchBrand, categoryHasBrand } from '@/lib/brand'
 import { fold } from '@/lib/fold'
@@ -85,7 +86,7 @@ export async function GET(req: NextRequest) {
 
   // Public + runs Levenshtein over the brand catalogue + a 120-row ILIKE scan per
   // call → IP throttle to bound DB amplification.
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
+  const ip = clientIp(req)
   const rl = await rateLimit('search-resolve', ip, 120, '1 m')
   if (!rl.success) return empty
 
