@@ -20,6 +20,7 @@ import {
   Eye,
 } from 'lucide-react'
 import { RelatedListings } from '@/components/marketplace/related-listings'
+import { RecentlyViewedRail } from '@/components/marketplace/recently-viewed-rail'
 import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { Price } from '@/components/marketplace/price'
@@ -395,6 +396,9 @@ export default async function ListingPage({ params }: Props) {
 
         {/* More like this — same-category listings (client-fetched, ISR-safe) */}
         <RelatedListings listingId={listing.id} categorySlug={rawListing.category.slug} />
+
+        {/* The buyer's own recently-viewed trail (excludes this listing). */}
+        <RecentlyViewedRail excludeId={listing.id} />
       </main>
 
       {/* Mobile sticky contact bar — the bottom nav is hidden on listing pages, so

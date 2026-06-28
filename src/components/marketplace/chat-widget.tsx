@@ -10,6 +10,7 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { Price } from './price'
+import { VndInput } from './vnd-input'
 
 type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string }
@@ -539,28 +540,24 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         <div ref={bottomRef} />
       </div>
 
-      {/* Offer amount input (toggled by the Offer button) */}
+      {/* Offer amount input (toggled by the Offer button) — the highest-stakes number
+          in the app, so it reuses VndInput (dot-grouping, ×1k/×1M chips, "= 12 triệu"
+          readability) instead of a bare numeric box. */}
       {showOffer && (
-        <div className="flex items-center gap-2 px-3 pt-2">
-          <input
-            value={offerInput}
-            onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 12); setOfferInput(d ? new Intl.NumberFormat('en-US').format(Number(d)) : '') }}
-            inputMode="numeric"
-            autoFocus
-            placeholder={tr('Offer amount (₫)', 'Số tiền đề nghị (₫)')}
-            className="min-w-0 flex-1 rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-            onKeyDown={(e) => { if (e.key === 'Enter') { const n = Number(offerInput.replace(/\D/g, '')); if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') } } }}
-          />
-          <button
-            onClick={() => { const n = Number(offerInput.replace(/\D/g, '')); if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') } }}
-            disabled={!offerInput}
-            className="shrink-0 rounded-2xl bg-primary px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
-          >
-            {tr('Send offer', 'Gửi đề nghị')}
-          </button>
-          <button onClick={() => { setShowOffer(false); setOfferInput('') }} aria-label={tr('Cancel', 'Hủy')} className="shrink-0 text-ink-4 hover:text-foreground cursor-pointer">
-            <X className="h-4 w-4" />
-          </button>
+        <div className="px-3 pt-2">
+          <VndInput value={offerInput} onChange={setOfferInput} autoFocus placeholder={tr('Offer amount', 'Số tiền đề nghị')} />
+          <div className="mt-1 flex items-center gap-2">
+            <button
+              onClick={() => { const n = Number(offerInput.replace(/\D/g, '')); if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') } }}
+              disabled={!offerInput.replace(/\D/g, '')}
+              className="flex-1 rounded-2xl bg-primary px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
+            >
+              {tr('Send offer', 'Gửi đề nghị')}
+            </button>
+            <button onClick={() => { setShowOffer(false); setOfferInput('') }} className="shrink-0 rounded-2xl px-3 py-2 text-sm font-semibold text-ink-4 hover:bg-muted hover:text-foreground cursor-pointer">
+              {tr('Cancel', 'Hủy')}
+            </button>
+          </div>
         </div>
       )}
 

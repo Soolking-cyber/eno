@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { trackViewListing, type Currency } from '@/lib/analytics'
-import { recordView } from '@/lib/reco-signals'
+import { recordView, recordViewedListing } from '@/lib/reco-signals'
 
 /**
  * Fires the GA4 view_item / Meta ViewContent conversion once per listing view.
@@ -19,6 +19,8 @@ export function TrackView({ id, title, price, currency, category, categorySlug, 
     trackViewListing({ id, title, price, currency, category })
     // Personalization signal for the "For You" rail (first-party, on-site).
     recordView(categorySlug, brandSlug)
+    // Remember the exact item so the buyer can re-find it ("Recently viewed").
+    recordViewedListing(id)
   }, [id, title, price, currency, category, categorySlug, brandSlug])
   return null
 }

@@ -61,6 +61,10 @@ export function ListingCard({
   const last = images.length - 1
   const goTo = (n: number) => setIdx(Math.max(0, Math.min(last, n)))
 
+  // Freshness cue: a quiet "New" chip for the first ~48h only. Absence is neutral —
+  // we never stamp a date on every card (that would just visibly age stale stock).
+  const isNew = !!listing.postedAt && Date.now() - new Date(listing.postedAt).getTime() < 48 * 60 * 60 * 1000
+
   return (
     <div
       role="button"
@@ -130,6 +134,13 @@ export function ListingCard({
 
         {/* eno.vn watermark — hidden until a save/copy/drag attempt (ImageShield) */}
         {images.length > 0 && <span className="img-watermark" aria-hidden />}
+
+        {/* Freshness chip — top-left, only for recently posted listings. */}
+        {isNew && (
+          <span className="absolute left-2 top-2 z-10 rounded-full bg-foreground/85 px-2 py-0.5 text-[10px] font-bold text-background shadow-sm backdrop-blur-[2px]">
+            {tr('New', 'Mới')}
+          </span>
+        )}
 
         {/* favorite heart */}
         <button

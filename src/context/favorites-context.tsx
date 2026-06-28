@@ -1,7 +1,10 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import type { SerializedListing } from '@/lib/types'
+import { useLanguage } from '@/context/language-context'
 
 const KEY = 'eno:favorites'
 const SAVED_KEY = 'eno-saved-cache' // { idKey, list } — device-local functional cache
@@ -18,6 +21,8 @@ const FavoritesContext = createContext<FavoritesCtx | undefined>(undefined)
 
 export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   const [ids, setIds] = useState<Set<string>>(new Set())
+  const router = useRouter()
+  const { tr } = useLanguage()
 
   useEffect(() => {
     try {
@@ -35,6 +40,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const toggle = useCallback((id: string) => {
+    const added = !ids.has(id)
     setIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -42,7 +48,16 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
       try { localStorage.setItem(KEY, JSON.stringify([...next])) } catch { /* ignore */ }
       return next
     })
-  }, [])
+    // Favorites are device-local, so "did it save? where?" is genuinely ambiguous —
+    // confirm on ADD only, with a jump to /saved. A shared toast id means rapid
+    // hearting replaces rather than stacks.
+    if (added) {
+      toast(tr('Saved on this device', 'Đã lưu trên thiết bị này'), {
+        id: 'fav-saved',
+        action: { label: tr('View', 'Xem'), onClick: () => router.push('/saved') },
+      })
+    }
+  }, [ids, tr, router])
 
   const isFavorite = useCallback((id: string) => ids.has(id), [ids])
 

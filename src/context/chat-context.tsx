@@ -1,7 +1,9 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import { useAuth } from './auth-context'
+import { useLanguage } from './language-context'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 
 type View = 'list' | 'thread'
@@ -47,6 +49,7 @@ const ChatContext = createContext<ChatCtx | undefined>(undefined)
 /** Global chat state for the floating widget (launcher + docked panel). */
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
+  const { tr } = useLanguage()
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<View>('list')
   const [conversationId, setConversationId] = useState<string | null>(null)
@@ -112,8 +115,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     })
     threadCache.current.delete(id)
     if (user) { try { localStorage.removeItem(THREAD_PREFIX + id) } catch {} }
-    fetch(`/api/conversations/${id}`, { method: 'DELETE' }).then(() => refreshUnread()).catch(() => {})
-  }, [user, refreshUnread])
+    // Hold the server DELETE for the toast's lifetime so a mis-tap is recoverable —
+    // the row stays server-side until then, so Undo just re-pulls the inbox.
+    let undone = false
+    const commit = setTimeout(() => {
+      if (undone) return
+      fetch(`/api/conversations/${id}`, { method: 'DELETE' }).then(() => refreshUnread()).catch(() => {})
+    }, 5000)
+    toast(tr('Conversation removed', 'Đã xóa cuộc trò chuyện'), {
+      duration: 5000,
+      action: {
+        label: tr('Undo', 'Hoàn tác'),
+        onClick: () => { undone = true; clearTimeout(commit); refreshConvos() },
+      },
+    })
+  }, [user, refreshUnread, refreshConvos, tr])
 
   useEffect(() => {
     if (!user) { setConvos(null); threadCache.current.clear(); return }

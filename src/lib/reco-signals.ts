@@ -5,8 +5,10 @@
 // consent (see lib/consent.ts); the rail falls back to Trending otherwise.
 
 const VIEWED_KEY = 'eno:viewed'           // [{ c: categorySlug, b?: brandSlug }], newest first
+const VIEWED_IDS_KEY = 'eno:viewed_ids'   // string[] of listing ids, newest first
 const SEARCH_KEY = 'eno:recent_searches'  // string[], written by the header search
 const MAX = 24
+const MAX_IDS = 20
 
 type Viewed = { c: string; b?: string }
 
@@ -19,6 +21,26 @@ export function recordView(categorySlug?: string | null, brandSlug?: string | nu
     const next = [entry, ...list.filter((v) => !(v.c === entry.c && v.b === entry.b))].slice(0, MAX)
     localStorage.setItem(VIEWED_KEY, JSON.stringify(next))
   } catch { /* private mode — skip */ }
+}
+
+/** Record the exact listing a buyer opened, so they can re-find it (the category/brand
+ *  signal above only powers ranking — it can't re-surface the specific item). */
+export function recordViewedListing(id?: string | null): void {
+  if (typeof window === 'undefined' || !id) return
+  try {
+    const list: string[] = JSON.parse(localStorage.getItem(VIEWED_IDS_KEY) || '[]')
+    const next = [id, ...(Array.isArray(list) ? list : []).filter((x) => x !== id)].slice(0, MAX_IDS)
+    localStorage.setItem(VIEWED_IDS_KEY, JSON.stringify(next))
+  } catch { /* private mode — skip */ }
+}
+
+/** Recently-viewed listing ids, newest first. */
+export function getViewedListingIds(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const list = JSON.parse(localStorage.getItem(VIEWED_IDS_KEY) || '[]')
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string') : []
+  } catch { return [] }
 }
 
 export type RecoSignals = { terms: string[]; categories: string[]; brands: string[] }

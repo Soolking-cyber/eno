@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react'
 import {
   Search,
   SlidersHorizontal,
@@ -29,6 +29,7 @@ import { CustomSelect } from './custom-select'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
 import { ForYouRail } from './for-you-rail'
+import { RecentlyViewedRail } from './recently-viewed-rail'
 import { BusinessRail } from './business-rail'
 import { DISTRICTS } from './listings-explorer.constants'
 import { FavoriteHeart } from './favorite-heart'
@@ -37,6 +38,7 @@ import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { LISTING_TYPES, INTENT_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor } from '@/lib/taxonomy'
 import { isMockImageUrl } from '@/lib/listing-image'
@@ -141,6 +143,7 @@ export function ListingsExplorer({
   listingsRef,
 }: Props) {
   const { lang, t, tr } = useLanguage()
+  const { openSignIn } = useAuth()
   const [activeCategory, setActiveCategory] = useState('all')
   const [query, setQuery] = useState('')
   // Loose (any-word) text match — set by visual search so a photo-derived phrase
@@ -190,6 +193,11 @@ export function ListingsExplorer({
       .sort((a, b) => (b.l.seller.trustScore - a.l.seller.trustScore) || (a.d - b.d))
       .map((x) => x.l)
   }, [listings, nearby])
+  // Render the card grids off a DEFERRED copy so a facet/sort toggle paints the
+  // control's new state immediately and the (heavier) grid reconciliation runs as a
+  // non-urgent update — keeps INP low on mid-range Android.
+  const deferredListings = useDeferredValue(shownListings)
+  const [, startFilterTransition] = useTransition()
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
@@ -1106,13 +1114,13 @@ export function ListingsExplorer({
     }
     try {
       const res = await fetch('/api/saved-searches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ params }) })
-      if (res.status === 401) { toast.error(tr('Sign in to save searches', 'Đăng nhập để lưu tìm kiếm')); return }
+      if (res.status === 401) { openSignIn(); return }
       if (res.status === 409) { toast.error(tr("You've reached the saved-search limit", 'Bạn đã đạt giới hạn tìm kiếm đã lưu')); return }
       if (!res.ok) throw new Error()
       toast.success(tr("Saved — we'll alert you on new matches", 'Đã lưu — sẽ báo khi có tin mới phù hợp'))
     } catch { toast.error(tr('Could not save search', 'Không thể lưu tìm kiếm')) }
     finally { savingSearch.current = false }
-  }, [activeCategory, activeSubcategory, activeBrand, activeModel, listingType, debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters, tr])
+  }, [activeCategory, activeSubcategory, activeBrand, activeModel, listingType, debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters, tr, openSignIn])
 
   const renderCompactRow = useCallback((l: SerializedListing, index: number) => {
     const cover = l.images[0]
@@ -1135,8 +1143,7 @@ export function ListingsExplorer({
               fill
               sizes="64px"
               className="object-cover transition-transform duration-200 group-hover:scale-105"
-              priority={index < 4}
-              loading={index < 4 ? undefined : 'lazy'}
+              loading={index < 6 ? 'eager' : 'lazy'}
               unoptimized={isMockImageUrl(cover)}
             />
           ) : (
@@ -1831,6 +1838,10 @@ export function ListingsExplorer({
             </div>
           </div>
 
+          {/* Recently viewed — the returning buyer's own trail, up top so they can
+              jump straight back to an item. Self-hides for new visitors. */}
+          <RecentlyViewedRail />
+
           {/* For You — horizontal rail between the category grid and the vertical feed
               (search → categories → horizontal For You → vertical). Self-hides once a
               filter/search is active. */}
@@ -1867,14 +1878,14 @@ export function ListingsExplorer({
           ) : (
             <>
               <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {shownListings.map((l, index) => (
+                {deferredListings.map((l, index) => (
                   <div
                     key={l.id}
                     className="flex flex-col h-full"
                     onMouseEnter={() => prefetchListing(l.id)}
                     onTouchStart={() => prefetchListing(l.id)}
                   >
-                    <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} onLocate={() => locateOnMap(l.id)} />
+                    <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={() => locateOnMap(l.id)} />
                   </div>
                 ))}
               </div>
@@ -1992,6 +2003,24 @@ export function ListingsExplorer({
             </button>
           )}
         </div>
+
+        {/* A dead end orients nobody — offer a one-tap jump to popular categories. */}
+        {categories.length > 0 && (
+          <div className="flex flex-col items-center gap-2 pt-1">
+            <span className="text-xs text-ink-4">{tr('Or browse', 'Hoặc xem')}</span>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {categories.slice(0, 4).map((c) => (
+                <button
+                  key={c.slug}
+                  onClick={() => handleCategorySelect(c.slug)}
+                  className="inline-flex items-center rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                >
+                  {lang === 'vi' ? c.nameVi : c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -2072,19 +2101,33 @@ export function ListingsExplorer({
 
             {/* Sort & View Control Bar (search lives in the header now) */}
             <div className="flex flex-col sm:flex-row gap-2.5 items-center sm:justify-between">
-              {/* Save this search → alerts on new matches */}
-              <button
-                onClick={saveSearch}
-                className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-xl px-3 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer sm:self-auto"
-              >
-                <Bookmark className="h-4 w-4 text-accent-foreground" />
-                {tr('Save search', 'Lưu tìm kiếm')}
-              </button>
+              {/* Save this search → alerts on new matches. Once a filter is active it
+                  becomes a clearer tinted pill with a one-line "why" subtitle. */}
+              {(() => {
+                const filterActive = getActiveChips().length > 0
+                return (
+                  <button
+                    onClick={saveSearch}
+                    className={cn(
+                      'inline-flex shrink-0 items-center gap-2 self-start rounded-xl px-3 py-2 text-sm font-semibold transition-colors cursor-pointer sm:self-auto',
+                      filterActive ? 'bg-brand-50 text-accent-foreground hover:bg-accent' : 'text-body hover:bg-muted',
+                    )}
+                  >
+                    <Bookmark className="h-4 w-4 text-accent-foreground" />
+                    <span className="flex flex-col items-start text-left leading-tight">
+                      <span>{tr('Save search', 'Lưu tìm kiếm')}</span>
+                      {filterActive && (
+                        <span className="text-[10px] font-normal text-muted-foreground">{tr('Get alerts on new matches', 'Nhận thông báo khi có tin mới')}</span>
+                      )}
+                    </span>
+                  </button>
+                )
+              })()}
               {/* Sorting & Views */}
               <div className="flex items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
                 <CustomSelect
                   value={sort}
-                  onChange={(val) => setSort(val as SortKey)}
+                  onChange={(val) => startFilterTransition(() => setSort(val as SortKey))}
                   options={[
                     { value: 'newest', label: tr('Newest', 'Mới đăng') },
                     { value: 'price-low', label: tr('Price: Low to High', 'Giá: thấp-cao') },
@@ -2217,14 +2260,14 @@ export function ListingsExplorer({
                 {viewMode === 'grid' && (
                   /* Grid Mode (Standard Cards) */
                   <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                    {shownListings.map((l, index) => (
+                    {deferredListings.map((l, index) => (
                       <div
                         key={l.id}
                         className="flex flex-col h-full"
                         onMouseEnter={() => prefetchListing(l.id)}
                         onTouchStart={() => prefetchListing(l.id)}
                       >
-                        <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} onLocate={() => locateOnMap(l.id)} />
+                        <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={() => locateOnMap(l.id)} />
                       </div>
                     ))}
                   </div>
@@ -2288,7 +2331,7 @@ export function ListingsExplorer({
                      desktop so the wide row doesn't strand the actions far right
                      with a big empty middle; single column on mobile. */
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5">
-                    {shownListings.map((l, index) => (
+                    {deferredListings.map((l, index) => (
                       <div key={l.id}>
                         {renderCompactRow(l, index)}
                       </div>
