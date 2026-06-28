@@ -5,7 +5,7 @@
 # pg driver is pure JS, so no native binaries / OpenSSL gymnastics are needed.
 
 # ---------- deps: install node_modules (incl. dev, needed to build) ----------
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 # `npm ci` runs the postinstall `prisma generate`; the schema is needed for that.
@@ -14,7 +14,7 @@ COPY prisma.config.ts ./
 RUN npm ci
 
 # ---------- builder: next build → .next/standalone ----------
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -35,7 +35,7 @@ ARG DIRECT_URL
 RUN npm run build
 
 # ---------- runner: minimal non-root server ----------
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
