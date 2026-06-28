@@ -26,7 +26,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const current = await db.listing.findUnique({
     where: { id },
-    select: { title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, category: { select: { slug: true, name: true, nameVi: true } } },
+    select: { title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true, seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } } },
   })
   if (!current) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -131,6 +131,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const newBrand = (data.brandSlug as string | null | undefined) ?? current.brandSlug
   const newModel = (data.model as string | null | undefined) ?? current.model
   data.searchText = buildSearchText([newTitle, newDesc, newDistrict, current.category.name, current.category.nameVi, newBrand, newModel])
+
+  // Republish a HELD listing (verified=false — it was photoless or the seller was
+  // Restricted) the moment it becomes eligible again: adding a photo to a held listing
+  // must make it public, not leave it dead inventory (manual moderation was removed).
+  // The publish gate mirrors create: >=1 image AND a non-restricted seller. The PATCH's
+  // reindex after() then indexes it for AI search since verified flips to true.
+  if (current.verified === false && current.seller?.trustTier !== 'restricted') {
+    let imgs: string[] = []
+    try { imgs = data.images !== undefined ? JSON.parse(data.images as string) : JSON.parse(current.images || '[]') } catch { imgs = [] }
+    if (imgs.length >= 1) data.verified = true
+  }
 
   await db.listing.update({ where: { id }, data })
   if (brandChange) after(() => Promise.all([
