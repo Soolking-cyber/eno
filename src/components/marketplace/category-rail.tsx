@@ -72,10 +72,10 @@ export function CategoryRail({
         const subs = isActive
           ? [...(SUBCATEGORIES[cat.slug] ?? [])].sort((a, b) => (subcategoryCounts[b.slug] ?? 0) - (subcategoryCounts[a.slug] ?? 0))
           : []
-        // Show the 8 most-used inline; the rest live in a "More" dropdown (auto-adjusts
-        // as the listing counts above re-rank them).
-        const visibleSubs = subs.slice(0, 8)
-        const overflowSubs = subs.slice(8)
+        // One clean row: "All" first, the 7 most-used in the middle, "More" last.
+        // (auto-adjusts as the listing counts above re-rank them.)
+        const visibleSubs = subs.slice(0, 7)
+        const overflowSubs = subs.slice(7)
         return (
           <Fragment key={cat.id}>
             <button data-cat={cat.slug} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={tileCls}>
@@ -88,9 +88,9 @@ export function CategoryRail({
             {/* Subcategories roll out to the right of the active category */}
             {subs.length > 0 && (
               <div className="flex shrink-0 items-start gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                <span className="mt-1 h-12 w-px shrink-0 bg-border" />
-                {/* 3 fixed rows; subcategories flow into columns to the right (robust on mobile). */}
-                <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-3 gap-y-1">
+                <span className="h-11 w-px shrink-0 bg-border" />
+                {/* One horizontal row: All · 7 most-used · More — aligned with the icons. */}
+                <div className="flex h-11 items-center gap-2.5">
                   <button onClick={() => onSubcategory('all')} className={subChip(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
                   {visibleSubs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug
