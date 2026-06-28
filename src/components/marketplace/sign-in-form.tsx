@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Mail, Phone, Loader2 } from 'lucide-react'
+import { Mail, Phone, Loader2, ExternalLink } from 'lucide-react'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { useLanguage } from '@/context/language-context'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { googleOauthBlocked, openInSystemBrowser } from '@/lib/in-app-browser'
 
 const RESEND_SECONDS = 60
 
@@ -26,6 +27,11 @@ export function SignInForm({ className }: { className?: string }) {
   const [error, setError] = useState('')
   const [countdown, setCountdown] = useState(0)
   const lastSubmitted = useRef('')
+  // Google blocks OAuth inside in-app browsers / iOS PWAs (403 disallowed_useragent).
+  // Detect that client-side and hand off to the real browser instead of dead-ending.
+  const [oauthBlocked, setOauthBlocked] = useState(false)
+  const [iosHint, setIosHint] = useState(false)
+  useEffect(() => { setOauthBlocked(googleOauthBlocked()) }, [])
 
   const supabase = createSupabaseBrowser()
   // Return the user to the page they triggered sign-in from (continuum of their
@@ -48,7 +54,22 @@ export function SignInForm({ className }: { className?: string }) {
     return () => clearTimeout(id)
   }, [countdown])
 
+  // Re-open the sign-in page in the device's real browser (escaping the in-app
+  // webview), preserving where the user wanted to go.
+  const openGoogleInBrowser = () => {
+    if (typeof window === 'undefined') return
+    const { origin, pathname, search } = window.location
+    let next = pathname + search
+    if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/'
+    if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
+    const handed = openInSystemBrowser(`${origin}/signin?next=${encodeURIComponent(next)}`)
+    if (!handed) setIosHint(true) // iOS can't auto-escape a webview → show the manual hint
+  }
+
   const oauth = async (provider: 'google') => {
+    // In an in-app browser / iOS PWA, OAuth is rejected (disallowed_useragent) — break
+    // out to the real browser instead of letting Google show its block page.
+    if (oauthBlocked) { openGoogleInBrowser(); return }
     setError('')
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } })
     if (error) setError(error.message)
@@ -133,10 +154,19 @@ export function SignInForm({ className }: { className?: string }) {
 
   return (
     <div className={cn('space-y-3', className)}>
-      {/* OAuth */}
+      {/* OAuth — in an in-app browser / iOS PWA, Google rejects OAuth, so this hands
+          off to the real browser (Android: automatic; iOS: shows the manual hint). */}
       <button onClick={() => oauth('google')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-foreground hover:bg-muted transition-colors cursor-pointer">
-        <GoogleIcon /> {t('Tiếp tục với Google', 'Continue with Google')}
+        <GoogleIcon /> {oauthBlocked ? t('Mở Google trong trình duyệt', 'Open Google in your browser') : t('Tiếp tục với Google', 'Continue with Google')}
+        {oauthBlocked && <ExternalLink className="h-3.5 w-3.5 text-ink-4" />}
       </button>
+      {oauthBlocked && (
+        <p className="rounded-xl bg-tint px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+          {iosHint
+            ? t('Chạm ••• ở trên rồi chọn “Mở trong Safari”, sau đó đăng nhập với Google. Hoặc dùng SĐT/email bên dưới — vẫn hoạt động ngay tại đây.', 'Tap ••• at the top, choose “Open in Safari/Browser”, then sign in with Google. Or just use Phone/Email below — they work right here.')
+            : t('Google chỉ hoạt động trong trình duyệt thật. Dùng SĐT hoặc email bên dưới — vẫn hoạt động ngay tại đây.', 'Google sign-in needs your real browser. Phone or email below work right here.')}
+        </p>
+      )}
 
       <div className="flex items-center gap-3 py-1">
         <span className="h-px flex-1 bg-border" />
