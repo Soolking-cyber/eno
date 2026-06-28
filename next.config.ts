@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
   // in PSI); inlining removes that request so first paint isn't gated on it.
   experimental: {
     inlineCss: true,
+    // Tree-shake barrel-export packages so only the icons/primitives actually used
+    // are bundled (lucide-react is imported across ~68 files) — trims first-party JS.
+    optimizePackageImports: ["lucide-react"],
   },
   // Pin the workspace root so Turbopack doesn't pick up a stray lockfile higher
   // up the tree (e.g. ~/package-lock.json) as the project root.
