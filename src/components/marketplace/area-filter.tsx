@@ -132,7 +132,7 @@ export function AreaFilter({
   const [address, setAddress] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
   const [locating, setLocating] = useState(false)
-  const pendingWard = useRef<string | null>(null) // ward name from geolocation, applied once its wards load
+  const pendingWard = useRef<string[]>([]) // ward-name candidates from geolocation, applied once its wards load
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -164,10 +164,11 @@ export function AreaFilter({
         if (off) return
         const ws = d.wards || []
         setWards(ws); setLoadingWards(false)
-        // Apply a ward pending from geolocation once its province's wards arrive.
-        if (pendingWard.current) {
-          const w = findUnit(ws, pendingWard.current)
-          if (w) { setWardCode(w.code); pendingWard.current = null }
+        // Apply a ward pending from geolocation once its province's wards arrive —
+        // try each candidate name until one matches a real ward.
+        for (const cand of pendingWard.current) {
+          const w = findUnit(ws, cand)
+          if (w) { setWardCode(w.code); pendingWard.current = []; break }
         }
       })
       .catch(() => { if (!off) setLoadingWards(false) })
@@ -184,15 +185,19 @@ export function AreaFilter({
       const r = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}&lang=${lang}`)
       const d = await r.json()
       if (d.address) setAddress(d.address)
-      // Auto-select province + ward from the geocoder's explicit fields (diacritic-insensitive).
-      pendingWard.current = d.ward || null
+      // Auto-select province + ward from the geocoder's fields (diacritic-insensitive).
+      // wardCandidates carries several name guesses (the precise top result often omits
+      // the official ward) — try them in order.
+      pendingWard.current = Array.isArray(d.wardCandidates) && d.wardCandidates.length ? d.wardCandidates : (d.ward ? [d.ward] : [])
       const prov = findUnit(provinces, d.province || '')
       if (prov && prov.code !== provCode) {
         setProvCode(prov.code); setWardCode('') // the wards effect loads them, then applies pendingWard
-      } else if (pendingWard.current) {
-        // same/unknown province → match the ward against the already-loaded list
-        const w = findUnit(wards, pendingWard.current)
-        if (w) { setWardCode(w.code); pendingWard.current = null }
+      } else {
+        // same/unknown province → match the candidates against the already-loaded list
+        for (const cand of pendingWard.current) {
+          const w = findUnit(wards, cand)
+          if (w) { setWardCode(w.code); pendingWard.current = []; break }
+        }
       }
     } catch { /* coords only */ } finally {
       setResolving(false)

@@ -30,7 +30,7 @@ function matchDistrict(hay: string): string | null {
   return null
 }
 
-type Result = { address: string; district: string | null; province: string; ward: string }
+type Result = { address: string; district: string | null; province: string; ward: string; wardCandidates: string[] }
 
 // Google Geocoding (preferred): administrative_area_level_2 is the district.
 async function geocodeGoogle(lat: string, lng: string, lang: string): Promise<Result | null> {
@@ -43,13 +43,28 @@ async function geocodeGoogle(lat: string, lng: string, lang: string): Promise<Re
   const top = data.results[0]
   const comps: { long_name: string; types: string[] }[] = top.address_components || []
   const pick = (type: string) => comps.find((c) => c.types.includes(type))?.long_name
+  // The top result is street/hamlet-level (e.g. "Ấp 43") and often SKIPS the official
+  // ward/commune — scan ALL results for ward-likely components so auto-select has more
+  // names to match against the 2025 ward list.
+  type Comp = { long_name: string; types: string[] }
+  const allComps: Comp[] = (data.results as { address_components?: Comp[] }[]).flatMap((r) => r.address_components || [])
+  const pickAll = (type: string) => allComps.filter((c) => c.types.includes(type)).map((c) => c.long_name)
   const districtName = pick('administrative_area_level_2') || pick('administrative_area_level_3')
   const district = matchDistrict(`${districtName || ''} ${top.formatted_address || ''}`)
   const province = pick('administrative_area_level_1') || ''
-  const ward = pick('sublocality_level_1') || pick('sublocality') || pick('administrative_area_level_3') || pick('locality') || ''
+  const wardCandidates = Array.from(new Set([
+    ...pickAll('administrative_area_level_3'),
+    ...pickAll('sublocality_level_1'),
+    ...pickAll('sublocality_level_2'),
+    ...pickAll('sublocality'),
+    ...pickAll('administrative_area_level_2'),
+    ...pickAll('locality'),
+    ...pickAll('neighborhood'),
+  ].filter(Boolean)))
+  const ward = wardCandidates[0] || ''
   // Google's formatted_address is clean; trim the trailing ", Vietnam".
   const address = String(top.formatted_address || '').replace(/,?\s*Vietnam$/i, '').trim()
-  return { address, district, province, ward }
+  return { address, district, province, ward, wardCandidates }
 }
 
 // Nominatim (free) fallback.
@@ -61,14 +76,15 @@ async function geocodeNominatim(lat: string, lng: string, lang: string): Promise
   const a = (data.address || {}) as Record<string, string>
   const district = matchDistrict(`${Object.values(a).join(' ')} ${data.display_name || ''}`)
   const province = a.state || a.city || a.region || ''
-  const ward = a.quarter || a.suburb || a.ward || a.neighbourhood || a.village || a.hamlet || ''
+  const wardCandidates = Array.from(new Set([a.quarter, a.suburb, a.ward, a.neighbourhood, a.village, a.hamlet, a.city_district, a.municipality].filter(Boolean)))
+  const ward = wardCandidates[0] || ''
   const parts = [
     [a.house_number, a.road].filter(Boolean).join(' '),
     a.quarter || a.suburb || a.neighbourhood,
     a.city_district || a.district || a.county,
     a.city || a.town,
   ].filter(Boolean)
-  return { address: parts.join(', ') || data.display_name || '', district, province, ward }
+  return { address: parts.join(', ') || data.display_name || '', district, province, ward, wardCandidates }
 }
 
 // GET /api/reverse-geocode?lat=&lng=&lang= → { address, district }

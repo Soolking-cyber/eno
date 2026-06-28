@@ -2088,6 +2088,10 @@ export function ListingsExplorer({
               />
             )}
 
+            {/* Filter line: facets take ~2/3 (scroll on overflow) and the save-search
+                box ~1/3 on the right (desktop); stacks on mobile. */}
+            <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:gap-3">
+              <div className="min-w-0 lg:flex-1">
             {/* Category-aware facet bar (replaces the old sidebar) */}
             <FacetBar
               activeCategory={activeCategory}
@@ -2110,9 +2114,41 @@ export function ListingsExplorer({
               setVerifiedOnly={setVerifiedOnly}
               histogramQuery={histogramQuery}
             />
+              </div>
+              {/* Save search + its chips — right ~1/3 on desktop. The conditions you see
+                  ARE exactly what gets saved/alerted. */}
+              {(() => {
+                const chips = getActiveChips()
+                if (chips.length === 0) return null
+                return (
+                  <div className="space-y-2 rounded-2xl bg-brand-50 p-2.5 lg:w-[34%] lg:shrink-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {chips.map((c, i) => (
+                        <button
+                          key={i}
+                          onClick={c.onClear}
+                          aria-label={tr('Remove filter', 'Bỏ bộ lọc') + `: ${c.label}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted cursor-pointer"
+                        >
+                          {c.label}
+                          <X className="h-3 w-3 text-ink-4" />
+                        </button>
+                      ))}
+                      {chips.length > 1 && (
+                        <button onClick={clearAllFilters} className="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent transition-colors cursor-pointer">
+                          {tr('Clear all', 'Xóa tất cả')}
+                        </button>
+                      )}
+                    </div>
+                    <button onClick={saveSearch} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-card py-1.5 text-xs font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer">
+                      <Bookmark className="h-3.5 w-3.5" /> {tr('Save search', 'Lưu tìm kiếm')}
+                    </button>
+                  </div>
+                )
+              })()}
+            </div>
 
-            {/* Sort & View Control Bar (search lives in the header now). The Save-search
-                CTA now lives in the unified active-search box below. */}
+            {/* Sort & View Control Bar (search lives in the header now). */}
             <div className="flex items-center justify-end gap-2.5">
               {/* Sorting & Views */}
               <div className="flex items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
@@ -2170,47 +2206,6 @@ export function ListingsExplorer({
                   </button>
                 </div>
               </div>
-
-            {/* Active-search box (borderless tint): the applied conditions ARE what you'd
-                save + what the alert notifies about, shown right above one clear Save
-                button. Each chip removes its own filter; "Clear all" resets them. */}
-            {(() => {
-              const chips = getActiveChips()
-              if (chips.length === 0) return null
-              return (
-                <div className="space-y-2.5 rounded-2xl bg-brand-50 p-3">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {chips.map((c, i) => (
-                      <button
-                        key={i}
-                        onClick={c.onClear}
-                        aria-label={tr('Remove filter', 'Bỏ bộ lọc') + `: ${c.label}`}
-                        className="inline-flex items-center gap-1 rounded-full bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted cursor-pointer"
-                      >
-                        {c.label}
-                        <X className="h-3 w-3 text-ink-4" />
-                      </button>
-                    ))}
-                    {chips.length > 1 && (
-                      <button
-                        onClick={clearAllFilters}
-                        className="inline-flex items-center rounded-full px-2.5 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent transition-colors cursor-pointer"
-                      >
-                        {tr('Clear all', 'Xóa tất cả')}
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    onClick={saveSearch}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-card py-2 text-sm font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer"
-                  >
-                    <Bookmark className="h-4 w-4" />
-                    {tr('Save this search', 'Lưu tìm kiếm này')}
-                    <span className="text-[11px] font-normal text-muted-foreground">{tr('— alerts on new matches', '— báo khi có tin mới')}</span>
-                  </button>
-                </div>
-              )
-            })()}
 
             {/* Results metadata count — also the feed's h2 (keeps headings sequential). */}
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1 select-none">
