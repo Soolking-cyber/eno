@@ -69,7 +69,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
 
   const statusChip =
     !listing.verified && status === 'active'
-      ? { label: tr('Held', 'Đang giữ'), cls: 'bg-amber-100 text-amber-700' }
+      ? { label: tr('Held', 'Đang giữ'), cls: 'bg-warning/15 text-warning' }
       : status === 'sold'
         ? { label: tr('Sold', 'Đã bán'), cls: 'bg-tint text-muted-foreground' }
         : status === 'hidden'

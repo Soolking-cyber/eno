@@ -50,6 +50,11 @@
   --color-brand-light: var(--brand-light);
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
+  /* Semantic status colors — flip lighter on dark so success/warning/info chips
+     stay on-theme instead of using raw emerald/amber (which have no dark variant). */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
@@ -127,6 +132,11 @@
   --trust-trusted:    #15803d; /* green-700  ~5.0:1 — good (the healthy default) */
   --trust-exceptional:#0a66c2; /* brand blue ~5.7:1 — great (sits next to green) */
   --trust-elite:      #7c3aed; /* violet-600 ~5.7:1 — royal (top) */
+
+  /* Semantic status (light): AA on white/tint cards. */
+  --success: #15803d; /* green-700  */
+  --warning: #b45309; /* amber-700  */
+  --info:    #0a66c2; /* brand blue */
 
   /* Semantic — used ONLY to carry meaning, never decoration.
      verified/trust folds into the brand blue; amber = caution; red = destructive. */
@@ -219,6 +229,11 @@
   --trust-trusted:    #4ade80; /* green-400   — good */
   --trust-exceptional:#60a5fa; /* blue-400    — great (brand blue, lightened) */
   --trust-elite:      #a78bfa; /* violet-400  — royal */
+
+  /* Semantic status (dark): lightened so they read on dark cards. */
+  --success: #4ade80; /* green-400 */
+  --warning: #fbbf24; /* amber-400 */
+  --info:    #60a5fa; /* blue-400  */
   --skeleton: #262c37;
   --skeleton-sheen: rgba(255, 255, 255, 0.06);
 

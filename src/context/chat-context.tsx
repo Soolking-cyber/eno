@@ -170,7 +170,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     let debounce: ReturnType<typeof setTimeout> | null = null
     let channel: ReturnType<typeof supabase.channel> | null = null
     const bump = () => { if (debounce) return; debounce = setTimeout(() => { debounce = null; refreshUnread(); refreshConvos() }, 300) }
-    ;(async () => {
+    const subscribe = async () => {
+      if (channel) return
       const { data } = await supabase.auth.getSession()
       if (cancelled || !data.session) return
       await supabase.realtime.setAuth(data.session.access_token)
@@ -183,11 +184,23 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           bump()
         })
         .subscribe()
-    })()
+    }
+    const unsubscribe = () => { if (channel) { supabase.removeChannel(channel); channel = null } }
+    // An open WebSocket makes a page ineligible for the back/forward cache, so the
+    // back button re-mounts everything instead of restoring instantly. Drop the
+    // socket as the page enters bfcache (pagehide) and restore it on return.
+    const onPageHide = () => { unsubscribe(); supabase.realtime.disconnect() }
+    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) { refreshUnread(); refreshConvos(); subscribe() } }
+
+    subscribe()
+    window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('pageshow', onPageShow)
     return () => {
       cancelled = true
       if (debounce) clearTimeout(debounce)
-      if (channel) supabase.removeChannel(channel)
+      unsubscribe()
+      window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('pageshow', onPageShow)
     }
   }, [user, refreshUnread, refreshConvos])
 

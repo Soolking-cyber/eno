@@ -14,8 +14,9 @@ import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
+import { haptic } from '@/lib/haptics'
 
-type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
+type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
@@ -149,6 +150,7 @@ export default function ThreadPage() {
     const tempId = `temp-${Date.now()}`
     const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true }
     setText('')
+    haptic()
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
       const res = await fetch(`/api/conversations/${id}/messages`, {
@@ -344,7 +346,7 @@ export default function ThreadPage() {
                       </div>
                     )}
                     {m.offerStatus && m.offerStatus !== 'pending' && (
-                      <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-emerald-600' : m.offerStatus === 'declined' ? 'text-red-500' : 'text-ink-4'}`}>
+                      <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-success' : m.offerStatus === 'declined' ? 'text-red-500' : 'text-ink-4'}`}>
                         {m.offerStatus === 'accepted' ? tr('Accepted', 'Đã chấp nhận') : m.offerStatus === 'declined' ? tr('Declined', 'Đã từ chối') : tr('Countered', 'Đã trả giá khác')}
                       </div>
                     )}

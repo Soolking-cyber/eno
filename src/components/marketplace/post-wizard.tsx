@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
+import { haptic } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { trackPostListing } from '@/lib/analytics'
@@ -452,6 +453,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       const created = (await res.json().catch(() => ({}))) as { id?: string }
       trackPostListing({ id: created.id, title: title.trim(), price: Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
       try { localStorage.removeItem('eno-listing-draft') } catch {}
+      haptic(18)
       setSubmitted(true)
       onPosted?.() // embedded in dashboard → refresh listings + switch tab
     } catch (e) {
@@ -827,7 +829,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               <ul className="space-y-1.5 pt-1">
                 {checks.map((c) => (
                   <li key={c.key} className={cn('flex items-center gap-2 text-xs', c.ok ? 'text-ink-4 line-through' : 'text-body')}>
-                    <span className={cn('flex h-4 w-4 items-center justify-center rounded-full', c.ok ? 'text-emerald-600' : 'text-ink-4')}>
+                    <span className={cn('flex h-4 w-4 items-center justify-center rounded-full', c.ok ? 'text-success' : 'text-ink-4')}>
                       {c.ok ? <Check className="h-3.5 w-3.5" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
                     </span>
                     {c.label}

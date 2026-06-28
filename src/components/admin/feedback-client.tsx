@@ -75,7 +75,7 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
                   <span
                     className={
                       'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ' +
-                      (technical ? 'bg-amber-100 text-amber-800' : 'bg-brand-50 text-brand')
+                      (technical ? 'bg-warning/15 text-warning' : 'bg-brand-50 text-brand')
                     }
                   >
                     {technical ? <Wrench className="h-3.5 w-3.5" /> : <MessageSquareText className="h-3.5 w-3.5" />}

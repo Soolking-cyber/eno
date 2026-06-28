@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { MessageSquare, ChevronLeft, ChevronRight, X, Send, Loader2, Phone, Trash2, Tag, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { haptic } from '@/lib/haptics'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
@@ -335,6 +336,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     const tempId = `temp-${Date.now()}`
     const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true }
     setText('')
+    haptic()
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
       const res = await fetch(`/api/conversations/${id}/messages`, {
@@ -497,7 +499,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
                   </div>
                 )}
                 {m.offerStatus && m.offerStatus !== 'pending' && (
-                  <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-emerald-600' : m.offerStatus === 'declined' ? 'text-red-500' : 'text-ink-4'}`}>
+                  <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-success' : m.offerStatus === 'declined' ? 'text-red-500' : 'text-ink-4'}`}>
                     {m.offerStatus === 'accepted' ? tr('Accepted', 'Đã chấp nhận') : m.offerStatus === 'declined' ? tr('Declined', 'Đã từ chối') : tr('Countered', 'Đã trả giá khác')}
                   </div>
                 )}

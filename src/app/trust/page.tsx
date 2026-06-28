@@ -32,7 +32,7 @@ function Points({ rows }: { rows: [string, number, string][] }) {
             <div className="text-sm text-foreground"><Tr text={action} /></div>
             {sub && <div className="text-xs text-ink-4"><Tr text={sub} /></div>}
           </div>
-          <span className={`shrink-0 text-sm font-bold tabular-nums ${pts > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{pts > 0 ? `+${pts}` : pts}</span>
+          <span className={`shrink-0 text-sm font-bold tabular-nums ${pts > 0 ? 'text-success' : 'text-red-500'}`}>{pts > 0 ? `+${pts}` : pts}</span>
         </div>
       ))}
     </div>

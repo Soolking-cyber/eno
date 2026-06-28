@@ -103,7 +103,7 @@ function ListingRow({ item, mode }: { item: ModItem; mode: 'pending' | 'reported
                 <div className="flex flex-wrap gap-1.5 pl-4">
                   <button onClick={() => run('confirm-report', r.id)} disabled={!!busy} className="rounded-md bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm (−trust)</button>
                   <button onClick={() => run('dismiss-report', r.id)} disabled={!!busy} className="rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss</button>
-                  <button onClick={() => run('abusive-report', r.id)} disabled={!!busy} className="rounded-md border border-amber-300 bg-card px-2 py-0.5 text-[10px] font-bold text-amber-700 hover:bg-amber-50 disabled:opacity-40 cursor-pointer">Abusive (penalize reporter)</button>
+                  <button onClick={() => run('abusive-report', r.id)} disabled={!!busy} className="rounded-md border border-warning/40 bg-card px-2 py-0.5 text-[10px] font-bold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer">Abusive (penalize reporter)</button>
                 </div>
               </div>
             ))}
@@ -172,7 +172,7 @@ function AccountReportRow({ r }: { r: AccountReport }) {
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <button onClick={() => run('confirm-report')} disabled={busy} className="rounded-md bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm (−trust)</button>
         <button onClick={() => run('dismiss-report')} disabled={busy} className="rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss</button>
-        <button onClick={() => run('abusive-report')} disabled={busy} className="rounded-md border border-amber-300 bg-card px-2 py-0.5 text-[10px] font-bold text-amber-700 hover:bg-amber-50 disabled:opacity-40 cursor-pointer">Abusive (penalize reporter)</button>
+        <button onClick={() => run('abusive-report')} disabled={busy} className="rounded-md border border-warning/40 bg-card px-2 py-0.5 text-[10px] font-bold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer">Abusive (penalize reporter)</button>
         {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
         {error && <span className="text-xs font-semibold text-red-600">{error}</span>}
       </div>

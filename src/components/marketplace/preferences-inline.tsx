@@ -52,7 +52,7 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         <span
           className={cn(
             'flex h-7 w-7 items-center justify-center rounded-full bg-card shadow-sm transition-transform duration-200 ease-out',
-            isDark ? 'translate-x-6 text-accent-foreground' : 'translate-x-0 text-amber-500',
+            isDark ? 'translate-x-6 text-accent-foreground' : 'translate-x-0 text-warning',
           )}
         >
           {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}

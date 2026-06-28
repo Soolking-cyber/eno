@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { SerializedListing } from '@/lib/types'
 import { useLanguage } from '@/context/language-context'
+import { haptic } from '@/lib/haptics'
 
 const KEY = 'eno:favorites'
 const SAVED_KEY = 'eno-saved-cache' // { idKey, list } — device-local functional cache
@@ -52,6 +53,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     // confirm on ADD only, with a jump to /saved. A shared toast id means rapid
     // hearting replaces rather than stacks.
     if (added) {
+      haptic()
       toast(tr('Saved on this device', 'Đã lưu trên thiết bị này'), {
         id: 'fav-saved',
         action: { label: tr('View', 'Xem'), onClick: () => router.push('/saved') },

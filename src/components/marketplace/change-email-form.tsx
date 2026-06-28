@@ -45,7 +45,7 @@ export function ChangeEmailForm({ currentEmail }: { currentEmail: string | null 
       <p className="truncate text-sm font-semibold text-foreground">{currentEmail || tr('No email on file', 'Chưa có email')}</p>
 
       {sent ? (
-        <p className="text-xs font-semibold text-emerald-600">{tr('Check your new inbox and click the link to confirm the change.', 'Kiểm tra hộp thư mới và nhấn liên kết để xác nhận thay đổi.')}</p>
+        <p className="text-xs font-semibold text-success">{tr('Check your new inbox and click the link to confirm the change.', 'Kiểm tra hộp thư mới và nhấn liên kết để xác nhận thay đổi.')}</p>
       ) : !editing ? (
         <button onClick={() => { setEmail(''); setErr(''); setEditing(true) }} className="text-xs font-bold text-accent-foreground hover:underline cursor-pointer">
           {tr('Change email', 'Đổi email')}

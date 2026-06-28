@@ -80,7 +80,7 @@ export default async function SellerPage({ params }: Props) {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="h-title text-foreground">{seller.name}</h1>
               {seller.ownerId && (
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
                   <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
                 </span>
               )}
@@ -120,7 +120,7 @@ export default async function SellerPage({ params }: Props) {
                       {r.author.split(' ').map((w) => w[0]).join('').toUpperCase()}
                     </span>
                     <span className="text-sm font-semibold text-foreground">{r.author}</span>
-                    <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Verified buyer" /></span>
+                    <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Verified buyer" /></span>
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-body"><Tr text={r.text} /></p>
                 </div>
