@@ -180,6 +180,26 @@ export default async function ListingPage({ params }: Props) {
       'itemCondition': schemaCondition,
       'availability': availability,
       'seller': { '@type': 'Organization', 'name': listing.seller.name },
+      // Return policy — eno is a meet-and-inspect-before-paying marketplace for
+      // (mostly used) goods, so sales are final / no returns. Satisfies Google
+      // Merchant "Improve item appearance" (hasMerchantReturnPolicy).
+      'hasMerchantReturnPolicy': {
+        '@type': 'MerchantReturnPolicy',
+        'applicableCountry': 'VN',
+        'returnPolicyCategory': 'https://schema.org/MerchantReturnNotPermitted',
+      },
+      // Fulfillment — buyer and seller meet locally, so there's no shipping fee
+      // (free local handover). Satisfies the shippingDetails recommendation.
+      'shippingDetails': {
+        '@type': 'OfferShippingDetails',
+        'shippingRate': { '@type': 'MonetaryAmount', 'value': '0', 'currency': 'VND' },
+        'shippingDestination': { '@type': 'DefinedRegion', 'addressCountry': 'VN' },
+        'deliveryTime': {
+          '@type': 'ShippingDeliveryTime',
+          'handlingTime': { '@type': 'QuantitativeValue', 'minValue': 0, 'maxValue': 1, 'unitCode': 'DAY' },
+          'transitTime': { '@type': 'QuantitativeValue', 'minValue': 0, 'maxValue': 2, 'unitCode': 'DAY' },
+        },
+      },
     },
   }
 
