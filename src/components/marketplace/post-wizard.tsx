@@ -314,6 +314,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const missing = checks.filter((c) => !c.ok)
   const canSubmit = missing.length === 0 && !submitting
 
+  // On-blur inline validation for the high-traffic fields — errors surface as the
+  // user leaves a field, not only on submit (says what's wrong + how to fix).
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const touch = (k: string) => setTouched((p) => (p[k] ? p : { ...p, [k]: true }))
+  const titleErr = touched.title && title.trim().length > 0 && title.trim().length < 3
+    ? t('Tiêu đề cần tối thiểu 3 ký tự', 'Title needs at least 3 characters') : undefined
+  const priceErr = touched.price && price.trim().length === 0
+    ? t('Hãy nhập giá', 'Set a price') : undefined
+
   const [converting, setConverting] = useState(false)
   // Drag-to-reorder photos (touch + mouse) — index 0 is the cover.
   const movePhoto = (from: number, to: number) =>
@@ -597,11 +606,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
           {/* Details */}
           <Section title={t('Chi tiết', 'Details')}>
-            <Field label={t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`}>
+            <Field label={t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`} error={titleErr}>
               <input
                 value={title}
                 maxLength={TITLE_MAX}
                 onChange={(e) => setTitle(e.target.value)}
+                onBlur={() => touch('title')}
                 placeholder={t('VD: iPhone 14 128GB — pin 92%', 'e.g. iPhone 14 128GB — battery 92%')}
                 className="w-full max-w-2xl rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
               />
@@ -654,9 +664,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
           {/* Price */}
           <Section title={t('Giá', 'Price')}>
-            <div className="flex max-w-xs items-center gap-2">
-              <div className="flex-1"><VndInput value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} /></div>
-              {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
+            <div onBlur={() => touch('price')}>
+              <div className="flex max-w-xs items-center gap-2">
+                <div className="flex-1"><VndInput value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} /></div>
+                {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
+              </div>
+              {priceErr && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{priceErr}</p>}
             </div>
           </Section>
 
@@ -799,7 +812,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           padded up clear of the nav; the form root reserves matching space below so
           the last fields never hide behind it. */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
-        <div className="mx-auto max-w-7xl"><PublishButton /></div>
+        <div className="mx-auto max-w-7xl space-y-2">
+          {/* What's still missing — mobile parity with the desktop checklist */}
+          {missing.length > 0 && (
+            <p className="truncate text-[11px] font-semibold text-ink-4">
+              {t('Còn thiếu', 'Still needed')}: {missing.map((c) => c.label).join(' · ')}
+            </p>
+          )}
+          <PublishButton />
+        </div>
       </div>
 
       <AreaFilter
@@ -830,7 +851,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   )
 }
 
-function Field({ label, counter, hint, children }: { label: string; counter?: string; hint?: string; children: React.ReactNode }) {
+function Field({ label, counter, hint, error, children }: { label: string; counter?: string; hint?: string; error?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
@@ -838,7 +859,7 @@ function Field({ label, counter, hint, children }: { label: string; counter?: st
         {counter && <span className="text-[11px] text-ink-4">{counter}</span>}
       </div>
       {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {error ? <p role="alert" className="text-xs font-semibold text-red-600">{error}</p> : hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }
