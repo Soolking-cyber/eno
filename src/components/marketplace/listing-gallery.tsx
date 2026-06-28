@@ -58,7 +58,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
             onClick={() => openAt(0)}
             className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
           >
-            <Images className="h-4 w-4" /> <Tr text={showAllLabel} />
+            <Images className="h-4 w-4" /> <Tr text={showAllLabel} /> · {images.length}
           </button>
         </div>
       )}

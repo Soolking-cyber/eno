@@ -58,7 +58,7 @@ export function SignInForm({ className }: { className?: string }) {
     const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirectTo } })
     setLoading(false)
     if (error) setError(error.message)
-    else setStage('sent')
+    else { setStage('sent'); setCountdown(RESEND_SECONDS) }
   }
 
   const sendPhone = async () => {
@@ -116,7 +116,14 @@ export function SignInForm({ className }: { className?: string }) {
         <Mail className="mx-auto h-10 w-10 text-accent-foreground" />
         <p className="mt-3 text-sm font-semibold text-foreground">{t('Kiểm tra email của bạn', 'Check your email')}</p>
         <p className="mt-1 text-sm text-muted-foreground">{t('Chúng tôi đã gửi liên kết đăng nhập tới', 'We sent a magic link to')} <strong>{email}</strong>.</p>
-        <button onClick={reset} className="mt-4 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
+        <p className="mt-3 text-xs text-muted-foreground">
+          {t('Không thấy email? Kiểm tra spam, hoặc', "Didn't get it? Check spam, or")}{' '}
+          <button onClick={sendEmail} disabled={countdown > 0 || loading} className="font-semibold text-accent-foreground hover:underline disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
+            {countdown > 0 ? `${t('gửi lại sau', 'resend in')} 0:${String(countdown).padStart(2, '0')}` : t('gửi lại', 'resend')}
+          </button>
+        </p>
+        {error && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
+        <button onClick={reset} className="mt-3 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
           {t('Dùng cách khác', 'Use another method')}
         </button>
       </div>

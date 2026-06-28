@@ -15,6 +15,7 @@ import {
   MapPin,
   AlertTriangle,
   Building2,
+  ShieldCheck,
 } from 'lucide-react'
 import { RelatedListings } from '@/components/marketplace/related-listings'
 import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
@@ -358,6 +359,11 @@ export default async function ListingPage({ params }: Props) {
               <div id="contact" className="scroll-mt-24">
                 <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={listing.currency} />
               </div>
+
+              {/* Safety link by the contact action (buyers look for it before reaching out) */}
+              <Link href="/safety" className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:underline">
+                <ShieldCheck className="h-3.5 w-3.5" /> <Tr text="Safe trading tips" />
+              </Link>
 
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[11px] text-muted-foreground"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></p>
