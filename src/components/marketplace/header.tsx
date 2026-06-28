@@ -16,7 +16,7 @@ import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
 import { ImageSearchButton } from './image-search-button'
-import { AISearchButton, AIConciergePanel } from './ai-concierge'
+import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 import { toast } from 'sonner'
 
@@ -48,7 +48,6 @@ export function Header() {
   const [ward, setWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null)
   const [areaOpen, setAreaOpen] = useState(false)
-  const [aiMode, setAiMode] = useState(false)
   const areaBtnRef = useRef<HTMLButtonElement>(null)
   // Quick-select suggestions (same store as the hero/in-explorer search): the user's
   // recent searches + recently-used areas, shown when the header search is focused.
@@ -246,8 +245,8 @@ export function Header() {
               {/* AI shopping concierge — pressable: press to enter AI mode (filled), press
                   again for normal search. Sits left of the camera in every search bar. */}
               <AISearchButton
-                active={aiMode}
-                onClick={() => { setAiMode((a) => !a); setShowSuggestions(false) }}
+                active={pathname === '/messages/ai'}
+                onClick={() => { router.push('/messages/ai'); setShowSuggestions(false) }}
                 className="mr-0.5 h-10 w-10"
               />
               {/* Visual search — take/upload/paste a photo, search by its subject. */}
@@ -383,8 +382,6 @@ export function Header() {
         onApply={applyArea}
         onReset={() => applyArea({ province: null, ward: null, nearby: null })}
       />
-
-      <AIConciergePanel open={aiMode} onClose={() => setAiMode(false)} />
     </header>
   )
 }

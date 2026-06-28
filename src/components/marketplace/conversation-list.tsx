@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, usePathname } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
-import { Search, Trash2, X } from 'lucide-react'
+import { Search, Trash2, X, Sparkles } from 'lucide-react'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +18,8 @@ export function ConversationList() {
   const { tr } = useLanguage()
   const { convos, deleteConvo, refreshConvos, prefetchThread } = useChat()
   const { id: activeId } = useParams<{ id?: string }>()
+  const pathname = usePathname()
+  const aiActive = pathname === '/messages/ai'
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
 
@@ -58,6 +60,17 @@ export function ConversationList() {
       </div>
 
       <div className="mt-2 flex-1 overflow-y-auto px-2 pb-4 scroll-thin">
+        {/* eno AI — pinned at the top; always available (a chat with the AI assistant). */}
+        <Link
+          href="/messages/ai"
+          className={cn('mb-1 flex items-center gap-3 rounded-xl p-2.5 transition-colors', aiActive ? 'bg-muted text-accent-foreground' : 'hover:bg-muted')}
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-white"><Sparkles className="h-5 w-5" /></span>
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-bold text-foreground">{tr('eno AI', 'eno AI')}</span>
+            <p className="truncate text-xs text-accent-foreground">{tr('Ask anything — find products by chat', 'Hỏi bất cứ điều gì — tìm đồ bằng chat')}</p>
+          </div>
+        </Link>
         {!loading && !user ? (
           <div className="px-2 py-10 text-center">
             <Mascot name="chat" className="mx-auto h-40 w-40" />

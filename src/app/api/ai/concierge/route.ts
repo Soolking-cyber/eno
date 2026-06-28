@@ -24,17 +24,31 @@ type Msg = { role: 'user' | 'assistant'; content: string }
 const TRUST: Prisma.ListingOrderByWithRelationInput = { seller: { trustScore: 'desc' } }
 const INCLUDE = { category: true, seller: { include: { owner: { select: { accountType: true } } } } } as const
 
+// Natural-language filler words (folded, EN + VI) to drop so a chatty query like
+// "a motorbike under 30 million near district 1" keeps only the real keywords.
+// Folded EN + VI fillers. VI words are limited to ones that DON'T collide with product
+// terms once accents are stripped (e.g. "cho"=for collides with "chó"=dog, so it's out).
+const STOP = new Set([
+  'under', 'over', 'near', 'around', 'below', 'above', 'about', 'less', 'than', 'cheap', 'good', 'best',
+  'find', 'want', 'need', 'looking', 'please', 'the', 'for', 'with', 'and', 'any', 'some', 'that', 'this',
+  'million', 'thousand', 'budget', 'price', 'show', 'something',
+  'duoi', 'tren', 'quanh', 'khoang', 'trieu', 'nghin', 'ngan',
+])
+const keywords = (query: string) =>
+  fold(query).split(/\s+/).filter((t) => t.length >= 3 && !/^\d+$/.test(t) && !STOP.has(t)).slice(0, 6)
+
 // Degraded fallback: trust-first keyword search (no AI, no credit) so the chat still
-// returns products before the Vertex data store is live.
+// returns products before the Vertex data store is live. Tries a precise AND of the
+// real keywords first, then broadens to ANY token so a chatty query never dead-ends.
 async function fallbackSearch(query: string, take: number) {
-  const tokens = fold(query).split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
-  const AND: Prisma.ListingWhereInput[] = tokens.map((t) => ({ searchText: { contains: t } }))
-  return db.listing.findMany({
-    where: { verified: true, status: 'active', ...(AND.length ? { AND } : {}) },
-    orderBy: [TRUST, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
-    take,
-    include: INCLUDE,
-  })
+  const base: Prisma.ListingWhereInput = { verified: true, status: 'active' }
+  const order: Prisma.ListingOrderByWithRelationInput[] = [TRUST, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }]
+  const tokens = keywords(query)
+  if (!tokens.length) return db.listing.findMany({ where: base, orderBy: order, take, include: INCLUDE })
+  const clauses = tokens.map((t) => ({ searchText: { contains: t } }))
+  const and = await db.listing.findMany({ where: { ...base, AND: clauses }, orderBy: order, take, include: INCLUDE })
+  if (and.length) return and
+  return db.listing.findMany({ where: { ...base, OR: clauses }, orderBy: order, take, include: INCLUDE })
 }
 
 export async function POST(req: NextRequest) {

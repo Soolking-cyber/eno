@@ -49,7 +49,7 @@ import { useRouter } from 'next/navigation'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems } from './search-suggest'
 import { ImageSearchButton } from './image-search-button'
-import { AISearchButton, AIConciergePanel } from './ai-concierge'
+import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 
 // Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
@@ -217,7 +217,6 @@ export function ListingsExplorer({
   const [debouncedQuery, setDebouncedQuery] = useState(query)
 
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [aiMode, setAiMode] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false) // hero "Filters" dropdown
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const [recentLocations, setRecentLocations] = useState<{ province: Geo; ward: Geo | null }[]>([])
@@ -1584,7 +1583,7 @@ export function ListingsExplorer({
                 <button
                   onClick={() => handleLandingSearch(landingQuery)}
                   aria-label={tr('Search', 'Tìm kiếm')}
-                  className="shrink-0 pl-3 pr-2.5 py-3.5 sm:py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  className="shrink-0 pl-3 pr-2.5 py-2.5 sm:py-3 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
                   <Search className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                 </button>
@@ -1622,7 +1621,7 @@ export function ListingsExplorer({
                     if (e.key === 'Enter') handleLandingSearch(landingQuery)
                   }}
                   placeholder={tr('Search motorbikes, apartments, moving sales...', 'Tìm xe máy, căn hộ, đồ thanh lý...')}
-                  className="min-w-0 flex-1 bg-transparent py-3.5 sm:py-4.5 pr-3 text-base font-medium text-foreground outline-none placeholder:text-ink-4 placeholder:font-medium"
+                  className="min-w-0 flex-1 bg-transparent py-2.5 sm:py-3 pr-3 text-base font-medium text-foreground outline-none placeholder:text-ink-4 placeholder:font-medium"
                 />
                 {landingQuery && (
                   <button
@@ -1636,15 +1635,15 @@ export function ListingsExplorer({
                 )}
                 {/* AI concierge — pressable, left of the camera (consistent with the navbar bar). */}
                 <AISearchButton
-                  active={aiMode}
-                  onClick={() => { setAiMode((a) => !a); setShowSuggestions(false) }}
-                  className="px-2.5 py-3.5 sm:py-4.5"
+                  active={false}
+                  onClick={() => { router.push('/messages/ai'); setShowSuggestions(false) }}
+                  className="px-2.5 py-2.5 sm:py-3"
                   iconClassName="h-6 w-6 sm:h-7 sm:w-7"
                 />
                 {/* Visual search — take/upload/paste a photo, search by its subject. Left of Map. */}
                 <ImageSearchButton
                   iconClassName="h-6 w-6 sm:h-7 sm:w-7"
-                  className="flex shrink-0 items-center justify-center px-2.5 py-3.5 sm:py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-60"
+                  className="flex shrink-0 items-center justify-center px-2.5 py-2.5 sm:py-3 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-60"
                   onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
                   onResult={(r) => { toast.dismiss('vis'); setLandingQuery(r.query); applyVisualSearch(r) }}
                   onError={(m) => toast.error(m, { id: 'vis' })}
@@ -1654,7 +1653,7 @@ export function ListingsExplorer({
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
                   aria-label={tr('Map', 'Bản đồ')}
                   title={tr('Map', 'Bản đồ')}
-                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-3.5 sm:py-4.5 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-2.5 sm:py-3 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
                   <Map className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                 </button>
@@ -2423,7 +2422,6 @@ export function ListingsExplorer({
         </div>
       )}
 
-      <AIConciergePanel open={aiMode} onClose={() => setAiMode(false)} />
     </section>
   )
 }
