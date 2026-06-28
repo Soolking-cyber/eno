@@ -199,7 +199,10 @@ export async function GET(req: NextRequest) {
     const rows = await db.listing.findMany({ where, select: { price: true }, orderBy: { price: 'asc' }, take: 5000 })
     return NextResponse.json(
       { prices: rows.map((r) => r.price) },
-      { headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' } },
+      // s-maxage = the CDN (Cloudflare) edge TTL, separate from the browser max-age;
+      // stale-while-revalidate lets the edge serve instantly while refreshing in the
+      // background → hot price-histogram queries are served from Vietnam, not origin.
+      { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=120, stale-while-revalidate=300' } },
     )
   }
 
@@ -335,7 +338,10 @@ export async function GET(req: NextRequest) {
     },
     {
       headers: {
-        'Cache-Control': 'public, max-age=15, stale-while-revalidate=45',
+        // s-maxage = Cloudflare edge TTL (the browser keeps the shorter max-age);
+        // stale-while-revalidate serves the cached feed instantly from the VN edge
+        // while it refreshes behind the scenes, so cache-hits never touch Cloud Run.
+        'Cache-Control': 'public, max-age=15, s-maxage=60, stale-while-revalidate=300',
       },
     }
   )
