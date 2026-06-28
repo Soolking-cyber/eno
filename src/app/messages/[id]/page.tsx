@@ -1,7 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { Fragment, useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
+
+// Per-message time + day-grouping helpers (client — local timezone).
+const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+const dayKey = (iso: string) => new Date(iso).toDateString()
 import { useParams } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -14,7 +18,7 @@ type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
-  listing: { id: string; title: string; image: string | null }
+  listing: { id: string; title: string; image: string | null; price?: number }
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null; sellerId?: string | null }
   messages: Msg[]
 }
@@ -302,12 +306,29 @@ export default function ThreadPage() {
 
           {/* Messages */}
           <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4 scroll-thin">
-            {thread?.messages.map((m) => (
-              <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
+            {thread?.messages.map((m, i, arr) => {
+              const prev = arr[i - 1]
+              const showDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
+              const dk = dayKey(m.createdAt)
+              const dayText = dk === new Date().toDateString() ? tr('Today', 'Hôm nay')
+                : dk === new Date(Date.now() - 864e5).toDateString() ? tr('Yesterday', 'Hôm qua')
+                : new Date(m.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              const askPct = m.kind === 'offer' && thread?.listing.price && m.offerAmount ? Math.round((m.offerAmount / thread.listing.price) * 100) : null
+              return (
+              <Fragment key={m.id}>
+                {showDay && (
+                  <div className="flex justify-center py-1.5">
+                    <span className="rounded-full bg-tint px-3 py-0.5 text-[10px] font-semibold text-ink-4">{dayText}</span>
+                  </div>
+                )}
+                <div className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
                 {m.kind === 'offer' ? (
                   <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-[#0a66c2]/30 bg-[#0a66c2]/5' : 'border-border bg-card'}`}>
                     <div className="text-[11px] font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
                     <div className="mt-0.5 text-base font-bold text-foreground">{new Intl.NumberFormat('en-US').format(m.offerAmount || 0)}₫</div>
+                    {askPct != null && (
+                      <div className="text-[11px] font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({new Intl.NumberFormat('en-US').format(thread!.listing.price!)}₫)</div>
+                    )}
                     {m.offerStatus === 'pending' && (
                       <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#b45309]">
                         <span className="h-1.5 w-1.5 rounded-full bg-[#b45309]" /> {tr('Pending', 'Đang chờ')}
@@ -334,8 +355,11 @@ export default function ThreadPage() {
                     {m.body}
                   </div>
                 )}
-              </div>
-            ))}
+                  <span className="mt-0.5 px-1 text-[10px] text-ink-4">{fmtTime(m.createdAt)}</span>
+                </div>
+              </Fragment>
+              )
+            })}
             {thread && thread.messages.length === 0 && (
               <p className="py-10 text-center text-xs text-ink-4">{tr('Say hello — this seller will be notified.', 'Gửi lời chào — người bán sẽ được thông báo.')}</p>
             )}
