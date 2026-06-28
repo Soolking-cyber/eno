@@ -90,7 +90,7 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
   ssr: false,
   loading: () => (
     <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none animate-pulse">
-      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#0a66c2] border-t-transparent" />
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand border-t-transparent" />
       <span className="text-[10px] font-bold text-body uppercase tracking-wider">
         Loading Map...
       </span>
@@ -111,7 +111,7 @@ const HERO_PRICE_OPTS: [string, string, string][] = [
 ]
 const heroChipCls = (active: boolean) => cn(
   'rounded-full px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
-  active ? 'bg-[#0a66c2] text-white' : 'bg-muted text-body hover:bg-accent hover:text-accent-foreground',
+  active ? 'bg-primary text-white' : 'bg-muted text-body hover:bg-accent hover:text-accent-foreground',
 )
 
 // Display a brand slug ("louis-vuitton") as a label ("Louis Vuitton") without a
@@ -1379,7 +1379,7 @@ export function ListingsExplorer({
           onClick={() => setVerifiedOnly(!verifiedOnly)}
           className={cn(
             'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-            verifiedOnly ? 'bg-[#0a66c2]' : 'bg-input'
+            verifiedOnly ? 'bg-primary' : 'bg-input'
           )}
         >
           <span
@@ -1502,6 +1502,9 @@ export function ListingsExplorer({
                 </button>
                 <input
                   id="listings-search-input"
+                  type="search"
+                  inputMode="search"
+                  enterKeyHint="search"
                   autoComplete="off"
                   autoCorrect="off"
                   autoCapitalize="off"
@@ -1609,7 +1612,7 @@ export function ListingsExplorer({
                       <button
                         type="button"
                         onClick={() => { setFiltersOpen(false); setShowExplorer(true); requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }}
-                        className="rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer"
+                        className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-dark transition-colors cursor-pointer"
                       >
                         {tr('Show results', 'Xem kết quả')}
                       </button>
@@ -1736,9 +1739,9 @@ export function ListingsExplorer({
                 >
                   <CategoryIcon
                     name={s.icon}
-                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[#0a66c2]"
+                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-brand"
                   />
-                  <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-[#0a66c2]">
+                  <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
                     {lang === 'vi' ? s.nameVi : s.name}
                   </span>
                   <span className="text-[11px] sm:text-xs text-body select-none font-semibold">
@@ -1772,7 +1775,7 @@ export function ListingsExplorer({
               <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
                 <AlertTriangle className="h-10 w-10 text-muted-foreground" />
                 <p className="text-sm font-semibold text-body">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
-                <button onClick={() => refetchListings()} className="rounded-xl bg-[#0a66c2] px-4 py-2 text-xs font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer">{tr('Try again', 'Thử lại')}</button>
+                <button onClick={() => refetchListings()} className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-brand-dark transition-colors cursor-pointer">{tr('Try again', 'Thử lại')}</button>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
@@ -1813,7 +1816,7 @@ export function ListingsExplorer({
                   )}
                   {queryFetching && hasMore && (
                     <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-[#0a66c2]" aria-hidden="true" />
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-brand" aria-hidden="true" />
                       {tr('Loading more…', 'Đang tải thêm…')}
                     </div>
                   )}
@@ -1830,8 +1833,9 @@ export function ListingsExplorer({
     )
   }
 
-  // Empty state that diagnoses WHY there are no results and offers one-tap relaxation.
-  const renderEmptyState = () => {
+  // Active applied-filter chips — shared by the persistent results bar AND the
+  // empty state so the two never drift. Brand+model collapse into one chip.
+  const getActiveChips = (): { label: string; onClear: () => void }[] => {
     const chips: { label: string; onClear: () => void }[] = []
     if (debouncedQuery.trim()) chips.push({ label: `"${debouncedQuery.trim()}"`, onClear: () => setQuery('') })
     if (activeSubcategory !== 'all') {
@@ -1839,9 +1843,8 @@ export function ListingsExplorer({
       chips.push({ label: sub ? (lang === 'vi' ? sub.nameVi : sub.name) : activeSubcategory, onClear: () => setActiveSubcategory('all') })
     }
     if (activeBrand !== 'all') {
-      chips.push({ label: prettyBrand(activeBrand), onClear: () => { setActiveBrand('all'); setActiveModel('all') } })
-    }
-    if (activeModel !== 'all') {
+      chips.push({ label: activeModel !== 'all' ? `${prettyBrand(activeBrand)} · ${activeModel}` : prettyBrand(activeBrand), onClear: () => { setActiveBrand('all'); setActiveModel('all') } })
+    } else if (activeModel !== 'all') {
       chips.push({ label: activeModel, onClear: () => setActiveModel('all') })
     }
     if (activeDistrict !== 'all') {
@@ -1857,6 +1860,25 @@ export function ListingsExplorer({
     Object.entries(customFilters).forEach(([k, v]) =>
       chips.push({ label: `${k}: ${v}`, onClear: () => setCustomFilters((prev) => { const n = { ...prev }; delete n[k]; return n }) }),
     )
+    return chips
+  }
+
+  const clearAllFilters = () => {
+    setQuery('')
+    setActiveSubcategory('all')
+    setActiveBrand('all')
+    setActiveModel('all')
+    setActiveDistrict('all')
+    setPriceRange('all')
+    setConditionFilter('all')
+    setListingType('all')
+    setCustomFilters({})
+    setVerifiedOnly(true)
+  }
+
+  // Empty state that diagnoses WHY there are no results and offers one-tap relaxation.
+  const renderEmptyState = () => {
+    const chips = getActiveChips()
 
     return (
       <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center">
@@ -1884,19 +1906,8 @@ export function ListingsExplorer({
         <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
           {chips.length > 0 && (
             <button
-              onClick={() => {
-                setQuery('')
-                setActiveSubcategory('all')
-                setActiveBrand('all')
-                setActiveModel('all')
-                setActiveDistrict('all')
-                setPriceRange('all')
-                setConditionFilter('all')
-                setListingType('all')
-                setCustomFilters({})
-                setVerifiedOnly(true)
-              }}
-              className="rounded-xl bg-[#0a66c2] px-4 py-2 text-xs font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer"
+              onClick={clearAllFilters}
+              className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-brand-dark transition-colors cursor-pointer"
             >
               {tr('Clear all filters', 'Xóa tất cả bộ lọc')}
             </button>
@@ -1914,7 +1925,7 @@ export function ListingsExplorer({
       <p className="text-sm font-semibold text-body">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
       <button
         onClick={() => refetchListings()}
-        className="rounded-xl bg-[#0a66c2] px-4 py-2 text-xs font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer"
+        className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-brand-dark transition-colors cursor-pointer"
       >
         {tr('Try again', 'Thử lại')}
       </button>
@@ -2003,7 +2014,7 @@ export function ListingsExplorer({
                   ]}
                   placeholder={tr('Sort', 'Sắp xếp')}
                   className="py-2 pl-3 pr-2.5 w-44 font-semibold border-border text-muted-foreground"
-                  activeClassName="border-[#0a66c2]"
+                  activeClassName="border-brand"
                   icon={<SlidersHorizontal className="h-3.5 w-3.5 text-ink-4 shrink-0" />}
                 />
 
@@ -2047,21 +2058,36 @@ export function ListingsExplorer({
                 </div>
               </div>
 
-            {/* Active brand banner — shown when filtering by a brand; clearable. */}
-            {activeBrand !== 'all' && (
-              <div className="flex items-center justify-between gap-2 rounded-xl bg-tint px-3 py-2">
-                <span className="text-sm font-semibold text-foreground">
-                  {prettyBrand(activeBrand)}{activeModel !== 'all' ? ` · ${activeModel}` : ''}
-                </span>
-                <button
-                  onClick={() => { setActiveBrand('all'); setActiveModel('all') }}
-                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-muted transition-colors cursor-pointer"
-                >
-                  {tr('Clear brand', 'Bỏ thương hiệu')}
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            )}
+            {/* Persistent applied-filter chips — the only on-screen record of active
+                refinements when the filter panel is collapsed (esp. mobile). Each chip
+                clears its own filter; "Clear all" resets them. */}
+            {(() => {
+              const chips = getActiveChips()
+              if (chips.length === 0) return null
+              return (
+                <div className="flex flex-wrap items-center gap-2">
+                  {chips.map((c, i) => (
+                    <button
+                      key={i}
+                      onClick={c.onClear}
+                      aria-label={tr('Remove filter', 'Bỏ bộ lọc') + `: ${c.label}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted cursor-pointer"
+                    >
+                      {c.label}
+                      <X className="h-3 w-3 text-ink-4" />
+                    </button>
+                  ))}
+                  {chips.length > 1 && (
+                    <button
+                      onClick={clearAllFilters}
+                      className="inline-flex items-center rounded-full px-2.5 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-muted transition-colors cursor-pointer"
+                    >
+                      {tr('Clear all', 'Xóa tất cả')}
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Results metadata count — also the feed's h2 (keeps headings sequential). */}
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1 select-none">
@@ -2137,7 +2163,7 @@ export function ListingsExplorer({
                           onMouseLeave={() => setHoveredId(null)}
                           className={cn(
                             'rounded-xl transition-shadow',
-                            hoveredId === l.id && 'ring-2 ring-inset ring-[#0a66c2]/40',
+                            hoveredId === l.id && 'ring-2 ring-inset ring-brand/40',
                           )}
                         >
                           <ListingCard listing={l} onOpen={handleOpen} onLocate={() => locateOnMap(l.id)} />
@@ -2148,7 +2174,7 @@ export function ListingsExplorer({
                         <div ref={mapSentinelRef} className="select-none py-2">
                           {queryFetching && hasMore && (
                             <div className="flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
-                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-[#0a66c2]" aria-hidden="true" />
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-brand" aria-hidden="true" />
                               {tr('Loading more…', 'Đang tải thêm…')}
                             </div>
                           )}
@@ -2200,7 +2226,7 @@ export function ListingsExplorer({
                   <div ref={loadMoreRef} className="mt-6 select-none">
                     {queryFetching && hasMore && (
                       <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">
-                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-[#0a66c2]" aria-hidden="true" />
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-brand" aria-hidden="true" />
                         {tr('Loading more…', 'Đang tải thêm…')}
                       </div>
                     )}
@@ -2242,7 +2268,7 @@ export function ListingsExplorer({
             {/* Apply Action Button */}
             <button
               onClick={() => setIsMobileFilterOpen(false)}
-              className="w-full rounded-xl bg-[#0a66c2] py-2.5 text-xs font-bold text-white shadow-md active:scale-98 cursor-pointer"
+              className="w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-white shadow-md active:scale-98 cursor-pointer"
             >
               {tr('Apply Filters', 'Áp dụng lọc')} ({totalCount} {tr('listings', 'tin')})
             </button>

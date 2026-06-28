@@ -14,7 +14,7 @@ export default async function AdminBrandsPage() {
     return (
       <div className="flex min-h-screen flex-col">
         <AdminHeader />
-        <main className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
+        <main id="main" tabIndex={-1} className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
           <ShieldAlert className="h-10 w-10 text-muted-foreground" />
           <p className="text-sm font-semibold text-body">Admins only.</p>
         </main>
@@ -24,7 +24,7 @@ export default async function AdminBrandsPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <AdminHeader />
-      <main className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-8 pb-16">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-8 pb-16">
         <AdminNav active="/admin/brands" />
         <AdminBrandsClient />
       </main>

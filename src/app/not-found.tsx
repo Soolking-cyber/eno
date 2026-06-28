@@ -27,7 +27,7 @@ export default function NotFound() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="relative flex flex-1 items-center justify-center overflow-hidden px-3 py-16">
+      <main id="main" tabIndex={-1} className="relative flex flex-1 items-center justify-center overflow-hidden px-3 py-16">
         {/* Brand glow — pure CSS gradients, no images */}
         <div
           aria-hidden

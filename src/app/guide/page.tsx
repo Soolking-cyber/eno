@@ -35,7 +35,7 @@ export default function GuidePage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         <p className="eyebrow text-accent-foreground mb-2"><Tr text="Guide" /></p>
         <h1 className="h-display text-foreground"><Tr text="How eno.vn works" /></h1>
         <p className="mt-3 text-sm leading-relaxed text-body">
@@ -94,7 +94,7 @@ export default function GuidePage() {
 
         {/* CTA */}
         <div className="mt-12 flex flex-wrap gap-2.5">
-          <Link href="/post" className="flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+          <Link href="/post" className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
             <Plus className="h-4 w-4" /> <Tr text="Post a listing" />
           </Link>
           <Link href="/" className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted hover:text-accent-foreground">

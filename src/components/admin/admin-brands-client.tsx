@@ -149,7 +149,7 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="truncate text-sm font-bold text-foreground">{name}</span>
-            {!brand.curatedAt && <span className="rounded-full bg-[#0a66c2]/10 px-1.5 text-[10px] font-bold text-accent-foreground">new</span>}
+            {!brand.curatedAt && <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-accent-foreground">new</span>}
             {brand.status === 'hidden' && <span className="rounded-full bg-tint px-1.5 text-[10px] font-bold text-ink-4">hidden</span>}
           </span>
           <span className="block truncate text-xs text-muted-foreground">{brand.slug} · {brand.listingCount} listings</span>
@@ -160,7 +160,7 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
         <div className="mt-3 grid gap-3 rounded-2xl bg-card p-4 shadow-pop sm:grid-cols-2">
           {/* AI assist — canonicalize the name + find a real monotone logo to approve. */}
           <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
-            <button onClick={aiSuggest} disabled={aiBusy} className="inline-flex items-center gap-1.5 rounded-xl border border-[#0a66c2]/30 px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-tint disabled:opacity-50">
+            <button onClick={aiSuggest} disabled={aiBusy} className="inline-flex items-center gap-1.5 rounded-xl border border-brand/30 px-3 py-1.5 text-sm font-semibold text-accent-foreground hover:bg-tint disabled:opacity-50">
               {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} AI suggest logo &amp; name
             </button>
             {aiNote && <span className="text-xs text-muted-foreground">{aiNote}</span>}
@@ -170,7 +170,7 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
           <Field label="Status">
             <div className="flex gap-2">
               {(['active', 'hidden'] as const).map((s) => (
-                <button key={s} onClick={() => setStatus(s)} className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold capitalize', status === s ? 'border-[#0a66c2] bg-[#0a66c2] text-white' : 'border-line-strong text-body hover:bg-muted')}>{s}</button>
+                <button key={s} onClick={() => setStatus(s)} className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold capitalize', status === s ? 'border-brand bg-primary text-white' : 'border-line-strong text-body hover:bg-muted')}>{s}</button>
               ))}
             </div>
           </Field>
@@ -194,7 +194,7 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
               </select>
               <button onClick={merge} disabled={!mergeId || saving} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-muted disabled:opacity-40">Merge</button>
             </div>
-            <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-60">
+            <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
             </button>
           </div>

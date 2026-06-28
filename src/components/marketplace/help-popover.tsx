@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { X, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { useFocusTrap } from '@/lib/use-focus-trap'
 
 type View = 'menu' | { kind: 'feedback' | 'technical' }
 
@@ -16,6 +17,7 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
   const [message, setMessage] = useState('')
   const [email, setEmail] = useState('')
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const trapRef = useFocusTrap<HTMLDivElement>()
 
   // Close on Escape; lock background scroll while open.
   useEffect(() => {
@@ -58,7 +60,7 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
   return (
     <div role="dialog" aria-modal="true" aria-label={tr('Help', 'Trợ giúp')} className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" aria-hidden onClick={onClose} />
-      <div className="relative w-full max-h-[85vh] overflow-y-auto rounded-t-2xl bg-card shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-200 sm:max-w-md sm:rounded-2xl sm:slide-in-from-bottom-0 sm:zoom-in-95">
+      <div ref={trapRef} className="relative w-full max-h-[85vh] overflow-y-auto rounded-t-2xl bg-card shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-200 sm:max-w-md sm:rounded-2xl sm:slide-in-from-bottom-0 sm:zoom-in-95">
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4">
           {isForm ? (
@@ -81,7 +83,7 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
               <p className="mt-2 text-sm leading-relaxed text-body">
                 {tr('Find answers about buying, selling and your account — or contact us for more help.', 'Tìm câu trả lời về mua, bán và tài khoản — hoặc liên hệ để được hỗ trợ thêm.')}
               </p>
-              <Link href="/help" onClick={onClose} className="mt-4 flex w-full items-center justify-center rounded-xl bg-[#0a66c2] px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+              <Link href="/help" onClick={onClose} className="mt-4 flex w-full items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
                 {tr('Visit Help Center', 'Đến Trung tâm trợ giúp')}
               </Link>
             </section>
@@ -91,7 +93,7 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
               <p className="mt-2 text-sm leading-relaxed text-body">
                 {tr('If a listing breaks our policies or the law, report it so we can keep eno.vn safe for everyone.', 'Nếu một tin đăng vi phạm chính sách hoặc pháp luật, hãy báo cáo để chúng tôi giữ eno.vn an toàn cho mọi người.')}
               </p>
-              <Link href="/safety" onClick={onClose} className="mt-3 flex w-full items-center justify-center rounded-xl border border-[#0a66c2] px-5 py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-accent">
+              <Link href="/safety" onClick={onClose} className="mt-3 flex w-full items-center justify-center rounded-xl border border-brand px-5 py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-accent">
                 {tr('How to report a listing', 'Cách báo cáo tin đăng')}
               </Link>
             </section>
@@ -115,10 +117,10 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
           <div className="px-5 py-5">
             {state === 'sent' ? (
               <div className="flex flex-col items-center py-8 text-center">
-                <CheckCircle2 className="h-12 w-12 text-[#0a66c2]" />
+                <CheckCircle2 className="h-12 w-12 text-brand" />
                 <h2 className="mt-3 text-lg font-bold text-foreground">{tr('Thanks — we got it.', 'Cảm ơn — đã nhận được.')}</h2>
                 <p className="mt-1.5 text-sm text-body">{tr('Our team reviews every message.', 'Đội ngũ của chúng tôi xem mọi tin nhắn.')}</p>
-                <button type="button" onClick={onClose} className="mt-5 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182] cursor-pointer">
+                <button type="button" onClick={onClose} className="mt-5 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer">
                   {tr('Done', 'Xong')}
                 </button>
               </div>
@@ -139,14 +141,14 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
                   autoFocus
                   maxLength={4000}
                   placeholder={tr('Type your message…', 'Nhập tin nhắn của bạn…')}
-                  className="mt-3 w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#0a66c2]"
+                  className="mt-3 w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-brand"
                 />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={tr('Email (optional, so we can reply)', 'Email (tùy chọn, để chúng tôi trả lời)')}
-                  className="mt-2.5 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#0a66c2]"
+                  className="mt-2.5 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-brand"
                 />
                 {state === 'error' && (
                   <p className="mt-2 text-sm font-semibold text-destructive">{tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.')}</p>
@@ -155,7 +157,7 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
                   type="button"
                   onClick={send}
                   disabled={message.trim().length < 2 || state === 'sending'}
-                  className="mt-3 flex w-full items-center justify-center rounded-xl bg-[#0a66c2] px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-50 cursor-pointer"
+                  className="mt-3 flex w-full items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-50 cursor-pointer"
                 >
                   {state === 'sending' ? tr('Sending…', 'Đang gửi…') : tr('Send', 'Gửi')}
                 </button>

@@ -75,7 +75,7 @@ export function AvailabilityClient() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-3 py-6 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-6 sm:px-6">
         <div className="text-center">
           <Mascot name="success" className="mx-auto h-32 w-32" />
           <h1 className="mt-2 h-title text-foreground">{tr('Still available?', 'Còn hàng không?')}</h1>
@@ -103,7 +103,7 @@ export function AvailabilityClient() {
                   <p className={cn('truncate text-sm font-semibold', sold ? 'text-muted-foreground line-through' : 'text-foreground')}>{l.titleVi || l.title}</p>
                   <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="text-sm font-bold text-body" />
                 </div>
-                <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors', sold ? 'bg-[#0a66c2] text-white' : 'bg-tint text-ink-4')}>
+                <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors', sold ? 'bg-primary text-white' : 'bg-tint text-ink-4')}>
                   {sold ? <Check className="h-4 w-4" /> : ''}
                 </span>
               </button>
@@ -122,7 +122,7 @@ export function AvailabilityClient() {
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card px-3 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-3">
           <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
             <button onClick={skip} className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</button>
-            <button onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-50 cursor-pointer">
+            <button onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-50 cursor-pointer">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {soldCount > 0
                 ? tr(`Bump ${availCount} · sold ${soldCount}`, `Đẩy ${availCount} · đã bán ${soldCount}`)

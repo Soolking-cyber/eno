@@ -68,7 +68,7 @@ export function ContactComposer({
 
   if (!loading && !user) {
     return (
-      <button onClick={() => openSignIn()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-all hover:bg-[#004182] active:scale-98 cursor-pointer">
+      <button onClick={() => openSignIn()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-all hover:bg-brand-dark active:scale-98 cursor-pointer">
         <Lock className="h-4 w-4" /> {tr('Sign in to contact seller', 'Đăng nhập để liên hệ người bán')}
       </button>
     )
@@ -122,7 +122,7 @@ export function ContactComposer({
       <button
         onClick={send}
         disabled={!canSend}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-all hover:bg-[#004182] active:scale-98 disabled:opacity-40 cursor-pointer"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-all hover:bg-brand-dark active:scale-98 disabled:opacity-40 cursor-pointer"
       >
         <Send className="h-4 w-4" />
         {offering && hasPrice ? `${tr('Send offer', 'Gửi đề nghị')} · ${formatMoneyFull(offerPrice, currency)}` : tr('Send', 'Gửi')}

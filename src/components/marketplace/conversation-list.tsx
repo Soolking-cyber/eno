@@ -83,7 +83,7 @@ export function ConversationList() {
                 className={cn('group flex items-center gap-1 rounded-xl transition-colors', activeId === c.id ? 'text-accent-foreground bg-muted' : c.unread > 0 ? 'bg-accent/60 hover:bg-accent' : 'hover:bg-muted')}
               >
                 <Link href={`/messages/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-2.5">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0a66c2] text-sm font-bold text-white">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-bold text-white">
                     {c.counterpart.avatarUrl
                       ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={c.counterpart.avatarUrl} alt="" className="h-11 w-11 rounded-full object-cover" />
                       : c.counterpart.name.slice(0, 2).toUpperCase()}
@@ -91,7 +91,7 @@ export function ConversationList() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-bold text-foreground">{c.counterpart.name}</span>
-                      {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0a66c2] px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}
+                      {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}
                     </div>
                     <p className="truncate text-xs text-ink-4">{c.listingTitle}</p>
                     {(() => {

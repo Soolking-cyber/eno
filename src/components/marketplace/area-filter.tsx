@@ -8,6 +8,7 @@ import { CustomSelect } from './custom-select'
 import { EnoSlider } from './eno-slider'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useFocusTrap } from '@/lib/use-focus-trap'
 
 export type Nearby = { lat: number; lng: number; radiusKm: number }
 export type Geo = { code: string; name: string; nameEn: string }
@@ -69,6 +70,7 @@ export function AreaFilter({
   const { lang, tr } = useLanguage()
   const [mounted, setMounted] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
+  const trapRef = useFocusTrap<HTMLDivElement>(open)
   const [pos, setPos] = useState({ top: 0, left: 0, width: 320 })
 
   // Anchor the panel under the trigger like CustomSelect (one design language).
@@ -226,7 +228,10 @@ export function AreaFilter({
     <>
     <div className="fixed inset-0 z-[99]" aria-hidden onClick={onClose} />
     <div
-      ref={panelRef}
+      ref={(node) => { panelRef.current = node; trapRef.current = node }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={tr('Choose area', 'Chọn khu vực')}
       style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, visibility: pos.top > 0 ? 'visible' : 'hidden' }}
       className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
     >
@@ -306,7 +311,7 @@ export function AreaFilter({
 
       <div className="mt-4 flex gap-3">
         <button onClick={reset} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{mode === 'pick' ? tr('Clear', 'Xóa') : tr('Delete filter', 'Xóa lọc')}</button>
-        <button onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</button>
+        <button onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</button>
       </div>
     </div>
     </>,

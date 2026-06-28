@@ -5,7 +5,7 @@ export default function DashboardLoading() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-3 py-6 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-5xl flex-1 px-3 py-6 sm:px-6">
         <div className="flex items-center gap-3">
           <div className="h-12 w-12 shrink-0 rounded-full shimmer" />
           <div className="space-y-1.5">

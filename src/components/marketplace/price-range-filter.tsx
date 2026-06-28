@@ -181,7 +181,7 @@ export function PriceRangeFilter({
                     return (
                       <div
                         key={i}
-                        className={cn('flex-1 rounded-sm transition-colors', within ? 'bg-[#0a66c2]' : 'bg-line-strong/50')}
+                        className={cn('flex-1 rounded-sm transition-colors', within ? 'bg-primary' : 'bg-line-strong/50')}
                         style={{ height: `${Math.max(4, (c / maxCount) * 100)}%` }}
                       />
                     )
@@ -191,7 +191,7 @@ export function PriceRangeFilter({
                 <div className="relative mt-1 h-5 cursor-pointer" onPointerDown={onTrackDown}>
                   <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-muted" />
                   <div
-                    className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#0a66c2]"
+                    className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary"
                     style={{ left: `${pct(effLo)}%`, width: `${Math.max(0, pct(effHi) - pct(effLo))}%` }}
                   />
                   <input
@@ -248,7 +248,7 @@ export function PriceRangeFilter({
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-lg bg-[#0a66c2] px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#004182] cursor-pointer"
+                  className="rounded-lg bg-primary px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
                 >
                   {tr('Done', 'Xong')}
                 </button>

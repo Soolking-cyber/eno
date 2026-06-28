@@ -100,14 +100,14 @@ export function OnboardClient() {
   // loader — never flash the choice card to an already-onboarded user mid-bounce.
   if (loading || !user || accountType) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background">
+      <main id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" />
       </main>
     )
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
+    <main id="main" tabIndex={-1} className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-4 flex justify-center">
           <Mascot name="profile" className="h-44 w-44" />
@@ -127,10 +127,10 @@ export function OnboardClient() {
                   aria-pressed={active}
                   className={cn(
                     'flex w-full items-start gap-3 rounded-2xl p-4 text-left transition-colors cursor-pointer',
-                    active ? 'bg-accent ring-2 ring-[#0a66c2]/30' : 'hover:bg-muted',
+                    active ? 'bg-accent ring-2 ring-brand/30' : 'hover:bg-muted',
                   )}
                 >
-                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', active ? 'bg-[#0a66c2] text-white' : 'text-muted-foreground')}>
+                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', active ? 'bg-primary text-white' : 'text-muted-foreground')}>
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -169,7 +169,7 @@ export function OnboardClient() {
           <button
             onClick={submit}
             disabled={!canSubmit}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-40 transition-colors cursor-pointer"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {t('Continue', 'Tiếp tục')}
           </button>

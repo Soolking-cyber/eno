@@ -19,7 +19,7 @@ function Toggle({ title, desc, value, onChange, locked = false }: { title: strin
         <span className="block text-[13px] font-semibold text-foreground">{title}</span>
         <span className="mt-0.5 block text-[11px] leading-snug text-ink-4">{desc}</span>
       </span>
-      <span className={cn('mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors', value ? 'bg-[#0a66c2]' : 'bg-line-strong')}>
+      <span className={cn('mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors', value ? 'bg-primary' : 'bg-line-strong')}>
         <span className={cn('h-4 w-4 rounded-full bg-white shadow-sm transition-transform', value && 'translate-x-4')} />
       </span>
     </button>
@@ -44,7 +44,7 @@ export function CookieConsent() {
   const save = () => { setConsent(ads ? 'all' : perso ? 'personalized' : 'essential'); close() }
   const decline = () => { setConsent('essential'); close() }
 
-  const primary = 'rounded-lg bg-[#0a66c2] px-4 py-1.5 text-sm font-bold text-white transition-colors hover:bg-[#004182] active:scale-95 cursor-pointer'
+  const primary = 'rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark active:scale-95 cursor-pointer'
   const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted active:scale-95 cursor-pointer'
 
   return (

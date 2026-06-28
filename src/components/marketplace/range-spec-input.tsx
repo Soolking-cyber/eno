@@ -82,7 +82,7 @@ export function RangeSpecInput({
       <div className="relative h-5 w-full max-w-sm">
         <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-muted" />
         <div
-          className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#0a66c2]"
+          className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary"
           style={{ width: `${value == null ? 0 : pct}%` }}
         />
         <input

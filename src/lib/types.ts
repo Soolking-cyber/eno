@@ -141,11 +141,11 @@ export function timeAgo(iso: string, lang: string = 'vi'): string {
 // Keeping the per-category keys lets existing lookups resolve while the UI
 // stays cohesive (the product photos carry the colour, not the chrome).
 const BRAND_BLUE = {
-  bg: 'bg-[#0a66c2]',
-  text: 'text-[#0a66c2]',
-  ring: 'ring-[#0a66c2]/20',
-  soft: 'bg-[#e8f1fb] text-[#0a66c2] border-[#0a66c2]/15',
-  grad: 'from-[#0a66c2] to-[#2f80c4]',
+  bg: 'bg-primary',
+  text: 'text-brand',
+  ring: 'ring-brand/20',
+  soft: 'bg-brand-50 text-brand border-brand/15',
+  grad: 'from-brand to-[#2f80c4]',
 }
 
 export const CATEGORY_COLOR_CLASSES: Record<CategoryColor, { bg: string; text: string; ring: string; soft: string; grad: string }> = {

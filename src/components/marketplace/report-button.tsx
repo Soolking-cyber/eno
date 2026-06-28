@@ -77,7 +77,7 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
               <CheckCircle2 className="mx-auto h-10 w-10 text-accent-foreground" />
               <p className="mt-3 text-sm font-semibold text-foreground">{t('Cảm ơn bạn', 'Thanks for the heads-up')}</p>
               <p className="mt-1 text-sm text-muted-foreground">{t('Đội ngũ eno.vn sẽ xem xét tin này.', 'The eno.vn team will review this listing.')}</p>
-              <button onClick={() => { setOpen(false); reset() }} className="mt-4 rounded-xl bg-[#0a66c2] px-6 py-2 text-sm font-bold text-white hover:bg-[#004182] transition-colors cursor-pointer">
+              <button onClick={() => { setOpen(false); reset() }} className="mt-4 rounded-xl bg-primary px-6 py-2 text-sm font-bold text-white hover:bg-brand-dark transition-colors cursor-pointer">
                 {t('Đóng', 'Close')}
               </button>
             </div>
@@ -90,11 +90,11 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
                     onClick={() => setReason(r.value)}
                     className={cn(
                       'flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors cursor-pointer',
-                      reason === r.value ? 'border-[#0a66c2] font-semibold text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
+                      reason === r.value ? 'border-brand font-semibold text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
                     )}
                   >
-                    <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', reason === r.value ? 'border-[#0a66c2]' : 'border-line-strong')}>
-                      {reason === r.value && <span className="h-2 w-2 rounded-full bg-[#0a66c2]" />}
+                    <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', reason === r.value ? 'border-brand' : 'border-line-strong')}>
+                      {reason === r.value && <span className="h-2 w-2 rounded-full bg-primary" />}
                     </span>
                     {t(r.vi, r.en)}
                   </button>
@@ -107,7 +107,7 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
                 rows={2}
                 maxLength={1000}
                 placeholder={t('Chi tiết (không bắt buộc)', 'Details (optional)')}
-                className="w-full resize-none rounded-xl bg-tint px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+                className="w-full resize-none rounded-xl bg-tint px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
               />
 
               {error && <p role="alert" className="text-center text-xs font-semibold text-red-600">{error}</p>}
@@ -115,7 +115,7 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
               <button
                 onClick={submit}
                 disabled={loading || !reason}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0a66c2] py-2.5 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-40 transition-colors cursor-pointer"
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Gửi báo cáo', 'Submit report')}
               </button>

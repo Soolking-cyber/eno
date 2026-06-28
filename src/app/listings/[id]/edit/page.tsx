@@ -75,7 +75,7 @@ export default async function EditListingPage({ params }: Props) {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <PostWizard categories={categories} edit={edit} />
       </main>
       <Footer />

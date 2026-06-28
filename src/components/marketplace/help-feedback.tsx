@@ -36,7 +36,7 @@ export function HelpFeedback() {
 
   if (state === 'sent') {
     return (
-      <div className="flex items-center gap-3 rounded-2xl bg-[#e8f1fb] px-4 py-4 text-sm font-semibold text-[#0a66c2]">
+      <div className="flex items-center gap-3 rounded-2xl bg-brand-50 px-4 py-4 text-sm font-semibold text-brand">
         <CheckCircle2 className="h-5 w-5 shrink-0" />
         {tr('Thanks — we got your message. Our team reviews every one.', 'Cảm ơn — chúng tôi đã nhận tin nhắn. Đội ngũ sẽ xem từng phản hồi.')}
       </div>
@@ -49,7 +49,7 @@ export function HelpFeedback() {
       onClick={() => setKind(value)}
       className={
         'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer ' +
-        (kind === value ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')
+        (kind === value ? 'bg-primary text-white' : 'text-body hover:bg-muted')
       }
     >
       <Icon className="h-4 w-4" /> {label}
@@ -68,14 +68,14 @@ export function HelpFeedback() {
         rows={4}
         maxLength={4000}
         placeholder={kind === 'technical' ? tr('What went wrong, and what were you doing?', 'Lỗi gì, và bạn đang làm gì?') : tr('What works well, what could be better?', 'Điều gì tốt, điều gì có thể cải thiện?')}
-        className="mt-3 w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#0a66c2]"
+        className="mt-3 w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-brand"
       />
       <input
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder={tr('Email (optional, so we can reply)', 'Email (tùy chọn, để chúng tôi trả lời)')}
-        className="mt-2.5 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#0a66c2]"
+        className="mt-2.5 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-brand"
       />
       {state === 'error' && (
         <p className="mt-2 text-sm font-semibold text-destructive">{tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.')}</p>
@@ -84,7 +84,7 @@ export function HelpFeedback() {
         type="button"
         onClick={send}
         disabled={message.trim().length < 2 || state === 'sending'}
-        className="mt-3 inline-flex items-center justify-center rounded-xl bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-50 cursor-pointer"
+        className="mt-3 inline-flex items-center justify-center rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-50 cursor-pointer"
       >
         {state === 'sending' ? tr('Sending…', 'Đang gửi…') : tr('Send', 'Gửi')}
       </button>

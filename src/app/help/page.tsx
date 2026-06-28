@@ -94,7 +94,7 @@ export default function HelpPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         <p className="eyebrow text-accent-foreground mb-2"><Tr text="Help center" /></p>
         <h1 className="h-display text-foreground"><Tr text="How can we help?" /></h1>
         <p className="mt-3 text-sm leading-relaxed text-body">
@@ -164,7 +164,7 @@ export default function HelpPage() {
             <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
             <p className="text-sm text-body"><Tr text="Our team replies within one business day." /></p>
           </div>
-          <a href="mailto:support@eno.forum" className="flex shrink-0 items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+          <a href="mailto:support@eno.forum" className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
             <Mail className="h-4 w-4" /> support@eno.forum
           </a>
         </div>

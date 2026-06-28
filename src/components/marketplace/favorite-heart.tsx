@@ -23,7 +23,7 @@ export function FavoriteHeart({ id, className }: { id: string; className?: strin
     >
       {/* key remounts on toggle → re-runs the CSS pop (same as the grid card) */}
       <span key={fav ? 'on' : 'off'} className={cn('inline-flex', fav && 'animate-heart-pop')}>
-        <Heart className={cn('h-[18px] w-[18px] transition-colors', fav ? 'fill-[#0a66c2] text-accent-foreground' : 'text-foreground')} />
+        <Heart className={cn('h-[18px] w-[18px] transition-colors', fav ? 'fill-brand text-accent-foreground' : 'text-foreground')} />
       </span>
     </button>
   )

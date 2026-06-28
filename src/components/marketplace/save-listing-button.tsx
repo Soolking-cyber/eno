@@ -25,11 +25,11 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
         aria-label={label}
         className={cn(
           'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors active:scale-90',
-          saved ? 'border-[#0a66c2] text-accent-foreground' : 'border-border text-body',
+          saved ? 'border-brand text-accent-foreground' : 'border-border text-body',
           className,
         )}
       >
-        <Heart className={cn('h-5 w-5', saved && 'fill-[#0a66c2]')} />
+        <Heart className={cn('h-5 w-5', saved && 'fill-brand')} />
       </button>
     )
   }
@@ -42,11 +42,11 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
       aria-label={label}
       className={cn(
         'flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95',
-        saved ? 'border-[#0a66c2] text-accent-foreground' : 'border-border text-body hover:border-[#0a66c2] hover:text-accent-foreground',
+        saved ? 'border-brand text-accent-foreground' : 'border-border text-body hover:border-brand hover:text-accent-foreground',
         className,
       )}
     >
-      <Heart className={cn('h-4 w-4', saved && 'fill-[#0a66c2]')} />
+      <Heart className={cn('h-4 w-4', saved && 'fill-brand')} />
       <span className="hidden sm:inline">{label}</span>
     </button>
   )

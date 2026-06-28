@@ -57,7 +57,7 @@ function GatedTab({ href, active, icon, label, gate, onNavigate }: { href: strin
   // Keep the <Link> (prefetch + a11y) but drive the actual nav through the slide
   // router so it animates directionally.
   return (
-    <Link href={href} aria-label={label} className={TAB} onClick={(e) => { e.preventDefault(); onNavigate() }}>
+    <Link href={href} aria-label={label} aria-current={active ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); onNavigate() }}>
       <TabBody active={active} icon={icon} />
     </Link>
   )
@@ -115,18 +115,18 @@ export function MobileNav() {
       {/* Fixed 64px tab row; the safe-area padding sits BELOW it (filled white) so
           the home-indicator inset never compresses the icons out of the bar. */}
       <div className="flex h-16 items-stretch">
-      <Link href="/" aria-label={tr('Explore', 'Khám phá')} className={TAB} onClick={(e) => { e.preventDefault(); go('/') }}>
+      <Link href="/" aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); go('/') }}>
         <TabBody active={at('/')} icon={<Compass className="h-7 w-7" />} />
       </Link>
 
       {/* Saved is public — favorites are stored device-local (localStorage), so a
           logged-out visitor can save and review listings without an account. */}
-      <Link href="/saved" aria-label={tr('Saved', 'Đã lưu')} className={TAB} onClick={(e) => { e.preventDefault(); go('/saved') }}>
+      <Link href="/saved" aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); go('/saved') }}>
         <TabBody
           active={at('/saved')}
           icon={
             <>
-              <Heart className={cn('h-7 w-7', count > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
+              <Heart className={cn('h-7 w-7', count > 0 && 'fill-brand text-brand')} />
               {count > 0 && (
                 <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                   {count}
@@ -143,7 +143,7 @@ export function MobileNav() {
         gate={gate}
         onNavigate={() => go('/post')}
         icon={
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-sm">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-sm">
             <Plus className="h-6 w-6" />
           </span>
         }
@@ -157,7 +157,7 @@ export function MobileNav() {
         onNavigate={() => go('/messages')}
         icon={
           <>
-            <MessageSquare className={cn('h-7 w-7', user && unread > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
+            <MessageSquare className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} />
             {user && unread > 0 && (
               <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                 {unread > 9 ? '9+' : unread}

@@ -55,14 +55,14 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         />
       )}
       <Header />
-      <main className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         {/* Hero */}
         <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
         <h1 className="h-display text-foreground">{content.h1}</h1>
         <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-body">{content.intro}</p>
         <Link
           href={`/c/${content.categorySlug}`}
-          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#004182]"
+          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
         >
           {content.cta} <ArrowRight className="h-4 w-4" />
         </Link>

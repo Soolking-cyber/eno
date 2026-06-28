@@ -8,6 +8,7 @@ import { Price } from './price'
 import { ShareButton } from './share-button'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 // One row in the seller dashboard's listings table. Lifecycle actions are
 // OPTIMISTIC: the row's status/availability flips INSTANTLY (local override), the
@@ -44,11 +45,25 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
     () => setOptStatus(null),
     `/api/listings/${listing.id}/status`, 'POST', { status: s },
   )
-  const del = () => act(
-    () => setGone(true),
-    () => setGone(false),
-    `/api/listings/${listing.id}`, 'DELETE',
-  )
+  // Delete the Gmail way: hide the row instantly, hold the DELETE for the toast's
+  // lifetime, and only commit if "Undo" wasn't tapped. No blocking confirm() dialog.
+  const del = () => {
+    setGone(true)
+    let undone = false
+    const commit = setTimeout(() => {
+      if (undone) return
+      fetch(`/api/listings/${listing.id}`, { method: 'DELETE' })
+        .then((res) => { if (!res.ok) throw new Error('failed'); onChanged() })
+        .catch(() => { setGone(false); toast.error(tr('Could not delete — listing restored.', 'Không xóa được — đã khôi phục tin.')); onChanged() })
+    }, 5000)
+    toast(tr('Listing deleted', 'Đã xóa tin'), {
+      duration: 5000,
+      action: {
+        label: tr('Undo', 'Hoàn tác'),
+        onClick: () => { undone = true; clearTimeout(commit); setGone(false) },
+      },
+    })
+  }
 
   if (gone) return null
 
@@ -104,7 +119,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
           className="gap-1 rounded-lg px-2.5 py-1 text-xs [&_svg]:h-3 [&_svg]:w-3"
         />
       )}
-      <button onClick={() => { if (confirm(tr('Delete this listing permanently?', 'Xóa vĩnh viễn tin này?'))) del() }} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 relative tap-44')}>
+      <button onClick={del} aria-label={tr('Delete listing', 'Xóa tin')} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 relative tap-44')}>
         <Trash2 className="h-3 w-3" />
       </button>
     </div>

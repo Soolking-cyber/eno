@@ -114,7 +114,7 @@ function ListingRow({ item, mode }: { item: ModItem; mode: 'pending' | 'reported
           <button
             onClick={() => run('approve', item.id)}
             disabled={!!busy}
-            className="inline-flex items-center gap-1.5 rounded-full bg-[#0a66c2] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-white hover:bg-brand-dark disabled:opacity-40 transition-colors cursor-pointer"
           >
             {busy === 'approve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
             {mode === 'reported' ? 'Keep & clear reports' : 'Approve & publish'}

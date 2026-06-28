@@ -116,7 +116,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
     return (
       <div className="flex min-h-screen flex-col bg-background">
         <Header />
-        <main className="mx-auto w-full max-w-md flex-1 space-y-6 px-3 py-10">
+        <main id="main" tabIndex={-1} className="mx-auto w-full max-w-md flex-1 space-y-6 px-3 py-10">
           <div className="p-8 text-center">
             <h1 className="text-lg font-bold text-foreground">{tr('Your account', 'Tài khoản của bạn')}</h1>
             <p className="mt-2 text-sm text-muted-foreground">{tr('Sign in to manage your listings, messages and saved items.', 'Đăng nhập để quản lý tin đăng, tin nhắn và mục đã lưu.')}</p>
@@ -139,7 +139,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
-      <main className="mx-auto w-full max-w-7xl flex-1 px-3 py-6 sm:px-6 lg:px-8">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-6 sm:px-6 lg:px-8">
         {/* Identity header — avatar · name · email · trust, with post + sign out */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -170,7 +170,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
               onClick={() => { setTab(tb); router.replace(`/dashboard?tab=${tb}`, { scroll: false }) }}
               className={cn(
                 '-mb-px flex items-center gap-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
-                tab === tb ? 'border-[#0a66c2] text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+                tab === tb ? 'border-brand text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
               {tb === 'post' ? tr('Post', 'Đăng tin') : tb === 'listings' ? tr('Listings', 'Tin đăng') : tr('Settings', 'Cài đặt')}

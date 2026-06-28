@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { MessageSquare, ChevronLeft, ChevronRight, X, Send, Loader2, Phone, Trash2, Tag } from 'lucide-react'
+import { MessageSquare, ChevronLeft, ChevronRight, X, Send, Loader2, Phone, Trash2, Tag, RotateCcw } from 'lucide-react'
+import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { Price } from './price'
 
-type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
+type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string }
 type Thread = {
   id: string; me: string; listing: Listing
@@ -67,9 +69,9 @@ function PendingThread({ onBack, onClose }: { onBack: () => void; onClose: () =>
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); queue() } }}
           rows={1}
           placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
-          className="max-h-24 flex-1 resize-none rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+          className="max-h-24 flex-1 resize-none rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
-        <button onClick={queue} disabled={!draft.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white disabled:opacity-40">
+        <button onClick={queue} disabled={!draft.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-white disabled:opacity-40">
           <Send className="h-4 w-4" />
         </button>
       </div>
@@ -96,7 +98,7 @@ export function ChatWidget() {
         <button
           onClick={openInbox}
           aria-label={tr('Messages', 'Tin nhắn')}
-          className="fixed bottom-5 right-5 z-[100] hidden h-14 w-14 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-overlay transition-transform hover:scale-105 active:scale-95 lg:flex"
+          className="fixed bottom-5 right-5 z-[100] hidden h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-overlay transition-transform hover:scale-105 active:scale-95 lg:flex"
         >
           <MessageSquare className="h-6 w-6" />
           {unread > 0 && (
@@ -149,7 +151,7 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-bold text-foreground">{c.counterpart.name}</span>
-                      {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0a66c2] px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}
+                      {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}
                     </div>
                     <p className="truncate text-xs text-ink-4">{c.listingTitle}</p>
                     <p className={`truncate text-xs ${c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>{c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới')}</p>
@@ -349,14 +351,21 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         })
         onSent()
       } else {
-        // Failed: drop the temp bubble and restore the text so the user can retry.
-        setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
-        setText(body)
+        markFailed(tempId)
       }
     } catch {
-      setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
-      setText(body)
+      markFailed(tempId)
     }
+  }
+
+  // Keep the bubble on failure (don't vanish it) — flip it to a tap-to-retry state
+  // so a flaky-network send is never silently lost.
+  const markFailed = (tempId: string) =>
+    setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === tempId ? { ...x, pending: false, failed: true } : x)) } : t))
+
+  const retry = (m: Msg) => {
+    setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== m.id) } : t))
+    void send(m.body)
   }
 
   // Send a structured offer (a message with kind='offer' + amount). Optimistic,
@@ -373,9 +382,9 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerAmount: amt }),
       })
       if (res.ok) { await load(); onSent() }
-      else setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+      else { setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t)); toast.error(tr('Offer not sent — please try again.', 'Chưa gửi được đề nghị — vui lòng thử lại.')) }
     } catch {
-      setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+      setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t)); toast.error(tr('Offer not sent — please try again.', 'Chưa gửi được đề nghị — vui lòng thử lại.'))
     }
   }
 
@@ -465,7 +474,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         </div>
       )}
 
-      <div className="flex-1 space-y-2 overflow-y-auto bg-background px-3 py-3 scroll-thin">
+      <div role="log" aria-live="polite" aria-relevant="additions" className="flex-1 space-y-2 overflow-y-auto bg-background px-3 py-3 scroll-thin">
         {!thread && (
           <div className="space-y-2">
             {[60, 42, 70, 50].map((w, i) => (
@@ -478,7 +487,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         {thread?.messages.map((m) => (
           <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
             {m.kind === 'offer' ? (
-              <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-[#0a66c2]/30 bg-[#0a66c2]/5' : 'border-border bg-card'}`}>
+              <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-card'}`}>
                 <div className="text-[11px] font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
                 <div className="mt-0.5 text-base font-bold text-foreground">{new Intl.NumberFormat('en-US').format(m.offerAmount || 0)}₫</div>
                 {m.offerStatus === 'pending' && (
@@ -493,7 +502,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
                 )}
                 {!m.mine && m.offerStatus === 'pending' && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <button onClick={() => actOffer(m.id, 'accept')} className="rounded-lg bg-[#0a66c2] px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-[#004182] cursor-pointer">{tr('Accept', 'Chấp nhận')}</button>
+                    <button onClick={() => actOffer(m.id, 'accept')} className="rounded-lg bg-primary px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer">{tr('Accept', 'Chấp nhận')}</button>
                     <button onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted cursor-pointer">{tr('Decline', 'Từ chối')}</button>
                     <button onClick={() => { setOfferInput(m.offerAmount ? new Intl.NumberFormat('en-US').format(m.offerAmount) : ''); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
                   </div>
@@ -503,8 +512,22 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
                 )}
               </div>
             ) : (
-              <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'border border-border bg-card text-foreground'}`}>
-                {m.body}
+              <div className={cn('flex max-w-[80%] flex-col', m.mine ? 'items-end' : 'items-start')}>
+                <div className={cn(
+                  'rounded-2xl px-3 py-2 text-sm leading-relaxed',
+                  m.failed ? 'border border-destructive/30 bg-destructive/10 text-destructive' : m.mine ? 'bg-primary text-white' : 'border border-border bg-card text-foreground',
+                  m.pending && 'opacity-70',
+                )}>
+                  {m.body}
+                </div>
+                {m.mine && m.pending && (
+                  <span className="mt-0.5 flex items-center gap-1 text-[10px] text-ink-4"><Loader2 className="h-2.5 w-2.5 animate-spin" /> {tr('Sending…', 'Đang gửi…')}</span>
+                )}
+                {m.mine && m.failed && (
+                  <button onClick={() => retry(m)} className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-destructive hover:underline cursor-pointer">
+                    <RotateCcw className="h-2.5 w-2.5" /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -525,13 +548,13 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
             inputMode="numeric"
             autoFocus
             placeholder={tr('Offer amount (₫)', 'Số tiền đề nghị (₫)')}
-            className="min-w-0 flex-1 rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+            className="min-w-0 flex-1 rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
             onKeyDown={(e) => { if (e.key === 'Enter') { const n = Number(offerInput.replace(/\D/g, '')); if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') } } }}
           />
           <button
             onClick={() => { const n = Number(offerInput.replace(/\D/g, '')); if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') } }}
             disabled={!offerInput}
-            className="shrink-0 rounded-2xl bg-[#0a66c2] px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-40 cursor-pointer"
+            className="shrink-0 rounded-2xl bg-primary px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
           >
             {tr('Send offer', 'Gửi đề nghị')}
           </button>
@@ -556,9 +579,9 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
           rows={1}
           placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
-          className="max-h-24 flex-1 resize-none rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+          className="max-h-24 flex-1 resize-none rounded-2xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
-        <button onClick={() => send()} disabled={!text.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40">
+        <button onClick={() => send()} disabled={!text.trim()} aria-label={tr('Send', 'Gửi')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40">
           <Send className="h-4 w-4" />
         </button>
       </div>

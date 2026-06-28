@@ -21,7 +21,7 @@ export default function SavedPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <h1 className="h-title text-foreground mb-1">{tr('Saved', 'Tin đã lưu')}</h1>
         <p className="text-sm text-muted-foreground mb-6">
           {count} {tr(count === 1 ? 'saved listing' : 'saved listings', 'tin đã lưu')}
@@ -59,7 +59,7 @@ export default function SavedPage() {
             </p>
             <Link
               href="/"
-              className="mt-2 rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]"
+              className="mt-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark"
             >
               {tr('Browse listings', 'Khám phá tin đăng')}
             </Link>

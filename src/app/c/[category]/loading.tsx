@@ -6,7 +6,7 @@ export default function CategoryLoading() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <Skeleton className="mb-4 h-4 w-48" />
         <Skeleton className="h-9 w-64 max-w-full" />
         <Skeleton className="mt-2 h-4 w-full max-w-xl" />

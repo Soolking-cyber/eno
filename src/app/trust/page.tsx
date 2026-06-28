@@ -43,7 +43,7 @@ export default function TrustPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-16">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-16">
         <h1 className="h-display text-foreground"><Tr text="How trust works on eno.vn" /></h1>
         <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-body">
           <Tr text="Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It reflects a real track record earned on eno.vn, so you can tell reliable people and businesses apart at a glance." />

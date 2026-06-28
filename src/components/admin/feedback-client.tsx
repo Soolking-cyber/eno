@@ -52,7 +52,7 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
             onClick={() => setFilter(f)}
             className={
               'rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer ' +
-              (filter === f ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')
+              (filter === f ? 'bg-primary text-white' : 'text-body hover:bg-muted')
             }
           >
             {f === 'open' ? `Open (${openCount})` : `All (${items.length})`}
@@ -75,7 +75,7 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
                   <span
                     className={
                       'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ' +
-                      (technical ? 'bg-amber-100 text-amber-800' : 'bg-[#e8f1fb] text-[#0a66c2]')
+                      (technical ? 'bg-amber-100 text-amber-800' : 'bg-brand-50 text-brand')
                     }
                   >
                     {technical ? <Wrench className="h-3.5 w-3.5" /> : <MessageSquareText className="h-3.5 w-3.5" />}

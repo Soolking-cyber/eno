@@ -193,6 +193,7 @@ export function Header() {
         {showSearch ? (
           <form
             ref={searchFormRef}
+            role="search"
             onSubmit={(e) => { e.preventDefault(); submitSearch(searchVal); setShowSuggestions(false) }}
             className="relative min-w-0 flex-1 animate-in fade-in duration-200"
           >
@@ -218,6 +219,9 @@ export function Header() {
                   if (r?.query) { toast.dismiss('vis'); setSearchVal(r.query); setShowSuggestions(false); submitVisual(r) }
                   else toast.error(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'), { id: 'vis' })
                 }}
+                type="search"
+                inputMode="search"
+                enterKeyHint="search"
                 autoComplete="off"
                 placeholder={tr('Find products…', 'Tìm sản phẩm…')}
                 aria-label={tr('Search', 'Tìm kiếm')}
@@ -251,7 +255,7 @@ export function Header() {
                 className={cn(
                   'mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all active:scale-95 tap-44 relative',
                   province || ward || nearby
-                    ? 'bg-[#0a66c2] text-white shadow-sm'
+                    ? 'bg-primary text-white shadow-sm'
                     : 'text-body hover:bg-muted',
                 )}
               >
@@ -334,13 +338,13 @@ export function Header() {
           {user && (
             <>
               <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44">
-                <Heart className={cn('h-6 w-6 sm:h-7 sm:w-7', savedCount > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
+                <Heart className={cn('h-6 w-6 sm:h-7 sm:w-7', savedCount > 0 && 'fill-brand text-brand')} />
                 {savedCount > 0 && (
                   <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{savedCount > 9 ? '9+' : savedCount}</span>
                 )}
               </Link>
               <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44">
-                <MessageSquare className={cn('h-6 w-6 sm:h-7 sm:w-7', unread > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
+                <MessageSquare className={cn('h-6 w-6 sm:h-7 sm:w-7', unread > 0 && 'fill-brand text-brand')} />
                 {unread > 0 && (
                   <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>
                 )}
@@ -363,7 +367,7 @@ export function Header() {
 
           <Link
             href={user ? '/dashboard?tab=post' : '/post'}
-            className="hidden items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#004182] sm:flex cursor-pointer"
+            className="hidden items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-brand-dark sm:flex cursor-pointer"
           >
             {t('header.postBtn')}
           </Link>

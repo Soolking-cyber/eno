@@ -8,7 +8,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { ScrollTop } from '@/components/marketplace/scroll-top'
 import { SellerListings } from '@/components/marketplace/seller-listings'
-import { BadgeCheck, ChevronLeft, MessageSquareText, Clock, CalendarDays } from 'lucide-react'
+import { BadgeCheck, ChevronLeft, Star, CalendarDays } from 'lucide-react'
 import { Tr } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { ReportButton } from '@/components/marketplace/report-button'
@@ -59,7 +59,7 @@ export default async function SellerPage({ params }: Props) {
     <div className="flex min-h-screen flex-col blob-bg">
       <ScrollTop />
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         <div className="mb-5">
           <Link href="/" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors">
             <ChevronLeft className="h-4 w-4" /> <span><Tr text="Back to Home" /></span>
@@ -97,11 +97,14 @@ export default async function SellerPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Trust stats — flat (monolith): no box, separation by spacing */}
-        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+        {/* Trust stats — flat (monolith): no box, separation by spacing. Only
+            real signals (response rate/time were placeholder values → removed
+            until computed from actual conversations). Rating shows once earned. */}
+        <div className={`mt-6 grid gap-x-4 gap-y-5 ${seller.reviewCount > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <Stat icon={null} value={<TrustScore score={seller.trustScore} size="md" />} label={<Tr text="Trust score" />} />
-          <Stat icon={<MessageSquareText className="h-4 w-4" />} value={`${seller.responseRate}%`} label={<Tr text="Response rate" />} />
-          <Stat icon={<Clock className="h-4 w-4" />} value={<Tr text={seller.responseTime} />} label={<Tr text="Responds" />} />
+          {seller.reviewCount > 0 && (
+            <Stat icon={<Star className="h-4 w-4" />} value={`${seller.rating.toFixed(1)}★`} label={<Tr text="Rating" />} />
+          )}
           <Stat icon={<CalendarDays className="h-4 w-4" />} value={`${memberYear}`} label={<Tr text="Member since" />} />
         </div>
 

@@ -69,7 +69,7 @@ export default function PrivacyPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         <p className="eyebrow text-accent-foreground mb-2">Legal</p>
         <h1 className="h-display text-foreground">Privacy Policy</h1>
         <p className="mt-3 text-sm text-ink-4">Last updated: June 2026</p>

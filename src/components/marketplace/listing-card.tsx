@@ -142,7 +142,7 @@ export function ListingCard({
           {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow so
               it stays legible on ANY photo, in light & dark. Blue fill when saved. */}
           <span key={favorited ? 'on' : 'off'} className={cn('inline-flex', favorited && 'animate-heart-pop')}>
-            <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-[#0a66c2] text-white' : 'fill-black/25 text-white')} />
+            <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
           </span>
         </button>
 

@@ -32,7 +32,7 @@ export default async function BrandsPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
           <Tr text="Browse by brand" />
         </h1>

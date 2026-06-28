@@ -107,7 +107,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
         ) : (
           <span className="flex h-20 w-20 items-center justify-center rounded-full bg-accent text-xl font-bold text-accent-foreground">{initials}</span>
         )}
-        <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#0a66c2] text-white shadow-sm ring-2 ring-background transition-transform group-hover:scale-105">
+        <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white shadow-sm ring-2 ring-background transition-transform group-hover:scale-105">
           {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-4 w-4" />}
         </span>
         <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
@@ -115,36 +115,36 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs font-semibold text-body">{tr('Business name', 'Tên doanh nghiệp')}</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} className={field} />
+          <label htmlFor="biz-name" className="mb-1 block text-xs font-semibold text-body">{tr('Business name', 'Tên doanh nghiệp')}</label>
+          <input id="biz-name" autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} className={field} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold text-body">{tr('Your name (representative)', 'Tên người đại diện')}</label>
-          <input value={rep} onChange={(e) => setRep(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} className={field} />
+          <label htmlFor="biz-rep" className="mb-1 block text-xs font-semibold text-body">{tr('Your name (representative)', 'Tên người đại diện')}</label>
+          <input id="biz-rep" autoComplete="name" value={rep} onChange={(e) => setRep(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} className={field} />
           <p className="mt-1 text-[11px] text-ink-4">{tr('The person on this account — buyers see the business name, not this.', 'Người dùng tài khoản này — người mua thấy tên doanh nghiệp, không phải tên này.')}</p>
         </div>
         <div>
           <div className="mb-1 flex items-center justify-between gap-2">
-            <label className="block text-xs font-semibold text-body">{tr('Location', 'Khu vực')}</label>
+            <label htmlFor="biz-location" className="block text-xs font-semibold text-body">{tr('Location', 'Khu vực')}</label>
             <button type="button" onClick={useMyLocation} disabled={locating} className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent-foreground hover:underline disabled:opacity-50 cursor-pointer">
               {locating ? <Loader2 className="h-3 w-3 animate-spin" /> : <LocateFixed className="h-3 w-3" />} {tr('Use my location', 'Dùng vị trí của tôi')}
             </button>
           </div>
-          <input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={120} placeholder={tr('e.g. District 1, HCMC', 'vd. Quận 1, TP.HCM')} className={field} />
+          <input id="biz-location" autoComplete="address-level2" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={120} placeholder={tr('e.g. District 1, HCMC', 'vd. Quận 1, TP.HCM')} className={field} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold text-body">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</label>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" className={field} />
+          <label htmlFor="biz-phone" className="mb-1 block text-xs font-semibold text-body">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</label>
+          <input id="biz-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" className={field} />
           <p className="mt-1 text-[11px] text-ink-4">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</p>
         </div>
       </div>
       <div className="mt-3">
-        <label className="mb-1 block text-xs font-semibold text-body">{tr('About', 'Giới thiệu')}</label>
-        <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={1000} placeholder={tr('Tell buyers about your business…', 'Giới thiệu doanh nghiệp của bạn…')} className={cn(field, 'resize-none')} />
+        <label htmlFor="biz-bio" className="mb-1 block text-xs font-semibold text-body">{tr('About', 'Giới thiệu')}</label>
+        <textarea id="biz-bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={1000} placeholder={tr('Tell buyers about your business…', 'Giới thiệu doanh nghiệp của bạn…')} className={cn(field, 'resize-none')} />
       </div>
 
       <div className="mt-3 flex items-center gap-3">
-        <button onClick={save} disabled={saving || !dirty || name.trim().length < 2} className="inline-flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-40 cursor-pointer">
+        <button onClick={save} disabled={saving || !dirty || name.trim().length < 2} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved && !dirty ? <Check className="h-4 w-4" /> : null}
           {saved && !dirty ? tr('Saved', 'Đã lưu') : tr('Save changes', 'Lưu thay đổi')}
         </button>

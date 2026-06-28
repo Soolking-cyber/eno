@@ -21,7 +21,7 @@ export function AdminNav({ active }: { active: string }) {
             href={t.href}
             className={
               'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors ' +
-              (isActive ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')
+              (isActive ? 'bg-primary text-white' : 'text-body hover:bg-muted')
             }
           >
             <Icon className="h-4 w-4" />

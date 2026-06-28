@@ -18,7 +18,7 @@ export default function SafetyPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         <p className="eyebrow text-accent-foreground mb-2"><Tr text="Safe trading" /></p>
         <h1 className="h-display text-foreground"><Tr text="Trade with confidence." /></h1>
         <p className="mt-4 text-[15px] leading-relaxed text-body">

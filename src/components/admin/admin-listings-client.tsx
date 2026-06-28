@@ -86,7 +86,7 @@ export function AdminListingsClient() {
       {/* Batch action bar */}
       <div className="sticky top-0 z-10 mt-4 flex flex-wrap items-center gap-1 rounded-xl bg-card/95 px-2 py-2 shadow-pop backdrop-blur">
         <label className="flex items-center gap-2 px-2 text-sm font-semibold text-body">
-          <input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-4 w-4 accent-[#0a66c2]" />
+          <input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-4 w-4 accent-brand" />
           {sel.size > 0 ? `${sel.size} selected` : 'Select all'}
         </label>
         <span className="mx-1 h-5 w-px bg-border" />
@@ -104,7 +104,7 @@ export function AdminListingsClient() {
         <div className="mt-2 divide-y divide-border">
           {rows.map((r) => (
             <label key={r.id} className={cn('flex cursor-pointer items-center gap-3 py-2.5', sel.has(r.id) && 'bg-tint/60')}>
-              <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} className="h-4 w-4 shrink-0 accent-[#0a66c2]" />
+              <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} className="h-4 w-4 shrink-0 accent-brand" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {r.image ? <img src={r.image} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" /> : <div className="h-12 w-12 shrink-0 rounded-lg bg-tint" />}
               <div className="min-w-0 flex-1">
@@ -129,7 +129,7 @@ function Segmented({ options, value, onChange }: { options: { v: string; label: 
   return (
     <div className="flex gap-1 rounded-xl bg-tint p-1">
       {options.map((o) => (
-        <button key={o.v} onClick={() => onChange(o.v)} className={cn('rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors', value === o.v ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')}>{o.label}</button>
+        <button key={o.v} onClick={() => onChange(o.v)} className={cn('rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors', value === o.v ? 'bg-primary text-white' : 'text-body hover:bg-muted')}>{o.label}</button>
       ))}
     </div>
   )

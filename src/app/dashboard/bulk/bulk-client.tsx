@@ -91,7 +91,7 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-3 py-6 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 py-6 sm:px-6">
         <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors">
           <ChevronLeft className="h-4 w-4" /> {tr('Dashboard', 'Bảng điều khiển')}
         </Link>
@@ -114,7 +114,7 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
               </ul>
             )}
             <div className="mt-4 flex gap-2">
-              <Link href="/dashboard" className="rounded-xl bg-[#0a66c2] px-5 py-2 text-sm font-bold text-white hover:bg-[#004182] transition-colors">{tr('Go to dashboard', 'Tới bảng điều khiển')}</Link>
+              <Link href="/dashboard" className="rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white hover:bg-brand-dark transition-colors">{tr('Go to dashboard', 'Tới bảng điều khiển')}</Link>
               <button onClick={() => { setResult(null); setFileName('') }} className="rounded-xl border border-line-strong bg-card px-5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer">{tr('Upload more', 'Tải thêm')}</button>
             </div>
           </div>
@@ -125,7 +125,7 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
               onClick={() => fileRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) onFile(f) }}
-              className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-line-strong bg-card py-10 text-center transition-colors hover:border-[#0a66c2]/40"
+              className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-line-strong bg-card py-10 text-center transition-colors hover:border-brand/40"
             >
               <Upload className="h-8 w-8 text-ink-4" />
               <p className="mt-2 text-sm font-semibold text-foreground">{fileName || tr('Drop your CSV here, or click to choose', 'Thả CSV vào đây, hoặc bấm để chọn')}</p>
@@ -143,7 +143,7 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
                     <span className="text-accent-foreground">{valid.length} {tr('ready', 'hợp lệ')}</span>
                     {invalid.length > 0 && <span className="text-destructive">, {invalid.length} {tr('with errors', 'có lỗi')}</span>}
                   </p>
-                  <button onClick={submit} disabled={submitting || valid.length === 0} className="inline-flex items-center gap-2 rounded-xl bg-[#0a66c2] px-5 py-2 text-sm font-bold text-white hover:bg-[#004182] disabled:opacity-40 transition-colors cursor-pointer">
+                  <button onClick={submit} disabled={submitting || valid.length === 0} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-40 transition-colors cursor-pointer">
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} {tr('Import', 'Nhập')} {valid.length > 0 ? valid.length : ''}
                   </button>
                 </div>

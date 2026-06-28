@@ -52,7 +52,7 @@ export function NotificationBell() {
       >
         {/* 28px everywhere — matches the bottom-nav icons on mobile and the
             Saved/Messages action icons on desktop (one consistent nav scale). */}
-        <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-[#0a66c2] text-[#0a66c2]')} />
+        <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} />
         {user && unread > 0 && (
           <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
             {unread > 9 ? '9+' : unread}

@@ -177,7 +177,7 @@ export function FacetBar({
   // A segmented toggle button (selected = filled blue; same height either way).
   const segBtn = (selected: boolean) =>
     cn('rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer',
-      selected ? 'border-[#0a66c2] bg-[#0a66c2] text-white' : 'border-line-strong text-body hover:bg-muted')
+      selected ? 'border-brand bg-primary text-white' : 'border-line-strong text-body hover:bg-muted')
   // condition maps to the dedicated column; everything else to attr_* customFilters.
   const facetValue = (f: FacetDef) => (f.key === 'condition' ? conditionFilter : customFilters[f.key] || 'all')
   const setFacetValue = (f: FacetDef, v: string) => { if (f.key === 'condition') setConditionFilter(v); else setFacet(f.key, v) }
@@ -200,7 +200,7 @@ export function FacetBar({
             <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
             <span>{tr('Filter', 'Bộ lọc')}</span>
             {activeAdvCount > 0 && (
-              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0a66c2] px-1 text-[10px] font-bold text-white">{activeAdvCount}</span>
+              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">{activeAdvCount}</span>
             )}
             <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', advOpen && 'rotate-180')} />
           </button>

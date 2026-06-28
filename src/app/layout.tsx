@@ -13,6 +13,7 @@ import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
 import { PageTransitions } from "@/components/marketplace/page-transitions";
 import { BackToTop } from "@/components/marketplace/back-to-top";
+import { SkipLink } from "@/components/marketplace/skip-link";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
@@ -155,6 +156,7 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <LanguageProvider>
+            <SkipLink />
             <CurrencyProvider>
             <AuthProvider>
               <NotificationsProvider>

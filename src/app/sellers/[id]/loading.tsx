@@ -8,7 +8,7 @@ export default function SellerLoading() {
     <div className="flex min-h-screen flex-col blob-bg">
       <ScrollTop />
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         {/* Back link */}
         <div className="mb-5">
           <Skeleton className="h-5 w-32" />

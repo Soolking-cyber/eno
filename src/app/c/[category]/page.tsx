@@ -80,7 +80,7 @@ export default async function CategoryPage({ params }: Props) {
     <div className="flex min-h-screen flex-col blob-bg">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <nav className="mb-4 text-sm text-muted-foreground">
           <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
           <span className="mx-1.5 text-line-strong">/</span>
@@ -115,7 +115,7 @@ export default async function CategoryPage({ params }: Props) {
         </div>
 
         <div className="mt-8">
-          <Link href={`/?category=${cat.slug}`} className="inline-block rounded-xl bg-[#0a66c2] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+          <Link href={`/?category=${cat.slug}`} className="inline-block rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
             <Tr text="Refine in full search" /> →
           </Link>
         </div>

@@ -11,7 +11,7 @@ export default function HomeLoading() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         <section className="relative overflow-hidden py-5 sm:py-8">
           <div className="relative w-full space-y-12">
 

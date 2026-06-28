@@ -73,7 +73,7 @@ export function AccountTypeSwitcher({ isBusiness, businessName, onSaved }: { isB
             <button
               onClick={submit}
               disabled={busy || (target === 'business' && name.trim().length < 2)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-40 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Confirm', 'Xác nhận')}
             </button>

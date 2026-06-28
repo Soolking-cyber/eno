@@ -12,9 +12,10 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, Send, Phone, Loader2, Tag } from 'lucide-react'
+import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
+import { toast } from 'sonner'
 
-type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
+type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
@@ -146,7 +147,7 @@ export default function ThreadPage() {
     // Optimistic: show the bubble the instant Send is tapped — the POST swaps in the
     // real message; realtime ignores my own echo, so the UI never waits on the DB.
     const tempId = `temp-${Date.now()}`
-    const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString() }
+    const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true }
     setText('')
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
@@ -164,13 +165,21 @@ export default function ThreadPage() {
         })
         refreshUnread(); refreshConvos()
       } else {
-        setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
-        setText(body) // restore on failure
+        markFailed(tempId)
       }
     } catch {
-      setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
-      setText(body)
+      markFailed(tempId)
     }
+  }
+
+  // On a failed send, keep the bubble and flip it to a tap-to-retry state instead of
+  // silently dropping it (Vietnam's mobile networks drop requests often).
+  const markFailed = (tempId: string) =>
+    setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === tempId ? { ...x, pending: false, failed: true } : x)) } : t))
+
+  const retry = (m: Msg) => {
+    setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== m.id) } : t))
+    void send(m.body)
   }
 
   // Reveal the seller's number + Zalo on request (login-gated + rate-limited +
@@ -204,9 +213,9 @@ export default function ThreadPage() {
         // temps onto fresh server data, which would duplicate the offer card.
         setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
         await load(); refreshUnread(); refreshConvos()
-      } else setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+      } else { setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t)); toast.error(tr('Offer not sent — please try again.', 'Chưa gửi được đề nghị — vui lòng thử lại.')) }
     } catch {
-      setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+      setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t)); toast.error(tr('Offer not sent — please try again.', 'Chưa gửi được đề nghị — vui lòng thử lại.'))
     }
   }
 
@@ -264,7 +273,7 @@ export default function ThreadPage() {
           {/* Thread header (back arrow only on mobile — the list is always shown on desktop) */}
           <div className="flex items-center gap-3 bg-card px-4 py-3">
             <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" /></Link>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-xs font-bold text-white">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
               {thread?.counterpart.name.slice(0, 2).toUpperCase()}
             </span>
             <div className="min-w-0 flex-1">
@@ -305,7 +314,7 @@ export default function ThreadPage() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4 scroll-thin">
+          <div role="log" aria-live="polite" aria-relevant="additions" className="flex-1 space-y-2 overflow-y-auto px-4 py-4 scroll-thin">
             {thread?.messages.map((m, i, arr) => {
               const prev = arr[i - 1]
               const showDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
@@ -323,7 +332,7 @@ export default function ThreadPage() {
                 )}
                 <div className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
                 {m.kind === 'offer' ? (
-                  <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-[#0a66c2]/30 bg-[#0a66c2]/5' : 'border-border bg-card'}`}>
+                  <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-card'}`}>
                     <div className="text-[11px] font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
                     <div className="mt-0.5 text-base font-bold text-foreground">{new Intl.NumberFormat('en-US').format(m.offerAmount || 0)}₫</div>
                     {askPct != null && (
@@ -341,7 +350,7 @@ export default function ThreadPage() {
                     )}
                     {!m.mine && m.offerStatus === 'pending' && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        <button onClick={() => actOffer(m.id, 'accept')} className="rounded-lg bg-[#0a66c2] px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-[#004182] cursor-pointer">{tr('Accept', 'Chấp nhận')}</button>
+                        <button onClick={() => actOffer(m.id, 'accept')} className="rounded-lg bg-primary px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer">{tr('Accept', 'Chấp nhận')}</button>
                         <button onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted cursor-pointer">{tr('Decline', 'Từ chối')}</button>
                         <button onClick={() => { setOfferInput(new Intl.NumberFormat('en-US').format(m.offerAmount ?? 0)); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
                       </div>
@@ -351,11 +360,19 @@ export default function ThreadPage() {
                     )}
                   </div>
                 ) : (
-                  <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.mine ? 'bg-[#0a66c2] text-white' : 'bg-card text-foreground'}`}>
+                  <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.failed ? 'border border-destructive/30 bg-destructive/10 text-destructive' : m.mine ? 'bg-primary text-white' : 'bg-card text-foreground'} ${m.pending ? 'opacity-70' : ''}`}>
                     {m.body}
                   </div>
                 )}
-                  <span className="mt-0.5 px-1 text-[10px] text-ink-4">{fmtTime(m.createdAt)}</span>
+                  {m.mine && m.failed ? (
+                    <button onClick={() => retry(m)} className="mt-0.5 flex items-center gap-1 px-1 text-[10px] font-semibold text-destructive hover:underline cursor-pointer">
+                      <RotateCcw className="h-2.5 w-2.5" /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
+                    </button>
+                  ) : m.mine && m.pending ? (
+                    <span className="mt-0.5 flex items-center gap-1 px-1 text-[10px] text-ink-4"><Loader2 className="h-2.5 w-2.5 animate-spin" /> {tr('Sending…', 'Đang gửi…')}</span>
+                  ) : (
+                    <span className="mt-0.5 px-1 text-[10px] text-ink-4">{fmtTime(m.createdAt)}</span>
+                  )}
                 </div>
               </Fragment>
               )
@@ -384,7 +401,7 @@ export default function ThreadPage() {
               onClick={toggleOffer}
               aria-label={tr('Make an offer', 'Gửi đề nghị giá')}
               title={tr('Make an offer', 'Gửi đề nghị giá')}
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer relative tap-44 ${showOffer ? 'bg-[#0a66c2]/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer relative tap-44 ${showOffer ? 'bg-primary/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
             >
               <Tag className="h-[18px] w-[18px]" />
             </button>
@@ -398,14 +415,14 @@ export default function ThreadPage() {
                   autoFocus
                   placeholder={tr('Offer amount (₫)', 'Số tiền đề nghị (₫)')}
                   onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
-                  className="w-full rounded-2xl border border-[#0a66c2] px-3.5 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-[#0a66c2]/20"
+                  className="w-full rounded-2xl border border-brand px-3.5 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-brand/20"
                 />
                 {/* +000 chip, inside the input's right corner (×1,000 shortcut) */}
                 <button
                   type="button"
                   onClick={addThousand}
                   aria-label={tr('Add three zeros', 'Thêm 000')}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-accent px-2 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-[#0a66c2]/15 cursor-pointer tap-44"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-accent px-2 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-primary/15 cursor-pointer tap-44"
                 >
                   +000
                 </button>
@@ -417,7 +434,7 @@ export default function ThreadPage() {
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
                 rows={1}
                 placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
-                className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-[#0a66c2]/20"
+                className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
               />
             )}
 
@@ -426,7 +443,7 @@ export default function ThreadPage() {
               disabled={showOffer ? !offerInput : !text.trim()}
               aria-label={showOffer ? tr('Send offer', 'Gửi đề nghị') : tr('Send', 'Gửi')}
               title={showOffer ? tr('Send offer', 'Gửi đề nghị') : tr('Send', 'Gửi')}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0a66c2] text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
             >
               <Send className="h-4 w-4" />
             </button>

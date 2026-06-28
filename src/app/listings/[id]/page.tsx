@@ -16,6 +16,8 @@ import {
   AlertTriangle,
   Building2,
   ShieldCheck,
+  Heart,
+  Eye,
 } from 'lucide-react'
 import { RelatedListings } from '@/components/marketplace/related-listings'
 import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
@@ -219,7 +221,7 @@ export default async function ListingPage({ params }: Props) {
 
       <Header />
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-12">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-12">
         {/* Breadcrumb — Home / Category / Title */}
         <nav aria-label="Breadcrumb" className="mb-4 truncate text-sm text-muted-foreground">
           <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
@@ -329,6 +331,24 @@ export default async function ListingPage({ params }: Props) {
                 <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-foreground tracking-tight" />
               </div>
 
+              {/* Quiet social proof — only above a credibility floor so a fresh
+                  listing never advertises "0 saved" (saves ≥3 / views ≥20). */}
+              {(listing.savedCount >= 3 || listing.views >= 20) && (
+                <p className="-mt-2.5 flex items-center gap-2 text-xs text-muted-foreground">
+                  {listing.savedCount >= 3 && (
+                    <span className="inline-flex items-center gap-1">
+                      <Heart className="h-3.5 w-3.5" /> {new Intl.NumberFormat('en-US').format(listing.savedCount)} <Tr text="saved" />
+                    </span>
+                  )}
+                  {listing.savedCount >= 3 && listing.views >= 20 && <span aria-hidden>·</span>}
+                  {listing.views >= 20 && (
+                    <span className="inline-flex items-center gap-1">
+                      <Eye className="h-3.5 w-3.5" /> {new Intl.NumberFormat('en-US').format(listing.views)} <Tr text="views" />
+                    </span>
+                  )}
+                </p>
+              )}
+
               {/* Seller identity + trust in ONE cohesive block right under the price
                   (single trust badge — no duplicate shields). The block links to the
                   storefront; "How trust works" is a quiet secondary link. */}
@@ -381,7 +401,7 @@ export default async function ListingPage({ params }: Props) {
           this keeps the primary action in the thumb zone without scrolling. */}
       <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-border bg-card/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
         <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-lg font-bold text-foreground" />
-        <a href="#contact" className="ml-auto rounded-xl bg-[#0a66c2] px-7 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+        <a href="#contact" className="ml-auto rounded-xl bg-primary px-7 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
           <Tr text="Message" />
         </a>
       </div>

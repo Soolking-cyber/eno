@@ -268,7 +268,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     <div className="w-full h-full relative isolate bg-tint">
       {!ready && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted z-20 select-none">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#0a66c2] border-t-transparent" />
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand border-t-transparent" />
           <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
             {tr('Loading map…', 'Đang tải bản đồ...')}
           </span>
@@ -324,7 +324,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                     aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
                     className="flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90"
                   >
-                    <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-[#0a66c2] text-white' : 'fill-black/25 text-white')} />
+                    <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); closeCard() }}

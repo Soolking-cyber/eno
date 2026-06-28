@@ -480,7 +480,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         <p className="max-w-md text-sm text-body">
           {t('Tin của bạn đã hiển thị công khai. Người mua sẽ nhắn tin cho bạn ngay trong ứng dụng — số điện thoại của bạn được giữ kín cho đến khi bạn trả lời.', 'It’s now visible to buyers. They’ll message you in-app — your number stays private until you reply.')}
         </p>
-        <a href="/dashboard" className="mt-2 rounded-xl bg-[#0a66c2] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+        <a href="/dashboard" className="mt-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
           {t('Tới bảng điều khiển', 'Go to dashboard')}
         </a>
       </div>
@@ -491,7 +491,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     <button
       onClick={submit}
       disabled={!canSubmit}
-      className={cn('w-full rounded-xl bg-[#0a66c2] px-7 py-3 text-sm font-bold text-white transition-colors hover:bg-[#004182] disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
+      className={cn('w-full rounded-xl bg-primary px-7 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
     >
       {submitting
         ? (edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…'))
@@ -520,7 +520,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => { e.preventDefault(); setDragOver(false); addPhotos(e.dataTransfer.files) }}
-              className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'ring-2 ring-[#0a66c2]/40')}
+              className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'ring-2 ring-brand/40')}
             >
               {photos.map((p, i) => (
                 <div
@@ -531,7 +531,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={p.url} alt="" draggable={false} className="pointer-events-none h-full w-full object-cover" />
                   {i === 0 ? (
-                    <span className="absolute left-1.5 top-1.5 rounded-md bg-[#0a66c2] px-1.5 py-0.5 text-[10px] font-bold text-white">{t('Bìa', 'Cover')}</span>
+                    <span className="absolute left-1.5 top-1.5 rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-bold text-white">{t('Bìa', 'Cover')}</span>
                   ) : (
                     <button type="button" onClick={() => movePhoto(i, 0)} className="absolute bottom-1 left-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer">{t('Đặt làm bìa', 'Make cover')}</button>
                   )}
@@ -541,7 +541,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 </div>
               ))}
               {photos.length < 6 && (
-                <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-[#0a66c2] hover:text-accent-foreground">
+                <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
                   {converting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}
                   <span className="text-[10px] font-semibold">{converting ? t('Đang xử lý…', 'Processing…') : t('Thêm ảnh', 'Add')}</span>
                   <input type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
@@ -571,7 +571,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       key={v}
                       type="button"
                       onClick={() => switchIntent(v)}
-                      className={cn('rounded-lg px-4 py-1.5 text-sm font-bold transition-colors cursor-pointer', intent === v ? 'bg-[#0a66c2] text-white' : 'text-body hover:text-foreground')}
+                      className={cn('rounded-lg px-4 py-1.5 text-sm font-bold transition-colors cursor-pointer', intent === v ? 'bg-primary text-white' : 'text-body hover:text-foreground')}
                     >
                       {v === 'sell' ? t('Bán', 'For sale') : t('Cho thuê', 'For rent')}
                     </button>
@@ -593,7 +593,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   <button
                     key={c.id}
                     onClick={() => chooseCategory(c.slug)}
-                    className={cn('inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')}
+                    className={cn('inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
                   >
                     <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')} />
                     {lang === 'vi' ? c.nameVi : c.name}
@@ -908,7 +908,7 @@ function Chips({ options, value, onPick }: { options: { value: string; label: st
           key={o.value}
           type="button"
           onClick={() => onPick(o.value)}
-          className={cn('rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', value === o.value ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted')}
+          className={cn('rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', value === o.value ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
         >
           {o.label}
         </button>

@@ -18,7 +18,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   return (
     <div className="flex min-h-screen flex-col items-center justify-center blob-bg px-4 py-16 text-center">
       <div className="w-full max-w-md rounded-2xl bg-card p-8 shadow-pop">
-        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#0a66c2]/10 text-[#0a66c2]">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-brand">
           <AlertTriangle className="h-7 w-7" />
         </span>
         <h1 className="mt-5 text-xl font-bold text-foreground">{tr('Something went wrong', 'Đã xảy ra lỗi')}</h1>
@@ -26,7 +26,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           {tr('We hit a snag loading this page. Try again, or head back home.', 'Đã có sự cố khi tải trang này. Hãy thử lại hoặc quay về trang chủ.')}
         </p>
         <div className="mt-6 flex items-center justify-center gap-2">
-          <button onClick={reset} className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+          <button onClick={reset} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
             <RotateCw className="h-4 w-4" /> {tr('Try again', 'Thử lại')}
           </button>
           <Link href="/" className="inline-flex items-center gap-1.5 rounded-xl border border-line-strong px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
