@@ -7,7 +7,7 @@ import { fold } from '@/lib/fold'
 export const dynamic = 'force-dynamic'
 
 const LIMIT = 16
-const TRUST: Prisma.ListingOrderByWithRelationInput = { seller: { trustScore: 'desc' } }
+const TRUST: Prisma.ListingOrderByWithRelationInput = { sellerTrustScore: 'desc' }
 const split = (v: string | null, n: number) =>
   (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []).slice(0, n)
 

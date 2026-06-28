@@ -45,7 +45,7 @@ export async function GET() {
         where: { verified: true, status: 'active', categoryId: r.categoryId },
         // Trust-first, then featured, then most-viewed/recent — matches the main feed.
         orderBy: [
-          { seller: { trustScore: 'desc' } },
+          { sellerTrustScore: 'desc' },
           { featured: 'desc' },
           { views: 'desc' },
           { postedAt: 'desc' },

@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic'
 type Msg = { role: 'user' | 'assistant'; content: string }
 type Sort = 'price_asc' | 'price_desc' | null
 
-const TRUST: Prisma.ListingOrderByWithRelationInput = { seller: { trustScore: 'desc' } }
+const TRUST: Prisma.ListingOrderByWithRelationInput = { sellerTrustScore: 'desc' }
 const INCLUDE = { category: true, seller: { include: { owner: { select: { accountType: true } } } } } as const
 
 // Folded EN + VI fillers (VI limited to non-colliding words) for the keyword fallback.

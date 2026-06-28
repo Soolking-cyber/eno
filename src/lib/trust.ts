@@ -153,6 +153,13 @@ export async function recomputeTrust(profileId: string): Promise<{ score: number
   await db.profile.update({ where: { id: profileId }, data: { trustScore: score, trustTier: tier } })
   // Mirror onto the owned storefront (if any) so cards/badges render join-free.
   await db.seller.updateMany({ where: { ownerId: profileId }, data: { trustScore: score, trustTier: tier } })
+  // Cascade the score onto the seller's listings (denormalized ranking key) so the
+  // feed's ORDER BY reads it locally — no Seller join. updateMany can't filter by a
+  // relation, so resolve the owned storefront id(s) first (a profile owns ≤1).
+  const owned = await db.seller.findMany({ where: { ownerId: profileId }, select: { id: true } })
+  if (owned.length) {
+    await db.listing.updateMany({ where: { sellerId: { in: owned.map((s) => s.id) } }, data: { sellerTrustScore: score } })
+  }
   return { score, tier }
 }
 
@@ -200,6 +207,8 @@ export async function penalizeSeller(sellerId: string, delta: number, meta?: { r
   }
   const score = Math.max(SCORE_MIN, seller.trustScore + delta)
   await db.seller.update({ where: { id: sellerId }, data: { trustScore: score, trustTier: score < 60 ? 'restricted' : 'standard' } })
+  // Keep the listings' denormalized ranking key in sync (guest seller — no Profile path).
+  await db.listing.updateMany({ where: { sellerId }, data: { sellerTrustScore: score } })
 }
 
 /**

@@ -194,6 +194,12 @@ model Listing {
   model              String?
   sellerId           String
   seller             Seller    @relation(fields: [sellerId], references: [id])
+  // Denormalized mirror of the seller's effective trust score (Seller.trustScore),
+  // synced on listing create + every trust recompute (src/lib/trust.ts). Lets the feed
+  // ORDER BY a LOCAL indexed column instead of joining Seller + external-sorting on
+  // every query (the hot read-path scaling fix). Card display still reads the joined
+  // seller; this column is purely the ranking key.
+  sellerTrustScore   Int       @default(100)
   verified           Boolean   @default(false)
   verificationMethod String?
   verifiedAt         DateTime?
@@ -229,6 +235,11 @@ model Listing {
   @@index([verified, postedAt])
   @@index([verified, status, postedAt])
   @@index([verified, categoryId, postedAt])
+  // Trust-ranked feed (default "Recommended" sort = sellerTrustScore desc, then
+  // recency). A local denormalized column means the ORDER BY is an index scan, not a
+  // Seller join + external sort. One for the all-categories feed, one by-category.
+  @@index([verified, status, sellerTrustScore, postedAt])
+  @@index([verified, status, categoryId, sellerTrustScore, postedAt])
   // Feed path filtered by category + intent (e.g. Vehicles · For rent), recency-sorted.
   @@index([verified, status, categoryId, listingType, postedAt])
   @@index([verified, status, categoryId, subcategorySlug, postedAt])

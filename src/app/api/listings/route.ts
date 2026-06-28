@@ -237,7 +237,7 @@ export async function GET(req: NextRequest) {
   // and near-ties favour trusted sellers). Most accounts sit at 100, so among the
   // bulk the secondary key (recency/price) still decides; Exceptional float up,
   // Restricted sink.
-  const TRUST: Prisma.ListingOrderByWithRelationInput = { seller: { trustScore: 'desc' } }
+  const TRUST: Prisma.ListingOrderByWithRelationInput = { sellerTrustScore: 'desc' }
   let orderBy: Prisma.ListingOrderByWithRelationInput[]
   switch (sort) {
     case 'price-low':
@@ -608,6 +608,7 @@ export async function POST(req: NextRequest) {
         brandSlug,
         model,
         sellerId: seller.id,
+        sellerTrustScore: seller.trustScore, // denormalized ranking key (kept in sync by src/lib/trust.ts)
         verified: autoPublish,
       },
     })

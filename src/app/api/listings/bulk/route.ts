@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   const rl = await rateLimit('bulk-import', profile.id, 10, '1 h')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
-  const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true, trustTier: true } })
+  const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true, trustTier: true, trustScore: true } })
   if (!seller) return NextResponse.json({ error: 'no_storefront' }, { status: 403 })
 
   let body: { rows?: Row[] }
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
           location: district || 'Ho Chi Minh City', district, city: 'Ho Chi Minh City',
           condition, images: JSON.stringify(hosted),
           searchText: buildSearchText([title, description, district, cat.name, cat.nameVi]),
-          categoryId: cat.id, sellerId: seller.id, verified: autoPublish,
+          categoryId: cat.id, sellerId: seller.id, sellerTrustScore: seller.trustScore, verified: autoPublish,
         },
         select: { id: true },
       })

@@ -378,6 +378,11 @@ async function main() {
     await db.brand.update({ where: { slug }, data: { listingCount: cnt } }).catch(() => {})
   }
 
+  // Sync the denormalized ranking key from the seeded seller scores so a fresh seed
+  // ranks identically to production (the feed sorts on Listing.sellerTrustScore, a
+  // local column — see src/lib/trust.ts for the live dual-write).
+  await db.$executeRawUnsafe(`UPDATE "Listing" l SET "sellerTrustScore" = s."trustScore" FROM "Seller" s WHERE l."sellerId" = s.id`)
+
   console.log(`Done. ${TAXONOMY.length} categories, ${uniqBrands.size} brands, ${sellerSeeds.length} sellers, ${rows.length} listings.`)
 }
 
