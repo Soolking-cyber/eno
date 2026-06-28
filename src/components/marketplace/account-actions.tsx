@@ -3,18 +3,19 @@
 import { LogOut, LogIn } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 
-/** Signed-out state for gated pages — a button that opens the sign-in dialog. */
+/** Signed-out state for gated pages — a button that opens the sign-in dialog.
+ *  Canonical example of the shared <Button variant="cta"> (h-auto + px/py keep the
+ *  exact original padding). New primary CTAs should adopt this instead of re-coding
+ *  bg-primary/hover:bg-brand-dark by hand. */
 export function SignInPrompt() {
   const { openSignIn } = useAuth()
   const { tr } = useLanguage()
   return (
-    <button
-      onClick={() => openSignIn()}
-      className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-brand-dark transition-colors cursor-pointer"
-    >
+    <Button variant="cta" onClick={() => openSignIn()} className="h-auto rounded-xl px-6 py-2.5 cursor-pointer">
       <LogIn className="h-4 w-4" /> {tr('Sign in', 'Đăng nhập')}
-    </button>
+    </Button>
   )
 }
 

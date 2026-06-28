@@ -8,6 +8,23 @@ const __dirname = dirname(__filename);
 
 const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   rules: {
+    // Design-system guard: ban the hardcoded brand hex as a Tailwind arbitrary
+    // value (bg-[#0a66c2] / hover:bg-[#004182] / bg-[#e8f1fb]) so the token
+    // migration can't regress. Bare hex data values (avatarColor defaults, etc.)
+    // are NOT matched — only the bracketed class form. Use bg-primary / text-brand
+    // / hover:bg-brand-dark / bg-brand-50 instead.
+    "no-restricted-syntax": [
+      "error",
+      {
+        selector: "Literal[value=/\\[#(?:0a66c2|004182|e8f1fb)\\]/i]",
+        message: "Use a theme token (bg-primary / text-brand / hover:bg-brand-dark / bg-brand-50) instead of a hardcoded brand hex class.",
+      },
+      {
+        selector: "TemplateElement[value.raw=/\\[#(?:0a66c2|004182|e8f1fb)\\]/i]",
+        message: "Use a theme token (bg-primary / text-brand / hover:bg-brand-dark / bg-brand-50) instead of a hardcoded brand hex class.",
+      },
+    ],
+
     // TypeScript rules
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-unused-vars": "off",

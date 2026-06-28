@@ -11,6 +11,11 @@ const buttonVariants = cva(
       variant: {
         default:
           "bg-primary text-primary-foreground hover:bg-primary/90",
+        // Canonical brand CTA — matches the app's hand-rolled primary buttons
+        // (solid brand blue, white text, bold, darken-on-hover). Use this for new
+        // primary actions instead of re-coding bg-primary/hover:bg-brand-dark.
+        cta:
+          "bg-primary text-white font-bold hover:bg-brand-dark",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20",
         outline:
