@@ -2099,30 +2099,9 @@ export function ListingsExplorer({
               histogramQuery={histogramQuery}
             />
 
-            {/* Sort & View Control Bar (search lives in the header now) */}
-            <div className="flex flex-col sm:flex-row gap-2.5 items-center sm:justify-between">
-              {/* Save this search → alerts on new matches. Once a filter is active it
-                  becomes a clearer tinted pill with a one-line "why" subtitle. */}
-              {(() => {
-                const filterActive = getActiveChips().length > 0
-                return (
-                  <button
-                    onClick={saveSearch}
-                    className={cn(
-                      'inline-flex shrink-0 items-center gap-2 self-start rounded-xl px-3 py-2 text-sm font-semibold transition-colors cursor-pointer sm:self-auto',
-                      filterActive ? 'bg-brand-50 text-accent-foreground hover:bg-accent' : 'text-body hover:bg-muted',
-                    )}
-                  >
-                    <Bookmark className="h-4 w-4 text-accent-foreground" />
-                    <span className="flex flex-col items-start text-left leading-tight">
-                      <span>{tr('Save search', 'Lưu tìm kiếm')}</span>
-                      {filterActive && (
-                        <span className="text-[10px] font-normal text-muted-foreground">{tr('Get alerts on new matches', 'Nhận thông báo khi có tin mới')}</span>
-                      )}
-                    </span>
-                  </button>
-                )
-              })()}
+            {/* Sort & View Control Bar (search lives in the header now). The Save-search
+                CTA now lives in the unified active-search box below. */}
+            <div className="flex items-center justify-end gap-2.5">
               {/* Sorting & Views */}
               <div className="flex items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
                 <CustomSelect
@@ -2180,33 +2159,43 @@ export function ListingsExplorer({
                 </div>
               </div>
 
-            {/* Persistent applied-filter chips — the only on-screen record of active
-                refinements when the filter panel is collapsed (esp. mobile). Each chip
-                clears its own filter; "Clear all" resets them. */}
+            {/* Active-search box (borderless tint): the applied conditions ARE what you'd
+                save + what the alert notifies about, shown right above one clear Save
+                button. Each chip removes its own filter; "Clear all" resets them. */}
             {(() => {
               const chips = getActiveChips()
               if (chips.length === 0) return null
               return (
-                <div className="flex flex-wrap items-center gap-2">
-                  {chips.map((c, i) => (
-                    <button
-                      key={i}
-                      onClick={c.onClear}
-                      aria-label={tr('Remove filter', 'Bỏ bộ lọc') + `: ${c.label}`}
-                      className="inline-flex items-center gap-1 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted cursor-pointer"
-                    >
-                      {c.label}
-                      <X className="h-3 w-3 text-ink-4" />
-                    </button>
-                  ))}
-                  {chips.length > 1 && (
-                    <button
-                      onClick={clearAllFilters}
-                      className="inline-flex items-center rounded-full px-2.5 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-muted transition-colors cursor-pointer"
-                    >
-                      {tr('Clear all', 'Xóa tất cả')}
-                    </button>
-                  )}
+                <div className="space-y-2.5 rounded-2xl bg-brand-50 p-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {chips.map((c, i) => (
+                      <button
+                        key={i}
+                        onClick={c.onClear}
+                        aria-label={tr('Remove filter', 'Bỏ bộ lọc') + `: ${c.label}`}
+                        className="inline-flex items-center gap-1 rounded-full bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted cursor-pointer"
+                      >
+                        {c.label}
+                        <X className="h-3 w-3 text-ink-4" />
+                      </button>
+                    ))}
+                    {chips.length > 1 && (
+                      <button
+                        onClick={clearAllFilters}
+                        className="inline-flex items-center rounded-full px-2.5 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent transition-colors cursor-pointer"
+                      >
+                        {tr('Clear all', 'Xóa tất cả')}
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={saveSearch}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-card py-2 text-sm font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer"
+                  >
+                    <Bookmark className="h-4 w-4" />
+                    {tr('Save this search', 'Lưu tìm kiếm này')}
+                    <span className="text-[11px] font-normal text-muted-foreground">{tr('— alerts on new matches', '— báo khi có tin mới')}</span>
+                  </button>
                 </div>
               )
             })()}
