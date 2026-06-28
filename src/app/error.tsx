@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, RotateCw, Home } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 
 // Segment error boundary: catches any uncaught render/runtime throw in a page and
 // shows a branded recovery card instead of an unstyled 500. Rendered inside the
@@ -26,9 +27,9 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           {tr('We hit a snag loading this page. Try again, or head back home.', 'Đã có sự cố khi tải trang này. Hãy thử lại hoặc quay về trang chủ.')}
         </p>
         <div className="mt-6 flex items-center justify-center gap-2">
-          <button onClick={reset} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
+          <Button variant="cta" size="none" onClick={reset} className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm transition-colors">
             <RotateCw className="h-4 w-4" /> {tr('Try again', 'Thử lại')}
-          </button>
+          </Button>
           <Link href="/" className="inline-flex items-center gap-1.5 rounded-xl border border-line-strong px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
             <Home className="h-4 w-4" /> {tr('Go home', 'Về trang chủ')}
           </Link>

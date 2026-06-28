@@ -6,6 +6,7 @@ import { ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useCurrency } from '@/context/currency-context'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 const BINS = 30
 const PANEL_W = 320
@@ -245,13 +246,13 @@ export function PriceRangeFilter({
                 >
                   {tr('Reset', 'Đặt lại')}
                 </button>
-                <button
+                <Button variant="cta" size="none"
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-lg bg-primary px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+                  className="rounded-lg px-4 py-1.5 text-xs transition-colors cursor-pointer"
                 >
                   {tr('Done', 'Xong')}
-                </button>
+                </Button>
               </div>
             </>
           )}

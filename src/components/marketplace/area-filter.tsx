@@ -9,6 +9,7 @@ import { EnoSlider } from './eno-slider'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useFocusTrap } from '@/lib/use-focus-trap'
+import { Button } from '@/components/ui/button'
 
 export type Nearby = { lat: number; lng: number; radiusKm: number }
 export type Geo = { code: string; name: string; nameEn: string }
@@ -311,7 +312,7 @@ export function AreaFilter({
 
       <div className="mt-4 flex gap-3">
         <button onClick={reset} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{mode === 'pick' ? tr('Clear', 'Xóa') : tr('Delete filter', 'Xóa lọc')}</button>
-        <button onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</button>
+        <Button variant="cta" size="none" onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-colors"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</Button>
       </div>
     </div>
     </>,

@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { getConsent, setConsent } from '@/lib/consent'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 function Toggle({ title, desc, value, onChange, locked = false }: { title: string; desc: string; value: boolean; onChange?: (v: boolean) => void; locked?: boolean }) {
   return (
@@ -44,7 +45,7 @@ export function CookieConsent() {
   const save = () => { setConsent(ads ? 'all' : perso ? 'personalized' : 'essential'); close() }
   const decline = () => { setConsent('essential'); close() }
 
-  const primary = 'rounded-lg bg-primary px-4 py-1.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark active:scale-95 cursor-pointer'
+  const primary = 'rounded-lg px-4 py-1.5 text-sm transition-colors active:scale-95 cursor-pointer'
   const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted active:scale-95 cursor-pointer'
 
   return (
@@ -66,7 +67,7 @@ export function CookieConsent() {
                 <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
               </p>
               <div className="mt-3 flex items-center gap-2.5">
-                <button onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</button>
+                <Button variant="cta" size="none" onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</Button>
                 <button onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</button>
               </div>
             </>
@@ -79,7 +80,7 @@ export function CookieConsent() {
                 <Toggle value={ads} onChange={setAds} title={tr('Ad personalization', 'Quảng cáo cá nhân hoá')} desc={tr('Ad-network signals (Meta/Google) for retargeting.', 'Tín hiệu mạng quảng cáo (Meta/Google) để tiếp thị lại.')} />
               </div>
               <div className="mt-3 flex items-center gap-2.5">
-                <button onClick={save} className={primary}>{tr('Save', 'Lưu')}</button>
+                <Button variant="cta" size="none" onClick={save} className={primary}>{tr('Save', 'Lưu')}</Button>
                 <button onClick={decline} className={ghost}>{tr('Decline all', 'Từ chối tất cả')}</button>
               </div>
             </>

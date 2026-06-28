@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CheckCircle2, MessageSquareText, Wrench } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 
 /** In-app feedback / technical-problem form for the Help Center. Posts to
  *  /api/feedback → the /admin/feedback queue (so mobile, which has no "?" popup,
@@ -80,14 +81,14 @@ export function HelpFeedback() {
       {state === 'error' && (
         <p className="mt-2 text-sm font-semibold text-destructive">{tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.')}</p>
       )}
-      <button
+      <Button variant="cta" size="none"
         type="button"
         onClick={send}
         disabled={message.trim().length < 2 || state === 'sending'}
-        className="mt-3 inline-flex items-center justify-center rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-50 cursor-pointer"
+        className="mt-3 inline-flex items-center justify-center rounded-xl px-6 py-2.5 text-sm transition-colors disabled:opacity-50 cursor-pointer"
       >
         {state === 'sending' ? tr('Sending…', 'Đang gửi…') : tr('Send', 'Gửi')}
-      </button>
+      </Button>
     </div>
   )
 }

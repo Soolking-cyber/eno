@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { Check, X, Flag, Loader2, ExternalLink, EyeOff } from 'lucide-react'
 import { formatMoneyFull } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 export type ModItem = {
   id: string
@@ -111,14 +112,14 @@ function ListingRow({ item, mode }: { item: ModItem; mode: 'pending' | 'reported
         )}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
+          <Button variant="cta" size="none"
             onClick={() => run('approve', item.id)}
             disabled={!!busy}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-white hover:bg-brand-dark disabled:opacity-40 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs disabled:opacity-40 transition-colors cursor-pointer"
           >
             {busy === 'approve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
             {mode === 'reported' ? 'Keep & clear reports' : 'Approve & publish'}
-          </button>
+          </Button>
 
           {mode === 'reported' && (
             <button

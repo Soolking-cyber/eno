@@ -7,6 +7,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull } from '@/lib/vnd'
 import { EnoSlider } from './eno-slider'
+import { Button } from '@/components/ui/button'
 
 const MAX_DISCOUNT = 50 // % off the asking price the slider allows
 export const COMPOSE_KEY = 'eno-compose' // sessionStorage handoff → /messages/pending
@@ -68,9 +69,9 @@ export function ContactComposer({
 
   if (!loading && !user) {
     return (
-      <button onClick={() => openSignIn()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-all hover:bg-brand-dark active:scale-98 cursor-pointer">
+      <Button variant="cta" size="none" onClick={() => openSignIn()} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 cursor-pointer">
         <Lock className="h-4 w-4" /> {tr('Sign in to contact seller', 'Đăng nhập để liên hệ người bán')}
-      </button>
+      </Button>
     )
   }
 
@@ -119,14 +120,16 @@ export function ContactComposer({
         className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-ink-4 hover:bg-muted focus:bg-muted"
       />
 
-      <button
+      <Button
+        variant="cta"
+        size="none"
         onClick={send}
         disabled={!canSend}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-all hover:bg-brand-dark active:scale-98 disabled:opacity-40 cursor-pointer"
+        className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 disabled:opacity-40 cursor-pointer"
       >
         <Send className="h-4 w-4" />
         {offering && hasPrice ? `${tr('Send offer', 'Gửi đề nghị')} · ${formatMoneyFull(offerPrice, currency)}` : tr('Send', 'Gửi')}
-      </button>
+      </Button>
       <p className="text-center text-xs text-muted-foreground">
         {tr('Request their number or Zalo once they reply.', 'Yêu cầu số điện thoại hoặc Zalo sau khi họ trả lời.')}
       </p>

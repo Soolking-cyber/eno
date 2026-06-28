@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { haptic } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
@@ -490,17 +491,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }
 
   const PublishButton = ({ className }: { className?: string }) => (
-    <button
+    <Button variant="cta" size="none"
       onClick={submit}
       disabled={!canSubmit}
-      className={cn('w-full rounded-xl bg-primary px-7 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
+      className={cn('w-full rounded-xl px-7 py-3 text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
     >
       {submitting
         ? (edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…'))
         : missing.length
         ? t(`Còn ${missing.length} mục`, `${missing.length} left to finish`)
         : (edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing'))}
-    </button>
+    </Button>
   )
 
   return (

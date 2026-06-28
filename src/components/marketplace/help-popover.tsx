@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { X, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useFocusTrap } from '@/lib/use-focus-trap'
+import { Button } from '@/components/ui/button'
 
 type View = 'menu' | { kind: 'feedback' | 'technical' }
 
@@ -120,9 +121,9 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
                 <CheckCircle2 className="h-12 w-12 text-brand" />
                 <h2 className="mt-3 text-lg font-bold text-foreground">{tr('Thanks — we got it.', 'Cảm ơn — đã nhận được.')}</h2>
                 <p className="mt-1.5 text-sm text-body">{tr('Our team reviews every message.', 'Đội ngũ của chúng tôi xem mọi tin nhắn.')}</p>
-                <button type="button" onClick={onClose} className="mt-5 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer">
+                <Button variant="cta" size="none" type="button" onClick={onClose} className="mt-5 rounded-xl px-5 py-2.5 text-sm transition-colors cursor-pointer">
                   {tr('Done', 'Xong')}
-                </button>
+                </Button>
               </div>
             ) : (
               <>
@@ -153,14 +154,14 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
                 {state === 'error' && (
                   <p className="mt-2 text-sm font-semibold text-destructive">{tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.')}</p>
                 )}
-                <button
+                <Button variant="cta" size="none"
                   type="button"
                   onClick={send}
                   disabled={message.trim().length < 2 || state === 'sending'}
-                  className="mt-3 flex w-full items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-50 cursor-pointer"
+                  className="mt-3 flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {state === 'sending' ? tr('Sending…', 'Đang gửi…') : tr('Send', 'Gửi')}
-                </button>
+                </Button>
               </>
             )}
           </div>

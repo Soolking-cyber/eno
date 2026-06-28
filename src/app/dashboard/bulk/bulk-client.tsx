@@ -9,6 +9,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 type Cat = { slug: string; name: string }
 type Raw = { category_slug?: string; title?: string; description?: string; price?: string; district?: string; condition?: string; image_urls?: string }
@@ -143,9 +144,9 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
                     <span className="text-accent-foreground">{valid.length} {tr('ready', 'hợp lệ')}</span>
                     {invalid.length > 0 && <span className="text-destructive">, {invalid.length} {tr('with errors', 'có lỗi')}</span>}
                   </p>
-                  <button onClick={submit} disabled={submitting || valid.length === 0} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-40 transition-colors cursor-pointer">
+                  <Button variant="cta" size="none" onClick={submit} disabled={submitting || valid.length === 0} className="inline-flex items-center gap-2 rounded-xl px-5 py-2 text-sm disabled:opacity-40 transition-colors cursor-pointer">
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} {tr('Import', 'Nhập')} {valid.length > 0 ? valid.length : ''}
-                  </button>
+                  </Button>
                 </div>
                 <div className="mt-3 space-y-1.5">
                   {rows.map((r) => (

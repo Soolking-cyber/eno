@@ -37,6 +37,7 @@ import { type Nearby, type Geo } from './area-filter'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
@@ -1695,13 +1696,13 @@ export function ListingsExplorer({
                       <button type="button" onClick={() => { setActiveCategory('all'); setActiveSubcategory('all'); setListingType('all'); setConditionFilter('all'); setPriceRange('all') }} className="text-sm font-semibold text-body hover:text-foreground transition-colors cursor-pointer">
                         {tr('Clear all', 'Xóa tất cả')}
                       </button>
-                      <button
+                      <Button variant="cta" size="none"
                         type="button"
                         onClick={() => { setFiltersOpen(false); setShowExplorer(true); requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }}
-                        className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-dark transition-colors cursor-pointer"
+                        className="rounded-xl px-5 py-2.5 text-sm transition-colors cursor-pointer"
                       >
                         {tr('Show results', 'Xem kết quả')}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </>
@@ -1865,7 +1866,7 @@ export function ListingsExplorer({
               <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
                 <AlertTriangle className="h-10 w-10 text-muted-foreground" />
                 <p className="text-sm font-semibold text-body">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
-                <button onClick={() => refetchListings()} className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-brand-dark transition-colors cursor-pointer">{tr('Try again', 'Thử lại')}</button>
+                <Button variant="cta" size="none" onClick={() => refetchListings()} className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer">{tr('Try again', 'Thử lại')}</Button>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
@@ -1995,12 +1996,12 @@ export function ListingsExplorer({
 
         <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
           {chips.length > 0 && (
-            <button
+            <Button variant="cta" size="none"
               onClick={clearAllFilters}
-              className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-brand-dark transition-colors cursor-pointer"
+              className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
             >
               {tr('Clear all filters', 'Xóa tất cả bộ lọc')}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -2031,12 +2032,12 @@ export function ListingsExplorer({
     <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center">
       <AlertTriangle className="h-10 w-10 text-muted-foreground" />
       <p className="text-sm font-semibold text-body">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
-      <button
+      <Button variant="cta" size="none"
         onClick={() => refetchListings()}
-        className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-brand-dark transition-colors cursor-pointer"
+        className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
       >
         {tr('Try again', 'Thử lại')}
-      </button>
+      </Button>
     </div>
   )
 

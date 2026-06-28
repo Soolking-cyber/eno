@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Check, Plus, LocateFixed } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { compressImageFile } from '@/lib/normalize-image'
 
@@ -144,10 +145,10 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
       </div>
 
       <div className="mt-3 flex items-center gap-3">
-        <button onClick={save} disabled={saving || !dirty || name.trim().length < 2} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer">
+        <Button variant="cta" size="none" onClick={save} disabled={saving || !dirty || name.trim().length < 2} className="inline-flex items-center gap-2 rounded-xl px-5 py-2 text-sm transition-colors disabled:opacity-40 cursor-pointer">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved && !dirty ? <Check className="h-4 w-4" /> : null}
           {saved && !dirty ? tr('Saved', 'Đã lưu') : tr('Save changes', 'Lưu thay đổi')}
-        </button>
+        </Button>
         {error && <span className="text-xs font-semibold text-destructive">{error}</span>}
       </div>
     </div>

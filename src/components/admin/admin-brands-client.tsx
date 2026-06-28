@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Loader2, Search, Check, Sparkles, Upload } from 'lucide-react'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 type Brand = {
   id: string
@@ -194,9 +195,9 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
               </select>
               <button onClick={merge} disabled={!mergeId || saving} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-muted disabled:opacity-40">Merge</button>
             </div>
-            <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-60">
+            <Button variant="cta" size="none" onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm disabled:opacity-60">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
-            </button>
+            </Button>
           </div>
         </div>
       )}

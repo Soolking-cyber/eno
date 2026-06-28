@@ -8,6 +8,7 @@ import { useLanguage } from '@/context/language-context'
 import { Mascot } from '@/components/marketplace/mascot'
 import { safeNextPath } from '@/lib/url'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 type Choice = 'individual' | 'business'
 
@@ -166,13 +167,13 @@ export function OnboardClient() {
             </div>
           )}
 
-          <button
+          <Button variant="cta" size="none"
             onClick={submit}
             disabled={!canSubmit}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-40 transition-colors cursor-pointer"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {t('Continue', 'Tiếp tục')}
-          </button>
+          </Button>
           {error && <p role="alert" className="mt-2 text-center text-xs font-semibold text-red-600">{error}</p>}
         </div>
       </div>

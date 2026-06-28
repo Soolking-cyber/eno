@@ -10,6 +10,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 // localStorage marker so the daily review only auto-shows once per day per user.
 export const reviewKey = (uid: string) => `eno-avail:${uid}`
@@ -122,12 +123,12 @@ export function AvailabilityClient() {
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card px-3 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-3">
           <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
             <button onClick={skip} className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</button>
-            <button onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-50 cursor-pointer">
+            <Button variant="cta" size="none" onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm transition-colors disabled:opacity-50 cursor-pointer">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {soldCount > 0
                 ? tr(`Bump ${availCount} · sold ${soldCount}`, `Đẩy ${availCount} · đã bán ${soldCount}`)
                 : tr('Everything’s still available', 'Tất cả vẫn còn')}
-            </button>
+            </Button>
           </div>
         </div>
       )}

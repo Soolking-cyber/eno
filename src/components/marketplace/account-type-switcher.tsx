@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 
 const FIELD = 'w-full max-w-md rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-muted focus:bg-muted placeholder:text-ink-4'
 
@@ -70,13 +71,15 @@ export function AccountTypeSwitcher({ isBusiness, businessName, onSaved }: { isB
           </p>
           {err && <p className="text-xs font-semibold text-destructive">{err}</p>}
           <div className="flex items-center gap-3">
-            <button
+            <Button
+              variant="cta"
+              size="none"
               onClick={submit}
               disabled={busy || (target === 'business' && name.trim().length < 2)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2 text-sm transition-colors disabled:opacity-40 cursor-pointer"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Confirm', 'Xác nhận')}
-            </button>
+            </Button>
             <button onClick={() => { setEditing(false); setErr('') }} className="text-sm font-bold text-body hover:text-foreground cursor-pointer">
               {tr('Cancel', 'Hủy')}
             </button>

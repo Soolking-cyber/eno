@@ -15,6 +15,7 @@ import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
+import { Button } from '@/components/ui/button'
 
 type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Thread = {
@@ -352,7 +353,7 @@ export default function ThreadPage() {
                     )}
                     {!m.mine && m.offerStatus === 'pending' && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        <button onClick={() => actOffer(m.id, 'accept')} className="rounded-lg bg-primary px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer">{tr('Accept', 'Chấp nhận')}</button>
+                        <Button variant="cta" size="none" onClick={() => actOffer(m.id, 'accept')} className="rounded-lg px-3 py-1 text-xs transition-colors cursor-pointer">{tr('Accept', 'Chấp nhận')}</Button>
                         <button onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted cursor-pointer">{tr('Decline', 'Từ chối')}</button>
                         <button onClick={() => { setOfferInput(new Intl.NumberFormat('en-US').format(m.offerAmount ?? 0)); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
                       </div>

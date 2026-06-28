@@ -12,6 +12,7 @@ import { useChat } from '@/context/chat-context'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { Price } from './price'
 import { VndInput } from './vnd-input'
+import { Button } from '@/components/ui/button'
 
 type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string }
@@ -505,7 +506,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
                 )}
                 {!m.mine && m.offerStatus === 'pending' && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <button onClick={() => actOffer(m.id, 'accept')} className="rounded-lg bg-primary px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer">{tr('Accept', 'Chấp nhận')}</button>
+                    <Button variant="cta" size="none" onClick={() => actOffer(m.id, 'accept')} className="rounded-lg px-3 py-1 text-xs transition-colors cursor-pointer">{tr('Accept', 'Chấp nhận')}</Button>
                     <button onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted cursor-pointer">{tr('Decline', 'Từ chối')}</button>
                     <button onClick={() => { setOfferInput(m.offerAmount ? new Intl.NumberFormat('en-US').format(m.offerAmount) : ''); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
                   </div>
@@ -549,13 +550,13 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         <div className="px-3 pt-2">
           <VndInput value={offerInput} onChange={setOfferInput} autoFocus placeholder={tr('Offer amount', 'Số tiền đề nghị')} />
           <div className="mt-1 flex items-center gap-2">
-            <button
+            <Button variant="cta" size="none"
               onClick={() => { const n = Number(offerInput.replace(/\D/g, '')); if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') } }}
               disabled={!offerInput.replace(/\D/g, '')}
-              className="flex-1 rounded-2xl bg-primary px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
+              className="flex-1 rounded-2xl px-3.5 py-2 text-sm transition-colors disabled:opacity-40 cursor-pointer"
             >
               {tr('Send offer', 'Gửi đề nghị')}
-            </button>
+            </Button>
             <button onClick={() => { setShowOffer(false); setOfferInput('') }} className="shrink-0 rounded-2xl px-3 py-2 text-sm font-semibold text-ink-4 hover:bg-muted hover:text-foreground cursor-pointer">
               {tr('Cancel', 'Hủy')}
             </button>
