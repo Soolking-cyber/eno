@@ -175,6 +175,23 @@ export async function deleteListingDocument(id: string): Promise<void> {
   await call(`${DOC_PARENT}/documents/${encodeURIComponent(id)}`, 'DELETE')
 }
 
+// Bulk ingest — the documents:import API (inline, up to 100 docs/call) for backfill.
+// INCREMENTAL = upsert (won't delete docs missing from a batch). Returns the count
+// submitted. Each call kicks off a server-side operation; we don't block on it.
+export async function importListingDocuments(docs: ListingDoc[]): Promise<number> {
+  if (!vertexConfigured() || !docs.length) return 0
+  let submitted = 0
+  for (let i = 0; i < docs.length; i += 100) {
+    const chunk = docs.slice(i, i + 100)
+    const r = await call(`${DOC_PARENT}/documents:import`, 'POST', {
+      inlineSource: { documents: chunk.map((d) => ({ id: d.id, jsonData: JSON.stringify(d) })) },
+      reconciliationMode: 'INCREMENTAL',
+    })
+    if (r) submitted += chunk.length
+  }
+  return submitted
+}
+
 // Fire-and-forget sync wrapper for hot mutation routes — never throws into the request.
 export function syncListingToVertex(action: 'upsert' | 'delete', payload: ListingDoc | string): void {
   if (!vertexConfigured()) return

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
-import { vertexConfigured, upsertListingDocument, listingToDoc } from '@/lib/vertex-search'
+import { vertexConfigured, importListingDocuments, listingToDoc } from '@/lib/vertex-search'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,7 +21,6 @@ export async function POST(req: NextRequest) {
 
   let cursor: string | undefined
   let done = 0
-  let failed = 0
   for (;;) {
     const batch = await db.listing.findMany({
       where: { verified: true, status: 'active' },
@@ -31,14 +30,10 @@ export async function POST(req: NextRequest) {
       include: { category: true, seller: true },
     })
     if (!batch.length) break
-    for (const l of batch) {
-      try { await upsertListingDocument(listingToDoc(l)) } catch { failed++ }
-      done++
-      if (done >= max) break
-    }
+    done += await importListingDocuments(batch.map(listingToDoc))
     cursor = batch[batch.length - 1].id
     if (done >= max || batch.length < 100) break
   }
 
-  return NextResponse.json({ ok: true, indexed: done, failed })
+  return NextResponse.json({ ok: true, indexed: done })
 }
