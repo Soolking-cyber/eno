@@ -2163,10 +2163,11 @@ export function ListingsExplorer({
 
             {/* Sort & View row — on desktop the Save-search box fills the left up to the
                 sort dropdown; on mobile the box drops to its own line below. */}
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
               {renderSaveBox(true, 'hidden min-w-0 flex-1 lg:flex')}
-              {/* Sorting & Views — right */}
-              <div className="flex items-center justify-between gap-2.5 w-full lg:w-auto lg:shrink-0">
+              {/* Sorting & Views — always pinned top-right (ml-auto keeps it right even
+                  when there are no chips / no save box on the left). */}
+              <div className="flex items-center justify-between gap-2.5 w-full lg:ml-auto lg:w-auto lg:shrink-0">
                 <CustomSelect
                   value={sort}
                   onChange={(val) => startFilterTransition(() => setSort(val as SortKey))}
