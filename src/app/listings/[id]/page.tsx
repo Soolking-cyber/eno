@@ -367,7 +367,6 @@ export default async function ListingPage({ params }: Props) {
                         </span>
                       )}
                     </div>
-                    <TrustScore score={listing.seller.trustScore} size="sm" showLabel className="mt-0.5" />
                   </div>
                 </Link>
                 <Link href="/trust" className="inline-block pl-14 text-[11px] text-muted-foreground underline-offset-2 hover:underline">

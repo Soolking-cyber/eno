@@ -80,8 +80,12 @@ export function ConversationList() {
                 key={c.id}
                 onMouseEnter={() => prefetchThread(c.id)}
                 onTouchStart={() => prefetchThread(c.id)}
-                className={cn('group flex items-center gap-1 rounded-xl transition-colors', activeId === c.id ? 'text-accent-foreground bg-muted' : c.unread > 0 ? 'bg-accent/60 hover:bg-accent' : 'hover:bg-muted')}
+                className={cn('group relative flex items-center gap-1 rounded-xl transition-colors', activeId === c.id ? 'text-accent-foreground bg-muted' : c.unread > 0 ? 'bg-accent hover:bg-accent' : 'hover:bg-muted')}
               >
+                {/* Unread → clear blue left rail so the new thread to reply to stands out. */}
+                {c.unread > 0 && activeId !== c.id && (
+                  <span aria-hidden className="absolute inset-y-2 left-0 w-1 rounded-full bg-accent-foreground" />
+                )}
                 <Link href={`/messages/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-2.5">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-bold text-white">
                     {c.counterpart.avatarUrl

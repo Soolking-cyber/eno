@@ -32,7 +32,7 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
 
@@ -40,19 +40,25 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
 
   // The popover is PORTALED to <body> + fixed-positioned so a tight/overflow-hidden
   // parent (e.g. a dashboard grid card) can't clip it. Anchor it under the button,
-  // clamped to the viewport (flip above when there's no room below).
+  // clamped to the viewport (flip above when there's no room below). Position is
+  // computed SYNCHRONOUSLY when opening (toggle below) and the panel only renders
+  // once `pos` exists — so it paints at its anchor on the first frame, never at (0,0)
+  // (which read as a "fly in from the top-left corner").
+  const place = () => {
+    const r = btnRef.current?.getBoundingClientRect()
+    if (!r) return
+    const W = 256, H = 300, M = 12
+    const left = Math.max(M, Math.min(r.right - W, window.innerWidth - W - M))
+    let top = r.bottom + 8
+    if (top + H > window.innerHeight - M) top = Math.max(M, r.top - H - 8)
+    setPos({ top, left })
+  }
+  const toggle = () => { if (open) { setOpen(false) } else { place(); setOpen(true) } }
+
+  // While open, keep it anchored on scroll/resize; on close clear `pos` so a reopen
+  // never flashes the previous position.
   useEffect(() => {
-    if (!open) return
-    const place = () => {
-      const r = btnRef.current?.getBoundingClientRect()
-      if (!r) return
-      const W = 256, H = 300, M = 12
-      const left = Math.max(M, Math.min(r.right - W, window.innerWidth - W - M))
-      let top = r.bottom + 8
-      if (top + H > window.innerHeight - M) top = Math.max(M, r.top - H - 8)
-      setPos({ top, left })
-    }
-    place()
+    if (!open) { setPos(null); return }
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
     return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
@@ -102,7 +108,7 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
       <button
         ref={btnRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         aria-label={tr('Share', 'Chia sẻ')}
         aria-expanded={open}
         className={cn(
@@ -115,8 +121,8 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
         <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>
       </button>
 
-      {mounted && open && createPortal(
-        <div ref={popRef} style={{ position: 'fixed', top: pos.top, left: pos.left, width: 256, visibility: pos.top > 0 ? 'visible' : 'hidden' }} className="z-[1100] rounded-2xl bg-card p-3 shadow-pop animate-in fade-in duration-150">
+      {mounted && open && pos && createPortal(
+        <div ref={popRef} style={{ position: 'fixed', top: pos.top, left: pos.left, width: 256 }} className="z-[1100] rounded-2xl bg-card p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
           <p className="px-1 pb-2 text-xs font-bold text-foreground">{tr('Share this listing', 'Chia sẻ tin này')}</p>
           <div className="grid grid-cols-3 gap-1">
             {channels.map(({ key, label, href, Icon }) => (

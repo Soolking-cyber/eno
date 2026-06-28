@@ -73,8 +73,11 @@ export function BrandRail({
   const visibleBrands = sortedBrands.filter((b, i) => i < 8 || b.slug === activeBrand)
   const overflowBrands = sortedBrands.filter((b, i) => i >= 8 && b.slug !== activeBrand)
   const sortedModels = [...models].sort((a, b) => b.count - a.count)
-  const visibleModels = sortedModels.filter((m, i) => i < 7 || m.model === activeModel)
-  const overflowModels = sortedModels.filter((m, i) => i >= 7 && m.model !== activeModel)
+  // 3×3 grid (9 cells): "All" + up to 8 models fills it exactly, so only collapse into
+  // a "More" cell when there are MORE than 8 — at ≤8 show them all.
+  const modelsNeedMore = sortedModels.length > 8
+  const visibleModels = modelsNeedMore ? sortedModels.filter((m, i) => i < 7 || m.model === activeModel) : sortedModels
+  const overflowModels = modelsNeedMore ? sortedModels.filter((m, i) => i >= 7 && m.model !== activeModel) : []
 
   const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
   const nameCls = (active: boolean) =>

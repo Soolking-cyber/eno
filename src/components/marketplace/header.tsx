@@ -33,6 +33,9 @@ export function Header() {
   // Explorer pages (home + category) mount the ListingsExplorer, which listens for
   // our search/district custom events. Elsewhere we navigate to the home explorer.
   const isExplorerPage = pathname === '/' || (pathname?.startsWith('/c/') ?? false)
+  // Active-page indicator for the desktop header icons (mirrors the mobile bottom nav).
+  const savedActive = pathname === '/saved'
+  const msgActive = pathname?.startsWith('/messages') ?? false
 
   // Chợ Tốt-style: the in-header search + area selector appear once the big hero
   // search pill scrolls out of view (or immediately on any page without a hero).
@@ -337,17 +340,19 @@ export function Header() {
           {/* Desktop quick actions (mobile uses the bottom nav): Saved · Messages · Bell */}
           {user && (
             <>
-              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44">
-                <Heart className={cn('h-6 w-6 sm:h-7 sm:w-7', savedCount > 0 && 'fill-brand text-brand')} />
+              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} aria-current={savedActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44">
+                <Heart className={cn('h-6 w-6 sm:h-7 sm:w-7', savedCount > 0 ? 'fill-brand text-brand' : savedActive && 'text-brand')} />
                 {savedCount > 0 && (
                   <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{savedCount > 9 ? '9+' : savedCount}</span>
                 )}
+                {savedActive && <span aria-hidden className="absolute -bottom-0.5 left-1/2 h-0.5 w-7 -translate-x-1/2 rounded-full bg-brand" />}
               </Link>
-              <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44">
-                <MessageSquare className={cn('h-6 w-6 sm:h-7 sm:w-7', unread > 0 && 'fill-brand text-brand')} />
+              <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} aria-current={msgActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44">
+                <MessageSquare className={cn('h-6 w-6 sm:h-7 sm:w-7', unread > 0 ? 'fill-brand text-brand' : msgActive && 'text-brand')} />
                 {unread > 0 && (
                   <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>
                 )}
+                {msgActive && <span aria-hidden className="absolute -bottom-0.5 left-1/2 h-0.5 w-7 -translate-x-1/2 rounded-full bg-brand" />}
               </Link>
             </>
           )}

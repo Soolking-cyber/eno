@@ -72,10 +72,12 @@ export function CategoryRail({
         const subs = isActive
           ? [...(SUBCATEGORIES[cat.slug] ?? [])].sort((a, b) => (subcategoryCounts[b.slug] ?? 0) - (subcategoryCounts[a.slug] ?? 0))
           : []
-        // 3×3 grid: "All" first, the 7 most-used in between, "More" last (= 9 cells).
+        // 3×3 grid (9 cells): "All" + up to 8 subcats. All+8 fills it exactly, so only
+        // collapse into a "More" cell when there are MORE than 8 — at ≤8 show them all.
         // (auto-adjusts as the listing counts above re-rank them.)
-        const visibleSubs = subs.slice(0, 7)
-        const overflowSubs = subs.slice(7)
+        const subsNeedMore = subs.length > 8
+        const visibleSubs = subsNeedMore ? subs.slice(0, 7) : subs
+        const overflowSubs = subsNeedMore ? subs.slice(7) : []
         return (
           <Fragment key={cat.id}>
             <button data-cat={cat.slug} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={tileCls}>
