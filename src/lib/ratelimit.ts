@@ -25,22 +25,35 @@ if (url && token) {
 const limiters = new Map<string, Ratelimit>()
 
 /**
- * Returns { success } for a key under a named sliding-window limit. No-ops
- * (success:true) when Redis isn't configured — fails OPEN so it can never block
- * legitimate use; configure Upstash to turn protection on.
+ * Returns { success } for a key under a named sliding-window limit.
+ *
+ * Default: fails OPEN (success:true) when Redis is unconfigured or errors — a missing/
+ * flaky Redis must never block legitimate use (messaging, posting).
+ *
+ * Pass { strict: true } on SECURITY/PAID routes (contact-reveal, paid Gemini/translate/
+ * geocode, upload) to fail CLOSED: if Redis is unavailable the request is DENIED rather
+ * than silently un-limited, so a missing env var or Redis outage can never reopen a
+ * billing-drain or PII-harvest vector.
  */
 export async function rateLimit(
   name: string,
   key: string,
   limit: number,
   window: `${number} s` | `${number} m` | `${number} h` | `${number} d`,
+  opts?: { strict?: boolean },
 ): Promise<{ success: boolean; remaining: number }> {
-  if (!redis) return { success: true, remaining: limit }
+  if (!redis) return { success: !opts?.strict, remaining: opts?.strict ? 0 : limit }
   let limiter = limiters.get(name)
   if (!limiter) {
     limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(limit, window), prefix: `rl:${name}` })
     limiters.set(name, limiter)
   }
-  const { success, remaining } = await limiter.limit(key)
-  return { success, remaining }
+  try {
+    const { success, remaining } = await limiter.limit(key)
+    return { success, remaining }
+  } catch (e) {
+    // Redis transient error: strict routes DENY (no silent un-limiting); others allow.
+    console.error('[ratelimit] backend error for', name, e)
+    return { success: !opts?.strict, remaining: 0 }
+  }
 }

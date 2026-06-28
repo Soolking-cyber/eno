@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   // rate-limiting on the profile when signed in, else the client IP.
   const profileId = await getCurrentProfileId()
   const ip = clientIp(req)
-  const limit = await rateLimit('ai-visual-search', profileId || ip, 30, '1 h')
+  const limit = await rateLimit('ai-visual-search', profileId || ip, 30, '1 h', { strict: true })
   if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   const form = await req.formData()

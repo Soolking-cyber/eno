@@ -7,8 +7,6 @@ export async function POST(req: Request) {
   // Public + triggers PAID translation on a cache miss → cross-request IP throttle
   // so the per-request size guard below can't be looped to drain the budget.
   const ip = clientIp(req)
-  const rl = await rateLimit('translate', ip, 60, '1 m')
-  if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   try {
     const body = await req.json()
     const texts: unknown = body?.texts
@@ -35,6 +33,14 @@ export async function POST(req: Request) {
     const { count: newCount, chars: newChars } = await uncachedStats(list, target as Lang)
     if (newCount > 250 || newChars > 30000) {
       return NextResponse.json({ error: 'Too many new texts in one request' }, { status: 400 })
+    }
+    // Rate-limit ONLY billable (uncached) requests — and strictly, so a Redis outage
+    // can't be looped to drain the paid translation budget. Pure cache hits (the UI
+    // dictionary, repeat views) cost $0 and ALWAYS serve, even when Redis is down, so
+    // the translated UI never breaks on a limiter outage.
+    if (newCount > 0) {
+      const rl = await rateLimit('translate', ip, 60, '1 m', { strict: true })
+      if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
     }
 
     const translations = await translateBatch(list, target as Lang)

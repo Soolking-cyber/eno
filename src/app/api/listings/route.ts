@@ -31,14 +31,16 @@ const subCountCache = new Map<string, { at: number; data: { slug: string; count:
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams
 
-  // Fast path: fetch a specific set of verified listings by id (used by /saved).
-  // Returns exactly the requested rows, never leaking unverified ones.
+  // Fast path: fetch a specific set of PUBLIC listings by id (used by /saved).
+  // Must match the public invariant everywhere else (verified + active) — without
+  // status:'active' a saved listing the seller hid or sold would still leak its full
+  // payload (title/price/images/coords) to anyone holding the id.
   const idsParam = searchParams.get('ids')
   if (idsParam) {
     const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 200)
     if (ids.length === 0) return NextResponse.json({ listings: [], total: 0 })
     const rows = await db.listing.findMany({
-      where: { id: { in: ids }, verified: true },
+      where: { id: { in: ids }, verified: true, status: 'active' },
       include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
     })
     const byId = new Map(rows.map((r) => [r.id, serializeListing(r)]))

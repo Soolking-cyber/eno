@@ -31,8 +31,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // Rate limit per user AND per IP (sliding window). Both must pass.
   const [byUser, byIp] = await Promise.all([
-    rateLimit('contact:user', user.id, 30, '1 h'),
-    rateLimit('contact:ip', ip, 60, '1 h'),
+    rateLimit('contact:user', user.id, 30, '1 h', { strict: true }),
+    rateLimit('contact:ip', ip, 60, '1 h', { strict: true }),
   ])
   if (!byUser.success || !byIp.success) {
     return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
@@ -44,6 +44,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   })
   // Only verified (public) listings expose contact — never pending/hidden ones.
   if (!listing || !listing.verified) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
+  // SECURITY GATE: reveal the number ONLY after a real in-app contact — the caller must
+  // have a conversation with this seller for this listing AND the seller must have
+  // replied (a message from the seller side). Listing IDs are public/enumerable, so
+  // without this a single account could enumerate listings and harvest every seller's
+  // phone (the "reply-first" rule was previously enforced only in the UI).
+  const convo = await db.conversation.findUnique({
+    where: { listingId_buyerProfileId: { listingId: id, buyerProfileId: user.id } },
+    select: { id: true },
+  })
+  const sellerReplied = convo
+    ? await db.message.findFirst({ where: { conversationId: convo.id, senderProfileId: { not: user.id } }, select: { id: true } })
+    : null
+  if (!sellerReplied) return NextResponse.json({ error: 'reply_required' }, { status: 403 })
 
   // Only the seller's REAL stored phone — never a synthetic/fallback number.
   const phone = phoneForSeller({ phone: listing.seller.phone })

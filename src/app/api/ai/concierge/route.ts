@@ -60,6 +60,12 @@ async function rewriteQuery(messages: Msg[]): Promise<{ query: string; sort: Sor
   const fallback = heuristicRewrite(lastUser.content)
   const ai = getGemini()
   if (!ai) return fallback
+  // Global daily Gemini budget breaker — caps total real-money rewrite spend (Vertex
+  // Search is credit-covered; the Gemini rewrite is not). Over budget, or Redis down
+  // (strict), we degrade to the heuristic instead of spending Gemini — bounding the
+  // cost of abuse on this public route regardless of IP rotation.
+  const budget = await rateLimit('ai-concierge-gemini', 'global', 5000, '1 d', { strict: true })
+  if (!budget.success) return fallback
   const transcript = messages.slice(-8).map((m) => `${m.role === 'user' ? 'Buyer' : 'Assistant'}: ${m.content}`).join('\n')
   const prompt = `A buyer is chatting to find products on the eno.vn marketplace in Vietnam. Rewrite their LAST message into ONE concise standalone product-search query, RESOLVING references using the conversation:
 - "cheapest one" / "cheaper" after talking about computers → "computer"
@@ -100,7 +106,8 @@ async function fallbackSearch(query: string, take: number) {
 
 export async function POST(req: NextRequest) {
   const ip = clientIp(req)
-  const rl = await rateLimit('ai-concierge', ip, 40, '1 h')
+  // Strict: a missing/flaky Redis must NOT silently un-limit this public, paid route.
+  const rl = await rateLimit('ai-concierge', ip, 40, '1 h', { strict: true })
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   let body: { messages?: Msg[]; lang?: string }
@@ -119,7 +126,13 @@ export async function POST(req: NextRequest) {
   let source: 'vertex' | 'fallback' = 'fallback'
   let listingIds: string[] = []
 
-  if (vertexConfigured()) {
+  // Global daily Vertex AI Search budget breaker — Vertex draws the finite $1000 credit
+  // (real money once exhausted), and 40/hr/IP x rotated IPs would otherwise be unbounded.
+  // Over budget / Redis-down (strict) -> skip Vertex and use the free Postgres fallback.
+  const vBudget = vertexConfigured()
+    ? await rateLimit('ai-concierge-vertex', 'global', 20000, '1 d', { strict: true })
+    : { success: false }
+  if (vBudget.success) {
     const r = await conciergeSearch(query, { take, lang }).catch((e) => { console.error('[ai/concierge] vertex', e); return null })
     if (r && r.listingIds.length) { listingIds = r.listingIds; reply = r.answer; source = 'vertex' }
   }

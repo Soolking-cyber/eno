@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   const profileId = await getCurrentProfileId()
   if (!profileId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  const limit = await rateLimit('ai-classify', profileId, 40, '1 h')
+  const limit = await rateLimit('ai-classify', profileId, 40, '1 h', { strict: true })
   if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   const form = await req.formData()

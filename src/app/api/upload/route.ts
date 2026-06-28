@@ -27,8 +27,8 @@ export async function POST(req: NextRequest) {
     const profileId = await getCurrentProfileId()
     const ip = clientIp(req)
     const limit = profileId
-      ? await rateLimit('upload-user', profileId, 120, '1 h')
-      : await rateLimit('upload-ip', ip, 30, '1 h')
+      ? await rateLimit('upload-user', profileId, 120, '1 h') // authed seller: fail OPEN — don't block posting on a Redis blip (accountable account)
+      : await rateLimit('upload-ip', ip, 30, '1 h', { strict: true }) // anon: fail CLOSED
     if (!limit.success) return NextResponse.json({ error: 'rate_limited', urls: [], failed: 0 }, { status: 429 })
 
     const form = await req.formData()

@@ -99,7 +99,7 @@ export async function GET(req: Request) {
 
   // It's a paid call — rate-limit per IP so it can't be hammered.
   const ip = clientIp(req)
-  const rl = await rateLimit('geocode', ip, 30, '1 m')
+  const rl = await rateLimit('geocode', ip, 30, '1 m', { strict: true })
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   try {
