@@ -14,9 +14,9 @@ import { brandIconPath } from '@/lib/brand-icons'
 import {
   MapPin,
   AlertTriangle,
-  ChevronLeft,
   Building2,
 } from 'lucide-react'
+import { RelatedListings } from '@/components/marketplace/related-listings'
 import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { Price } from '@/components/marketplace/price'
@@ -219,16 +219,14 @@ export default async function ListingPage({ params }: Props) {
       <Header />
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
-        {/* Back Link */}
-        <div className="mb-5">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            <span><Tr text="Back to marketplace" /></span>
-          </Link>
-        </div>
+        {/* Breadcrumb — Home / Category / Title */}
+        <nav aria-label="Breadcrumb" className="mb-4 truncate text-sm text-muted-foreground">
+          <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
+          <span className="mx-1.5 text-line-strong">/</span>
+          <Link href={`/c/${rawListing.category.slug}`} className="hover:text-accent-foreground transition-colors"><Tr text={listing.category.name} /></Link>
+          <span className="mx-1.5 text-line-strong">/</span>
+          <span className="font-medium text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} /></span>
+        </nav>
 
         {/* Title header */}
         <div className="mb-4 flex items-start justify-between gap-3">
@@ -260,6 +258,25 @@ export default async function ListingPage({ params }: Props) {
 
         {/* Gallery mosaic */}
         <ListingGallery images={listing.images} title={displayTitle} showAllLabel="View all photos" />
+
+        {/* Highlights — scannable item facts up front (buyers scan before they read).
+            Trust is just the color-coded score number, kept low-key (no second shield). */}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {listing.condition && (
+            <span className="inline-flex items-center rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground">
+              <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
+            </span>
+          )}
+          {numericSpecs.map((s) => (
+            <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground">
+              <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
+            </span>
+          ))}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold">
+            <span className="text-ink-4"><Tr text="Trust" /></span>
+            <TrustScore score={listing.seller.trustScore} variant="number" size="sm" />
+          </span>
+        </div>
 
         {/* Content + sticky contact */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
@@ -347,6 +364,9 @@ export default async function ListingPage({ params }: Props) {
             </div>
           </div>
         </div>
+
+        {/* More like this — same-category listings (client-fetched, ISR-safe) */}
+        <RelatedListings listingId={listing.id} categorySlug={rawListing.category.slug} />
       </main>
 
       <Footer />
