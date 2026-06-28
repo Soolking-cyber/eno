@@ -51,12 +51,13 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: false,
-  // Baseline security headers on every response. CSP is REPORT-ONLY and now wired to
-  // a collector (/api/csp-report via report-to + legacy report-uri) so we confirm
-  // every origin from REAL traffic — Supabase (+ realtime wss), CARTO map tiles,
-  // unpkg/Leaflet, GA/GTM, Meta pixel, mock image hosts. PROMOTE to enforcing by
-  // renaming the header key to "Content-Security-Policy" once the collector shows a
-  // clean window (the policy already allows inline/eval, so Next.js itself won't trip).
+  // Baseline security headers on every response. CSP is now ENFORCING — promoted from
+  // Report-Only after a 6-dimension audit confirmed every browser-loaded external
+  // origin is in the allowlist (Supabase REST+realtime wss, CARTO tiles, unpkg/Leaflet,
+  // GA/GTM, Meta Pixel, Cloudflare Insights, Vercel Insights, mock image hosts) with
+  // ZERO breaking gaps; 'unsafe-inline'/'unsafe-eval' keep Next's inline scripts/styles
+  // and the GA/Pixel bootstrap working. report-to + report-uri stay wired to the
+  // /api/csp-report collector so any future violation is still logged, not just blocked.
   async headers() {
     const csp = [
       "default-src 'self'",
@@ -65,7 +66,9 @@ const nextConfig: NextConfig = {
       "frame-ancestors 'self'",
       "form-action 'self'",
       // Next.js needs inline + eval without a nonce setup; GTM/Meta/Leaflet scripts.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://unpkg.com https://static.cloudflareinsights.com",
+      // va.vercel-scripts.com: @vercel/analytics + speed-insights SDK (proxied same-
+      // origin in prod, but the external host loads on preview/debug deployments).
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://unpkg.com https://static.cloudflareinsights.com https://va.vercel-scripts.com",
       "style-src 'self' 'unsafe-inline' https://unpkg.com",
       "img-src 'self' data: blob: https://*.supabase.co https://*.basemaps.cartocdn.com https://picsum.photos https://*.picsum.photos https://loremflickr.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com",
       "font-src 'self' data:",
@@ -90,7 +93,7 @@ const nextConfig: NextConfig = {
           { key: "X-DNS-Prefetch-Control", value: "on" },
           // Named endpoint group for the CSP `report-to` directive (Reporting API).
           { key: "Reporting-Endpoints", value: 'csp-endpoint="/api/csp-report"' },
-          { key: "Content-Security-Policy-Report-Only", value: csp },
+          { key: "Content-Security-Policy", value: csp },
         ],
       },
     ];
