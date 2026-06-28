@@ -45,13 +45,18 @@ const nextConfig: NextConfig = {
     ],
   },
   typescript: {
-    ignoreBuildErrors: true,
+    // Enforce types at BUILD time (Vercel + CI). The build now fails on any type
+    // error instead of silently shipping it; `tsc --noEmit` is kept green so this
+    // gate never blocks a legit deploy.
+    ignoreBuildErrors: false,
   },
   reactStrictMode: false,
-  // Baseline security headers on every response. CSP is shipped REPORT-ONLY first
-  // (logs violations, blocks nothing) so we can confirm every origin — Supabase
-  // (+ realtime wss), CARTO map tiles, unpkg/Leaflet, GA/GTM, Meta pixel, mock
-  // image hosts — before promoting it to an enforcing `Content-Security-Policy`.
+  // Baseline security headers on every response. CSP is REPORT-ONLY and now wired to
+  // a collector (/api/csp-report via report-to + legacy report-uri) so we confirm
+  // every origin from REAL traffic — Supabase (+ realtime wss), CARTO map tiles,
+  // unpkg/Leaflet, GA/GTM, Meta pixel, mock image hosts. PROMOTE to enforcing by
+  // renaming the header key to "Content-Security-Policy" once the collector shows a
+  // clean window (the policy already allows inline/eval, so Next.js itself won't trip).
   async headers() {
     const csp = [
       "default-src 'self'",
@@ -68,6 +73,10 @@ const nextConfig: NextConfig = {
       "frame-src 'self' https://www.facebook.com https://td.doubleclick.net",
       "worker-src 'self' blob:",
       "manifest-src 'self'",
+      // Where violations are sent: report-to (modern, paired with the Reporting-Endpoints
+      // header below) + report-uri (older browsers). Same-origin path → through Cloudflare.
+      "report-to csp-endpoint",
+      "report-uri /api/csp-report",
     ].join("; ");
     return [
       {
@@ -79,6 +88,8 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), payment=()" },
           { key: "X-DNS-Prefetch-Control", value: "on" },
+          // Named endpoint group for the CSP `report-to` directive (Reporting API).
+          { key: "Reporting-Endpoints", value: 'csp-endpoint="/api/csp-report"' },
           { key: "Content-Security-Policy-Report-Only", value: csp },
         ],
       },

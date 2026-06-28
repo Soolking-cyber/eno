@@ -9,8 +9,9 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # Vercel runs the production build on deploy; this job catches what that build
-    # skips: TypeScript errors (next.config has ignoreBuildErrors) and lint.
+    # Fast pre-merge gate: typecheck + lint on PRs before they reach Vercel. The
+    # Vercel build also enforces types now (ignoreBuildErrors:false), but this fails
+    # the PR in ~1 min instead of waiting on a full deploy build.
     env:
       # Prisma reads these from the schema's datasource; generate doesn't connect,
       # so dummy values are fine for type generation in CI.
@@ -21,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

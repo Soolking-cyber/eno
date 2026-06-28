@@ -159,9 +159,13 @@ export async function GET(req: NextRequest) {
   }
 
   // Subcategory + intent (listingType) filter on dedicated columns now —
-  // taxonomy-aligned, replacing the old per-category keyword heuristics.
+  // taxonomy-aligned, replacing the old per-category keyword heuristics. Tracked
+  // separately so the subcategory FACET counts can drop just this clause (a facet's
+  // own selection must not constrain its own option counts).
+  let subcategoryFilter: Prisma.ListingWhereInput | null = null
   if (subcategory && subcategory !== 'all') {
-    andFilters.push({ subcategorySlug: subcategory })
+    subcategoryFilter = { subcategorySlug: subcategory }
+    andFilters.push(subcategoryFilter)
   }
   const listingType = searchParams.get('type')?.trim()
   if (listingType && listingType !== 'all') {
@@ -326,19 +330,19 @@ export async function GET(req: NextRequest) {
 
   // Parallel fetch: Listings, total count, and subcategory counts (if category is set)
   let subcategoryCounts: Record<string, number> = {}
-  
+
+  // Facet base for the subcategory counts + their "All" total: every active filter
+  // EXCEPT the subcategory selection (a facet must not constrain its own option counts)
+  // and the free-text query. Dropping the query keeps counts from zeroing out on a
+  // semantic-only search (literal keyword AND-match would match nothing) while still
+  // respecting the structural chips — condition, type, brand, model, price, district —
+  // which is the actual bug: a count said "12" but clicking yielded 2 because those
+  // were ignored. Counts now match what the click returns.
+  const facetBaseFilters = andFilters.filter((f) => f !== subcategoryFilter && f !== pgTextFilter)
+
   let categoryTotalPromise: Promise<number> = Promise.resolve(0)
   if (category && category !== 'all') {
-    const allFilters: Prisma.ListingWhereInput[] = [
-      { verified: verifiedFilter !== undefined ? verifiedFilter : true },
-      { status: 'active' },
-    ]
-    allFilters.push({ category: { slug: category } })
-    const distFilter = buildDistrictFilter(district || 'all')
-    if (distFilter) {
-      allFilters.push(distFilter)
-    }
-    categoryTotalPromise = db.listing.count({ where: { AND: allFilters } })
+    categoryTotalPromise = db.listing.count({ where: { AND: facetBaseFilters } })
   }
 
   const promises: [
@@ -360,22 +364,17 @@ export async function GET(req: NextRequest) {
   ]
 
   if (category && category !== 'all') {
-    const cacheKey = `${category}|${district || 'all'}|${verifiedFilter}`
+    // Key on the FULL facet base so a change to ANY active filter (not just
+    // category/district) invalidates the cached counts.
+    const cacheKey = JSON.stringify(facetBaseFilters)
     const cached = subCountCache.get(cacheKey)
     if (cached && Date.now() - cached.at < SUBCOUNT_TTL) {
       promises[2] = Promise.resolve(cached.data)
     } else {
       // One grouped query over the subcategorySlug column (taxonomy-aligned),
-      // replacing the old per-subcategory keyword count fan-out.
-      const subWhere: Prisma.ListingWhereInput[] = [
-        { verified: verifiedFilter !== undefined ? verifiedFilter : true },
-        { status: 'active' },
-        { category: { slug: category } },
-      ]
-      const distFilter = buildDistrictFilter(district || 'all')
-      if (distFilter) subWhere.push(distFilter)
+      // respecting every active filter except the subcategory selection itself.
       promises[2] = db.listing
-        .groupBy({ by: ['subcategorySlug'], where: { AND: subWhere }, _count: { _all: true } })
+        .groupBy({ by: ['subcategorySlug'], where: { AND: facetBaseFilters }, _count: { _all: true } })
         .then((grouped) => {
           const data = grouped
             .filter((g) => g.subcategorySlug)
