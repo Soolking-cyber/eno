@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { checkListingOwner } from '@/lib/listing-owner'
+import { reindexListing } from '@/lib/listing-index'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,5 +28,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: { status, ...(status === 'active' ? { availabilityConfirmedAt: new Date() } : {}) },
   })
   revalidatePath(`/listings/${id}`) // sold/hidden must drop from the cached page (it 404s non-active)
+  after(() => reindexListing(id)) // active → (re)index for AI search; sold/hidden → remove
   return NextResponse.json({ ok: true, status })
 }

@@ -16,6 +16,7 @@ import { isListingImageUrl } from '@/lib/listing-image'
 import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { rateLimit } from '@/lib/ratelimit'
+import { reindexListing } from '@/lib/listing-index'
 
 export const dynamic = 'force-dynamic'
 
@@ -564,6 +565,7 @@ export async function POST(req: NextRequest) {
           customData: { content_ids: [listing.id], content_type: 'product', content_category: category.name, value: listing.price, currency: 'VND' },
         }),
       )
+      after(() => reindexListing(listing.id)) // add the new live listing to AI search
     }
 
     return NextResponse.json({ id: listing.id, verified: autoPublish }, { status: 201 })

@@ -7,6 +7,7 @@ import { warmTranslations } from '@/lib/translate'
 import { getSupabaseAdmin, LISTINGS_BUCKET } from '@/lib/supabase-admin'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { safeFetch } from '@/lib/ssrf'
+import { reindexListing } from '@/lib/listing-index'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -114,6 +115,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (warm.length) after(() => warmTranslations(warm.filter(Boolean)))
+  after(() => { for (const r of results) if (r.id) reindexListing(r.id) }) // index the live imports for AI search
 
   const created = results.filter((r) => r.id).length
   return NextResponse.json({ created, failed: results.length - created, results })

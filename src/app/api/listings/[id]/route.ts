@@ -8,6 +8,7 @@ import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { categoryHasBrand, resolveBrand, bumpBrandCount } from '@/lib/brand'
 import { rangeFacetsFor, subcategoriesFor, typesFor } from '@/lib/taxonomy'
+import { reindexListing, removeFromIndex } from '@/lib/listing-index'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -137,6 +138,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     brandChange!.to ? bumpBrandCount(brandChange!.to, 1) : Promise.resolve(),
   ]))
   revalidatePath(`/listings/${id}`) // purge the cached (ISR) detail page so the edit shows
+  after(() => reindexListing(id)) // refresh the AI-search document with the edited fields
 
   // Re-warm translations for any changed user text (after the response flushes).
   const warm = [data.title as string, data.description as string, data.location as string].filter(Boolean)
@@ -154,5 +156,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   await db.listing.delete({ where: { id } })
   if (gone?.brandSlug) after(() => bumpBrandCount(gone.brandSlug!, -1))
   revalidatePath(`/listings/${id}`)
+  after(() => removeFromIndex(id)) // drop the deleted listing from AI search
   return NextResponse.json({ ok: true })
 }

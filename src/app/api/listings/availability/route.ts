@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { BUMP_COOLDOWN_DAYS } from '@/lib/stale'
+import { removeFromIndex } from '@/lib/listing-index'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -49,5 +50,6 @@ export async function POST(req: NextRequest) {
   // /api/listings fetch — so revalidating its detail page every day per listing is
   // pure ISR-write waste (the dominant write driver). Let it ride its time window.
   for (const id of sold) revalidatePath(`/listings/${id}`)
+  after(() => { for (const id of sold) removeFromIndex(id) }) // pull sold items from AI search
   return NextResponse.json({ ok: true, confirmed, markedSold })
 }

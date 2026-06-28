@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { bumpBrandCount } from '@/lib/brand'
+import { reindexListing } from '@/lib/listing-index'
 import { fold } from '@/lib/fold'
 import { serializeListing } from '@/lib/serialize'
 
@@ -75,5 +76,8 @@ export async function POST(req: NextRequest) {
   }
 
   revalidatePath('/')
+  // Sync AI search: each id upserts if it's still public, else drops out (handles
+  // hide/unverify/delete → remove, activate/verify → add, feature → refresh).
+  after(() => { for (const id of ids) reindexListing(id) })
   return NextResponse.json({ ok: true, affected })
 }
