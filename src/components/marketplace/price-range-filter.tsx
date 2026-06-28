@@ -31,7 +31,7 @@ export function PriceRangeFilter({
   wrapperClassName?: string
 }) {
   const { tr } = useLanguage()
-  const { currency, rates, format } = useCurrency()
+  const { currency, rates } = useCurrency()
   const rate = currency === 'VND' || currency === '₫' ? 1 : rates[currency] || 0
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -133,8 +133,17 @@ export function PriceRangeFilter({
   const digits = (s: string) => Number(s.replace(/\D/g, '')) || 0
 
   const active = value !== 'all'
+  // Compact label for the bar trigger (e.g. "1.5M–3.9M ₫") — the full grouped numbers
+  // were far too long. The dropdown inputs still show exact amounts.
+  const sym = currency === 'VND' || currency === '₫' ? '₫' : currency
+  const compactAmt = (vnd: number) => {
+    const d = toDisplay(vnd)
+    if (d >= 1_000_000) return `${(d / 1_000_000).toFixed(d % 1_000_000 === 0 ? 0 : 1)}M`
+    if (d >= 1_000) return `${Math.round(d / 1_000)}k`
+    return String(d)
+  }
   const triggerText = active && prices.length
-    ? `${format(effLo)} – ${effHi >= dataMax ? format(dataMax) + '+' : format(effHi)}`
+    ? `${compactAmt(effLo)}–${effHi >= dataMax ? compactAmt(dataMax) + '+' : compactAmt(effHi)} ${sym}`
     : tr('Price', 'Giá')
 
   return (

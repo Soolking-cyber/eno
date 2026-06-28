@@ -115,25 +115,7 @@ export function FacetBar({
     .filter((t) => typeValues.includes(t.value))
     .map((t) => ({ value: t.value, label: lang === 'vi' ? t.labelVi : t.label }))
 
-  const facets: ReactNode[] = [
-    <button
-      key="area"
-      ref={areaBtnRef}
-      type="button"
-      onClick={() => setAreaOpen((o) => !o)}
-      className={cn(
-        'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
-        wrap,
-        areaOpen ? 'text-foreground' : areaActive ? active : 'text-body hover:bg-muted',
-      )}
-    >
-      <span className="flex items-center gap-1.5 truncate">
-        <MapPin className={cn('h-3.5 w-3.5', areaActive ? 'text-accent-foreground' : 'text-ink-4')} />
-        <span className="truncate">{areaLabel}</span>
-      </span>
-      <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', areaOpen && 'rotate-180')} />
-    </button>,
-  ]
+  const facets: ReactNode[] = []
 
   // Intent filter (only meaningful when the category offers >1 intent, or on "all").
   if (typeOptions.length > 1) {
@@ -161,6 +143,27 @@ export function FacetBar({
       activeClassName={active}
       wrapperClassName={wrap}
     />,
+  )
+
+  // Area / location — to the RIGHT of price (it was awkwardly leading the bar).
+  facets.push(
+    <button
+      key="area"
+      ref={areaBtnRef}
+      type="button"
+      onClick={() => setAreaOpen((o) => !o)}
+      className={cn(
+        'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
+        wrap,
+        areaOpen ? 'text-foreground' : areaActive ? active : 'text-body hover:bg-muted',
+      )}
+    >
+      <span className="flex items-center gap-1.5 truncate">
+        <MapPin className={cn('h-3.5 w-3.5', areaActive ? 'text-accent-foreground' : 'text-ink-4')} />
+        <span className="truncate">{areaLabel}</span>
+      </span>
+      <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', areaOpen && 'rotate-180')} />
+    </button>,
   )
 
   // All category facets live in the advanced "Filter" panel — a real per-category

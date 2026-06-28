@@ -1941,6 +1941,15 @@ export function ListingsExplorer({
       const d = DISTRICTS.find((x) => x.slug === activeDistrict)
       chips.push({ label: d ? (lang === 'vi' ? d.name : d.nameEn) : activeDistrict, onClear: () => setActiveDistrict('all') })
     }
+    // Area / location (new province→ward model + "near you" radius) — so the saved
+    // search + alert clearly include where the user is looking.
+    if (nearby) {
+      chips.push({ label: tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`), onClear: () => { setNearby(null); setActiveProvince(null); setActiveWard(null) } })
+    } else if (activeWard) {
+      chips.push({ label: lang === 'vi' ? activeWard.name : activeWard.nameEn, onClear: () => setActiveWard(null) })
+    } else if (activeProvince) {
+      chips.push({ label: lang === 'vi' ? activeProvince.name : activeProvince.nameEn, onClear: () => { setActiveProvince(null); setActiveWard(null) } })
+    }
     if (priceRange !== 'all') chips.push({ label: tr('Price range', 'Khoảng giá'), onClear: () => setPriceRange('all') })
     if (conditionFilter !== 'all') chips.push({ label: conditionFilter === 'new' ? tr('New', 'Mới') : tr('Used', 'Đã dùng'), onClear: () => setConditionFilter('all') })
     if (listingType !== 'all') {
@@ -1959,6 +1968,9 @@ export function ListingsExplorer({
     setActiveBrand('all')
     setActiveModel('all')
     setActiveDistrict('all')
+    setActiveProvince(null)
+    setActiveWard(null)
+    setNearby(null)
     setPriceRange('all')
     setConditionFilter('all')
     setListingType('all')
