@@ -33,16 +33,31 @@ const STOP = new Set([
   'under', 'over', 'near', 'around', 'below', 'above', 'about', 'less', 'than', 'cheap', 'good', 'best',
   'find', 'want', 'need', 'looking', 'please', 'the', 'for', 'with', 'and', 'any', 'some', 'that', 'this',
   'million', 'thousand', 'budget', 'price', 'show', 'something',
+  // price/sort words — stripped so "most expensive car" → "car" (the price intent is
+  // captured separately as `sort`); critical for the no-Gemini heuristic path.
+  'cheapest', 'expensive', 'most', 'lowest', 'highest', 'priciest', 'premium', 'luxury', 'affordable', 'dearest', 'top',
   'duoi', 'tren', 'quanh', 'khoang', 'trieu', 'nghin', 'ngan',
 ])
 const keywords = (query: string) =>
   fold(query).split(/\s+/).filter((t) => t.length >= 3 && !/^\d+$/.test(t) && !STOP.has(t)).slice(0, 6)
 
+// No-Gemini fallback rewrite: strip the query to keywords + detect price-sort by regex,
+// so "most expensive car" → {query:"car", sort:"price_desc"} even when Gemini is down.
+const PRICE_ASC = /\b(cheap|cheapest|lowest|budget|affordable|least expensive)\b/i
+const PRICE_DESC = /\b(most expensive|expensive|priciest|highest|premium|luxury|dearest)\b/i
+function heuristicRewrite(text: string): { query: string; sort: Sort } {
+  const sort: Sort = PRICE_ASC.test(text) ? 'price_asc' : PRICE_DESC.test(text) ? 'price_desc' : null
+  const q = keywords(text).join(' ')
+  return { query: q || text.trim().slice(0, 160), sort }
+}
+
 // Context-aware query rewrite — the key to follow-ups. Turns the buyer's latest message
 // into a standalone product query using the conversation, and detects price-sort intent.
 async function rewriteQuery(messages: Msg[]): Promise<{ query: string; sort: Sort }> {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user')!
-  const fallback: { query: string; sort: Sort } = { query: lastUser.content.trim().slice(0, 160), sort: null }
+  // Heuristic fallback (no Gemini needed) — keeps the query clean enough for Vertex
+  // Search so the concierge never drops to the dumb keyword path on a Gemini hiccup.
+  const fallback = heuristicRewrite(lastUser.content)
   const ai = getGemini()
   if (!ai) return fallback
   const transcript = messages.slice(-8).map((m) => `${m.role === 'user' ? 'Buyer' : 'Assistant'}: ${m.content}`).join('\n')
