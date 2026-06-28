@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   Search,
   SlidersHorizontal,
@@ -193,6 +193,16 @@ export function ListingsExplorer({
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  // Return-to-feed restoration: when set, a back-nav snapshot is being rehydrated —
+  // hold the scroll target until the taller list paints, and don't let the page-1
+  // query shrink the restored list.
+  const restoredScrollRef = useRef<number | null>(null)
+  const skipFirstPageResetRef = useRef(false)
+  // The back-nav snapshot, read once on mount and applied when the feed's filters
+  // settle to the same signature (filters hydrate from the URL in an effect, so the
+  // match can't be made synchronously at mount).
+  const pendingSnapRef = useRef<{ sig: string; listings: SerializedListing[]; page: number; totalCount: number; scrollY: number; ts: number } | null>(null)
+  const snapReadRef = useRef(false)
   const [subcategoryCounts, setSubcategoryCounts] = useState<Record<string, number>>({})
   const [categoryTotal, setCategoryTotal] = useState(0)
   const [debouncedQuery, setDebouncedQuery] = useState(query)
@@ -631,8 +641,10 @@ export function ListingsExplorer({
     return () => clearTimeout(timer)
   }, [query])
 
-  // Reset page to 1 whenever filters change
+  // Reset page to 1 whenever filters change — but NOT on the mount run where we're
+  // rehydrating a back-nav snapshot (which restores a deeper page).
   useEffect(() => {
+    if (skipFirstPageResetRef.current) { skipFirstPageResetRef.current = false; return }
     setPage(1)
   }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, listingType, verifiedOnly, sort, activeSubcategory, activeBrand, activeModel, customFilters, priceRange, nearby, activeProvince?.code, activeWard?.code])
 
@@ -746,6 +758,55 @@ export function ListingsExplorer({
     return p.toString()
   }, [activeCategory, activeSubcategory, activeBrand, activeModel, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, customFilters])
 
+  // Identity of the current feed (every filter that defines "this result set"), used
+  // to key the back-nav snapshot so it only restores onto the exact same feed.
+  const feedSig = useMemo(
+    () => JSON.stringify([
+      activeCategory, activeSubcategory, activeBrand, activeModel, activeDistrict,
+      activeProvince?.code ?? null, activeWard?.code ?? null, nearby ? 1 : 0,
+      conditionFilter, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters,
+    ]),
+    [activeCategory, activeSubcategory, activeBrand, activeModel, activeDistrict, activeProvince?.code, activeWard?.code, nearby, conditionFilter, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters],
+  )
+
+  // Rehydrate the feed after a back-nav from a listing: restore the accumulated rows,
+  // page depth and scroll position (Baymard: dumping the buyer at the top of a reset
+  // feed is a leading cause of abandonment). The snapshot is read once on mount, then
+  // applied the moment the URL-driven filters settle to the same signature.
+  useLayoutEffect(() => {
+    if (!snapReadRef.current) {
+      snapReadRef.current = true
+      try {
+        const raw = sessionStorage.getItem('eno:feed-snap')
+        if (raw) {
+          sessionStorage.removeItem('eno:feed-snap')
+          const s = JSON.parse(raw)
+          // Recent, and with more rows than a fresh page-1 load would give.
+          if (s && Array.isArray(s.listings) && Date.now() - s.ts <= 30 * 60 * 1000 && s.listings.length > initialListings.length) {
+            pendingSnapRef.current = s
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    const snap = pendingSnapRef.current
+    if (snap && snap.sig === feedSig) {
+      pendingSnapRef.current = null
+      skipFirstPageResetRef.current = true
+      restoredScrollRef.current = snap.scrollY
+      setListings(snap.listings)
+      setTotalCount(snap.totalCount)
+      setPage(snap.page)
+    }
+  }, [feedSig])
+
+  // Once the restored (taller) list has painted, jump to the saved scroll position.
+  useLayoutEffect(() => {
+    if (restoredScrollRef.current != null && listings.length > initialListings.length) {
+      window.scrollTo(0, restoredScrollRef.current)
+      restoredScrollRef.current = null
+    }
+  }, [listings])
+
   // Synchronize state and trigger history caching when data changes
   useEffect(() => {
     if (listingsData) {
@@ -753,7 +814,12 @@ export function ListingsExplorer({
       // append for the infinite feed. Dedupe by id so the placeholderData transition
       // between pages can't double-insert.
       setListings((prev) => {
-        if (page === 1) return listingsData.listings
+        if (page === 1) {
+          // Mid-restore, the snapshot already holds more rows than a fresh page 1 —
+          // don't clobber it back down to 12 before the deeper page reloads.
+          if (restoredScrollRef.current != null && prev.length > listingsData.listings.length) return prev
+          return listingsData.listings
+        }
         const seen = new Set(prev.map((l) => l.id))
         return [...prev, ...listingsData.listings.filter((l: SerializedListing) => !seen.has(l.id))]
       })
@@ -942,7 +1008,20 @@ export function ListingsExplorer({
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
-  const handleOpen = (l: SerializedListing) => { router.push(`/listings/${l.id}`) }
+  const handleOpen = (l: SerializedListing) => {
+    // Snapshot the feed so a back-nav lands the buyer exactly where they left off
+    // (rows + page + scroll), not at the top of a reset feed. Cap the payload so a
+    // very deep scroll can't bloat sessionStorage.
+    try {
+      // Only the paginated results feed (not the landing rails) restores on back-nav.
+      if (!isLandingMode && listings.length <= 120) {
+        sessionStorage.setItem('eno:feed-snap', JSON.stringify({
+          sig: feedSig, listings, page, totalCount, scrollY: window.scrollY, ts: Date.now(),
+        }))
+      }
+    } catch { /* ignore quota/serialization */ }
+    router.push(`/listings/${l.id}`)
+  }
   // Warm the listing page before the click (hover on desktop, touchstart on mobile)
   // so it opens instantly instead of SSR-ing on click. De-duped by Next's prefetch cache.
   const prefetchListing = useCallback((id: string) => { router.prefetch(`/listings/${id}`) }, [router])
