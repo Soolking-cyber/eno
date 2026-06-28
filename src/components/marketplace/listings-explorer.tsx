@@ -130,7 +130,6 @@ type Props = {
   categories: SerializedCategory[]
   initialListings: SerializedListing[]
   initialTotal?: number
-  initialFetchedAt?: number
   listingsRef?: React.RefObject<HTMLDivElement | null>
 }
 
@@ -140,7 +139,6 @@ export function ListingsExplorer({
   categories,
   initialListings,
   initialTotal,
-  initialFetchedAt,
   listingsRef,
 }: Props) {
   const { lang, t, tr } = useLanguage()
@@ -182,6 +180,12 @@ export function ListingsExplorer({
   const [showExplorer, setShowExplorer] = useState(false)
 
   const [listings, setListings] = useState<SerializedListing[]>(initialListings)
+  // Freshness anchor for the SSR seed, captured at CLIENT mount (not baked on the
+  // server). The homepage is ISR (6h), so a server `Date.now()` would be stale by up
+  // to 6h → React Query would treat the seed as stale and refetch /api/listings on
+  // every load, defeating the seed. The user just received this HTML, so it's "fresh
+  // as of now" for the 30s staleTime window.
+  const [seedFetchedAt] = useState(() => Date.now())
   // When "search near you" is on, distance-FILTER the fetched set client-side, but keep
   // the TRUST-first ranking the API already applied (higher-trust sellers first), with
   // distance only as a tiebreaker. So "near you" narrows by radius without throwing away
@@ -739,7 +743,7 @@ export function ListingsExplorer({
       Object.keys(customFilters).length === 0
         ? { listings: initialListings, total: initialTotal ?? initialListings.length, subcategoryCounts: {}, categoryTotal: 0 }
         : undefined,
-    initialDataUpdatedAt: initialFetchedAt,
+    initialDataUpdatedAt: seedFetchedAt,
   })
 
   // Filter signature (no price/sort/pagination) for the price-histogram fetch, so
@@ -1017,7 +1021,7 @@ export function ListingsExplorer({
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
-  const handleOpen = (l: SerializedListing) => {
+  const handleOpen = useCallback((l: SerializedListing) => {
     // Snapshot the feed so a back-nav lands the buyer exactly where they left off
     // (rows + page + scroll), not at the top of a reset feed. Cap the payload so a
     // very deep scroll can't bloat sessionStorage.
@@ -1030,7 +1034,7 @@ export function ListingsExplorer({
       }
     } catch { /* ignore quota/serialization */ }
     router.push(`/listings/${l.id}`)
-  }
+  }, [isLandingMode, listings, page, totalCount, feedSig, router])
   // Warm the listing page before the click (hover on desktop, touchstart on mobile)
   // so it opens instantly instead of SSR-ing on click. De-duped by Next's prefetch cache.
   const prefetchListing = useCallback((id: string) => { router.prefetch(`/listings/${id}`) }, [router])
@@ -1052,6 +1056,10 @@ export function ListingsExplorer({
       }),
     )
   }, [])
+  // ONE stable per-feed callback for cards (not a fresh `() => locateOnMap(l.id)`
+  // per card per render) — lets the memoized ListingCard skip re-render during the
+  // map hover/focus storm. The card hands back its own listing.
+  const locateListing = useCallback((l: SerializedListing) => locateOnMap(l.id), [locateOnMap])
 
   // A card outside the feed (e.g. the For You rail) asks us to open it on the map. It
   // passes the full listing so we can inject it into the map even if it isn't in the
@@ -1893,7 +1901,7 @@ export function ListingsExplorer({
                     onMouseEnter={() => prefetchListing(l.id)}
                     onTouchStart={() => prefetchListing(l.id)}
                   >
-                    <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={() => locateOnMap(l.id)} />
+                    <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={locateListing} />
                   </div>
                 ))}
               </div>
@@ -2291,7 +2299,7 @@ export function ListingsExplorer({
                         onMouseEnter={() => prefetchListing(l.id)}
                         onTouchStart={() => prefetchListing(l.id)}
                       >
-                        <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={() => locateOnMap(l.id)} />
+                        <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={locateListing} />
                       </div>
                     ))}
                   </div>
@@ -2312,7 +2320,7 @@ export function ListingsExplorer({
                             hoveredId === l.id && 'ring-2 ring-inset ring-brand/40',
                           )}
                         >
-                          <ListingCard listing={l} onOpen={handleOpen} onLocate={() => locateOnMap(l.id)} />
+                          <ListingCard listing={l} onOpen={handleOpen} onLocate={locateListing} />
                         </div>
                       ))}
                       {/* In-column infinite-scroll sentinel (observed against this column) */}

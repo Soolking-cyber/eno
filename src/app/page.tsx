@@ -61,7 +61,6 @@ export default async function Home() {
           categories={categories}
           initialListings={listings}
           initialTotal={total}
-          initialFetchedAt={Date.now()}
         />
       </main>
       <Footer />

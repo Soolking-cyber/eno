@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, memo } from 'react'
 import { Heart, ChevronLeft, ChevronRight, Building2, MapPin } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import Image from 'next/image'
@@ -32,11 +32,13 @@ type Props = {
   // full-width. Default = the result grid (2/3/4 cols); CardRow passes fixed px.
   sizes?: string
   // When set, a "locate on map" pin shows at the image bottom-right (mirrors the
-  // heart) → jump to the map focused on this listing.
-  onLocate?: () => void
+  // heart) → jump to the map focused on this listing. Receives the listing so the
+  // parent can pass ONE stable callback (keeps React.memo effective); `() => void`
+  // callers stay compatible (they just ignore the arg).
+  onLocate?: (listing: SerializedListing) => void
 }
 
-export function ListingCard({
+function ListingCardImpl({
   listing,
   onOpen,
   priority = false,
@@ -156,7 +158,7 @@ export function ListingCard({
           <button
             type="button"
             aria-label={tr('Show on map', 'Xem trên bản đồ')}
-            onClick={(e) => { e.stopPropagation(); onLocate() }}
+            onClick={(e) => { e.stopPropagation(); onLocate(listing) }}
             className="absolute right-2 bottom-2 z-10 flex h-8 w-8 items-center justify-center text-white transition-transform hover:scale-110 active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44"
           >
             <MapPin className="h-[20px] w-[20px]" />
@@ -232,3 +234,9 @@ export function ListingCard({
     </div>
   )
 }
+
+// Memoized: the homepage/explorer feed re-renders on every map hover/focus state
+// change. With stable `onOpen`/`onLocate` callbacks from the parent (useCallback),
+// memo lets unaffected cards skip re-render — kills the map-hover re-render storm
+// across a long grid. Favorite/language changes still flow via context.
+export const ListingCard = memo(ListingCardImpl)

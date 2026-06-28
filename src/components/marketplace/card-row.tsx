@@ -94,7 +94,7 @@ export function CardRow({ title, listings, onOpen, onViewAll, viewAllLabel, lcp 
                 actually visible on mobile (card 0 full, card 1 half) — these plus the
                 logo are the only real LCP candidates, so all are fast & discoverable
                 without over-preloading. Card 2+ is off-screen (horizontal scroll) → lazy. */}
-            <ListingCard listing={l} onOpen={onOpen} priority={lcp && i < 2} lcp={lcp && i < 2} sizes="(max-width: 640px) 180px, 220px" onLocate={onLocate ? () => onLocate(l) : undefined} />
+            <ListingCard listing={l} onOpen={onOpen} priority={lcp && i < 2} lcp={lcp && i < 2} sizes="(max-width: 640px) 180px, 220px" onLocate={onLocate} />
           </div>
         ))}
       </div>

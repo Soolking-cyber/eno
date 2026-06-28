@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { slugify } from '@/lib/slug'
@@ -22,18 +23,24 @@ export async function generateStaticParams() {
   return []
 }
 
-async function load(categorySlug: string, districtSlug: string) {
+// `cache()` dedupes this between generateMetadata and the page render (same request)
+// so the category is scanned ONCE per request, not twice. District is free text and
+// the slug match must run in JS (Postgres can't reproduce slugify), so we bound the
+// scan with a take cap: an SEO page only needs the top-ranked listings, and weekly
+// ISR makes the rare deep-tail miss immaterial. Order stays trust-first.
+const load = cache(async (categorySlug: string, districtSlug: string) => {
   const cat = await db.category.findUnique({ where: { slug: categorySlug } })
   if (!cat) return null
   const raw = await db.listing.findMany({
     where: { categoryId: cat.id, verified: true, status: 'active', NOT: { district: null } },
     include: { category: true, seller: true },
     orderBy: [{ seller: { trustScore: 'desc' } }, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
+    take: 600,
   })
   const matched = raw.filter((r) => r.district && slugify(r.district) === districtSlug)
   if (matched.length === 0) return null
   return { cat, matched, districtName: matched[0].district as string }
-}
+})
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category, district } = await params

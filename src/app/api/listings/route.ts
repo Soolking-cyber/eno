@@ -28,6 +28,15 @@ export const dynamic = 'force-dynamic'
 const SUBCOUNT_TTL = 60_000
 const subCountCache = new Map<string, { at: number; data: { slug: string; count: number }[] }>()
 
+// Vertex ranked-ID cache (keyed by the exact Vertex args: q + category + price band).
+// Pagination MUST use one ranked set across pages — re-querying Vertex per page can
+// return a slightly different order (rows duplicated on one page, skipped on the next)
+// AND spends the credit on every page. Cache the ranked list for 60s: a search session
+// pages through a stable set at the cost of one Vertex call per (query, filter band).
+const RANK_TTL = 60_000
+const RANK_CACHE_MAX = 200
+const rankCache = new Map<string, { at: number; ids: string[] }>()
+
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams
 
@@ -259,15 +268,27 @@ export async function GET(req: NextRequest) {
   let semanticListings: any[] | null = null
   let semanticTotal = 0
   if (q && !looseMatch && !featuredOnly && sort === 'newest' && vertexConfigured()) {
-    const ids = await Promise.race([
-      vertexSearchListingIds(q, {
-        categorySlug: category && category !== 'all' ? category : null,
-        minPriceVnd: Number.isNaN(priceMin) ? null : priceMin,
-        maxPriceVnd: Number.isNaN(priceMax) ? null : priceMax,
-        take: 120,
-      }).catch(() => null),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)), // never hang a search on Vertex
-    ])
+    const minP = Number.isNaN(priceMin) ? null : priceMin
+    const maxP = Number.isNaN(priceMax) ? null : priceMax
+    const catArg = category && category !== 'all' ? category : null
+    // Reuse one ranked set across pages: key on the exact Vertex args (structural
+    // filters like district/condition aren't sent to Vertex — they're applied in the
+    // DB below — so two pages differing only in those still share the ranked order).
+    const rankKey = JSON.stringify({ q, catArg, minP, maxP })
+    let ids: string[] | null = null
+    const hit = rankCache.get(rankKey)
+    if (hit && Date.now() - hit.at < RANK_TTL) {
+      ids = hit.ids
+    } else {
+      ids = await Promise.race([
+        vertexSearchListingIds(q, { categorySlug: catArg, minPriceVnd: minP, maxPriceVnd: maxP, take: 120 }).catch(() => null),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)), // never hang a search on Vertex
+      ])
+      if (ids && ids.length) {
+        if (rankCache.size >= RANK_CACHE_MAX) rankCache.delete(rankCache.keys().next().value!) // evict oldest (insertion order)
+        rankCache.set(rankKey, { at: Date.now(), ids })
+      }
+    }
     if (ids && ids.length) {
       const structural = andFilters.filter((f) => f !== pgTextFilter)
       const rows = await db.listing.findMany({
@@ -276,8 +297,30 @@ export async function GET(req: NextRequest) {
       })
       const byId = new Map(rows.map((r) => [r.id, r]))
       const ranked = ids.map((id) => byId.get(id)).filter((r): r is (typeof rows)[number] => !!r)
-      semanticTotal = ranked.length
-      semanticListings = ranked.slice(offset, offset + limit)
+      const rankedIds = ranked.map((r) => r.id)
+      const R = ranked.length
+      // True total: relevance-ranked set (top ≤120) + literal keyword matches NOT already
+      // ranked. So deep pages of a popular query (>120 matches) keep loading instead of
+      // capping at 120, and the displayed result count is honest. `total` always equals
+      // the paginable count, so the client's load-more (listings.length < total) terminates.
+      const tailWhere: Prisma.ListingWhereInput = { AND: [...andFilters, { id: { notIn: rankedIds } }] }
+      const tailTotal = await db.listing.count({ where: tailWhere })
+      semanticTotal = R + tailTotal
+      const aPart = ranked.slice(offset, offset + limit)
+      if (aPart.length < limit && offset + limit > R && tailTotal > 0) {
+        // This page reaches past the ranked set — fill the remainder from keyword-ordered
+        // results (trust→recency), excluding the ids already shown in the ranked portion.
+        const tailRows = await db.listing.findMany({
+          where: tailWhere,
+          orderBy,
+          skip: Math.max(0, offset - R),
+          take: limit - aPart.length,
+          include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+        })
+        semanticListings = [...aPart, ...tailRows]
+      } else {
+        semanticListings = aPart
+      }
     }
   }
 
