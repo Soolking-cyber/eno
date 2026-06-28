@@ -413,6 +413,19 @@ input, select, textarea {
   font-family: inherit;
 }
 
+/* Keyboard focus — a clear ring on any interactive element, ONLY for keyboard
+   navigation (:focus-visible), so mouse clicks don't show it. Inputs keep their own
+   focus:ring; this guarantees icon buttons/links are never invisible to keyboard
+   users (WCAG 2.4.7). Modern browsers render outline along the element's radius. */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* Favorite-button pop (replaces framer-motion scale keyframes on the card). */
 @keyframes heart-pop {
   0% { transform: scale(1); }

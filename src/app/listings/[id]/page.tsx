@@ -218,7 +218,7 @@ export default async function ListingPage({ params }: Props) {
 
       <Header />
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-12">
         {/* Breadcrumb — Home / Category / Title */}
         <nav aria-label="Breadcrumb" className="mb-4 truncate text-sm text-muted-foreground">
           <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
@@ -355,7 +355,9 @@ export default async function ListingPage({ params }: Props) {
 
               {/* Unified contact + offer (auth-gated; number never in this payload).
                   Type a message or tap "Make an offer", then send → opens the thread. */}
-              <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={listing.currency} />
+              <div id="contact" className="scroll-mt-24">
+                <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={listing.currency} />
+              </div>
 
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[11px] text-muted-foreground"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></p>
@@ -368,6 +370,15 @@ export default async function ListingPage({ params }: Props) {
         {/* More like this — same-category listings (client-fetched, ISR-safe) */}
         <RelatedListings listingId={listing.id} categorySlug={rawListing.category.slug} />
       </main>
+
+      {/* Mobile sticky contact bar — the bottom nav is hidden on listing pages, so
+          this keeps the primary action in the thumb zone without scrolling. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-border bg-card/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
+        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-lg font-bold text-foreground" />
+        <a href="#contact" className="ml-auto rounded-xl bg-[#0a66c2] px-7 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#004182]">
+          <Tr text="Message" />
+        </a>
+      </div>
 
       <Footer />
     </div>
