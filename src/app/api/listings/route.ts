@@ -17,6 +17,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { rateLimit } from '@/lib/ratelimit'
 import { reindexListing } from '@/lib/listing-index'
+import { vertexSearchListingIds, vertexConfigured } from '@/lib/vertex-search'
 
 export const dynamic = 'force-dynamic'
 
@@ -127,19 +128,23 @@ export async function GET(req: NextRequest) {
   if (ward) {
     andFilters.push({ OR: [{ district: { contains: ward } }, { location: { contains: ward } }] })
   }
+  // Default AND narrows ("honda red" needs both). Visual search (and any "loose"
+  // caller) passes match=any → match ANY token, so a descriptive phrase like
+  // "blue pen" still surfaces the closest items ("pen") instead of returning nothing.
+  const looseMatch = searchParams.get('match') === 'any'
+  // The keyword filter is tracked separately (pgTextFilter) so the semantic path can
+  // drop it — but it's still pushed into andFilters, so the keyword/fallback path and
+  // facet counts behave exactly as before when semantic ranking isn't used.
+  let pgTextFilter: Prisma.ListingWhereInput | null = null
   if (q) {
     // Accent-insensitive + cross-language: match the folded query against the
     // pre-folded searchText blob (covers EN title + VI titleVi + desc + location).
     // AND each ≥2-char token so multi-word queries NARROW: "honda red" must match a
     // row containing both tokens (any order/field), not the literal substring.
     const qTokens = fold(q).split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
-    // Default AND narrows ("honda red" needs both). Visual search (and any "loose"
-    // caller) passes match=any → match ANY token, so a descriptive phrase like
-    // "blue pen" still surfaces the closest items ("pen") instead of returning nothing.
-    const looseMatch = searchParams.get('match') === 'any'
     const tokenClauses = qTokens.map((t) => ({ searchText: { contains: t } }))
-    if (qTokens.length) andFilters.push(looseMatch ? { OR: tokenClauses } : { AND: tokenClauses })
-    else andFilters.push({ searchText: { contains: fold(q) } })
+    pgTextFilter = qTokens.length ? (looseMatch ? { OR: tokenClauses } : { AND: tokenClauses }) : { searchText: { contains: fold(q) } }
+    andFilters.push(pgTextFilter)
   }
 
   // Subcategory + intent (listingType) filter on dedicated columns now —
@@ -243,6 +248,37 @@ export async function GET(req: NextRequest) {
       orderBy = [TRUST, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }]
   }
 
+  // Semantic ranking: for a text query on the default sort, rank results via Vertex AI
+  // Search (semantic + multilingual + typo-tolerant) — which draws the credit — instead
+  // of literal keyword AND-match. We re-apply every STRUCTURAL filter on the DB side as
+  // a safety net (dropping only the keyword tokens) and restore Vertex's relevance order.
+  // Falls back to the keyword query already in `where` when Vertex is unconfigured, empty,
+  // or slow — so this is a pure ranking upgrade with no regression risk.
+  let semanticListings: any[] | null = null
+  let semanticTotal = 0
+  if (q && !looseMatch && !featuredOnly && sort === 'newest' && vertexConfigured()) {
+    const ids = await Promise.race([
+      vertexSearchListingIds(q, {
+        categorySlug: category && category !== 'all' ? category : null,
+        minPriceVnd: Number.isNaN(priceMin) ? null : priceMin,
+        maxPriceVnd: Number.isNaN(priceMax) ? null : priceMax,
+        take: 120,
+      }).catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)), // never hang a search on Vertex
+    ])
+    if (ids && ids.length) {
+      const structural = andFilters.filter((f) => f !== pgTextFilter)
+      const rows = await db.listing.findMany({
+        where: { AND: [...structural, { id: { in: ids } }] },
+        include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+      })
+      const byId = new Map(rows.map((r) => [r.id, r]))
+      const ranked = ids.map((id) => byId.get(id)).filter((r): r is (typeof rows)[number] => !!r)
+      semanticTotal = ranked.length
+      semanticListings = ranked.slice(offset, offset + limit)
+    }
+  }
+
   // Parallel fetch: Listings, total count, and subcategory counts (if category is set)
   let subcategoryCounts: Record<string, number> = {}
   
@@ -265,14 +301,16 @@ export async function GET(req: NextRequest) {
     Promise<number>,
     Promise<{ slug: string; count: number }[]> | undefined
   ] = [
-    db.listing.findMany({
-      where,
-      orderBy,
-      take: limit,
-      skip: offset,
-      include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
-    }),
-    db.listing.count({ where }),
+    semanticListings
+      ? Promise.resolve(semanticListings)
+      : db.listing.findMany({
+          where,
+          orderBy,
+          take: limit,
+          skip: offset,
+          include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+        }),
+    semanticListings ? Promise.resolve(semanticTotal) : db.listing.count({ where }),
     undefined
   ]
 
