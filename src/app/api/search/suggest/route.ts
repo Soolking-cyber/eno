@@ -28,7 +28,10 @@ export async function GET(req: NextRequest) {
   const [listings, allCategories] = await Promise.all([
     db.listing.findMany({
       where: { verified: true, status: 'active', AND: searchAnd },
-      orderBy: [{ featured: 'desc' }, { postedAt: 'desc' }],
+      // Trust-first, same hierarchy as the browse feed — the typeahead is a placement
+      // surface too, so a higher-trust seller's match surfaces above a lower-trust one
+      // (featured + recency only break ties). { id } keeps the order stable.
+      orderBy: [{ seller: { trustScore: 'desc' } }, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
       take: 6,
       select: {
         id: true, title: true, titleVi: true, price: true, currency: true,
