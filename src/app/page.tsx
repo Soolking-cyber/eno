@@ -23,9 +23,9 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       getCategoriesByDemand(),
       db.listing.findMany({
         where: { verified: true, status: 'active' },
-        // Match /api/listings' default sort EXACTLY (trust-first, then featured, then
-        // recency, id tiebreaker) so this SSR seed doesn't reshuffle on hydration.
-        orderBy: [{ sellerTrustScore: 'desc' }, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
+        // Match /api/listings' default sort EXACTLY (the balanced rankScore blend, id
+        // tiebreaker) so this SSR seed doesn't reshuffle on hydration into the client feed.
+        orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
         // First page of the infinite home feed; it paginates 12 at a time on scroll.
         // Smaller first page = fewer cards hydrating on first paint (main-thread win).
         take: 12,

@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from './db'
+import { recomputeRankScoreForSeller } from './ranking'
 
 /**
  * Trust & Reputation engine — the single public trust signal (a color-coded score).
@@ -159,6 +160,8 @@ export async function recomputeTrust(profileId: string): Promise<{ score: number
   const owned = await db.seller.findMany({ where: { ownerId: profileId }, select: { id: true } })
   if (owned.length) {
     await db.listing.updateMany({ where: { sellerId: { in: owned.map((s) => s.id) } }, data: { sellerTrustScore: score } })
+    // Re-blend the feed rankScore with the new trust (one SQL UPDATE/seller; recency kept).
+    for (const s of owned) await recomputeRankScoreForSeller(s.id)
   }
   return { score, tier }
 }
@@ -209,6 +212,7 @@ export async function penalizeSeller(sellerId: string, delta: number, meta?: { r
   await db.seller.update({ where: { id: sellerId }, data: { trustScore: score, trustTier: score < 60 ? 'restricted' : 'standard' } })
   // Keep the listings' denormalized ranking key in sync (guest seller — no Profile path).
   await db.listing.updateMany({ where: { sellerId }, data: { sellerTrustScore: score } })
+  await recomputeRankScoreForSeller(sellerId) // re-blend the feed rankScore with the new trust
 }
 
 /**

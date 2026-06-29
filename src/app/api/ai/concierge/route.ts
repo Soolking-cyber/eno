@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic'
 type Msg = { role: 'user' | 'assistant'; content: string }
 type Sort = 'price_asc' | 'price_desc' | null
 
-const TRUST: Prisma.ListingOrderByWithRelationInput = { sellerTrustScore: 'desc' }
+const RANK: Prisma.ListingOrderByWithRelationInput = { rankScore: 'desc' }
 const INCLUDE = { category: true, seller: { include: { owner: { select: { accountType: true } } } } } as const
 
 // Folded EN + VI fillers (VI limited to non-colliding words) for the keyword fallback.
@@ -133,7 +133,7 @@ async function fallbackSearch(query: string, take: number, f: { minPriceVnd: num
     ...(f.categorySlug ? { category: { slug: f.categorySlug } } : {}),
     ...(price.gte || price.lte ? { price } : {}),
   }
-  const order: Prisma.ListingOrderByWithRelationInput[] = [TRUST, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }]
+  const order: Prisma.ListingOrderByWithRelationInput[] = [RANK, { id: 'desc' }]
   const tokens = keywords(query)
   if (!tokens.length) return db.listing.findMany({ where: base, orderBy: order, take, include: INCLUDE })
   const clauses = tokens.map((t) => ({ searchText: { contains: t } }))

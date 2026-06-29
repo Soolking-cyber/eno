@@ -34,7 +34,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   const raw = await db.listing.findMany({
     where: { categoryId: cat.id, verified: true, status: 'active', NOT: { district: null } },
     include: { category: true, seller: true },
-    orderBy: [{ sellerTrustScore: 'desc' }, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
+    orderBy: [{ rankScore: 'desc' }, { id: 'desc' }], // balanced blend — consistent with the feed
     take: 600,
   })
   const matched = raw.filter((r) => r.district && slugify(r.district) === districtSlug)

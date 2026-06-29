@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { sendPushToProfile } from '@/lib/push'
 import { STALE_DAYS } from '@/lib/stale'
 import { runTrustMaintenance } from '@/lib/trust'
+import { recomputeRankScoreAllActive } from '@/lib/ranking'
+import { rollupListingDailyStats } from '@/lib/listing-analytics'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -96,5 +98,14 @@ export async function GET(req: NextRequest) {
   let trust = { decayed: 0, recovered: 0 }
   try { trust = await runTrustMaintenance() } catch (e) { console.error('[cron] trust maintenance', e) }
 
-  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, skipped: optedIn.length - targets.length, notified, pushed, trust })
+  // Re-decay the feed rankScore for every live listing — recency drops a little each day,
+  // so without this sweep the blended order would freeze at post-time freshness.
+  let reranked = 0
+  try { reranked = await recomputeRankScoreAllActive() } catch (e) { console.error('[cron] rank re-decay', e) }
+
+  // Snapshot per-listing cumulative views/leads for the day (partner analytics time series).
+  let statRows = 0
+  try { statRows = await rollupListingDailyStats() } catch (e) { console.error('[cron] daily stat rollup', e) }
+
+  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, skipped: optedIn.length - targets.length, notified, pushed, trust, reranked, statRows })
 }

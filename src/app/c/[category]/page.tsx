@@ -47,7 +47,7 @@ export default async function CategoryPage({ params }: Props) {
     db.listing.findMany({
       where,
       include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
-      orderBy: [{ sellerTrustScore: 'desc' }, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ rankScore: 'desc' }, { id: 'desc' }], // balanced blend — matches /api/listings so the explorer doesn't reshuffle on hydrate
       take: PAGE_SIZE,
     }),
     db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),

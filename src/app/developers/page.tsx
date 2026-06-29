@@ -46,6 +46,30 @@ export default function DevelopersPage() {
         <section className="mt-8">
           <h2 className="h-section text-foreground">Base URL</h2>
           <div className="mt-3"><Code>{BASE}</Code></div>
+          <p className="mt-3 text-sm leading-relaxed text-body">
+            Machine-readable <a href="/api/v1/openapi.json" className="font-semibold text-accent-foreground hover:underline">OpenAPI 3.1 spec</a> for client codegen.
+          </p>
+        </section>
+
+        <section className="mt-8 rounded-2xl bg-accent/40 p-5 ring-1 ring-border">
+          <p className="eyebrow text-accent-foreground mb-1">New</p>
+          <h2 className="h-section text-foreground">Manage your shop with AI (MCP)</h2>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            eno.vn runs a hosted <a href="https://modelcontextprotocol.io" className="font-semibold text-accent-foreground hover:underline">Model Context Protocol</a> server,
+            so an AI agent (Claude, etc.) can manage your storefront directly — list, create, edit, bulk-import, sync a catalogue,
+            read analytics, and manage webhooks. Add it as a remote MCP server with your API key as the Bearer token:
+          </p>
+          <div className="mt-3"><Code>{`https://eno.vn/api/mcp
+Authorization: Bearer eno_live_…`}</Code></div>
+          <p className="mt-3 text-sm leading-relaxed text-body">
+            Your key stays in the client&apos;s connection settings — it is <strong className="text-foreground">never passed as a tool argument, so it never reaches the model</strong>.
+            Tools are scoped exactly like the REST API (a read-only key exposes only the read tools). Available tools:
+          </p>
+          <p className="mt-2 text-[13px] leading-relaxed text-body font-mono">
+            get_shop · update_shop · list_listings · get_listing · create_listing · update_listing · set_listing_status ·
+            delete_listing · bulk_create_listings · sync_catalogue · analytics_summary · analytics_listings · list_webhooks ·
+            register_webhook · delete_webhook
+          </p>
         </section>
 
         <section className="mt-8">
@@ -147,6 +171,77 @@ export default function DevelopersPage() {
   -H "Authorization: Bearer eno_live_…" -H "Content-Type: application/json" \\
   -d '{"bio":"Authorized reseller in District 1"}'`}</Code>
           </Endpoint>
+
+          <h3 className="pt-4 text-xs font-bold uppercase tracking-wide text-ink-4">Bulk &amp; catalogue sync — scope: listings:write</h3>
+
+          <Endpoint method="POST" path="/v1/listings/bulk" desc="Create up to 200 listings in one call. Each row is independent (one bad row never aborts the batch); remote image URLs are re-hosted. Send an Idempotency-Key so a retry can't import twice. Returns per-row results.">
+            <Code>{`curl -X POST ${BASE}/listings/bulk \\
+  -H "Authorization: Bearer eno_live_…" \\
+  -H "Idempotency-Key: $(uuidgen)" -H "Content-Type: application/json" \\
+  -d '{"listings":[
+        {"categorySlug":"electronics","title":"iPhone 14","price":15000000,
+         "images":["https://your-cdn/iphone.jpg"],"externalId":"SKU-1"},
+        {"categorySlug":"electronics","title":"AirPods Pro","price":4500000}
+      ]}'`}</Code>
+            <Code>{`{ "created": 2, "failed": 0, "image_budget_reached": false,
+  "results": [ { "row": 1, "id": "…", "external_id": "SKU-1", "error": null }, … ] }`}</Code>
+          </Endpoint>
+
+          <Endpoint method="POST" path="/v1/listings/sync" desc="Upsert your catalogue by your OWN id (externalId, unique per shop) — create new SKUs, update existing ones in place. mode: 'partial' (default) only touches the rows you send; 'full' also RETIRES (hides) any active listing whose externalId is NOT in the payload, so your storefront mirrors your system. Naturally idempotent. Up to 200 rows.">
+            <Code>{`curl -X POST ${BASE}/listings/sync \\
+  -H "Authorization: Bearer eno_live_…" -H "Content-Type: application/json" \\
+  -d '{"mode":"full","listings":[
+        {"externalId":"SKU-1","categorySlug":"electronics","title":"iPhone 14",
+         "price":14500000,"status":"active","images":["https://your-cdn/iphone.jpg"]},
+        {"externalId":"SKU-2","categorySlug":"electronics","title":"iPad Air","price":12000000}
+      ]}'`}</Code>
+            <Code>{`{ "mode": "full", "created": 1, "updated": 1, "retired": 3, "failed": 0,
+  "results": [ { "external_id": "SKU-1", "id": "…", "action": "updated" }, … ] }`}</Code>
+          </Endpoint>
+
+          <h3 className="pt-4 text-xs font-bold uppercase tracking-wide text-ink-4">Per-listing analytics — scope: analytics:read</h3>
+
+          <Endpoint method="GET" path="/v1/analytics/listings" desc="Daily views + leads (per-day deltas) for each of your listings over a date range, plus current totals. Keyset-paginated by listing. ?from=YYYY-MM-DD&to=YYYY-MM-DD (default last 30 days, max 92).">
+            <Code>{`curl "${BASE}/analytics/listings?from=2026-06-01&to=2026-06-29&limit=50" \\
+  -H "Authorization: Bearer eno_live_…"`}</Code>
+            <Code>{`{ "range": { "from", "to" },
+  "listings": [ { "id", "external_id", "title", "status",
+    "views_total", "leads_total",
+    "daily": [ { "day": "2026-06-28", "views": 12, "leads": 1 }, … ] } ],
+  "next_cursor": "eyJ…" | null }`}</Code>
+          </Endpoint>
+
+          <h3 className="pt-4 text-xs font-bold uppercase tracking-wide text-ink-4">Webhooks — scope: listings:write (register) / listings:read (list)</h3>
+
+          <Endpoint method="POST" path="/v1/webhooks" desc="Register an HTTPS endpoint to receive SIGNED listing events (listing.created / .updated / .status_changed / .deleted), or pass events:'*' for all. The signing secret is returned ONCE — store it. Up to 10 endpoints per shop. The url must be a public HTTPS address.">
+            <Code>{`curl -X POST ${BASE}/webhooks \\
+  -H "Authorization: Bearer eno_live_…" -H "Content-Type: application/json" \\
+  -d '{"url":"https://your-app/webhooks/eno","events":["listing.created","listing.updated"]}'`}</Code>
+            <Code>{`{ "webhook": { "id", "url", "events": ["listing.created","listing.updated"],
+  "enabled": true, "created_at", "secret": "whsec_…" } }`}</Code>
+          </Endpoint>
+
+          <Endpoint method="GET" path="/v1/webhooks" desc="List your registered webhook endpoints (secrets are never returned). Shows delivery health: failure_count, last_error, last_delivery_at. An endpoint auto-disables after repeated failures.">
+            <Code>{`curl ${BASE}/webhooks -H "Authorization: Bearer eno_live_…"`}</Code>
+          </Endpoint>
+
+          <Endpoint method="DELETE" path="/v1/webhooks/{id}" desc="Unregister a webhook endpoint.">
+            <Code>{`curl -X DELETE ${BASE}/webhooks/WEBHOOK_ID -H "Authorization: Bearer eno_live_…"`}</Code>
+          </Endpoint>
+
+          <section className="border-t border-border pt-6">
+            <p className="text-sm leading-relaxed text-body">
+              <strong className="text-foreground">Verifying webhooks.</strong> Deliveries follow the{' '}
+              <a href="https://www.standardwebhooks.com" className="font-semibold text-accent-foreground hover:underline">Standard Webhooks</a>{' '}
+              spec, so any off-the-shelf verifier works. Each POST carries <code className="rounded bg-muted px-1 text-[12px]">webhook-id</code>,{' '}
+              <code className="rounded bg-muted px-1 text-[12px]">webhook-timestamp</code> and{' '}
+              <code className="rounded bg-muted px-1 text-[12px]">webhook-signature</code> (<code className="rounded bg-muted px-1 text-[12px]">v1,&lt;base64&gt;</code>) — an
+              HMAC-SHA256 of <code className="rounded bg-muted px-1 text-[12px]">{`${'${id}.${timestamp}.${body}'}`}</code> keyed by your <code className="rounded bg-muted px-1 text-[12px]">whsec_</code> secret. Reject anything that doesn&apos;t verify.
+            </p>
+            <div className="mt-3"><Code>{`{ "id": "msg_…", "type": "listing.updated",
+  "created_at": "2026-06-29T…Z",
+  "data": { "listing_id": "…", "status": "sold" } }`}</Code></div>
+          </section>
         </div>
 
         <p className="mt-10 border-t border-border pt-6 text-sm text-body">

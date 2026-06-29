@@ -3,11 +3,13 @@ import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { Prisma } from '@/generated/prisma/client'
 import { fold } from '@/lib/fold'
+import { rateLimit } from '@/lib/ratelimit'
+import { clientIp } from '@/lib/client-ip'
 
 export const dynamic = 'force-dynamic'
 
 const LIMIT = 16
-const TRUST: Prisma.ListingOrderByWithRelationInput = { sellerTrustScore: 'desc' }
+const RANK: Prisma.ListingOrderByWithRelationInput = { rankScore: 'desc' }
 const split = (v: string | null, n: number) =>
   (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []).slice(0, n)
 
@@ -17,6 +19,11 @@ const split = (v: string | null, n: number) =>
 // trust-ranked. Public-safe (verified + active only), so it can't leak anything the
 // feed wouldn't.
 export async function GET(req: NextRequest) {
+  // Public + runs user-controlled substring scans against the DB — cap per IP so it can't
+  // be turned into a cheap scraping/DB-load tool. Generous for real page loads.
+  const rl = await rateLimit('recommendations', clientIp(req), 60, '1 m')
+  if (!rl.success) return NextResponse.json({ listings: [], personalized: false }, { status: 429 })
+
   const sp = req.nextUrl.searchParams
   const cats = split(sp.get('cats'), 6)
   const brands = split(sp.get('brands'), 6)
@@ -36,10 +43,10 @@ export async function GET(req: NextRequest) {
 
   const personalized = or.length > 0
   const where: Prisma.ListingWhereInput = personalized ? { AND: [base, { OR: or }] } : base
-  // TRUST FIRST for both modes — same hierarchy as the rest of the app: higher-trust
-  // sellers lead, then popularity (views), then recency. (Personalization/trending only
+  // Balanced rankScore blend for both modes — same hierarchy as the rest of the app:
+  // trusted-and-fresh sellers lead, then popularity (views). (Personalization/trending only
   // changes the WHERE, not the ranking — a low-trust listing never tops the rail.)
-  const orderBy: Prisma.ListingOrderByWithRelationInput[] = [TRUST, { views: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }]
+  const orderBy: Prisma.ListingOrderByWithRelationInput[] = [RANK, { views: 'desc' }, { id: 'desc' }]
 
   const rows = await db.listing.findMany({
     where,

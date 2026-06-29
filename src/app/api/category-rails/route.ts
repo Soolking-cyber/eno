@@ -43,12 +43,10 @@ export async function GET() {
       if (!slug) return null
       const listings = await db.listing.findMany({
         where: { verified: true, status: 'active', categoryId: r.categoryId },
-        // Trust-first, then featured, then most-viewed/recent — matches the main feed.
+        // Balanced rankScore blend, then most-viewed — matches the main feed's order.
         orderBy: [
-          { sellerTrustScore: 'desc' },
-          { featured: 'desc' },
+          { rankScore: 'desc' },
           { views: 'desc' },
-          { postedAt: 'desc' },
           { id: 'desc' },
         ],
         take: PER_RAIL,

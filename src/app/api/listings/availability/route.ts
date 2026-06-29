@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { BUMP_COOLDOWN_DAYS } from '@/lib/stale'
 import { removeFromIndex } from '@/lib/listing-index'
+import { recomputeRankScoreForListings } from '@/lib/ranking'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,6 +45,10 @@ export async function POST(req: NextRequest) {
       }),
     ])
     confirmed = bumped.count + refreshed.count
+    // The bump reset postedAt — recompute the blended rankScore (the feed's ORDER BY key)
+    // so confirmed listings actually rise NOW, not at the next daily cron. Scoped to this
+    // seller's own active listings; bumped rows are at recency≈1, the rest re-decay to now.
+    if (confirmed) await recomputeRankScoreForListings(confirm, seller.id)
   }
   // Only SOLD listings must purge their cached page (it 404s non-active). A plain
   // availability confirm just bumps feed recency — surfaced live via the client

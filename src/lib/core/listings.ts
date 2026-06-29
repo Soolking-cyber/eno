@@ -13,6 +13,8 @@ import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissin
 import { rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory } from '@/lib/taxonomy'
 import { syndicateListing } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
+import { dispatchListingEvent } from '@/lib/webhooks'
+import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
 // These hold the business logic for mutating a listing, decoupled from HOW the caller
@@ -41,6 +43,8 @@ export async function setStatusCore(
   })
   revalidatePath(`/listings/${listingId}`) // sold/hidden must drop from the cached page (it 404s non-active)
   after(() => reindexListing(listingId)) // active → (re)index for AI search; sold/hidden → remove
+  if (status === 'active') after(() => recomputeRankScoreForListing(listingId)) // re-decay on re-activation
+  after(() => dispatchListingEvent('listing.status_changed', listingId, undefined, { status })) // notify the shop's partner webhooks
   return { ok: true, status }
 }
 
@@ -54,11 +58,17 @@ export async function setStatusCore(
  */
 export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean }> {
   const now = new Date()
-  const current = await db.listing.findUnique({ where: { id: listingId }, select: { postedAt: true } })
+  const current = await db.listing.findUnique({ where: { id: listingId }, select: { postedAt: true, sellerTrustScore: true, featured: true } })
   const bump = current ? canBump(current.postedAt, now.getTime()) : true
   await db.listing.update({
     where: { id: listingId },
-    data: { status: 'active', availabilityConfirmedAt: now, ...(bump ? { postedAt: now } : {}) },
+    data: {
+      status: 'active',
+      availabilityConfirmedAt: now,
+      // A bump resets recency (postedAt=now) → recompute rankScore at age 0 so the listing
+      // jumps up immediately. No bump (within cooldown) leaves recency to the daily decay.
+      ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current?.sellerTrustScore ?? 100, postedAt: now, featured: current?.featured ?? false }) } : {}),
+    },
   })
   after(() => recordEngagement(profileId).catch(() => {})) // reward keeping listings fresh (daily-capped)
   return { ok: true, bumped: bump }
@@ -201,6 +211,7 @@ export async function updateListingCore(
   ]))
   revalidatePath(`/listings/${listingId}`) // purge the cached (ISR) detail page so the edit shows
   after(() => reindexListing(listingId)) // refresh the AI-search document with the edited fields
+  after(() => dispatchListingEvent('listing.updated', listingId)) // notify the shop's partner webhooks
 
   // Re-warm translations for any changed user text (after the response flushes).
   const warm = [data.title as string, data.description as string, data.location as string].filter(Boolean)
@@ -312,6 +323,9 @@ export async function createListingCore(input: {
       model,
       sellerId: seller.id,
       sellerTrustScore: seller.trustScore, // denormalized ranking key (kept in sync by src/lib/trust.ts)
+      // Balanced feed rank at age≈0 (recency=1) — matches the SQL re-decay exactly. New
+      // listings land fresh; the daily cron + trust changes re-decay it afterwards.
+      rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
       verified: autoPublish,
     },
   })
@@ -351,16 +365,18 @@ export async function createListingCore(input: {
     after(() => reindexListing(listing.id)) // add the new live listing to AI search
   }
 
+  after(() => dispatchListingEvent('listing.created', listing.id, seller.id)) // notify the shop's partner webhooks
   return { id: listing.id, verified: autoPublish }
 }
 
 /** Delete an OWNED listing (cascades reports/conversations); decrements its brand
  *  count, purges the cached page, and drops it from AI search. */
 export async function deleteListingCore(listingId: string): Promise<{ ok: true }> {
-  const gone = await db.listing.findUnique({ where: { id: listingId }, select: { brandSlug: true } })
+  const gone = await db.listing.findUnique({ where: { id: listingId }, select: { brandSlug: true, sellerId: true } })
   await db.listing.delete({ where: { id: listingId } })
   if (gone?.brandSlug) after(() => bumpBrandCount(gone.brandSlug!, -1))
   revalidatePath(`/listings/${listingId}`)
   after(() => removeFromIndex(listingId)) // drop the deleted listing from AI search
+  if (gone?.sellerId) after(() => dispatchListingEvent('listing.deleted', listingId, gone.sellerId!)) // the listing is gone — pass sellerId explicitly
   return { ok: true }
 }

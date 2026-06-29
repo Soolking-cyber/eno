@@ -382,6 +382,12 @@ async function main() {
   // ranks identically to production (the feed sorts on Listing.sellerTrustScore, a
   // local column — see src/lib/trust.ts for the live dual-write).
   await db.$executeRawUnsafe(`UPDATE "Listing" l SET "sellerTrustScore" = s."trustScore" FROM "Seller" s WHERE l."sellerId" = s.id`)
+  // Then compute the balanced feed rankScore (trust⊕recency blend) — mirror of the SQL in
+  // src/lib/ranking.ts so a fresh seed has the same ORDER BY rankScore the API uses.
+  await db.$executeRawUnsafe(`UPDATE "Listing" SET "rankScore" =
+     0.5 * LEAST(GREATEST(("sellerTrustScore"::float - 40) / 120, 0), 1)
+     + 0.5 * EXP(- GREATEST(EXTRACT(EPOCH FROM (now() - "postedAt")), 0) / 86400.0 / 14)
+     + CASE WHEN "featured" THEN 0.15 ELSE 0 END`)
 
   console.log(`Done. ${TAXONOMY.length} categories, ${uniqBrands.size} brands, ${sellerSeeds.length} sellers, ${rows.length} listings.`)
 }

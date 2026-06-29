@@ -148,6 +148,7 @@ model Seller {
   reviews       Review[]
   conversations Conversation[]
   apiKeys       ApiKey[]
+  webhooks      WebhookEndpoint[]
 
   @@index([ownerId])
 }
@@ -170,6 +171,42 @@ model ApiKey {
   createdAt  DateTime  @default(now())
 
   @@index([sellerId])
+}
+
+// Partner webhook endpoint (Phase 3). A shop registers a URL to receive signed listing
+// events (listing.created/updated/sold/deleted). `secret` signs deliveries (Standard-
+// Webhooks HMAC). Auto-disabled after repeated failures (failureCount); re-enable by
+// re-registering. URL is SSRF-validated at registration.
+model WebhookEndpoint {
+  id           String   @id @default(cuid())
+  sellerId     String
+  seller       Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  url          String
+  secret       String   // whsec_… used for HMAC signatures
+  events       String   @default("*") // space-separated event names, or "*" for all
+  enabled      Boolean  @default(true)
+  failureCount Int      @default(0)
+  lastError    String?
+  lastDeliveryAt DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([sellerId])
+}
+
+// Per-listing daily snapshot (Phase 3). Written once a day by the cron from the listing's
+// cumulative views/contactCount, so the analytics endpoint can return a time series + day
+// deltas. One row per (listing, day).
+model ListingDailyStat {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  day       DateTime @db.Date
+  views     Int
+  leads     Int
+  createdAt DateTime @default(now())
+
+  @@unique([listingId, day])
+  @@index([listingId])
 }
 
 model Review {
@@ -221,6 +258,15 @@ model Listing {
   // every query (the hot read-path scaling fix). Card display still reads the joined
   // seller; this column is purely the ranking key.
   sellerTrustScore   Int       @default(100)
+  // Balanced feed ranking key (src/lib/ranking.ts): a BOUNDED blend of seller trust +
+  // recency (+ featured) — NOT trust alone, so a trusted business gets a real edge without
+  // burying fresher/more-relevant listings. Recomputed on create/bump, on a seller's trust
+  // change, and by the daily cron (recency decay). The default "Recommended" feed sorts by
+  // this; search blends it with query relevance. Backfill on migrate or it sorts last.
+  rankScore          Float     @default(0)
+  // Partner's own id for this listing (Partner API sync/upsert). Unique PER seller so two
+  // shops can each use "sku-1". NULL for listings not created via the sync endpoint.
+  externalId         String?
   verified           Boolean   @default(false)
   verificationMethod String?
   verifiedAt         DateTime?
@@ -246,6 +292,7 @@ model Listing {
   reports            Report[]
   contactReveals     ContactReveal[]
   conversations      Conversation[]
+  dailyStats         ListingDailyStat[]
   contactCount       Int       @default(0) // distinct authenticated viewers who revealed contact
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -256,11 +303,16 @@ model Listing {
   @@index([verified, postedAt])
   @@index([verified, status, postedAt])
   @@index([verified, categoryId, postedAt])
-  // Trust-ranked feed (default "Recommended" sort = sellerTrustScore desc, then
-  // recency). A local denormalized column means the ORDER BY is an index scan, not a
+  // Balanced "Recommended" feed: ORDER BY rankScore desc (trust⊕recency blend, src/lib/
+  // ranking.ts). A local denormalized column means the ORDER BY is an index scan, not a
   // Seller join + external sort. One for the all-categories feed, one by-category.
+  @@index([verified, status, rankScore])
+  @@index([verified, status, categoryId, rankScore])
+  // Legacy trust-only ranked indexes (kept for the explicit price/popular tiebreaks).
   @@index([verified, status, sellerTrustScore, postedAt])
   @@index([verified, status, categoryId, sellerTrustScore, postedAt])
+  // Partner sync upserts by (sellerId, externalId) — unique per shop.
+  @@unique([sellerId, externalId])
   // Feed path filtered by category + intent (e.g. Vehicles · For rent), recency-sorted.
   @@index([verified, status, categoryId, listingType, postedAt])
   @@index([verified, status, categoryId, subcategorySlug, postedAt])

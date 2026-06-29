@@ -205,6 +205,15 @@ export function ListingsExplorer({
   const [, startFilterTransition] = useTransition()
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
+  // Hard pagination stop: if a genuinely DEEPER page (offset past the deepest we've grown
+  // at) comes back with zero new rows, we're done — even if totalCount still reads higher.
+  // Guards against a server order/total mismatch (a query whose pages can resolve via
+  // different rank paths across instances) producing a never-terminating load-more loop.
+  // seenIdsRef mirrors every appended id (dedup); maxOffsetRef is the deepest grown offset,
+  // so a back-nav restore re-fetch or a placeholderData replay (offset ≤ max) never trips it.
+  const [reachedEnd, setReachedEnd] = useState(false)
+  const seenIdsRef = useRef<Set<string>>(new Set())
+  const maxOffsetRef = useRef(0)
   const [isLoading, setIsLoading] = useState(false)
   // Return-to-feed restoration: when set, a back-nav snapshot is being rehydrated —
   // hold the scroll target until the taller list paints, and don't let the page-1
@@ -807,6 +816,9 @@ export function ListingsExplorer({
       skipFirstPageResetRef.current = true
       restoredScrollRef.current = snap.scrollY
       setListings(snap.listings)
+      seenIdsRef.current = new Set(snap.listings.map((l: SerializedListing) => l.id))
+      maxOffsetRef.current = (snap.page - 1) * 12 // deepest offset already loaded (feed page size)
+      setReachedEnd(false)
       setTotalCount(snap.totalCount)
       setPage(snap.page)
     }
@@ -823,19 +835,31 @@ export function ListingsExplorer({
   // Synchronize state and trigger history caching when data changes
   useEffect(() => {
     if (listingsData) {
-      // Page 1 (or any filter change, which resets page→1) replaces; later pages
-      // append for the infinite feed. Dedupe by id so the placeholderData transition
-      // between pages can't double-insert.
-      setListings((prev) => {
-        if (page === 1) {
-          // Mid-restore, the snapshot already holds more rows than a fresh page 1 —
-          // don't clobber it back down to 12 before the deeper page reloads.
+      // Page 1 (or any filter change, which resets page→1) replaces; later pages append
+      // for the infinite feed. Dedupe by id so the placeholderData transition between
+      // pages can't double-insert. seenIdsRef (kept in step here) measures "new rows this
+      // page" outside the updater; only a deeper page with nothing new stops pagination.
+      if (page === 1) {
+        setListings((prev) => {
+          // Mid-restore the snapshot already holds more rows than a fresh page 1 — keep it
+          // (seenIdsRef/maxOffsetRef were set by the restore effect; don't reset them).
           if (restoredScrollRef.current != null && prev.length > listingsData.listings.length) return prev
+          seenIdsRef.current = new Set(listingsData.listings.map((l: SerializedListing) => l.id))
+          maxOffsetRef.current = 0
           return listingsData.listings
+        })
+        setReachedEnd(false) // a fresh feed (filter change / reload) — paging is open again
+      } else if (listingsData.offset === (page - 1) * (nearby ? 100 : 12)) {
+        // Real data for THIS page (not a placeholderData replay, whose offset lags a page).
+        const fresh = listingsData.listings.filter((l: SerializedListing) => !seenIdsRef.current.has(l.id))
+        if (fresh.length > 0) {
+          fresh.forEach((l: SerializedListing) => seenIdsRef.current.add(l.id))
+          maxOffsetRef.current = Math.max(maxOffsetRef.current, listingsData.offset)
+          setListings((prev) => [...prev, ...fresh])
+        } else if (listingsData.offset > maxOffsetRef.current) {
+          setReachedEnd(true) // a genuinely deeper page returned nothing new — stop the loop
         }
-        const seen = new Set(prev.map((l) => l.id))
-        return [...prev, ...listingsData.listings.filter((l: SerializedListing) => !seen.has(l.id))]
-      })
+      }
       setTotalCount(listingsData.total)
       if (listingsData.subcategoryCounts) {
         setSubcategoryCounts(listingsData.subcategoryCounts)
@@ -997,7 +1021,7 @@ export function ListingsExplorer({
   const mapListRef = useRef<HTMLDivElement | null>(null)
   const mapSentinelRef = useRef<HTMLDivElement | null>(null)
   const mapWrapRef = useRef<HTMLDivElement | null>(null)
-  const hasMore = !nearby && listings.length < totalCount
+  const hasMore = !nearby && !reachedEnd && listings.length < totalCount
   useEffect(() => {
     if (!hasMore) return
     if (isLandingMode && !feedUnlocked) return // home feed: gated behind the "Load more" button

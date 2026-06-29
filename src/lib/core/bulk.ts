@@ -8,6 +8,7 @@ import { isListingImageUrl } from '@/lib/listing-image'
 import { safeFetch } from '@/lib/ssrf'
 import { reindexListing } from '@/lib/listing-index'
 import { storeListingImage, IMG_MAX_BYTES } from '@/lib/core/media'
+import { browseRankScore } from '@/lib/ranking'
 
 // Bulk-import core (Phase 0). The business-tier bulk CSV importer, decoupled from auth:
 // takes the ALREADY-RESOLVED seller + the rows and returns per-row results. Reused by the
@@ -19,11 +20,15 @@ export const BULK_MAX_ROWS = 200
 // fetch+decode+upload ops). First-party (already-hosted) URLs don't count.
 const MAX_IMG_FETCHES = 120
 
-export type BulkRow = { category_slug?: string; title?: string; description?: string; price?: unknown; district?: string; condition?: string; image_urls?: string }
-export type BulkRowResult = { row: number; id?: string; error?: string }
+export type BulkRow = { category_slug?: string; title?: string; description?: string; price?: unknown; district?: string; condition?: string; image_urls?: string; external_id?: string }
+export type BulkRowResult = { row: number; id?: string; external_id?: string; error?: string }
 
 // Server-fetch a remote image and re-host it (first-party, validated) via the media core.
-// Already-hosted URLs pass through. SSRF-guarded fetch; null on any failure.
+// Already-hosted URLs pass through. SSRF-guarded fetch; null on any failure. Exported so the
+// sync core's update path re-hosts images the same way.
+export async function rehostListingImage(url: string): Promise<string | null> {
+  return rehost(url)
+}
 async function rehost(url: string): Promise<string | null> {
   if (isListingImageUrl(url)) return url
   try {
@@ -90,10 +95,12 @@ export async function bulkImportCore(
           condition, images: JSON.stringify(hosted),
           searchText: buildSearchText([title, description, district, cat.name, cat.nameVi]),
           categoryId: cat.id, sellerId: seller.id, sellerTrustScore: seller.trustScore, verified: autoPublish,
+          rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
+          ...(r.external_id ? { externalId: String(r.external_id).trim().slice(0, 128) } : {}),
         },
         select: { id: true },
       })
-      results.push({ row: rowNo, id: listing.id })
+      results.push({ row: rowNo, id: listing.id, ...(r.external_id ? { external_id: String(r.external_id).trim() } : {}) })
       warm.push(title, description)
     } catch {
       results.push({ row: rowNo, error: 'Failed to create' })

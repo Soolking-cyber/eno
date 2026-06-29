@@ -47,13 +47,24 @@ export async function assertSafeUrl(raw: string): Promise<URL> {
 }
 
 /** Fetch a user-supplied URL safely: re-validates the host at EVERY redirect hop
- *  (redirect:'manual') so a public URL can't bounce to an internal address. */
-export async function safeFetch(raw: string, opts: { timeoutMs: number; maxHops?: number } = { timeoutMs: 8000 }): Promise<Response> {
+ *  (redirect:'manual') so a public URL can't bounce to an internal address, and re-resolves
+ *  the host on every call so a registration-time public IP can't be rebound to an internal
+ *  one before delivery (DNS-rebinding/TOCTOU). Accepts method/headers/body for signed POSTs. */
+export async function safeFetch(
+  raw: string,
+  opts: { timeoutMs: number; maxHops?: number; method?: string; headers?: HeadersInit; body?: string } = { timeoutMs: 8000 },
+): Promise<Response> {
   const maxHops = opts.maxHops ?? 3
   let url = raw
   for (let hop = 0; hop <= maxHops; hop++) {
     await assertSafeUrl(url)
-    const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(opts.timeoutMs) })
+    const res = await fetch(url, {
+      method: opts.method ?? 'GET',
+      headers: opts.headers,
+      body: opts.body,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(opts.timeoutMs),
+    })
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get('location')
       if (!loc) throw new Error('ssrf:redirect_no_location')

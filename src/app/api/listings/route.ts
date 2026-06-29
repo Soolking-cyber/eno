@@ -11,6 +11,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { rateLimit } from '@/lib/ratelimit'
 import { vertexSearchListingIds, vertexConfigured } from '@/lib/vertex-search'
+import { searchScore, relevanceFromPosition } from '@/lib/ranking'
 import { createListingCore } from '@/lib/core/listings'
 
 export const dynamic = 'force-dynamic'
@@ -221,40 +222,35 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // Every branch ends with { id: 'desc' } — a UNIQUE, monotonic tiebreaker. Without
-  // it, rows tied on the sort key (e.g. the many accounts at trustScore=100, or any
-  // single-column sort) get no stable order across independent LIMIT/OFFSET queries,
+  // Every branch ends with { id: 'desc' } — a UNIQUE, monotonic tiebreaker. Without it,
+  // rows tied on the sort key get no stable order across independent LIMIT/OFFSET queries,
   // so listings appear on two pages AND others are silently skipped as you paginate.
-  // Seller trust is a ranking signal on EVERY sort — higher trust ranks above lower.
-  // It's the primary factor on the default/relevance sorts and a tiebreaker on the
-  // explicit price/popular sorts (so a chosen price order is still honored, but ties
-  // and near-ties favour trusted sellers). Most accounts sit at 100, so among the
-  // bulk the secondary key (recency/price) still decides; Exceptional float up,
-  // Restricted sink.
-  const TRUST: Prisma.ListingOrderByWithRelationInput = { sellerTrustScore: 'desc' }
+  // RANK = the BOUNDED trust⊕recency blend (rankScore, src/lib/ranking.ts) — trust is a
+  // weighted edge, not a lexicographic override. It's the SOLE key on the default feed and
+  // the tiebreaker on the explicit price/popular sorts (so a chosen price order is honored,
+  // but ties favour trusted-and-fresh listings). Restricted sinks, Exceptional floats —
+  // without burying a fresh, relevant listing under a higher-trust seller's whole catalog.
+  const RANK: Prisma.ListingOrderByWithRelationInput = { rankScore: 'desc' }
   let orderBy: Prisma.ListingOrderByWithRelationInput[]
   switch (sort) {
     case 'price-low':
-      orderBy = [{ price: 'asc' }, TRUST, { id: 'desc' }]
+      orderBy = [{ price: 'asc' }, RANK, { id: 'desc' }]
       break
     case 'price-high':
-      orderBy = [{ price: 'desc' }, TRUST, { id: 'desc' }]
+      orderBy = [{ price: 'desc' }, RANK, { id: 'desc' }]
       break
     case 'popular':
-      orderBy = [{ views: 'desc' }, TRUST, { id: 'desc' }]
+      orderBy = [{ views: 'desc' }, RANK, { id: 'desc' }]
       break
     case 'verified-first':
-      orderBy = [{ verified: 'desc' }, TRUST, { postedAt: 'desc' }, { id: 'desc' }]
+      orderBy = [{ verified: 'desc' }, RANK, { id: 'desc' }]
       break
     case 'newest':
     default:
-      // Default ("Recommended"): TRUST is the dominant signal — a higher-trust seller
-      // outranks a lower-trust one even with nothing filtered, so a low-trust listing
-      // never floats to the top of an unfiltered feed. featured + recency only break
-      // ties among equal trust. (Most accounts sit at 100, so recency still decides
-      // among the bulk; Exceptional float up, Restricted sink. Filters are a separate
-      // WHERE clause — selecting a location/category still narrows, then this ranks.)
-      orderBy = [TRUST, { featured: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }]
+      // Default ("Recommended"): the balanced blend, a single scalar sort. featured +
+      // recency now live INSIDE rankScore, so this is paging-stable and re-decays daily.
+      // Filters are a separate WHERE clause — a location/category narrows, then this ranks.
+      orderBy = [RANK, { id: 'desc' }]
   }
 
   // Semantic ranking: for a text query on the default sort, rank results via Vertex AI
@@ -276,16 +272,20 @@ export async function GET(req: NextRequest) {
     let ids: string[] | null = null
     const hit = rankCache.get(rankKey)
     if (hit && Date.now() - hit.at < RANK_TTL) {
+      // Reuse the cached DECISION — a ranked id list, OR [] meaning "Vertex missed here".
+      // Reusing the miss too is what stops the visible re-sort: once a query falls back to
+      // keyword/rankScore order, a refetch within the window won't suddenly flip to a
+      // (now-warm) Vertex ranking — and a cached hit likewise stays put. The order for a
+      // given query is fixed for RANK_TTL instead of depending on Vertex warmth/timing.
       ids = hit.ids
     } else {
       ids = await Promise.race([
         vertexSearchListingIds(q, { categorySlug: catArg, minPriceVnd: minP, maxPriceVnd: maxP, take: 120 }).catch(() => null),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)), // never hang a search on Vertex
       ])
-      if (ids && ids.length) {
-        if (rankCache.size >= RANK_CACHE_MAX) rankCache.delete(rankCache.keys().next().value!) // evict oldest (insertion order)
-        rankCache.set(rankKey, { at: Date.now(), ids })
-      }
+      // Cache the decision EITHER WAY — a ranking or a miss ([]) — so it's stable for the window.
+      if (rankCache.size >= RANK_CACHE_MAX) rankCache.delete(rankCache.keys().next().value!) // evict oldest (insertion order)
+      rankCache.set(rankKey, { at: Date.now(), ids: ids && ids.length ? ids : [] })
     }
     if (ids && ids.length) {
       const structural = andFilters.filter((f) => f !== pgTextFilter)
@@ -294,7 +294,16 @@ export async function GET(req: NextRequest) {
         include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
       })
       const byId = new Map(rows.map((r) => [r.id, r]))
-      const ranked = ids.map((id) => byId.get(id)).filter((r): r is (typeof rows)[number] => !!r)
+      const vertexOrder = ids.map((id) => byId.get(id)).filter((r): r is (typeof rows)[number] => !!r)
+      // Blend Vertex relevance with the bounded trust⊕recency edge (relevance-led 0.6/0.3/
+      // 0.1). Vertex's clearly-best matches keep the top (steep position decay), but a
+      // trusted, fresher seller outranks an equally-relevant standard one — so trust counts
+      // in search too, not just browse. Re-rank the WHOLE ≤120 set, then page over it.
+      const nowTs = Date.now()
+      const ranked = vertexOrder
+        .map((r, i) => ({ r, _s: searchScore({ relevance: relevanceFromPosition(i), sellerTrustScore: r.sellerTrustScore, postedAt: r.postedAt }, nowTs) }))
+        .sort((a, b) => b._s - a._s)
+        .map((x) => x.r)
       const rankedIds = ranked.map((r) => r.id)
       const R = ranked.length
       // True total: relevance-ranked set (top ≤120) + literal keyword matches NOT already
@@ -306,8 +315,8 @@ export async function GET(req: NextRequest) {
       semanticTotal = R + tailTotal
       const aPart = ranked.slice(offset, offset + limit)
       if (aPart.length < limit && offset + limit > R && tailTotal > 0) {
-        // This page reaches past the ranked set — fill the remainder from keyword-ordered
-        // results (trust→recency), excluding the ids already shown in the ranked portion.
+        // This page reaches past the ranked set — fill the remainder from rankScore-ordered
+        // results (the same blend), excluding the ids already shown in the ranked portion.
         const tailRows = await db.listing.findMany({
           where: tailWhere,
           orderBy,

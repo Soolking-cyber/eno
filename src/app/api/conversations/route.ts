@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile, getCurrentProfileId } from '@/lib/admin'
 import { insertMessage, type SerializedMessage } from '@/lib/messages'
+import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -11,6 +12,11 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+
+  // Each new thread fires a seller notification + web-push, so cap contact-initiations per
+  // user — generous for real buyers (dozens/hour), but stops a script mass-spamming sellers.
+  const rl = await rateLimit('conversation-create', profile.id, 30, '1 h')
+  if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   let body: { listingId?: string; message?: string; offerAmount?: number }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }

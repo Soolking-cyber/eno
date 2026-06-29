@@ -30,7 +30,8 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/api/cron/') ||
     pathname === '/api/auth/send-sms' ||
     pathname.startsWith('/api/feeds/') ||
-    pathname.startsWith('/api/v1/')
+    pathname.startsWith('/api/v1/') ||
+    pathname === '/api/mcp' // partner MCP server — key-authed like /api/v1, reached by AI clients off-Cloudflare
   ) {
     return NextResponse.next()
   }

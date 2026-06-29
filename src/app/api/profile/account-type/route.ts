@@ -5,6 +5,7 @@ import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { parseAttributionCookie } from '@/lib/attribution'
+import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
 
@@ -19,6 +20,10 @@ const TYPES = new Set(['individual', 'business'])
 export async function POST(req: Request) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+  // Account-type is set once or rarely changed; cap per account so the phone_taken (409)
+  // response can't be probed as a "does this number have an account?" oracle.
+  const rl = await rateLimit('account-type', profile.id, 12, '1 h')
+  if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   // True only on the genuine FIRST onboarding (accountType still null) → so the
   // CompleteRegistration conversion below isn't re-sent if the type is changed later.
   const firstOnboard = !profile.accountType
