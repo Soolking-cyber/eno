@@ -36,3 +36,6 @@ jobs:
 
       - name: Lint
         run: npx eslint .
+
+      - name: Test
+        run: npx vitest run

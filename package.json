@@ -18,6 +18,8 @@
     "build": "prisma generate && next build && { [ -d .next/standalone ] && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ || true; }",
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:push": "prisma db push",
     "db:setup": "prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs",
     "db:generate": "prisma generate",
@@ -105,6 +107,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "tw-animate-css": "^1.3.5",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }
