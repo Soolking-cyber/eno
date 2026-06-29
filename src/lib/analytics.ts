@@ -22,6 +22,7 @@ declare global {
 }
 
 import { getAttribution } from './attribution'
+import { hasAdConsent } from './consent'
 
 export type Currency = 'VND' | 'USD'
 
@@ -35,14 +36,33 @@ function ga(event: string, params: Record<string, unknown>): void {
   try { window.gtag('event', event, params) } catch { /* analytics must never break UX */ }
 }
 
-function fb(event: string, params?: Record<string, unknown>): void {
+function fb(event: string, params?: Record<string, unknown>, eventId?: string): void {
   if (typeof window === 'undefined' || typeof window.fbq !== 'function') return
-  try { window.fbq('track', event, params) } catch { /* analytics must never break UX */ }
+  // 4th fbq arg is the options bag — passing the same event_id the CAPI uses lets Meta
+  // DEDUPE the Pixel event against the server-side one.
+  try { window.fbq('track', event, params, eventId ? { eventID: eventId } : undefined) } catch { /* analytics must never break UX */ }
 }
 
 // Drop undefined/null keys so we never send empty params to the vendors.
 function clean(obj: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null))
+}
+
+function newEventId(): string {
+  try { return crypto.randomUUID() } catch { return `${Date.now()}-${Math.random().toString(36).slice(2)}` }
+}
+
+// Fire-and-forget POST to our first-party CAPI relay for ViewContent. sendBeacon survives
+// page unload and sends same-origin cookies (so _fbp/_fbc reach the server for matching).
+function viewContentBeacon(id: string, eventId: string): void {
+  try {
+    const payload = JSON.stringify({ id, eventId })
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      navigator.sendBeacon('/api/track/view', new Blob([payload], { type: 'application/json' }))
+    } else {
+      fetch('/api/track/view', { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(() => {})
+    }
+  } catch { /* analytics must never break UX */ }
 }
 
 /** A buyer opens a listing detail page. GA4 view_item / Meta ViewContent. */
@@ -52,6 +72,8 @@ export function trackViewListing(p: { id: string; title: string; price: number; 
     value: p.price,
     items: [{ item_id: p.id, item_name: p.title, item_category: p.category, price: p.price }],
   })
+  // One event_id shared by the Pixel + the server-side CAPI backstop → Meta merges them.
+  const eventId = newEventId()
   fb('ViewContent', {
     content_ids: [p.id],
     content_type: 'product',
@@ -59,7 +81,10 @@ export function trackViewListing(p: { id: string; title: string; price: number; 
     content_category: p.category,
     value: p.price,
     currency: p.currency,
-  })
+  }, eventId)
+  // CAPI ViewContent survives ad-blockers that drop the Pixel — fired ONLY with ad
+  // consent (mirrors the Pixel's own gating; respects the consent tiers).
+  if (hasAdConsent()) viewContentBeacon(p.id, eventId)
 }
 
 /** A committed search (debounced + settled, ≥2 chars). GA4 search / Meta Search. */

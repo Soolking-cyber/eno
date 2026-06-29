@@ -394,6 +394,27 @@ export default async function ListingPage({ params }: Props) {
                 </Link>
               </div>
 
+              {/* Escrow purchase — placeholder until payment/escrow licensing lands.
+                  Non-interactive; signals the upcoming protected-buy flow so the
+                  affordance is visible pre-launch. Wired with AddToCart/Purchase
+                  events when escrow goes live. */}
+              <div className="space-y-1.5">
+                <div
+                  role="button"
+                  aria-disabled
+                  className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-line-strong bg-muted px-5 py-3 text-sm font-bold text-muted-foreground"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  <Tr text="Buy with escrow" />
+                  <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                    <Tr text="Coming soon" />
+                  </span>
+                </div>
+                <p className="text-center text-[11px] text-muted-foreground">
+                  <Tr text="Protected payment held until you confirm — launching soon." />
+                </p>
+              </div>
+
               {/* Unified contact + offer (auth-gated; number never in this payload).
                   Type a message or tap "Make an offer", then send → opens the thread. */}
               <div id="contact" className="scroll-mt-24">
