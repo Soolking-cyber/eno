@@ -220,9 +220,6 @@ export function ListingsExplorer({
   // query shrink the restored list.
   const restoredScrollRef = useRef<number | null>(null)
   const skipFirstPageResetRef = useRef(false)
-  // Skip the mount run of the feed-reset effect so it never wipes the SSR seed / a
-  // restored snapshot — only genuine post-mount filter changes clear the accumulator.
-  const firstFeedSigRef = useRef(true)
   // The back-nav snapshot, read once on mount and applied when the feed's filters
   // settle to the same signature (filters hydrate from the URL in an effect, so the
   // match can't be made synchronously at mount).
@@ -741,23 +738,7 @@ export function ListingsExplorer({
       if (!res.ok) throw new Error('Failed to fetch listings')
       return res.json()
     },
-    // Keep the previous page's rows ONLY when paginating the SAME filter set (so an
-    // infinite-scroll "load more" doesn't blank the feed). On ANY category/subcategory/
-    // sort/filter change, DON'T replay them — otherwise the previous filter's listings
-    // flash in the grid for a moment before the new page-1 lands (the visible "jump").
-    placeholderData: (previousData, previousQuery) => {
-      const p = previousQuery?.queryKey?.[1] as Record<string, unknown> | undefined
-      const sameFilters =
-        !!p &&
-        p.category === activeCategory && p.subcategory === activeSubcategory &&
-        p.brand === activeBrand && p.model === activeModel && p.district === activeDistrict &&
-        p.province === (activeProvince?.code ?? null) && p.ward === (activeWard?.code ?? null) &&
-        p.near === (nearby ? 1 : 0) && p.condition === conditionFilter && p.type === listingType &&
-        p.q === debouncedQuery && p.match === (looseMatch ? 'any' : 'all') && p.sort === sort &&
-        p.verified === (verifiedOnly ? 'true' : 'all') && p.price === priceRange &&
-        JSON.stringify(p.customFilters) === JSON.stringify(customFilters)
-      return sameFilters ? previousData : undefined
-    },
+    placeholderData: (previousData) => previousData,
     // Seed the DEFAULT view (page 1, no filters) with the server-rendered data so
     // React Query treats it as fresh (global staleTime 30s) and skips the
     // redundant /api/listings refetch on mount. Strictly gated — filtered/sorted
@@ -809,21 +790,6 @@ export function ListingsExplorer({
     ]),
     [activeCategory, activeSubcategory, activeBrand, activeModel, activeDistrict, activeProvince?.code, activeWard?.code, nearby, conditionFilter, listingType, debouncedQuery, sort, verifiedOnly, priceRange, customFilters],
   )
-
-  // On a genuine filter/category/subcategory/sort change, drop the previous filter's
-  // accumulated rows (+ paging refs) so the grid shows its loading skeleton instead of
-  // flashing the old category's listings until page 1 of the new query lands. Keyed on
-  // the page-excluded feed signature, so infinite-scroll pagination (page-only change)
-  // never runs this and appends untouched. Skips the mount run (keep the SSR seed) and a
-  // back-nav restore (restoredScrollRef is set by the snapshot layout effect first).
-  useEffect(() => {
-    if (firstFeedSigRef.current) { firstFeedSigRef.current = false; return }
-    if (restoredScrollRef.current != null) return
-    setListings([])
-    seenIdsRef.current = new Set()
-    maxOffsetRef.current = 0
-    setReachedEnd(false)
-  }, [feedSig])
 
   // Rehydrate the feed after a back-nav from a listing: restore the accumulated rows,
   // page depth and scroll position (Baymard: dumping the buyer at the top of a reset
@@ -1059,11 +1025,6 @@ export function ListingsExplorer({
   useEffect(() => {
     if (!hasMore) return
     if (isLandingMode && !feedUnlocked) return // home feed: gated behind the "Load more" button
-    // Nothing rendered yet (initial load, or a just-cleared filter/category switch): the
-    // sentinel sits in view over an empty grid, so DON'T attach — otherwise it races `page`
-    // ahead of page 1's response (each later page fails the `offset === (page-1)*limit`
-    // check and is dropped, leaving a permanently empty feed). Re-attaches once page 1 lands.
-    if (listings.length === 0) return
     const isMap = viewMode === 'map'
     // Desktop map view → the left column is the scroll container (Tailwind lg = 1024px).
     const columnScroll = isMap && typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
@@ -1080,7 +1041,7 @@ export function ListingsExplorer({
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasMore, queryFetching, prefetchNextPage, viewMode, isLandingMode, feedUnlocked, listings.length])
+  }, [hasMore, queryFetching, prefetchNextPage, viewMode, isLandingMode, feedUnlocked])
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
