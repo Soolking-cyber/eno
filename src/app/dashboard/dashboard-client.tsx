@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, MessageSquareText, Tag, Clock, Upload, List, LayoutGrid } from 'lucide-react'
 import { Mascot } from '@/components/marketplace/mascot'
 import { HelpCenter } from '@/components/marketplace/help-center'
+import { DevelopersPanel } from '@/components/marketplace/developers-panel'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
@@ -63,7 +64,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   const router = useRouter()
   const searchParams = useSearchParams()
   const [data, setData] = useState<Dashboard | null>(null)
-  const [tab, setTab] = useState<'post' | 'listings' | 'account' | 'help'>('listings')
+  const [tab, setTab] = useState<'post' | 'listings' | 'account' | 'help' | 'dev'>('listings')
   // Listings layout: line (rows) vs grid (cards). Persisted per device.
   const [listView, setListView] = useState<'list' | 'grid'>('list')
   useEffect(() => { try { const v = localStorage.getItem('eno-dash-view'); if (v === 'grid' || v === 'list') setListView(v) } catch {} }, [])
@@ -88,7 +89,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   // /dashboard — a one-time mount effect left them inert in that case.
   useEffect(() => {
     const t = searchParams.get('tab')
-    if (t === 'post' || t === 'listings' || t === 'account' || t === 'help') setTab(t)
+    if (t === 'post' || t === 'listings' || t === 'account' || t === 'help' || t === 'dev') setTab(t)
   }, [searchParams])
 
   const refresh = useCallback(() => {
@@ -163,10 +164,14 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
           <SignOutButton />
         </div>
 
-        {/* Tabs — Post · Listings · Settings · Help. All render inline under the tab
-            (no redirect); Help shows the Help Center body. */}
+        {/* Tabs — Post · Listings · Settings · [Developers] · Help. All render inline
+            under the tab (no redirect). Developers (API keys) is business-tier only. */}
         <div className="mt-5 flex flex-wrap items-center gap-1">
-          {(['post', 'listings', 'account', 'help'] as const).map((tb) => (
+          {([
+            'post', 'listings', 'account',
+            ...(isBusiness ? ['dev' as const] : []),
+            'help',
+          ] as const).map((tb) => (
             <button
               key={tb}
               onClick={() => { setTab(tb); router.replace(`/dashboard?tab=${tb}`, { scroll: false }) }}
@@ -175,7 +180,11 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
                 tab === tb ? 'border-brand text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
-              {tb === 'post' ? tr('Post', 'Đăng tin') : tb === 'listings' ? tr('Listings', 'Tin đăng') : tb === 'account' ? tr('Settings', 'Cài đặt') : tr('Help', 'Trợ giúp')}
+              {tb === 'post' ? tr('Post', 'Đăng tin')
+                : tb === 'listings' ? tr('Listings', 'Tin đăng')
+                : tb === 'account' ? tr('Settings', 'Cài đặt')
+                : tb === 'dev' ? tr('Developers', 'Lập trình')
+                : tr('Help', 'Trợ giúp')}
             </button>
           ))}
         </div>
@@ -183,6 +192,12 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
         {tab === 'help' && (
           <div className="mt-6 pb-12">
             <HelpCenter />
+          </div>
+        )}
+
+        {tab === 'dev' && isBusiness && (
+          <div className="mt-6 pb-12">
+            <DevelopersPanel />
           </div>
         )}
 
