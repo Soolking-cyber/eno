@@ -16,9 +16,18 @@ export const RANK = {
   // Recency decay: exp(-ageDays / DECAY_DAYS). Fresh → 1; ~2 weeks → ~0.37; a month → ~0.12.
   DECAY_DAYS: 14,
   FEATURED_BOOST: 0.15,
-  // Browse (no query): trust and freshness co-lead.
-  BROWSE_TRUST_W: 0.5,
-  BROWSE_RECENCY_W: 0.5,
+  // Browse (no query): trust LEADS, then demand (popularity), then freshness as a tiebreaker.
+  // A trusted seller clearly ranks above a low-trust one; a genuinely-wanted listing rises;
+  // a brand-new listing (0 demand) still surfaces via trust + the freshness term.
+  BROWSE_TRUST_W: 0.6,
+  BROWSE_RELEVANCE_W: 0.25,
+  BROWSE_RECENCY_W: 0.15,
+  // Demand/popularity signal (the browse "relevance" proxy when there's no query): a buyer
+  // CONTACT counts as DEMAND_CONTACT_W views (revealing contact = far stronger intent than a
+  // passive view), saturating at ~DEMAND_REF so a runaway-popular listing can't dominate.
+  // Calibrated to the live distribution (views ~0–2500, contacts ~0–40).
+  DEMAND_CONTACT_W: 30,
+  DEMAND_REF: 2000,
   // Search (query present): relevance-led; trust a strong-but-bounded booster.
   SEARCH_REL_W: 0.6,
   SEARCH_TRUST_W: 0.3,
@@ -47,16 +56,27 @@ export function recencyComponent(postedAt: Date, now: number = Date.now()): numb
 }
 
 /**
+ * Demand/popularity → [0,1): the browse "relevance" proxy. Buyer contacts (weighted heavily
+ * — revealing contact is real intent) plus views, saturating so it can't run away. 0 demand
+ * → 0, so a brand-new listing leans on trust + freshness instead of being buried.
+ */
+export function demandComponent(views: number, contactCount: number): number {
+  const raw = Math.max(0, contactCount) * RANK.DEMAND_CONTACT_W + Math.max(0, views)
+  return 1 - Math.exp(-raw / RANK.DEMAND_REF)
+}
+
+/**
  * The stored browse rankScore for a listing. Used for the JS write-time value at
  * create/bump (where age≈0 so recency=1 and this matches SET_RANK_SCORE_EXPR exactly).
  * Re-decay over time is done in SQL (recomputeRankScore*).
  */
 export function browseRankScore(
-  l: { sellerTrustScore: number; postedAt: Date; featured?: boolean },
+  l: { sellerTrustScore: number; postedAt: Date; featured?: boolean; views?: number; contactCount?: number },
   now: number = Date.now(),
 ): number {
   return (
     RANK.BROWSE_TRUST_W * trustComponent(l.sellerTrustScore) +
+    RANK.BROWSE_RELEVANCE_W * demandComponent(l.views ?? 0, l.contactCount ?? 0) +
     RANK.BROWSE_RECENCY_W * recencyComponent(l.postedAt, now) +
     (l.featured ? RANK.FEATURED_BOOST : 0)
   )
@@ -79,6 +99,7 @@ export function searchScore(
 // produce the identical value, so the create/bump JS write is consistent with this).
 const SET_RANK_SCORE = Prisma.sql`"rankScore" =
   ${RANK.BROWSE_TRUST_W} * LEAST(GREATEST(("sellerTrustScore"::float - ${RANK.TRUST_FLOOR}) / ${RANK.TRUST_SPAN}, 0), 1)
+  + ${RANK.BROWSE_RELEVANCE_W} * (1 - EXP(- (GREATEST("contactCount", 0)::float * ${RANK.DEMAND_CONTACT_W} + GREATEST("views", 0)) / ${RANK.DEMAND_REF}::float))
   + ${RANK.BROWSE_RECENCY_W} * EXP(- GREATEST(EXTRACT(EPOCH FROM (now() - "postedAt")), 0) / 86400.0 / ${RANK.DECAY_DAYS})
   + CASE WHEN "featured" THEN ${RANK.FEATURED_BOOST} ELSE 0 END`
 

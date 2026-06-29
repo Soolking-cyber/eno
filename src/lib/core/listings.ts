@@ -58,7 +58,7 @@ export async function setStatusCore(
  */
 export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean }> {
   const now = new Date()
-  const current = await db.listing.findUnique({ where: { id: listingId }, select: { postedAt: true, sellerTrustScore: true, featured: true } })
+  const current = await db.listing.findUnique({ where: { id: listingId }, select: { postedAt: true, sellerTrustScore: true, featured: true, views: true, contactCount: true } })
   const bump = current ? canBump(current.postedAt, now.getTime()) : true
   await db.listing.update({
     where: { id: listingId },
@@ -67,7 +67,7 @@ export async function confirmCore(listingId: string, profileId: string): Promise
       availabilityConfirmedAt: now,
       // A bump resets recency (postedAt=now) → recompute rankScore at age 0 so the listing
       // jumps up immediately. No bump (within cooldown) leaves recency to the daily decay.
-      ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current?.sellerTrustScore ?? 100, postedAt: now, featured: current?.featured ?? false }) } : {}),
+      ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current?.sellerTrustScore ?? 100, postedAt: now, featured: current?.featured ?? false, views: current?.views ?? 0, contactCount: current?.contactCount ?? 0 }) } : {}),
     },
   })
   after(() => recordEngagement(profileId).catch(() => {})) // reward keeping listings fresh (daily-capped)
