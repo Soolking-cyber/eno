@@ -11,6 +11,7 @@ import type { Language } from '@/context/language-context'
 import { useLanguage } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 import { getListingCoordinates } from '@/lib/geo'
+import type { Nearby } from './area-filter'
 import { cn } from '@/lib/utils'
 
 // Compact price for map labels (Airbnb-style price pins) — language-aware suffixes:
@@ -34,6 +35,12 @@ type Props = {
   selectedId?: string | null
   onHover?: (id: string | null) => void
   focusId?: string | null
+  // "Search near you" centre + radius — when set, the map flies to it and draws the
+  // radius circle (the listings are already narrowed to this radius upstream).
+  nearby?: Nearby | null
+  // Province/ward signature — when it changes, the map re-fits to the (now area-
+  // filtered) listings even if the top result happens to be unchanged.
+  areaKey?: string
 }
 
 const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
@@ -76,13 +83,14 @@ function pinHtml(label: string, active: boolean): string {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, selectedId, onHover, focusId }: Props) {
+export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, selectedId, onHover, focusId, nearby, areaKey }: Props) {
   const { tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
   const { format: formatPrice } = useCurrency()
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markersRef = useRef<Map<string, any>>(new Map())
+  const radiusCircleRef = useRef<any>(null) // the "search near you" radius overlay
   const fitKeyRef = useRef<string>('') // last filter signature we auto-fit bounds for
   const [ready, setReady] = useState(false)
   // Airbnb-style: a pin tap opens a small info card (not a direct navigation). The
@@ -93,8 +101,11 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   // flips it below the pin when there isn't room near the top edge.
   const [cardPos, setCardPos] = useState<{ x: number; y: number; above: boolean } | null>(null)
   const cardIdRef = useRef<string | null>(null)
+  // Mirror `listings` into a ref so the map/marker event handlers (captured once in
+  // effects) read the current set without stale closures. Synced in an effect, not
+  // during render (the handlers only fire on user interaction, well after commit).
   const listingsRef = useRef(listings)
-  listingsRef.current = listings
+  useEffect(() => { listingsRef.current = listings }, [listings])
 
   // Card sizes ADAPT to the map viewport: on a short map (e.g. the listing-detail
   // location map ~260px tall) we use a slim, image-less horizontal card so the popup
@@ -183,6 +194,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       map.remove()
       mapInstanceRef.current = null
       markersRef.current.clear()
+      radiusCircleRef.current = null // removed with the map; drop the stale ref
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready])
@@ -224,19 +236,38 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       markersRef.current.set(l.id, marker)
     })
 
-    // Only auto-fit when the FILTER context changes (district, or the result set
-    // was replaced — first item changes), NOT when infinite-scroll appends a page.
-    // Re-fitting on every append is what made the map jump repeatedly.
-    if (bounds.length > 0) {
-      const fitKey = `${activeDistrict}|${listings[0]?.id ?? ''}`
-      if (fitKeyRef.current !== fitKey) {
-        fitKeyRef.current = fitKey
+    // "Search near you" → draw / update the radius circle centred on the picked point
+    // (listings are already narrowed to this radius upstream). Remove it when cleared.
+    if (nearby) {
+      const center: [number, number] = [nearby.lat, nearby.lng]
+      const radiusM = nearby.radiusKm * 1000
+      if (radiusCircleRef.current) {
+        radiusCircleRef.current.setLatLng(center).setRadius(radiusM)
+      } else {
+        radiusCircleRef.current = L.circle(center, { radius: radiusM, color: '#0A66C2', weight: 1.5, fillColor: '#0A66C2', fillOpacity: 0.06 }).addTo(map)
+      }
+    } else if (radiusCircleRef.current) {
+      map.removeLayer(radiusCircleRef.current)
+      radiusCircleRef.current = null
+    }
+
+    // Auto-fit when the FILTER context changes — district, AREA (province/ward via
+    // areaKey), or the near-you centre/radius, or the result set being replaced (first
+    // item changes) — NOT on infinite-scroll append (which keeps the same first item).
+    const nearKey = nearby ? `${nearby.lat.toFixed(3)},${nearby.lng.toFixed(3)},${nearby.radiusKm}` : ''
+    const fitKey = `${activeDistrict}|${areaKey ?? ''}|${nearKey}|${listings[0]?.id ?? ''}`
+    if (fitKeyRef.current !== fitKey) {
+      fitKeyRef.current = fitKey
+      if (nearby && radiusCircleRef.current) {
+        // Fly to the selected radius — show exactly the area the buyer chose.
+        map.fitBounds(radiusCircleRef.current.getBounds(), { padding: [30, 30] })
+      } else if (bounds.length > 0) {
         map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 })
       }
     }
     setTimeout(() => map.invalidateSize(), 80)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listings, ready, activeDistrict])
+  }, [listings, ready, activeDistrict, areaKey, nearby])
 
   // Update marker styling on selection / hover (no full rebuild).
   useEffect(() => {

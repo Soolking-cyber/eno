@@ -93,9 +93,10 @@ export function MobileNav() {
     navigate(href, to >= from ? 'forward' : 'back')
   }
 
-  // Hidden on listing detail (own sticky CTA), chat threads (full-screen composer),
-  // and the full-screen sign-in page.
-  if (pathname?.startsWith('/listings/') || pathname?.startsWith('/signin')) return null
+  // Hidden only on the full-screen sign-in page. (Listing detail pages used to hide it
+  // behind a custom sticky contact bar — that bar was removed; listing pages now show
+  // the normal bottom nav like every other page.)
+  if (pathname?.startsWith('/signin')) return null
 
   // Gate auth-only tabs once auth has resolved logged-out. During the brief boot
   // window (loading) leave them as Links so a logged-in user is never flashed the

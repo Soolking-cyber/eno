@@ -72,7 +72,7 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline' https://unpkg.com",
       "img-src 'self' data: blob: https://*.supabase.co https://*.basemaps.cartocdn.com https://picsum.photos https://*.picsum.photos https://loremflickr.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
+      "connect-src 'self' https://unpkg.com https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
       "frame-src 'self' https://www.facebook.com https://td.doubleclick.net",
       "worker-src 'self' blob:",
       "manifest-src 'self'",

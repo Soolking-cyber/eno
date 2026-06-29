@@ -2353,6 +2353,8 @@ export function ListingsExplorer({
                         selectedId={hoveredId ?? focusId}
                         onHover={setHoveredId}
                         focusId={focusId}
+                        nearby={nearby}
+                        areaKey={`${activeProvince?.code ?? ''}|${activeWard?.code ?? ''}|${activeDistrict}`}
                       />
                     </div>
                   </div>

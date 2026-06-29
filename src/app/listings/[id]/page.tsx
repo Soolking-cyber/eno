@@ -441,15 +441,6 @@ export default async function ListingPage({ params }: Props) {
         <RecentlyViewedRail excludeId={listing.id} />
       </main>
 
-      {/* Mobile sticky contact bar — the bottom nav is hidden on listing pages, so
-          this keeps the primary action in the thumb zone without scrolling. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-border bg-card/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
-        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-lg font-bold text-foreground" />
-        <a href="#contact" className="ml-auto rounded-xl bg-primary px-7 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
-          <Tr text="Message" />
-        </a>
-      </div>
-
       <Footer />
     </div>
   )
