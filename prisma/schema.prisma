@@ -147,8 +147,29 @@ model Seller {
   listings      Listing[]
   reviews       Review[]
   conversations Conversation[]
+  apiKeys       ApiKey[]
 
   @@index([ownerId])
+}
+
+// Partner-API credential (Phase 1). A key acts FOR one shop (Seller); the owning
+// account (profileId) is recorded for audit. Only the sha256 HASH is stored — the secret
+// is shown once at mint. `prefix` is the safe display fragment (e.g. "eno_live_ab12cd").
+// `scopes` is space-separated (listings:read, analytics:read, …). Revoke = set revokedAt.
+model ApiKey {
+  id         String    @id @default(cuid())
+  sellerId   String
+  seller     Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  profileId  String    @db.Uuid // owning account (audit; FK omitted — scoping is by seller)
+  name       String
+  prefix     String    @unique
+  hashedKey  String    @unique
+  scopes     String    @default("listings:read analytics:read")
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([sellerId])
 }
 
 model Review {
