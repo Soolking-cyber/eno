@@ -21,6 +21,7 @@ type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
+  iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
   listing: { id: string; title: string; image: string | null; price?: number }
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null; sellerId?: string | null }
   messages: Msg[]
@@ -313,7 +314,7 @@ export default function ThreadPage() {
 
           {/* Contact is requested IN-CHAT, and only once the seller has replied —
               this is what gets sellers logging in daily to answer + keep listings fresh. */}
-          {thread && (
+          {thread && !thread.iAmSeller && (
             <div className="flex items-center gap-2 border-t border-border bg-card px-4 py-2">
               {contact ? (
                 <>
