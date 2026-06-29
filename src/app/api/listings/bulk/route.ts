@@ -1,157 +1,37 @@
-import { NextRequest, NextResponse, after } from 'next/server'
-import sharp from 'sharp'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
-import { containsPhoneNumber } from '@/lib/phone'
-import { buildSearchText } from '@/lib/fold'
-import { warmTranslations } from '@/lib/translate'
-import { getSupabaseAdmin, LISTINGS_BUCKET } from '@/lib/supabase-admin'
-import { isListingImageUrl } from '@/lib/listing-image'
-import { safeFetch } from '@/lib/ssrf'
 import { rateLimit } from '@/lib/ratelimit'
-import { reindexListing } from '@/lib/listing-index'
+import { bulkImportCore, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MAX_ROWS = 200
-const MAX_IMG_BYTES = 12 * 1024 * 1024 // raw fetched bytes ceiling (recompressed server-side)
-const MAX_EDGE = 1600 // mirror /api/upload: downscale longest edge
-const WEBP_QUALITY = 82
-// Global per-import budget on REMOTE image fetches. 200 rows × 8 imgs = 1600 potential
-// fetch+decode+upload ops — a single request must not fan out that far (network/CPU/SSRF
-// amplification). First-party (already-hosted) URLs don't count; they're not fetched.
-const MAX_IMG_FETCHES = 120
-
-type Row = { category_slug?: string; title?: string; description?: string; price?: unknown; district?: string; condition?: string; image_urls?: string }
-type RowResult = { row: number; id?: string; error?: string }
-
-// Server-fetch a remote image and re-host it in our Storage bucket (so bulk image
-// URLs become first-party, validated assets — never hotlinks). Already-hosted
-// Supabase URLs pass through. Returns null on any failure (bad type/size/decode).
-async function rehost(url: string): Promise<string | null> {
-  if (isListingImageUrl(url)) return url
-  try {
-    // SSRF-guarded: https-only, re-validates the host at every redirect hop and
-    // rejects any URL that resolves to a private/loopback/link-local address.
-    const res = await safeFetch(url, { timeoutMs: 8000 })
-    if (!res.ok) return null
-    const buf = Buffer.from(await res.arrayBuffer())
-    if (buf.byteLength === 0 || buf.byteLength > MAX_IMG_BYTES) return null
-    // Decode → auto-orient (bake EXIF rotation, then DROP all metadata incl. GPS) →
-    // downscale to MAX_EDGE → re-encode WebP — exactly like /api/upload. sharp throws
-    // on anything that isn't a real decodable raster, so a payload disguised with an
-    // image content-type (or an SVG) is rejected here rather than re-served as-is.
-    // limitInputPixels guards against decompression-bomb images.
-    let out: Buffer
-    try {
-      out = await sharp(buf, { limitInputPixels: 50_000_000 })
-        .rotate()
-        .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: WEBP_QUALITY })
-        .toBuffer()
-    } catch { return null }
-    const path = `bulk/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`
-    const admin = getSupabaseAdmin()
-    const { error } = await admin.storage.from(LISTINGS_BUCKET).upload(path, out, { contentType: 'image/webp', upsert: false })
-    if (error) return null
-    return admin.storage.from(LISTINGS_BUCKET).getPublicUrl(path).data.publicUrl
-  } catch { return null }
-}
-
-// Bulk listing upload (business tier). Each row is RE-VALIDATED server-side
-// (never trust the client preview); image URLs are re-hosted; listings are
-// created under the caller's OWN storefront with the same auto-publish gate as
-// single posts. Returns per-row results so the UI can show exactly what imported.
+// Bulk listing upload (business tier). Each row is RE-VALIDATED server-side; image URLs
+// are re-hosted; listings are created under the caller's OWN storefront with the same
+// auto-publish gate as single posts. auth → core → respond (the import logic is the
+// shared bulkImportCore, reused by the future /api/v1/listings/bulk).
 export async function POST(req: NextRequest) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
   if (profile.accountType !== 'business') return NextResponse.json({ error: 'business_only' }, { status: 403 })
 
-  // Rate-limit by account (each import is up to 200 rows × image fetches). Fail OPEN —
-  // an authenticated, accountable business shouldn't be blocked from importing on a
-  // Redis blip; the cap only stops a runaway loop / abuse burst.
+  // Rate-limit by account. Fail OPEN — an authenticated, accountable business shouldn't
+  // be blocked from importing on a Redis blip; the cap only stops a runaway loop / abuse.
   const rl = await rateLimit('bulk-import', profile.id, 10, '1 h')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
-  const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true, trustTier: true, trustScore: true } })
+  const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, trustTier: true, trustScore: true } })
   if (!seller) return NextResponse.json({ error: 'no_storefront' }, { status: 403 })
 
-  let body: { rows?: Row[] }
+  let body: { rows?: BulkRow[] }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
-  const rows = Array.isArray(body.rows) ? body.rows.slice(0, MAX_ROWS) : []
+  const rows = Array.isArray(body.rows) ? body.rows.slice(0, BULK_MAX_ROWS) : []
   if (rows.length === 0) return NextResponse.json({ error: 'no_rows' }, { status: 400 })
-  if (Array.isArray(body.rows) && body.rows.length > MAX_ROWS) {
+  if (Array.isArray(body.rows) && body.rows.length > BULK_MAX_ROWS) {
     // Surface the cap rather than silently dropping the tail.
-    return NextResponse.json({ error: 'too_many_rows', max: MAX_ROWS }, { status: 400 })
+    return NextResponse.json({ error: 'too_many_rows', max: BULK_MAX_ROWS }, { status: 400 })
   }
 
-  // Resolve all referenced categories once.
-  const slugs = [...new Set(rows.map((r) => String(r.category_slug || '').trim()).filter(Boolean))]
-  const cats = await db.category.findMany({ where: { slug: { in: slugs } }, select: { id: true, slug: true, name: true, nameVi: true } })
-  const catBySlug = new Map(cats.map((c) => [c.slug, c]))
-
-  const results: RowResult[] = []
-  const warm: string[] = []
-  let imgFetched = 0 // counts REMOTE rehosts against MAX_IMG_FETCHES (per-import budget)
-  let imageBudgetReached = false
-
-  // Process sequentially (image re-hosting is network-bound; pacing avoids a
-  // burst of fetches/uploads). Each row is independent — one bad row never aborts
-  // the batch.
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i]
-    const rowNo = i + 1
-    try {
-      const categorySlug = String(r.category_slug || '').trim()
-      const title = String(r.title || '').trim().slice(0, 140)
-      const description = String(r.description || '').trim().slice(0, 5000)
-      const district = r.district ? String(r.district).trim().slice(0, 80) : null
-      const condition = r.condition ? String(r.condition).trim().slice(0, 60) : null
-      const price = Number(r.price)
-      const cat = catBySlug.get(categorySlug)
-
-      if (!cat) { results.push({ row: rowNo, error: `Unknown category "${categorySlug}"` }); continue }
-      if (title.length < 3) { results.push({ row: rowNo, error: 'Title too short (min 3 chars)' }); continue }
-      if (!Number.isFinite(price) || price < 0 || price > 1e12) { results.push({ row: rowNo, error: 'Invalid price' }); continue }
-      if (containsPhoneNumber(title) || containsPhoneNumber(description)) { results.push({ row: rowNo, error: 'Phone numbers not allowed in title/description' }); continue }
-
-      // Re-host up to 8 images from the pipe/comma-separated URL list. First-party
-      // (already-hosted) URLs pass straight through and don't touch the fetch budget;
-      // remote URLs each cost one unit of the per-import MAX_IMG_FETCHES budget.
-      const rawUrls = String(r.image_urls || '').split(/[|,\n]/).map((u) => u.trim()).filter(Boolean).slice(0, 8)
-      const hosted: string[] = []
-      for (const u of rawUrls) {
-        if (isListingImageUrl(u)) { hosted.push(u); continue }
-        if (imgFetched >= MAX_IMG_FETCHES) { imageBudgetReached = true; continue }
-        imgFetched++
-        const h = await rehost(u)
-        if (h) hosted.push(h)
-      }
-
-      const autoPublish = hosted.length >= 1 && seller.trustTier !== 'restricted'
-      const listing = await db.listing.create({
-        data: {
-          title, description, price, priceUnit: 'VND', currency: '₫', negotiable: false,
-          location: district || 'Ho Chi Minh City', district, city: 'Ho Chi Minh City',
-          condition, images: JSON.stringify(hosted),
-          searchText: buildSearchText([title, description, district, cat.name, cat.nameVi]),
-          categoryId: cat.id, sellerId: seller.id, sellerTrustScore: seller.trustScore, verified: autoPublish,
-        },
-        select: { id: true },
-      })
-      results.push({ row: rowNo, id: listing.id })
-      warm.push(title, description)
-    } catch {
-      results.push({ row: rowNo, error: 'Failed to create' })
-    }
-  }
-
-  if (warm.length) after(() => warmTranslations(warm.filter(Boolean)))
-  after(() => { for (const r of results) if (r.id) reindexListing(r.id) }) // index the live imports for AI search
-
-  const created = results.filter((r) => r.id).length
-  // imageBudgetReached → some rows imported with fewer/zero images because the per-import
-  // remote-fetch budget was hit; the UI can prompt to add photos to those later.
-  return NextResponse.json({ created, failed: results.length - created, results, imageBudgetReached })
+  return NextResponse.json(await bulkImportCore(seller, rows))
 }
