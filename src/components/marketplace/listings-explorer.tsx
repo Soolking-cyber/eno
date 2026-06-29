@@ -1059,6 +1059,11 @@ export function ListingsExplorer({
   useEffect(() => {
     if (!hasMore) return
     if (isLandingMode && !feedUnlocked) return // home feed: gated behind the "Load more" button
+    // Nothing rendered yet (initial load, or a just-cleared filter/category switch): the
+    // sentinel sits in view over an empty grid, so DON'T attach — otherwise it races `page`
+    // ahead of page 1's response (each later page fails the `offset === (page-1)*limit`
+    // check and is dropped, leaving a permanently empty feed). Re-attaches once page 1 lands.
+    if (listings.length === 0) return
     const isMap = viewMode === 'map'
     // Desktop map view → the left column is the scroll container (Tailwind lg = 1024px).
     const columnScroll = isMap && typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
@@ -1075,7 +1080,7 @@ export function ListingsExplorer({
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasMore, queryFetching, prefetchNextPage, viewMode, isLandingMode, feedUnlocked])
+  }, [hasMore, queryFetching, prefetchNextPage, viewMode, isLandingMode, feedUnlocked, listings.length])
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
