@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { after } from 'next/server'
-import { db } from '@/lib/db'
 import { checkListingOwner } from '@/lib/listing-owner'
-import { recordEngagement } from '@/lib/trust'
-import { canBump } from '@/lib/stale'
+import { confirmCore } from '@/lib/core/listings'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,23 +10,12 @@ export const dynamic = 'force-dynamic'
 // availabilityConfirmedAt. Owner-scoped. The bump is rate-limited (canBump) so a
 // seller can't re-confirm daily to camp at the top — a confirm inside the cooldown
 // still records availability (stops the reminder) but does NOT re-bump recency.
+// auth → core → respond (the bump/confirm logic is shared with the future /api/v1).
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await checkListingOwner(id)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.code })
 
-  const now = new Date()
-  const current = await db.listing.findUnique({ where: { id }, select: { postedAt: true } })
-  const bump = current ? canBump(current.postedAt, now.getTime()) : true
-  await db.listing.update({
-    where: { id },
-    data: { status: 'active', availabilityConfirmedAt: now, ...(bump ? { postedAt: now } : {}) },
-  })
-  // No revalidatePath here: a confirm only bumps feed recency (surfaced live via the
-  // client /api/listings fetch) + an "updated" label — regenerating the cached
-  // detail page on every daily confirm, per listing, was the top ISR-write driver.
-  // The page rides its own time window; real edits/status changes still revalidate.
-  // Reward the day's activity (daily-capped) — keeping listings fresh earns trust.
-  after(() => recordEngagement(auth.profileId).catch(() => {}))
+  await confirmCore(id, auth.profileId)
   return NextResponse.json({ ok: true })
 }

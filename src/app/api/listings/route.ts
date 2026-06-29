@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
-import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { Prisma } from '@/generated/prisma/client'
-import { suggestSubcategory, typesFor, subcategoriesFor, rangeFacetsFor, isRangeColumn } from '@/lib/taxonomy'
-import { fold, buildSearchText } from '@/lib/fold'
-import { warmTranslations } from '@/lib/translate'
-import { syndicateListing } from '@/lib/syndicate'
-import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
+import { isRangeColumn } from '@/lib/taxonomy'
+import { fold } from '@/lib/fold'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
-import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { isListingImageUrl } from '@/lib/listing-image'
 import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { rateLimit } from '@/lib/ratelimit'
-import { reindexListing } from '@/lib/listing-index'
 import { vertexSearchListingIds, vertexConfigured } from '@/lib/vertex-search'
+import { createListingCore } from '@/lib/core/listings'
 
 export const dynamic = 'force-dynamic'
 
@@ -522,136 +516,10 @@ export async function POST(req: NextRequest) {
           })
     }
 
-    const images: string[] = Array.isArray(body.images)
-      ? body.images.filter(isListingImageUrl).slice(0, 8)
-      : []
-    const district = body.district ? String(body.district).trim().slice(0, 80) : null
-    const city = body.city ? String(body.city).trim().slice(0, 80) : 'Ho Chi Minh City'
-    const location = body.location ? String(body.location).trim().slice(0, 120) : (district || city)
-    // Optional precise pin from "use my current location" (validated to plausible ranges).
-    const latNum = Number(body.lat), lngNum = Number(body.lng)
-    const lat = Number.isFinite(latNum) && latNum >= -90 && latNum <= 90 ? latNum : null
-    const lng = Number.isFinite(lngNum) && lngNum >= -180 && lngNum <= 180 ? lngNum : null
-
-    // Automated publish gate (manual per-listing verification removed — no
-    // manpower). Listings go LIVE instantly; the reactive control is the trust
-    // score + reporting, not a human reviewing each one. We only HOLD a listing
-    // when the account is Restricted (trust < 60) or it has no photo. Phone text
-    // is already blocked above (`no_phone_in_listing`).
-    const autoPublish = images.length >= 1 && seller.trustTier !== 'restricted'
-
-    // Intent + subcategory from the taxonomy. listingType must be valid for the
-    // category (else its primary type); subcategory falls back to keyword-suggest.
-    const allowedTypes = typesFor(categorySlug) as string[]
-    const reqType = String(body.listingType || '').trim()
-    const listingType = allowedTypes.includes(reqType) ? reqType : allowedTypes[0]
-    const subs = subcategoriesFor(categorySlug)
-    let subcategorySlug: string | null = String(body.subcategorySlug || '').trim()
-    if (!subs.some((s) => s.slug === subcategorySlug)) {
-      subcategorySlug = suggestSubcategory(categorySlug, `${title} ${body.description || ''}`) || (subs[0]?.slug ?? null)
-    }
-    // Price unit follows the intent (monthly for rent/job, per-service for service).
-    const priceUnit = listingType === 'rent' || listingType === 'job' ? 'VND/month'
-      : listingType === 'service' ? 'VND/service (from)' : 'VND'
-    // Whitelisted, stringly-typed attribute facets (taxonomy values).
-    let attributes: string | null = null
-    if (body.attributes && typeof body.attributes === 'object' && !Array.isArray(body.attributes)) {
-      const clean: Record<string, string> = {}
-      for (const [k, v] of Object.entries(body.attributes as Record<string, unknown>)) {
-        if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = v.slice(0, 40)
-      }
-      if (Object.keys(clean).length) attributes = JSON.stringify(clean)
-    }
-
-    // Structured numeric specs (range facets) → dedicated columns, each clamped to
-    // the category's declared range so out-of-range/garbage can't be stored. Engine
-    // keeps one decimal (litres); year/mileage are integers.
-    const rangeData: Record<string, number> = {}
-    for (const f of rangeFacetsFor(categorySlug, subcategorySlug)) {
-      const raw = Number((body as Record<string, unknown>)[f.range.column])
-      if (!Number.isFinite(raw)) continue
-      const clamped = Math.min(Math.max(raw, f.range.min), f.range.max)
-      rangeData[f.range.column] = f.range.column === 'engineL' ? Math.round(clamped * 10) / 10 : Math.round(clamped)
-    }
-
-    // Brand (product categories only): canonicalize + typo-dedupe into the catalogue,
-    // growing it on first sight. Never blocks the post if resolution fails.
-    let brandSlug: string | null = null
-    if (categoryHasBrand(categorySlug) && body.brand) {
-      try { brandSlug = await resolveBrand(String(body.brand)) } catch { brandSlug = null }
-    }
-    // Specific model — only kept alongside a resolved brand (powers the brand rail's
-    // model expansion). Free display string; grouped distinct in the catalogue.
-    const model = brandSlug && body.model ? (String(body.model).trim().slice(0, 60) || null) : null
-
-    const listing = await db.listing.create({
-      data: {
-        title,
-        description: String(body.description || '').trim().slice(0, 5000),
-        price,
-        priceUnit,
-        currency: '₫',
-        negotiable: Boolean(body.negotiable),
-        location,
-        district,
-        city,
-        lat,
-        lng,
-        condition: body.condition ? String(body.condition).trim() : null,
-        images: JSON.stringify(images),
-        searchText: buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug, model]),
-        categoryId: category.id,
-        subcategorySlug,
-        listingType,
-        attributes,
-        ...rangeData,
-        brandSlug,
-        model,
-        sellerId: seller.id,
-        sellerTrustScore: seller.trustScore, // denormalized ranking key (kept in sync by src/lib/trust.ts)
-        verified: autoPublish,
-      },
-    })
-    if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch(() => {}) })
-
-    // Pre-translate every user-authored text field into ALL supported languages
-    // so the listing renders from cache (no provider round-trip) in any
-    // visitor's language. Runs after the response flushes — never delays the post.
-    const attrValues: string[] = (() => {
-      try {
-        const a = listing.attributes ? JSON.parse(listing.attributes) : {}
-        return Object.values(a).map((v) => String(v))
-      } catch { return [] }
-    })()
-    const warmFields = [listing.title, listing.description, listing.location, ...attrValues].filter(Boolean)
-    after(() => warmTranslations(warmFields))
-
-    // Auto cross-post to the platform's social channels — only when the listing is
-    // actually live (not held/restricted). Best-effort, after the response flushes.
-    if (autoPublish) {
-      after(() => syndicateListing({
-        id: listing.id,
-        title: listing.title,
-        price: listing.price,
-        currency: listing.currency,
-        location: listing.location,
-        district: listing.district,
-        image: images[0] || null,
-        categoryName: category.name,
-      }))
-      // Supply conversion → Meta CAPI Lead (server-side, after response flushes — zero
-      // client cost; no-ops until CAPI env is set). Only for listings that go live.
-      after(() =>
-        sendMetaCapiEvent('Lead', {
-          eventSourceUrl: req.headers.get('referer') || undefined,
-          userData: metaUserDataFromHeaders(req.headers, { phone: seller.phone, externalId: seller.id }),
-          customData: { content_ids: [listing.id], content_type: 'product', content_category: category.name, value: listing.price, currency: 'VND' },
-        }),
-      )
-      after(() => reindexListing(listing.id)) // add the new live listing to AI search
-    }
-
-    return NextResponse.json({ id: listing.id, verified: autoPublish }, { status: 201 })
+    // Build + create + fire side-effects in the shared core (same code path the
+    // future /api/v1 create will reuse). Seller + category are already resolved.
+    const result = await createListingCore({ seller, category, title, price, body, headers: req.headers })
+    return NextResponse.json(result, { status: 201 })
   } catch (e) {
     console.error('[POST /api/listings]', e)
     return NextResponse.json({ error: 'Failed to create listing' }, { status: 500 })

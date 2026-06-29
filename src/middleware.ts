@@ -20,9 +20,18 @@ export function middleware(req: NextRequest) {
   // their OWN auth — they must bypass the edge header or they break the moment EDGE_SECRET
   // is set: crons (CRON_SECRET, Vercel Cron/Cloud Scheduler), the Supabase Send-SMS auth
   // hook (Standard-Webhooks HMAC, called by Supabase Auth → killing it kills phone-OTP
-  // signup/login), and the product feeds (Basic-Auth, fetched by Google Merchant/Meta).
+  // signup/login), the product feeds (Basic-Auth, fetched by Google Merchant/Meta), and
+  // the partner API `/api/v1/*` — reached server-to-server off Cloudflare by shops' own
+  // backends/agents, so it carries its OWN per-key auth (NOT the IP-keyed rate limits the
+  // edge pin protects). Every /api/v1 route MUST authenticate via API key (Phase 1) — the
+  // edge pin is not its guard. No-op today (no /api/v1 routes exist yet).
   const { pathname } = req.nextUrl
-  if (pathname.startsWith('/api/cron/') || pathname === '/api/auth/send-sms' || pathname.startsWith('/api/feeds/')) {
+  if (
+    pathname.startsWith('/api/cron/') ||
+    pathname === '/api/auth/send-sms' ||
+    pathname.startsWith('/api/feeds/') ||
+    pathname.startsWith('/api/v1/')
+  ) {
     return NextResponse.next()
   }
   if (req.headers.get('x-eno-edge') !== secret) {
