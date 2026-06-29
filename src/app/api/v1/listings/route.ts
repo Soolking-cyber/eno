@@ -1,8 +1,11 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { containsPhoneNumber } from '@/lib/phone'
+import { createListingCore } from '@/lib/core/listings'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
+import { withIdempotency } from '@/lib/api/idempotency'
 import { parsePageParams, pageQuery, buildPage } from '@/lib/api/pagination'
 
 export const runtime = 'nodejs'
@@ -24,4 +27,37 @@ export async function GET(req: NextRequest) {
   })
   const { items, nextCursor } = buildPage(rows, limit)
   return apiOk({ listings: items.map(serializeListing), next_cursor: nextCursor }, r.rate)
+}
+
+// POST /api/v1/listings — create a listing for the authenticated shop. Body: categorySlug,
+// title, price, and the same optional fields the post wizard accepts (description, images,
+// district, condition, listingType, subcategorySlug, attributes, brand, model, …). Runs
+// the EXACT session create path via createListingCore (auto-publish gate, brand catalogue,
+// translation warm, syndication, CAPI, reindex). Send an `Idempotency-Key` header to make
+// retries safe. Scope: listings:write.
+export async function POST(req: NextRequest) {
+  const r = await resolveApiKey(req, 'listings:write')
+  if (!r.ok) return apiAuthError(r)
+
+  return withIdempotency(req, r.auth.keyId, r.rate, async () => {
+    let body: Record<string, unknown>
+    try { body = await req.json() } catch { return { status: 400, body: { error: { code: 'bad_request', message: 'Invalid JSON body.' } } } }
+
+    const categorySlug = String(body.categorySlug || '').trim()
+    const title = String(body.title || '').trim().slice(0, 140)
+    const price = Number(body.price)
+    if (!categorySlug || title.length < 3 || !Number.isFinite(price) || price < 0 || price > 1e12) {
+      return { status: 422, body: { error: { code: 'invalid_input', message: 'categorySlug, a title (≥3 chars) and a valid price are required.' } } }
+    }
+    if (containsPhoneNumber(title) || containsPhoneNumber(String(body.description || ''))) {
+      return { status: 422, body: { error: { code: 'no_phone_in_listing', message: 'Phone numbers are not allowed in the title or description.' } } }
+    }
+    const category = await db.category.findUnique({ where: { slug: categorySlug }, select: { id: true, slug: true, name: true, nameVi: true } })
+    if (!category) return { status: 422, body: { error: { code: 'unknown_category', message: `Unknown category "${categorySlug}".` } } }
+    const seller = await db.seller.findUnique({ where: { id: r.auth.sellerId }, select: { id: true, trustTier: true, trustScore: true, phone: true } })
+    if (!seller) return { status: 404, body: { error: { code: 'not_found', message: 'Shop not found.' } } }
+
+    const created = await createListingCore({ seller, category, title, price, body, headers: req.headers })
+    return { status: 201, body: { listing: created } }
+  })
 }

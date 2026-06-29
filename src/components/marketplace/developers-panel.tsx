@@ -11,7 +11,8 @@ import { cn } from '@/lib/utils'
 // /api/keys. The full secret is shown ONCE at creation; afterwards only the prefix.
 type ApiKey = { id: string; name: string; prefix: string; scopes: string; lastUsedAt: string | null; revokedAt: string | null; createdAt: string }
 
-const ALL_SCOPES = ['listings:read', 'analytics:read'] as const
+const ALL_SCOPES = ['listings:read', 'analytics:read', 'listings:write', 'media:write'] as const
+const DEFAULT_SCOPES: string[] = ['listings:read', 'analytics:read'] // write is opt-in
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : null)
 
 export function DevelopersPanel() {
@@ -19,7 +20,7 @@ export function DevelopersPanel() {
   const [keys, setKeys] = useState<ApiKey[] | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
-  const [scopes, setScopes] = useState<string[]>([...ALL_SCOPES])
+  const [scopes, setScopes] = useState<string[]>([...DEFAULT_SCOPES])
   const [busy, setBusy] = useState(false)
   const [secret, setSecret] = useState<string | null>(null) // freshly-minted, shown once
   const [copied, setCopied] = useState(false)
@@ -42,7 +43,7 @@ export function DevelopersPanel() {
       })
       const d = await res.json().catch(() => null)
       if (res.ok && d?.key?.secret) {
-        setSecret(d.key.secret); setName(''); setScopes([...ALL_SCOPES]); setShowForm(false); load()
+        setSecret(d.key.secret); setName(''); setScopes([...DEFAULT_SCOPES]); setShowForm(false); load()
       } else {
         toast.error(d?.error === 'too_many_keys'
           ? tr('Key limit reached — revoke one first.', 'Đã đạt giới hạn khóa — hãy thu hồi bớt.')
@@ -123,7 +124,7 @@ export function DevelopersPanel() {
             </div>
           </div>
           <div className="flex gap-2 pt-1">
-            <button onClick={() => { setShowForm(false); setName(''); setScopes([...ALL_SCOPES]) }} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Cancel', 'Hủy')}</button>
+            <button onClick={() => { setShowForm(false); setName(''); setScopes([...DEFAULT_SCOPES]) }} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Cancel', 'Hủy')}</button>
             <button onClick={create} disabled={busy || scopes.length === 0} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-50">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {tr('Create key', 'Tạo khóa')}
             </button>

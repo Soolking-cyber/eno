@@ -65,3 +65,11 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
   void db.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch(() => {})
   return { ok: true, auth: { keyId: key.id, sellerId: key.sellerId, profileId: key.profileId, scopes }, rate: { limit: API_RATE_PER_MIN, remaining: rl.remaining } }
 }
+
+// Confirm a listing belongs to the key's shop — the v1 write/mutate guard (RLS is
+// bypassed, so ownership MUST be checked in app code). True iff the listing exists AND its
+// sellerId matches; a non-owned/absent id is treated as 404 by the caller (no leak).
+export async function listingOwnedBy(listingId: string, sellerId: string): Promise<boolean> {
+  const l = await db.listing.findUnique({ where: { id: listingId }, select: { sellerId: true } }).catch(() => null)
+  return !!l && l.sellerId === sellerId
+}

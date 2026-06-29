@@ -40,7 +40,7 @@ export default function DevelopersPage() {
         <h1 className="h-display text-foreground">Developer API</h1>
         <p className="mt-3 text-sm leading-relaxed text-body">
           Manage your eno.vn storefront programmatically — from your own systems or an AI agent. A REST API with API-key
-          auth. <strong className="text-foreground">v1 is read-only</strong> (write/CRUD is coming next).
+          auth, supporting <strong className="text-foreground">read and write</strong>.
         </p>
 
         <section className="mt-8">
@@ -56,9 +56,12 @@ export default function DevelopersPage() {
           </p>
           <div className="mt-3"><Code>{`Authorization: Bearer eno_live_…`}</Code></div>
           <p className="mt-3 text-sm leading-relaxed text-body">
-            Keys are scoped: <code className="rounded bg-muted px-1 text-[12px] font-semibold">listings:read</code> and{' '}
-            <code className="rounded bg-muted px-1 text-[12px] font-semibold">analytics:read</code>. Every key acts for one shop;
-            requests only ever see that shop&apos;s own data. Revoke a key anytime — it takes effect immediately.
+            Keys are scoped: <code className="rounded bg-muted px-1 text-[12px] font-semibold">listings:read</code>,{' '}
+            <code className="rounded bg-muted px-1 text-[12px] font-semibold">analytics:read</code>,{' '}
+            <code className="rounded bg-muted px-1 text-[12px] font-semibold">listings:write</code>,{' '}
+            <code className="rounded bg-muted px-1 text-[12px] font-semibold">media:write</code> (write is opt-in when you mint
+            the key). Every key acts for one shop; requests only ever see that shop&apos;s own data. Revoke a key anytime — it
+            takes effect immediately.
           </p>
         </section>
 
@@ -67,7 +70,8 @@ export default function DevelopersPage() {
           <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-body">
             <li>• <strong className="text-foreground">Rate limit:</strong> 600 requests/min per key. Responses carry <code className="rounded bg-muted px-1 text-[12px]">X-RateLimit-Limit</code> / <code className="rounded bg-muted px-1 text-[12px]">X-RateLimit-Remaining</code> and an <code className="rounded bg-muted px-1 text-[12px]">X-Request-Id</code>.</li>
             <li>• <strong className="text-foreground">Pagination:</strong> list endpoints are keyset-paged — pass <code className="rounded bg-muted px-1 text-[12px]">?limit=</code> (≤100) and <code className="rounded bg-muted px-1 text-[12px]">?cursor=</code>; follow <code className="rounded bg-muted px-1 text-[12px]">next_cursor</code> until it&apos;s <code className="rounded bg-muted px-1 text-[12px]">null</code>.</li>
-            <li>• <strong className="text-foreground">Errors:</strong> <code className="rounded bg-muted px-1 text-[12px]">{`{ "error": { "code", "message" } }`}</code> — e.g. <code className="rounded bg-muted px-1 text-[12px]">401 unauthorized</code>, <code className="rounded bg-muted px-1 text-[12px]">403 insufficient_scope</code>, <code className="rounded bg-muted px-1 text-[12px]">404 not_found</code>, <code className="rounded bg-muted px-1 text-[12px]">429 rate_limited</code>.</li>
+            <li>• <strong className="text-foreground">Errors:</strong> <code className="rounded bg-muted px-1 text-[12px]">{`{ "error": { "code", "message" } }`}</code> — e.g. <code className="rounded bg-muted px-1 text-[12px]">401 unauthorized</code>, <code className="rounded bg-muted px-1 text-[12px]">403 insufficient_scope</code>, <code className="rounded bg-muted px-1 text-[12px]">404 not_found</code>, <code className="rounded bg-muted px-1 text-[12px]">422 invalid_input</code>, <code className="rounded bg-muted px-1 text-[12px]">429 rate_limited</code>.</li>
+            <li>• <strong className="text-foreground">Idempotency:</strong> on a create, send <code className="rounded bg-muted px-1 text-[12px]">Idempotency-Key: &lt;unique-id&gt;</code> — a retry replays the first result instead of creating twice.</li>
           </ul>
         </section>
 
@@ -100,6 +104,48 @@ export default function DevelopersPage() {
   -H "Authorization: Bearer eno_live_…"`}</Code>
             <Code>{`{ "summary": { "total_listings", "total_views",
   "total_leads", "active", "sold", "hidden", "held" } }`}</Code>
+          </Endpoint>
+
+          <h3 className="pt-4 text-xs font-bold uppercase tracking-wide text-ink-4">Write — scopes: listings:write / media:write</h3>
+
+          <Endpoint method="POST" path="/v1/listings" desc="Create a listing. Body: categorySlug, title, price + optional description, images[], district, condition, listingType, brand, model… Send an Idempotency-Key to make retries safe.">
+            <Code>{`curl -X POST ${BASE}/listings \\
+  -H "Authorization: Bearer eno_live_…" \\
+  -H "Idempotency-Key: $(uuidgen)" \\
+  -H "Content-Type: application/json" \\
+  -d '{"categorySlug":"electronics","title":"iPhone 14 Pro",
+       "price":18000000,"images":["https://…/api/….webp"]}'`}</Code>
+            <Code>{`{ "listing": { "id", "verified" } }`}</Code>
+          </Endpoint>
+
+          <Endpoint method="PATCH" path="/v1/listings/{id}" desc="Edit a listing (sparse — only the fields you send change).">
+            <Code>{`curl -X PATCH ${BASE}/listings/LISTING_ID \\
+  -H "Authorization: Bearer eno_live_…" -H "Content-Type: application/json" \\
+  -d '{"price":16500000,"condition":"used"}'`}</Code>
+          </Endpoint>
+
+          <Endpoint method="POST" path="/v1/listings/{id}/status" desc="Set availability: active | sold | hidden.">
+            <Code>{`curl -X POST ${BASE}/listings/LISTING_ID/status \\
+  -H "Authorization: Bearer eno_live_…" -H "Content-Type: application/json" \\
+  -d '{"status":"sold"}'`}</Code>
+          </Endpoint>
+
+          <Endpoint method="DELETE" path="/v1/listings/{id}" desc="Remove a listing.">
+            <Code>{`curl -X DELETE ${BASE}/listings/LISTING_ID \\
+  -H "Authorization: Bearer eno_live_…"`}</Code>
+          </Endpoint>
+
+          <Endpoint method="POST" path="/v1/media" desc="Upload an image (multipart `file`, or a raw JPEG/PNG/WebP body). Returns a first-party URL to use in images[]. Scope: media:write.">
+            <Code>{`curl -X POST ${BASE}/media \\
+  -H "Authorization: Bearer eno_live_…" \\
+  -F file=@photo.jpg`}</Code>
+            <Code>{`{ "url": "https://…supabase.co/…/api/….webp" }`}</Code>
+          </Endpoint>
+
+          <Endpoint method="PATCH" path="/v1/shop" desc="Edit your storefront profile (name, bio, location, avatarUrl, phone).">
+            <Code>{`curl -X PATCH ${BASE}/shop \\
+  -H "Authorization: Bearer eno_live_…" -H "Content-Type: application/json" \\
+  -d '{"bio":"Authorized reseller in District 1"}'`}</Code>
           </Endpoint>
         </div>
 

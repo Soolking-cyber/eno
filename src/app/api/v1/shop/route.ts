@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
+import { updateSellerCore } from '@/lib/core/seller'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
 
@@ -37,4 +38,17 @@ export async function GET(req: NextRequest) {
       active_listings: s._count.listings,
     },
   }, r.rate)
+}
+
+// PATCH /api/v1/shop — edit the storefront profile (name, bio, location, avatarUrl, phone).
+// Sparse; only present fields change. Scope: listings:write.
+export async function PATCH(req: NextRequest) {
+  const r = await resolveApiKey(req, 'listings:write')
+  if (!r.ok) return apiAuthError(r)
+
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return apiError(400, 'bad_request', 'Invalid JSON body.', r.rate) }
+  const res = await updateSellerCore(r.auth.sellerId, r.auth.profileId, body)
+  if (!res.ok) return apiError(res.code, res.error, res.error, r.rate)
+  return apiOk({ ok: true }, r.rate)
 }

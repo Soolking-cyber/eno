@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 // Partner API key management — SESSION-authed (cookie), business-tier only. Powers the
 // dashboard "Developers" UI. (The keys themselves authenticate /api/v1; these routes are
 // the mint/list surface, behind the normal edge pin + cookie auth.)
-const VALID_SCOPES = new Set(['listings:read', 'analytics:read']) // Phase 1 is read-only
+const VALID_SCOPES = new Set(['listings:read', 'analytics:read', 'listings:write', 'media:write'])
 const MAX_KEYS_PER_SHOP = 10
 
 async function callerShop(): Promise<{ profileId: string; sellerId: string } | null> {
