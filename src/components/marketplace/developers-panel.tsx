@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { KeyRound, Plus, Copy, Check, Trash2, Loader2, ShieldAlert } from 'lucide-react'
+import Link from 'next/link'
+import { KeyRound, Plus, Copy, Check, Trash2, Loader2, ShieldAlert, BookOpen } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -76,6 +77,9 @@ export function DevelopersPanel() {
           {tr('against the base URL', 'với base URL')}{' '}
           <code className="rounded bg-muted px-1 py-0.5 text-[12px] font-semibold text-foreground">https://eno.vn/api/v1</code>.
         </p>
+        <Link href="/developers" className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-accent-foreground hover:underline">
+          <BookOpen className="h-4 w-4" /> {tr('Read the API docs', 'Xem tài liệu API')} →
+        </Link>
       </div>
 
       {/* Freshly-minted secret — shown ONCE. */}

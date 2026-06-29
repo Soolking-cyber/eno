@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import ReactDOM from 'react-dom'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { getCategoriesByDemand } from '@/lib/categories'
@@ -48,13 +47,13 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
 export default async function Home() {
   const { categories, listings, total } = await getData()
 
-  // Preload the hero wordmark — the landing LCP element — at high priority, but
-  // ONLY here (it's unused on other routes, where a global preload warned). Next
-  // emits this as a <link rel="preload"> in <head>.
-  ReactDOM.preload('/logo.svg', { as: 'image', fetchPriority: 'high' })
-
   return (
     <div className="flex min-h-screen flex-col blob-bg">
+      {/* Preload the hero wordmark (landing LCP) — ONLY here. Rendered as a <link> (NOT
+          ReactDOM.preload) so React removes the hint on client-nav away, instead of
+          leaking it into routes that don't use /logo.svg (which spammed "preloaded but
+          not used" on the dashboard etc.). */}
+      <link rel="preload" href="/logo.svg" as="image" fetchPriority="high" />
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         <ListingsExplorer
