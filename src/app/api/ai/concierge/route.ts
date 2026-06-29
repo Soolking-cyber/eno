@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { fold } from '@/lib/fold'
 import { serializeListing } from '@/lib/serialize'
-import { clientIp } from '@/lib/client-ip'
+import { aiGuard } from '@/lib/ai-guard'
 import { rateLimit } from '@/lib/ratelimit'
 import { conciergeSearch, vertexConfigured } from '@/lib/vertex-search'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
@@ -143,10 +143,11 @@ async function fallbackSearch(query: string, take: number, f: { minPriceVnd: num
 }
 
 export async function POST(req: NextRequest) {
-  const ip = clientIp(req)
-  // Strict: a missing/flaky Redis must NOT silently un-limit this public, paid route.
-  const rl = await rateLimit('ai-concierge', ip, 40, '1 h', { strict: true })
-  if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+  // Login required + strict 10/h per account (shared AI gate) so the concierge — which
+  // draws the paid Vertex/Gemini credit — can't be drained by anonymous bots. The
+  // global daily Vertex/Gemini budget breakers below are the second line of defence.
+  const gate = await aiGuard('concierge')
+  if (!gate.ok) return gate.res
 
   let body: { messages?: Msg[]; lang?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }

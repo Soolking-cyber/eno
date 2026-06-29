@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Send, Sparkles, Loader2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { ListingCard } from '@/components/marketplace/listing-card'
 import { haptic } from '@/lib/haptics'
 import type { SerializedListing } from '@/lib/types'
@@ -22,6 +23,7 @@ const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { h
 export default function AiThreadPage() {
   const router = useRouter()
   const { tr, lang } = useLanguage()
+  const { user, openSignIn } = useAuth()
   const [messages, setMessages] = useState<Msg[]>([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -42,7 +44,6 @@ export default function AiThreadPage() {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null')
       setMessages(Array.isArray(saved) && saved.length ? saved : [greeting])
     } catch { setMessages([greeting]) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Persist (cap to the last 30 turns so storage stays small).
@@ -55,6 +56,9 @@ export default function AiThreadPage() {
   async function send(override?: string) {
     const body = (override ?? text).trim()
     if (!body || loading) return
+    // AI is members-only (it draws the paid Vertex/Gemini credit). Prompt sign-in
+    // instead of firing a request that the server would 401 anyway.
+    if (!user) { openSignIn(); return }
     haptic()
     const next: Msg[] = [...messages, { role: 'user', content: body, createdAt: new Date().toISOString() }]
     setMessages(next)
@@ -66,11 +70,14 @@ export default function AiThreadPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lang, messages: next.map((m) => ({ role: m.role, content: m.content })) }),
       })
+      if (res.status === 401) { openSignIn(); setLoading(false); return }
       const d = await res.json().catch(() => null)
       setMessages((m) => [...m, {
         role: 'assistant',
         createdAt: new Date().toISOString(),
-        content: (d && d.reply) || tr('Something went wrong — please try again.', 'Đã có lỗi — vui lòng thử lại.'),
+        content: res.status === 429
+          ? tr("You've reached the hourly AI limit (10/hour). Please try again later.", 'Bạn đã đạt giới hạn AI mỗi giờ (10 lần/giờ). Vui lòng thử lại sau.')
+          : (d && d.reply) || tr('Something went wrong — please try again.', 'Đã có lỗi — vui lòng thử lại.'),
         listings: (d && d.listings) || [],
       }])
     } catch {
@@ -119,26 +126,42 @@ export default function AiThreadPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Composer — message field + send (no offer mode; the AI doesn't haggle). */}
-      <div className="flex items-end gap-2 bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-          rows={1}
-          placeholder={tr('Ask for anything…', 'Hỏi bất cứ điều gì…')}
-          className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-        />
-        <button
-          onClick={() => send()}
-          disabled={!text.trim() || loading}
-          aria-label={tr('Send', 'Gửi')}
-          title={tr('Send', 'Gửi')}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
-        >
-          <Send className="h-4 w-4" />
-        </button>
-      </div>
+      {/* Composer — message field + send (no offer mode; the AI doesn't haggle).
+          Members-only: logged-out users get a sign-in CTA instead (the API is
+          login-gated + 10/h per account to protect the paid AI credit). */}
+      {user ? (
+        <div className="flex items-end gap-2 bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+            rows={1}
+            placeholder={tr('Ask for anything…', 'Hỏi bất cứ điều gì…')}
+            className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          />
+          <button
+            onClick={() => send()}
+            disabled={!text.trim() || loading}
+            aria-label={tr('Send', 'Gửi')}
+            title={tr('Send', 'Gửi')}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <div className="bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          <button
+            onClick={openSignIn}
+            className="w-full rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-white transition-transform active:scale-[0.98] tap-44"
+          >
+            {tr('Sign in to use eno AI', 'Đăng nhập để dùng eno AI')}
+          </button>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            {tr('AI shopping is free for members.', 'Mua sắm bằng AI miễn phí cho thành viên.')}
+          </p>
+        </div>
+      )}
     </div>
   )
 }

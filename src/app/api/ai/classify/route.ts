@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
-import { getCurrentProfileId } from '@/lib/admin'
-import { rateLimit } from '@/lib/ratelimit'
+import { aiGuard } from '@/lib/ai-guard'
 import { TAXONOMY } from '@/lib/taxonomy'
 import { containsPhoneNumber } from '@/lib/phone'
 import { categoryHasBrand } from '@/lib/brand'
@@ -25,10 +24,8 @@ export async function POST(req: NextRequest) {
   const ai = getGemini()
   if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })
 
-  const profileId = await getCurrentProfileId()
-  if (!profileId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  const limit = await rateLimit('ai-classify', profileId, 40, '1 h', { strict: true })
-  if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+  const gate = await aiGuard('classify', 40) // post-wizard authoring — sellers classify many photos
+  if (!gate.ok) return gate.res
 
   const form = await req.formData()
   const file = form.get('file')

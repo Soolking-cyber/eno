@@ -11,6 +11,9 @@ export async function runVisualSearch(file: File): Promise<VisualSearchResult | 
   const fd = new FormData()
   fd.append('file', file)
   const res = await fetch('/api/ai/visual-search', { method: 'POST', body: fd })
+  // Visual search is members-only (paid Gemini Vision). On 401, ask the AuthProvider
+  // to open the sign-in modal instead of failing silently on the camera tap.
+  if (res.status === 401) { window.dispatchEvent(new CustomEvent('eno:require-signin')); return null }
   if (!res.ok) return null
   const d = (await res.json()) as VisualSearchResult
   return d

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
-import { getCurrentProfileId } from '@/lib/admin'
-import { rateLimit } from '@/lib/ratelimit'
+import { aiGuard } from '@/lib/ai-guard'
 import { containsPhoneNumber } from '@/lib/phone'
 
 export const runtime = 'nodejs'
@@ -16,10 +15,8 @@ export async function POST(req: NextRequest) {
   const ai = getGemini()
   if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })
 
-  const profileId = await getCurrentProfileId()
-  if (!profileId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  const limit = await rateLimit('ai-rephrase', profileId, 60, '1 h', { strict: true })
-  if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+  const gate = await aiGuard('rephrase', 60) // post-wizard authoring — sellers polish many descriptions
+  if (!gate.ok) return gate.res
 
   let body: { text?: string; lang?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }

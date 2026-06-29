@@ -101,6 +101,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; cleanupTriggers(); unsub?.() }
   }, [])
 
+  // Any feature can request the sign-in modal by dispatching `eno:require-signin`
+  // (e.g. a guest hitting a login-only AI endpoint) — keeps gating DRY without
+  // threading openSignIn through every caller.
+  useEffect(() => {
+    const onReq = () => setSignInOpen(true)
+    window.addEventListener('eno:require-signin', onReq)
+    return () => window.removeEventListener('eno:require-signin', onReq)
+  }, [])
+
   // Load the app identity (account type) whenever the auth user changes, so the
   // onboarding gate below knows whether the one-time business/individual choice is
   // still pending. Separate from the Supabase boot so it also covers phone OTP,

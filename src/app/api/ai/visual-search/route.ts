@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { clientIp } from '@/lib/client-ip'
+import { aiGuard } from '@/lib/ai-guard'
 import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
-import { getCurrentProfileId } from '@/lib/admin'
-import { rateLimit } from '@/lib/ratelimit'
 import { TAXONOMY } from '@/lib/taxonomy'
 
 export const runtime = 'nodejs'
@@ -18,17 +16,15 @@ const TAXONOMY_TEXT = TAXONOMY.map((c) => `${c.slug} (${c.name})`).join(', ')
 // (+ best-guess category/brand) by reading the main subject with Gemini Vision,
 // then the caller runs the normal keyword search. Reuses the existing Vertex/Gemini
 // setup (no embedding store to build/host) — the cheapest accurate path at scale:
-// one downscaled 512px Flash call per search, rate-limited by account or IP.
+// one downscaled 512px Flash call per search, login-only + 10/h per account.
 export async function POST(req: NextRequest) {
   const ai = getGemini()
   if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })
 
-  // Search is open to everyone, so allow anonymous — but bound cost/abuse by
-  // rate-limiting on the profile when signed in, else the client IP.
-  const profileId = await getCurrentProfileId()
-  const ip = clientIp(req)
-  const limit = await rateLimit('ai-visual-search', profileId || ip, 30, '1 h', { strict: true })
-  if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+  // Login required + strict 10/h per account — Gemini Vision is a paid call, so it
+  // can't be left open to anonymous abuse (was profile-or-IP keyed).
+  const gate = await aiGuard('visual-search')
+  if (!gate.ok) return gate.res
 
   const form = await req.formData()
   const file = form.get('file')
