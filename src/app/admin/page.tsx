@@ -2,7 +2,8 @@ import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { AdminNav } from '@/components/admin/admin-nav'
-import { ModerationClient, type ModItem, type AccountReport } from '@/components/admin/moderation-client'
+import { ModerationClient, type ModItem, type AccountReport, type ModReport } from '@/components/admin/moderation-client'
+import { reportContext } from '@/lib/admin-reports'
 import { ShieldAlert } from 'lucide-react'
 import type { Metadata } from 'next'
 
@@ -22,10 +23,23 @@ function firstImage(images: string): string | null {
   }
 }
 
+// One open report as the DB returns it (the fields we surface in the queue).
+type DbReport = {
+  id: string
+  reason: string
+  detail: string | null
+  severity: string | null
+  createdAt: Date
+  reporterProfileId: string | null
+  listingId: string | null
+  conversationId: string | null
+  targetSellerId: string | null
+  targetProfileId: string | null
+}
+
 type Row = {
   id: string
   title: string
-  titleVi: string | null
   price: number
   currency: string
   priceUnit: string
@@ -33,30 +47,8 @@ type Row = {
   images: string
   createdAt: Date
   category: { name: string }
-  seller: { name: string; phone: string | null }
-  reports: { id: string; reason: string; detail: string | null; createdAt: Date }[]
-}
-
-function toItem(r: Row): ModItem {
-  return {
-    id: r.id,
-    title: r.title,
-    price: r.price,
-    currency: r.currency,
-    priceUnit: r.priceUnit,
-    location: r.location,
-    category: r.category.name,
-    sellerName: r.seller.name,
-    sellerPhone: r.seller.phone,
-    image: firstImage(r.images),
-    createdAt: r.createdAt.toISOString(),
-    reports: r.reports.map((rep) => ({
-      id: rep.id,
-      reason: rep.reason,
-      detail: rep.detail,
-      createdAt: rep.createdAt.toISOString(),
-    })),
-  }
+  seller: { name: string; phone: string | null; ownerId: string | null }
+  reports: DbReport[]
 }
 
 export default async function AdminPage() {
@@ -84,24 +76,24 @@ export default async function AdminPage() {
 
   const include = {
     category: { select: { name: true } },
-    seller: { select: { name: true, phone: true } },
+    seller: { select: { name: true, phone: true, ownerId: true } },
+    reports: { where: { status: 'open' as const }, orderBy: { createdAt: 'desc' as const } },
   }
 
   const [pendingRows, reportedRows, accountReportRows] = await Promise.all([
     db.listing.findMany({
       where: { verified: false },
-      include: { ...include, reports: { where: { status: 'open' }, orderBy: { createdAt: 'desc' } } },
+      include,
       orderBy: { createdAt: 'desc' },
       take: 200,
     }),
     db.listing.findMany({
       where: { verified: true, reports: { some: { status: 'open' } } },
-      include: { ...include, reports: { where: { status: 'open' }, orderBy: { createdAt: 'desc' } } },
+      include,
       orderBy: { createdAt: 'desc' },
       take: 200,
     }),
-    // Storefront/account reports have no listing — fetch them directly so they're
-    // actionable (scalar target columns have no Prisma relation, so resolve names below).
+    // Storefront/account + chat reports have no listing — fetch them directly.
     db.report.findMany({
       where: { status: 'open', listingId: null },
       orderBy: { createdAt: 'desc' },
@@ -109,20 +101,53 @@ export default async function AdminPage() {
     }),
   ])
 
-  const pending = pendingRows.map((r) => toItem(r as unknown as Row))
-  const reported = reportedRows.map((r) => toItem(r as unknown as Row))
+  // Resolve the reporter identity + the conversation to link for EVERY open report, in
+  // one batched pass (the report relation has no Prisma relation to Profile/Conversation).
+  const allReports: DbReport[] = [
+    ...pendingRows.flatMap((l) => l.reports as unknown as DbReport[]),
+    ...reportedRows.flatMap((l) => l.reports as unknown as DbReport[]),
+    ...(accountReportRows as unknown as DbReport[]),
+  ]
+  const { reporterById, convoByReportId } = await reportContext(allReports)
 
-  const sellerIds = [...new Set(accountReportRows.map((r) => r.targetSellerId).filter((x): x is string => !!x))]
+  const mapReport = (r: DbReport): ModReport => ({
+    id: r.id,
+    reason: r.reason,
+    detail: r.detail,
+    severity: r.severity,
+    createdAt: r.createdAt.toISOString(),
+    reporter: r.reporterProfileId ? reporterById.get(r.reporterProfileId) ?? null : null,
+    conversationId: convoByReportId.get(r.id) ?? null,
+  })
+
+  const toItem = (r: Row): ModItem => ({
+    id: r.id,
+    title: r.title,
+    price: r.price,
+    currency: r.currency,
+    priceUnit: r.priceUnit,
+    location: r.location,
+    category: r.category.name,
+    sellerName: r.seller.name,
+    sellerPhone: r.seller.phone,
+    sellerProfileId: r.seller.ownerId,
+    image: firstImage(r.images),
+    createdAt: r.createdAt.toISOString(),
+    reports: r.reports.map(mapReport),
+  })
+
+  const pending = (pendingRows as unknown as Row[]).map(toItem)
+  const reported = (reportedRows as unknown as Row[]).map(toItem)
+
+  const sellerIds = [...new Set((accountReportRows as unknown as DbReport[]).map((r) => r.targetSellerId).filter((x): x is string => !!x))]
   const sellers = sellerIds.length
     ? await db.seller.findMany({ where: { id: { in: sellerIds } }, select: { id: true, name: true } })
     : []
   const nameById = new Map(sellers.map((s) => [s.id, s.name]))
-  const accountReports: AccountReport[] = accountReportRows.map((r) => ({
-    id: r.id,
-    reason: r.reason,
-    detail: r.detail,
-    createdAt: r.createdAt.toISOString(),
+  const accountReports: AccountReport[] = (accountReportRows as unknown as DbReport[]).map((r) => ({
+    ...mapReport(r),
     targetSellerId: r.targetSellerId,
+    targetProfileId: r.targetProfileId,
     targetName: r.targetSellerId ? nameById.get(r.targetSellerId) ?? null : null,
   }))
 

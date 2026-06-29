@@ -438,6 +438,7 @@ model Report {
   reporterProfileId String? @db.Uuid          // who filed it — for trust-weighting + anti-abuse
   targetProfileId   String? @db.Uuid          // reported account (business/user), if any
   targetSellerId    String?                    // reported storefront, if any
+  conversationId    String?                    // set when reported FROM a chat — links the thread for admin context
   reason    String   // scam | counterfeit | wrong-info | duplicate | offensive | sold | other
   detail    String?
   severity  String?                            // minor | moderate | severe — set/confirmed by admin
@@ -451,6 +452,7 @@ model Report {
   @@index([reporterProfileId])
   @@index([targetProfileId])
   @@index([targetSellerId])
+  @@index([conversationId])
 }
 
 // User feedback + technical-problem reports from the Help sheet / Help Center.

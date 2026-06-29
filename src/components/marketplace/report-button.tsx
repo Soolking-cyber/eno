@@ -8,7 +8,7 @@ import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-type Props = { listingId?: string; sellerId?: string; className?: string }
+type Props = { listingId?: string; sellerId?: string; conversationId?: string; className?: string }
 
 const REASONS: { value: string; vi: string; en: string }[] = [
   { value: 'scam', vi: 'Lừa đảo', en: 'Scam' },
@@ -16,11 +16,13 @@ const REASONS: { value: string; vi: string; en: string }[] = [
   { value: 'sold', vi: 'Đã bán / hết hàng', en: 'Already sold / unavailable' },
   { value: 'wrong-info', vi: 'Thông tin sai (giá, ảnh…)', en: 'Wrong info (price, photos…)' },
   { value: 'duplicate', vi: 'Tin trùng lặp', en: 'Duplicate listing' },
-  { value: 'offensive', vi: 'Nội dung phản cảm', en: 'Offensive content' },
+  { value: 'offensive', vi: 'Nội dung phản cảm / quấy rối', en: 'Offensive / harassment' },
   { value: 'other', vi: 'Khác', en: 'Other' },
 ]
+// A chat report is about the person/exchange, not a listing — only these reasons apply.
+const CHAT_REASON_VALUES = new Set(['scam', 'offensive', 'other'])
 
-export function ReportButton({ listingId, sellerId, className }: Props) {
+export function ReportButton({ listingId, sellerId, conversationId, className }: Props) {
   const { tr } = useLanguage()
   const t = (vi: string, en: string) => tr(en, vi)
   const { openSignIn } = useAuth()
@@ -39,12 +41,24 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
       const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listingId, sellerId, reason, detail: detail.trim() || undefined }),
+        body: JSON.stringify({ listingId, sellerId, conversationId, reason, detail: detail.trim() || undefined }),
       })
       // Reporting requires an account — bounce anonymous users to sign-in.
       if (res.status === 401) { setOpen(false); openSignIn(); return }
       if (res.status === 429) { setError(t('Bạn đã báo cáo quá nhiều. Thử lại sau.', 'Too many reports — please try again later.')); return }
-      if (!res.ok) throw new Error('failed')
+      if (!res.ok) {
+        // Surface WHY instead of a generic failure — a self-report or non-participant
+        // report otherwise just looks broken.
+        const code = (await res.json().catch(() => null))?.error as string | undefined
+        setError(
+          code === 'cannot_report_self'
+            ? t('Bạn không thể báo cáo nội dung của chính mình.', "You can't report your own listing or account.")
+            : code === 'not_participant'
+              ? t('Bạn chỉ có thể báo cáo cuộc trò chuyện của mình.', 'You can only report a conversation you are part of.')
+              : t('Không gửi được. Thử lại.', 'Could not send. Try again.'),
+        )
+        return
+      }
       setDone(true)
     } catch {
       setError(t('Không gửi được. Thử lại.', 'Could not send. Try again.'))
@@ -54,6 +68,14 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
   }
 
   const reset = () => { setReason(''); setDetail(''); setDone(false); setError('') }
+
+  const isChat = !!conversationId
+  const title = isChat
+    ? t('Báo cáo cuộc trò chuyện', 'Report this conversation')
+    : sellerId && !listingId
+      ? t('Báo cáo người bán', 'Report this seller')
+      : t('Báo cáo tin đăng', 'Report this listing')
+  const reasons = isChat ? REASONS.filter((r) => CHAT_REASON_VALUES.has(r.value)) : REASONS
 
   return (
     <>
@@ -69,7 +91,7 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
         <DialogContent className="bg-card rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
           <DialogHeader>
             <DialogTitle className="text-center text-lg font-bold text-foreground">
-              {t('Báo cáo tin đăng', 'Report this listing')}
+              {title}
             </DialogTitle>
           </DialogHeader>
 
@@ -77,7 +99,7 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
             <div className="mt-4 text-center">
               <CheckCircle2 className="mx-auto h-10 w-10 text-accent-foreground" />
               <p className="mt-3 text-sm font-semibold text-foreground">{t('Cảm ơn bạn', 'Thanks for the heads-up')}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{t('Đội ngũ eno.vn sẽ xem xét tin này.', 'The eno.vn team will review this listing.')}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t('Đội ngũ eno.vn sẽ xem xét báo cáo này.', 'The eno.vn team will review this report.')}</p>
               <Button variant="cta" size="none" onClick={() => { setOpen(false); reset() }} className="mt-4 rounded-xl px-6 py-2 text-sm transition-colors cursor-pointer">
                 {t('Đóng', 'Close')}
               </Button>
@@ -85,7 +107,7 @@ export function ReportButton({ listingId, sellerId, className }: Props) {
           ) : (
             <div className="mt-4 space-y-3">
               <div className="space-y-1.5">
-                {REASONS.map((r) => (
+                {reasons.map((r) => (
                   <button
                     key={r.value}
                     onClick={() => setReason(r.value)}

@@ -16,6 +16,7 @@ import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
 import { Button } from '@/components/ui/button'
+import { ReportButton } from '@/components/marketplace/report-button'
 
 type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Thread = {
@@ -310,6 +311,9 @@ export default function ThreadPage() {
               )}
               {thread && <Link href={`/listings/${thread.listing.id}`} className="truncate text-xs text-accent-foreground hover:underline">{thread.listing.title}</Link>}
             </div>
+            {/* Report this conversation (harassment / scam in chat) — the report links
+                the thread so an admin can read the exchange. */}
+            {thread && <ReportButton conversationId={thread.id} className="shrink-0" />}
           </div>
 
           {/* Contact is requested IN-CHAT, and only once the seller has replied —

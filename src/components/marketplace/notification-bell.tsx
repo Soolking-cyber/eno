@@ -117,7 +117,7 @@ export function NotificationBell() {
                           </span>
                           <span className="shrink-0 text-[10px] text-ink-4">{timeAgo(n.createdAt, lang === 'vi' ? 'vi' : 'en')}</span>
                         </div>
-                        {n.body && <p className={cn('truncate text-xs', n.read ? 'text-muted-foreground' : 'text-body')}>{n.body}</p>}
+                        {n.body && <p className={cn('text-xs', n.type === 'system' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}>{n.body}</p>}
                       </div>
                     </Link>
                     {/* Delete — reveals on hover (desktop); always visible on touch */}
