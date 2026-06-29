@@ -21,7 +21,11 @@ export function telHref(phone: string): string {
   return `tel:${intl}`
 }
 
-/** A working Zalo deep link to the seller's number. */
+/** A working Zalo deep link to the seller's number. Zalo resolves VN numbers in LOCAL
+ *  format (leading 0), NOT the 84-prefixed international form — so `+84901234567` must
+ *  become `zalo.me/0901234567`, otherwise the link opens to "user not found". */
 export function zaloHref(phone: string): string {
-  return `https://zalo.me/${digits(phone)}`
+  const d = digits(phone)
+  const local = d.startsWith('84') ? `0${d.slice(2)}` : d
+  return `https://zalo.me/${local}`
 }

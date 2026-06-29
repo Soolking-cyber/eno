@@ -278,7 +278,44 @@ export function AreaFilter({
             so no heading. Hidden when the parent provides its own geolocate button. */}
         {!hideLocate && (
         <div className="pt-1">
-          {loc ? (
+          {mode === 'search' ? (
+            // SEARCH: the radius is ALWAYS visible + adjustable; "use my location" is a
+            // compact icon to its right — set the range any time, geolocate on demand
+            // (no need to commit to the geolocation prompt before seeing the radius).
+            <div className="mt-2 space-y-2">
+              <div className="flex items-end gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{tr('Search range', 'Bán kính tìm')}</span>
+                    <span className="font-bold text-foreground">{radiusKm} km</span>
+                  </div>
+                  <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
+                  <div className="flex justify-between text-[10px] text-ink-4"><span>1 km</span><span>20 km</span></div>
+                </div>
+                <button
+                  onClick={locate}
+                  disabled={locating}
+                  aria-label={tr('Use my current location', 'Dùng vị trí hiện tại')}
+                  title={tr('Use my current location', 'Dùng vị trí hiện tại')}
+                  className={cn(
+                    'mb-3.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors active:scale-95 disabled:opacity-60',
+                    loc ? 'border-brand bg-tint text-accent-foreground' : 'border-line-strong text-accent-foreground hover:bg-muted',
+                  )}
+                >
+                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                </button>
+              </div>
+              {loc && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-xs text-body">
+                    {resolving ? tr('Finding your address…', 'Đang tìm địa chỉ…') : address || tr('Using your location', 'Dùng vị trí của bạn')}
+                  </span>
+                  <button onClick={() => { setLoc(null); setAddress(null) }} className="shrink-0 text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</button>
+                </div>
+              )}
+            </div>
+          ) : loc ? (
+            // PICK (post wizard): located → show the resolved address + remove, no radius.
             <div className="mt-3 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-accent-foreground"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
@@ -289,17 +326,6 @@ export function AreaFilter({
               ) : address ? (
                 <p className="text-xs leading-relaxed text-body">{address}</p>
               ) : null}
-              {/* Radius slider is search-only — irrelevant when picking a post's location. */}
-              {mode === 'search' && (
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{tr('Search range', 'Bán kính tìm')}</span>
-                    <span className="font-bold text-foreground">{radiusKm} km</span>
-                  </div>
-                  <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
-                  <div className="flex justify-between text-[10px] text-ink-4"><span>1 km</span><span>20 km</span></div>
-                </div>
-              )}
             </div>
           ) : (
             <button
