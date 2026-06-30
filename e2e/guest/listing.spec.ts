@@ -24,16 +24,20 @@ test.describe('Guest · listing detail (BMW XM SUV)', () => {
     expect(naturalWidth, 'main listing image should have decoded (naturalWidth > 0)').toBeGreaterThan(0)
   })
 
-  test('opens the full photo gallery', async ({ page }) => {
+  test('opens the photo lightbox and locks background scroll', async ({ page }) => {
     // The main gallery is opened via "View all photos · N" (the inline "Next photo" arrows
-    // belong to the below-fold related-listing cards). Clicking it opens a lightbox dialog.
+    // belong to the below-fold related-listing cards). It opens a modal lightbox that must
+    // FREEZE the page behind it so swipes don't scroll the background.
     await expect(page.getByRole('heading', { level: 1, name: /BMW XM SUV/i })).toBeVisible()
-    const viewAll = page.getByRole('button', { name: /View all photos/i })
-    await expect(viewAll).toBeVisible()
-    await viewAll.click()
-    // The gallery opens as a fullscreen lightbox with a Close control. (It isn't marked
-    // role="dialog" — a minor a11y gap noted separately — so assert the Close affordance.)
-    await expect(page.getByRole('button', { name: /^close$|đóng/i })).toBeVisible()
+    await page.getByRole('button', { name: /View all photos/i }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    // Background is scroll-locked while open…
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('hidden')
+    // …and restored on close.
+    await page.getByRole('button', { name: /^close$/i }).click()
+    await expect(dialog).toBeHidden()
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).not.toBe('hidden')
   })
 
   test('contact is gated for guests', async ({ page }) => {

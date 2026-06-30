@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,29 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
   const last = images.length - 1
   const goTo = (n: number) => setIdx(Math.max(0, Math.min(last, n)))
   const openAt = (n: number) => { setIdx(n); setOpen(true) }
+
+  // While the lightbox is open, freeze the page behind it: lock body scroll + kill overscroll
+  // so swipes (up/down/left/right) on the photo never move the background. Restore on close.
+  // Escape closes; ←/→ navigate (the touch handlers below cover swipe nav on mobile).
+  useEffect(() => {
+    if (!open) return
+    const body = document.body
+    const prevOverflow = body.style.overflow
+    const prevOverscroll = body.style.overscrollBehavior
+    body.style.overflow = 'hidden'
+    body.style.overscrollBehavior = 'none'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+      else if (e.key === 'ArrowLeft') setIdx((n) => Math.max(0, n - 1))
+      else if (e.key === 'ArrowRight') setIdx((n) => Math.min(last, n + 1))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      body.style.overflow = prevOverflow
+      body.style.overscrollBehavior = prevOverscroll
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open, last])
 
   if (images.length === 0) {
     return <div className="h-[300px] w-full rounded-2xl bg-tint" />
@@ -65,7 +88,10 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
       {/* Lightbox */}
       {open && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/92 animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          className="fixed inset-0 z-[100] flex touch-none items-center justify-center overscroll-none bg-black/92 animate-in fade-in duration-150"
           onClick={() => setOpen(false)}
         >
           <button
@@ -78,7 +104,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
 
           <div
             data-protected
-            className="relative h-[78vh] w-[92vw] max-w-5xl"
+            className="relative h-[78vh] w-[92vw] max-w-5xl touch-none"
             onClick={(e) => e.stopPropagation()}
             onTouchStart={(e) => { startX.current = e.touches[0].clientX }}
             onTouchEnd={(e) => {
