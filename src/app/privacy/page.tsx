@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
+import { Tr } from '@/context/language-context'
 
 export const metadata: Metadata = { title: 'Privacy Policy | eno.vn' }
 
@@ -70,16 +71,17 @@ export default function PrivacyPage() {
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
-        <p className="eyebrow text-accent-foreground mb-2">Legal</p>
-        <h1 className="h-display text-foreground">Privacy Policy</h1>
-        <p className="mt-3 text-sm text-ink-4">Last updated: June 2026</p>
+        <p className="eyebrow text-accent-foreground mb-2"><Tr text="Legal" /></p>
+        <h1 className="h-display text-foreground"><Tr text="Privacy Policy" /></h1>
+        <p className="mt-3 text-sm text-ink-4"><Tr text="Last updated: June 2026" /></p>
+        <p className="mt-2 text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of this policy is the authoritative one." /></p>
         <div className="mt-8 space-y-8">
           {sections.map(([title, paras], i) => (
             <section key={i}>
-              <h2 className="h-section text-foreground mb-2">{title}</h2>
+              <h2 className="h-section text-foreground mb-2"><Tr text={title} /></h2>
               <div className="space-y-2">
                 {paras.map((p, j) => (
-                  <p key={j} className="text-[15px] leading-relaxed text-body">{p}</p>
+                  <p key={j} className="text-[15px] leading-relaxed text-body"><Tr text={p} /></p>
                 ))}
               </div>
             </section>

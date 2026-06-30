@@ -15,7 +15,7 @@ function Band({ score, name, range, note }: { score: number; name: string; range
     <div className="flex items-start gap-3">
       <TrustScore score={score} size="lg" />
       <div className="min-w-0">
-        <div className="text-sm font-bold text-foreground"><Tr text={name} /> <span className="font-normal text-ink-4">· {range}</span></div>
+        <div className="text-sm font-bold text-foreground"><Tr text={name} /> <span className="font-normal text-ink-4">· <Tr text={range} /></span></div>
         <p className="text-sm text-body"><Tr text={note} /></p>
       </div>
     </div>
