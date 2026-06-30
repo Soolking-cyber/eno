@@ -63,14 +63,19 @@ const REASON_LABEL: Record<string, string> = {
   other: 'Other',
 }
 
-async function moderate(action: string, id: string) {
+async function moderate(action: string, id: string, severity?: string) {
   const res = await fetch('/api/admin/moderate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, id }),
+    body: JSON.stringify({ action, id, ...(severity ? { severity } : {}) }),
   })
   if (!res.ok) throw new Error(`${action} failed`)
 }
+
+// Trust cost of a confirm at each severity — mirrors SEVERITY_PENALTY in src/lib/trust.ts.
+// Shown on the button so the admin sees the consequence before clicking.
+const PENALTY: Record<string, number> = { minor: -3, moderate: -10, severe: -25 }
+const SEVERITIES = ['minor', 'moderate', 'severe'] as const
 
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
@@ -131,25 +136,28 @@ function AdminMessageButton({ target, listingId, conversationId }: { target: Msg
 
 // One report, fully detailed: reason + severity + detail, WHO filed it (+ trust/strikes,
 // linked to their storefront), a link to the conversation, and the resolve actions.
-function ReportCard({ r, onAction, busy, messageTargets = [], listingId }: { r: ModReport; onAction: (action: string, id: string) => void; busy: boolean; messageTargets?: MsgTarget[]; listingId?: string | null }) {
+function ReportCard({ r, onAction, busy, messageTargets = [], listingId, guestNote }: { r: ModReport; onAction: (action: string, id: string, severity?: string) => void; busy: boolean; messageTargets?: MsgTarget[]; listingId?: string | null; guestNote?: string }) {
+  // The penalty is now a CONTROL (defaults to the report's auto severity) — the admin picks
+  // how hard the confirm docks trust, which the moderate endpoint already supports.
+  const [severity, setSeverity] = useState<string>(r.severity && PENALTY[r.severity] ? r.severity : 'moderate')
   // De-dupe in case the reporter and the reported party resolve to the same account.
   const targets = messageTargets.filter((t, i, a) => t.recipientId && a.findIndex((x) => x.recipientId === t.recipientId) === i)
+  // Calm surface with a severity-colored priority rail — not an all-red box.
+  const rail = severity === 'severe' ? 'border-l-red-500' : severity === 'minor' ? 'border-l-slate-300' : 'border-l-amber-400'
+
   return (
-    <div className="space-y-1.5 rounded-lg bg-red-50 p-2">
+    <div className={cn('space-y-2 rounded-xl border border-border border-l-[3px] bg-card p-3', rail)}>
+      {/* Reason + detail */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-1.5 text-[11px] text-red-800">
-          <Flag className="mt-0.5 h-3 w-3 shrink-0" />
-          <span>
-            <strong>{REASON_LABEL[r.reason] || r.reason}</strong>
-            {r.severity ? <span className="ml-1 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold uppercase">{r.severity}</span> : null}
-            {r.detail ? <span className="text-red-900"> — {r.detail}</span> : null}
-          </span>
+        <div className="flex items-start gap-1.5 text-xs">
+          <Flag className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="text-foreground"><strong>{REASON_LABEL[r.reason] || r.reason}</strong>{r.detail ? <span className="text-muted-foreground"> — {r.detail}</span> : null}</span>
         </div>
         <span className="shrink-0 text-[10px] text-ink-4">{shortDate(r.createdAt)}</span>
       </div>
 
       {/* Reporter + conversation context */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-4 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         {r.reporter ? (
           <span>
             By{' '}
@@ -171,22 +179,30 @@ function ReportCard({ r, onAction, busy, messageTargets = [], listingId }: { r: 
         )}
       </div>
 
-      {/* Resolving a report is what moves trust: confirm docks the target's score;
-          abusive penalizes the reporter (anti-fake). */}
-      <div className="flex flex-wrap gap-1.5 pl-4">
-        <button onClick={() => onAction('confirm-report', r.id)} disabled={busy} className="rounded-md bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm (−trust)</button>
-        <button onClick={() => onAction('dismiss-report', r.id)} disabled={busy} className="rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss</button>
-        <button onClick={() => onAction('abusive-report', r.id)} disabled={busy} className="rounded-md border border-warning/40 bg-card px-2 py-0.5 text-[10px] font-bold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer">Abusive (penalize reporter)</button>
+      {/* Decision: pick the penalty, then ONE primary action. Dismiss/Abusive are quiet. */}
+      <div className="space-y-1.5 border-t border-border pt-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-ink-4">Penalty</span>
+          {SEVERITIES.map((s) => (
+            <button key={s} onClick={() => setSeverity(s)} className={cn('rounded-md px-2 py-0.5 text-[10px] font-bold capitalize transition-colors cursor-pointer', severity === s ? 'bg-primary text-white' : 'border border-line-strong text-foreground hover:bg-muted')}>{s} {PENALTY[s]}</button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button onClick={() => onAction('confirm-report', r.id, severity)} disabled={busy} className="rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm{listingId ? ' & unpublish' : ''} ({PENALTY[severity]} trust)</button>
+          <button onClick={() => onAction('dismiss-report', r.id)} disabled={busy} className="rounded-md px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss</button>
+          <button onClick={() => onAction('abusive-report', r.id)} disabled={busy} className="rounded-md px-2 py-1 text-[11px] font-semibold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer" title="False/abusive report — strike the reporter">Abusive</button>
+        </div>
       </div>
 
-      {/* Reach out to either party (seller and/or buyer/reporter) about this report. */}
+      {/* Reach out to either party. Guest storefronts have no account → no button + a note. */}
       {targets.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 pl-4 pt-0.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {targets.map((t) => (
             <AdminMessageButton key={t.recipientId} target={t} listingId={listingId} conversationId={r.conversationId} />
           ))}
         </div>
       )}
+      {guestNote && <p className="text-[10px] italic text-ink-4">{guestNote}</p>}
     </div>
   )
 }
@@ -196,10 +212,10 @@ function ListingRow({ item, mode }: { item: ModItem; mode: 'pending' | 'reported
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
 
-  const run = async (action: string, id: string) => {
+  const run = async (action: string, id: string, severity?: string) => {
     setBusy(action); setError('')
     try {
-      await moderate(action, id)
+      await moderate(action, id, severity)
       router.refresh()
     } catch {
       setError('Action failed — try again.')
@@ -244,6 +260,7 @@ function ListingRow({ item, mode }: { item: ModItem; mode: 'pending' | 'reported
                   r.reporter ? { recipientId: r.reporter.id, label: `reporter (${r.reporter.name})` } : null,
                   item.sellerProfileId ? { recipientId: item.sellerProfileId, label: `seller (${item.sellerName})` } : null,
                 ].filter((x): x is MsgTarget => x !== null)}
+                guestNote={!item.sellerProfileId ? `Seller "${item.sellerName}" is a guest storefront — no account to message; act on the listing.` : undefined}
               />
             ))}
           </div>
@@ -291,9 +308,9 @@ function AccountReportRow({ r }: { r: AccountReport }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const run = async (action: string, id: string) => {
+  const run = async (action: string, id: string, severity?: string) => {
     setBusy(true); setError('')
-    try { await moderate(action, id); router.refresh() } catch { setError('Action failed — try again.'); setBusy(false) }
+    try { await moderate(action, id, severity); router.refresh() } catch { setError('Action failed — try again.'); setBusy(false) }
   }
 
   return (
@@ -313,6 +330,7 @@ function AccountReportRow({ r }: { r: AccountReport }) {
           r.reporter ? { recipientId: r.reporter.id, label: `reporter (${r.reporter.name})` } : null,
           r.targetProfileId ? { recipientId: r.targetProfileId, label: `reported user${r.targetName ? ` (${r.targetName})` : ''}` } : null,
         ].filter((x): x is MsgTarget => x !== null)}
+        guestNote={!r.targetProfileId && r.targetSellerId ? `Reported storefront is a guest — no account to message.` : undefined}
       />
       {error && <span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>}
     </div>
