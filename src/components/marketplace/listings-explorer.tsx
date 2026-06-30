@@ -663,12 +663,23 @@ export function ListingsExplorer({
     return () => clearTimeout(timer)
   }, [query])
 
-  // Reset page to 1 whenever filters change — but NOT on the mount run where we're
-  // rehydrating a back-nav snapshot (which restores a deeper page).
-  useEffect(() => {
-    if (skipFirstPageResetRef.current) { skipFirstPageResetRef.current = false; return }
-    setPage(1)
-  }, [activeCategory, debouncedQuery, activeDistrict, conditionFilter, listingType, verifiedOnly, sort, activeSubcategory, activeBrand, activeModel, customFilters, priceRange, nearby, activeProvince?.code, activeWard?.code])
+  // Reset to page 1 the MOMENT the filter/query signature changes — DURING render (React's
+  // "adjust state on input change" pattern), NOT in a post-render effect. An effect reset
+  // fired one render late, so the new query first refetched at the STALE page (offset>0) and
+  // the list visibly reshuffled to the page-1 results — the "double-sort" search jitter.
+  // Doing it here means useQuery (below) reads page=1 on the SAME render → a single offset-0
+  // fetch, no flip. Skips the back-nav restore (which intentionally rehydrates a deeper page).
+  const filterSig = JSON.stringify([
+    activeCategory, debouncedQuery, activeDistrict, conditionFilter, listingType, verifiedOnly,
+    sort, activeSubcategory, activeBrand, activeModel, customFilters, priceRange, nearby,
+    activeProvince?.code ?? null, activeWard?.code ?? null,
+  ])
+  const prevFilterSigRef = useRef(filterSig)
+  if (prevFilterSigRef.current !== filterSig) {
+    prevFilterSigRef.current = filterSig
+    if (skipFirstPageResetRef.current) skipFirstPageResetRef.current = false
+    else if (page !== 1) setPage(1)
+  }
 
   // Fetch listings dynamically from API on parameter/page modifications using React Query SWR cache
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isError: queryError, refetch: refetchListings } = useQuery({
