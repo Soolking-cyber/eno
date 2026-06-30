@@ -19,6 +19,7 @@ export type RawReport = {
   listingId: string | null
   conversationId: string | null
   targetSellerId: string | null
+  targetProfileId: string | null
 }
 
 /**
@@ -99,4 +100,75 @@ export async function reportContext(
   }
 
   return { reporterById, convoByReportId }
+}
+
+// The reported PARTY, surfaced so an admin sees who they're about to penalize (trust/tier)
+// and the listing for a listing report.
+export type TargetInfo = {
+  kind: 'listing' | 'account' | 'chat'
+  name: string
+  trustScore: number | null
+  trustTier: string | null
+  sellerId: string | null
+  profileId: string | null // messaging target (null = guest, unreachable)
+  isGuest: boolean
+  listing: { id: string; title: string; price: number; currency: string; image: string | null; category: string; location: string } | null
+}
+
+const firstImg = (images: string): string | null => {
+  try { const a = JSON.parse(images || '[]'); return Array.isArray(a) && a[0] ? a[0] : null } catch { return null }
+}
+
+/**
+ * Resolve the reported TARGET (trust/tier + listing) for each report, plus the COMMUNITY
+ * count — how many open reports share the same target identity (pile-on signal). Batched.
+ */
+export async function targetContext(
+  reports: RawReport[],
+): Promise<{ targetByReportId: Map<string, TargetInfo>; communityByReportId: Map<string, number> }> {
+  const listingIds = [...new Set(reports.map((r) => r.listingId).filter((x): x is string => !!x))]
+  const sellerIds = [...new Set(reports.map((r) => r.targetSellerId).filter((x): x is string => !!x))]
+  const profileIds = [...new Set(reports.map((r) => r.targetProfileId).filter((x): x is string => !!x))]
+
+  type LST = { id: string; title: string; price: number; currency: string; images: string; location: string; category: { name: string }; seller: { id: string; name: string; ownerId: string | null; trustScore: number; trustTier: string } }
+  type SEL = { id: string; name: string; ownerId: string | null; trustScore: number; trustTier: string }
+  type PRO = { id: string; displayName: string | null; email: string | null; trustScore: number; trustTier: string }
+  const [listings, sellers, profiles] = await Promise.all([
+    listingIds.length
+      ? db.listing.findMany({ where: { id: { in: listingIds } }, select: { id: true, title: true, price: true, currency: true, images: true, location: true, category: { select: { name: true } }, seller: { select: { id: true, name: true, ownerId: true, trustScore: true, trustTier: true } } } })
+      : Promise.resolve([] as LST[]),
+    sellerIds.length ? db.seller.findMany({ where: { id: { in: sellerIds } }, select: { id: true, name: true, ownerId: true, trustScore: true, trustTier: true } }) : Promise.resolve([] as SEL[]),
+    profileIds.length ? db.profile.findMany({ where: { id: { in: profileIds } }, select: { id: true, displayName: true, email: true, trustScore: true, trustTier: true } }) : Promise.resolve([] as PRO[]),
+  ])
+  const listingById = new Map((listings as LST[]).map((l) => [l.id, l]))
+  const sellerById = new Map((sellers as SEL[]).map((s) => [s.id, s]))
+  const profileById = new Map((profiles as PRO[]).map((p) => [p.id, p]))
+
+  const keyOf = (r: RawReport) => r.targetProfileId || r.targetSellerId || r.listingId || r.id
+  const counts = new Map<string, number>()
+  for (const r of reports) { const k = keyOf(r); counts.set(k, (counts.get(k) || 0) + 1) }
+
+  const targetByReportId = new Map<string, TargetInfo>()
+  const communityByReportId = new Map<string, number>()
+  for (const r of reports) {
+    communityByReportId.set(r.id, counts.get(keyOf(r)) || 1)
+    if (r.listingId) {
+      const l = listingById.get(r.listingId)
+      const s = l?.seller
+      targetByReportId.set(r.id, {
+        kind: 'listing', name: s?.name || 'Unknown seller', trustScore: s?.trustScore ?? null, trustTier: s?.trustTier ?? null,
+        sellerId: s?.id ?? null, profileId: s?.ownerId ?? null, isGuest: !s?.ownerId,
+        listing: l ? { id: l.id, title: l.title, price: l.price, currency: l.currency, image: firstImg(l.images), category: l.category.name, location: l.location } : null,
+      })
+    } else if (r.targetSellerId) {
+      const s = sellerById.get(r.targetSellerId)
+      targetByReportId.set(r.id, { kind: r.conversationId ? 'chat' : 'account', name: s?.name || 'Unknown storefront', trustScore: s?.trustScore ?? null, trustTier: s?.trustTier ?? null, sellerId: s?.id ?? r.targetSellerId, profileId: s?.ownerId ?? null, isGuest: !s?.ownerId, listing: null })
+    } else if (r.targetProfileId) {
+      const p = profileById.get(r.targetProfileId)
+      targetByReportId.set(r.id, { kind: r.conversationId ? 'chat' : 'account', name: p?.displayName || p?.email || 'Unknown user', trustScore: p?.trustScore ?? null, trustTier: p?.trustTier ?? null, sellerId: null, profileId: r.targetProfileId, isGuest: false, listing: null })
+    } else {
+      targetByReportId.set(r.id, { kind: 'account', name: 'Unknown', trustScore: null, trustTier: null, sellerId: null, profileId: null, isGuest: true, listing: null })
+    }
+  }
+  return { targetByReportId, communityByReportId }
 }
