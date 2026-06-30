@@ -80,13 +80,7 @@ export default async function AdminPage() {
     reports: { where: { status: 'open' as const }, orderBy: { createdAt: 'desc' as const } },
   }
 
-  const [pendingRows, reportedRows, accountReportRows] = await Promise.all([
-    db.listing.findMany({
-      where: { verified: false },
-      include,
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    }),
+  const [reportedRows, accountReportRows] = await Promise.all([
     db.listing.findMany({
       where: { verified: true, reports: { some: { status: 'open' } } },
       include,
@@ -104,7 +98,6 @@ export default async function AdminPage() {
   // Resolve the reporter identity + the conversation to link for EVERY open report, in
   // one batched pass (the report relation has no Prisma relation to Profile/Conversation).
   const allReports: DbReport[] = [
-    ...pendingRows.flatMap((l) => l.reports as unknown as DbReport[]),
     ...reportedRows.flatMap((l) => l.reports as unknown as DbReport[]),
     ...(accountReportRows as unknown as DbReport[]),
   ]
@@ -136,7 +129,6 @@ export default async function AdminPage() {
     reports: r.reports.map(mapReport),
   })
 
-  const pending = (pendingRows as unknown as Row[]).map(toItem)
   const reported = (reportedRows as unknown as Row[]).map(toItem)
 
   const sellerIds = [...new Set((accountReportRows as unknown as DbReport[]).map((r) => r.targetSellerId).filter((x): x is string => !!x))]
@@ -158,9 +150,9 @@ export default async function AdminPage() {
         <AdminNav active="/admin" />
         <div className="mb-6">
           <h1 className="h-title text-foreground">Moderation</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Signed in as {admin}. Resolve reports (confirm docks trust); held listings need a photo or are from restricted accounts.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Signed in as {admin}. Resolve reports — confirm docks the target&apos;s trust; abusive penalizes the reporter. Listings publish instantly (no review queue); low-trust accounts can&apos;t post until their score recovers.</p>
         </div>
-        <ModerationClient pending={pending} reported={reported} accountReports={accountReports} />
+        <ModerationClient reported={reported} accountReports={accountReports} />
       </main>
     </div>
   )

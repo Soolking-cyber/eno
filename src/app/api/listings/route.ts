@@ -6,6 +6,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { isRangeColumn } from '@/lib/taxonomy'
 import { fold } from '@/lib/fold'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
+import { containsContactInfo, findBannedWord, PublishBlockedError } from '@/lib/publish-guard'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
@@ -460,12 +461,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
     }
 
-    // Keep contact info OFF the public listing — buyers reach sellers in-app, so
-    // sellers must log in to reply (and refresh availability). Reject any phone
-    // number embedded in the public text fields (the seller's real number lives
-    // in contactPhone, revealed only in-chat after they reply).
-    if (containsPhoneNumber(title) || containsPhoneNumber(String(body.description || '')) || containsPhoneNumber(contactName)) {
-      return NextResponse.json({ error: 'no_phone_in_listing' }, { status: 400 })
+    // Keep contact info + banned content OFF the public listing — buyers reach sellers
+    // in-app. Reject any phone number / email / link / social handle / street address, or
+    // a banned word, up-front (before resolving a seller) so the poster can fix it. The
+    // Restricted-account gate + photo check run in createListingCore (need the seller).
+    for (const tx of [title, String(body.description || ''), contactName]) {
+      if (containsPhoneNumber(tx) || containsContactInfo(tx)) {
+        return NextResponse.json({ error: 'contact_in_text' }, { status: 400 })
+      }
+      const banned = findBannedWord(tx)
+      if (banned) return NextResponse.json({ error: 'banned_words', detail: banned }, { status: 400 })
     }
 
     const category = await db.category.findUnique({ where: { slug: categorySlug } })
@@ -530,6 +535,11 @@ export async function POST(req: NextRequest) {
     const result = await createListingCore({ seller, category, title, price, body, headers: req.headers })
     return NextResponse.json(result, { status: 201 })
   } catch (e) {
+    // Restricted account / no photo / banned / contact-in-text → a clear, fixable code
+    // (403 for the trust gate since it isn't fixable now; 400 for the rest).
+    if (e instanceof PublishBlockedError) {
+      return NextResponse.json({ error: e.code, detail: e.detail }, { status: e.code === 'account_restricted' ? 403 : 400 })
+    }
     console.error('[POST /api/listings]', e)
     return NextResponse.json({ error: 'Failed to create listing' }, { status: 500 })
   }

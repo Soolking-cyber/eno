@@ -15,6 +15,7 @@ import { syndicateListing } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
+import { assertPublishable } from '@/lib/publish-guard'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
 // These hold the business logic for mutating a listing, decoupled from HOW the caller
@@ -251,10 +252,14 @@ export async function createListingCore(input: {
   const lat = Number.isFinite(latNum) && latNum >= -90 && latNum <= 90 ? latNum : null
   const lng = Number.isFinite(lngNum) && lngNum >= -180 && lngNum <= 180 ? lngNum : null
 
-  // Automated publish gate (manual per-listing verification removed — no manpower).
-  // Listings go LIVE instantly; we only HOLD when the account is Restricted (trust < 60)
-  // or it has no photo. Phone-in-text is already blocked by the caller.
-  const autoPublish = images.length >= 1 && seller.trustTier !== 'restricted'
+  // Publish gate — NO held-for-review queue (manual verification removed; nothing waits on
+  // an admin). A Restricted (low-trust) account can't post until its score recovers; a
+  // missing photo / banned words / contact info in the text are REJECTED so the seller fixes
+  // them (the wizard maps these codes to inline messages). Throws PublishBlockedError; the
+  // caller turns it into an HTTP error. Pass → the listing goes live instantly.
+  const description = String(body.description || '').trim().slice(0, 5000)
+  const guardName = body.contactName ? String(body.contactName).trim().slice(0, 80) : null
+  assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description, guardName] })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category
   // (else its primary type); subcategory falls back to keyword-suggest.
@@ -301,7 +306,7 @@ export async function createListingCore(input: {
   const listing = await db.listing.create({
     data: {
       title,
-      description: String(body.description || '').trim().slice(0, 5000),
+      description,
       price,
       priceUnit,
       currency: '₫',
@@ -326,7 +331,7 @@ export async function createListingCore(input: {
       // Balanced feed rank at age≈0 (recency=1) — matches the SQL re-decay exactly. New
       // listings land fresh; the daily cron + trust changes re-decay it afterwards.
       rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
-      verified: autoPublish,
+      verified: true,
     },
   })
   if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch(() => {}) })
@@ -342,9 +347,10 @@ export async function createListingCore(input: {
   const warmFields = [listing.title, listing.description, listing.location, ...attrValues].filter(Boolean)
   after(() => warmTranslations(warmFields))
 
-  // Auto cross-post to social channels + Meta CAPI Lead + AI-search index — only when
-  // the listing is actually live (not held/restricted). Best-effort, after response.
-  if (autoPublish) {
+  // Auto cross-post to social channels + Meta CAPI Lead + AI-search index. Every created
+  // listing is now live (the publish gate REJECTS instead of holding), so this always runs.
+  // Best-effort, after the response.
+  {
     after(() => syndicateListing({
       id: listing.id,
       title: listing.title,
@@ -366,7 +372,7 @@ export async function createListingCore(input: {
   }
 
   after(() => dispatchListingEvent('listing.created', listing.id, seller.id)) // notify the shop's partner webhooks
-  return { id: listing.id, verified: autoPublish }
+  return { id: listing.id, verified: true }
 }
 
 /** Delete an OWNED listing (cascades reports/conversations); decrements its brand

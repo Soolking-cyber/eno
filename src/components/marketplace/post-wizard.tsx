@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { haptic } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
+import { containsContactInfo, findBannedWord } from '@/lib/publish-guard'
 import { trackPostListing } from '@/lib/analytics'
 import { VndInput } from './vnd-input'
 import { AreaFilter, type Geo, type Nearby } from './area-filter'
@@ -397,8 +398,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
   const submit = async () => {
     if (!canSubmit || submittingRef.current) return
-    if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsPhoneNumber(contactName)) {
-      setError(t('Không được ghi số điện thoại trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng.', "Phone numbers aren't allowed in a listing — buyers message you in the app. Remove it to post."))
+    // Catch fixable issues client-side so they're noted BEFORE submitting (the server
+    // enforces the same rules). Contact info / addresses stay off the public listing —
+    // buyers reach sellers in-app.
+    const blob = `${title} ${description} ${contactName}`
+    if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsPhoneNumber(contactName) || containsContactInfo(blob)) {
+      setError(t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post."))
+      return
+    }
+    if (findBannedWord(blob)) {
+      setError(t('Tin của bạn có từ ngữ không được phép. Vui lòng chỉnh sửa rồi đăng lại.', "Your listing contains a word that isn't allowed. Please edit it and try again."))
       return
     }
     submittingRef.current = true
@@ -462,8 +471,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       setError(
         msg === 'upload'
           ? t('Không tải được ảnh, vui lòng thử lại.', 'Could not upload your photos — please try again.')
-          : msg === 'no_phone_in_listing'
-          ? t('Không được ghi số điện thoại trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng.', "Phone numbers aren't allowed in a listing — buyers message you in the app. Remove it to post.")
+          : msg === 'no_phone_in_listing' || msg === 'contact_in_text'
+          ? t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post.")
+          : msg === 'banned_words'
+          ? t('Tin của bạn có từ ngữ không được phép. Vui lòng chỉnh sửa rồi đăng lại.', "Your listing contains a word that isn't allowed. Please edit it and try again.")
+          : msg === 'photo_required'
+          ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
+          : msg === 'account_restricted'
+          ? t('Tài khoản của bạn đang bị hạn chế do điểm uy tín thấp. Bạn có thể đăng lại khi điểm uy tín phục hồi.', "Your account is restricted due to a low trust score. You can post again once your trust score recovers.")
           : msg === 'phone_taken'
           ? t('Số điện thoại này đã được một tài khoản khác sử dụng. Mỗi số chỉ dùng cho một tài khoản.', 'This phone number is already used by another account. Each number belongs to one account.')
           : t('Không gửi được, vui lòng thử lại.', 'Could not submit — please try again.'),

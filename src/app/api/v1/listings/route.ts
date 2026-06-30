@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { containsPhoneNumber } from '@/lib/phone'
 import { createListingCore } from '@/lib/core/listings'
+import { PublishBlockedError } from '@/lib/publish-guard'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
 import { withIdempotency } from '@/lib/api/idempotency'
@@ -57,7 +58,20 @@ export async function POST(req: NextRequest) {
     const seller = await db.seller.findUnique({ where: { id: r.auth.sellerId }, select: { id: true, trustTier: true, trustScore: true, phone: true } })
     if (!seller) return { status: 404, body: { error: { code: 'not_found', message: 'Shop not found.' } } }
 
-    const created = await createListingCore({ seller, category, title, price, body, headers: req.headers })
-    return { status: 201, body: { listing: created } }
+    try {
+      const created = await createListingCore({ seller, category, title, price, body, headers: req.headers })
+      return { status: 201, body: { listing: created } }
+    } catch (e) {
+      // Same publish rules as the session post path: restricted shop / no photo / banned
+      // words / contact info in text → a structured 422 (403 for the trust gate).
+      if (e instanceof PublishBlockedError) {
+        const message = e.code === 'account_restricted' ? 'Shop is restricted (low trust) — cannot publish until its score recovers.'
+          : e.code === 'photo_required' ? 'At least one image is required.'
+          : e.code === 'banned_words' ? 'The title or description contains a disallowed word.'
+          : 'Remove phone numbers, contact info or addresses from the title/description.'
+        return { status: e.code === 'account_restricted' ? 403 : 422, body: { error: { code: e.code, message, ...(e.detail ? { detail: e.detail } : {}) } } }
+      }
+      throw e
+    }
   })
 }

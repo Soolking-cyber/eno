@@ -319,13 +319,13 @@ function AccountReportRow({ r }: { r: AccountReport }) {
   )
 }
 
-export function ModerationClient({ pending, reported, accountReports }: { pending: ModItem[]; reported: ModItem[]; accountReports: AccountReport[] }) {
-  const [tab, setTab] = useState<'pending' | 'reported' | 'accounts'>(reported.length === 0 && accountReports.length > 0 ? 'accounts' : 'reported')
+export function ModerationClient({ reported, accountReports }: { reported: ModItem[]; accountReports: AccountReport[] }) {
+  const [tab, setTab] = useState<'reported' | 'accounts'>(reported.length === 0 && accountReports.length > 0 ? 'accounts' : 'reported')
 
   return (
     <div>
       <div className="mb-5 flex w-fit rounded-full bg-tint p-1 text-sm font-semibold">
-        {([['reported', `Reported listings (${reported.length})`], ['accounts', `Reported accounts & chats (${accountReports.length})`], ['pending', `Held (${pending.length})`]] as const).map(([k, label]) => (
+        {([['reported', `Reported listings (${reported.length})`], ['accounts', `Reported accounts & chats (${accountReports.length})`]] as const).map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -342,18 +342,13 @@ export function ModerationClient({ pending, reported, accountReports }: { pendin
         ) : (
           <div className="space-y-3">{accountReports.map((r) => <AccountReportRow key={r.id} r={r} />)}</div>
         )
-      ) : (() => {
-        const list = tab === 'pending' ? pending : reported
-        return list.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-ink-4">
-            {tab === 'pending' ? 'Nothing held. 🎉' : 'No reported listings.'}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {list.map((item) => <ListingRow key={item.id} item={item} mode={tab} />)}
-          </div>
-        )
-      })()}
+      ) : reported.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-ink-4">No reported listings.</div>
+      ) : (
+        <div className="space-y-3">
+          {reported.map((item) => <ListingRow key={item.id} item={item} mode="reported" />)}
+        </div>
+      )}
     </div>
   )
 }

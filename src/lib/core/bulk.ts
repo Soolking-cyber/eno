@@ -2,6 +2,7 @@ import 'server-only'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { containsPhoneNumber } from '@/lib/phone'
+import { containsContactInfo, findBannedWord } from '@/lib/publish-guard'
 import { buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl } from '@/lib/listing-image'
@@ -73,7 +74,10 @@ export async function bulkImportCore(
       if (!cat) { results.push({ row: rowNo, error: `Unknown category "${categorySlug}"` }); continue }
       if (title.length < 3) { results.push({ row: rowNo, error: 'Title too short (min 3 chars)' }); continue }
       if (!Number.isFinite(price) || price < 0 || price > 1e12) { results.push({ row: rowNo, error: 'Invalid price' }); continue }
-      if (containsPhoneNumber(title) || containsPhoneNumber(description)) { results.push({ row: rowNo, error: 'Phone numbers not allowed in title/description' }); continue }
+      if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsContactInfo(title) || containsContactInfo(description)) { results.push({ row: rowNo, error: 'Remove phone / contact info / address from the title and description' }); continue }
+      { const bw = findBannedWord(`${title} ${description}`); if (bw) { results.push({ row: rowNo, error: `Contains a banned word ("${bw}")` }); continue } }
+      // Restricted (low-trust) account → can't publish until its score recovers.
+      if (seller.trustTier === 'restricted') { results.push({ row: rowNo, error: 'Account restricted — wait for your trust score to recover before posting' }); continue }
 
       // Re-host up to 8 images. First-party URLs pass through free; remote URLs each
       // cost one unit of the per-import MAX_IMG_FETCHES budget.
@@ -87,14 +91,14 @@ export async function bulkImportCore(
         if (h) hosted.push(h)
       }
 
-      const autoPublish = hosted.length >= 1 && seller.trustTier !== 'restricted'
+      if (hosted.length < 1) { results.push({ row: rowNo, error: 'Needs at least one photo' }); continue }
       const listing = await db.listing.create({
         data: {
           title, description, price, priceUnit: 'VND', currency: '₫', negotiable: false,
           location: district || 'Ho Chi Minh City', district, city: 'Ho Chi Minh City',
           condition, images: JSON.stringify(hosted),
           searchText: buildSearchText([title, description, district, cat.name, cat.nameVi]),
-          categoryId: cat.id, sellerId: seller.id, sellerTrustScore: seller.trustScore, verified: autoPublish,
+          categoryId: cat.id, sellerId: seller.id, sellerTrustScore: seller.trustScore, verified: true,
           rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
           ...(r.external_id ? { externalId: String(r.external_id).trim().slice(0, 128) } : {}),
         },
