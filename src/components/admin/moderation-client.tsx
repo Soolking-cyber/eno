@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Check, X, Flag, Loader2, ExternalLink, EyeOff, MessageSquare, Send, ChevronDown, StickyNote, Users } from 'lucide-react'
+import { X, Loader2, ExternalLink, MessageSquare, ChevronDown, StickyNote, Users, ShieldQuestion } from 'lucide-react'
 import { formatMoneyFull } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { MOD_MACROS } from '@/lib/admin-macros'
@@ -33,6 +33,7 @@ export type ModCase = {
   communityCount: number
   target: TargetInfo
   internalNote: string | null
+  appeal?: { note: string | null; images: string[]; at: string } | null
   resolution?: { status: string; by: string | null; at: string | null } | null
 }
 
@@ -83,43 +84,26 @@ function NoteEditor({ caseId, initial, onSaved }: { caseId: string; initial: str
   )
 }
 
-function AdminMessageButton({ recipientId, label, listingId, conversationId }: { recipientId: string; label: string; listingId?: string | null; conversationId?: string | null }) {
-  const [open, setOpen] = useState(false)
-  const [text, setText] = useState('')
-  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
-  const send = async () => {
-    const t = text.trim()
-    if (!t) return
+// Send a PRE-PREPARED macro (no free text). The recipient gets it in their language
+// (server localizes via Profile.locale). Picking a macro sends it.
+function MacroSender({ recipientId, label, listingId, conversationId }: { recipientId: string; label: string; listingId?: string | null; conversationId?: string | null }) {
+  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const send = async (key: string) => {
+    if (!key) return
     setState('sending')
     try {
-      const res = await fetch('/api/admin/message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipientId, text: t, listingId, conversationId }) })
-      if (!res.ok) throw new Error()
-      setState('sent'); setText(''); setTimeout(() => { setOpen(false); setState('idle') }, 1400)
-    } catch { setState('error') }
-  }
-  if (!open) {
-    return (
-      <button onClick={(e) => { e.stopPropagation(); setOpen(true) }} className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted cursor-pointer">
-        <MessageSquare className="h-3 w-3" /> Message {label}
-      </button>
-    )
+      const res = await fetch('/api/admin/message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipientId, macroKey: key, listingId, conversationId }) })
+      if (res.ok) { setState('sent'); setTimeout(() => setState('idle'), 1800) } else setState('idle')
+    } catch { setState('idle') }
   }
   return (
-    <div className="w-full rounded-lg border border-border bg-card p-2" onClick={(e) => e.stopPropagation()}>
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold text-muted-foreground">Message {label}</p>
-        <select value="" onChange={(e) => { const m = MOD_MACROS.find((x) => x.label === e.target.value); if (m) setText(m.text) }} className="rounded border border-line-strong bg-card px-1 py-0.5 text-[10px] text-foreground cursor-pointer">
-          <option value="">Insert macro…</option>
-          {MOD_MACROS.map((m) => <option key={m.label} value={m.label}>{m.label}</option>)}
-        </select>
-      </div>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={2000} placeholder="Write a message — it lands in their notifications…" className="w-full resize-none rounded-md border border-line-strong px-2 py-1.5 text-xs outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
-      <div className="mt-1.5 flex items-center gap-1.5">
-        <button onClick={send} disabled={state === 'sending' || !text.trim()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[10px] font-bold text-white hover:bg-brand-dark disabled:opacity-40 cursor-pointer">{state === 'sending' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{state === 'sent' ? 'Sent ✓' : 'Send'}</button>
-        <button onClick={() => { setOpen(false); setText(''); setState('idle') }} className="rounded-md px-2 py-1 text-[10px] font-bold text-muted-foreground hover:bg-muted cursor-pointer">Cancel</button>
-        {state === 'error' && <span className="text-[10px] font-semibold text-red-600">Failed — try again.</span>}
-      </div>
-    </div>
+    <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      <select value="" disabled={state === 'sending'} onChange={(e) => send(e.target.value)} className="rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground cursor-pointer disabled:opacity-50">
+        <option value="">{state === 'sent' ? `Sent to ${label} ✓` : state === 'sending' ? 'Sending…' : `Notify ${label}…`}</option>
+        {MOD_MACROS.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+      </select>
+      {state === 'sending' && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+    </span>
   )
 }
 
@@ -139,17 +123,16 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
   const isListing = t.kind === 'listing' && t.listing
   const msgTargets = [
     c.reporter ? { recipientId: c.reporter.id, label: `reporter (${c.reporter.name})` } : null,
-    t.profileId ? { recipientId: t.profileId, label: `${t.kind === 'listing' ? 'seller' : 'reported user'} (${t.name})` } : null,
+    t.profileId ? { recipientId: t.profileId, label: `${t.kind === 'listing' ? 'seller' : 'user'} (${t.name})` } : null,
   ].filter((x): x is { recipientId: string; label: string } => x !== null).filter((x, i, a) => a.findIndex((y) => y.recipientId === x.recipientId) === i)
 
   return (
     <div onClick={onSelect} className={cn('cursor-pointer rounded-2xl border border-l-[3px] bg-card p-4 shadow-pop transition-shadow', RAIL[c.bucket], selected && !readOnly ? 'ring-2 ring-brand/40' : 'border-border', readOnly && 'opacity-90')}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          {!readOnly && onCheck && (
-            <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5 cursor-pointer accent-[#0a66c2]" aria-label="Select case" />
-          )}
-          {c.bucket === 'critical' && !readOnly && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">Critical</span>}
+          {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5 cursor-pointer accent-[#0a66c2]" aria-label="Select case" />}
+          {c.appeal && <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Appeal</span>}
+          {c.bucket === 'critical' && !c.appeal && !readOnly && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">Critical</span>}
           <span className="text-sm font-bold text-foreground">{REASON_LABEL[c.reason] || c.reason}</span>
           {c.communityCount > 1 && !readOnly && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">{c.communityCount} on this target</span>}
           <span className="rounded-full bg-tint px-2 py-0.5 text-[10px] font-semibold capitalize text-ink-4">{t.kind}</span>
@@ -184,6 +167,24 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
 
       {c.detail && <p className="mt-2 text-xs text-foreground">“{c.detail}”</p>}
 
+      {/* Appeal: the target's explanation + proof, shown prominently. */}
+      {c.appeal && (
+        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Appeal · {shortDate(c.appeal.at)}</p>
+          {c.appeal.note && <p className="mt-0.5 text-xs text-amber-900">{c.appeal.note}</p>}
+          {c.appeal.images.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {c.appeal.images.map((src, i) => (
+                <a key={i} href={src} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="relative block h-14 w-14 overflow-hidden rounded-md bg-tint">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="proof" className="h-full w-full object-cover" />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         {c.reporter ? (
           <span>By {c.reporter.sellerId ? <a href={`/sellers/${c.reporter.sellerId}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="font-semibold text-foreground hover:underline">{c.reporter.name}</a> : <span className="font-semibold text-foreground">{c.reporter.name}</span>}<span className="text-ink-4"> · trust {c.reporter.trustScore}</span>{c.reporter.strikes > 0 && <span className="font-semibold text-warning"> · {c.reporter.strikes} false-report strike{c.reporter.strikes > 1 ? 's' : ''}</span>}</span>
@@ -208,25 +209,18 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               <button onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} className="rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm{isListing ? ' & unpublish' : ''} ({PENALTY[severity]} trust)</button>
-              <button onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} className="rounded-md px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss</button>
+              <button onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} className="rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">{c.appeal ? 'Dismiss (uphold appeal)' : 'Dismiss (keep live)'}</button>
               <button onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className="rounded-md px-2 py-1 text-[11px] font-semibold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer" title="False/abusive report — strike the reporter">Abusive</button>
-              {c.communityCount > 1 && <button onClick={(e) => { e.stopPropagation(); onDismissTarget(c.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount} on target</button>}
+              {isListing && <button onClick={(e) => { e.stopPropagation(); onListing('reject', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete listing</button>}
+              {c.communityCount > 1 && <button onClick={(e) => { e.stopPropagation(); onDismissTarget(c.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount}</button>}
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
             </div>
-            {isListing && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                <button onClick={(e) => { e.stopPropagation(); onListing('approve', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Check className="h-3 w-3" /> Keep &amp; clear reports</button>
-                <button onClick={(e) => { e.stopPropagation(); onListing('unpublish', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><EyeOff className="h-3 w-3" /> Unpublish</button>
-                <button onClick={(e) => { e.stopPropagation(); onListing('reject', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-card px-2 py-0.5 text-[10px] font-bold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete</button>
-              </div>
-            )}
           </div>
 
-          <div className="mt-2 flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {msgTargets.map((m) => <AdminMessageButton key={m.recipientId} recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} />)}
-              {t.isGuest && <span className="text-[10px] italic text-ink-4">Reported party is a guest — can&apos;t be messaged; act on the listing.</span>}
-            </div>
+          {/* Notify (pre-prepared, bilingual) + internal note */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {msgTargets.map((m) => <MacroSender key={m.recipientId} recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} />)}
+            {t.isGuest && <span className="text-[10px] italic text-ink-4">Reported party is a guest — can&apos;t be messaged.</span>}
             <NoteEditor caseId={c.id} initial={c.internalNote} onSaved={refresh} />
           </div>
         </>
@@ -283,7 +277,6 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
     try { await post({ action, ids, ...(action === 'bulk-confirm' ? { severity: bulkSev } : {}) }); setChecked(new Set()); refresh() } catch { /* noop */ } finally { setBulkBusy(false) }
   }
 
-  // Keyboard: j/k move, c confirm, d dismiss, a abusive. Disabled in the resolved view.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (showResolved) return
@@ -317,7 +310,6 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
         {!showResolved && <span className="ml-auto hidden items-center gap-1 text-[10px] text-ink-4 sm:inline-flex"><ChevronDown className="h-3 w-3" /> keys: j/k move · c confirm · d dismiss · a abusive</span>}
       </div>
 
-      {/* Bulk action bar */}
       {!showResolved && checked.size > 0 && (
         <div className="sticky top-2 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2 shadow-pop">
           <span className="text-xs font-bold text-foreground">{checked.size} selected{targetsOfChecked > 1 ? ` · ${targetsOfChecked} targets` : ''}</span>
@@ -332,7 +324,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
       )}
 
       {filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-ink-4">{showResolved ? 'No resolved reports yet.' : 'Nothing here. 🎉'}</div>
+        <div className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-ink-4">{showResolved ? <span className="inline-flex items-center gap-2"><ShieldQuestion className="h-4 w-4" /> No resolved reports yet.</span> : 'Nothing here. 🎉'}</div>
       ) : (
         <div className="space-y-3">
           {filtered.map((c, i) => (
@@ -344,7 +336,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
               busy={busyId === c.id || (c.target.kind === 'listing' && c.target.listing != null && busyId === c.target.listing.id)}
               severity={sevOf(c)}
               checked={checked.has(c.id)}
-              onCheck={() => setChecked((prev) => { const n = new Set(prev); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n })}
+              onCheck={() => setChecked((prev) => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n })}
               onSeverity={(id, s) => setSevById((m) => ({ ...m, [id]: s }))}
               onSelect={() => setSel(i)}
               onAction={act}

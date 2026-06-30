@@ -3,10 +3,21 @@ import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { applyTrustEvent, penalizeSeller, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
+import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
 
 export const dynamic = 'force-dynamic'
 
 const DAY_MS = 86_400_000
+
+// Notify the reported party (if they have an account) that their content was actioned,
+// with a deep-link to appeal. In their language (Profile.locale, EN/VI). Best-effort.
+async function notifyActioned(targetProfileId: string, reportId: string) {
+  const p = await db.profile.findUnique({ where: { id: targetProfileId }, select: { locale: true } })
+  const l = pickLocale(p?.locale)
+  await db.notification.create({
+    data: { recipientId: targetProfileId, type: 'system', title: APPEAL_NOTICE.title[l], body: APPEAL_NOTICE.body[l], actorName: 'eno.vn moderation', url: `/appeal/${reportId}` },
+  }).catch(() => {})
+}
 
 // Single admin endpoint for the moderation queue. Every action re-checks the
 // session server-side via getAdmin() — never trust a client-side gate.
@@ -72,6 +83,7 @@ export async function POST(req: NextRequest) {
         if (report.targetProfileId) await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${rid}`, reportId: rid })
         else if (report.targetSellerId) await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${rid}`, reportId: rid })
         if (report.listingId) { await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {}); revalidatePath(`/listings/${report.listingId}`) }
+        if (report.targetProfileId) await notifyActioned(report.targetProfileId, rid)
         confirmed++
       }
       return NextResponse.json({ ok: true, confirmed })
@@ -138,6 +150,8 @@ export async function POST(req: NextRequest) {
         await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {})
         revalidatePath(`/listings/${report.listingId}`)
       }
+      // Tell the reported party (if they have an account) + give them an appeal path.
+      if (report.targetProfileId) await notifyActioned(report.targetProfileId, id)
       return NextResponse.json({ ok: true })
     }
 

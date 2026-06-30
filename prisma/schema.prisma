@@ -446,6 +446,9 @@ model Report {
   resolvedBy String?                           // admin email/id who resolved it
   resolvedAt DateTime?
   internalNote String?                          // staff-only note on the case (never shown to users)
+  appealNote   String?                          // the reported party's appeal (re-opens the case)
+  appealImages String?                          // JSON array of proof image URLs submitted with the appeal
+  appealedAt   DateTime?                         // when the target appealed (tags the case "Appeal")
   createdAt DateTime @default(now())
 
   @@index([listingId])

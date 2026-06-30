@@ -4,7 +4,7 @@ import { AdminHeader } from '@/components/admin/admin-header'
 import { AdminNav } from '@/components/admin/admin-nav'
 import { ModerationClient, type ModCase } from '@/components/admin/moderation-client'
 import { reportContext, targetContext, type RawReport } from '@/lib/admin-reports'
-import { ShieldAlert } from 'lucide-react'
+import { ShieldAlert, Monitor } from 'lucide-react'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -44,7 +44,7 @@ export default async function AdminPage() {
     )
   }
 
-  const SELECT = { id: true, reason: true, detail: true, severity: true, status: true, createdAt: true, resolvedBy: true, resolvedAt: true, internalNote: true, reporterProfileId: true, listingId: true, conversationId: true, targetSellerId: true, targetProfileId: true } as const
+  const SELECT = { id: true, reason: true, detail: true, severity: true, status: true, createdAt: true, resolvedBy: true, resolvedAt: true, internalNote: true, appealNote: true, appealImages: true, appealedAt: true, reporterProfileId: true, listingId: true, conversationId: true, targetSellerId: true, targetProfileId: true } as const
   const [openRows, resolvedRows] = await Promise.all([
     db.report.findMany({ where: { status: 'open' }, orderBy: { createdAt: 'desc' }, take: 500, select: SELECT }),
     db.report.findMany({ where: { status: { not: 'open' } }, orderBy: { resolvedAt: 'desc' }, take: 60, select: SELECT }),
@@ -67,14 +67,18 @@ export default async function AdminPage() {
     const sevKey = r.severity && SEV_W[r.severity] ? r.severity : 'moderate'
     const cred = credibility(reporter)
     const ageDays = (now - r.createdAt.getTime()) / 86_400_000
-    const priority = SEV_W[sevKey] * cred * (1 + 0.5 * (community - 1)) + (ageDays > 2 ? 1 : 0)
+    const isAppeal = !resolved && !!r.appealedAt
+    const priority = SEV_W[sevKey] * cred * (1 + 0.5 * (community - 1)) + (ageDays > 2 ? 1 : 0) + (isAppeal ? 5 : 0)
     const bucket: ModCase['bucket'] =
-      community >= 3 || (sevKey === 'severe' && cred >= 1.2) || priority >= 5 ? 'critical' : priority >= 2.8 ? 'high' : 'standard'
+      isAppeal || community >= 3 || (sevKey === 'severe' && cred >= 1.2) || priority >= 5 ? 'critical' : priority >= 2.8 ? 'high' : 'standard'
+    let appealImages: string[] = []
+    try { appealImages = r.appealImages ? JSON.parse(r.appealImages) : [] } catch { /* ignore */ }
     return {
       id: r.id, reason: r.reason, detail: r.detail, severity: r.severity, createdAt: r.createdAt.toISOString(),
       ageDays: Math.floor(ageDays), bucket, priority,
       reporter, conversationId: convoByReportId.get(r.id) ?? null, communityCount: community, target,
       internalNote: r.internalNote ?? null,
+      appeal: r.appealedAt ? { note: r.appealNote ?? null, images: Array.isArray(appealImages) ? appealImages : [], at: r.appealedAt.toISOString() } : null,
       resolution: resolved ? { status: r.status, by: r.resolvedBy, at: r.resolvedAt ? r.resolvedAt.toISOString() : null } : null,
     }
   }
@@ -86,13 +90,21 @@ export default async function AdminPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <AdminHeader />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 py-8 sm:px-6">
-        <AdminNav active="/admin" />
-        <div className="mb-5">
-          <h1 className="h-title text-foreground">Moderation</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Signed in as {admin}. One triaged inbox — most urgent first. Confirm docks the target&apos;s trust; abusive penalizes the reporter. Listings publish instantly (no review queue); low-trust accounts can&apos;t post until their score recovers.</p>
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-5xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
+        {/* The moderation panel is web/desktop-only. */}
+        <div className="flex flex-col items-center justify-center gap-2 py-24 text-center md:hidden">
+          <Monitor className="h-10 w-10 text-ink-4" />
+          <p className="text-sm font-semibold text-foreground">The moderation panel is available on desktop only.</p>
+          <p className="text-xs text-muted-foreground">Open eno.vn/admin on a larger screen.</p>
         </div>
-        <ModerationClient cases={cases} resolved={resolved} />
+        <div className="hidden md:block">
+          <AdminNav active="/admin" />
+          <div className="mb-5">
+            <h1 className="h-title text-foreground">Moderation</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Signed in as {admin}. One triaged inbox — most urgent first. Confirm docks the target&apos;s trust; abusive penalizes the reporter. Listings publish instantly (no review queue); low-trust accounts can&apos;t post until their score recovers.</p>
+          </div>
+          <ModerationClient cases={cases} resolved={resolved} />
+        </div>
       </main>
     </div>
   )
