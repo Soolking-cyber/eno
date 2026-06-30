@@ -445,6 +445,7 @@ model Report {
   status    String   @default("open")          // open | confirmed | dismissed | abusive
   resolvedBy String?                           // admin email/id who resolved it
   resolvedAt DateTime?
+  internalNote String?                          // staff-only note on the case (never shown to users)
   createdAt DateTime @default(now())
 
   @@index([listingId])

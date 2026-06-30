@@ -44,24 +44,26 @@ export default async function AdminPage() {
     )
   }
 
-  const reports = await db.report.findMany({
-    where: { status: 'open' },
-    orderBy: { createdAt: 'desc' },
-    take: 500,
-    select: { id: true, reason: true, detail: true, severity: true, createdAt: true, reporterProfileId: true, listingId: true, conversationId: true, targetSellerId: true, targetProfileId: true },
-  })
-
-  const raw: RawReport[] = reports.map((r) => ({ id: r.id, reporterProfileId: r.reporterProfileId, listingId: r.listingId, conversationId: r.conversationId, targetSellerId: r.targetSellerId, targetProfileId: r.targetProfileId }))
-  const [{ reporterById, convoByReportId }, { targetByReportId, communityByReportId }] = await Promise.all([
-    reportContext(raw),
-    targetContext(raw),
+  const SELECT = { id: true, reason: true, detail: true, severity: true, status: true, createdAt: true, resolvedBy: true, resolvedAt: true, internalNote: true, reporterProfileId: true, listingId: true, conversationId: true, targetSellerId: true, targetProfileId: true } as const
+  const [openRows, resolvedRows] = await Promise.all([
+    db.report.findMany({ where: { status: 'open' }, orderBy: { createdAt: 'desc' }, take: 500, select: SELECT }),
+    db.report.findMany({ where: { status: { not: 'open' } }, orderBy: { resolvedAt: 'desc' }, take: 60, select: SELECT }),
   ])
+  type Rep = (typeof openRows)[number]
+
+  const raw: RawReport[] = [...openRows, ...resolvedRows].map((r) => ({ id: r.id, reporterProfileId: r.reporterProfileId, listingId: r.listingId, conversationId: r.conversationId, targetSellerId: r.targetSellerId, targetProfileId: r.targetProfileId }))
+  const [{ reporterById, convoByReportId }, { targetByReportId }] = await Promise.all([reportContext(raw), targetContext(raw)])
+
+  // Community = how many OPEN reports share a target (the actionable pile-on).
+  const keyOf = (r: Rep) => r.targetProfileId || r.targetSellerId || r.listingId || r.id
+  const openByKey = new Map<string, number>()
+  for (const r of openRows) { const k = keyOf(r); openByKey.set(k, (openByKey.get(k) || 0) + 1) }
 
   const now = Date.now()
-  const cases: ModCase[] = reports.map((r) => {
+  const buildCase = (r: Rep, resolved: boolean): ModCase => {
     const reporter = r.reporterProfileId ? reporterById.get(r.reporterProfileId) ?? null : null
     const target = targetByReportId.get(r.id)!
-    const community = communityByReportId.get(r.id) ?? 1
+    const community = resolved ? 1 : openByKey.get(keyOf(r)) ?? 1
     const sevKey = r.severity && SEV_W[r.severity] ? r.severity : 'moderate'
     const cred = credibility(reporter)
     const ageDays = (now - r.createdAt.getTime()) / 86_400_000
@@ -72,10 +74,14 @@ export default async function AdminPage() {
       id: r.id, reason: r.reason, detail: r.detail, severity: r.severity, createdAt: r.createdAt.toISOString(),
       ageDays: Math.floor(ageDays), bucket, priority,
       reporter, conversationId: convoByReportId.get(r.id) ?? null, communityCount: community, target,
+      internalNote: r.internalNote ?? null,
+      resolution: resolved ? { status: r.status, by: r.resolvedBy, at: r.resolvedAt ? r.resolvedAt.toISOString() : null } : null,
     }
-  })
-  // Critical first, then by priority, then newest.
+  }
+
+  const cases: ModCase[] = openRows.map((r) => buildCase(r, false))
   cases.sort((a, b) => BUCKET_RANK[a.bucket] - BUCKET_RANK[b.bucket] || b.priority - a.priority || (a.createdAt < b.createdAt ? 1 : -1))
+  const resolved: ModCase[] = resolvedRows.map((r) => buildCase(r, true))
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -86,7 +92,7 @@ export default async function AdminPage() {
           <h1 className="h-title text-foreground">Moderation</h1>
           <p className="mt-1 text-sm text-muted-foreground">Signed in as {admin}. One triaged inbox — most urgent first. Confirm docks the target&apos;s trust; abusive penalizes the reporter. Listings publish instantly (no review queue); low-trust accounts can&apos;t post until their score recovers.</p>
         </div>
-        <ModerationClient cases={cases} />
+        <ModerationClient cases={cases} resolved={resolved} />
       </main>
     </div>
   )

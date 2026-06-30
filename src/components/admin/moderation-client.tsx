@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Check, X, Flag, Loader2, ExternalLink, EyeOff, MessageSquare, Send, ChevronDown } from 'lucide-react'
+import { Check, X, Flag, Loader2, ExternalLink, EyeOff, MessageSquare, Send, ChevronDown, StickyNote, Users } from 'lucide-react'
 import { formatMoneyFull } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { MOD_MACROS } from '@/lib/admin-macros'
@@ -32,6 +32,8 @@ export type ModCase = {
   conversationId: string | null
   communityCount: number
   target: TargetInfo
+  internalNote: string | null
+  resolution?: { status: string; by: string | null; at: string | null } | null
 }
 
 const REASON_LABEL: Record<string, string> = {
@@ -41,16 +43,12 @@ const REASON_LABEL: Record<string, string> = {
 const PENALTY: Record<string, number> = { minor: -3, moderate: -10, severe: -25 }
 const SEVERITIES = ['minor', 'moderate', 'severe'] as const
 
-async function moderate(action: string, id: string, severity?: string) {
-  const res = await fetch('/api/admin/moderate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, id, ...(severity ? { severity } : {}) }),
-  })
-  if (!res.ok) throw new Error(`${action} failed`)
+async function post(body: Record<string, unknown>) {
+  const res = await fetch('/api/admin/moderate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  if (!res.ok) throw new Error('action failed')
 }
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
-// Trust-tier chip — colored so an admin reads the target's standing at a glance.
 function TierChip({ tier, score }: { tier: string | null; score: number | null }) {
   if (score == null) return null
   const cls = tier === 'restricted' ? 'bg-red-100 text-red-700'
@@ -60,12 +58,35 @@ function TierChip({ tier, score }: { tier: string | null; score: number | null }
   return <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-bold', cls)}>trust {score}{tier && tier !== 'standard' ? ` · ${tier}` : ''}</span>
 }
 
-// Admin → user message with a canned-macro picker (prefill, then edit before send).
+function NoteEditor({ caseId, initial, onSaved }: { caseId: string; initial: string | null; onSaved: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState(initial || '')
+  const [saving, setSaving] = useState(false)
+  const dirty = text !== (initial || '')
+  const save = async () => { setSaving(true); try { await post({ action: 'set-note', id: caseId, note: text }); onSaved() } catch { /* noop */ } finally { setSaving(false) } }
+  if (!open) {
+    return (
+      <button onClick={(e) => { e.stopPropagation(); setOpen(true) }} className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer">
+        <StickyNote className="h-3 w-3" /> {initial ? 'Internal note ✓' : 'Add internal note'}
+      </button>
+    )
+  }
+  return (
+    <div className="w-full rounded-lg border border-border bg-tint/40 p-2" onClick={(e) => e.stopPropagation()}>
+      <p className="mb-1 text-[10px] font-semibold text-muted-foreground">Internal note (staff-only, never shown to users)</p>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} maxLength={2000} className="w-full resize-none rounded-md border border-line-strong bg-card px-2 py-1.5 text-xs outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <button onClick={save} disabled={saving || !dirty} className="inline-flex items-center gap-1 rounded-md bg-foreground px-2.5 py-1 text-[10px] font-bold text-background hover:opacity-90 disabled:opacity-40 cursor-pointer">{saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null} Save note</button>
+        <button onClick={() => { setText(initial || ''); setOpen(false) }} className="rounded-md px-2 py-1 text-[10px] font-bold text-muted-foreground hover:bg-muted cursor-pointer">Close</button>
+      </div>
+    </div>
+  )
+}
+
 function AdminMessageButton({ recipientId, label, listingId, conversationId }: { recipientId: string; label: string; listingId?: string | null; conversationId?: string | null }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
-
   const send = async () => {
     const t = text.trim()
     if (!t) return
@@ -73,11 +94,9 @@ function AdminMessageButton({ recipientId, label, listingId, conversationId }: {
     try {
       const res = await fetch('/api/admin/message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipientId, text: t, listingId, conversationId }) })
       if (!res.ok) throw new Error()
-      setState('sent'); setText('')
-      setTimeout(() => { setOpen(false); setState('idle') }, 1400)
+      setState('sent'); setText(''); setTimeout(() => { setOpen(false); setState('idle') }, 1400)
     } catch { setState('error') }
   }
-
   if (!open) {
     return (
       <button onClick={(e) => { e.stopPropagation(); setOpen(true) }} className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted cursor-pointer">
@@ -89,21 +108,14 @@ function AdminMessageButton({ recipientId, label, listingId, conversationId }: {
     <div className="w-full rounded-lg border border-border bg-card p-2" onClick={(e) => e.stopPropagation()}>
       <div className="mb-1 flex items-center justify-between gap-2">
         <p className="text-[10px] font-semibold text-muted-foreground">Message {label}</p>
-        <select
-          value=""
-          onChange={(e) => { const m = MOD_MACROS.find((x) => x.label === e.target.value); if (m) setText(m.text) }}
-          className="rounded border border-line-strong bg-card px-1 py-0.5 text-[10px] text-foreground cursor-pointer"
-        >
+        <select value="" onChange={(e) => { const m = MOD_MACROS.find((x) => x.label === e.target.value); if (m) setText(m.text) }} className="rounded border border-line-strong bg-card px-1 py-0.5 text-[10px] text-foreground cursor-pointer">
           <option value="">Insert macro…</option>
           {MOD_MACROS.map((m) => <option key={m.label} value={m.label}>{m.label}</option>)}
         </select>
       </div>
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={2000} placeholder="Write a message — it lands in their notifications…" className="w-full resize-none rounded-md border border-line-strong px-2 py-1.5 text-xs outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
       <div className="mt-1.5 flex items-center gap-1.5">
-        <button onClick={send} disabled={state === 'sending' || !text.trim()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[10px] font-bold text-white hover:bg-brand-dark disabled:opacity-40 cursor-pointer">
-          {state === 'sending' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-          {state === 'sent' ? 'Sent ✓' : 'Send'}
-        </button>
+        <button onClick={send} disabled={state === 'sending' || !text.trim()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[10px] font-bold text-white hover:bg-brand-dark disabled:opacity-40 cursor-pointer">{state === 'sending' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{state === 'sent' ? 'Sent ✓' : 'Send'}</button>
         <button onClick={() => { setOpen(false); setText(''); setState('idle') }} className="rounded-md px-2 py-1 text-[10px] font-bold text-muted-foreground hover:bg-muted cursor-pointer">Cancel</button>
         {state === 'error' && <span className="text-[10px] font-semibold text-red-600">Failed — try again.</span>}
       </div>
@@ -113,36 +125,38 @@ function AdminMessageButton({ recipientId, label, listingId, conversationId }: {
 
 const RAIL = { critical: 'border-l-red-500', high: 'border-l-amber-400', standard: 'border-l-slate-300' }
 
-function CaseCard({ c, selected, busy, severity, onSeverity, onSelect, onAction, onListing }: {
-  c: ModCase; selected: boolean; busy: boolean; severity: string
+function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onSeverity, onSelect, onAction, onListing, onDismissTarget, refresh }: {
+  c: ModCase; selected: boolean; busy: boolean; severity: string; readOnly?: boolean
+  checked?: boolean; onCheck?: () => void
   onSeverity: (id: string, s: string) => void
   onSelect: () => void
   onAction: (action: string, id: string, severity?: string) => void
   onListing: (action: string, listingId: string) => void
+  onDismissTarget: (id: string) => void
+  refresh: () => void
 }) {
   const t = c.target
   const isListing = t.kind === 'listing' && t.listing
-  // Message targets: reporter + the reported party (when reachable — guests have no account).
   const msgTargets = [
     c.reporter ? { recipientId: c.reporter.id, label: `reporter (${c.reporter.name})` } : null,
     t.profileId ? { recipientId: t.profileId, label: `${t.kind === 'listing' ? 'seller' : 'reported user'} (${t.name})` } : null,
-  ].filter((x): x is { recipientId: string; label: string } => x !== null)
-    .filter((x, i, a) => a.findIndex((y) => y.recipientId === x.recipientId) === i)
+  ].filter((x): x is { recipientId: string; label: string } => x !== null).filter((x, i, a) => a.findIndex((y) => y.recipientId === x.recipientId) === i)
 
   return (
-    <div onClick={onSelect} className={cn('cursor-pointer rounded-2xl border border-l-[3px] bg-card p-4 shadow-pop transition-shadow', RAIL[c.bucket], selected ? 'ring-2 ring-brand/40' : 'border-border')}>
-      {/* Header: bucket, reason, community, age */}
+    <div onClick={onSelect} className={cn('cursor-pointer rounded-2xl border border-l-[3px] bg-card p-4 shadow-pop transition-shadow', RAIL[c.bucket], selected && !readOnly ? 'ring-2 ring-brand/40' : 'border-border', readOnly && 'opacity-90')}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          {c.bucket === 'critical' && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">Critical</span>}
+          {!readOnly && onCheck && (
+            <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5 cursor-pointer accent-[#0a66c2]" aria-label="Select case" />
+          )}
+          {c.bucket === 'critical' && !readOnly && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">Critical</span>}
           <span className="text-sm font-bold text-foreground">{REASON_LABEL[c.reason] || c.reason}</span>
-          {c.communityCount > 1 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">{c.communityCount} reports on this target</span>}
+          {c.communityCount > 1 && !readOnly && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">{c.communityCount} on this target</span>}
           <span className="rounded-full bg-tint px-2 py-0.5 text-[10px] font-semibold capitalize text-ink-4">{t.kind}</span>
         </div>
         <span className="shrink-0 text-[11px] text-ink-4">{c.ageDays <= 0 ? 'today' : `${c.ageDays}d ago`}</span>
       </div>
 
-      {/* Target */}
       <div className="mt-2 flex gap-3">
         {isListing && (
           <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-tint">
@@ -152,9 +166,7 @@ function CaseCard({ c, selected, busy, severity, onSeverity, onSelect, onAction,
         <div className="min-w-0 flex-1">
           {isListing ? (
             <>
-              <a href={`/listings/${t.listing!.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 truncate text-sm font-bold text-foreground hover:text-accent-foreground">
-                <span className="truncate">{t.listing!.title}</span><ExternalLink className="h-3 w-3 shrink-0 opacity-50" />
-              </a>
+              <a href={`/listings/${t.listing!.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 truncate text-sm font-bold text-foreground hover:text-accent-foreground"><span className="truncate">{t.listing!.title}</span><ExternalLink className="h-3 w-3 shrink-0 opacity-50" /></a>
               <p className="mt-0.5 text-xs font-semibold text-accent-foreground">{formatMoneyFull(t.listing!.price, t.listing!.currency)}</p>
               <p className="truncate text-[11px] text-muted-foreground">{t.listing!.category} · {t.listing!.location}</p>
             </>
@@ -172,7 +184,6 @@ function CaseCard({ c, selected, busy, severity, onSeverity, onSelect, onAction,
 
       {c.detail && <p className="mt-2 text-xs text-foreground">“{c.detail}”</p>}
 
-      {/* Reporter + conversation */}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         {c.reporter ? (
           <span>By {c.reporter.sellerId ? <a href={`/sellers/${c.reporter.sellerId}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="font-semibold text-foreground hover:underline">{c.reporter.name}</a> : <span className="font-semibold text-foreground">{c.reporter.name}</span>}<span className="text-ink-4"> · trust {c.reporter.trustScore}</span>{c.reporter.strikes > 0 && <span className="font-semibold text-warning"> · {c.reporter.strikes} false-report strike{c.reporter.strikes > 1 ? 's' : ''}</span>}</span>
@@ -180,57 +191,68 @@ function CaseCard({ c, selected, busy, severity, onSeverity, onSelect, onAction,
         {c.conversationId && <a href={`/admin/conversation/${c.conversationId}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline"><MessageSquare className="h-3 w-3" /> View conversation</a>}
       </div>
 
-      {/* Decision */}
-      <div className="mt-3 space-y-1.5 border-t border-border pt-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-wide text-ink-4">Penalty</span>
-          {SEVERITIES.map((s) => (
-            <button key={s} onClick={(e) => { e.stopPropagation(); onSeverity(c.id, s) }} className={cn('rounded-md px-2 py-0.5 text-[10px] font-bold capitalize transition-colors cursor-pointer', severity === s ? 'bg-primary text-white' : 'border border-line-strong text-foreground hover:bg-muted')}>{s} {PENALTY[s]}</button>
-          ))}
+      {readOnly ? (
+        <div className="mt-2 border-t border-border pt-2 text-[11px] text-muted-foreground">
+          <span className={cn('font-bold', c.resolution?.status === 'confirmed' ? 'text-red-600' : c.resolution?.status === 'abusive' ? 'text-warning' : 'text-foreground')}>{c.resolution?.status}</span>
+          {c.resolution?.by ? ` · by ${c.resolution.by}` : ''}{c.resolution?.at ? ` · ${shortDate(c.resolution.at)}` : ''}
+          {c.internalNote && <p className="mt-1 italic">Note: {c.internalNote}</p>}
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} className="rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm{isListing ? ' & unpublish' : ''} ({PENALTY[severity]} trust)</button>
-          <button onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} className="rounded-md px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss</button>
-          <button onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className="rounded-md px-2 py-1 text-[11px] font-semibold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer" title="False/abusive report — strike the reporter">Abusive</button>
-          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-        </div>
-        {/* Listing-level actions (only for listing reports) */}
-        {isListing && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <button onClick={(e) => { e.stopPropagation(); onListing('approve', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Check className="h-3 w-3" /> Keep &amp; clear reports</button>
-            <button onClick={(e) => { e.stopPropagation(); onListing('unpublish', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><EyeOff className="h-3 w-3" /> Unpublish</button>
-            <button onClick={(e) => { e.stopPropagation(); onListing('reject', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-card px-2 py-0.5 text-[10px] font-bold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete</button>
+      ) : (
+        <>
+          <div className="mt-3 space-y-1.5 border-t border-border pt-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-ink-4">Penalty</span>
+              {SEVERITIES.map((s) => (
+                <button key={s} onClick={(e) => { e.stopPropagation(); onSeverity(c.id, s) }} className={cn('rounded-md px-2 py-0.5 text-[10px] font-bold capitalize transition-colors cursor-pointer', severity === s ? 'bg-primary text-white' : 'border border-line-strong text-foreground hover:bg-muted')}>{s} {PENALTY[s]}</button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} className="rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm{isListing ? ' & unpublish' : ''} ({PENALTY[severity]} trust)</button>
+              <button onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} className="rounded-md px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss</button>
+              <button onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className="rounded-md px-2 py-1 text-[11px] font-semibold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer" title="False/abusive report — strike the reporter">Abusive</button>
+              {c.communityCount > 1 && <button onClick={(e) => { e.stopPropagation(); onDismissTarget(c.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount} on target</button>}
+              {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            </div>
+            {isListing && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <button onClick={(e) => { e.stopPropagation(); onListing('approve', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Check className="h-3 w-3" /> Keep &amp; clear reports</button>
+                <button onClick={(e) => { e.stopPropagation(); onListing('unpublish', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><EyeOff className="h-3 w-3" /> Unpublish</button>
+                <button onClick={(e) => { e.stopPropagation(); onListing('reject', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-card px-2 py-0.5 text-[10px] font-bold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete</button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Reach out */}
-      {(msgTargets.length > 0 || t.isGuest) && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {msgTargets.map((m) => <AdminMessageButton key={m.recipientId} recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} />)}
-          {t.isGuest && <span className="text-[10px] italic text-ink-4">Reported party is a guest — can&apos;t be messaged; act on the listing.</span>}
-        </div>
+          <div className="mt-2 flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {msgTargets.map((m) => <AdminMessageButton key={m.recipientId} recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} />)}
+              {t.isGuest && <span className="text-[10px] italic text-ink-4">Reported party is a guest — can&apos;t be messaged; act on the listing.</span>}
+            </div>
+            <NoteEditor caseId={c.id} initial={c.internalNote} onSaved={refresh} />
+          </div>
+        </>
       )}
     </div>
   )
 }
 
-type FilterKey = 'all' | 'critical' | 'aging' | 'listing' | 'account' | 'chat'
+type FilterKey = 'all' | 'critical' | 'aging' | 'listing' | 'account' | 'chat' | 'resolved'
 
-export function ModerationClient({ cases }: { cases: ModCase[] }) {
+export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolved: ModCase[] }) {
   const router = useRouter()
   const [filter, setFilter] = useState<FilterKey>('all')
   const [sel, setSel] = useState(0)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [sevById, setSevById] = useState<Record<string, string>>({})
+  const [checked, setChecked] = useState<Set<string>>(new Set())
+  const [bulkSev, setBulkSev] = useState('moderate')
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const sevOf = (c: ModCase) => sevById[c.id] || (c.severity && PENALTY[c.severity] ? c.severity : 'moderate')
+  const refresh = () => router.refresh()
 
-  const filtered = cases.filter((c) =>
-    filter === 'all' ? true
-    : filter === 'critical' ? c.bucket === 'critical'
-    : filter === 'aging' ? c.ageDays > 2
-    : c.target.kind === filter)
+  const showResolved = filter === 'resolved'
+  const filtered = showResolved ? resolved : cases.filter((c) =>
+    filter === 'all' ? true : filter === 'critical' ? c.bucket === 'critical' : filter === 'aging' ? c.ageDays > 2 : c.target.kind === filter)
 
   const counts = {
     all: cases.length,
@@ -239,20 +261,32 @@ export function ModerationClient({ cases }: { cases: ModCase[] }) {
     listing: cases.filter((c) => c.target.kind === 'listing').length,
     account: cases.filter((c) => c.target.kind === 'account').length,
     chat: cases.filter((c) => c.target.kind === 'chat').length,
+    resolved: resolved.length,
   }
 
   const act = async (action: string, id: string, severity?: string) => {
     setBusyId(id)
-    try { await moderate(action, id, severity); router.refresh() } catch { /* surfaced by refresh staying */ } finally { setBusyId(null) }
+    try { await post({ action, id, ...(severity ? { severity } : {}) }); refresh() } catch { /* stays */ } finally { setBusyId(null) }
   }
   const listingAct = async (action: string, listingId: string) => {
     setBusyId(listingId)
-    try { await moderate(action, listingId); router.refresh() } catch { /* noop */ } finally { setBusyId(null) }
+    try { await post({ action, id: listingId }); refresh() } catch { /* noop */ } finally { setBusyId(null) }
+  }
+  const dismissTarget = async (id: string) => {
+    setBusyId(id)
+    try { await post({ action: 'dismiss-target', id }); refresh() } catch { /* noop */ } finally { setBusyId(null) }
+  }
+  const bulk = async (action: 'bulk-dismiss' | 'bulk-confirm') => {
+    const ids = [...checked]
+    if (!ids.length) return
+    setBulkBusy(true)
+    try { await post({ action, ids, ...(action === 'bulk-confirm' ? { severity: bulkSev } : {}) }); setChecked(new Set()); refresh() } catch { /* noop */ } finally { setBulkBusy(false) }
   }
 
-  // Keyboard: j/k move, c confirm (current penalty), d dismiss, a abusive. Ignored while typing.
+  // Keyboard: j/k move, c confirm, d dismiss, a abusive. Disabled in the resolved view.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (showResolved) return
       const el = e.target as HTMLElement
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return
       const cur = filtered[sel]
@@ -265,11 +299,12 @@ export function ModerationClient({ cases }: { cases: ModCase[] }) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, sel])
+  }, [filtered, sel, showResolved])
 
   useEffect(() => { if (sel > filtered.length - 1) setSel(Math.max(0, filtered.length - 1)) }, [filtered.length, sel])
 
-  const CHIPS: [FilterKey, string][] = [['all', 'All'], ['critical', 'Critical'], ['aging', 'Aging >2d'], ['listing', 'Listings'], ['account', 'Accounts'], ['chat', 'Chats']]
+  const CHIPS: [FilterKey, string][] = [['all', 'All'], ['critical', 'Critical'], ['aging', 'Aging >2d'], ['listing', 'Listings'], ['account', 'Accounts'], ['chat', 'Chats'], ['resolved', 'Resolved']]
+  const targetsOfChecked = new Set(cases.filter((c) => checked.has(c.id)).map((c) => c.target.sellerId || c.target.profileId || c.id)).size
 
   return (
     <div>
@@ -279,24 +314,43 @@ export function ModerationClient({ cases }: { cases: ModCase[] }) {
             {label} ({counts[k]})
           </button>
         ))}
-        <span className="ml-auto hidden items-center gap-1 text-[10px] text-ink-4 sm:inline-flex"><ChevronDown className="h-3 w-3" /> keys: j/k move · c confirm · d dismiss · a abusive</span>
+        {!showResolved && <span className="ml-auto hidden items-center gap-1 text-[10px] text-ink-4 sm:inline-flex"><ChevronDown className="h-3 w-3" /> keys: j/k move · c confirm · d dismiss · a abusive</span>}
       </div>
 
+      {/* Bulk action bar */}
+      {!showResolved && checked.size > 0 && (
+        <div className="sticky top-2 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2 shadow-pop">
+          <span className="text-xs font-bold text-foreground">{checked.size} selected{targetsOfChecked > 1 ? ` · ${targetsOfChecked} targets` : ''}</span>
+          <button onClick={() => bulk('bulk-dismiss')} disabled={bulkBusy} className="rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss selected</button>
+          <span className="ml-1 flex items-center gap-1">
+            <select value={bulkSev} onChange={(e) => setBulkSev(e.target.value)} className="rounded border border-line-strong bg-card px-1 py-0.5 text-[11px] cursor-pointer">{SEVERITIES.map((s) => <option key={s} value={s}>{s} {PENALTY[s]}</option>)}</select>
+            <button onClick={() => bulk('bulk-confirm')} disabled={bulkBusy} className="rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm selected</button>
+          </span>
+          {bulkBusy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          <button onClick={() => setChecked(new Set())} className="ml-auto rounded-md px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted cursor-pointer">Clear</button>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-ink-4">Nothing here. 🎉</div>
+        <div className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-ink-4">{showResolved ? 'No resolved reports yet.' : 'Nothing here. 🎉'}</div>
       ) : (
         <div className="space-y-3">
           {filtered.map((c, i) => (
             <CaseCard
               key={c.id}
               c={c}
+              readOnly={showResolved}
               selected={i === sel}
               busy={busyId === c.id || (c.target.kind === 'listing' && c.target.listing != null && busyId === c.target.listing.id)}
               severity={sevOf(c)}
+              checked={checked.has(c.id)}
+              onCheck={() => setChecked((prev) => { const n = new Set(prev); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n })}
               onSeverity={(id, s) => setSevById((m) => ({ ...m, [id]: s }))}
               onSelect={() => setSel(i)}
               onAction={act}
               onListing={listingAct}
+              onDismissTarget={dismissTarget}
+              refresh={refresh}
             />
           ))}
         </div>

@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const admin = await getAdmin()
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  let body: { action?: string; id?: string; severity?: string }
+  let body: { action?: string; id?: string; severity?: string; ids?: string[]; note?: string }
   try {
     body = await req.json()
   } catch {
@@ -27,9 +27,56 @@ export async function POST(req: NextRequest) {
 
   const action = String(body.action || '')
   const id = String(body.id || '').trim()
-  if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+  const isBulk = action === 'bulk-dismiss' || action === 'bulk-confirm'
+  if (!id && !isBulk) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+
+  const normSeverity = (v: unknown): 'minor' | 'moderate' | 'severe' =>
+    (['minor', 'moderate', 'severe'].includes(String(v)) ? String(v) : 'moderate') as 'minor' | 'moderate' | 'severe'
 
   switch (action) {
+    case 'set-note': {
+      // Staff-only note on the case — never shown to users.
+      await db.report.update({ where: { id }, data: { internalNote: String(body.note ?? '').slice(0, 2000) || null } }).catch(() => {})
+      return NextResponse.json({ ok: true })
+    }
+
+    case 'dismiss-target': {
+      // Clear a pile-on: dismiss EVERY open report sharing this report's target identity.
+      const report = await db.report.findUnique({ where: { id }, select: { targetProfileId: true, targetSellerId: true, listingId: true } })
+      if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      const where = report.targetProfileId ? { targetProfileId: report.targetProfileId }
+        : report.targetSellerId ? { targetSellerId: report.targetSellerId }
+        : report.listingId ? { listingId: report.listingId } : { id }
+      const upd = await db.report.updateMany({ where: { ...where, status: 'open' }, data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date() } })
+      return NextResponse.json({ ok: true, dismissed: upd.count })
+    }
+
+    case 'bulk-dismiss': {
+      const ids = (body.ids || []).map((x) => String(x)).slice(0, 200)
+      if (!ids.length) return NextResponse.json({ error: 'No ids' }, { status: 400 })
+      const upd = await db.report.updateMany({ where: { id: { in: ids }, status: 'open' }, data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date() } })
+      return NextResponse.json({ ok: true, dismissed: upd.count })
+    }
+
+    case 'bulk-confirm': {
+      const ids = (body.ids || []).map((x) => String(x)).slice(0, 100)
+      if (!ids.length) return NextResponse.json({ error: 'No ids' }, { status: 400 })
+      const severity = normSeverity(body.severity)
+      const penalty = -SEVERITY_PENALTY[severity]
+      let confirmed = 0
+      for (const rid of ids) {
+        const report = await db.report.findUnique({ where: { id: rid }, select: { targetProfileId: true, targetSellerId: true, listingId: true } })
+        if (!report) continue
+        const upd = await db.report.updateMany({ where: { id: rid, status: 'open' }, data: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date() } })
+        if (upd.count === 0) continue // already resolved — no double-dock
+        if (report.targetProfileId) await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${rid}`, reportId: rid })
+        else if (report.targetSellerId) await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${rid}`, reportId: rid })
+        if (report.listingId) { await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {}); revalidatePath(`/listings/${report.listingId}`) }
+        confirmed++
+      }
+      return NextResponse.json({ ok: true, confirmed })
+    }
+
     case 'approve': {
       // Publish a held listing and dismiss any open reports against it.
       const listing = await db.listing.findUnique({ where: { id }, select: { id: true } })
