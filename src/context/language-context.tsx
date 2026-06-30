@@ -247,6 +247,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (detected !== 'en') setLangState(detected)
   }, [])
 
+  // Persist the chosen language to the signed-in user's Profile so SERVER-sent messages
+  // (e.g. moderation notifications, which the recipient can't supply a cookie for) reach
+  // them in this language. Debounced so only the settled language is written (the mount
+  // effect above may flip en→vi first); fire-and-forget — a no-op 401 for guests.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      fetch('/api/profile/locale', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ locale: lang }) }).catch(() => {})
+    }, 800)
+    return () => clearTimeout(id)
+  }, [lang])
+
   // Seed BOTH translation systems (t() dictionary + <Tr>/tr cache) from one map
   // of {englishSource: translation}, then repaint consumers.
   const seedFromMap = (target: Language, map: Record<string, string>) => {

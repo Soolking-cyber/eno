@@ -31,9 +31,11 @@ export const MOD_MACROS: Macro[] = [
   },
 ]
 
-// VN-market default: Vietnamese unless the user explicitly chose English.
+// We only have EN + VI macros. Send Vietnamese ONLY when the user's stored language is
+// explicitly 'vi'; everyone else (English, any other language, or unknown) gets English —
+// the safe international fallback, so an English user never receives Vietnamese.
 export function pickLocale(locale: string | null | undefined): 'en' | 'vi' {
-  return locale === 'en' ? 'en' : 'vi'
+  return locale === 'vi' ? 'vi' : 'en'
 }
 
 // Auto-sent to the reported party when a report is CONFIRMED — links to the appeal form.
