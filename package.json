@@ -20,6 +20,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "sec:probe": "node scripts/sec-probe.mjs",
     "db:push": "prisma db push",
     "db:setup": "prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs",
     "db:generate": "prisma generate",

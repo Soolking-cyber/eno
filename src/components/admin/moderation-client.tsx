@@ -130,7 +130,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
     <div onClick={onSelect} className={cn('cursor-pointer rounded-2xl border border-l-[3px] bg-card p-4 shadow-pop transition-shadow', RAIL[c.bucket], selected && !readOnly ? 'ring-2 ring-brand/40' : 'border-border', readOnly && 'opacity-90')}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5 cursor-pointer accent-[#0a66c2]" aria-label="Select case" />}
+          {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5 cursor-pointer accent-brand" aria-label="Select case" />}
           {c.appeal && <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Appeal</span>}
           {c.bucket === 'critical' && !c.appeal && !readOnly && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">Critical</span>}
           <span className="text-sm font-bold text-foreground">{REASON_LABEL[c.reason] || c.reason}</span>
@@ -239,7 +239,7 @@ function CaseRow({ c, active, checked, readOnly, onSelect, onCheck }: {
   return (
     <div onClick={onSelect} className={cn('cursor-pointer rounded-xl border border-l-[3px] p-2.5 transition-colors', RAIL[c.bucket], active ? 'border-brand/40 bg-tint ring-1 ring-brand/40' : 'border-border bg-card hover:bg-muted/50')}>
       <div className="flex items-start gap-2">
-        {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="mt-0.5 h-3.5 w-3.5 cursor-pointer accent-[#0a66c2]" aria-label="Select case" />}
+        {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="mt-0.5 h-3.5 w-3.5 cursor-pointer accent-brand" aria-label="Select case" />}
         {isListing && (
           <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-tint">
             {t.listing!.image ? <Image src={t.listing!.image} alt="" fill sizes="36px" className="object-cover" /> : null}
