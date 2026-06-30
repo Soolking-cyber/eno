@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { localizeListingTitles } from '@/lib/translate'
 
 export const runtime = 'nodejs'
 
@@ -52,7 +53,7 @@ export async function GET() {
         take: PER_RAIL,
         include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
       })
-      return { slug, listings: listings.map(serializeListing) }
+      return { slug, listings: await localizeListingTitles(listings.map(serializeListing)) }
     }),
   )
 

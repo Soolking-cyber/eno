@@ -16,12 +16,19 @@ import { detectContentLang } from '@/lib/detect-lang'
  * SYNCHRONOUSLY with no flash and no network call. Falls back to the client machine-translate
  * (useTr) only when the embed is missing — so it's always at least as good as before.
  */
-export function LocalizedText({ text, vi, i18n }: { text: string; vi?: string | null; i18n?: Record<string, string> | null }) {
+/** The localized STRING: embedded translation first (synchronous), else client machine-
+ *  translate. Use when you need the text value (e.g. an alt attribute), not a node. */
+export function useLocalized(text: string, vi?: string | null, i18n?: Record<string, string> | null): string {
   const { lang } = useLanguage()
   const embedded = lang === 'en' ? text : lang === 'vi' ? (vi || i18n?.vi || null) : (i18n?.[lang] || null)
   // useTr is a hook → always called; '' is a no-op, so we skip translation when embedded.
   const translated = useTr(embedded ? '' : lang === 'vi' ? vi || text : text)
-  const out = embedded || translated || text
+  return embedded || translated || text
+}
+
+export function LocalizedText({ text, vi, i18n }: { text: string; vi?: string | null; i18n?: Record<string, string> | null }) {
+  const { lang } = useLanguage()
+  const out = useLocalized(text, vi, i18n)
   const cl = detectContentLang(out)
   return cl && cl !== lang ? <span lang={cl}>{out}</span> : <>{out}</>
 }

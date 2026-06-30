@@ -283,3 +283,26 @@ export async function cachedTranslations(texts: string[]): Promise<Record<string
   }
   return out
 }
+
+/**
+ * Attach `titleI18n` (pre-warmed title translations) to a list of cards so they render in the
+ * visitor's language with no client fetch/flash. `onlyLang` (from the request's `lang` cookie)
+ * embeds JUST that language to keep the hot feed payload tiny; omit it on ISR/SSR pages
+ * (language-neutral) to embed every language. en/vi are never embedded — the source title and
+ * `titleVi` already cover them, so the dominant VN traffic adds zero query/payload.
+ */
+export async function localizeListingTitles<T extends { title: string }>(
+  listings: T[],
+  onlyLang?: string,
+): Promise<(T & { titleI18n?: Record<string, string> })[]> {
+  if (!listings.length || onlyLang === 'en' || onlyLang === 'vi') return listings
+  const map = await cachedTranslations(listings.map((l) => l.title))
+  return listings.map((l) => {
+    const m = map[l.title]
+    if (!m) return l
+    const rest: Record<string, string> = {}
+    if (onlyLang) { if (m[onlyLang]) rest[onlyLang] = m[onlyLang] }
+    else for (const k in m) { if (k !== 'en' && k !== 'vi') rest[k] = m[k] }
+    return Object.keys(rest).length ? { ...l, titleI18n: rest } : l
+  })
+}

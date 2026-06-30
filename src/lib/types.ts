@@ -18,6 +18,9 @@ export type SerializedListing = {
   id: string
   title: string
   titleVi: string | null
+  // Pre-warmed title translations embedded for seamless rendering (en/vi omitted — source +
+  // titleVi cover those). Populated by localizeListingTitles at card-producing fetch sites.
+  titleI18n?: Record<string, string>
   description: string
   price: number
   priceUnit: string
@@ -111,30 +114,30 @@ export function formatPriceParts(price: number, currency: string, priceUnit: str
 }
 
 export function timeAgo(iso: string, lang: string = 'vi'): string {
-  const then = new Date(iso).getTime()
-  const diff = Date.now() - then
-  const m = Math.floor(diff / 60000)
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  const h = Math.floor(m / 60), d = Math.floor(h / 24), mo = Math.floor(d / 30), y = Math.floor(mo / 12)
+  // Hand-crafted compact forms for the two primary markets.
   if (lang === 'vi') {
     if (m < 1) return 'vừa xong'
     if (m < 60) return `${m} phút trước`
-    const h = Math.floor(m / 60)
     if (h < 24) return `${h} giờ trước`
-    const d = Math.floor(h / 24)
     if (d < 30) return `${d} ngày trước`
-    const mo = Math.floor(d / 30)
     if (mo < 12) return `${mo} tháng trước`
-    return `${Math.floor(mo / 12)} năm trước`
-  } else {
-    if (m < 1) return 'just now'
-    if (m < 60) return `${m}m ago`
-    const h = Math.floor(m / 60)
-    if (h < 24) return `${h}h ago`
-    const d = Math.floor(h / 24)
-    if (d < 30) return `${d}d ago`
-    const mo = Math.floor(d / 30)
-    if (mo < 12) return `${mo}mo ago`
-    return `${Math.floor(mo / 12)}y ago`
+    return `${y} năm trước`
   }
+  const en = () => m < 1 ? 'just now' : m < 60 ? `${m}m ago` : h < 24 ? `${h}h ago` : d < 30 ? `${d}d ago` : mo < 12 ? `${mo}mo ago` : `${y}y ago`
+  if (lang === 'en') return en()
+  // Every OTHER supported language → properly localized via Intl.RelativeTimeFormat
+  // ("12 дн. назад", "12日前", …) so relative time is never stuck in English.
+  try {
+    const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto', style: 'short' })
+    if (m < 1) return rtf.format(0, 'second')
+    if (m < 60) return rtf.format(-m, 'minute')
+    if (h < 24) return rtf.format(-h, 'hour')
+    if (d < 30) return rtf.format(-d, 'day')
+    if (mo < 12) return rtf.format(-mo, 'month')
+    return rtf.format(-y, 'year')
+  } catch { return en() }
 }
 
 // Single-accent palette: every category renders in the one brand blue.

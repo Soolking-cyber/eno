@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { localizeListingTitles } from '@/lib/translate'
 import { getCategoriesByDemand } from '@/lib/categories'
 import type { SerializedCategory, SerializedListing } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
@@ -34,7 +35,7 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       db.listing.count({ where: { verified: true, status: 'active' } }),
     ])
 
-    const serializedListings: SerializedListing[] = listings.map(serializeListing)
+    const serializedListings: SerializedListing[] = await localizeListingTitles(listings.map(serializeListing))
 
     return { categories: serializedCategories, listings: serializedListings, total }
   } catch {

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowRight, BadgeCheck, MapPin } from 'lucide-react'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { localizeListingTitles } from '@/lib/translate'
 import { Header } from './header'
 import { Footer } from './footer'
 import { Price } from './price'
@@ -30,7 +31,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
       take: 8,
       include: { category: true, seller: true },
     })
-    listings = rows.map(serializeListing)
+    listings = await localizeListingTitles(rows.map(serializeListing))
   } catch {
     /* DB unreachable at build → render the content shell; ISR fills listings later */
   }

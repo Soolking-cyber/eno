@@ -7,6 +7,7 @@ import { isRangeColumn } from '@/lib/taxonomy'
 import { fold } from '@/lib/fold'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, PublishBlockedError } from '@/lib/publish-guard'
+import { localizeListingTitles } from '@/lib/translate'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { getCurrentProfileId } from '@/lib/admin'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
@@ -416,7 +417,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(
     {
-      listings: ordered.map(serializeListing),
+      listings: await localizeListingTitles(ordered.map(serializeListing), req.cookies.get('lang')?.value),
       total,
       offset,
       limit,

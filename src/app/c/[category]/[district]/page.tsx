@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { localizeListingTitles } from '@/lib/translate'
 import { slugify } from '@/lib/slug'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -59,7 +60,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
   const data = await load(category, district)
   if (!data) notFound()
   const { cat, matched, districtName } = data
-  const listings = matched.map(serializeListing)
+  const listings = await localizeListingTitles(matched.map(serializeListing))
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
   const jsonLd = {

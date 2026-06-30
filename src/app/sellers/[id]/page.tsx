@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { localizeListingTitles } from '@/lib/translate'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -52,7 +53,7 @@ export default async function SellerPage({ params }: Props) {
   if (!seller) notFound()
 
   const initials = seller.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
-  const listings = seller.listings.map(serializeListing)
+  const listings = await localizeListingTitles(seller.listings.map(serializeListing))
   const memberYear = new Date(seller.memberSince).getFullYear()
 
   return (

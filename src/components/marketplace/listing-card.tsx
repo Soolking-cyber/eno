@@ -9,6 +9,7 @@ import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
+import { useLocalized } from './listing-content'
 import { useFavorites } from '@/context/favorites-context'
 
 // Tiny neutral blur (matches the card's bg) so images fade in instead of popping
@@ -48,7 +49,7 @@ function ListingCardImpl({
 }: Props) {
   const { lang, t, tr } = useLanguage()
   const images = listing.images
-  const displayTitle = useTr(lang === 'vi' ? (listing.titleVi || listing.title) : listing.title)
+  const displayTitle = useLocalized(listing.title, listing.titleVi, listing.titleI18n)
   const displayLocation = useTr(listing.location)
   const { isFavorite, toggle } = useFavorites()
   const favorited = isFavorite(listing.id)

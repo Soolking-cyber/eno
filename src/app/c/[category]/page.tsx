@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { localizeListingTitles } from '@/lib/translate'
 import { slugify } from '@/lib/slug'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -53,7 +54,7 @@ export default async function CategoryPage({ params }: Props) {
     db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),
     db.listing.findMany({ where: { ...where, district: { not: null } }, select: { district: true }, distinct: ['district'], take: 80 }),
   ])
-  const listings = raw.map(serializeListing)
+  const listings = await localizeListingTitles(raw.map(serializeListing))
   const districts = [...new Set(districtRows.map((r) => r.district).filter((d): d is string => !!d))]
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 

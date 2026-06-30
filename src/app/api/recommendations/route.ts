@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { localizeListingTitles } from '@/lib/translate'
 import { Prisma } from '@/generated/prisma/client'
 import { fold } from '@/lib/fold'
 import { rateLimit } from '@/lib/ratelimit'
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
   })
 
   return NextResponse.json(
-    { listings: rows.map(serializeListing), personalized },
+    { listings: await localizeListingTitles(rows.map(serializeListing), req.cookies.get('lang')?.value), personalized },
     { headers: { 'Cache-Control': 'private, max-age=30' } },
   )
 }
