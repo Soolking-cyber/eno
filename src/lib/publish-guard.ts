@@ -50,15 +50,20 @@ export function findBannedWord(text: string | null | undefined): string | null {
 // is a shoe size), so we only flag the UNAMBIGUOUS "số nhà <n>" (house number). General
 // area/district mentions — which a rental/property listing needs — are intentionally allowed.
 const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i
+// Obfuscated email — "name at gmail dot com", "shop (at) yahoo [dot] com", "gmail chấm
+// com" (folded → cham). A real TLD must follow so coincidental "… at … dot …" prose
+// can't trip it.
+const EMAIL_OBF = /[a-z0-9._%+-]{2,}\s*[([]?\s*(?:@|\bat\b)\s*[)\]]?\s*[a-z0-9-]{2,}\s*[([]?\s*(?:\.|\bdot\b|\bcham\b)\s*[)\]]?\s*(?:com|net|org|vn|io|co|info|mail|edu|gov)\b/i
 const LINK = /\b(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]{2,}\.(?:com|net|org|io|me|co|info|shop|store|link|xyz)\b/i
 const HANDLE = /(?:^|\s)@[a-z0-9._]{3,}/
 const SOCIAL = /\b(?:zalo|whatsapp|telegram|wechat|viber|messenger|facebook|instagram|tiktok)\b\s*[:@#]\s*[\w.+-]{2,}/i
 const HOUSE = /\bsố\s*nhà\s*\d{1,4}\b/iu
 
-/** True if the text embeds off-platform contact info or an explicit house number. */
+/** True if the text embeds off-platform contact info (incl. obfuscated email) or a house number. */
 export function containsContactInfo(text: string | null | undefined): boolean {
   if (!text) return false
-  return EMAIL.test(text) || LINK.test(text) || HANDLE.test(text) || SOCIAL.test(text) || HOUSE.test(text)
+  const f = fold(text)
+  return EMAIL.test(text) || EMAIL_OBF.test(f) || LINK.test(text) || HANDLE.test(text) || SOCIAL.test(text) || HOUSE.test(text)
 }
 
 /**

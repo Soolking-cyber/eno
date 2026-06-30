@@ -1,3 +1,5 @@
+import { fold } from './fold'
+
 // Single source of truth for Vietnamese phone normalization. Shared so the post
 // wizard, contact gating, and (later) the verified-phone business-profile claim
 // all join on the SAME canonical form — one person = one Seller, no 09…/+84… dupes.
@@ -62,6 +64,30 @@ function hasSpelledDigitRun(text: string): boolean {
   return false
 }
 
+// Folded number-word → digit, for MIXED forms ("090 một hai ba…" / "0 chín 0 1 2 3…")
+// where neither the digits nor the words alone trip the checks above. ("o" dropped — too
+// ambiguous a letter; "năm"/year handled by the ≥2-word gate below.)
+const NUM_WORD: Record<string, string> = {
+  zero: '0', oh: '0', linh: '0', khong: '0', one: '1', mot: '1', two: '2', hai: '2',
+  three: '3', ba: '3', four: '4', bon: '4', tu: '4', five: '5', nam: '5', lam: '5',
+  six: '6', sau: '6', seven: '7', bay: '7', eight: '8', tam: '8', nine: '9', chin: '9',
+}
+// A CONTIGUOUS run (broken by any real word) of digit-tokens + number-words that totals
+// ≥9 digits AND includes ≥2 spelled words → a phone written in mixed/worded form. The
+// "real word breaks the run" + "≥2 words" rules keep spec-soup safe: "đi 30000 km, năm
+// 2018, 5 chỗ" never accumulates (km/năm/chỗ break it), and a lone "năm" can't tip a
+// digit-heavy run. Pure-digit phones are already caught by the anchored regexes above.
+function hasMixedNumberRun(folded: string): boolean {
+  let digits = 0, words = 0
+  for (const tok of folded.split(/[^a-z0-9]+/)) {
+    if (/^\d+$/.test(tok)) digits += tok.length
+    else if (NUM_WORD[tok] !== undefined) { digits += 1; words += 1 }
+    else { digits = 0; words = 0; continue }
+    if (words >= 2 && digits >= 9) return true
+  }
+  return false
+}
+
 /**
  * Detects a phone number embedded in free text, so contact info stays OFF public
  * listings — buyers reach sellers in-app, which is what brings sellers back daily
@@ -73,7 +99,7 @@ function hasSpelledDigitRun(text: string): boolean {
 export function containsPhoneNumber(text: string | null | undefined): boolean {
   if (!text) return false
   const norm = toAsciiDigits(text)
-  if (EMBEDDED_PHONE_RE.test(norm) || hasSpelledDigitRun(norm)) return true
+  if (EMBEDDED_PHONE_RE.test(norm) || hasSpelledDigitRun(norm) || hasMixedNumberRun(fold(norm))) return true
   // Dotted fallback: strip dots only (keep spaces so separate numbers stay separate)
   // and check for a standalone VN number. Catches "090.123.4567" without merging a
   // dotted price that sits next to another number.
