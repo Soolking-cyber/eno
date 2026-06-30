@@ -25,7 +25,8 @@ import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { Price } from '@/components/marketplace/price'
 import { Tr } from '@/context/language-context'
-import { LocalizedTitle, PostedAgo } from '@/components/marketplace/listing-content'
+import { LocalizedTitle, LocalizedText, PostedAgo } from '@/components/marketplace/listing-content'
+import { cachedTranslations } from '@/lib/translate'
 import { cn } from '@/lib/utils'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
@@ -124,6 +125,11 @@ export default async function ListingPage({ params }: Props) {
   // Vietnamese tab. The visible H1 still localizes per-user via <LocalizedTitle>.
   const displayTitle = listing.title
   const displayDesc = listing.description
+  // Embed the PRE-WARMED translations of the user-authored content so the H1/description/
+  // location render in the visitor's language instantly (no flash, no per-request translate).
+  // Runs only on ISR regen (page revalidates every 30d) → effectively free; falls back to
+  // the client machine-translate for any missing language.
+  const i18n = await cachedTranslations([listing.title, listing.description, listing.location])
   const color = CATEGORY_COLOR_CLASSES[listing.category.color] ?? CATEGORY_COLOR_CLASSES.brand
 
   const initials = listing.seller.name
@@ -249,7 +255,7 @@ export default async function ListingPage({ params }: Props) {
           <span className="mx-1.5 text-line-strong">/</span>
           <Link href={`/c/${rawListing.category.slug}`} className="hover:text-accent-foreground transition-colors"><Tr text={listing.category.name} /></Link>
           <span className="mx-1.5 text-line-strong">/</span>
-          <span className="font-medium text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} /></span>
+          <span className="font-medium text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
         </nav>
 
         {/* Title header */}
@@ -259,7 +265,7 @@ export default async function ListingPage({ params }: Props) {
               <CategoryIcon name={listing.category.icon} className="h-3.5 w-3.5" />
               <Tr text={listing.category.name} />
             </span>
-            <h1 className="h-title text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} /></h1>
+            <h1 className="h-title text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
             {brand && (
               <Link
                 href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
@@ -271,7 +277,7 @@ export default async function ListingPage({ params }: Props) {
             )}
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4 text-ink-4 shrink-0" />
-              <span className="truncate"><Tr text={listing.location} /></span>
+              <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
             </div>
           </div>
           <div className="mt-0.5 flex shrink-0 items-center gap-2">
@@ -308,7 +314,7 @@ export default async function ListingPage({ params }: Props) {
           <div className="lg:col-span-7 flex flex-col gap-8">
             <div className="space-y-2">
               <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
-              <p className="whitespace-pre-line text-[15px] leading-relaxed text-body"><Tr text={listing.description} /></p>
+              <p className="whitespace-pre-line text-[15px] leading-relaxed text-body"><LocalizedText text={listing.description} i18n={i18n[listing.description]} /></p>
             </div>
 
             {(attrs.length > 0 || numericSpecs.length > 0) && (

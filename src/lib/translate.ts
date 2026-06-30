@@ -260,3 +260,26 @@ export async function warmTranslations(texts: string[], langs: Lang[] = WARM_LAN
     try { await translateBatch(clean, l) } catch { /* best-effort per language */ }
   }
 }
+
+/**
+ * Read ALREADY-CACHED translations (NO API calls) for some source texts across every
+ * language → `{ [sourceText]: { [lang]: translated } }`. A server page EMBEDS this so the
+ * client renders the visitor's language SYNCHRONOUSLY — no flash, no per-request translate,
+ * and no per-language cache variants (the page stays a single ISR entry). One indexed read.
+ */
+export async function cachedTranslations(texts: string[]): Promise<Record<string, Record<string, string>>> {
+  const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
+  if (clean.length === 0) return {}
+  const byHashSource = new Map(clean.map((t) => [hash(t), t]))
+  const rows = await db.translation.findMany({
+    where: { hash: { in: [...byHashSource.keys()] } },
+    select: { hash: true, target: true, value: true },
+  }).catch(() => [])
+  const out: Record<string, Record<string, string>> = {}
+  for (const r of rows) {
+    const src = byHashSource.get(r.hash)
+    if (!src) continue
+    ;(out[src] ||= {})[r.target] = r.value
+  }
+  return out
+}
