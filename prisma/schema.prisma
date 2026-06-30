@@ -46,6 +46,7 @@ model Profile {
   falseReportStrikes   Int       @default(0)   // anti-abuse: confirmed-false reports filed BY this user
   reportCooldownUntil  DateTime?               // anti-abuse: can't file new reports until this passes
   dailyReminderOptIn   Boolean   @default(true) // receive the daily "confirm availability" reminder
+  availabilitySkips    Int       @default(0)    // consecutive "Skip for now" taps; ≥2 → next review hides Skip (must act). Reset to 0 on confirm.
   // ── Acquisition attribution (FIRST-touch) — measure CAC per channel ──
   attrSource    String?  // 'facebook' | 'google' | 'reddit' | 'direct' | utm_source…
   attrMedium    String?  // 'social' | 'cpc' | 'organic' | 'referral' | 'none' | utm_medium…

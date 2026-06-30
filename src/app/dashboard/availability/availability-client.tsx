@@ -26,6 +26,10 @@ export function AvailabilityClient() {
   const [soldIds, setSoldIds] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // Consecutive "Skip for now" taps. After 2 in a row, the Skip option is hidden so the
+  // seller has to confirm (reset to 0 on confirm). Loaded from the dashboard payload.
+  const [skips, setSkips] = useState(0)
+  const canSkip = skips < 2
 
   useEffect(() => {
     if (!loading && !user) { router.replace('/'); return }
@@ -33,6 +37,7 @@ export function AvailabilityClient() {
     fetch('/api/dashboard').then((r) => (r.ok ? r.json() : { dashboard: null })).then((d) => {
       const active = (d.dashboard?.listings ?? []).filter((l: SerializedListing) => l.status === 'active')
       setListings(active)
+      setSkips(d.dashboard?.profile?.availabilitySkips ?? 0)
       // Nothing to review → mark done + leave.
       if (active.length === 0) { markDone(); router.replace('/dashboard') }
     }).catch(() => setListings([]))
@@ -71,7 +76,11 @@ export function AvailabilityClient() {
     router.replace('/dashboard')
   }
 
-  const skip = () => { markDone(); router.replace('/dashboard') }
+  const skip = () => {
+    fetch('/api/availability/skip', { method: 'POST' }).catch(() => {}) // record the consecutive skip
+    markDone()
+    router.replace('/dashboard')
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -122,7 +131,11 @@ export function AvailabilityClient() {
       {listings && total > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card px-3 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-3">
           <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
-            <button onClick={skip} className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</button>
+            {canSkip ? (
+              <button onClick={skip} className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</button>
+            ) : (
+              <span className="max-w-[55%] text-xs text-muted-foreground">{tr('Quick check needed — confirm what’s still available to keep your listings live.', 'Cần xác nhận nhanh — xác nhận món còn hàng để giữ tin của bạn hiển thị.')}</span>
+            )}
             <Button variant="cta" size="none" onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm transition-colors disabled:opacity-50 cursor-pointer">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {soldCount > 0

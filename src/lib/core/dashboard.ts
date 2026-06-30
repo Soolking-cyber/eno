@@ -47,6 +47,7 @@ export async function dashboardStatsCore(profile: Profile) {
       businessName: profile.businessName,
       trustScore: profile.trustScore,
       trustTier: profile.trustTier,
+      availabilitySkips: profile.availabilitySkips,
     },
     seller: seller
       ? {

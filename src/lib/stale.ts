@@ -1,7 +1,7 @@
 // Single source of truth for "a live listing needs an availability refresh".
 // Used by the dashboard API/UI and the daily-reminder cron so the threshold and
 // the rule never drift apart.
-export const STALE_DAYS = 7
+export const STALE_DAYS = 3
 const STALE_MS = STALE_DAYS * 86_400_000
 
 // Anti-gaming: a "bump" (confirm-availability refreshing feed recency) counts at
