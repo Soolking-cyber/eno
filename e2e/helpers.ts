@@ -29,6 +29,12 @@ export { expect }
 const A11Y_BASELINE_RULES = ['nested-interactive']
 
 export async function expectNoA11yViolations(page: Page, context = 'page') {
+  // Let async-loaded content settle first — maps and image skeletons render as low-contrast
+  // `animate-pulse` placeholders that briefly fail contrast, so scanning too early flakes. We
+  // wait for full load + the loading skeletons to clear (bounded), so axe snapshots REAL
+  // content, not transient placeholders.
+  await page.waitForLoadState('load').catch(() => {})
+  await page.locator('.animate-pulse').first().waitFor({ state: 'detached', timeout: 6000 }).catch(() => {})
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .disableRules(A11Y_BASELINE_RULES)
