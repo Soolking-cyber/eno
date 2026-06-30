@@ -50,11 +50,10 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
-      {/* Preload the hero wordmark (landing LCP) — ONLY here. Rendered as a <link> (NOT
-          ReactDOM.preload) so React removes the hint on client-nav away, instead of
-          leaking it into routes that don't use /logo.svg (which spammed "preloaded but
-          not used" on the dashboard etc.). */}
-      <link rel="preload" href="/logo.svg" as="image" fetchPriority="high" />
+      {/* The hero-wordmark preload (/logo.svg) is co-located inside <LogoWordmark> (a client
+          component) so it sits in the initial <head> for LCP but is auto-removed on nav away.
+          A <link> here (Server Component) was hoisted to <head> and NOT cleaned up on soft
+          nav, so it leaked onto non-home routes and warned "preloaded but not used". */}
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         <ListingsExplorer
