@@ -2,6 +2,7 @@ import 'server-only'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/ratelimit'
+import { verifyAccessToken, looksLikeAccessToken } from '@/lib/api/oauth'
 
 // ── /api/v1 machine authentication ───────────────────────────────────────────────
 // The ONLY authn for the partner API. Keys are Bearer tokens of the form
@@ -39,6 +40,20 @@ export type ApiAuthResult =
 export async function resolveApiKey(req: Request, requiredScope?: string): Promise<ApiAuthResult> {
   const m = /^Bearer\s+(.+)$/i.exec((req.headers.get('authorization') || '').trim())
   const raw = (m?.[1] || '').trim()
+
+  // OAuth2 access token (JWT from /api/v1/oauth/token) — stateless, no DB lookup. Scopes
+  // travel in the token; rate-limit keyed by the underlying key id (shared with the key).
+  if (raw && looksLikeAccessToken(raw)) {
+    const tok = verifyAccessToken(raw, Math.floor(Date.now() / 1000))
+    if (!tok) return { ok: false, status: 401, code: 'unauthorized', message: 'Invalid or expired access token.' }
+    if (requiredScope && !tok.scopes.has(requiredScope)) {
+      return { ok: false, status: 403, code: 'insufficient_scope', message: `This token is missing the "${requiredScope}" scope.` }
+    }
+    const rl = await rateLimit('apiv1', tok.keyId, API_RATE_PER_MIN, '1 m')
+    if (!rl.success) return { ok: false, status: 429, code: 'rate_limited', message: 'Rate limit exceeded. Slow down or back off.' }
+    return { ok: true, auth: { keyId: tok.keyId, sellerId: tok.sellerId, profileId: tok.profileId, scopes: tok.scopes }, rate: { limit: API_RATE_PER_MIN, remaining: rl.remaining } }
+  }
+
   if (!raw || !API_KEY_RE.test(raw)) {
     return { ok: false, status: 401, code: 'unauthorized', message: 'Missing or malformed API key. Send `Authorization: Bearer eno_live_…`.' }
   }

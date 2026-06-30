@@ -26,7 +26,9 @@ export async function POST(req: NextRequest) {
 
   let body: { name?: unknown; scopes?: unknown }
   try { body = await req.json() } catch { body = {} }
-  const name = String(body.name || '').trim().slice(0, 60) || 'API key'
+  // Store the name as-is (empty when none) so the UI can render a TRANSLATED fallback
+  // label instead of a hardcoded English "API key".
+  const name = String(body.name || '').trim().slice(0, 60)
   const requested = Array.isArray(body.scopes) ? body.scopes.map(String) : ['listings:read', 'analytics:read']
   const scopes = requested.filter((s) => VALID_SCOPES.has(s))
   if (scopes.length === 0) return NextResponse.json({ error: 'invalid_scopes' }, { status: 400 })

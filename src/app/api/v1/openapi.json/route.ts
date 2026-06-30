@@ -35,6 +35,14 @@ const SPEC = {
     },
   },
   paths: {
+    '/oauth/token': {
+      post: {
+        summary: 'Exchange an API key for a short-lived bearer token (client-credentials)',
+        security: [],
+        requestBody: { content: { 'application/x-www-form-urlencoded': { schema: { type: 'object', required: ['grant_type', 'client_secret'], properties: { grant_type: { type: 'string', enum: ['client_credentials'] }, client_id: { type: 'string', description: 'The key prefix (optional; verified if sent)' }, client_secret: { type: 'string', description: 'The full eno_live_… key' }, scope: { type: 'string', description: 'Space-separated subset of the key scopes (optional)' } } } } } },
+        responses: { '200': { description: 'access_token (JWT, expires_in 3600), token_type, scope' }, '400': { description: 'unsupported_grant_type / invalid_scope' }, '401': { description: 'invalid_client' } },
+      },
+    },
     '/shop': {
       get: { summary: 'Get your storefront profile + trust + live listing count', security: [{ bearerAuth: [] }], responses: { '200': { description: 'OK' }, '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } } } },
       patch: { summary: 'Edit your storefront profile (sparse)', responses: { '200': { description: 'OK' } } },

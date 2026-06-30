@@ -1,11 +1,13 @@
 import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import type { SerializedCategory } from '@/lib/types'
 import { DashboardClient } from './dashboard-client'
 
-export const metadata: Metadata = {
-  title: 'Dashboard | eno.vn',
-  robots: { index: false, follow: false },
+// Localize the browser-tab title to the visitor's language (the page is already dynamic).
+export async function generateMetadata(): Promise<Metadata> {
+  const lang = (await cookies()).get('lang')?.value
+  return { title: `${lang === 'vi' ? 'Bảng điều khiển' : 'Dashboard'} | eno.vn`, robots: { index: false, follow: false } }
 }
 
 // Authed + personalized, and the client reads ?tab via useSearchParams → dynamic.

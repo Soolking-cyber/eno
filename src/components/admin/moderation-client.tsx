@@ -229,6 +229,39 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
   )
 }
 
+// Compact master-list row (the left pane of the two-pane layout). Selecting it loads the
+// full CaseCard into the detail pane on the right.
+function CaseRow({ c, active, checked, readOnly, onSelect, onCheck }: {
+  c: ModCase; active: boolean; checked?: boolean; readOnly?: boolean; onSelect: () => void; onCheck?: () => void
+}) {
+  const t = c.target
+  const isListing = t.kind === 'listing' && t.listing
+  return (
+    <div onClick={onSelect} className={cn('cursor-pointer rounded-xl border border-l-[3px] p-2.5 transition-colors', RAIL[c.bucket], active ? 'border-brand/40 bg-tint ring-1 ring-brand/40' : 'border-border bg-card hover:bg-muted/50')}>
+      <div className="flex items-start gap-2">
+        {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="mt-0.5 h-3.5 w-3.5 cursor-pointer accent-[#0a66c2]" aria-label="Select case" />}
+        {isListing && (
+          <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-tint">
+            {t.listing!.image ? <Image src={t.listing!.image} alt="" fill sizes="36px" className="object-cover" /> : null}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            {c.appeal && <span className="rounded bg-amber-500 px-1 py-0.5 text-[9px] font-bold uppercase leading-none text-white">Appeal</span>}
+            {c.bucket === 'critical' && !c.appeal && !readOnly && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
+            <span className="truncate text-[13px] font-bold text-foreground">{REASON_LABEL[c.reason] || c.reason}</span>
+          </div>
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            <span className="capitalize text-ink-4">{t.kind}</span> · {t.name}
+            {c.communityCount > 1 && <span className="font-semibold text-amber-700"> · ×{c.communityCount}</span>}
+          </p>
+        </div>
+        <span className="shrink-0 text-[10px] text-ink-4">{c.ageDays <= 0 ? 'today' : `${c.ageDays}d`}</span>
+      </div>
+    </div>
+  )
+}
+
 type FilterKey = 'all' | 'critical' | 'aging' | 'listing' | 'account' | 'chat' | 'resolved'
 
 export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolved: ModCase[] }) {
@@ -298,6 +331,27 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
 
   const CHIPS: [FilterKey, string][] = [['all', 'All'], ['critical', 'Critical'], ['aging', 'Aging >2d'], ['listing', 'Listings'], ['account', 'Accounts'], ['chat', 'Chats'], ['resolved', 'Resolved']]
   const targetsOfChecked = new Set(cases.filter((c) => checked.has(c.id)).map((c) => c.target.sellerId || c.target.profileId || c.id)).size
+  const selectedCase = filtered[sel]
+
+  // Shared full-card renderer — used inline below lg and in the detail pane at lg+.
+  const renderCard = (c: ModCase, i: number) => (
+    <CaseCard
+      key={c.id}
+      c={c}
+      readOnly={showResolved}
+      selected={i === sel}
+      busy={busyId === c.id || (c.target.kind === 'listing' && c.target.listing != null && busyId === c.target.listing.id)}
+      severity={sevOf(c)}
+      checked={checked.has(c.id)}
+      onCheck={() => setChecked((prev) => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n })}
+      onSeverity={(id, s) => setSevById((m) => ({ ...m, [id]: s }))}
+      onSelect={() => setSel(i)}
+      onAction={act}
+      onListing={listingAct}
+      onDismissTarget={dismissTarget}
+      refresh={refresh}
+    />
+  )
 
   return (
     <div>
@@ -326,26 +380,34 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-ink-4">{showResolved ? <span className="inline-flex items-center gap-2"><ShieldQuestion className="h-4 w-4" /> No resolved reports yet.</span> : 'Nothing here. 🎉'}</div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map((c, i) => (
-            <CaseCard
-              key={c.id}
-              c={c}
-              readOnly={showResolved}
-              selected={i === sel}
-              busy={busyId === c.id || (c.target.kind === 'listing' && c.target.listing != null && busyId === c.target.listing.id)}
-              severity={sevOf(c)}
-              checked={checked.has(c.id)}
-              onCheck={() => setChecked((prev) => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n })}
-              onSeverity={(id, s) => setSevById((m) => ({ ...m, [id]: s }))}
-              onSelect={() => setSel(i)}
-              onAction={act}
-              onListing={listingAct}
-              onDismissTarget={dismissTarget}
-              refresh={refresh}
-            />
-          ))}
-        </div>
+        <>
+          {/* Narrow / non-desktop: original single-column full cards (each self-contained). */}
+          <div className="space-y-3 lg:hidden">
+            {filtered.map((c, i) => renderCard(c, i))}
+          </div>
+
+          {/* Desktop: master-detail. Left = compact list; right = the selected case in full. */}
+          <div className="hidden lg:grid lg:grid-cols-[minmax(300px,380px)_1fr] lg:items-start lg:gap-4">
+            <div className="max-h-[calc(100vh-150px)] space-y-1.5 overflow-y-auto pr-1">
+              {filtered.map((c, i) => (
+                <CaseRow
+                  key={c.id}
+                  c={c}
+                  active={i === sel}
+                  readOnly={showResolved}
+                  checked={checked.has(c.id)}
+                  onSelect={() => setSel(i)}
+                  onCheck={() => setChecked((prev) => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n })}
+                />
+              ))}
+            </div>
+            <div className="sticky top-2">
+              {selectedCase ? renderCard(selectedCase, sel) : (
+                <div className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-ink-4">Select a case to review.</div>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

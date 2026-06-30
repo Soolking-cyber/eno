@@ -87,6 +87,21 @@ Authorization: Bearer eno_live_…`}</Code></div>
             the key). Every key acts for one shop; requests only ever see that shop&apos;s own data. Revoke a key anytime — it
             takes effect immediately.
           </p>
+
+          <h3 className="mt-6 text-xs font-bold uppercase tracking-wide text-ink-4">OAuth 2.0 (optional) — short-lived tokens</h3>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            Prefer not to put the long-lived key on every request? Exchange it for a 1-hour bearer token via the
+            client-credentials grant — <code className="rounded bg-muted px-1 text-[12px] font-semibold">client_id</code> is the
+            key&apos;s prefix, <code className="rounded bg-muted px-1 text-[12px] font-semibold">client_secret</code> is the full key.
+            Optionally pass <code className="rounded bg-muted px-1 text-[12px]">scope</code> to narrow the token (it can never
+            exceed the key&apos;s scopes). The returned token works anywhere the key does, including the MCP server.
+          </p>
+          <div className="mt-3"><Code>{`curl -X POST ${BASE}/oauth/token \\
+  -d grant_type=client_credentials \\
+  -d client_id=eno_live_PREFIX -d client_secret=eno_live_FULLKEY
+
+# → { "access_token": "eyJ…", "token_type": "Bearer", "expires_in": 3600, "scope": "listings:read analytics:read" }
+# then:  Authorization: Bearer eyJ…`}</Code></div>
         </section>
 
         <section className="mt-8">

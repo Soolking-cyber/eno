@@ -90,7 +90,7 @@ export default async function AdminPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <AdminHeader />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-5xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         {/* The moderation panel is web/desktop-only. */}
         <div className="flex flex-col items-center justify-center gap-2 py-24 text-center md:hidden">
           <Monitor className="h-10 w-10 text-ink-4" />

@@ -57,6 +57,9 @@ function ListingCardImpl({
   // Only the first image is in the DOM until the user engages the carousel
   // (hover/touch) — cuts initial DOM nodes + image bytes on the homepage grid.
   const [expanded, setExpanded] = useState(false)
+  // Images that failed to load (dead URL / transient optimizer blip) → fall back to the
+  // category placeholder for that slide instead of the browser's broken-glyph + alt text.
+  const [failed, setFailed] = useState<Set<number>>(() => new Set())
   const touchStartX = useRef<number | null>(null)
   const suppressClick = useRef(false)
 
@@ -103,23 +106,30 @@ function ListingCardImpl({
           >
             {images.slice(0, expanded ? images.length : 1).map((src, i) => (
               <div key={i} className="relative h-full w-full shrink-0 overflow-hidden">
-                <Image
-                  src={src}
-                  alt={images.length > 1 ? `${displayTitle} — ${i + 1}/${images.length}` : displayTitle}
-                  fill
-                  sizes={sizes}
-                  className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                  placeholder="blur"
-                  blurDataURL={BLUR}
-                  quality={60}
-                  // The true LCP image (first card of the first row, first photo) uses
-                  // next/image `priority` so Next emits a <link rel=preload> — the preload
-                  // scanner fetches it before render. Other above-the-fold images just load
-                  // eagerly (no preload flood across every row).
-                  {...(lcp && i === 0
-                    ? { priority: true }
-                    : { loading: priority && i === 0 ? 'eager' : 'lazy' })}
-                />
+                {failed.has(i) ? (
+                  <div className="flex h-full w-full items-center justify-center bg-tint">
+                    <CategoryIcon name={listing.category.icon} className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                ) : (
+                  <Image
+                    src={src}
+                    alt={images.length > 1 ? `${displayTitle} — ${i + 1}/${images.length}` : displayTitle}
+                    fill
+                    sizes={sizes}
+                    className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                    placeholder="blur"
+                    blurDataURL={BLUR}
+                    quality={60}
+                    onError={() => setFailed((prev) => prev.has(i) ? prev : new Set(prev).add(i))}
+                    // The true LCP image (first card of the first row, first photo) uses
+                    // next/image `priority` so Next emits a <link rel=preload> — the preload
+                    // scanner fetches it before render. Other above-the-fold images just load
+                    // eagerly (no preload flood across every row).
+                    {...(lcp && i === 0
+                      ? { priority: true }
+                      : { loading: priority && i === 0 ? 'eager' : 'lazy' })}
+                  />
+                )}
               </div>
             ))}
           </div>
