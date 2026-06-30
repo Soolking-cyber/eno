@@ -173,8 +173,16 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     // No attribution control — neutral map, no flags/branding badge.
     const map = L.map(mapRef.current, { zoomControl: true, attributionControl: false, scrollWheelZoom: true })
       .setView([10.7769, 106.7009], 12)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    // Tile weight: retina (@2x) tiles are ~4× the bytes and TIME OUT on slow mobile networks
+    // (the cartocdn ERR_TIMED_OUT spam). Drop to 1× when the connection is slow or Save-Data
+    // is on; keep crisp @2x on fast / unknown connections.
+    const conn = (navigator as Navigator & { connection?: { effectiveType?: string; saveData?: boolean } }).connection
+    const lightTiles = !!conn && (conn.saveData === true || (!!conn.effectiveType && conn.effectiveType !== '4g'))
+    const retina = !lightTiles && L.Browser.retina ? '@2x' : ''
+    L.tileLayer(`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}${retina}.png`, {
       maxZoom: 19,
+      keepBuffer: 1,        // hold fewer off-screen tiles → fewer requests on slow links
+      updateWhenIdle: true, // defer tile fetches until a pan/zoom settles
     }).addTo(map)
     map.on('click', () => closeCard()) // tap the map background → close the card
     // Keep the card glued to its pin while the map pans/zooms.
