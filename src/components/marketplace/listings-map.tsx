@@ -300,7 +300,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       {!ready && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted z-20 select-none">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+          <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
             {tr('Loading map…', 'Đang tải bản đồ...')}
           </span>
         </div>

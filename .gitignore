@@ -44,3 +44,9 @@ Deployment-*/
 
 # Prisma 7 generated client (regenerated on install/build)
 /src/generated/prisma/
+
+# Playwright
+e2e/.auth/
+test-results/
+playwright-report/
+playwright/.cache/

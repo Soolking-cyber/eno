@@ -8,7 +8,8 @@ retried, so a red result means a real regression.
 ```
             ▲  fewer, slower, higher-confidence
    ┌────────────────┐
-   │  E2E (opt-in)  │   Playwright guest+seller flows           ← not yet wired (see below)
+   │   E2E (guest)  │   Playwright guest flows (real browser)    ← `npm run e2e` (live)
+   │  E2E (authed)  │   seller/admin write-flows                 ← opt-in: E2E_AUTHED_BASE
    ├────────────────┤
    │  live probes   │   smoke · seo · content · security        ← `npm run verify`
    ├────────────────┤
@@ -28,6 +29,8 @@ retried, so a red result means a real regression.
 | `npm run verify` | Unit + typecheck + all live probes vs **https://eno.vn** | yes |
 | `npm run verify http://localhost:3000` | …against a local/preview deploy | yes |
 | `npm run smoke` / `seo:check` / `content:check` / `sec:probe` | One live probe (takes an optional base URL) | yes |
+| `npm run e2e` | Playwright guest flows (desktop + mobile Chromium) vs prod | yes |
+| `npm run e2e:guest` / `e2e:ui` / `e2e:report` | Guest projects only / Playwright UI / open HTML report | yes |
 
 All live probes accept `[baseUrl]` (or `PROBE_BASE=…`) and exit non-zero on failure, so they
 drop straight into CI or a post-deploy gate. They are **non-destructive**: GET-only or
@@ -66,18 +69,39 @@ Black-box checks against a deployed site — the most reliable layer given there
   rejection** on `/api/v1` + `/api/mcp`, session/admin gating on protected routes, and
   security headers.
 
+## Layer 3 — E2E (Playwright, `e2e/`, `playwright.config.ts`)
+
+Real-browser flows — the only layer that exercises hydration, client routing, the carousel,
+search, language/theme persistence, and **renders images for real** (catches a broken card a
+URL check can't). Two safe-by-default modes:
+
+- **Guest (`e2e/guest/*.spec.ts`)** — runs against a real deploy (prod by default, `E2E_BASE`
+  to override) on **desktop + mobile-viewport Chromium**. Read-only: no auth, no writes, can't
+  corrupt data. Covers home, search→results, category→listing client routing, listing media +
+  carousel + gated contact, the EN/VI language pipeline, dark-mode (System default + persisted,
+  no FOUC), and an **axe WCAG2 A/AA** scan on the top pages. A shared fixture pre-seeds the
+  privacy-preserving cookie-consent choice so the consent modal never blocks interaction.
+- **Authed (`e2e/seller/*`, `e2e/admin/*`)** — seller dashboard + Developers panel and the
+  admin moderation two-pane. **Opt-in and never against prod**: the projects only register when
+  `E2E_AUTHED_BASE` points at a PREVIEW deploy backed by a seeded Supabase branch;
+  `e2e/auth.setup.ts` signs the seeded users in via `@supabase/ssr` (correct-by-construction
+  cookies, no creds in the repo). Absent that env they self-skip. These specs are
+  non-destructive (open forms / assert render; never mint a key, register a webhook, or resolve
+  a real report).
+
+**a11y baseline (tracked debt):** the axe gate disables one rule — `nested-interactive` — which
+fires because `ListingCard`'s root is `<div role="button">` with the heart / map / carousel
+buttons nested inside. Fixing it is a card-architecture change (card-as-link pattern) and is a
+**dedicated follow-up**; the rule is baselined (not hidden) so the gate still catches *new* a11y
+regressions. The transient "Loading map…" contrast issue axe flagged was fixed (`text-slate-700`).
+
 ## Not yet wired (opt-in next layer)
 
-Deliberately deferred to keep the suite deterministic and dependency-light. Each is a clear
-next step when the need arises:
-
-- **E2E (Playwright)** — real browser flows: guest (search → category → listing → language/
-  theme toggle) and authed seller (post wizard, dashboard, availability). Needs
-  `@playwright/test` + a browser download and a seeded/test account. Highest end-user
-  confidence; highest maintenance.
+- **Authed-write E2E infra** — a preview deploy + ephemeral Supabase branch + seeded
+  individual/business/admin users, so the authed specs above actually run (post wizard, key/
+  webhook lifecycle, report resolution).
 - **Integration (route handlers vs a test DB)** — exercise `/api/*` against an ephemeral
-  Postgres (Supabase branch or testcontainer): ownership/scoping, idempotency replay, SSRF
-  block on webhook URLs, rate-limit 429 — the authed paths the black-box probes can't reach
-  without credentials.
-- **a11y (axe) + Lighthouse budgets** — automate the WCAG-AA contrast / Lighthouse-score
-  checks currently done by hand (PSI mobile ~98–100). Pairs naturally with the Playwright layer.
+  Postgres: ownership/scoping, idempotency replay, SSRF block on webhook URLs, rate-limit 429 —
+  the authed paths the black-box probes can't reach without credentials.
+- **Lighthouse budgets** — automate the PSI score/perf budgets currently checked by hand (mobile
+  ~98–100). Pairs naturally with the Playwright layer.

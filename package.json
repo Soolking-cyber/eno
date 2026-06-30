@@ -26,6 +26,10 @@
     "sec:probe": "node scripts/sec-probe.mjs",
     "verify": "node scripts/check-all.mjs",
     "verify:offline": "node scripts/check-all.mjs --offline",
+    "e2e": "playwright test",
+    "e2e:guest": "playwright test --project=guest-desktop --project=guest-mobile",
+    "e2e:ui": "playwright test --ui",
+    "e2e:report": "playwright show-report",
     "db:push": "prisma db push",
     "db:setup": "prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs",
     "db:generate": "prisma generate",
@@ -101,6 +105,8 @@
     "zod": "^4.0.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
