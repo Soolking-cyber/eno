@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, MessageSquareText, Tag, Clock, Upload, List, LayoutGrid } from 'lucide-react'
+import { AlertTriangle, Eye, MessageSquareText, Tag, Clock, Upload, List, LayoutGrid, Store } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { ShareButton } from '@/components/marketplace/share-button'
 import { Mascot } from '@/components/marketplace/mascot'
 import { HelpCenter } from '@/components/marketplace/help-center'
 import { DevelopersPanel } from '@/components/marketplace/developers-panel'
@@ -64,6 +66,9 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   const router = useRouter()
   const searchParams = useSearchParams()
   const [data, setData] = useState<Dashboard | null>(null)
+  // A failed /api/dashboard on a first-time load (no localStorage cache) must not
+  // read as an empty dashboard — surfaced below as an error + retry.
+  const [fetchFailed, setFetchFailed] = useState(false)
   const [tab, setTab] = useState<'post' | 'listings' | 'account' | 'help' | 'dev'>('listings')
   // Listings layout: line (rows) vs grid (cards). Persisted per device.
   const [listView, setListView] = useState<'list' | 'grid'>('list')
@@ -94,15 +99,17 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
 
   const refresh = useCallback(() => {
     const uid = user?.id
+    setFetchFailed(false)
     fetch('/api/dashboard')
       .then((r) => (r.ok ? r.json() : { dashboard: null }))
       .then((d) => {
         // Ignore a late response after sign-out / account switch (cross-account safety).
-        if (!d.dashboard || !uid || uid !== user?.id) return
+        if (!uid || uid !== user?.id) return
+        if (!d.dashboard) { setFetchFailed(true); return }
         setData(d.dashboard)
         try { localStorage.setItem(KEY, JSON.stringify({ userId: uid, dashboard: d.dashboard })) } catch {}
       })
-      .catch(() => {})
+      .catch(() => setFetchFailed(true))
   }, [user?.id])
 
   useEffect(() => {
@@ -161,7 +168,23 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
               {d?.profile.email && <p className="truncate text-sm text-muted-foreground">{d.profile.email}</p>}
             </div>
           </div>
-          <SignOutButton />
+          <div className="flex items-center gap-1.5">
+            {d?.seller && (
+              <>
+                <a
+                  href={`/sellers/${d.seller.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted"
+                >
+                  <Store className="h-4 w-4" /> {tr('View storefront', 'Xem gian hàng')}
+                </a>
+                <ShareButton
+                  url={`${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/sellers/${d.seller.id}`}
+                  title={d.profile.businessName || d.seller.name}
+                />
+              </>
+            )}
+            <SignOutButton />
+          </div>
         </div>
 
         {/* Tabs — Post · Listings · Settings · [Developers] · Help. All render inline
@@ -215,7 +238,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
         {/* Action strip — the 3 questions: messages? performance? needs action? */}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard icon={<MessageSquareText className="h-5 w-5" />} value={s?.unreadMessages ?? '—'} label={tr('Unread messages', 'Tin nhắn chưa đọc')} href="/messages" accent={!!s && s.unreadMessages > 0} />
-          <StatCard icon={<Clock className="h-5 w-5" />} value={s?.staleCount ?? '—'} label={tr('Need a refresh', 'Cần làm mới')} accent={!!s && s.staleCount > 0} />
+          <StatCard icon={<Clock className="h-5 w-5" />} value={s?.staleCount ?? '—'} label={tr('Need a refresh', 'Cần làm mới')} href="/dashboard/availability" accent={!!s && s.staleCount > 0} />
           <StatCard icon={<Eye className="h-5 w-5" />} value={s?.totalViews ?? '—'} label={tr('Total views', 'Lượt xem')} />
           <StatCard icon={<MessageSquareText className="h-5 w-5" />} value={s?.totalLeads ?? '—'} label={tr('Total leads', 'Liên hệ')} />
         </div>
@@ -271,12 +294,31 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
               </div>
             )}
           </div>
-          {!d ? (
+          {!d && fetchFailed ? (
+            // Failed fetch with no cache — show error + retry instead of an
+            // empty-looking dashboard (mirrors the explorer's error state).
+            <div className="mt-4 flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center">
+              <AlertTriangle className="h-10 w-10 text-muted-foreground" />
+              <p className="text-sm font-semibold text-body">{tr("Couldn't load your dashboard.", 'Không tải được trang quản lý.')}</p>
+              <Button variant="cta" size="none"
+                onClick={refresh}
+                className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
+              >
+                {tr('Try again', 'Thử lại')}
+              </Button>
+            </div>
+          ) : !d ? (
             <div className="mt-4 space-y-2.5">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[92px] rounded-2xl shimmer" />)}</div>
           ) : d.listings.length === 0 ? (
             <div className="mt-3 py-12 text-center">
               <Mascot name="wave" className="mx-auto h-48 w-48" />
               <p className="mt-3 text-sm text-muted-foreground">{tr('No listings yet — post your first one.', 'Chưa có tin nào — đăng tin đầu tiên.')}</p>
+              <button
+                onClick={() => { setTab('post'); router.replace('/dashboard?tab=post', { scroll: false }) }}
+                className="mt-4 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+              >
+                {tr('Post your first listing', 'Đăng tin đầu tiên')}
+              </button>
             </div>
           ) : (
             <div className={cn('mt-3', listView === 'grid' ? 'grid grid-cols-2 gap-2.5 lg:grid-cols-3' : 'space-y-2.5')}>

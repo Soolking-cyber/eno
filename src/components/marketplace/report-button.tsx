@@ -82,7 +82,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cn('inline-flex items-center gap-1 text-[11px] text-ink-4 hover:text-red-600 transition-colors cursor-pointer tap-44 relative', className)}
+        className={cn('inline-flex items-center gap-1 text-[11px] text-ink-4 hover:text-destructive transition-colors cursor-pointer tap-44 relative', className)}
       >
         <Flag className="h-3 w-3" /> {t('Báo cáo', 'Report')}
       </button>
@@ -133,7 +133,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
                 className="w-full resize-none rounded-xl bg-tint px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
               />
 
-              {error && <p role="alert" className="text-center text-xs font-semibold text-red-600">{error}</p>}
+              {error && <p role="alert" className="text-center text-xs font-semibold text-destructive">{error}</p>}
 
               <Button
                 variant="cta"

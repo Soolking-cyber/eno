@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { AlertTriangle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { ListingCard } from '@/components/marketplace/listing-card'
@@ -11,7 +13,7 @@ import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 
 export default function SavedPage() {
-  const { count, saved } = useFavorites()
+  const { count, saved, savedError, retrySaved } = useFavorites()
   const { tr } = useLanguage()
   const router = useRouter()
   // Preloaded + cached in FavoritesContext — instant, no fetch-on-open.
@@ -30,7 +32,20 @@ export default function SavedPage() {
         {/* Saved searches (alerts on new matches) — hidden when signed out / none */}
         <SavedSearches />
 
-        {loading ? (
+        {loading && savedError ? (
+          // Fetch failed with no cache — an error must NOT read as endless loading.
+          // Mirrors the explorer's renderErrorState (AlertTriangle + retry).
+          <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center">
+            <AlertTriangle className="h-10 w-10 text-muted-foreground" />
+            <p className="text-sm font-semibold text-body">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
+            <Button variant="cta" size="none"
+              onClick={retrySaved}
+              className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
+            >
+              {tr('Try again', 'Thử lại')}
+            </Button>
+          </div>
+        ) : loading ? (
           // Reserve the REAL grid height while loading: one placeholder per saved item
           // (count is known from the device-local favorites set, which loads before the
           // listings fetch), each matching a card's height — so no layout shift (CLS)

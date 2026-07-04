@@ -29,7 +29,7 @@ function SignInPageInner() {
   return (
     <div className="grid min-h-screen w-full bg-background md:grid-cols-2">
       {/* Brand panel (desktop) — muted deep navy-blue (calmer than the vivid accent) */}
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1b4b76] to-[#0c2b48] p-12 text-white md:flex">
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-deep to-brand-deeper p-12 text-white md:flex">
         {/* Mascot with a key (access) — anchored in the empty lower-right */}
         <Mascot name="key" white className="pointer-events-none absolute bottom-8 right-8 h-72 w-72 opacity-[0.13] lg:h-96 lg:w-96" />
         <Link href="/" className="relative text-2xl font-black tracking-tight">eno.vn</Link>

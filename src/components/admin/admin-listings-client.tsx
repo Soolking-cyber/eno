@@ -125,7 +125,7 @@ function ActionBtn({ onClick, disabled, icon, label, danger }: { onClick: () => 
   return (
     <button onClick={onClick} disabled={disabled}
       className={cn('inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors disabled:opacity-40',
-        danger ? 'text-red-600 hover:bg-red-50' : 'text-body hover:bg-muted')}>
+        danger ? 'text-destructive hover:bg-destructive/10' : 'text-body hover:bg-muted')}>
       {icon} {label}
     </button>
   )
@@ -142,6 +142,6 @@ function Segmented({ options, value, onChange }: { options: { v: string; label: 
 }
 
 function Badge({ children, tone = 'slate' }: { children: React.ReactNode; tone?: 'slate' | 'green' | 'amber' }) {
-  const c = { slate: 'bg-tint text-ink-4', green: 'bg-[#15803d]/10 text-[#15803d]', amber: 'bg-[#b45309]/10 text-[#b45309]' }[tone]
+  const c = { slate: 'bg-tint text-ink-4', green: 'bg-success/10 text-success', amber: 'bg-warning/10 text-warning' }[tone]
   return <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-bold capitalize', c)}>{children}</span>
 }

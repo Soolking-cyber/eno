@@ -10,6 +10,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
+import { formatMoneyFull } from '@/lib/vnd'
 import { Price } from './price'
 import { VndInput } from './vnd-input'
 import { Button } from '@/components/ui/button'
@@ -37,9 +38,9 @@ function TypingDots() {
   return (
     <div className="flex justify-start duration-200 animate-in fade-in slide-in-from-bottom-1">
       <div className="flex items-center gap-1 rounded-2xl bg-card px-3.5 py-3 shadow-pop">
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-4 [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-4 [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-4" />
       </div>
     </div>
   )
@@ -157,7 +158,21 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
                       {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}
                     </div>
                     <p className="truncate text-xs text-ink-4">{c.listingTitle}</p>
-                    <p className={`truncate text-xs ${c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>{c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới')}</p>
+                    {(() => {
+                      // Offer previews are DERIVED from the structured lastOffer (tr'd +
+                      // money format) — never from the stored body (legacy bodies are
+                      // baked English; new offer bodies are just the optional note).
+                      const o = c.lastOffer
+                      const amt = o ? formatMoneyFull(o.amount || 0, '₫') : ''
+                      const label = o
+                        ? o.status === 'accepted' ? tr('✅ Offer accepted', '✅ Đã chấp nhận đề nghị')
+                          : o.status === 'declined' ? tr('❌ Offer declined', '❌ Đã từ chối đề nghị')
+                          : o.status === 'countered' ? tr('↩️ Counter-offer', '↩️ Đã trả giá khác')
+                          : o.mine ? `${tr('You offered', 'Bạn đề nghị')} ${amt}`
+                          : `💰 ${tr('New offer', 'Đề nghị mới')}: ${amt}`
+                        : (c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới'))
+                      return <p className={`truncate text-xs ${c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>{label}</p>
+                    })()}
                   </div>
                   {c.listingImage && (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -169,14 +184,14 @@ function ChatInbox({ onOpenThread, onClose }: { onOpenThread: (id: string) => vo
                     server-side delete is per-user + non-destructive. */}
                 {confirmId === c.id ? (
                   <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
-                    <button onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="rounded-full bg-red-500 px-2.5 py-1 text-[11px] font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
+                    <button onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="rounded-xl bg-red-500 px-2.5 py-1 text-[11px] font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
                     <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1 text-ink-4 hover:text-foreground"><X className="h-4 w-4" /></button>
                   </div>
                 ) : (
                   <button
                     onClick={() => setConfirmId(c.id)}
                     aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
-                    className="mr-2 ml-1 shrink-0 rounded-full p-1.5 text-slate-400 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+                    className="mr-2 ml-1 shrink-0 rounded-full p-1.5 text-ink-4 opacity-100 transition hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -378,8 +393,8 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     const amt = Math.round(amount)
     if (!amt || amt <= 0) return
     const tempId = `temp-${Date.now()}`
-    const body = `💰 Offered ${new Intl.NumberFormat('en-US').format(amt)}₫`
-    const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true, kind: 'offer', offerAmount: amt, offerStatus: 'pending' }
+    // Body stays empty — the offer card derives its label from offerAmount.
+    const optimistic: Msg = { id: tempId, mine: true, body: '', createdAt: new Date().toISOString(), pending: true, kind: 'offer', offerAmount: amt, offerStatus: 'pending' }
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
       const res = await fetch(`/api/conversations/${id}/messages`, {
@@ -447,7 +462,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
             <p className="truncate text-xs font-semibold text-foreground">{thread.listing.title}</p>
             <Price price={thread.listing.price} currency={thread.listing.currency} priceUnit={thread.listing.priceUnit} className="text-xs font-bold text-accent-foreground" />
           </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-[#cbd5e1]" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" />
         </Link>
       )}
 
@@ -460,7 +475,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
               <a href={contact.telHref} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors">
                 <Phone className="h-3.5 w-3.5" /> {contact.phone}
               </a>
-              <a href={contact.zaloHref} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#0068ff] px-3 py-1.5 text-xs font-bold text-white">
+              <a href={contact.zaloHref} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-xl bg-[#0068ff] px-3 py-1.5 text-xs font-bold text-white">
                 Zalo
               </a>
             </>
@@ -483,7 +498,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           <div className="space-y-2">
             {[60, 42, 70, 50].map((w, i) => (
               <div key={i} className={`flex ${i % 2 ? 'justify-end' : 'justify-start'}`}>
-                <div className="h-9 animate-pulse rounded-2xl bg-slate-200" style={{ width: `${w}%` }} />
+                <div className="h-9 rounded-2xl shimmer" style={{ width: `${w}%` }} />
               </div>
             ))}
           </div>
@@ -492,15 +507,21 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
             {m.kind === 'offer' ? (
               <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-card'}`}>
+                {/* Offer line is DERIVED from the structured offerAmount (tr'd + money
+                    format) — never from the stored body. Legacy messages still carry a
+                    baked "💰 Offered …₫" body: skip it (rendering it too would double up). */}
                 <div className="text-[11px] font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
-                <div className="mt-0.5 text-base font-bold text-foreground">{new Intl.NumberFormat('en-US').format(m.offerAmount || 0)}₫</div>
+                <div className="mt-0.5 text-base font-bold text-foreground">{tr('Offered', 'Đã trả giá')} {formatMoneyFull(m.offerAmount || 0, '₫')}</div>
+                {m.body && !m.body.startsWith('💰') && (
+                  <div className="mt-1 text-sm leading-relaxed text-foreground">{m.body}</div>
+                )}
                 {m.offerStatus === 'pending' && (
-                  <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#b45309]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#b45309]" /> {tr('Pending', 'Đang chờ')}
+                  <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-warning">
+                    <span className="h-1.5 w-1.5 rounded-full bg-warning" /> {tr('Pending', 'Đang chờ')}
                   </div>
                 )}
                 {m.offerStatus && m.offerStatus !== 'pending' && (
-                  <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-success' : m.offerStatus === 'declined' ? 'text-red-500' : 'text-ink-4'}`}>
+                  <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-success' : m.offerStatus === 'declined' ? 'text-destructive' : 'text-ink-4'}`}>
                     {m.offerStatus === 'accepted' ? tr('Accepted', 'Đã chấp nhận') : m.offerStatus === 'declined' ? tr('Declined', 'Đã từ chối') : tr('Countered', 'Đã trả giá khác')}
                   </div>
                 )}

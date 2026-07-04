@@ -23,14 +23,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   let body: { body?: string; offerAmount?: number }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
 
-  // An offer is a structured message: validate the amount and synthesize the text.
+  // An offer is a structured message: validate the amount. The body carries ONLY
+  // the sender's optional note (possibly empty) — the offer line itself is derived
+  // client-side from offerAmount, so locale + money format live in the renderer.
   const rawAmount = Number(body.offerAmount)
   const isOffer = Number.isFinite(rawAmount) && rawAmount > 0
   const offerAmount = isOffer ? Math.min(Math.round(rawAmount), 1e12) : undefined
-  const text = isOffer
-    ? `💰 Offered ${new Intl.NumberFormat('en-US').format(offerAmount!)}₫`
-    : String(body.body || '').trim().slice(0, MAX_LEN)
-  if (!text) return NextResponse.json({ error: 'empty' }, { status: 400 })
+  const text = String(body.body || '').trim().slice(0, MAX_LEN)
+  if (!text && !isOffer) return NextResponse.json({ error: 'empty' }, { status: 400 })
 
   const convo = await db.conversation.findUnique({
     where: { id },

@@ -6,6 +6,7 @@ import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Loc
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
+import { ShareButton } from './share-button'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { haptic } from '@/lib/haptics'
@@ -122,6 +123,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const t = (vi: string, en: string) => tr(en, vi)
 
   const [submitted, setSubmitted] = useState(false)
+  // Success-screen context: link to the live listing + a distinct first-ever moment.
+  const [createdId, setCreatedId] = useState<string | null>(null)
+  const [firstListing, setFirstListing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   // Synchronous latch — `submitting` state only flips after the next render, so a
   // fast double-tap can fire submit() twice before disabled takes effect → two
@@ -293,7 +297,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         if (d.province) setProvince(d.province)
         if (d.ward) setWard(d.ward)
         if (d.nearby) setNearby(d.nearby)
-        toast.success(t('Đã khôi phục bản nháp', 'Draft restored'))
+        toast.success(t('Đã khôi phục bản nháp — thêm lại ảnh nhé', 'Draft restored — re-add your photos'))
       }
     } catch {}
     draftHydrated.current = true
@@ -383,7 +387,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     { key: 'title', ok: title.trim().length >= 3, label: t('Nhập tiêu đề', 'Add a title') },
     { key: 'price', ok: price.trim().length > 0, label: t('Nhập giá', 'Set a price') },
     { key: 'location', ok: hasLocation, label: t('Chọn khu vực', 'Set the area') },
-    { key: 'contact', ok: contactName.trim().length >= 2 && phoneOk, label: t('Thêm liên hệ trong Cài đặt', 'Add name & phone in Settings') },
+    { key: 'contact', ok: contactName.trim().length >= 2 && phoneOk, label: t('Thêm tên & SĐT của bạn', 'Add your name & phone') },
   ]
   const missing = checks.filter((c) => !c.ok)
   const canSubmit = missing.length === 0 && !submitting
@@ -499,6 +503,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       const created = (await res.json().catch(() => ({}))) as { id?: string }
       trackPostListing({ id: created.id, title: title.trim(), price: Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
       try { localStorage.removeItem('eno-listing-draft') } catch {}
+      // First-ever publish gets a distinct celebration moment on the success
+      // screen (device-local flag — celebration-grade accuracy is fine).
+      try {
+        setFirstListing(!localStorage.getItem('eno-posted-before'))
+        localStorage.setItem('eno-posted-before', '1')
+      } catch {}
+      setCreatedId(created.id ?? null)
       haptic(18)
       setSubmitted(true)
       onPosted?.() // embedded in dashboard → refresh listings + switch tab
@@ -527,14 +538,33 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }
 
   if (submitted) {
+    // Peak-motivation moment — never a dead end: view it, share it, then manage it.
+    // A first-ever publish gets its own (calm) celebration copy.
     return (
       <div className="flex flex-col items-center gap-4 py-16 text-center">
         <Mascot name="success" className="h-52 w-52" />
-        <h1 className="h-title text-foreground">{t('Tin của bạn đã được đăng!', 'Your listing is live!')}</h1>
+        <h1 className="h-title text-foreground">
+          {firstListing ? t('Tin đầu tiên của bạn đã lên sóng! 🎉', 'Your first listing is live! 🎉') : t('Tin của bạn đã được đăng!', 'Your listing is live!')}
+        </h1>
         <p className="max-w-md text-sm text-body">
           {t('Tin của bạn đã hiển thị công khai. Người mua sẽ nhắn tin cho bạn ngay trong ứng dụng — số điện thoại của bạn được giữ kín cho đến khi bạn trả lời.', 'It’s now visible to buyers. They’ll message you in-app — your number stays private until you reply.')}
         </p>
-        <a href="/dashboard" className="mt-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+          {createdId && (
+            <a href={`/listings/${createdId}`} className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
+              {t('Xem tin của bạn', 'View your listing')}
+            </a>
+          )}
+          {createdId && (
+            <ShareButton
+              url={`${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/listings/${createdId}`}
+              title={title.trim()}
+              price={Number(price) || undefined}
+              currency="₫"
+            />
+          )}
+        </div>
+        <a href="/dashboard" className="text-sm font-semibold text-accent-foreground hover:underline">
           {t('Tới bảng điều khiển', 'Go to dashboard')}
         </a>
       </div>

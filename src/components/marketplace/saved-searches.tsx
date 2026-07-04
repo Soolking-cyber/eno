@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Search, Bell, BellOff, Trash2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -24,13 +25,29 @@ export function SavedSearches() {
     return () => { off = true }
   }, [])
 
+  // Optimistic updates WITH rollback — a silently-failed toggle/delete would
+  // otherwise leave the UI lying about what's saved.
+  const failed = () => toast.error(tr("Couldn't save that — try again", 'Chưa lưu được — thử lại'))
   const toggle = async (s: SavedSearch) => {
-    setSearches((prev) => prev?.map((x) => (x.id === s.id ? { ...x, notify: !x.notify } : x)) ?? prev)
-    await fetch(`/api/saved-searches/${s.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notify: !s.notify }) }).catch(() => {})
+    setSearches((prev) => prev?.map((x) => (x.id === s.id ? { ...x, notify: !s.notify } : x)) ?? prev)
+    try {
+      const res = await fetch(`/api/saved-searches/${s.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notify: !s.notify }) })
+      if (!res.ok) throw new Error()
+    } catch {
+      setSearches((prev) => prev?.map((x) => (x.id === s.id ? { ...x, notify: s.notify } : x)) ?? prev)
+      failed()
+    }
   }
   const remove = async (id: string) => {
+    const snapshot = searches
     setSearches((prev) => prev?.filter((x) => x.id !== id) ?? prev)
-    await fetch(`/api/saved-searches/${id}`, { method: 'DELETE' }).catch(() => {})
+    try {
+      const res = await fetch(`/api/saved-searches/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+    } catch {
+      setSearches(snapshot)
+      failed()
+    }
   }
 
   if (!searches || searches.length === 0) return null
@@ -60,7 +77,7 @@ export function SavedSearches() {
             <button
               onClick={() => remove(s.id)}
               aria-label={tr('Delete saved search', 'Xóa tìm kiếm')}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors cursor-pointer hover:bg-accent hover:text-red-500"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors cursor-pointer hover:bg-accent hover:text-destructive"
             >
               <Trash2 className="h-4 w-4" />
             </button>

@@ -54,7 +54,7 @@ export function NotificationBell() {
             Saved/Messages action icons on desktop (one consistent nav scale). */}
         <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} />
         {user && unread > 0 && (
-          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -76,7 +76,7 @@ export function NotificationBell() {
               {items.length > 0 && (
                 <button
                   onClick={() => { if (confirmClear) { clearAll(); setConfirmClear(false) } else setConfirmClear(true) }}
-                  className={cn('whitespace-nowrap text-xs font-semibold transition-colors cursor-pointer', confirmClear ? 'text-red-500' : 'text-ink-4 hover:text-accent-foreground')}
+                  className={cn('whitespace-nowrap text-xs font-semibold transition-colors cursor-pointer', confirmClear ? 'text-destructive' : 'text-ink-4 hover:text-accent-foreground')}
                 >
                   {confirmClear ? tr('Tap to delete all', 'Nhấn để xóa hết') : tr('Clear all', 'Xóa tất cả')}
                 </button>
@@ -85,7 +85,23 @@ export function NotificationBell() {
           </div>
           <div className="max-h-[60vh] overflow-y-auto scroll-thin">
             {items.length === 0 ? (
-              <p className="px-4 py-12 text-center text-sm text-ink-4">{tr('No notifications yet.', 'Chưa có thông báo.')}</p>
+              // Compact designed empty state (popover-scale) — says what lands here
+              // and points somewhere useful, instead of a bare one-liner.
+              <div className="px-6 py-10 text-center">
+                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-tint text-ink-4">
+                  <Bell className="h-5 w-5" />
+                </span>
+                <p className="mx-auto mt-3 max-w-[15rem] text-sm text-ink-4">
+                  {tr('Alerts for saved searches, offers and replies land here', 'Thông báo tìm kiếm đã lưu, trả giá và phản hồi sẽ hiện ở đây')}
+                </p>
+                <Link
+                  href="/saved"
+                  onClick={() => setOpen(false)}
+                  className="mt-3 inline-block text-xs font-semibold text-accent-foreground hover:underline"
+                >
+                  {tr('View saved items', 'Xem tin đã lưu')}
+                </Link>
+              </div>
             ) : (
               sorted.map((n) => {
                 const href = n.url ? n.url : n.type === 'reminder' ? '/dashboard' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'

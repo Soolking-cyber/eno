@@ -15,6 +15,7 @@ import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
+import { formatMoneyFull } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
 import { ReportButton } from '@/components/marketplace/report-button'
 
@@ -228,8 +229,8 @@ export default function ThreadPage() {
     const amt = Math.round(amount)
     if (!amt || amt <= 0) return
     const tempId = `temp-${Date.now()}`
-    const body = `💰 Offered ${new Intl.NumberFormat('en-US').format(amt)}₫`
-    const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true, kind: 'offer', offerAmount: amt, offerStatus: 'pending' }
+    // Body stays empty — the offer card derives its label from offerAmount.
+    const optimistic: Msg = { id: tempId, mine: true, body: '', createdAt: new Date().toISOString(), pending: true, kind: 'offer', offerAmount: amt, offerStatus: 'pending' }
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
       const res = await fetch(`/api/conversations/${id}/messages`, {
@@ -325,7 +326,7 @@ export default function ThreadPage() {
                   <a href={contact.telHref} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors">
                     <Phone className="h-3.5 w-3.5" /> {contact.phone}
                   </a>
-                  <a href={contact.zaloHref} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-full bg-[#0068ff] px-3 py-1.5 text-xs font-bold text-white">
+                  <a href={contact.zaloHref} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-xl bg-[#0068ff] px-3 py-1.5 text-xs font-bold text-white">
                     Zalo
                   </a>
                 </>
@@ -363,18 +364,24 @@ export default function ThreadPage() {
                 <div className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
                 {m.kind === 'offer' ? (
                   <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-card'}`}>
+                    {/* Offer line is DERIVED from the structured offerAmount (tr'd + money
+                        format) — never from the stored body. Legacy messages still carry a
+                        baked "💰 Offered …₫" body: skip it (rendering it too would double up). */}
                     <div className="text-[11px] font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
-                    <div className="mt-0.5 text-base font-bold text-foreground">{new Intl.NumberFormat('en-US').format(m.offerAmount || 0)}₫</div>
+                    <div className="mt-0.5 text-base font-bold text-foreground">{tr('Offered', 'Đã trả giá')} {formatMoneyFull(m.offerAmount || 0, '₫')}</div>
                     {askPct != null && (
-                      <div className="text-[11px] font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({new Intl.NumberFormat('en-US').format(thread!.listing.price!)}₫)</div>
+                      <div className="text-[11px] font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({formatMoneyFull(thread!.listing.price!, '₫')})</div>
+                    )}
+                    {m.body && !m.body.startsWith('💰') && (
+                      <div className="mt-1 text-sm leading-relaxed text-foreground">{m.body}</div>
                     )}
                     {m.offerStatus === 'pending' && (
-                      <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#b45309]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#b45309]" /> {tr('Pending', 'Đang chờ')}
+                      <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-warning">
+                        <span className="h-1.5 w-1.5 rounded-full bg-warning" /> {tr('Pending', 'Đang chờ')}
                       </div>
                     )}
                     {m.offerStatus && m.offerStatus !== 'pending' && (
-                      <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-success' : m.offerStatus === 'declined' ? 'text-red-500' : 'text-ink-4'}`}>
+                      <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-success' : m.offerStatus === 'declined' ? 'text-destructive' : 'text-ink-4'}`}>
                         {m.offerStatus === 'accepted' ? tr('Accepted', 'Đã chấp nhận') : m.offerStatus === 'declined' ? tr('Declined', 'Đã từ chối') : tr('Countered', 'Đã trả giá khác')}
                       </div>
                     )}

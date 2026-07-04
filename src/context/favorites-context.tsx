@@ -16,6 +16,8 @@ type FavoritesCtx = {
   toggle: (id: string) => void
   count: number
   saved: SerializedListing[] | null // preloaded hydrated saved listings (null = loading)
+  savedError: boolean // the hydrating fetch failed AND there was no cache — /saved shows retry
+  retrySaved: () => void // re-run the hydrating fetch (clears savedError)
 }
 
 const FavoritesContext = createContext<FavoritesCtx | undefined>(undefined)
@@ -67,6 +69,11 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   // localStorage as { idKey, list } (consent-gated); favorites are device-local
   // so no per-user scoping is needed.
   const [saved, setSaved] = useState<SerializedListing[] | null>(null)
+  // Surfaced so /saved can show an error + retry instead of shimmering forever
+  // when the hydrating fetch fails with no cache to fall back on.
+  const [savedError, setSavedError] = useState(false)
+  const [fetchTick, setFetchTick] = useState(0)
+  const retrySaved = useCallback(() => { setSavedError(false); setFetchTick((t) => t + 1) }, [])
   const idKey = [...ids].sort().join(',')
   useEffect(() => {
     if (!idKey) { setSaved([]); return }
@@ -80,10 +87,13 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     const t = setTimeout(() => {
       fetch(`/api/listings?ids=${encodeURIComponent(idKey)}`)
-        .then((r) => r.json())
+        // A non-ok response must land in .catch — treating it as data would both
+        // hide the failure AND let the self-heal below wrongly prune saved ids.
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
         .then((d) => {
           if (cancelled) return
           const list: SerializedListing[] = d.listings || []
+          setSavedError(false)
           setSaved(list)
           try { localStorage.setItem(SAVED_KEY, JSON.stringify({ idKey, list })) } catch {}
           // Self-heal: drop saved ids that no longer resolve to a live listing
@@ -99,13 +109,13 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
             return next
           })
         })
-        .catch(() => {})
+        .catch(() => { if (!cancelled) setSavedError(true) })
     }, 400)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [idKey])
+  }, [idKey, fetchTick])
 
   return (
-    <FavoritesContext.Provider value={{ ids, isFavorite, toggle, count: ids.size, saved }}>
+    <FavoritesContext.Provider value={{ ids, isFavorite, toggle, count: ids.size, saved, savedError, retrySaved }}>
       {children}
     </FavoritesContext.Provider>
   )

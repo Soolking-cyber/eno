@@ -30,7 +30,6 @@ export async function POST(req: Request) {
   const rawAmount = Number(body.offerAmount)
   const isOffer = Number.isFinite(rawAmount) && rawAmount > 0
   const offerAmount = isOffer ? Math.min(Math.round(rawAmount), 1e12) : undefined
-  const offerText = isOffer ? `💰 Offered ${new Intl.NumberFormat('en-US').format(offerAmount!)}₫` : ''
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
@@ -64,7 +63,9 @@ export async function POST(req: Request) {
     // present, follows as a plain message.
     let message: SerializedMessage | null = null
     if (isOffer) {
-      message = await insertMessage(conv, profile.id, offerText, { kind: 'offer', offerAmount })
+      // Offer body stays EMPTY — the offer line is derived client-side from the
+      // structured offerAmount (locale + money format live in the renderer).
+      message = await insertMessage(conv, profile.id, '', { kind: 'offer', offerAmount })
       if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
     } else if (initialMessage) {
       message = await insertMessage(conv, profile.id, initialMessage)
@@ -81,7 +82,9 @@ export async function POST(req: Request) {
         const conv = { id: existing.id, buyerProfileId: profile.id, sellerProfileId, listingId }
         let message: SerializedMessage | null = null
         if (isOffer) {
-          message = await insertMessage(conv, profile.id, offerText, { kind: 'offer', offerAmount })
+          // Offer body stays EMPTY — the offer line is derived client-side from the
+      // structured offerAmount (locale + money format live in the renderer).
+      message = await insertMessage(conv, profile.id, '', { kind: 'offer', offerAmount })
           if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
         } else if (initialMessage) {
           message = await insertMessage(conv, profile.id, initialMessage)

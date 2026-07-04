@@ -3,6 +3,7 @@ import { after } from 'next/server'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from './db'
 import { sendPushToProfile } from './push'
+import { formatMoneyFull } from './vnd'
 
 export type SerializedMessage = { id: string; mine: true; body: string; createdAt: string; kind: string; offerAmount: number | null; offerStatus: string | null }
 
@@ -67,12 +68,17 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
     try {
       const sender = await db.profile.findUnique({ where: { id: senderId }, select: { displayName: true, email: true } })
       const senderName = sender?.displayName || sender?.email?.split('@')[0] || 'Someone'
+      // Offer bodies are empty (the offer line is derived from offerAmount at render
+      // time) — build the notification text from the structured amount + any note.
+      const notifText = opts?.offerAmount != null
+        ? `Offered ${formatMoneyFull(opts.offerAmount, '₫')}${text ? ` — ${text}` : ''}`
+        : text
       await db.notification.create({
         data: {
           recipientId,
           type: 'offer',
           title: senderName,
-          body: text.slice(0, 140),
+          body: notifText.slice(0, 140),
           actorName: senderName,
           conversationId: convo.id,
           listingId: convo.listingId,
@@ -82,7 +88,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       // after the response flushes — never delays the send.
       after(() => sendPushToProfile(recipientId, {
         title: senderName,
-        body: text.slice(0, 140),
+        body: notifText.slice(0, 140),
         url: `/messages/${convo.id}`,
         tag: `convo-${convo.id}`,
       }))
@@ -121,7 +127,7 @@ export async function actOnOffer(
   if (claim.count === 0) return false
 
   // Confirmation line in the timeline (plain text → broadcasts to both sides).
-  const amt = offer.offerAmount != null ? new Intl.NumberFormat('en-US').format(offer.offerAmount) + '₫' : ''
+  const amt = offer.offerAmount != null ? formatMoneyFull(offer.offerAmount, '₫') : ''
   const text = action === 'accept' ? `✅ Offer accepted${amt ? ` — ${amt}` : ''}` : `❌ Offer declined${amt ? ` — ${amt}` : ''}`
   await insertMessage(convo, actorId, text)
 

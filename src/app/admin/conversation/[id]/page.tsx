@@ -3,6 +3,7 @@ import { getAdmin } from '@/lib/admin'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { ShieldAlert, ChevronLeft, Tag } from 'lucide-react'
 import Link from 'next/link'
+import { formatMoneyFull } from '@/lib/vnd'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -99,10 +100,16 @@ export default async function AdminConversationPage({ params }: Props) {
                   <div key={m.id} className={`flex flex-col ${fromBuyer ? 'items-start' : 'items-end'}`}>
                     <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${fromBuyer ? 'bg-tint text-foreground' : 'bg-primary/10 text-foreground'}`}>
                       {m.kind === 'offer' ? (
-                        <span className="inline-flex items-center gap-1 font-semibold">
-                          <Tag className="h-3.5 w-3.5" /> Offer {new Intl.NumberFormat('en-US').format(m.offerAmount || 0)}₫
-                          {m.offerStatus ? <span className="text-xs font-normal text-ink-4">· {m.offerStatus}</span> : null}
-                        </span>
+                        <>
+                          {/* Offer line derived from the structured offerAmount — legacy
+                              messages carry a baked "💰 Offered …₫" body (skip it); new
+                              offer bodies hold only the sender's optional note. */}
+                          <span className="inline-flex items-center gap-1 font-semibold">
+                            <Tag className="h-3.5 w-3.5" /> Offered {formatMoneyFull(m.offerAmount || 0, '₫')}
+                            {m.offerStatus ? <span className="text-xs font-normal text-ink-4">· {m.offerStatus}</span> : null}
+                          </span>
+                          {m.body && !m.body.startsWith('💰') && <div className="mt-1">{m.body}</div>}
+                        </>
                       ) : (
                         m.body
                       )}

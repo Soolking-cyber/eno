@@ -42,7 +42,13 @@ export default async function BrandsPage() {
 
         {items.length === 0 ? (
           <div className="mt-10 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center text-sm text-muted-foreground">
-            <Tr text="No brands yet — they appear as sellers post." />
+            <p><Tr text="No brands yet — they appear as sellers post." /></p>
+            <Link
+              href="/"
+              className="mt-4 inline-block rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark"
+            >
+              <Tr text="Browse all listings" />
+            </Link>
           </div>
         ) : (
           <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">

@@ -120,7 +120,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     let undone = false
     const commit = setTimeout(() => {
       if (undone) return
-      fetch(`/api/conversations/${id}`, { method: 'DELETE' }).then(() => refreshUnread()).catch(() => {})
+      // On failure, ROLL BACK the optimistic removal: the row still exists server-side,
+      // so re-pulling the inbox restores it — and say so instead of silently desyncing.
+      const rollback = () => { toast.error(tr("Couldn't delete — try again", 'Chưa xóa được — thử lại')); refreshConvos() }
+      fetch(`/api/conversations/${id}`, { method: 'DELETE' })
+        .then((r) => { if (r.ok) refreshUnread(); else rollback() })
+        .catch(rollback)
     }, 5000)
     toast(tr('Conversation removed', 'Đã xóa cuộc trò chuyện'), {
       duration: 5000,

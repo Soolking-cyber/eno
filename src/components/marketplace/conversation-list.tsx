@@ -10,6 +10,7 @@ import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Search, Trash2, X, Sparkles } from 'lucide-react'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
+import { formatMoneyFull } from '@/lib/vnd'
 
 // Borderless conversation list — the left pane of the desktop two-pane messenger
 // (and the whole screen on mobile). Highlights the open thread on desktop.
@@ -115,7 +116,7 @@ export function ConversationList() {
                       const o = c.lastOffer
                       // Make offer direction + status legible at a glance: an incoming
                       // pending offer ("New offer") is the actionable one and stands out.
-                      const amt = o ? `${new Intl.NumberFormat('en-US').format(o.amount || 0)}₫` : ''
+                      const amt = o ? formatMoneyFull(o.amount || 0, '₫') : ''
                       const label = o
                         ? o.status === 'accepted' ? tr('✅ Offer accepted', '✅ Đã chấp nhận đề nghị')
                           : o.status === 'declined' ? tr('❌ Offer declined', '❌ Đã từ chối đề nghị')
@@ -137,7 +138,7 @@ export function ConversationList() {
                   <button
                     onClick={() => setConfirmId(c.id)}
                     aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
-                    className="mr-2 ml-1 shrink-0 rounded-full p-2 text-ink-4 opacity-100 transition hover:bg-red-50 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100 relative tap-44"
+                    className="mr-2 ml-1 shrink-0 rounded-full p-2 text-ink-4 opacity-100 transition hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 relative tap-44"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
