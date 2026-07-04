@@ -5,6 +5,23 @@ import { CheckCircle2, MessageSquareText, Wrench } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 
+// Hoisted to module scope so it keeps a stable component identity across the parent's
+// re-renders — a component created inside render remounts its subtree on every keystroke.
+function Toggle({ label, Icon, active, onSelect }: { label: string; Icon: typeof Wrench; active: boolean; onSelect: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={
+        'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer ' +
+        (active ? 'bg-primary text-white' : 'text-body hover:bg-muted')
+      }
+    >
+      <Icon className="h-4 w-4" /> {label}
+    </button>
+  )
+}
+
 /** In-app feedback / technical-problem form for the Help Center. Posts to
  *  /api/feedback → the /admin/feedback queue (so mobile, which has no "?" popup,
  *  still has a path to send feedback to the team). */
@@ -44,24 +61,11 @@ export function HelpFeedback() {
     )
   }
 
-  const Toggle = ({ value, label, Icon }: { value: 'feedback' | 'technical'; label: string; Icon: typeof Wrench }) => (
-    <button
-      type="button"
-      onClick={() => setKind(value)}
-      className={
-        'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer ' +
-        (kind === value ? 'bg-primary text-white' : 'text-body hover:bg-muted')
-      }
-    >
-      <Icon className="h-4 w-4" /> {label}
-    </button>
-  )
-
   return (
     <div>
       <div className="flex flex-wrap gap-2">
-        <Toggle value="feedback" label={tr('Send feedback', 'Gửi phản hồi')} Icon={MessageSquareText} />
-        <Toggle value="technical" label={tr('Technical problem', 'Lỗi kỹ thuật')} Icon={Wrench} />
+        <Toggle label={tr('Send feedback', 'Gửi phản hồi')} Icon={MessageSquareText} active={kind === 'feedback'} onSelect={() => setKind('feedback')} />
+        <Toggle label={tr('Technical problem', 'Lỗi kỹ thuật')} Icon={Wrench} active={kind === 'technical'} onSelect={() => setKind('technical')} />
       </div>
       <textarea
         value={message}

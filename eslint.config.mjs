@@ -38,6 +38,14 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "react-hooks/purity": "off",
     "react-hooks/immutability": "off",
     "react-hooks/set-state-in-effect": "off",
+    // Same React-Compiler-strictness family as the three above (all off): these flag
+    // intentional, documented patterns this codebase uses on purpose — reading/writing a
+    // ref during render for the sanctioned "adjust-state / position-on-open / previous-value"
+    // technique (area-filter, listings-explorer's search-jitter fix, listings-map card sizing),
+    // and manual useMemo/useCallback the compiler can't auto-preserve. `static-components`
+    // below stays ON — it catches genuine remount bugs (a component recreated each render).
+    "react-hooks/refs": "off",
+    "react-hooks/preserve-manual-memoization": "off",
     "react/no-unescaped-entities": "off",
     "react/display-name": "off",
     "react/prop-types": "off",
@@ -62,6 +70,11 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-unreachable": "off",
     "no-useless-escape": "off",
   },
+}, {
+  // Playwright fixtures receive a `use(...)` callback that is NOT the React `use` hook;
+  // the react-hooks plugin misfires on it. E2E specs are not React components.
+  files: ["e2e/**"],
+  rules: { "react-hooks/rules-of-hooks": "off" },
 }, {
   ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
 }];

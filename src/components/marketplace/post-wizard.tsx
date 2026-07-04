@@ -80,6 +80,42 @@ function initRangesFromEdit(edit?: ListingEditData): Record<string, number | nul
   return out
 }
 
+// Hoisted to module scope (not defined inside PostWizard's render) so React keeps a
+// stable component identity — otherwise a new type is created every keystroke and the
+// button subtree remounts on each parent re-render. Purely presentational; closes over
+// nothing, everything it needs comes in as props.
+function PublishButton({
+  className,
+  onSubmit,
+  canSubmit,
+  submitting,
+  edit,
+  missingCount,
+  t,
+}: {
+  className?: string
+  onSubmit: () => void
+  canSubmit: boolean
+  submitting: boolean
+  edit: boolean
+  missingCount: number
+  t: (vi: string, en: string) => string
+}) {
+  return (
+    <Button variant="cta" size="none"
+      onClick={onSubmit}
+      disabled={!canSubmit}
+      className={cn('w-full rounded-xl px-7 py-3 text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
+    >
+      {submitting
+        ? (edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…'))
+        : missingCount
+        ? t(`Còn ${missingCount} mục`, `${missingCount} left to finish`)
+        : (edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing'))}
+    </Button>
+  )
+}
+
 export function PostWizard({ categories, embedded = false, onPosted, edit }: { categories: SerializedCategory[]; embedded?: boolean; onPosted?: () => void; edit?: ListingEditData }) {
   const router = useRouter()
   const { lang, tr } = useLanguage()
@@ -505,19 +541,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     )
   }
 
-  const PublishButton = ({ className }: { className?: string }) => (
-    <Button variant="cta" size="none"
-      onClick={submit}
-      disabled={!canSubmit}
-      className={cn('w-full rounded-xl px-7 py-3 text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
-    >
-      {submitting
-        ? (edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…'))
-        : missing.length
-        ? t(`Còn ${missing.length} mục`, `${missing.length} left to finish`)
-        : (edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing'))}
-    </Button>
-  )
+  const publishButtonProps = {
+    onSubmit: submit,
+    canSubmit,
+    submitting,
+    edit: !!edit,
+    missingCount: missing.length,
+    t,
+  }
 
   return (
     <div className="pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-0">
@@ -840,7 +871,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               <span className="text-[11px] font-bold uppercase tracking-wider text-ink-4">{t('Xem trước', 'Live preview')}</span>
               <Preview cover={photos[0]?.url} title={title} price={price} priceUnit={priceUnit} area={areaLabel} categoryIcon={cat?.icon} t={t} />
             </div>
-            <PublishButton />
+            <PublishButton {...publishButtonProps} />
             {missing.length > 0 && (
               <ul className="space-y-1.5 pt-1">
                 {checks.map((c) => (
@@ -873,7 +904,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               {t('Còn thiếu', 'Still needed')}: {missing.map((c) => c.label).join(' · ')}
             </p>
           )}
-          <PublishButton />
+          <PublishButton {...publishButtonProps} />
         </div>
       </div>
 

@@ -60,13 +60,7 @@ export function AdminListingsClient() {
     } catch { toast.error('Action failed') } finally { setBusy(false) }
   }
 
-  const ActionBtn = ({ a, icon, label, danger }: { a: string; icon: React.ReactNode; label: string; danger?: boolean }) => (
-    <button onClick={() => act(a)} disabled={busy || sel.size === 0}
-      className={cn('inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors disabled:opacity-40',
-        danger ? 'text-red-600 hover:bg-red-50' : 'text-body hover:bg-muted')}>
-      {icon} {label}
-    </button>
-  )
+  const actionsDisabled = busy || sel.size === 0
 
   return (
     <div>
@@ -90,11 +84,11 @@ export function AdminListingsClient() {
           {sel.size > 0 ? `${sel.size} selected` : 'Select all'}
         </label>
         <span className="mx-1 h-5 w-px bg-border" />
-        <ActionBtn a="activate" icon={<Eye className="h-4 w-4" />} label="Activate" />
-        <ActionBtn a="hide" icon={<EyeOff className="h-4 w-4" />} label="Hide" />
-        <ActionBtn a="feature" icon={<Star className="h-4 w-4" />} label="Feature" />
-        <ActionBtn a="verify" icon={<Check className="h-4 w-4" />} label="Release" />
-        <ActionBtn a="delete" icon={<Trash2 className="h-4 w-4" />} label="Delete" danger />
+        <ActionBtn onClick={() => act('activate')} disabled={actionsDisabled} icon={<Eye className="h-4 w-4" />} label="Activate" />
+        <ActionBtn onClick={() => act('hide')} disabled={actionsDisabled} icon={<EyeOff className="h-4 w-4" />} label="Hide" />
+        <ActionBtn onClick={() => act('feature')} disabled={actionsDisabled} icon={<Star className="h-4 w-4" />} label="Feature" />
+        <ActionBtn onClick={() => act('verify')} disabled={actionsDisabled} icon={<Check className="h-4 w-4" />} label="Release" />
+        <ActionBtn onClick={() => act('delete')} disabled={actionsDisabled} icon={<Trash2 className="h-4 w-4" />} label="Delete" danger />
         {busy && <Loader2 className="ml-1 h-4 w-4 animate-spin text-ink-4" />}
       </div>
 
@@ -122,6 +116,18 @@ export function AdminListingsClient() {
         </div>
       )}
     </div>
+  )
+}
+
+// Module-scope so it keeps a stable identity — a component created inside the parent's
+// render remounts on every keystroke/selection (the batch bar re-renders constantly).
+function ActionBtn({ onClick, disabled, icon, label, danger }: { onClick: () => void; disabled: boolean; icon: React.ReactNode; label: string; danger?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className={cn('inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors disabled:opacity-40',
+        danger ? 'text-red-600 hover:bg-red-50' : 'text-body hover:bg-muted')}>
+      {icon} {label}
+    </button>
   )
 }
 
