@@ -406,6 +406,10 @@ model Message {
   createdAt       DateTime     @default(now())
 
   @@index([conversationId, createdAt])
+  // Covering index for the senderProfileId FK (joins + cascade-delete checks); was
+  // flagged unindexed by Supabase's performance advisor. Applied to prod via migration
+  // add_message_senderprofileid_index (matching Prisma's default index name).
+  @@index([senderProfileId])
 }
 
 // In-app notification for a recipient (new message, offer, system). Created
