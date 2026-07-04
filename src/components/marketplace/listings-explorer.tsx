@@ -16,6 +16,7 @@ import {
   Clock,
   Map,
   Bookmark,
+  TrendingUp,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { TrustScore } from './trust-score'
@@ -47,7 +48,7 @@ import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
-import { SearchSuggest, buildSuggestItems } from './search-suggest'
+import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
 import { ImageSearchButton } from './image-search-button'
 import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
@@ -100,22 +101,6 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
     </div>
   )
 })
-
-// Hero "Filters" dropdown options ([value, English, Tiếng Việt]). Values map to the
-// explorer's existing listingType / conditionFilter / priceRange state.
-const HERO_TYPE_OPTS: [string, string, string][] = [
-  ['all', 'Any', 'Tất cả'], ['sell', 'For sale', 'Cần bán'], ['rent', 'For rent', 'Cho thuê'],
-  ['free', 'Free', 'Miễn phí'], ['service', 'Services', 'Dịch vụ'], ['job', 'Jobs', 'Việc làm'],
-]
-const HERO_COND_OPTS: [string, string, string][] = [['all', 'Any', 'Tất cả'], ['new', 'New', 'Mới'], ['used', 'Used', 'Đã dùng']]
-const HERO_PRICE_OPTS: [string, string, string][] = [
-  ['all', 'Any price', 'Mọi giá'], ['-1000000', 'Under 1M', 'Dưới 1tr'], ['1000000-5000000', '1–5M', '1–5tr'],
-  ['5000000-20000000', '5–20M', '5–20tr'], ['20000000-', '20M+', '20tr+'],
-]
-const heroChipCls = (active: boolean) => cn(
-  'rounded-full px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
-  active ? 'bg-primary text-white' : 'bg-muted text-body hover:bg-accent hover:text-accent-foreground',
-)
 
 // Display a brand slug ("louis-vuitton") as a label ("Louis Vuitton") without a
 // catalogue round-trip. Brands recognized by simple-icons keep their canonical name.
@@ -230,7 +215,6 @@ export function ListingsExplorer({
   const [debouncedQuery, setDebouncedQuery] = useState(query)
 
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [filtersOpen, setFiltersOpen] = useState(false) // hero "Filters" dropdown
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const [recentLocations, setRecentLocations] = useState<{ province: Geo; ward: Geo | null }[]>([])
   const [landingQuery, setLandingQuery] = useState('')
@@ -271,7 +255,6 @@ export function ListingsExplorer({
       setActiveProvince(null)
       setActiveWard(null)
       setNearby(null)
-      setFiltersOpen(false)
       setShowSuggestions(false)
       // Instant jump AFTER the landing layout re-renders (the feed unmounts → the
       // page shrinks): a smooth scroll from deep in the feed gets clamped by the
@@ -357,9 +340,20 @@ export function ListingsExplorer({
   // with the header search via the same hook + panel so both bars behave
   // identically (was a client-side filter over only the SSR-seeded listings).
   const heroSuggest = useSearchSuggest(landingQuery, showSuggestions)
-  const heroSuggestItems = buildSuggestItems(heroSuggest.categories, heroSuggest.listings)
+  const heroSuggestItems = buildSuggestItems(landingQuery, heroSuggest.brands, heroSuggest.categories, heroSuggest.listings)
   const [heroActiveIdx, setHeroActiveIdx] = useState(-1)
   useEffect(() => { setHeroActiveIdx(-1) }, [landingQuery])
+
+  // One pick handler for the hero dropdown (mouse + keyboard): the query row runs
+  // the raw search; a brand opens its facets (dominant category resolves via the
+  // brand-heal effect below); categories/listings navigate.
+  const pickHeroSuggest = (it: SuggestItem) => {
+    setShowSuggestions(false)
+    if (it.type === 'query') { handleLandingSearch(landingQuery); return }
+    if (it.type === 'brand') { setLandingQuery(''); applyResolved({ brand: it.slug }); return }
+    if (it.type === 'category') { handleCategorySelect(it.slug); setLandingQuery(''); return }
+    router.push(`/listings/${it.listing.id}`)
+  }
 
   // Open a resolved brand/model as facets (category + brand + model) instead of a
   // text search — a precise facet beats a keyword match. Clears `query` so the feed
@@ -376,25 +370,23 @@ export function ListingsExplorer({
     setPriceRange('all')
   }, [])
 
-  const handleLandingSearch = useCallback(async (searchTerm: string) => {
+  // A typed submit is a RAW free-text search — never silently upgraded to brand
+  // facets (the dropdown's Brands group is the explicit facet path; Enter always
+  // does exactly what the 'Search for "{q}"' row says). It also DROPS any stale
+  // brand/model/subcategory facets so a new query can't silently AND with a
+  // previous chip into phantom zero results (the category is kept; the applied
+  // chips bar stays the visible receipt).
+  const handleLandingSearch = useCallback((searchTerm: string) => {
     const trimmed = searchTerm.trim()
     setShowExplorer(true)
     setShowSuggestions(false)
     setLooseMatch(false) // a typed search is strict (AND); only visual search is loose
-    if (trimmed.length >= 2) {
-      saveSearchToHistory(trimmed)
-      // Brand/model intent: "huawei" / "matepad 11" open the matching category +
-      // brand (+ model) facets. Short queries only (a sentence wants a text search).
-      if (trimmed.split(/\s+/).length <= 5) {
-        try {
-          const r = await fetch(`/api/search/resolve?q=${encodeURIComponent(trimmed)}`)
-          const d = r.ok ? await r.json() : null
-          if (d?.brand) { applyResolved(d); return }
-        } catch {}
-      }
-    }
+    setActiveBrand('all')
+    setActiveModel('all')
+    setActiveSubcategory('all')
+    if (trimmed.length >= 2) saveSearchToHistory(trimmed)
     setQuery(trimmed)
-  }, [saveSearchToHistory, applyResolved])
+  }, [saveSearchToHistory])
 
   // Apply a VISUAL search result (photo → query + best-guess category/brand). Branded
   // items route exactly (category + brand facets); generic items scope to the detected
@@ -554,21 +546,9 @@ export function ListingsExplorer({
     return () => window.removeEventListener('eno:apply-url', onApply)
   }, [applyParams])
 
-  // Arrived via ?q=<brand> from a search bar on another page (header routes off-page
-  // searches to /?q=…). Upgrade a brand/model query to the matching facets too, so
-  // resolution works from EVERY search bar — not just the in-page ones. Runs once.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const q = (params.get('q') || '').trim()
-    if (!q || params.get('brand') || params.get('category')) return
-    if (q.length < 2 || q.split(/\s+/).length > 5) return
-    let cancelled = false
-    fetch(`/api/search/resolve?q=${encodeURIComponent(q)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && d?.brand) applyResolved(d) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [applyResolved])
+  // NOTE: a plain `?q=` arrival stays a RAW text search on purpose (same convention
+  // as Enter in every search bar) — brand facets only open via an explicit pick from
+  // the typeahead's Brands group, a visual search, or a `?brand=` deep link.
 
   // Safety net for brand searches: if a brand ends up active but its category never
   // stuck (a stale/raced resolution leaves the top nav on "All"), open the brand's
@@ -1206,7 +1186,7 @@ export function ListingsExplorer({
             <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 font-bold text-foreground" />
             <span className="h-3 w-px shrink-0 bg-border" />
             <span className="truncate"><Tr text={l.district || l.city} /></span>
-            <TrustScore score={l.seller.trustScore} variant="number" size="sm" className="shrink-0" />
+            <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className="shrink-0" />
           </div>
         </div>
 
@@ -1578,18 +1558,24 @@ export function ListingsExplorer({
   }, [])
 
   if (isLandingMode) {
+    // Never open an empty dropdown: with a typed query it's the typeahead; when empty
+    // it needs recents/locations or the Popular fallback (categories, already
+    // client-side). With nothing to show the pill stays a plain pill.
+    const heroPanelOpen = showSuggestions && (
+      landingQuery.trim().length >= 2 || recentSearches.length > 0 || recentLocations.length > 0 || categories.length > 0
+    )
     return (
       <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pt-2 pb-5 sm:pt-3 sm:pb-8">
         {/* Width + edge gutter are owned by the parent page <main> (canonical
             max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
-        <div className="relative w-full space-y-12">
-          
+        <div className="relative w-full space-y-8 sm:space-y-12">
+
           {/* HERO SEARCH AREA */}
           <div className="pb-2 text-center">
-            <div className="flex flex-col items-center justify-center mb-6">
+            <div className="flex flex-col items-center justify-center mb-4 sm:mb-6">
               {/* SEO: a real <h1> with the exact brand phrase (the logo is an image). */}
               <h1 className="sr-only">eno.vn — Verified Expat Marketplace in Vietnam</h1>
-              <LogoWordmark className="h-14 w-auto mb-3 select-none sm:h-20 sm:mb-4" />
+              <LogoWordmark className="h-14 w-auto mb-2 select-none sm:h-20 sm:mb-4" />
               <p className="eyebrow text-body">
                 {tr('e-commerce with no drama', 'Mua bán không drama.')}
               </p>
@@ -1602,31 +1588,16 @@ export function ListingsExplorer({
                   panel on focus (Google-style): flat bottom + shared shadow/border. */}
               <div className={cn(
                 'flex items-center bg-card transition-all duration-200',
-                showSuggestions || filtersOpen
+                heroPanelOpen
                   ? 'rounded-t-2xl shadow-pop'
                   : 'rounded-2xl bg-tint focus-within:ring-2 focus-within:ring-ring/30',
               )}>
-                {/* Advanced filters — opens a recents-style dropdown. Left of search. */}
-                <button
-                  type="button"
-                  onClick={() => { setFiltersOpen((o) => !o); setShowSuggestions(false) }}
-                  aria-label={tr('Filters', 'Bộ lọc')}
-                  aria-expanded={filtersOpen}
-                  title={tr('Filters', 'Bộ lọc')}
-                  className={cn(
-                    'flex shrink-0 items-center justify-center rounded-l-2xl pl-4 pr-3 py-3.5 transition-colors cursor-pointer sm:pl-5 sm:py-4.5',
-                    filtersOpen || activeCategory !== 'all' || listingType !== 'all' || conditionFilter !== 'all' || priceRange !== 'all'
-                      ? 'text-accent-foreground'
-                      : 'text-ink-4 hover:text-accent-foreground',
-                  )}
-                >
-                  <SlidersHorizontal className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
-                </button>
-                <span className="h-6 w-px shrink-0 bg-border sm:h-7" />
+                {/* No leading filter icon here — ambiguous on the hero; the results
+                    view keeps its Filter chip in the facet bar. */}
                 <button
                   onClick={() => handleLandingSearch(landingQuery)}
                   aria-label={tr('Search', 'Tìm kiếm')}
-                  className="shrink-0 pl-3 pr-2.5 py-2.5 sm:py-3 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  className="flex shrink-0 items-center justify-center rounded-l-2xl pl-4 pr-2.5 py-2.5 sm:pl-5 sm:py-3 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
                   <Search className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                 </button>
@@ -1641,7 +1612,7 @@ export function ListingsExplorer({
                   spellCheck={false}
                   value={landingQuery}
                   onChange={(e) => setLandingQuery(e.target.value)}
-                  onFocus={() => { setShowSuggestions(true); setFiltersOpen(false) }}
+                  onFocus={() => setShowSuggestions(true)}
                   onPaste={async (e) => {
                     const f = imageFromPaste(e); if (!f) return; e.preventDefault()
                     toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })
@@ -1655,12 +1626,12 @@ export function ListingsExplorer({
                       if (e.key === 'ArrowUp') { e.preventDefault(); setHeroActiveIdx((i) => Math.max(-1, i - 1)); return }
                       if (e.key === 'Enter' && heroActiveIdx >= 0) {
                         e.preventDefault()
-                        const it = heroSuggestItems[heroActiveIdx]
-                        setShowSuggestions(false)
-                        if (it.type === 'category') { handleCategorySelect(it.slug); setLandingQuery('') } else router.push(`/listings/${it.id}`)
+                        pickHeroSuggest(heroSuggestItems[heroActiveIdx])
                         return
                       }
                     }
+                    // No arrow-key selection → the RAW free-text search (the 'Search
+                    // for "{q}"' row), never an auto-picked suggestion.
                     if (e.key === 'Enter') handleLandingSearch(landingQuery)
                   }}
                   placeholder={tr('Search motorbikes, apartments, moving sales...', 'Tìm xe máy, căn hộ, đồ thanh lý...')}
@@ -1702,79 +1673,18 @@ export function ListingsExplorer({
                 </button>
               </div>
 
-              {/* Advanced filters dropdown — mirrors the recents/suggestions panel */}
-              {filtersOpen && (
-                <>
-                  <div className="fixed inset-0 z-40 cursor-default" onClick={() => setFiltersOpen(false)} />
-                  <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-2xl bg-card p-5 shadow-pop text-left max-h-[70vh] overflow-y-auto scroll-thin space-y-5 animate-in fade-in slide-in-from-top-1 duration-100">
-                    <div>
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr('Category', 'Danh mục')}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        <button type="button" onClick={() => { setActiveCategory('all'); setActiveSubcategory('all') }} className={heroChipCls(activeCategory === 'all')}>{tr('All', 'Tất cả')}</button>
-                        {categories.map((c) => (
-                          <button key={c.slug} type="button" onClick={() => { setActiveCategory(c.slug); setActiveSubcategory('all') }} className={heroChipCls(activeCategory === c.slug)}>
-                            {lang === 'vi' ? c.nameVi : c.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr('Type', 'Loại')}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {HERO_TYPE_OPTS.map(([v, en, vi]) => (
-                          <button key={v} type="button" onClick={() => setListingType(v)} className={heroChipCls(listingType === v)}>{tr(en, vi)}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr('Condition', 'Tình trạng')}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {HERO_COND_OPTS.map(([v, en, vi]) => (
-                          <button key={v} type="button" onClick={() => setConditionFilter(v)} className={heroChipCls(conditionFilter === v)}>{tr(en, vi)}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{tr('Price', 'Giá')}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {HERO_PRICE_OPTS.map(([v, en, vi]) => (
-                          <button key={v} type="button" onClick={() => setPriceRange(v)} className={heroChipCls(priceRange === v)}>{tr(en, vi)}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between border-t border-border pt-4">
-                      <button type="button" onClick={() => { setActiveCategory('all'); setActiveSubcategory('all'); setListingType('all'); setConditionFilter('all'); setPriceRange('all') }} className="text-sm font-semibold text-body hover:text-foreground transition-colors cursor-pointer">
-                        {tr('Clear all', 'Xóa tất cả')}
-                      </button>
-                      <Button variant="cta" size="none"
-                        type="button"
-                        onClick={() => { setFiltersOpen(false); setShowExplorer(true); requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }}
-                        className="rounded-xl px-5 py-2.5 text-sm transition-colors cursor-pointer"
-                      >
-                        {tr('Show results', 'Xem kết quả')}
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              )}
-
               {/* Suggestions Overlay in Landing Page */}
-              {showSuggestions && (
+              {heroPanelOpen && (
                 <>
                   <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowSuggestions(false)} />
                   <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-2xl bg-card p-4 shadow-pop text-left max-h-[440px] overflow-y-auto scroll-thin space-y-4 animate-in fade-in slide-in-from-top-1 duration-100">
                     {landingQuery.trim().length >= 2 ? (
                       <SearchSuggest
-                        listings={heroSuggest.listings}
-                        categories={heroSuggest.categories}
+                        items={heroSuggestItems}
                         loading={heroSuggest.loading}
                         query={landingQuery}
                         activeIndex={heroActiveIdx}
-                        onPick={(it) => {
-                          setShowSuggestions(false)
-                          if (it.type === 'category') { handleCategorySelect(it.slug); setLandingQuery('') }
-                          else router.push(`/listings/${it.id}`)
-                        }}
+                        onPick={pickHeroSuggest}
                         onSubmitQuery={() => handleLandingSearch(landingQuery)}
                       />
                     ) : (
@@ -1825,6 +1735,25 @@ export function ListingsExplorer({
                                 >
                                   <MapPin className="h-3.5 w-3.5" />
                                   {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Popular — seeds a first-visit dropdown (no recents yet) from
+                            the demand-ordered categories already on the client; never
+                            an empty white slab, never an extra fetch. */}
+                        {recentSearches.length === 0 && categories.length > 0 && (
+                          <div className="space-y-1.5">
+                            <span className="eyebrow flex items-center gap-1 text-body"><TrendingUp className="h-3 w-3" />{tr('Popular', 'Phổ biến')}</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {categories.slice(0, 8).map((c) => (
+                                <button
+                                  key={c.slug}
+                                  onClick={() => { setShowSuggestions(false); handleCategorySelect(c.slug) }}
+                                  className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                                >
+                                  {lang === 'vi' ? c.nameVi : c.name}
                                 </button>
                               ))}
                             </div>
@@ -2138,6 +2067,49 @@ export function ListingsExplorer({
     )
   }
 
+  // List / Grid / Map view toggles — one source for the desktop sort row AND the
+  // mobile results-count row (where the collapsed sort/view row's controls live).
+  const renderViewToggles = () => (
+    <>
+      <button
+        onClick={() => setViewMode('compact')}
+        aria-label={tr('List view', 'Danh sách')}
+        aria-pressed={viewMode === 'compact'}
+        title={tr('List view', 'Danh sách')}
+        className={cn(
+          'rounded-lg p-2 transition-colors cursor-pointer',
+          viewMode === 'compact' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
+        )}
+      >
+        <List className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={() => setViewMode('grid')}
+        aria-label={tr('Grid view', 'Lưới')}
+        aria-pressed={viewMode === 'grid'}
+        title={tr('Grid view', 'Lưới')}
+        className={cn(
+          'rounded-lg p-2 transition-colors cursor-pointer',
+          viewMode === 'grid' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
+        )}
+      >
+        <Grid className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={() => setViewMode('map')}
+        aria-label={tr('Map view', 'Bản đồ')}
+        aria-pressed={viewMode === 'map'}
+        title={tr('Map view', 'Xem Bản đồ')}
+        className={cn(
+          'rounded-lg p-2 transition-colors cursor-pointer',
+          viewMode === 'map' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
+        )}
+      >
+        <Map className="h-3.5 w-3.5" />
+      </button>
+    </>
+  )
+
   // Distinct from the empty state: a failed fetch (DB down, 500) must NOT read as
   // "no listings" — show an error + retry so the marketplace never looks empty.
   const renderErrorState = () => (
@@ -2210,15 +2182,36 @@ export function ListingsExplorer({
               verifiedOnly={verifiedOnly}
               setVerifiedOnly={setVerifiedOnly}
               histogramQuery={histogramQuery}
+              trailing={
+                /* MOBILE ONLY: the sort control rides the filter chip row as a
+                   chip-styled dropdown (the standalone sort/view row is collapsed
+                   below lg — see the desktop-only row further down). */
+                <div className="shrink-0 lg:hidden">
+                  <CustomSelect
+                    value={sort}
+                    onChange={(val) => startFilterTransition(() => setSort(val as SortKey))}
+                    options={[
+                      { value: 'newest', label: tr('Newest', 'Mới đăng') },
+                      { value: 'price-low', label: tr('Price: Low to High', 'Giá: thấp-cao') },
+                      { value: 'price-high', label: tr('Price: High to Low', 'Giá: cao-thấp') },
+                      { value: 'popular', label: tr('Popular', 'Xem nhiều') },
+                    ]}
+                    placeholder={tr('Sort', 'Sắp xếp')}
+                    wrapperClassName="w-auto shrink-0"
+                  />
+                </div>
+              }
             />
 
-            {/* Sort & View row — on desktop the Save-search box fills the left up to the
-                sort dropdown; on mobile the box drops to its own line below. */}
-            <div className="flex items-start gap-3">
+            {/* Sort & View row — DESKTOP ONLY. On mobile this row collapses: the sort
+                chip merges into the facet bar above and the view toggles sit on the
+                results-count row, so the results start a full row higher. Desktop: the
+                Save-search box fills the left up to the sort dropdown. */}
+            <div className="hidden items-start gap-3 lg:flex">
               {renderSaveBox(true, 'hidden min-w-0 flex-1 lg:flex')}
-              {/* Sorting & Views — always pinned top-right (ml-auto keeps it right even
+              {/* Sorting & Views — pinned top-right (ml-auto keeps it right even
                   when there are no chips / no save box on the left). */}
-              <div className="flex items-center justify-between gap-2.5 w-full lg:ml-auto lg:w-auto lg:shrink-0">
+              <div className="flex items-center gap-2.5 lg:ml-auto lg:shrink-0">
                 <CustomSelect
                   value={sort}
                   onChange={(val) => startFilterTransition(() => setSort(val as SortKey))}
@@ -2233,58 +2226,23 @@ export function ListingsExplorer({
                   activeClassName="border-brand"
                   icon={<SlidersHorizontal className="h-3.5 w-3.5 text-ink-4 shrink-0" />}
                 />
-
-                {/* Grid vs List vs Map view toggle */}
-                  <button
-                    onClick={() => setViewMode('compact')}
-                    aria-label={tr('List view', 'Danh sách')}
-                    aria-pressed={viewMode === 'compact'}
-                    title={tr('List view', 'Danh sách')}
-                    className={cn(
-                      'rounded-lg p-2 transition-colors cursor-pointer',
-                      viewMode === 'compact' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
-                    )}
-                  >
-                    <List className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    aria-label={tr('Grid view', 'Lưới')}
-                    aria-pressed={viewMode === 'grid'}
-                    title={tr('Grid view', 'Lưới')}
-                    className={cn(
-                      'rounded-lg p-2 transition-colors cursor-pointer',
-                      viewMode === 'grid' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
-                    )}
-                  >
-                    <Grid className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('map')}
-                    aria-label={tr('Map view', 'Bản đồ')}
-                    aria-pressed={viewMode === 'map'}
-                    title={tr('Map view', 'Xem Bản đồ')}
-                    className={cn(
-                      'rounded-lg p-2 transition-colors cursor-pointer',
-                      viewMode === 'map' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
-                    )}
-                  >
-                    <Map className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {renderViewToggles()}
               </div>
+            </div>
 
-            {/* Mobile: the full save box stays below the sort row (unchanged); desktop
+            {/* Mobile: the full save box stays below the facet bar (unchanged); desktop
                 renders the compact 1/3 box on the filter line above. */}
             {renderSaveBox(false, 'lg:hidden')}
 
-            {/* Results metadata count — also the feed's h2 (keeps headings sequential). */}
+            {/* Results metadata count — also the feed's h2 (keeps headings sequential).
+                On mobile the view toggles live here (the sort/view row is collapsed). */}
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1 select-none">
               <h2 className="text-xs font-normal text-muted-foreground">
                 {tr('Found', 'Tìm thấy')}{' '}
                 <strong className="text-foreground">{nearby ? shownListings.length : totalCount}</strong>{' '}
                 {tr('listings', 'tin đăng')}
               </h2>
+              <div className="flex items-center gap-1 lg:hidden">{renderViewToggles()}</div>
             </div>
 
             {/* LISTINGS CONTAINER */}

@@ -33,17 +33,19 @@ export function BackToTop() {
           'bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-6', // clear the mobile bottom-nav
         )}
       >
-        {/* Back to top — bare chevron, fades in once scrolled (slot reserved so the ? never shifts) */}
+        {/* Back to top — a proper circular surface (it floats over card imagery, so a
+            bare chevron got lost / read as part of a card). Fades in once scrolled
+            (slot reserved so the ? never shifts); transform/opacity only. */}
         <button
           type="button"
           aria-label="Back to top"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className={cn(
-            'relative flex h-9 w-9 items-center justify-center text-body transition-all duration-200 hover:text-foreground active:scale-90 tap-44',
+            'relative flex h-11 w-11 items-center justify-center rounded-full bg-card text-body shadow-pop transition-all duration-200 hover:text-foreground active:scale-90 tap-44',
             show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
           )}
         >
-          <ChevronUp className="h-7 w-7" strokeWidth={3} />
+          <ChevronUp className="h-6 w-6" strokeWidth={2.5} />
         </button>
 
         {/* Help — bare "?", DESKTOP ONLY (on mobile, Help lives in the profile page

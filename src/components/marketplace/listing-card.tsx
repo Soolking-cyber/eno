@@ -139,6 +139,16 @@ function ListingCardImpl({
           </div>
         )}
 
+        {/* Legibility scrims — faint top+bottom gradients so the white heart / locate
+            pin / dots survive pale photos (sky, sand). Theme-neutral by design: they
+            sit ON the photo, so black works in both light and dark. */}
+        {images.length > 0 && (
+          <>
+            <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/20 to-transparent" />
+            <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/20 to-transparent" />
+          </>
+        )}
+
         {/* eno.vn watermark — hidden until a save/copy/drag attempt (ImageShield) */}
         {images.length > 0 && <span className="img-watermark" aria-hidden />}
 
@@ -233,7 +243,9 @@ function ListingCardImpl({
 
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="truncate">{displayLocation}</span>
-          <TrustScore score={listing.seller.trustScore} variant="number" size="sm" className="shrink-0" />
+          {/* Mini chip (glyph + number), not a bare number guests can't decode. Display
+              only — the card itself is the button (no nested interactive). */}
+          <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />
         </div>
 
         {listing.seller.isBusiness && (

@@ -19,18 +19,25 @@ const headers = { 'Cache-Control': 'public, max-age=120, stale-while-revalidate=
 const ok = (body: object) => NextResponse.json(body, { headers })
 const empty = ok({ brand: null })
 
-/** The category where this brand has the most live listings — the one to open. */
+/** The category where this brand has the most live listings — the one to open.
+ *  Ordered by live listing count, but counting BUY/SELL intent first: a typed brand
+ *  is shopping intent, and the all-rent `rentals` category would otherwise outweigh
+ *  the brand's sales category (Honda: 36 rentals vs 23 vehicles → must open
+ *  vehicles). Rent-only brands still resolve via the all-intents fallback. */
 async function dominantCategory(brandSlug: string): Promise<string | null> {
-  const grouped = await db.listing.groupBy({
-    by: ['categoryId'],
-    where: { verified: true, status: 'active', brandSlug },
-    _count: { _all: true },
-    orderBy: { _count: { categoryId: 'desc' } },
-    take: 1,
-  })
-  const top = grouped[0]
-  if (!top) return null
-  const cat = await db.category.findUnique({ where: { id: top.categoryId }, select: { slug: true } })
+  const topCategoryId = async (excludeRent: boolean): Promise<string | null> => {
+    const grouped = await db.listing.groupBy({
+      by: ['categoryId'],
+      where: { verified: true, status: 'active', brandSlug, ...(excludeRent ? { listingType: { not: 'rent' } } : {}) },
+      _count: { _all: true },
+      orderBy: { _count: { categoryId: 'desc' } },
+      take: 1,
+    })
+    return grouped[0]?.categoryId ?? null
+  }
+  const categoryId = (await topCategoryId(true)) ?? (await topCategoryId(false))
+  if (!categoryId) return null
+  const cat = await db.category.findUnique({ where: { id: categoryId }, select: { slug: true } })
   return cat?.slug ?? null
 }
 

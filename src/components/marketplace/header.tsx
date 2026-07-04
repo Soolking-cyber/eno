@@ -83,15 +83,25 @@ export function Header() {
   const instantOpen = showSuggestions && searchVal.trim().length >= 2
   const panelOpen = suggestOpen || instantOpen
 
-  // Instant matches (debounced typeahead) — listings + categories.
+  // Instant matches (debounced typeahead) — brands + categories + listings, with the
+  // 'Search for "{q}"' row ALWAYS first: Enter with no arrow-key selection submits the
+  // raw free-text search (never a suggestion); arrow keys still navigate suggestions.
   const live = useSearchSuggest(searchVal, showSuggestions)
-  const suggestItems = buildSuggestItems(live.categories, live.listings)
+  const suggestItems = buildSuggestItems(searchVal, live.brands, live.categories, live.listings)
   const [activeIdx, setActiveIdx] = useState(-1)
   useEffect(() => { setActiveIdx(-1) }, [searchVal])
 
   const pickSuggest = (it: SuggestItem) => {
     setShowSuggestions(false)
-    router.push(it.type === 'category' ? `/c/${it.slug}` : `/listings/${it.id}`)
+    if (it.type === 'query') { submitSearch(searchVal); return }
+    if (it.type === 'brand') {
+      // Open the brand's facets — the explorer resolves its dominant category.
+      const url = `/?brand=${encodeURIComponent(it.slug)}`
+      if (isExplorerPage) window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url } }))
+      else router.push(url)
+      return
+    }
+    router.push(it.type === 'category' ? `/c/${it.slug}` : `/listings/${it.listing.id}`)
   }
   const onSearchKeyDown = (e: React.KeyboardEvent) => {
     if (!instantOpen || suggestItems.length === 0) return
@@ -312,8 +322,7 @@ export function Header() {
             {instantOpen && (
               <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-card p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                 <SearchSuggest
-                  listings={live.listings}
-                  categories={live.categories}
+                  items={suggestItems}
                   loading={live.loading}
                   query={searchVal}
                   activeIndex={activeIdx}

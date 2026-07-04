@@ -32,12 +32,21 @@ const SignInDialog = dynamic(
   { ssr: false },
 )
 
+/** Optional listing context for the sign-in dialog: when a gated action names
+ *  WHAT signing in unlocks ("message James about X"), conversion beats a generic
+ *  prompt. Callers without context just call openSignIn(). */
+export type SignInContext = {
+  listingTitle?: string
+  listingImage?: string | null
+  sellerName?: string
+}
+
 type AuthCtx = {
   user: User | null
   loading: boolean
   accountType: string | null
   signOut: () => Promise<void>
-  openSignIn: () => void
+  openSignIn: (ctx?: SignInContext) => void
   markOnboarded: (type: string) => void
 }
 
@@ -47,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [signInOpen, setSignInOpen] = useState(false)
+  const [signInCtx, setSignInCtx] = useState<SignInContext | null>(null)
   const [accountType, setAccountType] = useState<string | null>(null)
   const [identityLoaded, setIdentityLoaded] = useState(false)
   const router = useRouter()
@@ -175,10 +185,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const markOnboarded = (type: string) => setAccountType(type)
 
   return (
-    <AuthContext.Provider value={{ user, loading, accountType, signOut, openSignIn: () => setSignInOpen(true), markOnboarded }}>
+    <AuthContext.Provider value={{ user, loading, accountType, signOut, openSignIn: (ctx) => { setSignInCtx(ctx ?? null); setSignInOpen(true) }, markOnboarded }}>
       {children}
       {/* Mounted only once opened, so its chunk loads on demand. */}
-      {signInOpen && <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />}
+      {signInOpen && (
+        <SignInDialog
+          open={signInOpen}
+          onOpenChange={(o) => { setSignInOpen(o); if (!o) setSignInCtx(null) }}
+          listingTitle={signInCtx?.listingTitle}
+          listingImage={signInCtx?.listingImage}
+          sellerName={signInCtx?.sellerName}
+        />
+      )}
     </AuthContext.Provider>
   )
 }

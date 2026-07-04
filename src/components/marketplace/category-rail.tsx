@@ -90,9 +90,11 @@ export function CategoryRail({
             {/* Subcategories roll out to the right of the active category */}
             {subs.length > 0 && (
               <div className="flex shrink-0 items-start gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                <span className="mt-1 h-12 w-px shrink-0 bg-border" />
-                {/* 3×3 grid (column-fill): All first, 7 most-used in between, More last. */}
-                <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-3 gap-y-1">
+                <span className="mt-1 h-7 w-px shrink-0 bg-border sm:h-12" />
+                {/* Mobile: ONE row scrolling inside the rail (keeps the pre-results
+                    stack short); sm+: the 3×3 column-fill grid — All first, 7
+                    most-used in between, More last. */}
+                <div className="grid grid-rows-1 grid-flow-col auto-cols-max gap-x-3 gap-y-1 sm:grid-rows-3">
                   <button onClick={() => onSubcategory('all')} className={subChip(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
                   {visibleSubs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug

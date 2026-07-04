@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
+import { ListingContactBar } from '@/components/marketplace/listing-contact-bar'
 import { TrackView } from '@/components/marketplace/track-view'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SaveListingButton } from '@/components/marketplace/save-listing-button'
@@ -182,7 +183,7 @@ export default async function ListingPage({ params }: Props) {
       'url': canonicalUrl,
       'priceCurrency': listing.currency === '₫' ? 'VND' : 'USD',
       'price': listing.price,
-      'priceValidUntil': new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString().split('T')[0], // 90 days
+      'priceValidUntil': new Date(new Date(listing.postedAt).getTime() + 1000 * 60 * 60 * 24 * 90).toISOString().split('T')[0], // postedAt + 90d — deterministic across ISR regens (Date.now() made every regen unique, defeating Vercel's unchanged-output write dedup)
       'itemCondition': schemaCondition,
       'availability': availability,
       'seller': { '@type': 'Organization', 'name': listing.seller.name },
@@ -222,6 +223,26 @@ export default async function ListingPage({ params }: Props) {
 
   const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
 
+  // Quiet social proof — only above a credibility floor so a fresh listing never
+  // advertises "0 saved" (saves ≥3 / views ≥20). Rendered twice: under the title
+  // on mobile and in the contact column on desktop (each hidden on the other).
+  const showProof = listing.savedCount >= 3 || listing.views >= 20
+  const socialProof = (
+    <>
+      {listing.savedCount >= 3 && (
+        <span className="inline-flex items-center gap-1">
+          <Heart className="h-3.5 w-3.5" /> {new Intl.NumberFormat('en-US').format(listing.savedCount)} <Tr text="saved" />
+        </span>
+      )}
+      {listing.savedCount >= 3 && listing.views >= 20 && <span aria-hidden>·</span>}
+      {listing.views >= 20 && (
+        <span className="inline-flex items-center gap-1">
+          <Eye className="h-3.5 w-3.5" /> {new Intl.NumberFormat('en-US').format(listing.views)} <Tr text="views" />
+        </span>
+      )}
+    </>
+  )
+
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       {/* JSON-LD — indexable listings only (no rich snippets for hidden/sold/pending) */}
@@ -248,14 +269,16 @@ export default async function ListingPage({ params }: Props) {
 
       <Header />
 
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-12">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:pb-12">
         {/* Breadcrumb — Home / Category / Title */}
         <nav aria-label="Breadcrumb" className="mb-4 truncate text-sm text-muted-foreground">
           <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
           <span className="mx-1.5 text-line-strong">/</span>
           <Link href={`/c/${rawListing.category.slug}`} className="hover:text-accent-foreground transition-colors"><Tr text={listing.category.name} /></Link>
-          <span className="mx-1.5 text-line-strong">/</span>
-          <span className="font-medium text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
+          {/* Leaf crumb hidden on mobile — it duplicates the H1 directly below and
+              wraps a full row; the BreadcrumbList JSON-LD keeps all 3 levels. */}
+          <span className="mx-1.5 hidden text-line-strong md:inline">/</span>
+          <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
         </nav>
 
         {/* Title header */}
@@ -286,6 +309,15 @@ export default async function ListingPage({ params }: Props) {
           </div>
         </div>
 
+        {/* Price directly under the title on MOBILE — when the two-column layout
+            stacks, the contact column's price lands ~4 viewports down (ux-24).
+            Server-rendered duplicate (zero JS); the desktop column keeps its own
+            copy, hidden <lg there / ≥lg here. */}
+        <div className="mb-4 space-y-1 lg:hidden">
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="block text-2xl font-bold text-foreground tracking-tight" />
+          {showProof && <p className="flex items-center gap-2 text-xs text-muted-foreground">{socialProof}</p>}
+        </div>
+
         {/* Gallery mosaic */}
         <ListingGallery images={listing.images} title={displayTitle} showAllLabel="View all photos" />
 
@@ -304,13 +336,16 @@ export default async function ListingPage({ params }: Props) {
           ))}
           <span className="inline-flex items-center gap-1.5 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold">
             <span className="text-ink-4"><Tr text="Trust" /></span>
-            <TrustScore score={listing.seller.trustScore} variant="number" size="sm" />
+            <TrustScore score={listing.seller.trustScore} variant="mini" size="sm" />
           </span>
         </div>
 
-        {/* Content + sticky contact */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
-          {/* LEFT: details */}
+        {/* Content + sticky contact. The left column is split into two grid rows
+            (description/details, then map) so DOM order puts the map AFTER the
+            contact column — on mobile the stack reads price → seller → contact →
+            map (ux-24) while ≥lg the grid restores map under the description. */}
+        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-x-10">
+          {/* LEFT (row 1): description + details */}
           <div className="lg:col-span-7 flex flex-col gap-8">
             <div className="space-y-2">
               <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
@@ -337,43 +372,19 @@ export default async function ListingPage({ params }: Props) {
               </div>
             )}
 
-            <div id="location-on-map" className="space-y-2 scroll-mt-20">
-              <h2 className="h-section text-foreground"><Tr text="Location" /></h2>
-              <div className="h-[260px] rounded-2xl overflow-hidden relative">
-                <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} />
-              </div>
-            </div>
-
-            <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />
-            </p>
           </div>
 
           {/* RIGHT: flat sticky contact column — no floating card, cohesive with
-              the single-canvas page; a subtle left rule separates it on desktop. */}
-          <div className="lg:col-span-5">
+              the single-canvas page; a subtle left rule separates it on desktop.
+              Spans both left rows so the map block below stays beside it ≥lg. */}
+          <div className="lg:col-span-5 lg:row-span-2">
             <div className="lg:sticky lg:top-24 space-y-5 lg:border-l lg:border-border/70 lg:pl-10">
-              <div className="flex items-baseline gap-2">
+              {/* Price + social proof — desktop copy (the mobile copy sits under the title) */}
+              <div className="hidden items-baseline gap-2 lg:flex">
                 <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-foreground tracking-tight" />
               </div>
-
-              {/* Quiet social proof — only above a credibility floor so a fresh
-                  listing never advertises "0 saved" (saves ≥3 / views ≥20). */}
-              {(listing.savedCount >= 3 || listing.views >= 20) && (
-                <p className="-mt-2.5 flex items-center gap-2 text-xs text-muted-foreground">
-                  {listing.savedCount >= 3 && (
-                    <span className="inline-flex items-center gap-1">
-                      <Heart className="h-3.5 w-3.5" /> {new Intl.NumberFormat('en-US').format(listing.savedCount)} <Tr text="saved" />
-                    </span>
-                  )}
-                  {listing.savedCount >= 3 && listing.views >= 20 && <span aria-hidden>·</span>}
-                  {listing.views >= 20 && (
-                    <span className="inline-flex items-center gap-1">
-                      <Eye className="h-3.5 w-3.5" /> {new Intl.NumberFormat('en-US').format(listing.views)} <Tr text="views" />
-                    </span>
-                  )}
-                </p>
+              {showProof && (
+                <p className="-mt-2.5 hidden items-center gap-2 text-xs text-muted-foreground lg:flex">{socialProof}</p>
               )}
 
               {/* Seller identity + trust in ONE cohesive block right under the price
@@ -400,31 +411,15 @@ export default async function ListingPage({ params }: Props) {
                 </Link>
               </div>
 
-              {/* Escrow purchase — placeholder until payment/escrow licensing lands.
-                  Non-interactive; signals the upcoming protected-buy flow so the
-                  affordance is visible pre-launch. Wired with AddToCart/Purchase
-                  events when escrow goes live. */}
-              <div className="space-y-1.5">
-                <div
-                  role="button"
-                  aria-disabled
-                  className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-line-strong bg-muted px-5 py-3 text-sm font-bold text-muted-foreground"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  <Tr text="Buy with escrow" />
-                  <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-                    <Tr text="Coming soon" />
-                  </span>
-                </div>
-                <p className="text-center text-[11px] text-muted-foreground">
-                  <Tr text="Protected payment held until you confirm — launching soon." />
-                </p>
-              </div>
-
               {/* Unified contact + offer (auth-gated; number never in this payload).
-                  Type a message or tap "Make an offer", then send → opens the thread. */}
+                  Type a message or tap "Make an offer", then send → opens the thread.
+                  The escrow placeholder is a quiet footnote below the composer now —
+                  never a dead button on the money path (user decision 2026-07-04). */}
               <div id="contact" className="scroll-mt-24">
-                <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} price={listing.price} currency={listing.currency} />
+                <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} />
+                <p className="mt-2 text-center text-[11px] text-ink-4">
+                  <Tr text="Escrow payments launching soon." />
+                </p>
               </div>
 
               {/* Safety link by the contact action (buyers look for it before reaching out) */}
@@ -438,6 +433,23 @@ export default async function ListingPage({ params }: Props) {
               </div>
             </div>
           </div>
+
+          {/* LEFT (row 2): map + safety note — after the contact column in the DOM
+              so it stacks below the CTA on mobile; ≥lg the grid places it back
+              under the description (cols 1–7, row 2). */}
+          <div className="lg:col-span-7 flex flex-col gap-8">
+            <div id="location-on-map" className="space-y-2 scroll-mt-20">
+              <h2 className="h-section text-foreground"><Tr text="Location" /></h2>
+              <div className="h-[260px] rounded-2xl overflow-hidden relative">
+                <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} />
+              </div>
+            </div>
+
+            <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />
+            </p>
+          </div>
         </div>
 
         {/* More like this — same-category listings (client-fetched, ISR-safe) */}
@@ -445,6 +457,17 @@ export default async function ListingPage({ params }: Props) {
 
         {/* The buyer's own recently-viewed trail (excludes this listing). */}
         <RecentlyViewedRail excludeId={listing.id} />
+
+        {/* Sticky mobile CTA bar (<lg): price + contact always one thumb away —
+            main reserves matching bottom padding so nothing hides behind it. */}
+        <ListingContactBar
+          price={listing.price}
+          currency={listing.currency}
+          priceUnit={listing.priceUnit}
+          listingTitle={displayTitle}
+          listingImage={listing.images[0] ?? null}
+          sellerName={listing.seller.name}
+        />
       </main>
 
       <Footer />

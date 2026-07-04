@@ -5,7 +5,7 @@ import { X, Heart } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import type { SerializedListing } from '@/lib/types'
 import { formatPrice } from '@/lib/types'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, compactPrice } from '@/lib/vnd'
 import { useCurrency } from '@/context/currency-context'
 import type { Language } from '@/context/language-context'
 import { useLanguage } from '@/context/language-context'
@@ -14,16 +14,12 @@ import { getListingCoordinates } from '@/lib/geo'
 import type { Nearby } from './area-filter'
 import { cn } from '@/lib/utils'
 
-// Compact price for map labels (Airbnb-style price pins) — language-aware suffixes:
-// EN uses B/M/K, VI uses tỷ/tr/k. (`+(…).toFixed(1)` drops a trailing ".0".)
-function compactPrice(l: SerializedListing, lang: Language): string {
-  if (l.currency === '₫') {
-    const vi = lang === 'vi'
-    if (l.price >= 1_000_000_000) return `${+(l.price / 1_000_000_000).toFixed(1)}${vi ? ' tỷ' : 'B'}`
-    if (l.price >= 1_000_000) return `${Math.round(l.price / 1_000_000)}${vi ? ' tr' : 'M'}`
-    if (l.price >= 1_000) return `${Math.round(l.price / 1_000)}${vi ? 'k' : 'K'}`
-    return `${l.price}`
-  }
+// Compact price for map labels (Airbnb-style price pins). VND uses the shared
+// compactPrice ("850K" / "51M" / "1.2B" — explicit suffixes in every language;
+// "51 tr" was opaque to the expat audience); the rare non-₫ listing keeps its
+// symbol-prefixed format.
+function pinLabel(l: SerializedListing): string {
+  if (l.currency === '₫') return compactPrice(l.price)
   return formatPrice(l.price, l.currency, l.priceUnit)
 }
 
@@ -232,7 +228,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     listings.forEach((l) => {
       const { lat, lng } = getListingCoordinates(l)
       bounds.push([lat, lng])
-      const icon = L.divIcon({ html: pinHtml(compactPrice(l, lang), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
+      const icon = L.divIcon({ html: pinHtml(pinLabel(l), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
       const marker = L.marker([lat, lng], { icon, riseOnHover: true }).addTo(map)
       marker.on('click', () => {
         if (hoverable) onOpenListing(l) // desktop: card already shown on hover → click opens
@@ -284,7 +280,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     markersRef.current.forEach((marker, id) => {
       const l = listings.find((x) => x.id === id)
       if (!l) return
-      marker.setIcon(L.divIcon({ html: pinHtml(compactPrice(l, lang), selectedId === id), className: 'eno-pin', iconSize: [0, 0] }))
+      marker.setIcon(L.divIcon({ html: pinHtml(pinLabel(l), selectedId === id), className: 'eno-pin', iconSize: [0, 0] }))
       if (selectedId === id) marker.setZIndexOffset(1000)
       else marker.setZIndexOffset(0)
     })
@@ -350,7 +346,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                     <span className="block text-xs font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</span>
                   </span>
                 </button>
-                <TrustScore score={card.seller.trustScore} variant="number" size="sm" className="shrink-0" />
+                <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
                 <button onClick={(e) => { e.stopPropagation(); closeCard() }} aria-label={tr('Close', 'Đóng')} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground">
                   <X className="h-4 w-4" />
                 </button>
@@ -383,7 +379,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   <div className="p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="truncate text-sm font-bold text-foreground">{lang === 'vi' ? (card.titleVi || card.title) : card.title}</p>
-                      <TrustScore score={card.seller.trustScore} variant="number" size="sm" className="shrink-0" />
+                      <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
                     <p className="mt-1 text-sm font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</p>

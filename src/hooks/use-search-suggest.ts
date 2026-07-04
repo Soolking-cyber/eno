@@ -14,6 +14,7 @@ export type SuggestListing = {
   categorySlug: string
 }
 export type SuggestCategory = { slug: string; name: string; nameVi: string }
+export type SuggestBrand = { slug: string; name: string }
 
 /**
  * Instant-match suggestions for the search bars. Debounced (~150ms) so it fires
@@ -25,6 +26,7 @@ export type SuggestCategory = { slug: string; name: string; nameVi: string }
 export function useSearchSuggest(query: string, enabled: boolean) {
   const [listings, setListings] = useState<SuggestListing[]>([])
   const [categories, setCategories] = useState<SuggestCategory[]>([])
+  const [brands, setBrands] = useState<SuggestBrand[]>([])
   const q = query.trim()
   // Derive loading so it's true on the SAME render the query first qualifies —
   // avoids a one-paint "No matches yet" flash before the effect/fetch starts.
@@ -33,7 +35,7 @@ export function useSearchSuggest(query: string, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled || q.length < 2) {
-      setListings([]); setCategories([])
+      setListings([]); setCategories([]); setBrands([])
       return
     }
     const ac = new AbortController()
@@ -43,6 +45,7 @@ export function useSearchSuggest(query: string, enabled: boolean) {
         .then((d) => {
           setListings(d.listings || [])
           setCategories(d.categories || [])
+          setBrands(d.brands || [])
           setResults({ q, listings: d.listings || [], categories: d.categories || [] }) // marks this q as fetched → clears loading
         })
         .catch(() => { /* aborted or failed — keep last results; loading stays until a fetch settles */ })
@@ -50,5 +53,5 @@ export function useSearchSuggest(query: string, enabled: boolean) {
     return () => { ac.abort(); clearTimeout(timer) }
   }, [q, enabled])
 
-  return { listings, categories, loading }
+  return { listings, categories, brands, loading }
 }

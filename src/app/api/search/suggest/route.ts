@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
 import { fold } from '@/lib/fold'
+import { normalizeBrand } from '@/lib/brand-normalize'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
@@ -13,19 +14,21 @@ export const runtime = 'nodejs'
 // small take) so it's fast enough to hit on every keystroke.
 export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get('q') || '').trim().slice(0, 80)
-  if (q.length < 2) return NextResponse.json({ q, listings: [], categories: [] })
+  if (q.length < 2) return NextResponse.json({ q, listings: [], categories: [], brands: [] })
 
   // Public + unindexed-ILIKE per keystroke → IP throttle to bound DB amplification.
   const ip = clientIp(req)
   const rl = await rateLimit('search-suggest', ip, 120, '1 m')
-  if (!rl.success) return NextResponse.json({ q, listings: [], categories: [] })
+  if (!rl.success) return NextResponse.json({ q, listings: [], categories: [], brands: [] })
 
   const folded = fold(q)
   // AND each ≥2-char token (matches /api/listings) so multi-word typeahead narrows.
   const tokens = folded.split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
   const searchAnd = tokens.length ? tokens.map((t) => ({ searchText: { contains: t } })) : [{ searchText: { contains: folded } }]
+  // Brand matching key ("Louis V" → "louisv") so a spaced prefix still hits "louisvuitton".
+  const brandKey = normalizeBrand(q)
 
-  const [listings, allCategories] = await Promise.all([
+  const [listings, allCategories, brands] = await Promise.all([
     db.listing.findMany({
       where: { verified: true, status: 'active', AND: searchAnd },
       // Same balanced rankScore blend as the browse feed — the typeahead is a placement
@@ -43,6 +46,16 @@ export async function GET(req: NextRequest) {
     // so accent-free input ("can ho") matches "Căn hộ", consistent with the
     // accent-insensitive listing search (and one fewer DB round-trip per keystroke).
     db.category.findMany({ select: { slug: true, name: true, nameVi: true } }),
+    // Brands with live listings whose matching key contains the typed key ("hon" →
+    // Honda) — the typeahead's "Brands" group. Most-listed first, tiny take.
+    brandKey.length >= 2
+      ? db.brand.findMany({
+          where: { status: 'active', listingCount: { gt: 0 }, normalized: { contains: brandKey } },
+          orderBy: { listingCount: 'desc' },
+          take: 2,
+          select: { slug: true, name: true },
+        })
+      : Promise.resolve([]),
   ])
 
   const categories = allCategories
@@ -62,6 +75,7 @@ export async function GET(req: NextRequest) {
         }
       }),
       categories: categories.map((c) => ({ slug: c.slug, name: c.name, nameVi: c.nameVi })),
+      brands: brands.map((b) => ({ slug: b.slug, name: b.name })),
     },
     // Public verified+active data only → safe to let the CDN absorb repeat
     // prefixes (hot terms like "ho"/"xe"), matching the /api/listings policy.

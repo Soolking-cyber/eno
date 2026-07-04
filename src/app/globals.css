@@ -50,6 +50,11 @@
   --color-brand-light: var(--brand-light);
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
+  /* Deep-navy pair for fixed dark marketing panels (e.g. /signin hero gradient).
+     Defined once in :root and NOT overridden in .dark — the panel is dark by
+     design in both themes. */
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-deeper: var(--brand-deeper);
   /* Semantic status colors — flip lighter on dark so success/warning/info chips
      stay on-theme instead of using raw emerald/amber (which have no dark variant). */
   --color-success: var(--success);
@@ -90,6 +95,9 @@
   --brand-light: #8fbfe8;
   --brand-50: #e8f1fb;
   --brand-100: #cfe3f5;
+  /* Muted deep navy-blue ramp end — fixed dark marketing panels (both themes) */
+  --brand-deep: #1b4b76;
+  --brand-deeper: #0c2b48;
 
   /* Surfaces — soft neutral canvas so white surfaces (cards, header, popovers)
      gain subtle Airbnb-style depth without reintroducing borders/boxes. */
@@ -127,9 +135,13 @@
   /* Trust-score tiers — colours follow human intuition: red = bad, yellow =
      warning, green = good, emerald = great, purple = royal. LIGHT theme values are
      darkened so the small number passes WCAG AA (≥4.5:1) on white/tint cards. */
-  --trust-restricted: #b91c1c; /* red-700    ~4.9:1 — bad */
-  --trust-standard:   #b45309; /* amber-700  ~5.0:1 — warning (dropped below baseline) */
-  --trust-trusted:    #15803d; /* green-700  ~5.0:1 — good (the healthy default) */
+  /* One grade darker than the -700 originals: the mini trust chip renders these on a
+     10% currentColor tint, which costs ~0.7 contrast — -800 keeps every tier ≥5.4:1
+     on the tint (and ≥6.4:1 as plain text). Dark-mode pairs below are unaffected
+     (a light-fg tint over a dark canvas raises contrast instead). */
+  --trust-restricted: #991b1b; /* red-800    ~7.0:1 — bad */
+  --trust-standard:   #92400e; /* amber-800  ~6.4:1 — warning (dropped below baseline) */
+  --trust-trusted:    #166534; /* green-800  ~6.7:1 — good (the healthy default) */
   --trust-exceptional:#0a66c2; /* brand blue ~5.7:1 — great (sits next to green) */
   --trust-elite:      #7c3aed; /* violet-600 ~5.7:1 — royal (top) */
 

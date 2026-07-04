@@ -34,6 +34,19 @@ function short(n: number): string {
   return Number.isInteger(r) ? String(r) : r.toFixed(1)
 }
 
+/**
+ * Compact VND label for MAP PINS ONLY — the single sanctioned exception to the
+ * full-grouped format. Explicit international suffixes in every language
+ * ("850K", "51M", "1.2B"): the Vietnamese "51 tr" shorthand is opaque to the
+ * expat audience, and pins are too narrow for "51,000,000 VND".
+ */
+export function compactPrice(n: number): string {
+  if (n >= 1_000_000_000) return `${short(n / 1_000_000_000)}B`
+  if (n >= 1_000_000) return `${short(n / 1_000_000)}M`
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`
+  return EN.format(n)
+}
+
 /** Readable helper under the price input: "12 million VND" / "12 triệu VND". */
 export function vndWords(n: number, lang: string): string {
   if (!n) return ''

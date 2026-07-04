@@ -25,11 +25,14 @@ test.describe('Guest · listing detail (BMW XM SUV)', () => {
   })
 
   test('opens the photo lightbox and locks background scroll', async ({ page }) => {
-    // The main gallery is opened via "View all photos · N" (the inline "Next photo" arrows
-    // belong to the below-fold related-listing cards). It opens a modal lightbox that must
-    // FREEZE the page behind it so swipes don't scroll the background.
+    // Desktop opens the lightbox via "View all photos · N" on the mosaic; mobile's
+    // full-width swipe carousel opens it by tapping the photo itself. Either way it
+    // must open a modal that FREEZES the page behind it so swipes don't scroll the
+    // background.
     await expect(page.getByRole('heading', { level: 1, name: /BMW XM SUV/i })).toBeVisible()
-    await page.getByRole('button', { name: /View all photos/i }).click()
+    const viewAll = page.getByRole('button', { name: /View all photos/i })
+    if (await viewAll.isVisible()) await viewAll.click()
+    else await page.getByRole('button', { name: /photo 1/i }).first().click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     // Background is scroll-locked while open…

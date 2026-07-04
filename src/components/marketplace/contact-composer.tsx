@@ -21,11 +21,12 @@ export const COMPOSE_KEY = 'eno-compose' // sessionStorage handoff → /messages
  * real thread. "Redirect first, load in background."
  */
 export function ContactComposer({
-  listingId, listingTitle, listingImage, price, currency,
+  listingId, listingTitle, listingImage, sellerName, price, currency,
 }: {
   listingId: string
   listingTitle?: string
   listingImage?: string | null
+  sellerName?: string
   price?: number
   currency: string // raw listing currency, e.g. '₫'
 }) {
@@ -47,7 +48,7 @@ export function ContactComposer({
     // Until auth resolves, treat as not-ready: don't push to /messages/pending
     // (which would 401-bounce and lose the typed message). Prompt only once we know
     // they're truly logged out.
-    if (!user) { if (!loading) openSignIn(); return }
+    if (!user) { if (!loading) openSignIn({ listingTitle, listingImage, sellerName }); return }
     // Stash a STRUCTURED offer (offerAmount) + optional note — never a baked text
     // line — so the first message lands as a proper offer card (kind='offer'),
     // identical to in-thread offers. The /messages/pending resolver posts it and
@@ -69,7 +70,7 @@ export function ContactComposer({
 
   if (!loading && !user) {
     return (
-      <Button variant="cta" size="none" onClick={() => openSignIn()} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 cursor-pointer">
+      <Button variant="cta" size="none" onClick={() => openSignIn({ listingTitle, listingImage, sellerName })} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 cursor-pointer">
         <Lock className="h-4 w-4" /> {tr('Sign in to contact seller', 'Đăng nhập để liên hệ người bán')}
       </Button>
     )

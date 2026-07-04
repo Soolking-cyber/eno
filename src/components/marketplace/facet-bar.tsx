@@ -31,6 +31,7 @@ type FacetBarProps = {
   verifiedOnly: boolean
   setVerifiedOnly: Dispatch<SetStateAction<boolean>>
   histogramQuery: string // active filters (sans price/pagination) for the price histogram
+  trailing?: ReactNode // extra control at the end of the chip row (e.g. the mobile sort chip)
 }
 
 // Compact, category-aware facet bar (faceted-search pattern) — all facets come
@@ -56,6 +57,7 @@ export function FacetBar({
   verifiedOnly,
   setVerifiedOnly,
   histogramQuery,
+  trailing,
 }: FacetBarProps) {
   const { lang, tr } = useLanguage()
   const [areaOpen, setAreaOpen] = useState(false)
@@ -226,6 +228,7 @@ export function FacetBar({
             {tr('Clear', 'Xóa lọc')}
           </button>
         )}
+        {trailing}
 
         <AreaFilter
           open={areaOpen}

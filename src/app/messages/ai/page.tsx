@@ -152,7 +152,7 @@ export default function AiThreadPage() {
       ) : (
         <div className="bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <button
-            onClick={openSignIn}
+            onClick={() => openSignIn()}
             className="w-full rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-white transition-transform active:scale-[0.98] tap-44"
           >
             {tr('Sign in to use eno AI', 'Đăng nhập để dùng eno AI')}

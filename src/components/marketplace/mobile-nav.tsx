@@ -47,7 +47,7 @@ function GatedTab({ href, active, icon, label, gate, onNavigate }: { href: strin
   const { openSignIn } = useAuth()
   if (gate) {
     return (
-      <button type="button" onClick={openSignIn} aria-label={label} className={TAB}>
+      <button type="button" onClick={() => openSignIn()} aria-label={label} className={TAB}>
         <span className="flex h-full w-full items-center justify-center text-body transition-colors">
           <span className="relative">{icon}</span>
         </span>
