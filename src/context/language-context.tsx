@@ -250,8 +250,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // Persist the chosen language to the signed-in user's Profile so SERVER-sent messages
   // (e.g. moderation notifications, which the recipient can't supply a cookie for) reach
   // them in this language. Debounced so only the settled language is written (the mount
-  // effect above may flip en→vi first); fire-and-forget — a no-op 401 for guests.
+  // effect above may flip en→vi first). GUESTS ARE SKIPPED (no Supabase auth cookie):
+  // firing anyway 401s, and although .catch() swallows the JS error the browser still
+  // logs the failed request to console — Lighthouse flags that on every guest page load
+  // (Best Practices 100→96), and each one burned a function invocation for nothing.
   useEffect(() => {
+    if (typeof document === 'undefined' || !/(^|;\s*)sb-[^=]*-auth-token/.test(document.cookie)) return
     const id = setTimeout(() => {
       fetch('/api/profile/locale', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ locale: lang }) }).catch(() => {})
     }, 800)
