@@ -13,7 +13,7 @@ import type { NextRequest } from 'next/server'
 // Transform Rule that sets request header `x-eno-edge: <secret>` for eno.vn, (2) set
 // EDGE_SECRET=<same secret> on Vercel, (3) turn on Vercel Deployment Protection so the
 // *.vercel.app origin isn't publicly reachable at all.
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const secret = process.env.EDGE_SECRET
   if (!secret) return NextResponse.next()
   // SERVER-TO-SERVER routes that legitimately hit the origin OFF Cloudflare and carry
