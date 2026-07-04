@@ -14,12 +14,13 @@ import { formatMoneyFull } from '@/lib/vnd'
 import { Price } from './price'
 import { VndInput } from './vnd-input'
 import { QuickReplyChips, MarkSoldPrompt } from './quick-reply-chips'
+import { ReviewPrompt } from './review-prompt'
 import { Button } from '@/components/ui/button'
 
 type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
-type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string; availabilityConfirmedAt?: string | null }
+type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string; availabilityConfirmedAt?: string | null; status?: string }
 type Thread = {
-  id: string; me: string; iAmSeller?: boolean; listing: Listing
+  id: string; me: string; iAmSeller?: boolean; hasReviewed?: boolean; listing: Listing
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null; sellerId?: string | null }; messages: Msg[]
 }
 
@@ -450,6 +451,12 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   const lastTheirs = thread ? [...thread.messages].reverse().find((m) => !m.mine) : undefined
   const hasPendingBuyerOffer = !!lastTheirs && lastTheirs.kind === 'offer' && lastTheirs.offerStatus === 'pending'
 
+  // Buyer-side review prompt: the deal closed (listing sold OR an offer here was
+  // accepted) and this conversation hasn't produced a review yet.
+  const hasAcceptedOffer = !!thread?.messages.some((m) => m.kind === 'offer' && m.offerStatus === 'accepted')
+  const showReviewPrompt = !!thread && !thread.iAmSeller && !thread.hasReviewed && !!thread.counterpart.sellerId &&
+    (thread.listing.status === 'sold' || hasAcceptedOffer)
+
   // Took over from the pending shell: clear the shared draft (already inherited
   // into local text) and auto-send if the user hit send before the convo existed.
   useEffect(() => {
@@ -592,6 +599,17 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         {peerTyping && <TypingDots />}
         <div ref={bottomRef} />
       </div>
+
+      {/* Post-transaction review prompt (buyer only) — one quiet card above the
+          composer; ✕ hides it for the session, it stays gone once reviewed. */}
+      {showReviewPrompt && thread && (
+        <ReviewPrompt
+          sellerId={thread.counterpart.sellerId!}
+          sellerName={thread.counterpart.name}
+          conversationId={thread.id}
+          className="px-3 pt-1.5"
+        />
+      )}
 
       {/* Quick replies — seller: the 3 endless questions answered in one tap;
           buyer: "still available?" that self-answers from a fresh seller

@@ -13,6 +13,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
+import type { SparkPoint } from '@/components/marketplace/listing-sparkline'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { TrustProgress, type TrustProgressData } from '@/components/marketplace/trust-progress'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
@@ -31,6 +32,12 @@ import { cn } from '@/lib/utils'
 import type { SerializedListing } from '@/lib/types'
 
 const KEY = 'eno-dashboard'
+
+// Per-listing 14-day sparkline series (business tier only). Module-level cache
+// so tab flips / remounts within the session don't refetch — the data changes
+// once a day (cron rollup), so one fetch per page load is plenty.
+type SparkSeries = Record<string, SparkPoint[]>
+let sparkCache: { userId: string; series: SparkSeries } | null = null
 
 type Stats = {
   totalViews: number; totalLeads: number; activeCount: number; soldCount: number
@@ -123,6 +130,27 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
     } catch {}
     refresh()
   }, [user, refresh])
+
+  // Sparkline series — business tier only, fetched lazily AFTER first paint and
+  // only while the listings tab is showing, so it costs individual sellers (and
+  // the initial render) nothing. Module-level cache keeps tab flips free.
+  const [spark, setSpark] = useState<SparkSeries | null>(null)
+  useEffect(() => {
+    const uid = user?.id
+    if (!uid) { setSpark(null); return }
+    if (tab !== 'listings' || data?.tier !== 'business') return
+    if (sparkCache?.userId === uid) { setSpark(sparkCache.series); return }
+    let cancelled = false
+    fetch('/api/dashboard/analytics')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { series?: SparkSeries } | null) => {
+        if (cancelled || !j?.series) return
+        sparkCache = { userId: uid, series: j.series }
+        setSpark(j.series)
+      })
+      .catch(() => {}) // decorative — a failed fetch just means no sparklines
+    return () => { cancelled = true }
+  }, [user?.id, tab, data?.tier])
 
   if (!loading && !user) {
     return (
@@ -282,7 +310,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             <h2 className="h-section text-foreground">{tr('Needs your attention', 'Cần xử lý')} ({needsAttention.length})</h2>
             <p className="mt-0.5 mb-3 text-xs text-muted-foreground">{tr('Confirm availability to bump these back to the top, or mark them sold.', 'Xác nhận còn hàng để đẩy tin lên đầu, hoặc đánh dấu đã bán.')}</p>
             <div className="space-y-2.5">
-              {needsAttention.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />)}
+              {needsAttention.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} series={spark ? spark[l.id] ?? [] : undefined} />)}
             </div>
           </section>
         )}
@@ -336,7 +364,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             </div>
           ) : (
             <div className={cn('mt-3', listView === 'grid' ? 'grid grid-cols-2 gap-2.5 lg:grid-cols-3' : 'space-y-2.5')}>
-              {d.listings.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} variant={listView === 'grid' ? 'grid' : 'row'} />)}
+              {d.listings.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} variant={listView === 'grid' ? 'grid' : 'row'} series={spark ? spark[l.id] ?? [] : undefined} />)}
             </div>
           )}
         </section>

@@ -65,6 +65,7 @@ model Profile {
   trustEvents         TrustEvent[]   @relation("SubjectTrustEvents")
   pushSubscriptions   PushSubscription[]
   savedSearches       SavedSearch[]
+  authoredReviews     Review[]       @relation("AuthoredReviews")
 
   @@index([phone])
   @@index([trustTier])
@@ -217,9 +218,19 @@ model Review {
   author    String
   rating    Int      @default(5)
   text      String
+  // ── Verified-buyer provenance (all NULLABLE — seeded/legacy rows have none and
+  // render WITHOUT the "Verified buyer" badge). A real review is created only from
+  // a conversation whose listing sold / offer was accepted (api/sellers/[id]/reviews).
+  authorProfileId String?  @db.Uuid
+  authorProfile   Profile? @relation("AuthoredReviews", fields: [authorProfileId], references: [id], onDelete: SetNull)
+  listingId       String?
+  listing         Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  // One review per conversation — perfect dedup + the verified-buyer proof.
+  conversationId  String?  @unique
   createdAt DateTime @default(now())
 
   @@index([sellerId])
+  @@index([authorProfileId])
 }
 
 model Listing {
@@ -294,6 +305,7 @@ model Listing {
   contactReveals     ContactReveal[]
   conversations      Conversation[]
   dailyStats         ListingDailyStat[]
+  reviews            Review[]           // verified-buyer reviews that reference this listing
   contactCount       Int       @default(0) // distinct authenticated viewers who revealed contact
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

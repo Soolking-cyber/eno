@@ -22,11 +22,37 @@ const getSeller = cache((id: string) =>
   db.seller.findUnique({
     where: { id },
     include: {
-      reviews: { orderBy: { createdAt: 'desc' } },
       listings: { where: { verified: true, status: 'active' }, orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
     },
   }),
 )
+
+// Reviews are fetched with an EXPLICIT select (not include) so we can read the
+// verified-buyer provenance columns — and stay resilient before they exist: the
+// prod DB gains conversationId/authorProfileId only when scripts/add-review-cols.mjs
+// runs, so a pre-migration deploy would 500 on the wider select. Catch that and
+// fall back to the legacy column set (nothing shows the badge) — this page then
+// works whichever of code/migration ships first.
+const getReviews = cache(async (sellerId: string) => {
+  try {
+    const rows = await db.review.findMany({
+      where: { sellerId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, author: true, rating: true, text: true, conversationId: true, authorProfileId: true },
+    })
+    // "Verified buyer" is EARNED: only reviews born from a real conversation
+    // (post-transaction, api/sellers/[id]/reviews) carry provenance. Seeded/legacy
+    // rows have neither field → no badge.
+    return rows.map((r) => ({ id: r.id, author: r.author, rating: r.rating, text: r.text, verified: !!(r.conversationId || r.authorProfileId) }))
+  } catch {
+    const rows = await db.review.findMany({
+      where: { sellerId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, author: true, rating: true, text: true },
+    })
+    return rows.map((r) => ({ ...r, verified: false }))
+  }
+})
 
 function Stat({ icon, value, label }: { icon: React.ReactNode; value: React.ReactNode; label: React.ReactNode }) {
   return (
@@ -49,7 +75,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function SellerPage({ params }: Props) {
   const { id } = await params
-  const seller = await getSeller(id)
+  const [seller, reviews] = await Promise.all([getSeller(id), getReviews(id)])
   if (!seller) notFound()
 
   const initials = seller.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -110,18 +136,21 @@ export default async function SellerPage({ params }: Props) {
         </div>
 
         {/* Reviews */}
-        {seller.reviews.length > 0 && (
+        {reviews.length > 0 && (
           <section className="mt-10 space-y-4">
             <h2 className="h-section text-foreground"><Tr text="Reviews" /> ({seller.reviewCount})</h2>
             <div className="grid gap-4 sm:grid-cols-2">
-              {seller.reviews.map((r) => (
+              {reviews.map((r) => (
                 <div key={r.id}>
                   <div className="flex items-center gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
                       {r.author.split(' ').map((w) => w[0]).join('').toUpperCase()}
                     </span>
                     <span className="text-sm font-semibold text-foreground">{r.author}</span>
-                    <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Verified buyer" /></span>
+                    {/* Earned badge: only reviews with real conversation provenance. */}
+                    {r.verified && (
+                      <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Verified buyer" /></span>
+                    )}
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-body"><Tr text={r.text} /></p>
                 </div>

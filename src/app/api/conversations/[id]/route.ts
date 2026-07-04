@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     where: { id },
     select: {
       id: true, buyerProfileId: true, sellerProfileId: true, buyerUnread: true, sellerUnread: true,
-      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, availabilityConfirmedAt: true } },
+      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, availabilityConfirmedAt: true, status: true } },
       seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
       messages: { orderBy: { createdAt: 'asc' }, select: { id: true, senderProfileId: true, body: true, createdAt: true, kind: true, offerAmount: true, offerStatus: true } },
@@ -45,6 +45,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     ? convo.seller.id
     : (await db.seller.findUnique({ where: { ownerId: convo.buyerProfileId }, select: { id: true } }))?.id ?? null
 
+  // Buyer side only: has this conversation already produced a review? One indexed
+  // exists-check (unique on Review.conversationId) powers the post-transaction
+  // review prompt. Pre-migration DB (scripts/add-review-cols.mjs not yet run) the
+  // column is absent → treat as not-reviewed instead of 500ing the whole thread.
+  let hasReviewed = false
+  if (iAmBuyer) {
+    try {
+      hasReviewed = !!(await db.review.findUnique({ where: { conversationId: id }, select: { id: true } }))
+    } catch { hasReviewed = false }
+  }
+
   const img = (() => { try { return (JSON.parse(convo.listing.images || '[]')[0] as string) ?? null } catch { return null } })()
   return NextResponse.json({
     id: convo.id,
@@ -54,7 +65,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     iAmSeller,
     // availabilityConfirmedAt powers the buyer's instant "still available?" answer
     // (fresh seller confirmation → answered inline, no message sent).
-    listing: { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null },
+    listing: { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null, status: convo.listing.status },
+    // Buyer already reviewed this conversation → the thread UIs hide the review prompt.
+    hasReviewed,
     counterpart: iAmBuyer
       ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId }
       : { name: convo.buyer.displayName || convo.buyer.email || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId },

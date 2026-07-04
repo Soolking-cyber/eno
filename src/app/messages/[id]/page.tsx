@@ -19,13 +19,15 @@ import { formatMoneyFull } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
+import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 
 type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
   iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
-  listing: { id: string; title: string; image: string | null; price?: number; availabilityConfirmedAt?: string | null }
+  hasReviewed?: boolean // buyer side: this conversation already produced a review → no prompt
+  listing: { id: string; title: string; image: string | null; price?: number; availabilityConfirmedAt?: string | null; status?: string }
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null; sellerId?: string | null }
   messages: Msg[]
 }
@@ -309,6 +311,12 @@ export default function ThreadPage() {
   const lastTheirs = thread ? [...thread.messages].reverse().find((m) => !m.mine) : undefined
   const hasPendingBuyerOffer = !!lastTheirs && lastTheirs.kind === 'offer' && lastTheirs.offerStatus === 'pending'
 
+  // Buyer-side review prompt: the deal closed (listing sold OR an offer here was
+  // accepted) and this conversation hasn't produced a review yet.
+  const hasAcceptedOffer = !!thread?.messages.some((m) => m.kind === 'offer' && m.offerStatus === 'accepted')
+  const showReviewPrompt = !!thread && !thread.iAmSeller && !thread.hasReviewed && !!thread.counterpart.sellerId &&
+    (thread.listing.status === 'sold' || hasAcceptedOffer)
+
   return (
     <div className="flex h-full w-full flex-col bg-background">
       {!loading && !user ? (
@@ -459,6 +467,17 @@ export default function ThreadPage() {
             )}
             <div ref={bottomRef} />
           </div>
+
+          {/* Post-transaction review prompt (buyer only) — one quiet card above the
+              composer; ✕ hides it for the session, it stays gone once reviewed. */}
+          {showReviewPrompt && thread && (
+            <ReviewPrompt
+              sellerId={thread.counterpart.sellerId!}
+              sellerName={thread.counterpart.name}
+              conversationId={thread.id}
+              className="px-4 pt-1.5"
+            />
+          )}
 
           {/* Quick replies — seller: the 3 endless questions answered in one tap;
               buyer: "still available?" that self-answers from a fresh seller

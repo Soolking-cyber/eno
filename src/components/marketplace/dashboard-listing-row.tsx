@@ -6,6 +6,7 @@ import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, 
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { ShareButton } from './share-button'
+import { ListingSparkline, type SparkPoint } from './listing-sparkline'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -14,7 +15,7 @@ import { toast } from 'sonner'
 // OPTIMISTIC: the row's status/availability flips INSTANTLY (local override), the
 // request fires in the background, and we only revert + revalidate if it fails.
 // No blocking spinner — the user never waits on the network for feedback.
-export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { listing: SerializedListing; onChanged: () => void; variant?: 'row' | 'grid' }) {
+export function DashboardListingRow({ listing, onChanged, variant = 'row', series }: { listing: SerializedListing; onChanged: () => void; variant?: 'row' | 'grid'; series?: SparkPoint[] }) {
   const { lang, tr } = useLanguage()
   const router = useRouter()
   const [gone, setGone] = useState(false)
@@ -90,6 +91,10 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
       {listing.savedCount > 0 && (
         <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" />{listing.savedCount} {tr('saved', 'đã lưu')}</span>
       )}
+      {/* Business tier only (series is fetched lazily for business dashboards and
+          simply never passed otherwise) — the slot only exists once data arrived,
+          so the default view renders exactly as before. */}
+      {series && <ListingSparkline series={series} />}
     </div>
   )
 
