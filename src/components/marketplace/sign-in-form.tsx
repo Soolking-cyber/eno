@@ -8,6 +8,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { googleOauthBlocked, openInSystemBrowser } from '@/lib/in-app-browser'
+import { useTurnstile } from './turnstile'
 
 const RESEND_SECONDS = 60
 
@@ -34,6 +35,10 @@ export function SignInForm({ className }: { className?: string }) {
   useEffect(() => { setOauthBlocked(googleOauthBlocked()) }, [])
 
   const supabase = createSupabaseBrowser()
+  // Cloudflare Turnstile — mints a fresh single-use token for each OTP send so Supabase
+  // Auth CAPTCHA can gate SMS/email OTP against spam + SMS-pumping toll fraud. Only the
+  // send steps (signInWithOtp) are gated; verifyOtp and OAuth are not (per Supabase).
+  const { getToken: getCaptchaToken, Widget: Turnstile } = useTurnstile()
   // Return the user to the page they triggered sign-in from (continuum of their
   // action) — not always home. Phone OTP stays in place (no redirect; the modal
   // just closes); OAuth + magic-link round-trip through /auth/callback, which
@@ -77,7 +82,8 @@ export function SignInForm({ className }: { className?: string }) {
 
   const sendEmail = async () => {
     setLoading(true); setError('')
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirectTo } })
+    const captchaToken = await getCaptchaToken()
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirectTo, captchaToken } })
     setLoading(false)
     if (error) setError(error.message)
     else { setStage('sent'); setCountdown(RESEND_SECONDS) }
@@ -87,7 +93,8 @@ export function SignInForm({ className }: { className?: string }) {
     setLoading(true); setError('')
     const d = phone.replace(/\D/g, '')
     const intl = d.startsWith('0') ? `+84${d.slice(1)}` : d.startsWith('84') ? `+${d}` : `+${d}`
-    const { error } = await supabase.auth.signInWithOtp({ phone: intl })
+    const captchaToken = await getCaptchaToken()
+    const { error } = await supabase.auth.signInWithOtp({ phone: intl, options: { captchaToken } })
     setLoading(false)
     if (error) { setError(error.message); return }
     setPhone(intl); setCode(''); lastSubmitted.current = ''
@@ -148,6 +155,8 @@ export function SignInForm({ className }: { className?: string }) {
         <button onClick={reset} className="mt-3 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
           {t('Dùng cách khác', 'Use another method')}
         </button>
+        {/* Kept mounted here too so the email "resend" above can mint a fresh token. */}
+        <Turnstile />
       </div>
     )
   }
@@ -225,6 +234,8 @@ export function SignInForm({ className }: { className?: string }) {
       )}
 
       {error && <p role="alert" className="text-center text-xs font-semibold text-red-600">{error}</p>}
+      {/* Invisible Turnstile — renders a visible challenge only if one is required. */}
+      <Turnstile />
       <p className="pt-1 text-center text-[11px] text-ink-4">
         {t('Tiếp tục nghĩa là bạn đồng ý với', 'By continuing you agree to our')}{' '}
         <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Điều khoản', 'Terms')}</a>
