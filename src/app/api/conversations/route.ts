@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
+import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile, getCurrentProfileId } from '@/lib/admin'
 import { insertMessage, type SerializedMessage } from '@/lib/messages'
+import { sendPushToProfile } from '@/lib/push'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
@@ -33,7 +35,7 @@ export async function POST(req: Request) {
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
-    select: { id: true, verified: true, sellerId: true, seller: { select: { ownerId: true } } },
+    select: { id: true, title: true, verified: true, sellerId: true, seller: { select: { ownerId: true } } },
   })
   if (!listing || !listing.verified) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -69,6 +71,28 @@ export async function POST(req: Request) {
       if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
     } else if (initialMessage) {
       message = await insertMessage(conv, profile.id, initialMessage)
+    }
+    // First-lead milestone: if THIS brand-new thread is the listing's first-ever
+    // conversation, celebrate it once for the seller (bell + best-effort push).
+    // Out of the hot path (after the response flushes), fail-quiet by design —
+    // one thread per buyer per listing, so "count === 1" means exactly this one.
+    if (sellerProfileId) {
+      const newConvoId = convo.id
+      const listingTitle = listing.title
+      after(async () => {
+        try {
+          const threads = await db.conversation.findMany({ where: { listingId }, select: { id: true }, take: 2 })
+          if (threads.length !== 1) return
+          const title = 'First interested buyer!'
+          const body = `"${listingTitle.slice(0, 80)}" just got its first message — reply quickly to keep them.`
+          await db.notification.create({
+            data: { recipientId: sellerProfileId, type: 'milestone', title, body, conversationId: newConvoId, listingId },
+          })
+          await sendPushToProfile(sellerProfileId, { title, body, url: `/messages/${newConvoId}`, tag: `convo-${newConvoId}` })
+        } catch (e) {
+          console.error('[conversations] first-lead milestone', e)
+        }
+      })
     }
     return NextResponse.json({ id: convo.id, created: true, message })
   } catch (e) {

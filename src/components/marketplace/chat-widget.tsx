@@ -13,12 +13,13 @@ import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { formatMoneyFull } from '@/lib/vnd'
 import { Price } from './price'
 import { VndInput } from './vnd-input'
+import { QuickReplyChips, MarkSoldPrompt } from './quick-reply-chips'
 import { Button } from '@/components/ui/button'
 
 type Msg = { id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
-type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string }
+type Listing = { id: string; title: string; image: string | null; price: number; currency: string; priceUnit: string; availabilityConfirmedAt?: string | null }
 type Thread = {
-  id: string; me: string; listing: Listing
+  id: string; me: string; iAmSeller?: boolean; listing: Listing
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null; sellerId?: string | null }; messages: Msg[]
 }
 
@@ -219,7 +220,11 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   const [peerTyping, setPeerTyping] = useState(false)
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
+  // The offer THIS seller just accepted in this session → anchors the one-time
+  // "Mark as sold?" follow-through under that offer card (never shown to the buyer).
+  const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
   const meRef = useRef(cached?.me ?? '')   // my profile id, for ignoring my own typing echo
   const lastTypingSent = useRef(0)         // throttle outgoing typing pings
   const peerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -416,14 +421,34 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     if (actingOffer.current) return
     actingOffer.current = true
     setThread((t) => (t ? { ...t, messages: t.messages.map((m) => (m.id === messageId ? { ...m, offerStatus: action === 'accept' ? 'accepted' : 'declined' } : m)) } : t))
+    let ok = false
     try {
-      await fetch(`/api/conversations/${id}/offer`, {
+      const res = await fetch(`/api/conversations/${id}/offer`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId, action }),
       })
+      ok = res.ok
     } catch { /* network error — the reconcile below re-syncs */ }
     await load().catch(() => {})
+    // Seller accepted → offer the natural next step (mark the listing sold).
+    if (ok && action === 'accept' && thread?.iAmSeller) setJustAcceptedId(messageId)
     actingOffer.current = false
   }
+
+  // Quick-reply chip → INSERT into the composer (never auto-send), cursor at the
+  // end so partial templates ("Can meet in ") are completed in one motion.
+  const insertQuickReply = (t: string) => {
+    const next = text.trim() ? `${text.replace(/\s*$/, '')} ${t}` : t
+    setText(next)
+    requestAnimationFrame(() => {
+      const el = composerRef.current
+      if (el) { el.focus(); el.setSelectionRange(next.length, next.length) }
+    })
+  }
+
+  // Seller-only "Let me think about it" chip appears while the buyer's latest
+  // message is a still-pending offer.
+  const lastTheirs = thread ? [...thread.messages].reverse().find((m) => !m.mine) : undefined
+  const hasPendingBuyerOffer = !!lastTheirs && lastTheirs.kind === 'offer' && lastTheirs.offerStatus === 'pending'
 
   // Took over from the pending shell: clear the shared draft (already inherited
   // into local text) and auto-send if the user hit send before the convo existed.
@@ -535,6 +560,10 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
                 {m.mine && m.offerStatus === 'pending' && (
                   <div className="mt-1 text-xs text-ink-4">{tr('Waiting for a response…', 'Đang chờ phản hồi…')}</div>
                 )}
+                {/* Seller just accepted THIS offer → follow through to "sold". */}
+                {thread?.iAmSeller && m.id === justAcceptedId && m.offerStatus === 'accepted' && (
+                  <MarkSoldPrompt listingId={thread.listing.id} listingTitle={thread.listing.title} />
+                )}
               </div>
             ) : (
               <div className={cn('flex max-w-[80%] flex-col', m.mine ? 'items-end' : 'items-start')}>
@@ -563,6 +592,19 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         {peerTyping && <TypingDots />}
         <div ref={bottomRef} />
       </div>
+
+      {/* Quick replies — seller: the 3 endless questions answered in one tap;
+          buyer: "still available?" that self-answers from a fresh seller
+          confirmation. Chips insert into the composer, never auto-send. */}
+      {thread && (
+        <QuickReplyChips
+          isSeller={!!thread.iAmSeller}
+          hasPendingBuyerOffer={hasPendingBuyerOffer}
+          availabilityConfirmedAt={thread.listing.availabilityConfirmedAt}
+          onInsert={insertQuickReply}
+          className="px-3 pt-1.5"
+        />
+      )}
 
       {/* Offer amount input (toggled by the Offer button) — the highest-stakes number
           in the app, so it reuses VndInput (dot-grouping, ×1k/×1M chips, "= 12 triệu"
@@ -595,6 +637,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           <Tag className="h-[18px] w-[18px]" />
         </button>
         <textarea
+          ref={composerRef}
           value={text}
           onChange={(e) => { setText(e.target.value); sendTyping() }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}

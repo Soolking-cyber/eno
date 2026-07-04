@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     where: { id },
     select: {
       id: true, buyerProfileId: true, sellerProfileId: true, buyerUnread: true, sellerUnread: true,
-      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true } },
+      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, availabilityConfirmedAt: true } },
       seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
       messages: { orderBy: { createdAt: 'asc' }, select: { id: true, senderProfileId: true, body: true, createdAt: true, kind: true, offerAmount: true, offerStatus: true } },
@@ -52,7 +52,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     // The seller of the listing reveals nothing here (they ARE the contact) — the client
     // uses this to hide the "Request number / Zalo" action for the seller side.
     iAmSeller,
-    listing: { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit },
+    // availabilityConfirmedAt powers the buyer's instant "still available?" answer
+    // (fresh seller confirmation → answered inline, no message sent).
+    listing: { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null },
     counterpart: iAmBuyer
       ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId }
       : { name: convo.buyer.displayName || convo.buyer.email || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId },

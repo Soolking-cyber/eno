@@ -15,6 +15,7 @@ import { PageTransitions } from "@/components/marketplace/page-transitions";
 import { BackToTop } from "@/components/marketplace/back-to-top";
 import { SkipLink } from "@/components/marketplace/skip-link";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
+import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
@@ -173,6 +174,7 @@ export default function RootLayout({
                       <BackToTop />
                       <MobileNav />
                       <CookieConsent />
+                      <InstallHint />
                       <ImageShield />
                       </PageTransitions>
                     </QueryProvider>

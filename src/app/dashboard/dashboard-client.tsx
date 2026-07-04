@@ -14,6 +14,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
 import { TrustScore } from '@/components/marketplace/trust-score'
+import { TrustProgress, type TrustProgressData } from '@/components/marketplace/trust-progress'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
 import { ProfileEditor } from '@/components/marketplace/profile-editor'
 import { reviewKey, todayStr } from './availability/availability-client'
@@ -41,6 +42,8 @@ type Dashboard = {
   seller: { id: string; name: string; verifiedSeller: boolean; trustScore: number; trustTier: string; responseRate: number; bio: string | null; location: string | null; phone: string | null; avatarUrl: string | null } | null
   stats: Stats
   listings: SerializedListing[]
+  // Optional: absent in stale localStorage caches from before the panel shipped.
+  trustProgress?: TrustProgressData
 }
 
 // Module-level so it isn't re-created (and its subtree remounted) every render.
@@ -252,6 +255,17 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             <StatCard icon={<MessageSquareText className="h-5 w-5" />} value={d?.seller ? `${d.seller.responseRate}%` : '—'} label={tr('Response rate', 'Tỉ lệ phản hồi')} />
             <StatCard icon={<Upload className="h-5 w-5" />} value={tr('Bulk', 'Hàng loạt')} label={tr('Upload via CSV', 'Tải lên CSV')} href="/dashboard/bulk" />
           </div>
+        )}
+
+        {/* Tier progress — "your path to {next tier}" (transparency beats anxiety):
+            one row per REAL trust criterion, each with exactly one next step. */}
+        {d?.trustProgress && (
+          <TrustProgress
+            score={d.profile.trustScore}
+            tier={d.profile.trustTier}
+            staleCount={s?.staleCount ?? 0}
+            {...d.trustProgress}
+          />
         )}
 
         {/* Business with no storefront yet → nudge to create one. */}

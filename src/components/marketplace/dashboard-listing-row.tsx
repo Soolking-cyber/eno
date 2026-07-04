@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil } from 'lucide-react'
+import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { ShareButton } from './share-button'
@@ -87,8 +87,30 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
       <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{listing.views}</span>
       <span className="inline-flex items-center gap-1"><MessageSquareText className="h-3 w-3" />{listing.contactCount} {tr('leads', 'liên hệ')}</span>
+      {listing.savedCount > 0 && (
+        <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" />{listing.savedCount} {tr('saved', 'đã lưu')}</span>
+      )}
     </div>
   )
+
+  // Demand nudge — interest without conversion is almost always a price problem.
+  // One quiet line, one plain action (never a scold). Saves beat views as the signal.
+  const showNudge = status === 'active' && listing.contactCount === 0 && (listing.savedCount >= 5 || listing.views > 50)
+  const nudge = showNudge ? (
+    <p className="mt-0.5 text-xs text-warning">
+      {listing.savedCount >= 5
+        ? tr(`${listing.savedCount} people saved this — a small price drop usually sells it`, `${listing.savedCount} người đã lưu tin này — giảm giá một chút thường sẽ bán được`)
+        : tr('Lots of views but no contacts yet — a lower price usually fixes this', 'Nhiều lượt xem nhưng chưa có liên hệ — giảm giá thường sẽ bán được')}
+      {' · '}
+      <button
+        onClick={() => router.push(`/listings/${listing.id}/edit`)}
+        onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)}
+        className="font-semibold underline underline-offset-2 transition-colors hover:text-foreground cursor-pointer"
+      >
+        {tr('Edit price', 'Sửa giá')}
+      </button>
+    </p>
+  ) : null
 
   const actions = (
     <div className="flex flex-wrap gap-1.5">
@@ -143,6 +165,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
           <p className="line-clamp-2 text-sm font-semibold text-foreground">{title}</p>
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
           {meta}
+          {nudge}
           <div className="mt-auto pt-2">{actions}</div>
         </div>
       </div>
@@ -166,6 +189,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row' }: { l
         </div>
         <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
         <div className="mt-0.5">{meta}</div>
+        {nudge}
         <div className="mt-2">{actions}</div>
       </div>
     </div>

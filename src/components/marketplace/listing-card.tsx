@@ -53,6 +53,10 @@ function ListingCardImpl({
   const displayLocation = useTr(listing.location)
   const { isFavorite, toggle } = useFavorites()
   const favorited = isFavorite(listing.id)
+  // One-shot heart-burst: set ONLY when the user saves (not on unsave, and not
+  // when favorites hydrate from storage on load). Cleared when the CSS animation
+  // ends so a later save replays it.
+  const [burst, setBurst] = useState(false)
   const [idx, setIdx] = useState(0)
   // Only the first image is in the DOM until the user engages the carousel
   // (hover/touch) — cuts initial DOM nodes + image bytes on the homepage grid.
@@ -81,7 +85,7 @@ function ListingCardImpl({
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(listing) }
       }}
-      className="group flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-150 active:scale-[0.985] active:duration-75 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="group flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-100 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       {/* Image carousel / placeholder.
           transform-gpu/isolate force a compositing layer so the rounded
@@ -164,12 +168,13 @@ function ListingCardImpl({
           type="button"
           aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
           aria-pressed={favorited}
-          onClick={(e) => { e.stopPropagation(); toggle(listing.id) }}
+          onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listing.id) }}
           className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer tap-44"
         >
           {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow so
-              it stays legible on ANY photo, in light & dark. Blue fill when saved. */}
-          <span key={favorited ? 'on' : 'off'} className={cn('inline-flex', favorited && 'animate-heart-pop')}>
+              it stays legible on ANY photo, in light & dark. Blue fill when saved.
+              animate-heart-pop = one-shot pop + radial ring (globals.css). */}
+          <span onAnimationEnd={() => setBurst(false)} className={cn('inline-flex', burst && 'animate-heart-pop')}>
             <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
           </span>
         </button>

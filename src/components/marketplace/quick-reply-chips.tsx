@@ -1,0 +1,155 @@
+'use client'
+
+import { useState } from 'react'
+import { X } from 'lucide-react'
+import { toast } from 'sonner'
+import { useLanguage } from '@/context/language-context'
+import { haptic } from '@/lib/haptics'
+import { timeAgo } from '@/lib/types'
+
+/**
+ * One-tap quick replies above the chat composer — shared by the full thread page
+ * and the docked chat widget so both surfaces behave identically.
+ *
+ * Seller side: the 3 questions every seller answers endlessly (+ a "let me think"
+ * reply when the buyer's latest message is a pending offer). Chips only INSERT
+ * text into the composer — they never auto-send.
+ *
+ * Buyer side: one "Is it still available?" chip. If the seller confirmed
+ * availability within the last 7 days, tapping it answers INLINE (no message
+ * sent) — otherwise it inserts the question for normal sending.
+ */
+export function QuickReplyChips({
+  isSeller,
+  hasPendingBuyerOffer,
+  availabilityConfirmedAt,
+  onInsert,
+  className,
+}: {
+  isSeller: boolean
+  hasPendingBuyerOffer: boolean
+  availabilityConfirmedAt?: string | null
+  /** Insert chip text into the composer (parent focuses it, cursor at the end). */
+  onInsert: (text: string) => void
+  className?: string
+}) {
+  const { tr, lang } = useLanguage()
+  // Inline "seller already confirmed" note (buyer side) — dismissable, session-only.
+  const [note, setNote] = useState<'hidden' | 'shown' | 'dismissed'>('hidden')
+
+  const confirmedFresh =
+    !!availabilityConfirmedAt && Date.now() - new Date(availabilityConfirmedAt).getTime() < 7 * 864e5
+
+  const chipCls =
+    'shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted hover:text-foreground cursor-pointer'
+
+  const sellerChips: { label: string; insert: string }[] = [
+    { label: tr('Yes, still available', 'Vẫn còn hàng nhé'), insert: tr('Yes, still available', 'Vẫn còn hàng nhé') },
+    { label: tr('Price is firm', 'Giá cố định ạ'), insert: tr('Price is firm', 'Giá cố định ạ') },
+    // Trailing space (no ellipsis) so the seller completes the location right away.
+    { label: tr('Can meet in …', 'Có thể gặp ở …'), insert: tr('Can meet in ', 'Có thể gặp ở ') },
+    ...(hasPendingBuyerOffer
+      ? [{ label: tr('Let me think about it', 'Để mình cân nhắc nhé'), insert: tr('Let me think about it', 'Để mình cân nhắc nhé') }]
+      : []),
+  ]
+
+  const askAvailability = () => {
+    if (confirmedFresh && availabilityConfirmedAt) {
+      // The listing data already answers — save both sides a round-trip.
+      if (note !== 'dismissed') setNote('shown')
+      return
+    }
+    onInsert(tr('Is it still available?', 'Còn hàng không?'))
+  }
+
+  return (
+    <div className={className}>
+      {!isSeller && note === 'shown' && availabilityConfirmedAt && (
+        <div className="mb-1 flex items-center gap-1.5 duration-200 animate-in fade-in">
+          <p className="min-w-0 flex-1 truncate text-xs font-medium text-success">
+            ✓ {tr('Seller confirmed this is available {timeAgo}', 'Người bán đã xác nhận còn hàng {timeAgo}').replace('{timeAgo}', timeAgo(availabilityConfirmedAt, lang))}
+          </p>
+          <button
+            onClick={() => setNote('dismissed')}
+            aria-label={tr('Dismiss', 'Đóng')}
+            className="shrink-0 rounded-full p-1 text-ink-4 transition-colors hover:text-foreground cursor-pointer"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+      <div className="flex gap-1 overflow-x-auto scrollbar-none">
+        {isSeller ? (
+          sellerChips.map((c) => (
+            <button key={c.label} onClick={() => onInsert(c.insert)} className={chipCls}>
+              {c.label}
+            </button>
+          ))
+        ) : (
+          <button onClick={askAvailability} className={chipCls}>
+            {tr('Is it still available?', 'Còn hàng không?')}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Post-accept follow-through for the SELLER, attached to the accepted offer card:
+ * "Deal! Mark X as sold?" → one tap closes the loop (or "Keep it live" dismisses).
+ * Shown only right after the seller's own successful accept — never to the buyer,
+ * never auto-marks. Dismissal lives in component state only.
+ */
+export function MarkSoldPrompt({ listingId, listingTitle }: { listingId: string; listingTitle: string }) {
+  const { tr } = useLanguage()
+  const [state, setState] = useState<'ask' | 'done' | 'dismissed'>('ask')
+
+  if (state === 'dismissed') return null
+
+  const markSold = async () => {
+    setState('done') // optimistic — the revert below undoes a refused POST
+    haptic(18)
+    try {
+      const res = await fetch(`/api/listings/${listingId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'sold' }),
+      })
+      if (!res.ok) throw new Error('status_failed')
+    } catch {
+      setState('ask')
+      toast.error(tr('Could not mark as sold — please try again.', 'Chưa đánh dấu được — vui lòng thử lại.'))
+    }
+  }
+
+  if (state === 'done') {
+    return (
+      <p className="mt-2 text-xs font-medium text-success duration-200 animate-in fade-in">
+        {tr('Marked as sold — congrats on the deal! 🎉', 'Đã đánh dấu là đã bán — chúc mừng bạn chốt đơn! 🎉')}
+      </p>
+    )
+  }
+
+  return (
+    <div className="mt-2 duration-200 animate-in fade-in">
+      <p className="text-xs font-medium text-foreground">
+        {tr('Deal! Mark "{title}" as sold?', 'Chốt đơn! Đánh dấu "{title}" là đã bán?').replace('{title}', listingTitle)}
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        <button
+          onClick={markSold}
+          className="rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+        >
+          {tr('Mark as sold', 'Đánh dấu đã bán')}
+        </button>
+        <button
+          onClick={() => setState('dismissed')}
+          className="rounded-full px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted cursor-pointer"
+        >
+          {tr('Keep it live', 'Giữ tin đăng')}
+        </button>
+      </div>
+    </div>
+  )
+}

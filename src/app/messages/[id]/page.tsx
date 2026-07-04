@@ -18,13 +18,14 @@ import { haptic } from '@/lib/haptics'
 import { formatMoneyFull } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
 import { ReportButton } from '@/components/marketplace/report-button'
+import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
 
 type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
   iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
-  listing: { id: string; title: string; image: string | null; price?: number }
+  listing: { id: string; title: string; image: string | null; price?: number; availabilityConfirmedAt?: string | null }
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null; sellerId?: string | null }
   messages: Msg[]
 }
@@ -43,7 +44,11 @@ export default function ThreadPage() {
   const [offerInput, setOfferInput] = useState('')
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
+  // The offer THIS seller just accepted in this session → anchors the one-time
+  // "Mark as sold?" follow-through under that offer card (never shown to the buyer).
+  const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
   // Current user's profile id, in a ref so the realtime handler (a stable closure)
   // can tell an incoming counterpart message from my own echo without re-subscribing.
   const meRef = useRef<string | null>(null)
@@ -261,7 +266,11 @@ export default function ThreadPage() {
       // ALWAYS reconcile from the server — on a reject (409/429/403) load() reverts
       // the optimistic flip so we never leave a phantom "Accepted" the server refused.
       await load()
-      if (res.ok) { refreshUnread(); refreshConvos() }
+      if (res.ok) {
+        refreshUnread(); refreshConvos()
+        // Seller accepted → offer the natural next step (mark the listing sold).
+        if (action === 'accept' && thread?.iAmSeller) setJustAcceptedId(messageId)
+      }
     } catch {
       await load() // restore true state
     } finally {
@@ -282,6 +291,23 @@ export default function ThreadPage() {
   })
 
   const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput('') }
+
+  // Quick-reply chip → INSERT into the composer (never auto-send), cursor at the
+  // end so partial templates ("Can meet in ") are completed in one motion.
+  const insertQuickReply = (t: string) => {
+    setShowOffer(false)
+    const next = text.trim() ? `${text.replace(/\s*$/, '')} ${t}` : t
+    setText(next)
+    requestAnimationFrame(() => {
+      const el = composerRef.current
+      if (el) { el.focus(); el.setSelectionRange(next.length, next.length) }
+    })
+  }
+
+  // Seller-only "Let me think about it" chip appears while the buyer's latest
+  // message is a still-pending offer.
+  const lastTheirs = thread ? [...thread.messages].reverse().find((m) => !m.mine) : undefined
+  const hasPendingBuyerOffer = !!lastTheirs && lastTheirs.kind === 'offer' && lastTheirs.offerStatus === 'pending'
 
   return (
     <div className="flex h-full w-full flex-col bg-background">
@@ -395,6 +421,10 @@ export default function ThreadPage() {
                     {m.mine && m.offerStatus === 'pending' && (
                       <div className="mt-1 text-xs text-ink-4">{tr('Waiting for a response…', 'Đang chờ phản hồi…')}</div>
                     )}
+                    {/* Seller just accepted THIS offer → follow through to "sold". */}
+                    {thread?.iAmSeller && m.id === justAcceptedId && m.offerStatus === 'accepted' && (
+                      <MarkSoldPrompt listingId={thread.listing.id} listingTitle={thread.listing.title} />
+                    )}
                   </div>
                 ) : (
                   <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.failed ? 'border border-destructive/30 bg-destructive/10 text-destructive' : m.mine ? 'bg-primary text-white' : 'bg-card text-foreground'} ${m.pending ? 'opacity-70' : ''}`}>
@@ -429,6 +459,19 @@ export default function ThreadPage() {
             )}
             <div ref={bottomRef} />
           </div>
+
+          {/* Quick replies — seller: the 3 endless questions answered in one tap;
+              buyer: "still available?" that self-answers from a fresh seller
+              confirmation. Chips insert into the composer, never auto-send. */}
+          {thread && (
+            <QuickReplyChips
+              isSeller={!!thread.iAmSeller}
+              hasPendingBuyerOffer={hasPendingBuyerOffer}
+              availabilityConfirmedAt={thread.listing.availabilityConfirmedAt}
+              onInsert={insertQuickReply}
+              className="px-4 pt-1.5"
+            />
+          )}
 
           {/* Composer — the Tag toggle flips this same bar between a message field
               and the offer-amount field (no separate input bar). In offer mode the
@@ -466,6 +509,7 @@ export default function ThreadPage() {
               </div>
             ) : (
               <textarea
+                ref={composerRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}

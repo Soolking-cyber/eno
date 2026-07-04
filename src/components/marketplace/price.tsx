@@ -3,6 +3,7 @@
 import { useTr } from '@/context/language-context'
 import { useCurrency } from '@/context/currency-context'
 import { formatMoneyFull } from '@/lib/vnd'
+import { cn } from '@/lib/utils'
 
 type Props = { price: number; currency: string; priceUnit: string; compact?: boolean; className?: string }
 
@@ -21,7 +22,8 @@ export function Price({ price, currency, priceUnit, compact = false, className }
   // is shown in its own currency, unconverted.
   const amount = currency === '₫' ? format(price) : formatMoneyFull(price, currency)
   return (
-    <span className={className}>
+    // tabular-nums: fixed-width digits so price columns align across card grids.
+    <span className={cn('tabular-nums', className)}>
       {amount}
       {unitRaw ? ` / ${unit}` : ''}
     </span>
