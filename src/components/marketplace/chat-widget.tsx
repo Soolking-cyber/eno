@@ -224,7 +224,8 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   // The offer THIS seller just accepted in this session → anchors the one-time
   // "Mark as sold?" follow-through under that offer card (never shown to the buyer).
   const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const pinnedOnce = useRef(false)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const meRef = useRef(cached?.me ?? '')   // my profile id, for ignoring my own typing echo
   const lastTypingSent = useRef(0)         // throttle outgoing typing pings
@@ -346,7 +347,15 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
     }
   }, [load, id])
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [thread?.messages.length, peerTyping])
+  // Follow the newest message, but only ever scroll the widget's own pane —
+  // scrollIntoView also scrolled the PAGE under the floating widget. Instant pin
+  // on first paint, smooth afterwards (always-follow is right for a compact popup).
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: pinnedOnce.current ? 'smooth' : 'auto' })
+    pinnedOnce.current = true
+  }, [thread?.messages.length, peerTyping])
 
   const send = async (override?: string) => {
     const body = (override ?? text).trim()
@@ -541,7 +550,7 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         </div>
       )}
 
-      <div role="log" aria-live="polite" aria-relevant="additions" className="flex-1 space-y-2 overflow-y-auto bg-background px-3 py-3 scroll-thin">
+      <div ref={listRef} role="log" aria-live="polite" aria-relevant="additions" className="flex-1 space-y-2 overflow-y-auto bg-background px-3 py-3 scroll-thin">
         {!thread && (
           <div className="space-y-2">
             {[60, 42, 70, 50].map((w, i) => (
@@ -613,7 +622,6 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
           <p className="py-10 text-center text-xs text-ink-4">{tr('Say hello — this seller will be notified.', 'Gửi lời chào — người bán sẽ được thông báo.')}</p>
         )}
         {peerTyping && <TypingDots />}
-        <div ref={bottomRef} />
       </div>
 
       {/* Post-transaction review prompt (buyer only) — one quiet card above the

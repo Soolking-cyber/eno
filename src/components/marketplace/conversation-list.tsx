@@ -64,6 +64,7 @@ export function ConversationList() {
         {/* eno AI — pinned at the top; always available (a chat with the AI assistant). */}
         <Link
           href="/messages/ai"
+          scroll={false}
           className={cn('mb-1 flex items-center gap-3 rounded-xl p-2.5 transition-colors', aiActive ? 'bg-muted text-accent-foreground' : 'hover:bg-muted')}
         >
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-white"><Sparkles className="h-5 w-5" /></span>
@@ -100,7 +101,7 @@ export function ConversationList() {
                 {c.unread > 0 && activeId !== c.id && (
                   <span aria-hidden className="absolute inset-y-2 left-0 w-1 rounded-full bg-accent-foreground" />
                 )}
-                <Link href={`/messages/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-2.5">
+                <Link href={`/messages/${c.id}`} scroll={false} className="flex min-w-0 flex-1 items-center gap-3 p-2.5">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-bold text-white">
                     {c.counterpart.avatarUrl
                       ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={c.counterpart.avatarUrl} alt="" className="h-11 w-11 rounded-full object-cover" />

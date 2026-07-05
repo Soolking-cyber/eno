@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState, useCallback } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 
 // Per-message time + day-grouping helpers (client — local timezone).
@@ -50,6 +50,10 @@ export default function ThreadPage() {
   // "Mark as sold?" follow-through under that offer card (never shown to the buyer).
   const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const openedRef = useRef<string | null>(null) // conversation id already auto-pinned to newest
+  const prevCountRef = useRef(0)
+  const [newBelow, setNewBelow] = useState(false) // unseen message below the fold
   const composerRef = useRef<HTMLTextAreaElement>(null)
   // Current user's profile id, in a ref so the realtime handler (a stable closure)
   // can tell an incoming counterpart message from my own echo without re-subscribing.
@@ -161,7 +165,37 @@ export default function ThreadPage() {
     }
   }, [user, load, id])
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [thread?.messages.length])
+  // Messenger-standard scroll behavior. The pane (listRef) is the ONLY thing that
+  // ever moves — never scrollIntoView, which scrolls every ancestor and yanked the
+  // whole page to the top when a conversation opened. Rules: opening a thread pins
+  // to the newest message instantly; a message I send follows smoothly; a message
+  // that arrives while I'm reading history does NOT move me — it shows the
+  // "New messages" pill instead.
+  const scrollBottom = useCallback((smooth: boolean) => {
+    const el = listRef.current
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+  }, [])
+  const distanceFromBottom = () => {
+    const el = listRef.current
+    return el ? el.scrollHeight - el.scrollTop - el.clientHeight : 0
+  }
+  useLayoutEffect(() => {
+    const count = thread?.messages.length ?? 0
+    const prev = prevCountRef.current
+    prevCountRef.current = count
+    if (!count) return
+    if (openedRef.current !== id) {
+      openedRef.current = id
+      scrollBottom(false)
+      return
+    }
+    if (count <= prev) return // poll refresh / deletion — hold the reading position
+    const last = thread!.messages[count - 1]
+    // 240px ≈ "I was at the bottom" even after the new bubble pushed the height.
+    if (last?.mine || distanceFromBottom() < 240) scrollBottom(true)
+    else setNewBelow(true)
+  }, [thread?.messages.length, id, scrollBottom]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setNewBelow(false) }, [id])
   useEffect(() => { meRef.current = thread?.me ?? null }, [thread?.me])
 
   const send = async (override?: string) => {
@@ -381,7 +415,7 @@ export default function ThreadPage() {
           )}
 
           {/* Messages */}
-          <div role="log" aria-live="polite" aria-relevant="additions" className="flex-1 space-y-2 overflow-y-auto px-4 py-4 scroll-thin">
+          <div ref={listRef} onScroll={() => { if (newBelow && distanceFromBottom() < 40) setNewBelow(false) }} role="log" aria-live="polite" aria-relevant="additions" className="flex-1 space-y-2 overflow-y-auto px-4 py-4 scroll-thin">
             {thread?.messages.map((m, i, arr) => {
               const prev = arr[i - 1]
               const showDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
@@ -468,6 +502,18 @@ export default function ThreadPage() {
               </div>
             )}
             <div ref={bottomRef} />
+            {/* Sticky inside the scroll pane so it floats over the last bubbles. */}
+            {newBelow && (
+              <div className="sticky bottom-1 z-10 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => { scrollBottom(true); setNewBelow(false) }}
+                  className="flex items-center gap-1 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-white shadow-pop transition-transform active:scale-95 cursor-pointer"
+                >
+                  ↓ {tr('New messages', 'Tin nhắn mới')}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Post-transaction review prompt (buyer only) — one quiet card above the
