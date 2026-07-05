@@ -18,6 +18,18 @@ export function trustBand(score: number): TrustBand {
   return 'restricted'
 }
 
+// The EARNED tiers (Trusted/Exceptional/Elite) also carry a vivid, glossy gradient
+// fill class (globals.css .trust-fill-*) for badge/chip surfaces — text-on-fill AA is
+// baked into the class. Building/restricted stay quiet (no fill).
+export function trustFillClass(band: TrustBand): string | null {
+  switch (band) {
+    case 'elite': return 'trust-fill-elite'
+    case 'exceptional': return 'trust-fill-exceptional'
+    case 'trusted': return 'trust-fill-trusted'
+    default: return null
+  }
+}
+
 // `color` is a CSS variable reference (resolves per theme); use it in `style`
 // (color / fill / stroke) — never as a raw SVG attribute (var() won't resolve there).
 export function trustScoreColor(score: number): { color: string; label: string; labelVi: string; band: TrustBand } {
