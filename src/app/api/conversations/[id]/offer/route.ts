@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { actOnOffer } from '@/lib/messages'
+import { messagingGate } from '@/lib/enforcement'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,6 +17,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const rl = await rateLimit('offer:act', meId, 30, '1 m')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+
+  // Enforcement (trust Phase 2): a suspended account can't act on offers.
+  const gate = await messagingGate(meId)
+  if (gate) return NextResponse.json(gate, { status: 403 })
 
   let body: { messageId?: string; action?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }

@@ -24,6 +24,7 @@ import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switc
 import { ChangeEmailForm } from '@/components/marketplace/change-email-form'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
 import { PostWizard } from '@/components/marketplace/post-wizard'
+import { EnforcementBanner, type EnforcementInfo } from '@/components/marketplace/enforcement-banner'
 import type { SerializedCategory } from '@/lib/types'
 import { isStale } from '@/lib/stale'
 import { useAuth } from '@/context/auth-context'
@@ -51,6 +52,9 @@ type Dashboard = {
   listings: SerializedListing[]
   // Optional: absent in stale localStorage caches from before the panel shipped.
   trustProgress?: TrustProgressData
+  // Optional for the same reason (and pre-migration the server sends good_standing
+  // + empty lists, which renders nothing).
+  enforcement?: EnforcementInfo
 }
 
 // Module-level so it isn't re-created (and its subtree remounted) every render.
@@ -266,6 +270,10 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
         )}
 
       {tab === 'listings' && (<>
+        {/* Enforcement notice — only when the account isn't in good standing or a
+            buyer report awaits a reply. What happened, what it means, ONE action. */}
+        {d?.enforcement && <EnforcementBanner enforcement={d.enforcement} onChanged={refresh} />}
+
         {/* Action strip — the 3 questions: messages? performance? needs action? */}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard icon={<MessageSquareText className="h-5 w-5" />} value={s?.unreadMessages ?? '—'} label={tr('Unread messages', 'Tin nhắn chưa đọc')} href="/messages" accent={!!s && s.unreadMessages > 0} />

@@ -1,6 +1,8 @@
 import 'server-only'
+import { Prisma } from '@/generated/prisma/client'
 import { db } from './db'
 import { recomputeRankScoreForSeller } from './ranking'
+import { expireEnforcement, syncEnforcement } from './enforcement'
 import {
   DAY_MS,
   TRUST,
@@ -195,10 +197,29 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   const reports = reportIds.length
     ? await db.report.findMany({
         where: { id: { in: reportIds } },
-        select: { id: true, severity: true, reporterProfileId: true },
+        select: { id: true, severity: true, reporterProfileId: true, status: true },
       })
     : []
   const reportById = new Map(reports.map((r) => [r.id, r]))
+
+  // Symmetric protection (eBay purge): a report OVERTURNED after its reporter was
+  // struck no longer counts anywhere — conduct, the demote windows, and the scam
+  // freeze all read only still-standing confirmations. Legacy events without a
+  // reachable Report keep counting (fail-safe toward caution).
+  const standingConduct = conductEvents.filter((e) => !(e.reportId && reportById.get(e.reportId)?.status === 'overturned'))
+
+  // Remediation (Amazon): a remediated report's conduct weight is halved. The column
+  // ships before scripts/add-enforcement.mjs runs → guarded raw read (pre-migration:
+  // nothing is remediated yet).
+  let remediated = new Set<string>()
+  if (reportIds.length) {
+    try {
+      const rows = await db.$queryRaw<{ id: string }[]>(
+        Prisma.sql`SELECT "id" FROM "Report" WHERE "id" IN (${Prisma.join(reportIds)}) AND "remediatedAt" IS NOT NULL`,
+      )
+      remediated = new Set(rows.map((r) => r.id))
+    } catch { /* migration pending — no remediation discounts yet */ }
+  }
 
   const seller = await db.seller.findUnique({
     where: { ownerId: profileId },
@@ -220,7 +241,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   if (seller) {
     // Scam freeze needs clean-transaction timestamps AFTER the oldest severe event,
     // which can predate the 365d T window — fetch from whichever bound is older.
-    const severeTimes = conductEvents
+    const severeTimes = standingConduct
       .filter((e) => (reportById.get(e.reportId ?? '')?.severity ?? severityFromDelta(e.delta)) === 'severe')
       .map((e) => e.createdAt.getTime())
     const txSince = new Date(Math.min(now - TRUST.TRACK_WINDOW_DAYS * DAY_MS, ...severeTimes))
@@ -316,11 +337,13 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   const win180: ReportWindow = { count: 0, distinctReporters: 0, scams: 0 }
   const reporters90 = new Set<string>()
   const reporters180 = new Set<string>()
-  const conductItems: ConductItem[] = conductEvents.map((e) => {
+  const conductItems: ConductItem[] = standingConduct.map((e) => {
     const report = e.reportId ? reportById.get(e.reportId) : undefined
     const severity = ((report?.severity as ReportSeverity | undefined) ?? severityFromDelta(e.delta))
     // Reporter unreachable (guest/legacy/deleted) → default credibility 0.6 (fair middle).
-    const cred = report?.reporterProfileId ? (credibility.get(report.reporterProfileId) ?? TRUST.CRED_DEFAULT) : TRUST.CRED_DEFAULT
+    let cred = report?.reporterProfileId ? (credibility.get(report.reporterProfileId) ?? TRUST.CRED_DEFAULT) : TRUST.CRED_DEFAULT
+    // Remediated (seller demonstrably fixed it) → the event stays on record at half weight.
+    if (e.reportId && remediated.has(e.reportId)) cred *= TRUST.REMEDIATION_FACTOR
     const eventMs = e.createdAt.getTime()
     const ageDays = (now - eventMs) / DAY_MS
     // Frozen-scam rule: count verified clean transactions AFTER the event; decay
@@ -391,7 +414,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
 export async function recomputeTrust(
   profileId: string,
   opts?: { uncapped?: boolean },
-): Promise<{ score: number; tier: TrustTier } | null> {
+): Promise<{ score: number; tier: TrustTier; breakdown: TrustBreakdown } | null> {
   const breakdown = await computeTrustV2(profileId)
   if (!breakdown) return null
 
@@ -414,8 +437,21 @@ export async function recomputeTrust(
   // Tier keys off the PERSISTED (possibly capped) score so display stays consistent.
   const tier = tierFor({ ...breakdown.inputs, score })
 
+  // Good-standing insurance clock (enforcement Phase 2): an unbroken ≥85 streak.
+  // ≥85 starts it (only if not already running — the WHERE keeps it a no-write no-op),
+  // <85 resets it. Raw + guarded: the column ships before scripts/add-enforcement.mjs
+  // runs (pre-migration → silent no-op). Runs BEFORE the no-change early return so
+  // already-≥85 profiles get their clock started by the daily pass post-migration.
+  try {
+    if (score >= TRUST.TIER.TRUSTED_SCORE) {
+      await db.$executeRaw`UPDATE "Profile" SET "goodStandingSince" = now() WHERE "id" = ${profileId}::uuid AND "goodStandingSince" IS NULL`
+    } else {
+      await db.$executeRaw`UPDATE "Profile" SET "goodStandingSince" = NULL WHERE "id" = ${profileId}::uuid AND "goodStandingSince" IS NOT NULL`
+    }
+  } catch { /* migration pending */ }
+
   // No change → no writes (keeps the daily recompute-all pass cheap).
-  if (score === breakdown.cached.score && tier === breakdown.cached.tier) return { score, tier }
+  if (score === breakdown.cached.score && tier === breakdown.cached.tier) return { score, tier, breakdown }
 
   await db.profile.update({ where: { id: profileId }, data: { trustScore: score, trustTier: tier } })
   // Mirror onto the owned storefront (if any) so cards/badges render join-free.
@@ -429,7 +465,7 @@ export async function recomputeTrust(
     // Re-blend the feed rankScore with the new trust (one SQL UPDATE/seller; recency kept).
     for (const s of owned) await recomputeRankScoreForSeller(s.id)
   }
-  return { score, tier }
+  return { score, tier, breakdown }
 }
 
 /**
@@ -451,7 +487,7 @@ export async function applyTrustEvent(
     | 'manual_adjust',
   delta: number,
   meta?: { reason?: string; actorId?: string; reportId?: string },
-): Promise<{ score: number; tier: TrustTier } | null> {
+): Promise<{ score: number; tier: TrustTier; breakdown: TrustBreakdown } | null> {
   await db.trustEvent.create({
     data: { subjectProfileId, type, delta, reason: meta?.reason ?? null, actorId: meta?.actorId ?? null, reportId: meta?.reportId ?? null },
   })
@@ -570,6 +606,12 @@ const MAINTENANCE_DEADLINE_MS = 40_000
  */
 export async function runTrustMaintenance(): Promise<{ recomputed: number; scanned: number }> {
   const started = Date.now()
+
+  // Enforcement Phase 2 — expire timed actions FIRST (30d warnings, 72h insurance
+  // graces) so the sync below re-derives a lapsed grace on the same run. Guarded
+  // no-op pre-migration.
+  try { await expireEnforcement() } catch (e) { console.error('[trust] enforcement expiry', e) }
+
   const [owners, restricted] = await Promise.all([
     db.seller.findMany({ where: { ownerId: { not: null } }, select: { ownerId: true }, take: MAINTENANCE_MAX_PROFILES }),
     db.profile.findMany({ where: { trustTier: 'restricted' }, select: { id: true }, take: 2000 }),
@@ -585,7 +627,12 @@ export async function runTrustMaintenance(): Promise<{ recomputed: number; scann
     const results = await Promise.all(
       batch.map((id) =>
         recomputeTrust(id).then(
-          () => 1,
+          async (r) => {
+            // Enforcement sync rides the same breakdown (no second computeTrustV2);
+            // fail-quiet inside — a sync hiccup must not fail the trust recompute.
+            if (r) await syncEnforcement(id, r.breakdown, { persistedScore: r.score })
+            return 1
+          },
           (e) => {
             console.error('[trust] daily recompute failed for', id, e)
             return 0

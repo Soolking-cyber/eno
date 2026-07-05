@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { recordReview } from '@/lib/trust'
+import { messagingGate } from '@/lib/enforcement'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,6 +27,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const rl = await rateLimit('review-create', me.id, 10, '1 h')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+
+  // Enforcement (trust Phase 2): a suspended account can't leave reviews.
+  const gate = await messagingGate(me.id)
+  if (gate) return NextResponse.json(gate, { status: 403 })
 
   let body: { conversationId?: string; rating?: number; text?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }

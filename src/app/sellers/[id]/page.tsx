@@ -9,10 +9,11 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { ScrollTop } from '@/components/marketplace/scroll-top'
 import { SellerListings } from '@/components/marketplace/seller-listings'
-import { BadgeCheck, ChevronLeft, Star, CalendarDays } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, ChevronLeft, Star, CalendarDays } from 'lucide-react'
 import { Tr } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { ReportButton } from '@/components/marketplace/report-button'
+import { getEnforcement } from '@/lib/enforcement'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -78,6 +79,16 @@ export default async function SellerPage({ params }: Props) {
   const [seller, reviews] = await Promise.all([getSeller(id), getReviews(id)])
   if (!seller) notFound()
 
+  // Owner enforcement state (Phase 2 caution line). The columns are @ignore'd in
+  // Prisma (deploy-order safety) so they can't ride the seller join — getEnforcement
+  // is the guarded single indexed PK read of the denormalized Profile column
+  // (good_standing pre-migration ⇒ no line). Guest storefronts have no owner.
+  const enforcement = seller.ownerId ? await getEnforcement(seller.ownerId) : null
+  const caution =
+    enforcement && (enforcement.state === 'throttled' || enforcement.state === 'held' || enforcement.state === 'suspended')
+      ? enforcement.state
+      : null
+
   const initials = seller.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
   const listings = await localizeListingTitles(seller.listings.map(serializeListing))
   const memberYear = new Date(seller.memberSince).getFullYear()
@@ -123,6 +134,21 @@ export default async function SellerPage({ params }: Props) {
             </div>
           </div>
         </div>
+
+        {/* Enforcement caution (Phase 2) — one line under the header, before any
+            listing/contact surface. throttled = caution; held/suspended = stronger. */}
+        {caution && (
+          <p
+            className={`mt-5 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold ${
+              caution === 'throttled' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive'
+            }`}
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {caution === 'throttled'
+              ? <Tr text="This seller is under review — trade with extra care" />
+              : <Tr text="This seller's account is on hold — don't send money or deposits" />}
+          </p>
+        )}
 
         {/* Trust stats — flat (monolith): no box, separation by spacing. Only
             real signals (response rate/time were placeholder values → removed

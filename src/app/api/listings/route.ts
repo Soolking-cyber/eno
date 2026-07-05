@@ -10,6 +10,7 @@ import { containsContactInfo, findBannedWord, PublishBlockedError } from '@/lib/
 import { localizeListingTitles } from '@/lib/translate'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { getCurrentProfileId } from '@/lib/admin'
+import { postingGate } from '@/lib/enforcement'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { rateLimit } from '@/lib/ratelimit'
 import { vertexSearchListingIds, vertexConfigured } from '@/lib/vertex-search'
@@ -529,6 +530,16 @@ export async function POST(req: NextRequest) {
         : await db.seller.create({
             data: { name: contactName || 'eno.vn seller', phone: contactPhone, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
           })
+    }
+
+    // Enforcement ladder + probation (trust Phase 2): a held/suspended account can't
+    // post, and a brand-new account (<30d AND <3 transactions) is capped on active
+    // listings. Server-side only — guests have no Profile (no enforcement state; the
+    // Restricted trust gate still applies inside createListingCore). Pre-migration
+    // the gate reads default to good_standing → pure no-op.
+    if (meId) {
+      const gate = await postingGate(meId, seller.id)
+      if (gate) return NextResponse.json(gate, { status: 403 })
     }
 
     // Build + create + fire side-effects in the shared core (same code path the

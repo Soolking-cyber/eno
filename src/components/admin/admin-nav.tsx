@@ -1,8 +1,9 @@
 import Link from 'next/link'
-import { ShieldCheck, List, Tag, MessageSquareText } from 'lucide-react'
+import { ShieldCheck, List, Tag, MessageSquareText, Gavel } from 'lucide-react'
 
 const TABS = [
   { href: '/admin', label: 'Moderation', icon: ShieldCheck },
+  { href: '/admin/enforcement', label: 'Enforcement', icon: Gavel },
   { href: '/admin/listings', label: 'Listings', icon: List },
   { href: '/admin/brands', label: 'Brands', icon: Tag },
   { href: '/admin/feedback', label: 'Feedback', icon: MessageSquareText },

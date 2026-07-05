@@ -45,6 +45,15 @@ model Profile {
   positiveInteractions Int       @default(0)   // track-record gate for the Trusted/Exceptional badge
   falseReportStrikes   Int       @default(0)   // anti-abuse: confirmed-false reports filed BY this user
   reportCooldownUntil  DateTime?               // anti-abuse: can't file new reports until this passes
+  // ── Enforcement ladder (trust Phase 2) — denormalized current state ──
+  // NOTE: @ignore keeps these OFF the generated client until scripts/add-enforcement.mjs
+  // has run in prod — full-row Profile reads (getCurrentProfile/ensureProfile) would
+  // otherwise 500 on every authed request between deploy and migration. ALL access goes
+  // through src/lib/enforcement.ts (guarded raw SQL). Once the migration has run
+  // everywhere, the @ignore markers can be dropped + `prisma generate` re-run.
+  enforcementState  String    @default("good_standing") @ignore // good_standing | warned | throttled | held | suspended
+  enforcementUntil  DateTime? @ignore                            // when a timed state (warning / insurance grace) lapses
+  goodStandingSince DateTime? @ignore                            // maintained by recomputeTrust (≥85 sets, <85 clears); insured = ≥180d
   dailyReminderOptIn   Boolean   @default(true) // receive the daily "confirm availability" reminder
   availabilitySkips    Int       @default(0)    // consecutive "Skip for now" taps; ≥2 → next review hides Skip (must act). Reset to 0 on confirm.
   // ── Acquisition attribution (FIRST-touch) — measure CAC per channel ──
@@ -66,6 +75,7 @@ model Profile {
   pushSubscriptions   PushSubscription[]
   savedSearches       SavedSearch[]
   authoredReviews     Review[]       @relation("AuthoredReviews")
+  enforcementActions  EnforcementAction[] @relation("ProfileEnforcementActions")
 
   @@index([phone])
   @@index([trustTier])
@@ -466,6 +476,12 @@ model Report {
   appealNote   String?                          // the reported party's appeal (re-opens the case)
   appealImages String?                          // JSON array of proof image URLs submitted with the appeal
   appealedAt   DateTime?                         // when the target appealed (tags the case "Appeal")
+  // ── Buyer-king SLA + due process (trust Phase 2). @ignore for the same deploy-order
+  // reason as Profile's enforcement columns (Report.create in /api/report RETURNs the
+  // full row) — access via guarded raw SQL in the respond/moderate/trust paths.
+  sellerResponse    String?   @ignore             // the reported seller's reply (≤600 chars) — buyer-king SLA
+  sellerRespondedAt DateTime? @ignore             // unanswered >72h → "buyer waiting" flag in the admin queue
+  remediatedAt      DateTime? @ignore             // admin "marked remediated" → this event's conduct weight ×0.5
   createdAt DateTime @default(now())
 
   @@index([listingId])
@@ -508,6 +524,37 @@ model TrustEvent {
   createdAt        DateTime @default(now())
 
   @@index([subjectProfileId, createdAt])
+}
+
+// One enforcement episode on a profile (trust Phase 2, DSA/Santa-Clara due process).
+// Exactly ONE 'active' action per profile at a time — applyEnforcement supersedes the
+// previous one (status 'lifted') on every state change. Appeals are one-shot per
+// action. pulledListingIds records exactly which listings a hold pulled (verified→
+// false) so a lift/overturn restores precisely those that are still status='active'.
+// The profile's CURRENT state is denormalized onto Profile.enforcementState so hot
+// write-path gates are a single indexed read. Every query against this table is
+// try/catch-guarded (P2021) so code deploys safely before scripts/add-enforcement.mjs.
+model EnforcementAction {
+  id               String    @id @default(cuid())
+  profileId        String    @db.Uuid
+  profile          Profile   @relation("ProfileEnforcementActions", fields: [profileId], references: [id], onDelete: Cascade)
+  state            String    // warned | throttled | held | suspended
+  reason           String    // slug → client-side i18n copy: scam_hold | conduct_restricted | conduct_warning | insurance_grace | admin_manual
+  adminNote        String?   // optional admin-written notice shown to the seller with the reason copy
+  triggerReportId  String?   // the Report that triggered it, when applicable (no FK — reports are deletable)
+  decidedBy        String    // 'system' | the admin's email — precedence: system never downgrades an admin action
+  status           String    @default("active") // active | lifted | expired | overturned
+  expiresAt        DateTime? // timed states (30d warning, 72h insurance grace) — cron expires them
+  pulledListingIds String?   // JSON array of listing ids pulled by held/suspended
+  appealText       String?   // the seller's one-shot appeal
+  appealedAt       DateTime?
+  appealOutcome    String?   // upheld | overturned
+  appealResolvedAt DateTime?
+  liftedAt         DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([profileId, status])
+  @@index([status, createdAt])
 }
 
 // Machine-translation cache — avoids re-paying the translation API for the

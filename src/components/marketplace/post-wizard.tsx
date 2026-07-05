@@ -526,6 +526,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
           : msg === 'account_restricted'
           ? t('Tài khoản của bạn đang bị hạn chế do điểm uy tín thấp. Bạn có thể đăng lại khi điểm uy tín phục hồi.', "Your account is restricted due to a low trust score. You can post again once your trust score recovers.")
+          : msg === 'account_held'
+          ? t('Tin đăng của bạn đang tạm dừng trong khi chúng tôi xem xét một báo cáo — xem chi tiết và khiếu nại trong trang quản lý.', 'Your listings are paused while we review a report — see your dashboard for details and to appeal.')
+          : msg === 'account_suspended'
+          ? t('Tài khoản của bạn đang tạm ngưng nên chưa thể đăng tin — xem chi tiết trong trang quản lý.', 'Your account is suspended, so posting is paused — see your dashboard for details.')
+          : msg === 'probation_listing_cap'
+          ? t('Tài khoản mới có thể giữ tối đa 8 tin đang đăng — hãy đánh dấu đã bán một tin, hoặc chờ tài khoản đủ 30 ngày.', 'New accounts can keep up to 8 active listings — mark something sold or wait until your account is 30 days old.')
           : msg === 'phone_taken'
           ? t('Số điện thoại này đã được một tài khoản khác sử dụng. Mỗi số chỉ dùng cho một tài khoản.', 'This phone number is already used by another account. Each number belongs to one account.')
           : t('Không gửi được, vui lòng thử lại.', 'Could not submit — please try again.'),

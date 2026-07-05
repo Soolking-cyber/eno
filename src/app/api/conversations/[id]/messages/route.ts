@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { insertMessage } from '@/lib/messages'
+import { messagingGate } from '@/lib/enforcement'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const rl = await rateLimit('msg:send', meId, 20, '1 m')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+
+  // Enforcement (trust Phase 2): a suspended account can't send messages/offers.
+  // One indexed PK read; pre-migration → good_standing (no-op).
+  const gate = await messagingGate(meId)
+  if (gate) return NextResponse.json(gate, { status: 403 })
 
   let body: { body?: string; offerAmount?: number }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }

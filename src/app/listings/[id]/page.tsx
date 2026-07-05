@@ -37,6 +37,7 @@ import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SaveListingButton } from '@/components/marketplace/save-listing-button'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { currencyCode } from '@/lib/analytics'
+import { getEnforcement } from '@/lib/enforcement'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -130,7 +131,26 @@ export default async function ListingPage({ params }: Props) {
   // location render in the visitor's language instantly (no flash, no per-request translate).
   // Runs only on ISR regen (page revalidates every 30d) → effectively free; falls back to
   // the client machine-translate for any missing language.
-  const i18n = await cachedTranslations([listing.title, listing.description, listing.location])
+  // Batched alongside: the brand chip lookup and the seller's enforcement state
+  // (Phase 2 caution line). getEnforcement is a single indexed PK read of the
+  // DENORMALIZED Profile column — it can't ride the seller join because the
+  // enforcement columns are @ignore'd in Prisma until the migration runs (it
+  // returns good_standing pre-migration). One parallel batch → no added latency,
+  // and it only runs on ISR regen; enforcement transitions revalidate this path.
+  const [i18n, brand, ownerEnforcement] = await Promise.all([
+    cachedTranslations([listing.title, listing.description, listing.location]),
+    listing.brandSlug
+      ? db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true, logoPath: true } })
+      : Promise.resolve(null),
+    rawListing.seller.ownerId ? getEnforcement(rawListing.seller.ownerId) : Promise.resolve(null),
+  ])
+  // Caution line for throttled/held/suspended sellers (warned is notice-only, never
+  // public). Held/suspended pages are usually pulled (404) — direct-link stragglers
+  // still get the stronger wording.
+  const sellerCaution =
+    ownerEnforcement && (ownerEnforcement.state === 'throttled' || ownerEnforcement.state === 'held' || ownerEnforcement.state === 'suspended')
+      ? ownerEnforcement.state
+      : null
   const color = CATEGORY_COLOR_CLASSES[listing.category.color] ?? CATEGORY_COLOR_CLASSES.brand
 
   const initials = listing.seller.name
@@ -147,10 +167,7 @@ export default async function ListingPage({ params }: Props) {
   if (listing.mileageKm != null) numericSpecs.push({ label: 'Mileage', value: `${new Intl.NumberFormat('en-US').format(listing.mileageKm)} km` })
   if (listing.engineL != null) numericSpecs.push({ label: 'Engine', value: `${listing.engineL} L` })
   // Brand chip (when the listing carries a canonical brand) — links into the
-  // brand-filtered feed. Resolve name + monotone logo server-side.
-  const brand = listing.brandSlug
-    ? await db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true, logoPath: true } })
-    : null
+  // brand-filtered feed (resolved in the parallel batch above).
   const brandLogoPath = brand ? brandIconPath(brand) : null
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const canonicalUrl = `${hostUrl}/listings/${listing.id}`
@@ -308,6 +325,22 @@ export default async function ListingPage({ params }: Props) {
             <SaveListingButton id={listing.id} />
           </div>
         </div>
+
+        {/* Enforcement caution (Phase 2) — one line, before any contact action.
+            throttled = caution tint; held/suspended = stronger destructive wording. */}
+        {sellerCaution && (
+          <p
+            className={cn(
+              'mb-4 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold',
+              sellerCaution === 'throttled' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive',
+            )}
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {sellerCaution === 'throttled'
+              ? <Tr text="This seller is under review — trade with extra care" />
+              : <Tr text="This seller's account is on hold — don't send money or deposits" />}
+          </p>
+        )}
 
         {/* Price directly under the title on MOBILE — when the two-column layout
             stacks, the contact column's price lands ~4 viewports down (ux-24).

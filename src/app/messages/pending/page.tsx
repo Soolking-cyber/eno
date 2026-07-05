@@ -40,7 +40,12 @@ export default function PendingComposePage() {
         if (res.status === 401) { router.replace(`/listings/${d.listingId}`); return }
         if (!res.ok) {
           const { error } = await res.json().catch(() => ({}))
-          toast.error(error === 'own_listing' ? tr("That's your own listing.", 'Đây là tin của chính bạn.') : tr('Could not send. Try again.', 'Không gửi được. Thử lại.'))
+          toast.error(
+            error === 'own_listing' ? tr("That's your own listing.", 'Đây là tin của chính bạn.')
+            // Enforcement gates (trust Phase 2) — specific, calm copy over a generic failure.
+            : error === 'account_suspended' ? tr('Your account is suspended — messaging is paused while we review it. Details are in your dashboard.', 'Tài khoản của bạn đang tạm ngưng — nhắn tin tạm dừng trong khi chúng tôi xem xét. Xem chi tiết trong trang quản lý.')
+            : error === 'probation_conversation_cap' ? tr('New accounts can start up to 15 chats a day — please try again tomorrow.', 'Tài khoản mới có thể bắt đầu tối đa 15 cuộc trò chuyện mỗi ngày — hãy thử lại vào ngày mai.')
+            : tr('Could not send. Try again.', 'Không gửi được. Thử lại.'))
           router.replace(`/listings/${d.listingId}`)
           return
         }

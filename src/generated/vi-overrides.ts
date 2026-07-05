@@ -294,6 +294,8 @@ export const VI_OVERRIDES: Record<string, string> = {
   "The verified marketplace for Vietnam's international community.": "Chợ uy tín dành cho cộng đồng quốc tế tại Việt Nam.",
   "The verified marketplace for Vietnam.": "Chợ uy tín dành cho Việt Nam.",
   "This listing has been physically verified by an eno.vn agent. Photos, location, and price are 100% accurate.": "Tin này đã được nhân viên eno.vn kiểm tra thực tế. Hình ảnh, vị trí và giá cả chính xác 100%.",
+  "This seller is under review — trade with extra care": "Người bán này đang được xem xét — hãy cẩn trọng khi giao dịch",
+  "This seller's account is on hold — don't send money or deposits": "Tài khoản người bán này đang tạm khóa — không chuyển tiền hay đặt cọc",
   "Thoát": "Thoát",
   "Thêm": "Thêm",
   "Tin của bạn sẽ được nhân viên eno.vn kiểm duyệt thực tế trước khi hiển thị.": "Tin của bạn sẽ được nhân viên eno.vn kiểm duyệt thực tế trước khi hiển thị.",

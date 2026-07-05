@@ -63,6 +63,10 @@ export const TRUST = {
   SCAM_CLEAN_TX: 5,
   SCAM_FLOOR: 0.4, // a confirmed scam NEVER fully disappears
 
+  // Remediation (Amazon pattern): a confirmed report the seller demonstrably FIXED
+  // (admin sets Report.remediatedAt) keeps its record but counts at half weight.
+  REMEDIATION_FACTOR: 0.5,
+
   // Admin manual_adjust ledger events (incl. false-report strikes) decay with H=365.
   MANUAL_HALF_LIFE_DAYS: 365,
 

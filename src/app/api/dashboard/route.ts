@@ -1,10 +1,53 @@
 import { NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { computeTrustV2 } from '@/lib/trust'
+import { getEnforcement } from '@/lib/enforcement'
 import { dashboardStatsCore } from '@/lib/core/dashboard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+// Enforcement panel data (trust Phase 2) — powers the dashboard banner. Every read
+// is DEPLOY-ORDER-SAFE: the columns/table land with scripts/add-enforcement.mjs, so
+// pre-migration this degrades to good_standing + empty lists (no banner renders).
+async function enforcementPayload(profileId: string, sellerId: string | null) {
+  const { state, until } = await getEnforcement(profileId) // guarded raw read inside
+  let action: {
+    id: string; state: string; reason: string; notice: string | null
+    createdAt: string; expiresAt: string | null; appealedAt: string | null; appealOutcome: string | null
+  } | null = null
+  if (state !== 'good_standing') {
+    try {
+      const a = await db.enforcementAction.findFirst({
+        where: { profileId, status: 'active' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, state: true, reason: true, adminNote: true, createdAt: true, expiresAt: true, appealedAt: true, appealOutcome: true },
+      })
+      if (a) {
+        action = {
+          id: a.id, state: a.state, reason: a.reason, notice: a.adminNote,
+          createdAt: a.createdAt.toISOString(), expiresAt: a.expiresAt?.toISOString() ?? null,
+          appealedAt: a.appealedAt?.toISOString() ?? null, appealOutcome: a.appealOutcome,
+        }
+      }
+    } catch { /* migration pending — banner shows reason copy without action detail */ }
+  }
+  // Open reports the seller hasn't answered yet (buyer-king SLA: replying within
+  // 72h keeps them off the admin "buyer waiting" queue). Raw + guarded —
+  // sellerRespondedAt is a Phase 2 column.
+  let openReports: { id: string; reason: string; createdAt: string }[] = []
+  try {
+    const rows = await db.$queryRaw<{ id: string; reason: string; createdAt: Date }[]>`
+      SELECT "id", "reason", "createdAt" FROM "Report"
+      WHERE "status" = 'open' AND "sellerRespondedAt" IS NULL
+        AND ("targetProfileId" = ${profileId}::uuid OR "targetSellerId" = ${sellerId})
+      ORDER BY "createdAt" ASC
+      LIMIT 5`
+    openReports = rows.map((r) => ({ id: r.id, reason: r.reason, createdAt: r.createdAt.toISOString() }))
+  } catch { /* migration pending */ }
+  return { state, until: until?.toISOString() ?? null, action, openReports }
+}
 
 // The seller CRM dashboard payload (owner-scoped). Answers the three questions a
 // seller opens the dashboard for: new messages? how are my listings doing? what
@@ -20,6 +63,9 @@ export async function GET() {
     dashboardStatsCore(profile),
     computeTrustV2(profile.id).catch(() => null),
   ])
+  // Sequential (needs the core's seller id) but cheap: 2–3 indexed PK reads on an
+  // authed, owner-scoped route — never a public hot path.
+  const enforcement = await enforcementPayload(profile.id, dashboard.seller?.id ?? null)
   const i = breakdown?.inputs
   // Days since the most recent DEMOTION-RELEVANT confirmed report (the dual-threshold
   // windows the tier gates actually read) — null when the recent record is clean.
@@ -27,6 +73,7 @@ export async function GET() {
   return NextResponse.json({
     dashboard: {
       ...dashboard,
+      enforcement,
       trustProgress: i
         ? {
             transactions365: i.transactions365,

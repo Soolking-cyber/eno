@@ -5,6 +5,7 @@ import { getCurrentProfile, getCurrentProfileId } from '@/lib/admin'
 import { insertMessage, type SerializedMessage } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
 import { rateLimit } from '@/lib/ratelimit'
+import { conversationGate } from '@/lib/enforcement'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,6 +43,20 @@ export async function POST(req: Request) {
   // Can't message your own storefront.
   if (listing.seller.ownerId && listing.seller.ownerId === profile.id) {
     return NextResponse.json({ error: 'own_listing' }, { status: 400 })
+  }
+
+  // Enforcement + probation (trust Phase 2): suspended blocks all conversation
+  // activity; a probation account is capped on NEW threads per day — an existing
+  // thread is exempt (the cap is on new outreach, not on continuing one).
+  const gate = await conversationGate(profile.id)
+  if (gate) {
+    const existing = gate.error === 'account_suspended'
+      ? null
+      : await db.conversation.findUnique({
+          where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
+          select: { id: true },
+        })
+    if (!existing) return NextResponse.json(gate, { status: 403 })
   }
 
   // Create the conversation, letting the unique (listingId, buyerProfileId)

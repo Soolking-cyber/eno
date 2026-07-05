@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
-import { applyTrustEvent, penalizeSeller, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
+import { applyTrustEvent, penalizeSeller, recomputeTrust, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
+import { syncEnforcement } from '@/lib/enforcement'
 import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
 
 export const dynamic = 'force-dynamic'
@@ -80,8 +81,11 @@ export async function POST(req: NextRequest) {
         if (!report) continue
         const upd = await db.report.updateMany({ where: { id: rid, status: 'open' }, data: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date() } })
         if (upd.count === 0) continue // already resolved — no double-dock
-        if (report.targetProfileId) await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${rid}`, reportId: rid })
-        else if (report.targetSellerId) await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${rid}`, reportId: rid })
+        if (report.targetProfileId) {
+          const res = await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${rid}`, reportId: rid })
+          // Enforcement ladder: re-derive now that the confirmation landed (fail-quiet inside).
+          if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: rid })
+        } else if (report.targetSellerId) await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${rid}`, reportId: rid })
         if (report.listingId) { await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {}); revalidatePath(`/listings/${report.listingId}`) }
         if (report.targetProfileId) await notifyActioned(report.targetProfileId, rid)
         confirmed++
@@ -141,7 +145,11 @@ export async function POST(req: NextRequest) {
       if (upd.count === 0) return NextResponse.json({ ok: true })
       const penalty = -SEVERITY_PENALTY[severity]
       if (report.targetProfileId) {
-        await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${id}`, reportId: id })
+        const res = await applyTrustEvent(report.targetProfileId, 'report_confirmed', penalty, { reason: `report:${id}`, reportId: id })
+        // Enforcement ladder: re-derive the state now that the confirmation landed —
+        // a frozen scam → held (listings pulled), conduct-restricted → throttled,
+        // a corroborated pattern → warned. Fail-quiet inside (deploy-order safe).
+        if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: id })
       } else if (report.targetSellerId) {
         await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${id}`, reportId: id })
       }
@@ -185,8 +193,68 @@ export async function POST(req: NextRequest) {
           reason: `false_report:${id}`,
           reportId: id,
         })
+        // eBay-style retroactive purge: every OTHER report this reporter got CONFIRMED
+        // is overturned, and each affected seller recomputed — computeTrustV2 EXCLUDES
+        // overturned reports, so the stolen points restore exactly. Uncapped: getting
+        // back what a false report took isn't "earning" (no +6/day wait). Best-effort.
+        try {
+          const purged = await db.report.findMany({
+            where: { reporterProfileId: report.reporterProfileId, status: 'confirmed', id: { not: id } },
+            select: { id: true, targetProfileId: true, targetSellerId: true, severity: true },
+            take: 200,
+          })
+          if (purged.length) {
+            await db.report.updateMany({
+              where: { id: { in: purged.map((r) => r.id) } },
+              data: { status: 'overturned', resolvedBy: admin, resolvedAt: new Date() },
+            })
+            const affected = [...new Set(purged.map((r) => r.targetProfileId).filter((x): x is string => !!x))]
+            for (const pid of affected) {
+              const res = await recomputeTrust(pid, { uncapped: true })
+              if (res) await syncEnforcement(pid, res.breakdown, { persistedScore: res.score })
+            }
+            // Storefront-only targets (no owning profile at report time): the original
+            // dock was a direct mirror mutation, so mirror the reversal the same way —
+            // unless the shop was claimed since (then the owner recompute above/below
+            // is the source of truth).
+            for (const r of purged) {
+              if (r.targetProfileId || !r.targetSellerId) continue
+              const s = await db.seller.findUnique({ where: { id: r.targetSellerId }, select: { ownerId: true } })
+              if (!s) continue
+              if (s.ownerId) {
+                const res = await recomputeTrust(s.ownerId, { uncapped: true })
+                if (res) await syncEnforcement(s.ownerId, res.breakdown, { persistedScore: res.score })
+              } else {
+                await penalizeSeller(r.targetSellerId, SEVERITY_PENALTY[normSeverity(r.severity)], { reason: `overturned:${r.id}` })
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[moderate] abusive-reporter purge failed', e)
+        }
       }
       return NextResponse.json({ ok: true })
+    }
+
+    case 'remediated': {
+      // Amazon-style remediation: the seller demonstrably fixed the issue — the
+      // confirmed report STAYS on record but its conduct weight halves (computeTrustV2
+      // reads Report.remediatedAt). Idempotent (only the first mark recomputes).
+      const report = await db.report.findUnique({ where: { id }, select: { id: true, status: true, targetProfileId: true } })
+      if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      if (report.status !== 'confirmed') return NextResponse.json({ error: 'not_confirmed' }, { status: 400 })
+      let marked = 0
+      try {
+        marked = await db.$executeRaw`UPDATE "Report" SET "remediatedAt" = now() WHERE "id" = ${id} AND "remediatedAt" IS NULL`
+      } catch {
+        // Column not there yet (scripts/add-enforcement.mjs pending) → retryable.
+        return NextResponse.json({ error: 'migration_pending' }, { status: 503 })
+      }
+      if (marked > 0 && report.targetProfileId) {
+        const res = await recomputeTrust(report.targetProfileId)
+        if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score })
+      }
+      return NextResponse.json({ ok: true, remediated: marked > 0 })
     }
 
     default:
