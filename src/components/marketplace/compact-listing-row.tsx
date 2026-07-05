@@ -11,6 +11,7 @@ import { FavoriteHeart } from './favorite-heart'
 import { useLanguage, Tr } from '@/context/language-context'
 import type { SerializedListingCard } from '@/lib/types'
 import { formatMoneyFull } from '@/lib/vnd'
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { stashQuickCompose } from '@/lib/quick-contact'
 
@@ -86,7 +87,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         {offer !== null && (
           <span
             onClick={(e) => e.stopPropagation()}
-            className="absolute right-0 top-1/2 z-10 flex w-[340px] max-w-[70vw] -translate-y-1/2 items-center gap-2 rounded-full bg-card py-1 pl-3 pr-1 shadow-pop animate-in zoom-in-95 fade-in duration-150"
+            className="flex min-w-0 items-center gap-2 py-1 pr-1 animate-in slide-in-from-right-2 fade-in duration-150"
           >
             <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{offer}%</span>
             <input
@@ -95,7 +96,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               value={offer}
               onChange={(e) => setOffer(Number(e.target.value))}
               aria-label={tr('Discount', 'Mức giảm')}
-              className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
+              className="w-28 accent-[var(--brand)] cursor-pointer"
             />
             <button
               type="button"
@@ -123,7 +124,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
           title={tr('Chat with seller', 'Nhắn tin với người bán')}
           onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent"
+          className={cn('h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent', offer === null ? 'flex' : 'hidden')}
         >
           <MessageCircle className="h-[18px] w-[18px]" />
         </button>
@@ -131,11 +132,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           type="button"
           aria-label={tr('Show on map', 'Xem trên bản đồ')}
           onClick={(e) => { e.stopPropagation(); onLocate(l.id) }}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent"
+          className={cn('h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent', offer === null ? 'flex' : 'hidden')}
         >
           <MapPin className="h-[18px] w-[18px]" />
         </button>
-        <FavoriteHeart id={l.id} className="-mr-0.5" />
+        {offer === null && <FavoriteHeart id={l.id} className="-mr-0.5" />}
       </div>
     </div>
   )

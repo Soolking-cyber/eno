@@ -42,6 +42,7 @@ export default function ThreadPage() {
   const [text, setText] = useState('')
   const [showOffer, setShowOffer] = useState(false) // offer-amount input visible
   const [offerInput, setOfferInput] = useState('')
+  const [offerPct, setOfferPct] = useState(10) // slider mode (priced listings): % off asking
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
   // The offer THIS seller just accepted in this session → anchors the one-time
@@ -312,8 +313,10 @@ export default function ThreadPage() {
     }
   }
 
+  const askingPrice = thread?.listing.price && thread.listing.price > 0 ? thread.listing.price : null
+  const sliderOffer = askingPrice ? Math.round(askingPrice * (1 - offerPct / 100)) : null
   const submitOffer = () => {
-    const n = Number(offerInput.replace(/\D/g, ''))
+    const n = sliderOffer ?? Number(offerInput.replace(/\D/g, ''))
     if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') }
   }
 
@@ -324,7 +327,7 @@ export default function ThreadPage() {
     return new Intl.NumberFormat('en-US').format(Number((d + '000').slice(0, 12)))
   })
 
-  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput('') }
+  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput(''); setOfferPct(10) }
 
   // Quick-reply chip → INSERT into the composer (never auto-send), cursor at the
   // end so partial templates ("Can meet in ") are completed in one motion.
@@ -552,7 +555,22 @@ export default function ThreadPage() {
               <Tag className="h-[18px] w-[18px]" />
             </button>
 
-            {showOffer ? (
+            {showOffer && sliderOffer !== null ? (
+              /* Priced listing: the −% slider rolls in (left→right) where the chat
+                 input was — pick the discount, Send submits the computed offer. */
+              <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 animate-in slide-in-from-left-2 fade-in duration-150">
+                <span className="shrink-0 text-xs font-bold tabular-nums text-foreground">−{offerPct}%</span>
+                <input
+                  type="range"
+                  min={5} max={50} step={5}
+                  value={offerPct}
+                  onChange={(e) => setOfferPct(Number(e.target.value))}
+                  aria-label={tr('Discount', 'Mức giảm')}
+                  className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
+                />
+                <span className="shrink-0 text-xs font-bold tabular-nums text-accent-foreground">{formatMoneyFull(sliderOffer, '₫')}</span>
+              </div>
+            ) : showOffer ? (
               <div className="relative flex-1">
                 <input
                   value={offerInput}
@@ -587,7 +605,7 @@ export default function ThreadPage() {
 
             <button
               onClick={() => (showOffer ? submitOffer() : send())}
-              disabled={showOffer ? !offerInput : !text.trim()}
+              disabled={showOffer ? (sliderOffer === null && !offerInput) : !text.trim()}
               aria-label={showOffer ? tr('Send offer', 'Gửi đề nghị') : tr('Send', 'Gửi')}
               title={showOffer ? tr('Send offer', 'Gửi đề nghị') : tr('Send', 'Gửi')}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
