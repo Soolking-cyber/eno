@@ -51,19 +51,20 @@ export function BackToTop() {
         // Inline bottom (beats the classes) only while a bottom bar is on screen.
         style={lift ? { bottom: lift + 12 } : undefined}
       >
-        {/* Back to top — a proper circular surface (it floats over card imagery, so a
-            bare chevron got lost / read as part of a card). Fades in once scrolled
-            (slot reserved so the ? never shifts); transform/opacity only. */}
+        {/* Back to top — bare glyph, no circle: same treatment as the search-bar
+            icons (quiet ink → brand blue on hover) with a subtle drop-shadow so it
+            stays distinct over card imagery. Fades in once scrolled (slot reserved
+            so the ? never shifts); transform/opacity only. */}
         <button
           type="button"
           aria-label="Back to top"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className={cn(
-            'relative flex h-11 w-11 items-center justify-center rounded-full bg-card text-body shadow-pop transition-all duration-200 hover:text-foreground active:scale-90 tap-44',
+            'relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground active:scale-90 tap-44',
             show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
           )}
         >
-          <ChevronUp className="h-6 w-6" strokeWidth={2.5} />
+          <ChevronUp className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]" strokeWidth={2.5} />
         </button>
 
         {/* Help — bare "?", DESKTOP ONLY (on mobile, Help lives in the profile page
@@ -73,9 +74,9 @@ export function BackToTop() {
           aria-label="Help"
           aria-haspopup="dialog"
           onClick={() => setHelpOpen(true)}
-          className="relative hidden h-9 w-9 items-center justify-center text-body transition-all duration-200 hover:text-foreground active:scale-90 lg:flex tap-44"
+          className="relative hidden h-9 w-9 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground active:scale-90 lg:flex tap-44"
         >
-          <span className="text-[26px] font-bold leading-none">?</span>
+          <span className="text-[26px] font-bold leading-none [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]">?</span>
         </button>
       </div>
 
