@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
-import { serializeListing } from '@/lib/serialize'
+import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { Prisma } from '@/generated/prisma/client'
 import { isRangeColumn } from '@/lib/taxonomy'
 import { fold } from '@/lib/fold'
@@ -48,9 +48,9 @@ export async function GET(req: NextRequest) {
     if (ids.length === 0) return NextResponse.json({ listings: [], total: 0 })
     const rows = await db.listing.findMany({
       where: { id: { in: ids }, verified: true, status: 'active' },
-      include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+      select: LISTING_CARD_SELECT,
     })
-    const byId = new Map(rows.map((r) => [r.id, serializeListing(r)]))
+    const byId = new Map(rows.map((r) => [r.id, serializeListingCard(r)]))
     const listings = ids.map((id) => byId.get(id)).filter(Boolean)
     return NextResponse.json({ listings, total: listings.length })
   }
@@ -292,9 +292,11 @@ export async function GET(req: NextRequest) {
     }
     if (ids && ids.length) {
       const structural = andFilters.filter((f) => f !== pgTextFilter)
+      // Rank over 3 fields only — the old full-include here dragged ≤120 complete
+      // rows (searchText, description, Seller) through Postgres to serve 24.
       const rows = await db.listing.findMany({
         where: { AND: [...structural, { id: { in: ids } }] },
-        include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+        select: { id: true, sellerTrustScore: true, postedAt: true },
       })
       const byId = new Map(rows.map((r) => [r.id, r]))
       const vertexOrder = ids.map((id) => byId.get(id)).filter((r): r is (typeof rows)[number] => !!r)
@@ -316,7 +318,13 @@ export async function GET(req: NextRequest) {
       const tailWhere: Prisma.ListingWhereInput = { AND: [...andFilters, { id: { notIn: rankedIds } }] }
       const tailTotal = await db.listing.count({ where: tailWhere })
       semanticTotal = R + tailTotal
-      const aPart = ranked.slice(offset, offset + limit)
+      // Fetch card rows for THIS page's ranked slice only, restoring rank order.
+      const pageIds = ranked.slice(offset, offset + limit).map((r) => r.id)
+      const pageRows = pageIds.length
+        ? await db.listing.findMany({ where: { id: { in: pageIds } }, select: LISTING_CARD_SELECT })
+        : []
+      const pageById = new Map(pageRows.map((r) => [r.id, r]))
+      const aPart = pageIds.map((id) => pageById.get(id)).filter((r): r is (typeof pageRows)[number] => !!r)
       if (aPart.length < limit && offset + limit > R && tailTotal > 0) {
         // This page reaches past the ranked set — fill the remainder from rankScore-ordered
         // results (the same blend), excluding the ids already shown in the ranked portion.
@@ -325,7 +333,7 @@ export async function GET(req: NextRequest) {
           orderBy,
           skip: Math.max(0, offset - R),
           take: limit - aPart.length,
-          include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+          select: LISTING_CARD_SELECT,
         })
         semanticListings = [...aPart, ...tailRows]
       } else {
@@ -363,7 +371,7 @@ export async function GET(req: NextRequest) {
           orderBy,
           take: limit,
           skip: offset,
-          include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+          select: LISTING_CARD_SELECT,
         }),
     semanticListings ? Promise.resolve(semanticTotal) : db.listing.count({ where }),
     undefined
@@ -418,7 +426,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(
     {
-      listings: await localizeListingTitles(ordered.map(serializeListing), req.cookies.get('lang')?.value),
+      listings: await localizeListingTitles(ordered.map(serializeListingCard), req.cookies.get('lang')?.value),
       total,
       offset,
       limit,

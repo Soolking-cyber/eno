@@ -1,5 +1,5 @@
 import type { Listing, Category, Seller } from '@/generated/prisma/client'
-import type { SerializedListing, CategoryColor } from './types'
+import type { SerializedListing, SerializedListingCard, CategoryColor } from './types'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
   if (!value) return fallback
@@ -87,5 +87,60 @@ export function serializeListing(
     year: l.year,
     mileageKm: l.mileageKm,
     engineL: l.engineL,
+  }
+}
+
+// ── Card projection ───────────────────────────────────────────────────────────
+// The feed/rails/map only render ~20 fields; the full serializeListing payload
+// (description, attributes, verification meta, full Seller row…) tripled feed JSON
+// and dragged searchText/PII through Postgres for nothing. Query with
+// LISTING_CARD_SELECT and serialize with serializeListingCard on every list surface.
+export const LISTING_CARD_SELECT = {
+  id: true, title: true, titleVi: true, price: true, priceUnit: true, currency: true,
+  location: true, district: true, city: true, lat: true, lng: true, images: true,
+  brandSlug: true, model: true, verified: true, postedAt: true,
+  category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
+  seller: { select: { trustScore: true, owner: { select: { accountType: true } } } },
+} as const
+
+type ListingCardRow = {
+  id: string; title: string; titleVi: string | null; price: number; priceUnit: string
+  currency: string; location: string; district: string | null; city: string
+  lat: number | null; lng: number | null; images: string; brandSlug: string | null
+  model: string | null; verified: boolean; postedAt: Date
+  category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
+  seller: { trustScore: number; owner?: { accountType: string | null } | null }
+}
+
+export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
+  return {
+    id: l.id,
+    title: l.title,
+    titleVi: l.titleVi,
+    price: l.price,
+    priceUnit: l.priceUnit,
+    currency: l.currency,
+    location: l.location,
+    district: l.district,
+    city: l.city,
+    lat: l.lat,
+    lng: l.lng,
+    images: safeParse<string[]>(l.images, []).map(fixMockImage),
+    brandSlug: l.brandSlug,
+    model: l.model,
+    verified: l.verified,
+    postedAt: l.postedAt.toISOString(),
+    category: {
+      id: l.category.id,
+      name: l.category.name,
+      nameVi: l.category.nameVi,
+      slug: l.category.slug,
+      icon: l.category.icon,
+      color: l.category.color as CategoryColor,
+    },
+    seller: {
+      trustScore: l.seller.trustScore,
+      isBusiness: l.seller.owner?.accountType === 'business',
+    },
   }
 }

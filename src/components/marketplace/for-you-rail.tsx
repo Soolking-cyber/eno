@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles, TrendingUp } from 'lucide-react'
-import type { SerializedListing } from '@/lib/types'
+import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { useLanguage } from '@/context/language-context'
 import { personalizationAllowed } from '@/lib/consent'
@@ -18,7 +18,7 @@ const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district'
 export function ForYouRail() {
   const { tr } = useLanguage()
   const router = useRouter()
-  const [listings, setListings] = useState<SerializedListing[] | null>(null)
+  const [listings, setListings] = useState<SerializedListingCard[] | null>(null)
   const [personalized, setPersonalized] = useState(false)
   const [active, setActive] = useState(true) // default (unfiltered) home view?
 

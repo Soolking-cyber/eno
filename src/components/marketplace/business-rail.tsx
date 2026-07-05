@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Award } from 'lucide-react'
-import type { SerializedListing } from '@/lib/types'
+import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { useLanguage } from '@/context/language-context'
 
@@ -13,7 +13,7 @@ import { useLanguage } from '@/context/language-context'
 export function BusinessRail() {
   const { tr } = useLanguage()
   const router = useRouter()
-  const [listings, setListings] = useState<SerializedListing[] | null>(null)
+  const [listings, setListings] = useState<SerializedListingCard[] | null>(null)
 
   useEffect(() => {
     fetch('/api/businesses/top')

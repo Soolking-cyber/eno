@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { History } from 'lucide-react'
-import type { SerializedListing } from '@/lib/types'
+import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { useLanguage } from '@/context/language-context'
 import { personalizationAllowed } from '@/lib/consent'
@@ -16,7 +16,7 @@ import { getViewedListingIds } from '@/lib/reco-signals'
 export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
   const router = useRouter()
   const { tr } = useLanguage()
-  const [listings, setListings] = useState<SerializedListing[]>([])
+  const [listings, setListings] = useState<SerializedListingCard[]>([])
 
   useEffect(() => {
     if (!personalizationAllowed()) return

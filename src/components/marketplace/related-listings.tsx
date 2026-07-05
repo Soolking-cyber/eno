@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListingCard } from './listing-card'
 import { useLanguage } from '@/context/language-context'
-import type { SerializedListing } from '@/lib/types'
+import type { SerializedListingCard } from '@/lib/types'
 
 /** "More like this" rail on the listing page — same category, current listing
  *  excluded. Fetched CLIENT-side so the ISR-cached page HTML stays fresh + light.
@@ -13,7 +13,7 @@ import type { SerializedListing } from '@/lib/types'
 export function RelatedListings({ listingId, categorySlug }: { listingId: string; categorySlug: string }) {
   const router = useRouter()
   const { tr } = useLanguage()
-  const [items, setItems] = useState<SerializedListing[]>([])
+  const [items, setItems] = useState<SerializedListingCard[]>([])
 
   useEffect(() => {
     let off = false
@@ -21,7 +21,7 @@ export function RelatedListings({ listingId, categorySlug }: { listingId: string
       .then((r) => r.json())
       .then((d) => {
         if (off) return
-        setItems((d.listings || []).filter((l: SerializedListing) => l.id !== listingId).slice(0, 10))
+        setItems((d.listings || []).filter((l: SerializedListingCard) => l.id !== listingId).slice(0, 10))
       })
       .catch(() => {})
     return () => { off = true }

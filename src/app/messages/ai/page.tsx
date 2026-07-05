@@ -8,14 +8,14 @@ import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { ListingCard } from '@/components/marketplace/listing-card'
 import { haptic } from '@/lib/haptics'
-import type { SerializedListing } from '@/lib/types'
+import type { SerializedListingCard } from '@/lib/types'
 
 // The "eno AI" conversation — rendered as a native thread in the messages tab (the AI
 // is just another contact). Self-contained: messages live in component state +
 // localStorage (no DB conversation), and replies come from POST /api/ai/concierge,
 // which returns a reply + matching listings the buyer can browse right in the chat.
 
-type Msg = { role: 'user' | 'assistant'; content: string; listings?: SerializedListing[]; createdAt: string }
+type Msg = { role: 'user' | 'assistant'; content: string; listings?: SerializedListingCard[]; createdAt: string }
 
 const STORE_KEY = 'eno:ai_chat_v1'
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })

@@ -1,9 +1,9 @@
-import type { SerializedListing } from '@/lib/types'
+import type { SerializedListingCard } from '@/lib/types'
 
 // Lean geo helpers (no Leaflet) — safe to import anywhere without pulling the map
 // bundle. Prefer stored coordinates; fall back to a deterministic district-based
 // guess so every listing has a plottable point.
-export function getListingCoordinates(listing: SerializedListing) {
+export function getListingCoordinates(listing: Pick<SerializedListingCard, 'id' | 'lat' | 'lng' | 'city' | 'district'>) {
   if (typeof listing.lat === 'number' && typeof listing.lng === 'number') {
     return { lat: listing.lat, lng: listing.lng }
   }

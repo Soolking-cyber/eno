@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { serializeListing } from '@/lib/serialize'
+import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 
 export const runtime = 'nodejs'
@@ -51,14 +51,20 @@ export async function GET() {
           { id: 'desc' },
         ],
         take: PER_RAIL,
-        include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+        select: LISTING_CARD_SELECT,
       })
-      return { slug, listings: await localizeListingTitles(listings.map(serializeListing)) }
+      return { slug, listings: listings.map(serializeListingCard) }
     }),
   )
 
+  // ONE translation lookup for every rail's titles (was one query per rail).
+  const present = rails.filter((r): r is NonNullable<typeof rails[number]> => !!r)
+  const localizedFlat = await localizeListingTitles(present.flatMap((r) => r.listings))
+  let cursor = 0
+  for (const r of present) { r.listings = localizedFlat.slice(cursor, cursor + r.listings.length); cursor += r.listings.length }
+
   return NextResponse.json(
-    { rails: rails.filter((r): r is { slug: string; listings: ReturnType<typeof serializeListing>[] } => !!r) },
+    { rails: present },
     { headers: { 'Cache-Control': 'public, max-age=120, stale-while-revalidate=300' } },
   )
 }

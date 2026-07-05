@@ -14,6 +14,41 @@ export type SerializedCategory = {
   verifiedCount: number
 }
 
+// Card projection: exactly the fields the feed/rail/map cards render — the wire
+// format for every list surface. SerializedListing (detail/dashboard) is a structural
+// superset, so a full listing is always assignable where a card is expected.
+export type SerializedListingCard = {
+  id: string
+  title: string
+  titleVi: string | null
+  titleI18n?: Record<string, string>
+  price: number
+  priceUnit: string
+  currency: string
+  location: string
+  district: string | null
+  city: string
+  lat: number | null
+  lng: number | null
+  images: string[]
+  brandSlug: string | null
+  model: string | null
+  verified: boolean
+  postedAt: string
+  category: {
+    id: string
+    name: string
+    nameVi: string
+    slug: string
+    icon: string
+    color: CategoryColor
+  }
+  seller: {
+    trustScore: number
+    isBusiness: boolean
+  }
+}
+
 export type SerializedListing = {
   id: string
   title: string

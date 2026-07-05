@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
-import type { SerializedCategory, SerializedListing } from '@/lib/types'
+import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
 import { useLanguage } from '@/context/language-context'
 
 const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district', 'province', 'ward', 'condition', 'priceMin', 'priceMax']
 
-type Rail = { slug: string; listings: SerializedListing[] }
+type Rail = { slug: string; listings: SerializedListingCard[] }
 
 const CARD_W = 'w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]'
 
@@ -18,7 +18,7 @@ const CARD_W = 'w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2
  *  scrolls near the viewport — with up to ~10 rails on the home page, mounting every
  *  card up front flooded the page with images. A same-height skeleton holds the space
  *  so there's no layout shift. */
-function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; listings: SerializedListing[]; onCategory: (slug: string) => void }) {
+function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; listings: SerializedListingCard[]; onCategory: (slug: string) => void }) {
   const { lang, tr } = useLanguage()
   const router = useRouter()
   const rowRef = useRef<HTMLDivElement>(null)

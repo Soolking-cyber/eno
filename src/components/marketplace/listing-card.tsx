@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, memo } from 'react'
 import { Heart, ChevronLeft, ChevronRight, Building2, MapPin } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import Image from 'next/image'
-import type { SerializedListing } from '@/lib/types'
+import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { isMockImageUrl } from '@/lib/listing-image'
@@ -24,8 +24,8 @@ function prettyBrand(slug: string): string {
 }
 
 type Props = {
-  listing: SerializedListing
-  onOpen: (listing: SerializedListing) => void
+  listing: SerializedListingCard
+  onOpen: (listing: SerializedListingCard) => void
   priority?: boolean
   // The single LCP card (first card of the first landing row): use next/image's
   // real `priority` so Next emits a <link rel=preload> for its image.
@@ -37,7 +37,7 @@ type Props = {
   // heart) → jump to the map focused on this listing. Receives the listing so the
   // parent can pass ONE stable callback (keeps React.memo effective); `() => void`
   // callers stay compatible (they just ignore the arg).
-  onLocate?: (listing: SerializedListing) => void
+  onLocate?: (listing: SerializedListingCard) => void
 }
 
 function ListingCardImpl({

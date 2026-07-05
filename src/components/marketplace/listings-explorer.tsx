@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { TrustScore } from './trust-score'
-import type { SerializedListing, SerializedCategory } from '@/lib/types'
+import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { Price } from './price'
 import { CategoryIcon } from './category-icons'
@@ -113,7 +113,7 @@ type ViewMode = 'compact' | 'grid' | 'map'
 
 type Props = {
   categories: SerializedCategory[]
-  initialListings: SerializedListing[]
+  initialListings: SerializedListingCard[]
   initialTotal?: number
   listingsRef?: React.RefObject<HTMLDivElement | null>
 }
@@ -159,12 +159,12 @@ export function ListingsExplorer({
   const [focusId, setFocusId] = useState<string | null>(null)
   // A listing to show on the map that isn't necessarily in the loaded feed (set when a
   // card outside the feed — e.g. the For You rail — asks to be located).
-  const [focusListing, setFocusListing] = useState<SerializedListing | null>(null)
+  const [focusListing, setFocusListing] = useState<SerializedListingCard | null>(null)
   const router = useRouter()
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
   const [showExplorer, setShowExplorer] = useState(false)
 
-  const [listings, setListings] = useState<SerializedListing[]>(initialListings)
+  const [listings, setListings] = useState<SerializedListingCard[]>(initialListings)
   // Freshness anchor for the SSR seed, captured at CLIENT mount (not baked on the
   // server). The homepage is ISR (6h), so a server `Date.now()` would be stale by up
   // to 6h → React Query would treat the seed as stale and refetch /api/listings on
@@ -208,7 +208,7 @@ export function ListingsExplorer({
   // The back-nav snapshot, read once on mount and applied when the feed's filters
   // settle to the same signature (filters hydrate from the URL in an effect, so the
   // match can't be made synchronously at mount).
-  const pendingSnapRef = useRef<{ sig: string; listings: SerializedListing[]; page: number; totalCount: number; scrollY: number; ts: number } | null>(null)
+  const pendingSnapRef = useRef<{ sig: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number } | null>(null)
   const snapReadRef = useRef(false)
   const [subcategoryCounts, setSubcategoryCounts] = useState<Record<string, number>>({})
   const [categoryTotal, setCategoryTotal] = useState(0)
@@ -807,7 +807,7 @@ export function ListingsExplorer({
       skipFirstPageResetRef.current = true
       restoredScrollRef.current = snap.scrollY
       setListings(snap.listings)
-      seenIdsRef.current = new Set(snap.listings.map((l: SerializedListing) => l.id))
+      seenIdsRef.current = new Set(snap.listings.map((l: SerializedListingCard) => l.id))
       maxOffsetRef.current = (snap.page - 1) * 12 // deepest offset already loaded (feed page size)
       setReachedEnd(false)
       setTotalCount(snap.totalCount)
@@ -835,16 +835,16 @@ export function ListingsExplorer({
           // Mid-restore the snapshot already holds more rows than a fresh page 1 — keep it
           // (seenIdsRef/maxOffsetRef were set by the restore effect; don't reset them).
           if (restoredScrollRef.current != null && prev.length > listingsData.listings.length) return prev
-          seenIdsRef.current = new Set(listingsData.listings.map((l: SerializedListing) => l.id))
+          seenIdsRef.current = new Set(listingsData.listings.map((l: SerializedListingCard) => l.id))
           maxOffsetRef.current = 0
           return listingsData.listings
         })
         setReachedEnd(false) // a fresh feed (filter change / reload) — paging is open again
       } else if (listingsData.offset === (page - 1) * (nearby ? 100 : 12)) {
         // Real data for THIS page (not a placeholderData replay, whose offset lags a page).
-        const fresh = listingsData.listings.filter((l: SerializedListing) => !seenIdsRef.current.has(l.id))
+        const fresh = listingsData.listings.filter((l: SerializedListingCard) => !seenIdsRef.current.has(l.id))
         if (fresh.length > 0) {
-          fresh.forEach((l: SerializedListing) => seenIdsRef.current.add(l.id))
+          fresh.forEach((l: SerializedListingCard) => seenIdsRef.current.add(l.id))
           maxOffsetRef.current = Math.max(maxOffsetRef.current, listingsData.offset)
           setListings((prev) => [...prev, ...fresh])
         } else if (listingsData.offset > maxOffsetRef.current) {
@@ -1036,7 +1036,7 @@ export function ListingsExplorer({
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
-  const handleOpen = useCallback((l: SerializedListing) => {
+  const handleOpen = useCallback((l: SerializedListingCard) => {
     // Snapshot the feed so a back-nav lands the buyer exactly where they left off
     // (rows + page + scroll), not at the top of a reset feed. Cap the payload so a
     // very deep scroll can't bloat sessionStorage.
@@ -1074,14 +1074,14 @@ export function ListingsExplorer({
   // ONE stable per-feed callback for cards (not a fresh `() => locateOnMap(l.id)`
   // per card per render) — lets the memoized ListingCard skip re-render during the
   // map hover/focus storm. The card hands back its own listing.
-  const locateListing = useCallback((l: SerializedListing) => locateOnMap(l.id), [locateOnMap])
+  const locateListing = useCallback((l: SerializedListingCard) => locateOnMap(l.id), [locateOnMap])
 
   // A card outside the feed (e.g. the For You rail) asks us to open it on the map. It
   // passes the full listing so we can inject it into the map even if it isn't in the
   // currently-loaded feed (otherwise focus would find nothing to fly to).
   useEffect(() => {
     const onLocate = (e: Event) => {
-      const d = (e as CustomEvent<{ id?: string; listing?: SerializedListing }>).detail
+      const d = (e as CustomEvent<{ id?: string; listing?: SerializedListingCard }>).detail
       if (!d?.id) return
       if (d.listing) setFocusListing(d.listing)
       locateOnMap(d.id)
@@ -1100,7 +1100,7 @@ export function ListingsExplorer({
     fetch(`/api/listings?ids=${encodeURIComponent(id)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        const l = d?.listings?.[0] as SerializedListing | undefined
+        const l = d?.listings?.[0] as SerializedListingCard | undefined
         if (l) { setFocusListing(l); locateOnMap(l.id) }
       })
       .catch(() => {})
@@ -1146,7 +1146,7 @@ export function ListingsExplorer({
     finally { savingSearch.current = false }
   }, [activeCategory, activeSubcategory, activeBrand, activeModel, listingType, debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters, tr, openSignIn])
 
-  const renderCompactRow = useCallback((l: SerializedListing, index: number) => {
+  const renderCompactRow = useCallback((l: SerializedListingCard, index: number) => {
     const cover = l.images[0]
     const displayTitle = lang === 'vi' ? (l.titleVi || l.title) : l.title
 

@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { db } from '@/lib/db'
-import { serializeListing } from '@/lib/serialize'
+import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { getCategoriesByDemand } from '@/lib/categories'
-import type { SerializedCategory, SerializedListing } from '@/lib/types'
+import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
 import { Footer } from '@/components/marketplace/footer'
@@ -14,7 +14,7 @@ export const revalidate = 21600 // 6h — the client explorer fetches live listi
 // Self-canonical so Google attributes ranking signals to the no-redirect www host.
 export const metadata: Metadata = { alternates: { canonical: '/' } }
 
-async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListing[]; total: number }> {
+async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListingCard[]; total: number }> {
   try {
     // verified:true AND status:'active' matches the /api/listings response (GET
     // forces verified+active-only), so this SSR data can seed React Query's
@@ -30,12 +30,12 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
         // First page of the infinite home feed; it paginates 12 at a time on scroll.
         // Smaller first page = fewer cards hydrating on first paint (main-thread win).
         take: 12,
-        include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+        select: LISTING_CARD_SELECT,
       }),
       db.listing.count({ where: { verified: true, status: 'active' } }),
     ])
 
-    const serializedListings: SerializedListing[] = await localizeListingTitles(listings.map(serializeListing))
+    const serializedListings: SerializedListingCard[] = await localizeListingTitles(listings.map(serializeListingCard))
 
     return { categories: serializedCategories, listings: serializedListings, total }
   } catch {

@@ -5,7 +5,7 @@ import { isMockImageUrl } from '@/lib/listing-image'
 import { useEffect, useRef, useState } from 'react'
 import { X, Heart } from 'lucide-react'
 import { TrustScore } from './trust-score'
-import type { SerializedListing } from '@/lib/types'
+import type { SerializedListingCard } from '@/lib/types'
 import { formatPrice } from '@/lib/types'
 import { formatMoneyFull, compactPrice } from '@/lib/vnd'
 import { useCurrency } from '@/context/currency-context'
@@ -20,15 +20,15 @@ import { cn } from '@/lib/utils'
 // compactPrice ("850K" / "51M" / "1.2B" — explicit suffixes in every language;
 // "51 tr" was opaque to the expat audience); the rare non-₫ listing keeps its
 // symbol-prefixed format.
-function pinLabel(l: SerializedListing): string {
+function pinLabel(l: SerializedListingCard): string {
   if (l.currency === '₫') return compactPrice(l.price)
   return formatPrice(l.price, l.currency, l.priceUnit)
 }
 
 type Props = {
-  listings: SerializedListing[]
+  listings: SerializedListingCard[]
   activeDistrict: string
-  onOpenListing: (l: SerializedListing) => void
+  onOpenListing: (l: SerializedListingCard) => void
   lang: Language
   selectedId?: string | null
   onHover?: (id: string | null) => void
@@ -94,7 +94,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   // Airbnb-style: a pin tap opens a small info card (not a direct navigation). The
   // ref mirrors the open card id so marker/map click handlers (captured in effects)
   // always see the current value without stale closures.
-  const [card, setCard] = useState<SerializedListing | null>(null)
+  const [card, setCard] = useState<SerializedListingCard | null>(null)
   // Card pops ABOVE the tapped pin (anchored to its screen position) — `above`
   // flips it below the pin when there isn't room near the top edge.
   const [cardPos, setCardPos] = useState<{ x: number; y: number; above: boolean } | null>(null)
@@ -117,7 +117,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     const h = compact ? 78 : Math.round(w * 0.625 + 84) // approx card height for the flip/recenter math
     return { w, h, compact }
   }
-  const placeCardFor = (l: SerializedListing) => {
+  const placeCardFor = (l: SerializedListingCard) => {
     const map = mapInstanceRef.current, el = mapRef.current
     if (!map || !el) return
     const { w: cw, h: ch } = cardDims()
@@ -131,7 +131,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   // that pops above it, so the whole card lands centred on screen instead of clipped at
   // an edge (the mobile annoyance). The `move` listener re-runs placeCardFor mid-pan so
   // the card glides to its final spot.
-  const recenterOnPin = (l: SerializedListing) => {
+  const recenterOnPin = (l: SerializedListingCard) => {
     const map = mapInstanceRef.current, el = mapRef.current
     if (!map || !el) return
     const L = (window as any).L
@@ -143,7 +143,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     const shift = Math.min(cardDims().h * 0.45, el.clientHeight * 0.28)
     map.panTo(map.unproject(L.point(pt.x, pt.y - shift), z), { animate: true, duration: 0.25 })
   }
-  const openCard = (l: SerializedListing, center = false) => {
+  const openCard = (l: SerializedListingCard, center = false) => {
     cardIdRef.current = l.id; setCard(l)
     if (center) recenterOnPin(l)
     placeCardFor(l); onHover?.(l.id)

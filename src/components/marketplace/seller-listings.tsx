@@ -3,12 +3,12 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search } from 'lucide-react'
-import type { SerializedListing } from '@/lib/types'
+import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { fold } from '@/lib/fold'
 import { useLanguage } from '@/context/language-context'
 
-export function SellerListings({ listings, searchable = false }: { listings: SerializedListing[]; searchable?: boolean }) {
+export function SellerListings({ listings, searchable = false }: { listings: SerializedListingCard[]; searchable?: boolean }) {
   const router = useRouter()
   const { tr } = useLanguage()
   const [q, setQ] = useState('')

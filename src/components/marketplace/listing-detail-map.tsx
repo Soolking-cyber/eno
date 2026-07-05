@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import type { SerializedListing } from '@/lib/types'
+import type { SerializedListingCard } from '@/lib/types'
 
 const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.ListingsMap), {
   ssr: false,
@@ -16,7 +16,7 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
 })
 
 type Props = {
-  listings: SerializedListing[]
+  listings: SerializedListingCard[]
   activeDistrict: string
 }
 
