@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
-import { Header } from '@/components/marketplace/header'
-import { Footer } from '@/components/marketplace/footer'
 import { Tr } from '@/context/language-context'
+import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 
 export const metadata: Metadata = { title: 'Safe trading | eno.vn' }
 
@@ -16,15 +15,13 @@ const tips = [
 
 export default function SafetyPage() {
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
-      <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
-        <p className="eyebrow text-accent-foreground mb-2"><Tr text="Safe trading" /></p>
-        <h1 className="h-display text-foreground"><Tr text="Trade with confidence." /></h1>
-        <p className="mt-4 text-[15px] leading-relaxed text-body">
-          <Tr text="Verification removes most of the risk — but a few simple habits keep every trade safe." />
-        </p>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+    <ContentPage
+      eyebrow="Safe trading"
+      title="Trade with confidence."
+      intro={<Tr text="Verification removes most of the risk — but a few simple habits keep every trade safe." />}
+    >
+      <ContentSection wide>
+        <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
           {tips.map(([title, text], i) => (
             <div key={i}>
               <h3 className="text-sm font-bold text-foreground"><Tr text={title} /></h3>
@@ -32,8 +29,7 @@ export default function SafetyPage() {
             </div>
           ))}
         </div>
-      </main>
-      <Footer />
-    </div>
+      </ContentSection>
+    </ContentPage>
   )
 }

@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Header } from '@/components/marketplace/header'
-import { Footer } from '@/components/marketplace/footer'
 import { Tr } from '@/context/language-context'
+import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Search, MessageCircle, Tag, MapPin, Plus, BadgeCheck, Bell, Heart, Globe, ShieldCheck, ChevronRight } from 'lucide-react'
 
 export const metadata: Metadata = {
@@ -33,19 +32,18 @@ const FEATURES: { Icon: typeof Search; id?: string; title: string; body: string 
 
 export default function GuidePage() {
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
-      <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
-        <p className="eyebrow text-accent-foreground mb-2"><Tr text="Guide" /></p>
-        <h1 className="h-display text-foreground"><Tr text="How eno.vn works" /></h1>
-        <p className="mt-3 text-sm leading-relaxed text-body">
-          <Tr text="eno.vn is the trusted marketplace for Vietnam’s international community. Here’s everything you need in a couple of minutes." />
-        </p>
-
-        {/* For buyers */}
-        <section className="mt-10">
-          <h2 className="h-section text-foreground"><Tr text="For buyers" /></h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+    <ContentPage
+      eyebrow="Guide"
+      title="How eno.vn works"
+      intro={<Tr text="eno.vn is the trusted marketplace for Vietnam’s international community. Here’s everything you need in a couple of minutes." />}
+      sections={[
+        { id: 'buyers', label: 'For buyers' },
+        { id: 'sellers', label: 'For sellers' },
+        { id: 'features', label: 'Features' },
+      ]}
+    >
+      <ContentSection id="buyers" title="For buyers" wide>
+          <div className="mt-1 grid gap-x-8 gap-y-4 sm:grid-cols-3">
             {BUYER_STEPS.map(({ Icon, title, body }, i) => (
               <div key={title}>
                 <div className="flex items-center gap-2">
@@ -57,12 +55,10 @@ export default function GuidePage() {
               </div>
             ))}
           </div>
-        </section>
+      </ContentSection>
 
-        {/* For sellers */}
-        <section className="mt-10">
-          <h2 className="h-section text-foreground"><Tr text="For sellers" /></h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <ContentSection id="sellers" title="For sellers" wide>
+          <div className="mt-1 grid gap-x-8 gap-y-4 sm:grid-cols-3">
             {SELLER_STEPS.map(({ Icon, title, body }, i) => (
               <div key={title}>
                 <div className="flex items-center gap-2">
@@ -74,12 +70,10 @@ export default function GuidePage() {
               </div>
             ))}
           </div>
-        </section>
+      </ContentSection>
 
-        {/* Feature reference */}
-        <section className="mt-12">
-          <h2 className="h-section text-foreground"><Tr text="Features & how they work" /></h2>
-          <div className="mt-4 space-y-3">
+      <ContentSection id="features" title="Features & how they work" wide>
+          <div className="mt-1 grid gap-x-10 gap-y-5 lg:grid-cols-2">
             {FEATURES.map(({ Icon, id, title, body }) => (
               <div key={title} id={id} className="scroll-mt-24 flex gap-3.5">
                 <span className="mt-0.5 shrink-0 text-accent-foreground"><Icon className="h-5 w-5" /></span>
@@ -90,10 +84,10 @@ export default function GuidePage() {
               </div>
             ))}
           </div>
-        </section>
+      </ContentSection>
 
-        {/* CTA */}
-        <div className="mt-12 flex flex-wrap gap-2.5">
+      <ContentSection>
+        <div className="flex flex-wrap gap-2.5">
           <Link href="/post" className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
             <Plus className="h-4 w-4" /> <Tr text="Post a listing" />
           </Link>
@@ -101,15 +95,13 @@ export default function GuidePage() {
             <Search className="h-4 w-4" /> <Tr text="Browse listings" />
           </Link>
         </div>
-
         <p className="mt-6 text-sm text-body">
           <Tr text="Looking for something specific?" />{' '}
           <Link href="/help" className="inline-flex items-center gap-0.5 font-semibold text-accent-foreground hover:underline">
             <Tr text="Visit the Help center" /> <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         </p>
-      </main>
-      <Footer />
-    </div>
+      </ContentSection>
+    </ContentPage>
   )
 }

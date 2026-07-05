@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
-import { Header } from '@/components/marketplace/header'
-import { Footer } from '@/components/marketplace/footer'
 import { Tr } from '@/context/language-context'
+import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 
 export const metadata: Metadata = { title: 'Terms of Service | eno.vn' }
 
@@ -65,27 +64,26 @@ const sections: [string, string[]][] = [
 
 export default function TermsPage() {
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
-      <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
-        <p className="eyebrow text-accent-foreground mb-2"><Tr text="Legal" /></p>
-        <h1 className="h-display text-foreground"><Tr text="Terms of Service" /></h1>
-        <p className="mt-3 text-sm text-ink-4"><Tr text="Last updated: June 2026" /></p>
-        <p className="mt-2 text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of these terms is the authoritative one." /></p>
-        <div className="mt-8 space-y-8">
-          {sections.map(([title, paras], i) => (
-            <section key={i}>
-              <h2 className="h-section text-foreground mb-2"><Tr text={title} /></h2>
-              <div className="space-y-2">
-                {paras.map((p, j) => (
-                  <p key={j} className="text-[15px] leading-relaxed text-body"><Tr text={p} /></p>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </main>
-      <Footer />
-    </div>
+    <ContentPage
+      eyebrow="Legal"
+      title="Terms of Service"
+      meta={
+        <>
+          <p className="mt-3 text-sm text-ink-4"><Tr text="Last updated: June 2026" /></p>
+          <p className="mt-2 max-w-3xl text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of these terms is the authoritative one." /></p>
+        </>
+      }
+      sections={sections.map(([title], i) => ({ id: `s${i}`, label: title as string }))}
+    >
+      {sections.map(([title, paras], i) => (
+        <ContentSection key={i} id={`s${i}`} title={title as string}>
+          <div className="space-y-2">
+            {(paras as string[]).map((p, j) => (
+              <p key={j} className="text-[15px] leading-relaxed text-body"><Tr text={p} /></p>
+            ))}
+          </div>
+        </ContentSection>
+      ))}
+    </ContentPage>
   )
 }

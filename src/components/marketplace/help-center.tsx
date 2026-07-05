@@ -6,14 +6,15 @@ import { HelpFeedback } from '@/components/marketplace/help-feedback'
 import { Rocket, BadgeCheck, ShieldCheck, Mail, ChevronRight } from 'lucide-react'
 
 // The Help Center body — shared by the standalone /help page AND the dashboard "Help"
-// tab (so the tab opens inline, no redirect). Self-contained (own max-w wrapper); the
-// caller supplies the page chrome (header/footer or dashboard shell).
+// tab (so the tab opens inline, no redirect). Fills the caller's container (the /help
+// page + dashboard both provide the canonical max-w-7xl); FAQ sections flow as
+// borderless chunks in a 2-col grid at lg so the width is actually used.
 
 const TOPICS: { Icon: typeof Rocket; label: string; href: string }[] = [
   { Icon: Rocket, label: 'How eno.vn works', href: '/guide' },
   { Icon: BadgeCheck, label: 'Trust & reputation', href: '/guide#verification' },
   { Icon: ShieldCheck, label: 'Safe trading', href: '/safety' },
-  { Icon: Mail, label: 'Contact support', href: 'mailto:support@eno.forum' },
+  { Icon: Mail, label: 'Contact support', href: 'mailto:support@eno.vn' },
 ]
 
 const MORE_LINKS: { label: string; href: string }[] = [
@@ -87,7 +88,7 @@ const SECTIONS: { title: string; items: [string, string][] }[] = [
 
 export function HelpCenter() {
   return (
-    <div className="mx-auto w-full max-w-3xl">
+    <div className="w-full">
       <p className="eyebrow text-accent-foreground mb-2"><Tr text="Help center" /></p>
       <h1 className="h-display text-foreground"><Tr text="How can we help?" /></h1>
       <p className="mt-3 text-sm leading-relaxed text-body">
@@ -104,8 +105,8 @@ export function HelpCenter() {
         ))}
       </div>
 
-      {/* Categorized FAQ */}
-      <div className="mt-10 space-y-10">
+      {/* Categorized FAQ — chunked, two columns at lg */}
+      <div className="mt-10 grid gap-x-14 gap-y-10 lg:grid-cols-2">
         {SECTIONS.map((section) => (
           <section key={section.title}>
             <h2 className="h-section text-foreground"><Tr text={section.title} /></h2>
@@ -149,7 +150,7 @@ export function HelpCenter() {
           <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
           <p className="text-sm text-body"><Tr text="Our team replies within one business day." /></p>
         </div>
-        <a href="mailto:support@eno.forum" className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
+        <a href="mailto:support@eno.vn" className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
           <Mail className="h-4 w-4" /> support@eno.forum
         </a>
       </div>

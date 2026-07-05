@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
 import { ShieldCheck, Eye, BadgeCheck } from 'lucide-react'
-import { Header } from '@/components/marketplace/header'
-import { Footer } from '@/components/marketplace/footer'
 import { Tr } from '@/context/language-context'
+import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 
 export const metadata: Metadata = { title: 'About | eno.vn' }
 
@@ -13,17 +12,13 @@ export default function AboutPage() {
     { icon: <BadgeCheck className="h-5 w-5" />, title: 'It goes live instantly', text: 'Listings publish right away. Sellers build a public trust score and buyers can report problems — so fakes and bait prices don’t last.' },
   ]
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
-      <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
-        <p className="eyebrow text-accent-foreground mb-2"><Tr text="About eno.vn" /></p>
-        <h1 className="h-display text-foreground"><Tr text="The trusted marketplace for Vietnam." /></h1>
-        <p className="mt-4 text-[15px] leading-relaxed text-body">
-          <Tr text="eno.vn is a classifieds marketplace built around trust: every seller has a public trust score, automated checks run on each post, and the community can report bad listings. Motorbikes, rentals, electronics, jobs and services — with fakes and bait prices caught fast." />
-        </p>
-
-        <h2 className="h-section text-foreground mt-10 mb-4"><Tr text="How trust works" /></h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+    <ContentPage
+      eyebrow="About eno.vn"
+      title="The trusted marketplace for Vietnam."
+      intro={<Tr text="eno.vn is a classifieds marketplace built around trust: every seller has a public trust score, automated checks run on each post, and the community can report bad listings. Motorbikes, rentals, electronics, jobs and services — with fakes and bait prices caught fast." />}
+    >
+      <ContentSection title="How trust works" wide>
+        <div className="grid gap-x-8 gap-y-6 sm:grid-cols-3">
           {steps.map((s, i) => (
             <div key={i}>
               <span className="flex h-8 w-8 items-center justify-center text-accent-foreground">{s.icon}</span>
@@ -32,13 +27,13 @@ export default function AboutPage() {
             </div>
           ))}
         </div>
+      </ContentSection>
 
-        <h2 id="contact" className="h-section text-foreground mt-10 mb-2"><Tr text="Contact" /></h2>
+      <ContentSection id="contact" title="Contact">
         <p className="text-sm text-body">
           <Tr text="Questions or press:" /> <a href="mailto:support@eno.vn" className="font-semibold text-accent-foreground hover:underline">support@eno.vn</a>
         </p>
-      </main>
-      <Footer />
-    </div>
+      </ContentSection>
+    </ContentPage>
   )
 }

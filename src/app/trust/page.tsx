@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
-import { Header } from '@/components/marketplace/header'
-import { Footer } from '@/components/marketplace/footer'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { Tr } from '@/context/language-context'
+import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 
 export const metadata: Metadata = {
   title: 'How trust works — eno.vn',
@@ -44,28 +43,30 @@ function Points({ rows }: { rows: [string, number, string][] }) {
 // volume-gated tiers, dual-threshold demotion. Keep numbers in sync with TRUST.
 export default function TrustPage() {
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
-      <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-16">
-        <h1 className="h-display text-foreground"><Tr text="How trust works on eno.vn" /></h1>
-        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-body">
-          <Tr text="Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It is recomputed every day from what an account actually does on eno.vn, and recent behavior counts more than the past — so the score always reflects who a seller is now, not who they used to be." />
-        </p>
-
-        <section className="mt-10 space-y-4">
-          <h2 className="h-section text-foreground"><Tr text="What the colors mean" /></h2>
+    <ContentPage
+      eyebrow="Trust"
+      title="How trust works on eno.vn"
+      intro={<Tr text="Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It is recomputed every day from what an account actually does on eno.vn, and recent behavior counts more than the past — so the score always reflects who a seller is now, not who they used to be." />}
+      sections={[
+        { id: 'colors', label: 'What the colors mean' },
+        { id: 'built', label: 'How the score is built' },
+        { id: 'reviews', label: 'Reviews' },
+        { id: 'penalties', label: 'What costs you trust' },
+        { id: 'fair', label: 'Fair by design' },
+      ]}
+    >
+      <ContentSection id="colors" title="What the colors mean">
           <p className="text-sm text-body"><Tr text="Every account starts at 60 — a neutral 'Building' state, not a warning. The upper tiers are earned with real volume: a badge certifies a track record, never just a number." /></p>
-          <div className="mt-2 space-y-4">
+          <div className="mt-4 space-y-4">
             <Band score={175} name="Elite" range="160 and up" note="The top tier — a long, high-volume, spotless track record. The most trusted businesses on eno.vn." />
             <Band score={130} name="Exceptional" range="110–159" note="At least 10 completed deals in the last year, reviews from 5 different buyers, a proven fast-reply record, and 6 clean months." />
             <Band score={95} name="Trusted" range="85–109" note="A verified account with at least 3 completed deals and either 60 days on eno or reviews from 3 different buyers — plus a clean last 90 days." />
             <Band score={70} name="Building" range="60–84" note="Where every account starts, and where accounts with fewer than 3 completed deals stay. Not a penalty — just an unproven track record." />
             <Band score={45} name="Restricted" range="below 60" note="A serious or repeated confirmed problem — including any confirmed scam that hasn't been worked off. New listings may be held for review." />
           </div>
-        </section>
+      </ContentSection>
 
-        <section className="mt-10 space-y-3">
-          <h2 className="h-section text-foreground"><Tr text="How the score is built" /></h2>
+      <ContentSection id="built" title="How the score is built">
           <p className="text-sm text-body"><Tr text="The score starts at 60 and adds four components, each with a hard ceiling — so no single tactic can be farmed to the top. Everything except verification is windowed: only recent behavior moves it." /></p>
           <div className="mt-1">
             <Points rows={[
@@ -75,16 +76,14 @@ export default function TrustPage() {
               ['Conduct', -90, 'Confirmed reports subtract, weighted by severity and by who reported — and fade only as described below'],
             ]} />
           </div>
-        </section>
+      </ContentSection>
 
-        <section className="mt-10 space-y-3">
-          <h2 className="h-section text-foreground"><Tr text="Reviews that can't be gamed" /></h2>
+      <ContentSection id="reviews" title="Reviews that can't be gamed">
           <p className="text-sm text-body"><Tr text="Only verified buyers — people who actually completed a deal through eno chat — can review, and each buyer counts once per 90 days. Ratings are statistically smoothed toward the platform average, so two perfect ratings can never beat two hundred near-perfect ones. Reply speed is judged the same way: a proven rate over many conversations beats a lucky streak of three." /></p>
           <p className="text-sm text-body"><Tr text="Who says it matters too: reviews and reports from established, verified accounts carry full weight, while a day-old account carries very little — so burner accounts can neither inflate a friend nor sink a rival." /></p>
-        </section>
+      </ContentSection>
 
-        <section className="mt-10 space-y-3">
-          <h2 className="h-section text-foreground"><Tr text="What costs you trust" /></h2>
+      <ContentSection id="penalties" title="What costs you trust">
           <p className="text-sm text-body"><Tr text="Only reports confirmed by our moderators count, weighted by severity and by the reporter's credibility. Minor issues fade in about 3 months of clean trading; misrepresentation takes about a year." /></p>
           <div className="mt-1">
             <Points rows={[
@@ -95,16 +94,13 @@ export default function TrustPage() {
             ]} />
           </div>
           <p className="text-xs text-muted-foreground"><Tr text="A confirmed scam is different: waiting does nothing. Its full penalty stays frozen until the seller completes 5 new clean deals — only then does it slowly start to fade, and it never drops below 40% of its weight. Time alone never launders fraud; reform requires behavior." /></p>
-        </section>
+      </ContentSection>
 
-        <section className="mt-10 space-y-3">
-          <h2 className="h-section text-foreground"><Tr text="Fair by design" /></h2>
+      <ContentSection id="fair" title="Fair by design">
           <p className="text-sm leading-relaxed text-body">
             <Tr text="One hostile buyer can never sink a seller alone: reports only pull a tier down when they come from at least two different people AND exceed 2% of the seller's deals — or when a scam is confirmed. Penalties scale with your volume in practice, judgments are windowed so an old mistake doesn't mark you forever, and nothing heals by waiting: scores rise only through verification, real deals, real reviews, and fast replies. Daily gains are capped, so trust can only be built the slow, honest way — and higher trust ranks higher in search and the feed, so being reliable directly earns more views, chats, and sales." />
           </p>
-        </section>
-      </main>
-      <Footer />
-    </div>
+      </ContentSection>
+    </ContentPage>
   )
 }
