@@ -19,8 +19,10 @@ export function AISearchButton({
       aria-label={tr('AI shopping assistant', 'Trợ lý mua sắm AI')}
       title={tr('Ask eno AI', 'Hỏi eno AI')}
       className={cn(
-        'flex shrink-0 items-center justify-center rounded-xl transition-all active:scale-95 tap-44 relative',
-        active ? 'bg-primary text-white shadow-sm' : 'text-body hover:bg-muted',
+        // Inactive = the search-bar icon standard (same as the magnifier + Map):
+        // quiet ink, turns brand-blue on hover. Active keeps the filled state.
+        'flex shrink-0 items-center justify-center rounded-xl transition-colors tap-44 relative cursor-pointer',
+        active ? 'bg-primary text-white shadow-sm' : 'text-ink-4 hover:text-accent-foreground',
         className,
       )}
     >

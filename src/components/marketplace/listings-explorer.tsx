@@ -1254,13 +1254,13 @@ export function ListingsExplorer({
                 {/* Photo search folded into the AI assistant (camera in the ✨ chat
                     composer); pasting an image here still visual-searches. */}
                 <span className="h-6 w-px shrink-0 bg-border sm:h-7" />
-                {/* Same look/feel as the AI button beside it: rest = quiet text-body,
-                    hover = bg-muted tint, tap = scale — one family of pill icons. */}
+                {/* Search-bar icon standard (matches the magnifier + AI button):
+                    quiet ink at rest, brand-blue on hover. */}
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
                   aria-label={tr('Map', 'Bản đồ')}
                   title={tr('Map', 'Bản đồ')}
-                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-2.5 sm:py-3 text-body transition-all hover:bg-muted active:scale-95 cursor-pointer"
+                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-2.5 sm:py-3 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
                 >
                   <Map className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                 </button>
