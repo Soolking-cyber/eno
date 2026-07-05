@@ -28,7 +28,10 @@ export function AdminHeader() {
           </Link>
           <Link href="/" className="text-sm font-semibold text-accent-foreground hover:underline">Back to site</Link>
         </div>
-        <nav aria-label="Admin sections" className="scrollbar-none -mx-3 flex gap-1 overflow-x-auto px-3 pb-2 sm:mx-0 sm:px-0">
+        {/* Section tabs — the SAME underline-tab system as the dashboard (Post ·
+            Listings · Settings…): quiet text, brand underline on the active tab,
+            merging into the header's bottom border. */}
+        <nav aria-label="Admin sections" className="scrollbar-none -mx-3 flex items-center gap-1 overflow-x-auto px-3 sm:mx-0 sm:px-0">
           {SECTIONS.map((s) => {
             const active = s.href === '/admin' ? pathname === '/admin' : pathname.startsWith(s.href)
             return (
@@ -37,8 +40,8 @@ export function AdminHeader() {
                 href={s.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                  active ? 'bg-primary text-white' : 'text-body hover:bg-muted',
+                  '-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors',
+                  active ? 'border-brand text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
                 )}
               >
                 {s.label}
