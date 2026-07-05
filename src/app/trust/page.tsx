@@ -39,6 +39,9 @@ function Points({ rows }: { rows: [string, number, string][] }) {
   )
 }
 
+// Copy mirrors the v2 engine (src/lib/trust-math.ts): windowed + decayed composite,
+// Bayesian reviews, Wilson responsiveness, frozen-scam rule, reviewer credibility,
+// volume-gated tiers, dual-threshold demotion. Keep numbers in sync with TRUST.
 export default function TrustPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
@@ -46,66 +49,58 @@ export default function TrustPage() {
       <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-16">
         <h1 className="h-display text-foreground"><Tr text="How trust works on eno.vn" /></h1>
         <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-body">
-          <Tr text="Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It reflects a real track record earned on eno.vn, so you can tell reliable people and businesses apart at a glance." />
+          <Tr text="Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It is recomputed every day from what an account actually does on eno.vn, and recent behavior counts more than the past — so the score always reflects who a seller is now, not who they used to be." />
         </p>
 
         <section className="mt-10 space-y-4">
           <h2 className="h-section text-foreground"><Tr text="What the colors mean" /></h2>
-          <p className="text-sm text-body"><Tr text="New accounts start below 100 and earn up to it by verifying — a phone number and Zalo for individuals and tourists, plus identity verification (KYC) for businesses — so unverified strangers carry less trust up front. From there you rise or fall on your behavior." /></p>
+          <p className="text-sm text-body"><Tr text="Every account starts at 60 — a neutral 'Building' state, not a warning. The upper tiers are earned with real volume: a badge certifies a track record, never just a number." /></p>
           <div className="mt-2 space-y-4">
             <Band score={175} name="Elite" range="160 and up" note="The top tier — a long, high-volume, spotless track record. The most trusted businesses on eno.vn." />
-            <Band score={130} name="Exceptional" range="110–159" note="A strong, clean track record with many completed deals." />
-            <Band score={95} name="Good standing" range="85–109" note="Verified and reliable. Individuals reach this with phone + Zalo; businesses by adding KYC." />
-            <Band score={70} name="Building" range="60–84" note="Where new accounts begin. Verify your phone, link Zalo (and KYC for businesses) to climb." />
-            <Band score={45} name="Restricted" range="below 60" note="A serious or repeated problem, or an unverified account that's been reported. New listings may be held for review." />
+            <Band score={130} name="Exceptional" range="110–159" note="At least 10 completed deals in the last year, reviews from 5 different buyers, a proven fast-reply record, and 6 clean months." />
+            <Band score={95} name="Trusted" range="85–109" note="A verified account with at least 3 completed deals and either 60 days on eno or reviews from 3 different buyers — plus a clean last 90 days." />
+            <Band score={70} name="Building" range="60–84" note="Where every account starts, and where accounts with fewer than 3 completed deals stay. Not a penalty — just an unproven track record." />
+            <Band score={45} name="Restricted" range="below 60" note="A serious or repeated confirmed problem — including any confirmed scam that hasn't been worked off. New listings may be held for review." />
           </div>
         </section>
 
         <section className="mt-10 space-y-3">
-          <h2 className="h-section text-foreground"><Tr text="Verify to reach 100" /></h2>
-          <p className="text-sm text-body"><Tr text="A new account starts at 60. These one-time steps lift it to full standing — phone + Zalo is enough for individuals; businesses add KYC." /></p>
+          <h2 className="h-section text-foreground"><Tr text="How the score is built" /></h2>
+          <p className="text-sm text-body"><Tr text="The score starts at 60 and adds four components, each with a hard ceiling — so no single tactic can be farmed to the top. Everything except verification is windowed: only recent behavior moves it." /></p>
           <div className="mt-1">
             <Points rows={[
-              ['Verify your phone', 15, 'Everyone — the baseline trust step'],
-              ['Link your Zalo', 10, 'A trusted contact channel; great for tourists & individuals'],
-              ['Complete KYC (identity)', 15, 'The key step for businesses → full standing'],
-              ['Complete your profile', 5, 'Photo, bio, location, contact'],
+              ['Verification', 25, 'One-time gates: verified phone +10, business identity (KYC) +10, account older than 90 days +5'],
+              ['Quality', 40, 'Verified-buyer reviews (up to 25), proven reply speed (up to 10), fresh availability on your listings (up to 5)'],
+              ['Track record', 25, 'Completed deals in the last 12 months — with diminishing returns, so volume alone can\'t buy the top'],
+              ['Conduct', -90, 'Confirmed reports subtract, weighted by severity and by who reported — and fade only as described below'],
             ]} />
           </div>
         </section>
 
         <section className="mt-10 space-y-3">
-          <h2 className="h-section text-foreground"><Tr text="Grow your score" /></h2>
-          <p className="text-sm text-body"><Tr text="Ongoing rewards. Only completed sales are uncapped — and they need real money + a real buyer, so trust can't be faked." /></p>
-          <div className="mt-1">
-            <Points rows={[
-              ['Complete a sale on eno.vn', 5, 'No limit — the more real deals you close, the higher you climb & rank'],
-              ['Get a review from a verified buyer', 3, 'Only real buyers who transacted can review'],
-              ['Keep listings fresh (confirm availability)', 2, 'Max once per day'],
-              ['Reply quickly to buyers', 1, 'Max once per day'],
-            ]} />
-          </div>
+          <h2 className="h-section text-foreground"><Tr text="Reviews that can't be gamed" /></h2>
+          <p className="text-sm text-body"><Tr text="Only verified buyers — people who actually completed a deal through eno chat — can review, and each buyer counts once per 90 days. Ratings are statistically smoothed toward the platform average, so two perfect ratings can never beat two hundred near-perfect ones. Reply speed is judged the same way: a proven rate over many conversations beats a lucky streak of three." /></p>
+          <p className="text-sm text-body"><Tr text="Who says it matters too: reviews and reports from established, verified accounts carry full weight, while a day-old account carries very little — so burner accounts can neither inflate a friend nor sink a rival." /></p>
         </section>
 
         <section className="mt-10 space-y-3">
           <h2 className="h-section text-foreground"><Tr text="What costs you trust" /></h2>
-          <p className="text-sm text-body"><Tr text="Penalties are heavier than rewards by design — trust is hard to earn and easy to lose — but they heal over time for clean accounts." /></p>
+          <p className="text-sm text-body"><Tr text="Only reports confirmed by our moderators count, weighted by severity and by the reporter's credibility. Minor issues fade in about 3 months of clean trading; misrepresentation takes about a year." /></p>
           <div className="mt-1">
             <Points rows={[
-              ['Confirmed scam or counterfeit', -25, 'Erases ~5 sales. Two of these → Restricted.'],
-              ['Confirmed misrepresentation', -10, 'Wrong info, bait pricing, misleading photos'],
-              ['Filing a false report', -10, 'Applied to the reporter — keeps reporting honest'],
-              ['Confirmed minor issue (spam/duplicate)', -3, ''],
-              ['Letting active listings go stale (7+ days)', -3, 'Per week, and only if you have active listings'],
+              ['Confirmed scam or counterfeit', -45, 'Does NOT fade with time — see below'],
+              ['Confirmed misrepresentation', -18, 'Wrong info, bait pricing, misleading photos — fades over ~1 year of clean trading'],
+              ['Filing a false report', -10, 'Applied to the reporter — and every strike also halves the weight of their future reports'],
+              ['Confirmed minor issue (spam/duplicate)', -5, 'Fades in ~3 months'],
             ]} />
           </div>
-          <p className="text-xs text-muted-foreground"><Tr text="Clean accounts recover about +1/day back toward their pre-penalty score, so an honest mistake never marks you forever — but recent or repeated bad acts pause recovery." /></p>
+          <p className="text-xs text-muted-foreground"><Tr text="A confirmed scam is different: waiting does nothing. Its full penalty stays frozen until the seller completes 5 new clean deals — only then does it slowly start to fade, and it never drops below 40% of its weight. Time alone never launders fraud; reform requires behavior." /></p>
         </section>
 
-        <section className="mt-10 space-y-2">
-          <h2 className="h-section text-foreground"><Tr text="Why this is fair to everyone" /></h2>
+        <section className="mt-10 space-y-3">
+          <h2 className="h-section text-foreground"><Tr text="Fair by design" /></h2>
           <p className="text-sm leading-relaxed text-body">
-            <Tr text="The numbers are tuned with game theory so honest sellers always come out ahead and bad actors fall behind: the only uncapped reward (completing real sales) requires real money and a real counterparty, so it can't be farmed — while a single confirmed scam wipes five sales. Higher trust ranks higher in search and the feed, so being reliable directly earns more views, chats, and sales. Newcomers can verify their way up, and one slip is recoverable — but repeat offenders sink and get their listings held." />
+            <Tr text="One hostile buyer can never sink a seller alone: reports only pull a tier down when they come from at least two different people AND exceed 2% of the seller's deals — or when a scam is confirmed. Penalties scale with your volume in practice, judgments are windowed so an old mistake doesn't mark you forever, and nothing heals by waiting: scores rise only through verification, real deals, real reviews, and fast replies. Daily gains are capped, so trust can only be built the slow, honest way — and higher trust ranks higher in search and the feed, so being reliable directly earns more views, chats, and sales." />
           </p>
         </section>
       </main>

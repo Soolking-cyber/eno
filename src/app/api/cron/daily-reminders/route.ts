@@ -94,8 +94,11 @@ export async function GET(req: NextRequest) {
     for (const r of res) { notified += r.notified; pushed += r.pushed }
   }
 
-  // Trust maintenance: decay inactive accounts, recover clean ones toward 100.
-  let trust = { decayed: 0, recovered: 0 }
+  // Trust maintenance v2: recompute-all-active. NO calendar drift (the old +1/day
+  // recovery and inactivity dock are gone) — the daily pass re-evaluates the
+  // windowed/decayed composite so penalties fade on their half-lives, the 365d/90d
+  // windows slide, and freshness stays honest. Bounded (count + soft deadline).
+  let trust = { recomputed: 0, scanned: 0 }
   try { trust = await runTrustMaintenance() } catch (e) { console.error('[cron] trust maintenance', e) }
 
   // Re-decay the feed rankScore for every live listing — recency drops a little each day,

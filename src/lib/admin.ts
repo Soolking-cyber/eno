@@ -2,7 +2,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { ensureProfile } from '@/lib/profile'
-import { recordPhoneVerified, NEW_ACCOUNT_DEFICIT, PHONE_VERIFIED_BONUS } from '@/lib/trust'
+import { recordPhoneVerified, BASE_SCORE, PHONE_VERIFIED_BONUS } from '@/lib/trust'
 import type { Profile } from '@/generated/prisma/client'
 
 /** Comma-separated allowlist from ADMIN_EMAILS (server-only env). */
@@ -43,14 +43,14 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   const existing = await db.profile.findUnique({ where: { id: data.user.id } })
   if (!existing) return ensureProfile(data.user)
 
-  // ensureProfile credits the +15 phone-verified bonus only at FIRST creation. A phone
+  // ensureProfile credits the phone-verified gate (V +10) only at FIRST creation. A phone
   // verified later — or not yet confirmed at that first call (common for phone-OTP) —
-  // would otherwise never get it, leaving a verified user stuck at the 60 deficit floor.
+  // would otherwise never get it, leaving a verified user stuck at the 60 base floor.
   // Credit it here: idempotent (recordPhoneVerified no-ops if already applied), only for
   // an auth-CONFIRMED phone (never a self-typed business number), only while the score is
   // still below the post-credit baseline (so credited accounts don't re-check), and after
   // the response flushes (zero added latency).
-  if (data.user.phone_confirmed_at && existing.trustScore < 100 - NEW_ACCOUNT_DEFICIT + PHONE_VERIFIED_BONUS) {
+  if (data.user.phone_confirmed_at && existing.trustScore < BASE_SCORE + PHONE_VERIFIED_BONUS) {
     try { after(() => recordPhoneVerified(existing.id).catch(() => {})) } catch { /* no request scope */ }
   }
   return existing

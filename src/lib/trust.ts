@@ -1,57 +1,85 @@
 import 'server-only'
 import { db } from './db'
 import { recomputeRankScoreForSeller } from './ranking'
+import {
+  DAY_MS,
+  TRUST,
+  applyDailyCap,
+  composeScore,
+  conductPenalty,
+  credibilityWeight,
+  dedupeReviewPairs,
+  freshnessScore,
+  manualAdjustSum,
+  responseScore,
+  reviewScore,
+  severityFromDelta,
+  tierFor,
+  trackRecordScore,
+  verificationScore,
+  wilsonLowerBound,
+  type ConductItem,
+  type ReportSeverity,
+  type ReportWindow,
+  type TierInputs,
+  type TrustTier,
+} from './trust-math'
 
 /**
- * Trust & Reputation engine — the single public trust signal (a color-coded score).
+ * Trust & Reputation engine v2 — the single public trust signal (a color-coded score).
  *
- * Score = max(0, 100 + Σ TrustEvent.delta), no upper ceiling. The cache on
- * Profile.trustScore (+ Seller mirror) is recomputed after every event — never
- * mutated blindly — so every change is auditable and reversible.
+ * v2 (design: .claude/plans/eno-trust-v2.md) replaces the v1 lifetime additive sum
+ * with a WINDOWED, DECAYED composite recomputed from source tables:
  *
- * DESIGN (a balanced reputation game, per eBay/Airbnb/StackOverflow research):
- *  • Sybil-resistant baseline — new/unverified accounts start BELOW 100 (deficit
- *    −40 → 60) and earn up by VERIFYING identity (phone +15, Zalo +10, KYC +15),
- *    so fake/throwaway accounts can't start trusted.
- *  • Earn by creating value — completed on-platform transactions (+5, UNCAPPED,
- *    and gated by a real-money fee so they can't be farmed) are the main climb;
- *    verified-buyer reviews, fast replies, and daily activity give smaller, CAPPED
- *    boosts (anti-farming via diminishing returns).
- *  • Asymmetric, recoverable penalties — trust is easy to lose, hard to fake:
- *    confirmed reports cost −3/−10/−25 by severity (one bad act erases several
- *    transactions), inactivity decays −3/window — but clean accounts slowly RECOVER
- *    (heals penalties only, capped, never the verification deficit) so no permanent death.
- *  • Tiers (color) with rising privilege: <60 Restricted (held) · 60–84 Building ·
- *    85–109 Trusted · 110–159 Exceptional · 160+ Elite. Higher score → higher ranking.
+ *   score = clamp(0, 150, 60 + V + Q + T − C)
+ *
+ *  • V Verification (0–25): permanent one-time gates — phone +10 · KYC +10 · age≥90d +5.
+ *  • Q Quality (0–40): Bayesian-smoothed verified reviews (IMDb, m=5 prior 4.6) +
+ *    Wilson-lower-bound responsiveness (z=1.28, 90d) + availability freshness (<14d).
+ *  • T Track record (0–25): 12·log10(1+tx) over the trailing 365d — log-diminishing
+ *    so reputation can't be bulk-bought.
+ *  • C Conduct (0–90): admin-CONFIRMED reports, severity × reporter-credibility ×
+ *    per-class decay — and a confirmed scam's decay stays FROZEN until 5 verified
+ *    clean transactions AFTER the event, then floors at 40% forever (Friedman–Resnick:
+ *    time alone never launders fraud).
+ *
+ * The TrustEvent LEDGER stays the audit trail (report resolutions, manual adjusts,
+ * one-time verification lifts all still write events) — but the score is no longer
+ * Σdeltas: the recompute READS the source tables + the decayed ledger. There is NO
+ * calendar drift: no +1/day recovery, no inactivity dock — decay + shifting windows
+ * keep scores current, and staleness costs the freshness component endogenously.
+ *
+ * Tiers are VOLUME-GATED (a badge certifies a track record, not a number) with
+ * eBay-style dual-threshold demotion — one hostile buyer can never sink a seller.
+ * All math is pure in src/lib/trust-math.ts (unit-tested; mirrored in the
+ * scripts/trust-v2-*.mjs migration scripts).
  */
 
-export type TrustTier = 'restricted' | 'standard' | 'trusted' | 'exceptional'
+export type { TrustTier } from './trust-math'
+export { tierFor, TRUST } from './trust-math'
 
-// Confirmed-report penalties by severity (decision: severity-weighted).
-export const SEVERITY_PENALTY: Record<'minor' | 'moderate' | 'severe', number> = {
-  minor: 3, // spam / duplicate / minor
-  moderate: 10, // misrepresentation / wrong info / offensive
-  severe: 25, // scam / counterfeit
-}
+// v2 nominal severity weights — also the ledger delta magnitude written on confirm
+// (audit only; the recompute re-derives the decayed, credibility-weighted penalty
+// from the Report row). scam 45 · misrepresentation 18 · minor 5.
+export const SEVERITY_PENALTY: Record<ReportSeverity, number> = TRUST.SEVERITY_WEIGHT
 
-// Penalty applied to a REPORTER whose report an admin marks abusive/false.
+// Penalty applied to a REPORTER whose report an admin marks abusive/false
+// (a manual_adjust ledger event → decays with H=365 in the composite; the strike
+// itself also halves the reporter's source credibility — the harsher, lasting cost).
 export const FALSE_REPORT_PENALTY = 10
 export const REPORT_COOLDOWN_DAYS = 14
 
-const SCORE_MIN = 0
-// No upper ceiling: completed transactions earn trust without limit, so the most
-// active, reliable businesses keep climbing (and rank higher). Tiers/colors key
-// off fixed thresholds (≥110 = Exceptional/gold), so any high score reads as gold.
+// v2 baseline: every account starts at 60 (Building — neutral probation, not shame)
+// and verification lifts it: phone +10, business KYC +10 (age≥90d adds +5 later).
+export const BASE_SCORE = TRUST.BASE
+export const PHONE_VERIFIED_BONUS = TRUST.V_PHONE
+export const KYC_BONUS = TRUST.V_KYC
 
-const TRACK_RECORD_MIN_INTERACTIONS = 5 // OR …
-const TRACK_RECORD_MIN_DAYS = 30 // …account age — either satisfies the track-record gate
-const RECENT_BAD_WINDOW_DAYS = 90 // a recent confirmed report blocks the Exceptional tier
-
-const DAY_MS = 86_400_000
-
-// Reasons that must apply AT MOST ONCE per account — deduped when summing the
-// score so a double-insert (race) can't double-count. The DB partial unique index
-// on (subjectProfileId, reason) for these reasons is the belt; this is the suspenders.
+// Reasons that must apply AT MOST ONCE per account. The DB partial unique index on
+// (subjectProfileId, reason) for these reasons is the belt; this set is the suspenders
+// AND the daily-cap exemption list (verification one-times lift the score immediately).
+// zalo_linked / profile_complete are kept for audit but no longer score (v2's V counts
+// phone / KYC / age only — spec'd 0–25).
 const ONE_TIME_REASONS = new Set(['new_account', 'phone_verified', 'zalo_linked', 'kyc', 'profile_complete'])
 
 const isUniqueViolation = (e: unknown): boolean =>
@@ -69,87 +97,325 @@ async function applyOnce(profileId: string, type: Parameters<typeof applyTrustEv
   }
 }
 
-// ── Engagement / activity scoring (the "earn by being active" loop) ──
-export const ENGAGEMENT_DELTA = 2       // +trust for a day's activity (e.g. confirming availability)
-export const ENGAGEMENT_DAILY_CAP = 1   // at most one engagement bump per account per day (no farming)
-export const INACTIVE_DAYS = 7          // active listings unconfirmed this long → the account decays
-export const INACTIVE_PENALTY = 3       // −trust per inactivity sweep (at most once per INACTIVE_DAYS)
-export const RECOVERY_DELTA = 1         // clean accounts below 100 drift back up by this per day
-export const RECOVERY_CLEAN_DAYS = 14   // …only if no confirmed report / inactivity hit in this window
-export const TRANSACTION_DELTA = 5      // +trust per COMPLETED on-platform transaction — UNCAPPED (the more you transact, the higher you climb + rank)
-export const REVIEW_DELTA = 3           // +trust per review from a VERIFIED buyer (one per real transaction → can't farm)
-export const FAST_RESPONSE_DELTA = 1    // capped reward for replying quickly to buyers
-
-// Verification-gated onboarding: a brand-new account starts BELOW 100 and earns its
-// way up via verification steps, so unverified strangers carry less trust up front.
-// The three verifications fill the deficit exactly: 60 + 15 + 10 + 15 = 100.
-export const NEW_ACCOUNT_DEFICIT = 40    // new accounts start at 100 − 40 = 60
-export const PHONE_VERIFIED_BONUS = 15   // one-time: a verified phone number
-export const ZALO_LINK_BONUS = 10        // one-time: a linked Zalo account (trusted VN contact channel)
-export const KYC_BONUS = 15              // one-time: passing identity verification (KYC)
-export const PROFILE_COMPLETE_DELTA = 5  // one-time: a complete storefront profile (extra polish)
+// Daily engagement ledger event (availability confirms). Informational in v2 —
+// freshness is scored endogenously from Listing.availabilityConfirmedAt — but the
+// event still triggers a recompute so the freshness gain lands immediately.
+export const ENGAGEMENT_DAILY_CAP = 1 // at most one engagement event per account per day
 
 /** Map a report reason to a default severity (admin can override on confirm). */
-export function severityForReason(reason: string): 'minor' | 'moderate' | 'severe' {
+export function severityForReason(reason: string): ReportSeverity {
   if (reason === 'scam' || reason === 'counterfeit') return 'severe'
   if (reason === 'wrong-info' || reason === 'offensive' || reason === 'misrepresentation') return 'moderate'
   return 'minor'
 }
 
-/**
- * Pure tier decision. 100 (the starting score) maps to "standard" (no badge)
- * until a track record exists — so a brand-new account isn't instantly Trusted.
- */
-export function tierFor(
-  score: number,
-  positiveInteractions: number,
-  accountAgeDays: number,
-  hasRecentConfirmedReport: boolean,
-): TrustTier {
-  if (score < 60) return 'restricted'
-  const hasTrackRecord =
-    positiveInteractions >= TRACK_RECORD_MIN_INTERACTIONS || accountAgeDays >= TRACK_RECORD_MIN_DAYS
-  if (score >= 110 && hasTrackRecord && !hasRecentConfirmedReport) return 'exceptional'
-  if (score >= 85 && hasTrackRecord) return 'trusted'
-  return 'standard'
+// ── The v2 composite recompute ─────────────────────────────────────────────────────
+
+export type TrustBreakdown = {
+  score: number // the UNCAPPED composite (recomputeTrust applies the daily cap on persist)
+  tier: TrustTier
+  V: number
+  Q: number
+  T: number
+  C: number
+  M: number // decayed admin manual adjustments (signed)
+  inputs: TierInputs & {
+    phoneVerified: boolean
+    kycVerified: boolean
+    verifiedReviewCount: number
+    conversations90: number
+    activeListings: number
+    freshActiveListings: number
+  }
+  cached: { score: number; tier: string } // current Profile values (pre-recompute)
 }
 
-/** Recompute the cached score+tier on the Profile and mirror onto its Seller. */
-export async function recomputeTrust(profileId: string): Promise<{ score: number; tier: TrustTier } | null> {
+/** Author standing for credibility weighting — batched fetch, 0.6 when unreachable. */
+async function credibilityByProfileId(ids: string[], now: number): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+  if (!ids.length) return map
+  const [profiles, kycEvents] = await Promise.all([
+    db.profile.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, trustScore: true, createdAt: true, falseReportStrikes: true },
+    }),
+    db.trustEvent.findMany({
+      where: { subjectProfileId: { in: ids }, reason: 'kyc' },
+      select: { subjectProfileId: true },
+    }),
+  ])
+  const kyc = new Set(kycEvents.map((e) => e.subjectProfileId))
+  for (const p of profiles) {
+    map.set(
+      p.id,
+      credibilityWeight({
+        trustScore: p.trustScore,
+        accountAgeDays: (now - p.createdAt.getTime()) / DAY_MS,
+        falseReportStrikes: p.falseReportStrikes,
+        kycVerified: kyc.has(p.id),
+      }),
+    )
+  }
+  return map
+}
+
+/**
+ * Compute the full v2 breakdown for a profile from source tables + the decayed
+ * ledger. A BOUNDED number of indexed queries (~10): profile + its events (PK /
+ * subjectProfileId index), the linked Reports (PK), the owned Seller (ownerId
+ * unique), its verified Reviews / Conversations / Listings (sellerId indexes),
+ * transactions (sellerId+status / conversation join), and two batched
+ * author-credibility lookups. Also feeds the dashboard's tier-progress panel.
+ */
+export async function computeTrustV2(profileId: string): Promise<TrustBreakdown | null> {
+  const now = Date.now()
   const profile = await db.profile.findUnique({
     where: { id: profileId },
-    select: { createdAt: true, positiveInteractions: true },
+    select: { createdAt: true, phone: true, trustScore: true, trustTier: true },
   })
   if (!profile) return null
+  const accountAgeDays = (now - profile.createdAt.getTime()) / DAY_MS
 
-  // Sum deltas, but count each ONE-TIME reason at most once — so a duplicate
-  // one-time event (e.g. two concurrent ensureProfile both inserting new_account
-  // under a race) can't corrupt the score (the -40 deficit applied twice would
-  // otherwise drop a new user to 20/Restricted). Self-healing regardless of dupes.
+  // Ledger reads: conduct events + manual adjustments + one-time verification gates.
   const events = await db.trustEvent.findMany({
-    where: { subjectProfileId: profileId },
-    select: { delta: true, reason: true },
+    where: { subjectProfileId: profileId, type: { in: ['report_confirmed', 'manual_adjust'] } },
+    select: { type: true, delta: true, reason: true, reportId: true, createdAt: true },
   })
-  const seenOnce = new Set<string>()
-  let sum = 0
-  for (const e of events) {
-    if (e.reason && ONE_TIME_REASONS.has(e.reason)) {
-      if (seenOnce.has(e.reason)) continue
-      seenOnce.add(e.reason)
-    }
-    sum += e.delta
-  }
-  const score = Math.max(SCORE_MIN, 100 + sum)
 
-  const recentBad = await db.trustEvent.count({
-    where: {
-      subjectProfileId: profileId,
-      type: 'report_confirmed',
-      createdAt: { gte: new Date(Date.now() - RECENT_BAD_WINDOW_DAYS * DAY_MS) },
-    },
+  // V — permanent verification gates. Phone: the mirrored verified number OR the
+  // one-time event (covers a number later released); KYC: the one-time event.
+  const phoneVerified = !!profile.phone || events.some((e) => e.reason === 'phone_verified')
+  const kycVerified = events.some((e) => e.reason === 'kyc')
+  const V = verificationScore({ phoneVerified, kycVerified, accountAgeDays })
+
+  // Conduct events → join Report for severity + reporter identity. Legacy events
+  // without a reachable Report fall back to severityFromDelta + default credibility.
+  const conductEvents = events.filter((e) => e.type === 'report_confirmed')
+  const reportIds = conductEvents.map((e) => e.reportId).filter((x): x is string => !!x)
+  const reports = reportIds.length
+    ? await db.report.findMany({
+        where: { id: { in: reportIds } },
+        select: { id: true, severity: true, reporterProfileId: true },
+      })
+    : []
+  const reportById = new Map(reports.map((r) => [r.id, r]))
+
+  const seller = await db.seller.findUnique({
+    where: { ownerId: profileId },
+    select: { id: true, responseRate: true },
   })
-  const accountAgeDays = (Date.now() - profile.createdAt.getTime()) / DAY_MS
-  const tier = tierFor(score, profile.positiveInteractions, accountAgeDays, recentBad > 0)
+
+  // Seller-side source data (Q + T + tier volumes). Buyer-only profiles skip all of it.
+  let reviewsRaw: { rating: number; authorProfileId: string | null; createdAt: Date }[] = []
+  let conversations90 = 0
+  let activeListings = 0
+  let freshActiveListings = 0
+  // Transaction = a sold listing OR a conversation with an accepted offer, unioned by
+  // listing so a sold listing whose thread also had an accepted offer counts once.
+  // Timing approximations (no dedicated soldAt column): sold → Listing.updatedAt
+  // (the status flip touches it); accepted offer → the offer Message's createdAt.
+  const txByListing = new Map<string, number>() // listingId → earliest transaction ms
+  const buyersWithAcceptedOffer = new Set<string>()
+
+  if (seller) {
+    // Scam freeze needs clean-transaction timestamps AFTER the oldest severe event,
+    // which can predate the 365d T window — fetch from whichever bound is older.
+    const severeTimes = conductEvents
+      .filter((e) => (reportById.get(e.reportId ?? '')?.severity ?? severityFromDelta(e.delta)) === 'severe')
+      .map((e) => e.createdAt.getTime())
+    const txSince = new Date(Math.min(now - TRUST.TRACK_WINDOW_DAYS * DAY_MS, ...severeTimes))
+    const freshCutoff = new Date(now - TRUST.FRESH_DAYS * DAY_MS)
+
+    const [reviews, convo90, active, fresh, sold, acceptedOffers] = await Promise.all([
+      // Verified reviews only (conversation-backed) — Q reads the Review table
+      // directly; legacy positive_review ledger deltas are excluded (no double count).
+      db.review.findMany({
+        where: { sellerId: seller.id, conversationId: { not: null }, authorProfileId: { not: null } },
+        select: { rating: true, authorProfileId: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 2000, // bounded; newest reviews are the ones that matter
+      }),
+      db.conversation.count({
+        where: { sellerId: seller.id, createdAt: { gte: new Date(now - TRUST.RESPONSE_WINDOW_DAYS * DAY_MS) } },
+      }),
+      db.listing.count({ where: { sellerId: seller.id, status: 'active', verified: true } }),
+      db.listing.count({
+        where: {
+          sellerId: seller.id,
+          status: 'active',
+          verified: true,
+          OR: [{ availabilityConfirmedAt: { gte: freshCutoff } }, { availabilityConfirmedAt: null, postedAt: { gte: freshCutoff } }],
+        },
+      }),
+      db.listing.findMany({
+        where: { sellerId: seller.id, status: 'sold', updatedAt: { gte: txSince } },
+        select: { id: true, updatedAt: true },
+        take: 5000,
+      }),
+      db.message.findMany({
+        where: { kind: 'offer', offerStatus: 'accepted', createdAt: { gte: txSince }, conversation: { sellerId: seller.id } },
+        select: { createdAt: true, conversation: { select: { listingId: true, buyerProfileId: true } } },
+        take: 5000,
+      }),
+    ])
+    reviewsRaw = reviews
+    conversations90 = convo90
+    activeListings = active
+    freshActiveListings = fresh
+    for (const l of sold) {
+      const t = l.updatedAt.getTime()
+      const prev = txByListing.get(l.id)
+      if (prev === undefined || t < prev) txByListing.set(l.id, t)
+    }
+    for (const m of acceptedOffers) {
+      const t = m.createdAt.getTime()
+      const prev = txByListing.get(m.conversation.listingId)
+      if (prev === undefined || t < prev) txByListing.set(m.conversation.listingId, t)
+      buyersWithAcceptedOffer.add(m.conversation.buyerProfileId)
+    }
+  }
+
+  const txTimes = [...txByListing.values()].sort((a, b) => a - b)
+  const tx365 = txTimes.filter((t) => t >= now - TRUST.TRACK_WINDOW_DAYS * DAY_MS).length
+
+  // Source credibility for BOTH reviewers and reporters — one batched lookup.
+  const raterIds = [
+    ...new Set([
+      ...reviewsRaw.map((r) => r.authorProfileId).filter((x): x is string => !!x),
+      ...reports.map((r) => r.reporterProfileId).filter((x): x is string => !!x),
+    ]),
+  ]
+  const credibility = await credibilityByProfileId(raterIds, now)
+
+  // Q · reviews — pair-dedup (one counted per buyer per 90d), credibility-weighted.
+  const deduped = dedupeReviewPairs(
+    reviewsRaw
+      .filter((r) => r.authorProfileId)
+      .map((r) => ({ authorId: r.authorProfileId as string, createdAtMs: r.createdAt.getTime(), rating: r.rating })),
+  )
+  const reviewsQ = reviewScore(
+    deduped.map((r) => ({ rating: r.rating, weight: credibility.get(r.authorId) ?? TRUST.CRED_DEFAULT })),
+  )
+
+  // Q · responsiveness — Wilson lower bound over last-90d conversations. p̂ comes from
+  // the denormalized Seller.responseRate (the app's replied-within-24h measure);
+  // n from the indexed Conversation count. successes = round(p̂·n) — the closest
+  // fair approximation without a per-message reply scan.
+  const responseWilson = seller ? wilsonLowerBound(Math.round(((seller.responseRate ?? 0) / 100) * conversations90), conversations90) : 0
+  const responseQ = responseScore(responseWilson)
+
+  // Q · availability freshness.
+  const freshQ = freshnessScore(freshActiveListings, activeListings)
+  const Q = reviewsQ + responseQ + freshQ
+
+  const T = trackRecordScore(tx365)
+
+  // C · conduct — severity × reporter credibility × per-class decay (+ frozen-scam rule).
+  let hasScamHold = false
+  const win90: ReportWindow = { count: 0, distinctReporters: 0, scams: 0 }
+  const win180: ReportWindow = { count: 0, distinctReporters: 0, scams: 0 }
+  const reporters90 = new Set<string>()
+  const reporters180 = new Set<string>()
+  const conductItems: ConductItem[] = conductEvents.map((e) => {
+    const report = e.reportId ? reportById.get(e.reportId) : undefined
+    const severity = ((report?.severity as ReportSeverity | undefined) ?? severityFromDelta(e.delta))
+    // Reporter unreachable (guest/legacy/deleted) → default credibility 0.6 (fair middle).
+    const cred = report?.reporterProfileId ? (credibility.get(report.reporterProfileId) ?? TRUST.CRED_DEFAULT) : TRUST.CRED_DEFAULT
+    const eventMs = e.createdAt.getTime()
+    const ageDays = (now - eventMs) / DAY_MS
+    // Frozen-scam rule: count verified clean transactions AFTER the event; decay
+    // starts only at the 5th (Friedman–Resnick dues-paying).
+    let cleanTxAfter = 0
+    let daysSinceFifthCleanTx: number | null = null
+    if (severity === 'severe') {
+      const after = txTimes.filter((t) => t > eventMs)
+      cleanTxAfter = after.length
+      if (after.length >= TRUST.SCAM_CLEAN_TX) daysSinceFifthCleanTx = (now - after[TRUST.SCAM_CLEAN_TX - 1]) / DAY_MS
+      else hasScamHold = true // dues unpaid → hard Restricted hold
+    }
+    // Dual-threshold demotion windows (distinct reporters; unknown reporter = its
+    // own identity via the report/event id so pile-ons without accounts still count).
+    const reporterKey = report?.reporterProfileId ?? `anon:${e.reportId ?? eventMs}`
+    if (ageDays <= 90) {
+      win90.count++
+      reporters90.add(reporterKey)
+      if (severity === 'severe') win90.scams++
+    }
+    if (ageDays <= 180) {
+      win180.count++
+      reporters180.add(reporterKey)
+      if (severity === 'severe') win180.scams++
+    }
+    return { severity, credibility: cred, ageDays, cleanTxAfter, daysSinceFifthCleanTx }
+  })
+  win90.distinctReporters = reporters90.size
+  win180.distinctReporters = reporters180.size
+  const C = conductPenalty(conductItems)
+
+  // M · admin manual adjustments (e.g. the −10 false-report penalty), H=365 decay.
+  // One-time verification reasons are EXCLUDED (they're V's domain — and the legacy
+  // v1 baseline events like new_account −40 must not leak into the composite).
+  const M = manualAdjustSum(
+    events
+      .filter((e) => e.type === 'manual_adjust' && !(e.reason && ONE_TIME_REASONS.has(e.reason)))
+      .map((e) => ({ delta: e.delta, ageDays: (now - e.createdAt.getTime()) / DAY_MS })),
+  )
+
+  const score = composeScore({ V, Q, T, C, M })
+  const inputs: TrustBreakdown['inputs'] = {
+    score,
+    transactions365: tx365,
+    accountAgeDays,
+    distinctBuyerReviews: new Set(deduped.map((r) => r.authorId)).size,
+    responseWilson,
+    reports90: win90,
+    reports180: win180,
+    hasScamHold,
+    phoneVerified,
+    kycVerified,
+    verifiedReviewCount: deduped.length,
+    conversations90,
+    activeListings,
+    freshActiveListings,
+  }
+  return { score, tier: tierFor(inputs), V, Q, T, C, M, inputs, cached: { score: profile.trustScore, tier: profile.trustTier } }
+}
+
+/**
+ * Recompute the cached score+tier on the Profile and mirror onto its Seller +
+ * listings. Applies the anti-gaming daily cap: upward movement is limited to +6
+ * per rolling 24h (ledgered as recompute_lift events for airtight accounting) —
+ * EXCEPT one-time verification lifts (`uncapped`), which land immediately.
+ * Downward movement always lands in full (penalties bite immediately).
+ */
+export async function recomputeTrust(
+  profileId: string,
+  opts?: { uncapped?: boolean },
+): Promise<{ score: number; tier: TrustTier } | null> {
+  const breakdown = await computeTrustV2(profileId)
+  if (!breakdown) return null
+
+  let score = breakdown.score
+  if (!opts?.uncapped && score > breakdown.cached.score) {
+    // Rolling-24h lift already granted — the ledger is the accounting, so a burst
+    // of recomputes (many events in one day) can't stack past the cap.
+    const lifted = await db.trustEvent.aggregate({
+      where: { subjectProfileId: profileId, type: 'recompute_lift', createdAt: { gt: new Date(Date.now() - DAY_MS) } },
+      _sum: { delta: true },
+    })
+    const capped = applyDailyCap(breakdown.cached.score, score, lifted._sum.delta ?? 0)
+    score = capped.score
+    if (capped.lift > 0) {
+      await db.trustEvent.create({
+        data: { subjectProfileId: profileId, type: 'recompute_lift', delta: capped.lift, reason: 'daily_cap' },
+      })
+    }
+  }
+  // Tier keys off the PERSISTED (possibly capped) score so display stays consistent.
+  const tier = tierFor({ ...breakdown.inputs, score })
+
+  // No change → no writes (keeps the daily recompute-all pass cheap).
+  if (score === breakdown.cached.score && tier === breakdown.cached.tier) return { score, tier }
 
   await db.profile.update({ where: { id: profileId }, data: { trustScore: score, trustTier: tier } })
   // Mirror onto the owned storefront (if any) so cards/badges render join-free.
@@ -167,8 +433,10 @@ export async function recomputeTrust(profileId: string): Promise<{ score: number
 }
 
 /**
- * Append a trust event and recompute. Positive engagement types also bump the
- * track-record counter that gates the Trusted/Exceptional badges.
+ * Append a trust event (the AUDIT LEDGER) and recompute the composite. In v2 the
+ * delta is informational for most types — the recompute reads source tables — but
+ * report_confirmed / manual_adjust events DO feed C/M, and one-time verification
+ * reasons feed V (and bypass the daily cap: verifying is always instant).
  */
 export async function applyTrustEvent(
   subjectProfileId: string,
@@ -179,8 +447,7 @@ export async function applyTrustEvent(
     | 'fast_response'
     | 'engagement'
     | 'transaction'
-    | 'decay_recover'
-    | 'decay_inactive'
+    | 'recompute_lift'
     | 'manual_adjust',
   delta: number,
   meta?: { reason?: string; actorId?: string; reportId?: string },
@@ -188,10 +455,12 @@ export async function applyTrustEvent(
   await db.trustEvent.create({
     data: { subjectProfileId, type, delta, reason: meta?.reason ?? null, actorId: meta?.actorId ?? null, reportId: meta?.reportId ?? null },
   })
-  if (delta > 0 && (type === 'positive_review' || type === 'engagement' || type === 'fast_response' || type === 'transaction')) {
+  // Track-record counter kept for display/legacy (tier gates now use real volumes).
+  if (type === 'positive_review' || type === 'engagement' || type === 'fast_response' || type === 'transaction') {
     await db.profile.update({ where: { id: subjectProfileId }, data: { positiveInteractions: { increment: 1 } } })
   }
-  return recomputeTrust(subjectProfileId)
+  const uncapped = !!(meta?.reason && ONE_TIME_REASONS.has(meta.reason))
+  return recomputeTrust(subjectProfileId, { uncapped })
 }
 
 /**
@@ -208,7 +477,7 @@ export async function penalizeSeller(sellerId: string, delta: number, meta?: { r
     await applyTrustEvent(seller.ownerId, 'report_confirmed', delta, { reason: meta?.reason, reportId: meta?.reportId })
     return
   }
-  const score = Math.max(SCORE_MIN, seller.trustScore + delta)
+  const score = Math.min(TRUST.MAX, Math.max(0, seller.trustScore + delta))
   await db.seller.update({ where: { id: sellerId }, data: { trustScore: score, trustTier: score < 60 ? 'restricted' : 'standard' } })
   // Keep the listings' denormalized ranking key in sync (guest seller — no Profile path).
   await db.listing.updateMany({ where: { sellerId }, data: { sellerTrustScore: score } })
@@ -216,129 +485,115 @@ export async function penalizeSeller(sellerId: string, delta: number, meta?: { r
 }
 
 /**
- * Reward day-to-day activity (e.g. confirming a listing is still available),
- * capped so it can't be farmed. Returns true if a bump was applied. No-op for
- * guest sellers (no Profile to attach the event to).
+ * Availability-confirm activity: an informational (delta 0) daily-capped ledger
+ * event whose recompute picks up the fresh availabilityConfirmedAt — the freshness
+ * component (0–5) is the real reward now, endogenous and un-farmable.
  */
-export async function recordEngagement(profileId: string, delta = ENGAGEMENT_DELTA, perDayCap = ENGAGEMENT_DAILY_CAP): Promise<boolean> {
+export async function recordEngagement(profileId: string, perDayCap = ENGAGEMENT_DAILY_CAP): Promise<boolean> {
   const since = new Date(Date.now() - DAY_MS)
   const today = await db.trustEvent.count({
     where: { subjectProfileId: profileId, type: 'engagement', createdAt: { gt: since } },
   })
   if (today >= perDayCap) return false
-  await applyTrustEvent(profileId, 'engagement', delta, { reason: 'activity' })
+  await applyTrustEvent(profileId, 'engagement', 0, { reason: 'activity' })
   return true
 }
 
 /**
- * Every COMPLETED on-platform transaction earns trust — UNCAPPED. The more deals
- * you successfully close through eno.vn, the higher you climb (and rank). Called
- * from the checkout/settlement flow (the 1% / flat-fee layer).
+ * A COMPLETED on-platform transaction. Informational event (T reads sold listings
+ * + accepted offers directly — log-diminishing, so bulk-buying reputation is dead);
+ * the triggered recompute folds the new transaction into T immediately.
  */
 export async function recordTransaction(profileId: string, amountVnd: number): Promise<void> {
-  await applyTrustEvent(profileId, 'transaction', TRANSACTION_DELTA, { reason: `txn:${Math.round(amountVnd)}` })
+  await applyTrustEvent(profileId, 'transaction', 0, { reason: `txn:${Math.round(amountVnd)}` })
 }
 
-/** One-time bonus when an account first completes a full, verified profile. */
+/** One-time marker when an account first completes a full storefront profile (audit only in v2). */
 export async function recordProfileComplete(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, type: 'engagement', reason: 'profile_complete' } })
   if (existing > 0) return false
-  return applyOnce(profileId, 'engagement', PROFILE_COMPLETE_DELTA, 'profile_complete')
+  return applyOnce(profileId, 'engagement', 0, 'profile_complete')
 }
 
-/** A verified buyer left a review → small uncappable-per-deal reward. */
+/**
+ * A verified buyer left a review → zero-delta AUDIT event (Q reads the Review table
+ * directly — Bayesian + credibility-weighted — so no double count) + recompute.
+ */
 export async function recordReview(profileId: string): Promise<void> {
-  await applyTrustEvent(profileId, 'positive_review', REVIEW_DELTA, { reason: 'verified_review' })
+  await applyTrustEvent(profileId, 'positive_review', 0, { reason: 'verified_review' })
 }
 
-/** Apply the new-account starting deficit once (so new accounts begin at ~60, not 100). */
+/** One-time audit marker for account creation (v2 baseline is 60 by construction, not by delta). */
 export async function recordNewAccount(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'new_account' } })
   if (existing > 0) return false
-  return applyOnce(profileId, 'manual_adjust', -NEW_ACCOUNT_DEFICIT, 'new_account')
+  return applyOnce(profileId, 'manual_adjust', 0, 'new_account')
 }
 
-/** One-time bonus for a verified phone number (everyone — the baseline trust step). */
+/** One-time verification gate: a verified phone number (V +10, lands immediately — cap-exempt). */
 export async function recordPhoneVerified(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'phone_verified' } })
   if (existing > 0) return false
   return applyOnce(profileId, 'manual_adjust', PHONE_VERIFIED_BONUS, 'phone_verified')
 }
 
-/** One-time bonus for linking a Zalo account (a trusted VN contact channel; great for tourists/individuals). */
+/** One-time marker for linking Zalo. Audit-only in v2 (V is phone/KYC/age per spec). */
 export async function recordZaloLinked(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'zalo_linked' } })
   if (existing > 0) return false
-  return applyOnce(profileId, 'manual_adjust', ZALO_LINK_BONUS, 'zalo_linked')
+  return applyOnce(profileId, 'manual_adjust', 0, 'zalo_linked')
 }
 
-/** One-time bonus for passing identity verification (KYC) — especially important for BUSINESSES. */
+/** One-time verification gate: identity verification / KYC (V +10 — the business trust step). */
 export async function recordKyc(profileId: string): Promise<boolean> {
   const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'kyc' } })
   if (existing > 0) return false
   return applyOnce(profileId, 'manual_adjust', KYC_BONUS, 'kyc')
 }
 
+// Daily maintenance bounds: the cron shares a 60s budget with reminders/rank/stats,
+// so the recompute pass is bounded by count AND a soft deadline (it resumes next run).
+const MAINTENANCE_MAX_PROFILES = 5000
+const MAINTENANCE_CONCURRENCY = 8
+const MAINTENANCE_DEADLINE_MS = 40_000
+
 /**
- * Daily trust maintenance (run from the cron):
- *  • DECAY — accounts whose active listings have gone unconfirmed for INACTIVE_DAYS
- *    lose trust (at most once per window) → rewards keeping listings fresh.
- *  • RECOVERY — clean accounts below 100 (no recent report or inactivity hit) drift
- *    back toward 100, so a single old mistake doesn't mark you forever.
+ * Daily trust maintenance (run from the cron): recompute-all-active. v2 has NO
+ * calendar drift — the old +1/day recovery and −3 inactivity dock are GONE. The
+ * daily pass simply re-evaluates the composite so time-dependent terms stay fresh:
+ * conduct decay (and the scam freeze), the 365d transaction window, the 90d
+ * response window, and availability freshness. Scope: every profile that owns a
+ * storefront (the public reputation surface) + currently-restricted profiles
+ * (so decay can lift them back out — indexed via Profile.trustTier). Buyer-only
+ * profiles in between refresh on their next event (their score only feeds
+ * credibility weighting; a slightly-stale value is the conservative direction).
  */
-export async function runTrustMaintenance(): Promise<{ decayed: number; recovered: number }> {
-  const now = Date.now()
-  const staleCutoff = new Date(now - INACTIVE_DAYS * DAY_MS)
+export async function runTrustMaintenance(): Promise<{ recomputed: number; scanned: number }> {
+  const started = Date.now()
+  const [owners, restricted] = await Promise.all([
+    db.seller.findMany({ where: { ownerId: { not: null } }, select: { ownerId: true }, take: MAINTENANCE_MAX_PROFILES }),
+    db.profile.findMany({ where: { trustTier: 'restricted' }, select: { id: true }, take: 2000 }),
+  ])
+  const ids = [
+    ...new Set([...owners.map((s) => s.ownerId).filter((x): x is string => !!x), ...restricted.map((p) => p.id)]),
+  ]
 
-  // Owners with ≥1 live-but-stale listing.
-  const stale = await db.listing.findMany({
-    where: {
-      verified: true,
-      status: 'active',
-      seller: { ownerId: { not: null } },
-      OR: [{ availabilityConfirmedAt: { lt: staleCutoff } }, { availabilityConfirmedAt: null, postedAt: { lt: staleCutoff } }],
-    },
-    select: { seller: { select: { ownerId: true } } },
-    take: 20000,
-  })
-  const staleOwners = [...new Set(stale.map((l) => l.seller.ownerId).filter((x): x is string => !!x))]
-
-  let decayed = 0
-  for (const ownerId of staleOwners) {
-    // Already docked within this window? skip (one penalty per INACTIVE_DAYS).
-    const recent = await db.trustEvent.count({
-      where: { subjectProfileId: ownerId, type: 'decay_inactive', createdAt: { gt: staleCutoff } },
-    })
-    if (recent > 0) continue
-    await applyTrustEvent(ownerId, 'decay_inactive', -INACTIVE_PENALTY, { reason: 'inactivity' })
-    decayed++
+  let recomputed = 0
+  for (let i = 0; i < ids.length; i += MAINTENANCE_CONCURRENCY) {
+    if (Date.now() - started > MAINTENANCE_DEADLINE_MS) break // resume on the next daily run
+    const batch = ids.slice(i, i + MAINTENANCE_CONCURRENCY)
+    const results = await Promise.all(
+      batch.map((id) =>
+        recomputeTrust(id).then(
+          () => 1,
+          (e) => {
+            console.error('[trust] daily recompute failed for', id, e)
+            return 0
+          },
+        ),
+      ),
+    )
+    for (const r of results) recomputed += r
   }
-
-  // Recovery: heal BEHAVIORAL penalties (reports / inactivity) over time — but never
-  // beyond what was lost, so it can't lift the new-account KYC deficit up to 100 on
-  // its own (KYC + profile do that). Only accounts that actually have a penalty to
-  // heal recover; capped at the total penalty so it stops exactly at the pre-penalty score.
-  const cleanCutoff = new Date(now - RECOVERY_CLEAN_DAYS * DAY_MS)
-  const penalized = await db.profile.findMany({
-    where: { trustScore: { lt: 100 }, trustEvents: { some: { type: { in: ['report_confirmed', 'decay_inactive'] } } } },
-    select: { id: true },
-    take: 20000,
-  })
-  let recovered = 0
-  for (const p of penalized) {
-    const [pen, rec, recentBad] = await Promise.all([
-      db.trustEvent.aggregate({ where: { subjectProfileId: p.id, type: { in: ['report_confirmed', 'decay_inactive'] } }, _sum: { delta: true } }),
-      db.trustEvent.aggregate({ where: { subjectProfileId: p.id, type: 'decay_recover' }, _sum: { delta: true } }),
-      db.trustEvent.count({ where: { subjectProfileId: p.id, type: { in: ['report_confirmed', 'decay_inactive'] }, createdAt: { gt: cleanCutoff } } }),
-    ])
-    if (recentBad > 0) continue // not clean recently
-    const penalty = -(pen._sum.delta ?? 0) // positive magnitude of all penalties
-    const healed = rec._sum.delta ?? 0
-    const remaining = penalty - healed
-    if (remaining <= 0) continue // fully healed already
-    await applyTrustEvent(p.id, 'decay_recover', Math.min(RECOVERY_DELTA, remaining), { reason: 'recovery' })
-    recovered++
-  }
-
-  return { decayed, recovered }
+  return { recomputed, scanned: ids.length }
 }

@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
+import { computeTrustV2 } from '@/lib/trust'
 import { dashboardStatsCore } from '@/lib/core/dashboard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-// A recent confirmed report blocks the Exceptional tier (RECENT_BAD_WINDOW_DAYS in
-// src/lib/trust.ts) — surfaced so the dashboard's tier-progress panel tells the truth.
-const RECENT_BAD_WINDOW_DAYS = 90
 
 // The seller CRM dashboard payload (owner-scoped). Answers the three questions a
 // seller opens the dashboard for: new messages? how are my listings doing? what
@@ -17,28 +13,31 @@ const RECENT_BAD_WINDOW_DAYS = 90
 export async function GET() {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ dashboard: null }, { status: 401 })
-  // trustProgress: the inputs of tierFor() (src/lib/trust.ts) the client can't
-  // derive itself — powers the "Your path to {next tier}" panel. One cheap
-  // owner-scoped count; everything else is already on the Profile row.
-  const [dashboard, recentBad] = await Promise.all([
+  // trustProgress: the REAL v2 tier-gate inputs (src/lib/trust-math.ts tierFor) the
+  // client can't derive itself — powers the "Your path to {next tier}" panel.
+  // computeTrustV2 is a bounded set of owner-scoped indexed queries.
+  const [dashboard, breakdown] = await Promise.all([
     dashboardStatsCore(profile),
-    db.trustEvent.count({
-      where: {
-        subjectProfileId: profile.id,
-        type: 'report_confirmed',
-        createdAt: { gte: new Date(Date.now() - RECENT_BAD_WINDOW_DAYS * 86_400_000) },
-      },
-    }),
+    computeTrustV2(profile.id).catch(() => null),
   ])
+  const i = breakdown?.inputs
+  // Days since the most recent DEMOTION-RELEVANT confirmed report (the dual-threshold
+  // windows the tier gates actually read) — null when the recent record is clean.
+  const cleanBlocked = !!i && (i.reports90.count > 0 || i.reports180.count > 0)
   return NextResponse.json({
     dashboard: {
       ...dashboard,
-      trustProgress: {
-        positiveInteractions: profile.positiveInteractions,
-        accountAgeDays: Math.floor((Date.now() - profile.createdAt.getTime()) / 86_400_000),
-        hasRecentConfirmedReport: recentBad > 0,
-        phoneVerified: !!profile.phone,
-      },
+      trustProgress: i
+        ? {
+            transactions365: i.transactions365,
+            distinctBuyerReviews: i.distinctBuyerReviews,
+            responseWilson: i.responseWilson,
+            accountAgeDays: Math.floor(i.accountAgeDays),
+            phoneVerified: i.phoneVerified,
+            hasRecentConfirmedReport: cleanBlocked,
+            hasScamHold: i.hasScamHold,
+          }
+        : null,
     },
   })
 }
