@@ -129,7 +129,7 @@ export function AvailabilityClient() {
           to bottom-0 (no gap when the nav auto-hides) while the buttons are padded up
           clear of the nav; on lg there's no nav, so normal padding. */}
       {listings && total > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card px-3 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-3">
+        <div data-fab-clear className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card px-3 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-3">
           <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
             {canSkip ? (
               <button onClick={skip} className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</button>

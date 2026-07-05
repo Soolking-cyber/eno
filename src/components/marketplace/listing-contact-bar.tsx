@@ -43,7 +43,7 @@ export function ListingContactBar({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pt-2.5 pb-[calc(4.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
+    <div data-fab-clear className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pt-2.5 pb-[calc(4.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
         <Price price={price} currency={currency} priceUnit={priceUnit} className="min-w-0 truncate text-lg font-bold text-foreground tracking-tight" />
         <Button variant="cta" size="none" onClick={contact} className="flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-sm transition-all active:scale-98 cursor-pointer">

@@ -932,7 +932,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           bottom-0 (so there's no gap when the nav auto-hides) while the button is
           padded up clear of the nav; the form root reserves matching space below so
           the last fields never hide behind it. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
+      <div data-fab-clear className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
         <div className="mx-auto max-w-7xl space-y-2">
           {/* What's still missing — mobile parity with the desktop checklist */}
           {missing.length > 0 && (

@@ -13,13 +13,29 @@ export function BackToTop() {
   const [show, setShow] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  // Extra clearance when a page renders a sticky bottom bar (listing contact bar,
+  // post-wizard publish bar, availability bar — all marked data-fab-clear): the
+  // controls must sit ABOVE the bar, never over its CTA.
+  const [lift, setLift] = useState(0)
 
   useEffect(() => { setMounted(true) }, [])
   useEffect(() => {
-    const onScroll = () => setShow(window.scrollY > 700)
+    const measure = () => {
+      let extra = 0
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-fab-clear]'))) {
+        const r = el.getBoundingClientRect()
+        if (r.height > 0 && r.top < window.innerHeight) extra = Math.max(extra, window.innerHeight - r.top)
+      }
+      setLift((p) => (Math.abs(p - extra) > 1 ? extra : p))
+    }
+    const onScroll = () => { setShow(window.scrollY > 700); measure() }
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    window.addEventListener('resize', measure, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', measure)
+    }
   }, [])
 
   if (!mounted) return null
@@ -32,6 +48,8 @@ export function BackToTop() {
           'right-4 lg:right-6',
           'bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-6', // clear the mobile bottom-nav
         )}
+        // Inline bottom (beats the classes) only while a bottom bar is on screen.
+        style={lift ? { bottom: lift + 12 } : undefined}
       >
         {/* Back to top — a proper circular surface (it floats over card imagery, so a
             bare chevron got lost / read as part of a card). Fades in once scrolled
