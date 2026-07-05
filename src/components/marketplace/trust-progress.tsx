@@ -57,13 +57,7 @@ export function TrustProgress({
 }: Partial<TrustProgressData> & { score: number; tier: string; staleCount: number }) {
   const { tr } = useLanguage()
 
-  const trustLink = (
-    <p className="mt-3 text-xs text-muted-foreground">
-      <Link href="/trust" className="font-semibold text-accent-foreground hover:underline">
-        {tr('How trust works on eno', 'Cách điểm uy tín hoạt động trên eno')}
-      </Link>
-    </p>
-  )
+  // 'How trust works' now rides the trust BADGE itself (dashboard header) — no duplicate text link here.
 
   // Already at the top — a quiet maintain state, not another ladder.
   if (tier === 'exceptional') {
@@ -76,7 +70,6 @@ export function TrustProgress({
             'Bạn giữ hạng theo đúng cách đã đạt được: trả lời nhanh, xác nhận tin còn hàng và làm người mua hài lòng.',
           )}
         </p>
-        {trustLink}
       </section>
     )
   }
@@ -222,7 +215,6 @@ export function TrustProgress({
           </div>
         ))}
       </div>
-      {trustLink}
     </section>
   )
 }

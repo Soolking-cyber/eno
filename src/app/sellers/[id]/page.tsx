@@ -155,7 +155,7 @@ export default async function SellerPage({ params }: Props) {
             real signals (response rate/time were placeholder values → removed
             until computed from actual conversations). Rating shows once earned. */}
         <div className={`mt-6 grid gap-x-4 gap-y-5 ${seller.reviewCount > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          <Stat icon={null} value={<TrustScore score={seller.trustScore} size="md" />} label={<Tr text="Trust score" />} />
+          <Stat icon={null} value={<TrustScore score={seller.trustScore} size="md" href="/trust" />} label={<Tr text="Trust score" />} />
           {seller.reviewCount > 0 && (
             <Stat icon={<Star className="h-4 w-4" />} value={`${seller.rating.toFixed(1)}★`} label={<Tr text="Rating" />} />
           )}

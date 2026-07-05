@@ -44,7 +44,6 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
-import { ImageSearchButton } from './image-search-button'
 import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 import { ListingCardSkeleton } from './listing-card-skeleton'
@@ -1252,14 +1251,8 @@ export function ListingsExplorer({
                   className="px-2.5 py-2.5 sm:py-3"
                   iconClassName="h-6 w-6 sm:h-7 sm:w-7"
                 />
-                {/* Visual search — take/upload/paste a photo, search by its subject. Left of Map. */}
-                <ImageSearchButton
-                  iconClassName="h-6 w-6 sm:h-7 sm:w-7"
-                  className="flex shrink-0 items-center justify-center px-2.5 py-2.5 sm:py-3 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer disabled:opacity-60"
-                  onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
-                  onResult={(r) => { toast.dismiss('vis'); setLandingQuery(r.query); applyVisualSearch(r) }}
-                  onError={(m) => toast.error(m, { id: 'vis' })}
-                />
+                {/* Photo search folded into the AI assistant (camera in the ✨ chat
+                    composer); pasting an image here still visual-searches. */}
                 <span className="h-6 w-px shrink-0 bg-border sm:h-7" />
                 <button
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}

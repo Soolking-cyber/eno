@@ -1,24 +1,18 @@
-import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import type { Metadata } from 'next'
 import type { SerializedCategory } from '@/lib/types'
-import { getCurrentProfileId } from '@/lib/admin'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { PostWizard } from '@/components/marketplace/post-wizard'
 import { serializeCategoryBasic } from '@/lib/serialize'
 
-// Per-user gate below → render dynamically (don't ISR-cache the shell).
-export const dynamic = 'force-dynamic'
-// noindex: a login-gated post form isn't a public landing page.
 export const metadata: Metadata = { title: 'Post a listing | eno.vn', robots: { index: false, follow: false } }
 
+// Draft-first posting: ANYONE can fill the wizard (photos, AI-ready fields, price);
+// sign-in is asked at Publish, after the sunk cost — the proven marketplace pattern.
+// The server still owns safety: /api/listings, /api/upload and the AI routes are all
+// auth-gated + rate-limited, and the wizard never fires them for guests.
 export default async function PostPage() {
-  // Require sign-in to post: a guest-posted listing would be orphaned — no owner
-  // could edit/delete/mark-sold it, and buyer messages would reach no inbox.
-  const pid = await getCurrentProfileId()
-  if (!pid) redirect('/signin?next=/post')
-
   const categories = await db.category.findMany({ orderBy: { name: 'asc' } })
   const serialized: SerializedCategory[] = categories.map(serializeCategoryBasic)
 

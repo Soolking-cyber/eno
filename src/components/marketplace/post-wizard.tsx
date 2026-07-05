@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { haptic } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord } from '@/lib/publish-guard'
 import { trackPostListing } from '@/lib/analytics'
@@ -119,6 +120,7 @@ function PublishButton({
 
 export function PostWizard({ categories, embedded = false, onPosted, edit }: { categories: SerializedCategory[]; embedded?: boolean; onPosted?: () => void; edit?: ListingEditData }) {
   const router = useRouter()
+  const { user, loading: authLoading, openSignIn } = useAuth()
   const { lang, tr } = useLanguage()
   const t = (vi: string, en: string) => tr(en, vi)
 
@@ -138,6 +140,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
   // ✨ Autofill category/subcategory/type/condition/title from the cover photo.
   const autofillFromPhoto = async () => {
+    if (!user) { openSignIn(); return } // AI burns paid credits — members only
     const coverFile = photos[0]?.file
     if (!coverFile || aiBusy) return
     setAiBusy('photo')
@@ -191,6 +194,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
   // ✨ Polish the description into professional copy (keeps the facts, your language).
   const polishDescription = async () => {
+    if (!user) { openSignIn(); return } // AI burns paid credits — members only
     if (description.trim().length < 3 || aiBusy) return
     setAiBusy('desc')
     try {
@@ -323,7 +327,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       }
       setMeLoaded(true)
     }).catch(() => setMeLoaded(true))
-  }, [])
+    // re-runs when a guest signs in mid-wizard (draft-first posting) so the
+    // account's name/phone land without a reload.
+  }, [user])
 
   // Top brands for the datalist (suggestions only — free text creates new brands).
   // Fetched once when the user lands on a brand-relevant category.
@@ -375,6 +381,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }
 
   const phoneOk = contactPhone.replace(/\D/g, '').length >= 9
+  // Draft-first posting: anyone can fill the wizard; auth is asked at Publish
+  // (and for the AI buttons, which burn paid credits).
+  const isGuest = !authLoading && !user
   const district = ward?.name || province?.name || ''
   const areaLabel = ward ? `${ward.name}${province ? `, ${province.name}` : ''}` : province ? province.name : (nearby ? t('Vị trí của bạn', 'Your location') : '')
   const hasLocation = !!(province || ward || nearby)
@@ -387,7 +396,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     { key: 'title', ok: title.trim().length >= 3, label: t('Nhập tiêu đề', 'Add a title') },
     { key: 'price', ok: price.trim().length > 0, label: t('Nhập giá', 'Set a price') },
     { key: 'location', ok: hasLocation, label: t('Chọn khu vực', 'Set the area') },
-    { key: 'contact', ok: contactName.trim().length >= 2 && phoneOk, label: t('Thêm tên & SĐT của bạn', 'Add your name & phone') },
+    // Guests (draft-first posting): contact comes from the account AFTER the
+    // sign-in that submit() triggers — don't block the button on it here.
+    isGuest
+      ? { key: 'signin', ok: true, label: t('Đăng nhập để đăng tin', 'Sign in to publish') }
+      : { key: 'contact', ok: contactName.trim().length >= 2 && phoneOk, label: t('Thêm tên & SĐT của bạn', 'Add your name & phone') },
   ]
   const missing = checks.filter((c) => !c.ok)
   const canSubmit = missing.length === 0 && !submitting
@@ -448,6 +461,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     }
     if (findBannedWord(blob)) {
       setError(t('Tin của bạn có từ ngữ không được phép. Vui lòng chỉnh sửa rồi đăng lại.', "Your listing contains a word that isn't allowed. Please edit it and try again."))
+      return
+    }
+    // Draft-first: the listing is ready — NOW ask for the account. The text draft
+    // is already in localStorage (survives an OAuth redirect); in-dialog OTP/email
+    // keeps photos too. After sign-in the /api/me effect fills contact info.
+    if (!user) {
+      openSignIn()
       return
     }
     submittingRef.current = true
@@ -828,6 +848,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           <Section title={t('Liên hệ', 'Contact')} hint={t('Số của bạn được giữ kín — người mua nhắn tin trong ứng dụng, chỉ hiện số sau khi bạn trả lời.', 'Your number stays private — buyers message you in-app; it’s revealed only after you reply.')}>
             {!meLoaded ? (
               <div className="h-5 w-56 rounded shimmer" />
+            ) : isGuest ? (
+              // Draft-first guests: contact comes from the account they'll sign in
+              // with at Publish — no fields to type here.
+              <p className="text-sm text-muted-foreground">
+                {t('Tên và số điện thoại lấy từ tài khoản của bạn khi đăng nhập lúc đăng tin.', 'Your name & number come from your account when you sign in at publish.')}
+              </p>
             ) : (
               <div className="space-y-3">
                 {postingAs && (

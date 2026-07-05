@@ -127,7 +127,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
           </span>
           <p className="text-sm leading-relaxed text-body">
             Every eno.vn seller has a public trust score, and buyers can report bad listings — so fakes and bait prices get caught fast.{' '}
-            <Link href="/about" className="font-semibold text-accent-foreground hover:underline">See how trust works</Link>.
+            <Link href="/trust" className="font-semibold text-accent-foreground hover:underline">See how trust works</Link>.
           </p>
         </div>
 

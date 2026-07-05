@@ -201,7 +201,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="truncate text-lg font-bold text-foreground">{d?.profile.businessName || d?.profile.displayName || tr('Your account', 'Tài khoản của bạn')}</h1>
-                {d && <a href="/trust"><TrustScore score={d.profile.trustScore} size="md" showLabel /></a>}
+                {d && <TrustScore score={d.profile.trustScore} size="md" showLabel href="/trust" />}
               </div>
               {d?.profile.email && <p className="truncate text-sm text-muted-foreground">{d.profile.email}</p>}
             </div>

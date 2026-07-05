@@ -412,30 +412,31 @@ export default async function ListingPage({ params }: Props) {
                   (single trust badge — no duplicate shields). The block links to the
                   storefront; "How trust works" is a quiet secondary link. */}
               <div className="space-y-1.5">
-                <Link href={`/sellers/${listing.sellerId}`} className="group flex items-center gap-3 cursor-pointer">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">
-                    {initials}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="truncate text-sm font-bold text-foreground group-hover:underline">{listing.seller.name}</span>
-                      <TrustScore score={listing.seller.trustScore} variant="mini" size="sm" />
-                      {listing.seller.isBusiness && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
-                          <Building2 className="h-3 w-3" /> <Tr text="Business" />
-                        </span>
-                      )}
+                <div className="flex items-center gap-3">
+                  <Link href={`/sellers/${listing.sellerId}`} className="group flex min-w-0 flex-1 items-center gap-3 cursor-pointer">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">
+                      {initials}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="truncate text-sm font-bold text-foreground group-hover:underline">{listing.seller.name}</span>
+                        {listing.seller.isBusiness && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
+                            <Building2 className="h-3 w-3" /> <Tr text="Business" />
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </Link>
+                  </Link>
+                  {/* The badge IS the "how trust works" link — no separate text link. */}
+                  <TrustScore score={listing.seller.trustScore} variant="mini" size="sm" href="/trust" />
+                </div>
                 {listing.seller.responseRate >= 80 && listing.seller.responseTime && (
                   <p className="pl-14 text-[11px] text-muted-foreground">
                     <Tr text={`Usually replies ${listing.seller.responseTime}`} />
                   </p>
                 )}
-                <Link href="/trust" className="inline-block pl-14 text-[11px] text-muted-foreground underline-offset-2 hover:underline">
-                  <Tr text="How trust works" />
-                </Link>
+
               </div>
 
               {/* Unified contact + offer (auth-gated; number never in this payload).

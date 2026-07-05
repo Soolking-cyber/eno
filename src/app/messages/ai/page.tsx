@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Send, Sparkles, Loader2 } from 'lucide-react'
+import { ImageSearchButton } from '@/components/marketplace/image-search-button'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { ListingCard } from '@/components/marketplace/listing-card'
@@ -131,6 +132,15 @@ export default function AiThreadPage() {
           login-gated + 10/h per account to protect the paid AI credit). */}
       {user ? (
         <div className="flex items-end gap-2 bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          {/* Photo search lives IN the assistant now (the search bars' camera icon
+              folded in here) — recognize the item, then ask as a normal message.
+              Same auth + hourly limits as typed messages, so no extra credit burn. */}
+          <ImageSearchButton
+            onResult={(r) => send([r.brand, r.query].filter(Boolean).join(' '))}
+            onError={(msg) => setMessages((m) => [...m, { role: 'assistant', content: msg, createdAt: new Date().toISOString() }])}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-body transition-colors hover:bg-muted relative tap-44"
+            iconClassName="h-5 w-5"
+          />
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}

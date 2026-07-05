@@ -15,7 +15,6 @@ import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
-import { ImageSearchButton } from './image-search-button'
 import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 import { toast } from 'sonner'
@@ -259,14 +258,9 @@ export function Header() {
                 onClick={() => { router.push('/messages/ai'); setShowSuggestions(false) }}
                 className="mr-0.5 h-10 w-10"
               />
-              {/* Visual search — take/upload/paste a photo, search by its subject. */}
-              <ImageSearchButton
-                iconClassName="h-6 w-6"
-                className="mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-body transition-colors hover:bg-muted disabled:opacity-60 tap-44 relative"
-                onStart={() => toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })}
-                onResult={(r) => { toast.dismiss('vis'); setSearchVal(r.query); setShowSuggestions(false); submitVisual(r) }}
-                onError={(m) => toast.error(m, { id: 'vis' })}
-              />
+              {/* Photo search folded into the AI assistant (✨ → camera in the chat
+                  composer) — one smart entry point, less icon crowding. Pasting an
+                  image into this bar still visual-searches (handler above). */}
             </div>
 
             {/* Recent searches + recent locations — flush bottom of the same window */}
