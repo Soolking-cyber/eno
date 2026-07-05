@@ -1,14 +1,15 @@
 // Trust score → color hierarchy. The trust score is the SINGLE public trust signal
-// — stars and badges are gone. Colors follow human intuition so the hierarchy reads
-// instantly: red = bad, yellow = warning, green = good, blue = great (brand),
-// purple = royal (top). Colors are THEME-AWARE CSS variables
+// — stars and badges are gone. The CANONICAL ladder (matches the tier design decision
+// and the /trust explainer): red = restricted, NEUTRAL slate = building (where every
+// new account starts — never a warning color), brand BLUE = Trusted, GOLD =
+// Exceptional, violet = Elite (top). Colors are THEME-AWARE CSS variables
 // (src/app/globals.css) tuned to pass WCAG AA (≥4.5:1) on both light and dark cards
-// — a single fixed hex can't be AA on white AND on the dark surface.
+// AND on the chips' 10% currentColor tint — a single fixed hex can't do all three.
 
 export type TrustBand = 'restricted' | 'standard' | 'trusted' | 'exceptional' | 'elite'
 
-// Tier ladder (thresholds tuned so the climb is meaningful but reachable):
-//   <60 red · 60–84 slate · 85–109 green · 110–159 gold · 160+ violet (the top).
+// Tier ladder (thresholds match trust.ts tierFor — 60/85/110 — plus the 160 flourish):
+//   <60 red · 60–84 slate · 85–109 blue (Trusted) · 110–159 gold (Exceptional) · 160+ violet (Elite).
 export function trustBand(score: number): TrustBand {
   if (score >= 160) return 'elite'
   if (score >= 110) return 'exceptional'
@@ -23,8 +24,8 @@ export function trustScoreColor(score: number): { color: string; label: string; 
   switch (trustBand(score)) {
     case 'elite': return { color: 'var(--trust-elite)', label: 'Elite', labelVi: 'Hàng đầu', band: 'elite' } // violet — the king tier
     case 'exceptional': return { color: 'var(--trust-exceptional)', label: 'Exceptional', labelVi: 'Xuất sắc', band: 'exceptional' } // gold
-    case 'trusted': return { color: 'var(--trust-trusted)', label: 'Trusted', labelVi: 'Đáng tin cậy', band: 'trusted' } // green
-    case 'standard': return { color: 'var(--trust-standard)', label: 'Standard', labelVi: 'Bình thường', band: 'standard' } // slate
+    case 'trusted': return { color: 'var(--trust-trusted)', label: 'Trusted', labelVi: 'Đáng tin cậy', band: 'trusted' } // brand blue
+    case 'standard': return { color: 'var(--trust-standard)', label: 'Building', labelVi: 'Đang tích lũy', band: 'standard' } // neutral slate (matches /trust wording)
     default: return { color: 'var(--trust-restricted)', label: 'Caution', labelVi: 'Cần thận trọng', band: 'restricted' } // red
   }
 }

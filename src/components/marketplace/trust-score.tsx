@@ -19,36 +19,29 @@ type Props = {
 const PX = { sm: 28, md: 38, lg: 48 } as const
 
 /**
- * The single public trust signal, color-coded by tier (red→slate→green→gold→violet).
+ * The single public trust signal, color-coded by tier (red→slate→blue→gold→violet).
  * `variant='shield'` is the seal; `variant='number'` is just a subtle bold number;
  * `variant='mini'` is the tiny card chip (shield glyph + number, quiet tier palette).
  */
 export function TrustScore({ score, size = 'sm', showLabel = false, variant = 'shield', className }: Props) {
   const { lang, tr } = useLanguage()
-  const { color, label, labelVi, band } = trustScoreColor(score)
+  const { color, label, labelVi } = trustScoreColor(score)
   const n = Math.round(score)
   const title = `${tr('Trust score', 'Điểm uy tín')}: ${n} · ${lang === 'vi' ? labelVi : label}`
 
   if (variant === 'mini') {
     // Card-facing chip: a bare number reads as noise to guests, so pair the tier
-    // shield glyph with the score. Quieter palette than the seal — most sellers
-    // read NEUTRAL ink; only the tiers worth shouting about get color (Trusted =
-    // the brand blue accent, Exceptional = gold via the theme-aware amber pair,
-    // Elite = violet, restricted keeps its red warning).
-    const miniColor = {
-      restricted: 'var(--trust-restricted)',
-      standard: 'var(--ink-4)',
-      trusted: 'var(--brand)',
-      exceptional: 'var(--trust-standard)', // the amber pair IS the gold tone, AA-tuned per theme
-      elite: 'var(--trust-elite)',
-    }[band]
+    // shield glyph with the score. Colors come from the ONE canonical ladder in
+    // lib/trust-score.ts (same tokens as the shield, the number variant and the
+    // /trust page) — neutral slate for building/standard, brand blue = Trusted,
+    // gold = Exceptional, violet = Elite, red = restricted.
     return (
       <span
         title={title}
         className={cn('inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-bold leading-none tabular-nums', className)}
         // Chip tint from currentColor (same 10%-fill language as the shield) — one
         // rule covers every tier and resolves per theme automatically.
-        style={{ color: miniColor, background: 'color-mix(in srgb, currentColor 10%, transparent)' }}
+        style={{ color, background: 'color-mix(in srgb, currentColor 10%, transparent)' }}
       >
         <svg width={10} height={10} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
           <path
