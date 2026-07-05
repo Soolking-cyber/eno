@@ -110,7 +110,7 @@ export function CustomSelect({
                 type="button"
                 onClick={() => { onChange(opt.value); setIsOpen(false) }}
                 className={cn(
-                  'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer hover:bg-muted',
+                  'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer hover:bg-muted hover:text-accent-foreground',
                   isActive ? 'font-semibold text-accent-foreground' : 'font-medium text-body',
                 )}
               >

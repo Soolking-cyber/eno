@@ -279,7 +279,7 @@ export function Header() {
                             key={i}
                             type="button"
                             onClick={() => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
-                            className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                            className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
                           >
                             {term}
                           </button>
@@ -299,7 +299,7 @@ export function Header() {
                             key={i}
                             type="button"
                             onClick={() => { applyArea({ province: loc.province, ward: loc.ward, nearby: null }); setShowSuggestions(false) }}
-                            className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
                           >
                             <MapPin className="h-3.5 w-3.5" />
                             {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}

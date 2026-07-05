@@ -113,7 +113,7 @@ export function CategoryRail({
                           <button
                             key={sub.slug}
                             onClick={() => onSubcategory(subActive ? 'all' : sub.slug)}
-                            className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted')}
+                            className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >
                             <span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span>
                             {count != null && <span className="shrink-0 text-[10px] font-semibold text-ink-4">{count}</span>}

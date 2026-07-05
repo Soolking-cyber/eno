@@ -230,7 +230,7 @@ function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
   if (state === 'idle' || state === 'loading' || state === 'error') {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={run} disabled={state === 'loading'} className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-60 cursor-pointer">
+        <button onClick={run} disabled={state === 'loading'} className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-60 cursor-pointer">
           {state === 'loading' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
           {state === 'loading' ? 'Reading the evidence…' : 'AI review'}
         </button>
@@ -413,14 +413,14 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
             <SeverityMenu value={severity} onPick={(sv) => onSeverity(c.id, sv)} />
             <button ref={(el) => { decisionRefs.current.confirm = el }} onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} title={`Docks the target ${PENALTY[severity]} trust${isListing ? ' and unpublishes the listing' : ''}`} className={cn('rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer', aiFocus === 'confirm' && 'ring-2 ring-brand ring-offset-1')}>Confirm{isListing ? ' & unpublish' : ''}</button>
-            <button ref={(el) => { decisionRefs.current.dismiss = el }} onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} title={c.appeal ? 'Uphold the appeal — no penalty' : 'Keep the listing live — no penalty'} className={cn('rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer', aiFocus === 'dismiss' && 'ring-2 ring-brand ring-offset-1')}>Dismiss</button>
+            <button ref={(el) => { decisionRefs.current.dismiss = el }} onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} title={c.appeal ? 'Uphold the appeal — no penalty' : 'Keep the listing live — no penalty'} className={cn('rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-40 cursor-pointer', aiFocus === 'dismiss' && 'ring-2 ring-brand ring-offset-1')}>Dismiss</button>
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
             <span className="ml-auto inline-flex items-center gap-1.5">
               <button ref={(el) => { decisionRefs.current.abusive = el }} onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className={cn('rounded-md px-2 py-1 text-[11px] font-semibold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer', aiFocus === 'abusive' && 'ring-2 ring-brand ring-offset-1')} title="False/abusive report — strike the reporter">Abusive</button>
               <NoteEditor caseId={c.id} initial={c.internalNote} onSaved={refresh} />
               <MoreMenu>
                 {isListing && <button onClick={() => onListing('reject', t.listing!.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete listing permanently</button>}
-                {c.communityCount > 1 && <button onClick={() => onDismissTarget(c.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount} on this target</button>}
+                {c.communityCount > 1 && <button onClick={() => onDismissTarget(c.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount} on this target</button>}
                 {(isListing || c.communityCount > 1) && (msgTargets.length > 0 || t.isGuest) && <div className="my-1 border-t border-border" />}
                 {msgTargets.map((m) => <div key={m.recipientId} className="px-1 py-0.5"><MacroSender recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} /></div>)}
                 {t.isGuest && <p className="px-2 py-1 text-[10px] italic text-ink-4">Reported party is a guest — can&apos;t be messaged.</p>}

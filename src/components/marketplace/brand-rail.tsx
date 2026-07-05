@@ -131,7 +131,7 @@ export function BrandRail({
                           <button
                             key={m.model}
                             onClick={() => onPickModel(mActive ? 'all' : m.model)}
-                            className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted')}
+                            className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >
                             <span className="truncate">{m.model}</span>
                             <span className="shrink-0 text-[10px] font-semibold text-ink-4">{m.count}</span>
@@ -153,7 +153,7 @@ export function BrandRail({
               <button
                 key={b.slug}
                 onClick={() => { onPickBrand(b.slug); onPickModel('all') }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm font-semibold text-body transition-colors hover:bg-muted"
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-accent-foreground"
               >
                 <BrandLogo name={b.name} iconPath={b.iconPath} size={22} flat className="!text-body shrink-0" />
                 <span className="truncate">{b.name}</span>

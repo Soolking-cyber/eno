@@ -1301,7 +1301,7 @@ export function ListingsExplorer({
                                 <button
                                   key={i}
                                   onClick={() => { setLandingQuery(term); handleLandingSearch(term) }}
-                                  className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                                  className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
                                 >
                                   {term}
                                 </button>
@@ -1326,7 +1326,7 @@ export function ListingsExplorer({
                                 <button
                                   key={i}
                                   onClick={() => applyRecentLocation(loc)}
-                                  className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                                  className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
                                 >
                                   <MapPin className="h-3.5 w-3.5" />
                                   {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
@@ -1346,7 +1346,7 @@ export function ListingsExplorer({
                                 <button
                                   key={c.slug}
                                   onClick={() => { setShowSuggestions(false); handleCategorySelect(c.slug) }}
-                                  className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                                  className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
                                 >
                                   {lang === 'vi' ? c.nameVi : c.name}
                                 </button>

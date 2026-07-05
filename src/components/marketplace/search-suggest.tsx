@@ -169,7 +169,7 @@ export function SearchSuggest({
                 type="button"
                 onMouseDown={pickDown(() => onPick(it))}
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors cursor-pointer',
+                  'group flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors cursor-pointer',
                   activeIndex === listingStart + i ? 'bg-muted' : 'hover:bg-muted',
                 )}
               >
@@ -179,7 +179,7 @@ export function SearchSuggest({
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-foreground"><Highlight text={title} query={q} /></span>
+                  <span className="block truncate text-sm font-medium text-foreground transition-colors group-hover:text-accent-foreground"><Highlight text={title} query={q} /></span>
                   <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="font-semibold text-accent-foreground" />
                     <span className="truncate">· {l.location}</span>
