@@ -2,7 +2,6 @@
 
 import { memo, useState } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { MapPin, MessageCircle, Tag } from 'lucide-react'
 import { TrustScore } from './trust-score'
@@ -12,6 +11,8 @@ import { FavoriteHeart } from './favorite-heart'
 import { useLanguage, Tr } from '@/context/language-context'
 import type { SerializedListingCard } from '@/lib/types'
 import { formatMoneyFull } from '@/lib/vnd'
+import { useAuth } from '@/context/auth-context'
+import { stashQuickCompose } from '@/lib/quick-contact'
 
 type Props = {
   listing: SerializedListingCard
@@ -33,6 +34,12 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
   // Quick-offer: pressing the Tag rolls a discount slider open to the LEFT of the
   // action icons; confirm hands off to the composer's offer mode (?offer=N#contact).
   const [offer, setOffer] = useState<number | null>(null)
+  const { user, loading: authLoading, openSignIn } = useAuth()
+  const quickGo = (opts: { body?: string; offerAmount?: number | null }) => {
+    if (!user) { if (!authLoading) openSignIn({ listingTitle: displayTitle, listingImage: cover ?? null }); return }
+    if (stashQuickCompose(l, opts)) router.push('/messages/pending')
+    else router.push(`/listings/${l.id}#contact`)
+  }
 
   return (
     <div
@@ -92,7 +99,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             />
             <button
               type="button"
-              onClick={() => router.push(`/listings/${l.id}?offer=${offer}#contact`)}
+              onClick={() => quickGo({ offerAmount: Math.round(l.price * (1 - offer / 100)) })}
               className="shrink-0 rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
             >
               {formatMoneyFull(Math.round(l.price * (1 - offer / 100)), l.currency)} →
@@ -110,15 +117,15 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             <Tag className="h-[17px] w-[17px]" />
           </button>
         )}
-        <Link
-          href={`/listings/${l.id}#contact`}
+        <button
+          type="button"
           aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
           title={tr('Chat with seller', 'Nhắn tin với người bán')}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent"
         >
           <MessageCircle className="h-[18px] w-[18px]" />
-        </Link>
+        </button>
         <button
           type="button"
           aria-label={tr('Show on map', 'Xem trên bản đồ')}

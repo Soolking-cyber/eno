@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useRef, memo } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag } from 'lucide-react'
 import { TrustScore } from './trust-score'
@@ -15,6 +14,8 @@ import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
 import { useFavorites } from '@/context/favorites-context'
+import { useAuth } from '@/context/auth-context'
+import { stashQuickCompose } from '@/lib/quick-contact'
 
 // Tiny neutral blur (matches the card's bg) so images fade in instead of popping
 // from a grey box. Shared across all cards.
@@ -65,6 +66,16 @@ function ListingCardImpl({
   // in offer mode via ?offer=N#contact. null = collapsed.
   const [quickOffer, setQuickOffer] = useState<number | null>(null)
   const router = useRouter()
+  const { user, loading: authLoading, openSignIn } = useAuth()
+
+  // Quick actions land IN the conversation: stash the structured compose payload
+  // and let /messages/pending create the thread + post it (same flow as the PDP
+  // composer). Guests get the sign-in dialog with listing context.
+  const quickGo = (opts: { body?: string; offerAmount?: number | null }) => {
+    if (!user) { if (!authLoading) openSignIn({ listingTitle: displayTitle, listingImage: images[0] ?? null }); return }
+    if (stashQuickCompose(listing, opts)) router.push('/messages/pending')
+    else router.push(`/listings/${listing.id}#contact`)
+  }
   const [idx, setIdx] = useState(0)
   // Only the first image is in the DOM until the user engages the carousel
   // (hover/touch) — cuts initial DOM nodes + image bytes on the homepage grid.
@@ -230,51 +241,55 @@ function ListingCardImpl({
             off to the composer's offer mode (?offer=N#contact). Centered on the
             photo, clear of heart/dots/pin. */}
         <span className="pointer-events-none absolute inset-0 z-10 hidden flex-col items-center justify-center gap-2 opacity-0 transition-opacity duration-150 lg:flex lg:group-hover:opacity-100">
-          {quickOffer === null ? (
-            <span className="pointer-events-auto flex items-center gap-1.5">
-              <Link
-                href={`/listings/${listing.id}#contact`}
+          <span className="pointer-events-auto flex items-center gap-1.5">
+            {/* Discount bar rolls open to the LEFT of the Offer button (same
+                pattern as the compact rows); Chat yields while sliding. */}
+            {quickOffer !== null && (
+              <span
                 onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-white shadow-pop transition-transform hover:scale-105 active:scale-95"
+                className="flex items-center gap-2 rounded-full bg-card/95 py-1 pl-3 pr-1 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150"
               >
-                <MessageCircle className="h-3.5 w-3.5" /> {tr('Chat', 'Nhắn tin')}
-              </Link>
-              {listing.price > 0 && (
+                <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
+                <input
+                  type="range"
+                  min={5} max={50} step={5}
+                  value={quickOffer}
+                  onChange={(e) => setQuickOffer(Number(e.target.value))}
+                  aria-label={tr('Discount', 'Mức giảm')}
+                  className="w-24 accent-[var(--brand)] cursor-pointer"
+                />
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); setQuickOffer(10) }}
-                  className="flex items-center gap-1.5 rounded-full bg-card/95 px-3.5 py-1.5 text-xs font-bold text-foreground shadow-pop transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+                  onClick={() => quickGo({ offerAmount: Math.round(listing.price * (1 - quickOffer / 100)) })}
+                  className="shrink-0 rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
                 >
-                  <Tag className="h-3.5 w-3.5" /> {tr('Offer', 'Trả giá')}
+                  {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency)} →
                 </button>
-              )}
-            </span>
-          ) : (
-            <span
-              className="pointer-events-auto flex w-[85%] max-w-[240px] flex-col gap-1.5 rounded-xl bg-card/95 p-2.5 shadow-pop backdrop-blur-[2px]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <span className="flex items-baseline justify-between text-[11px] font-bold text-foreground">
-                <span>−{quickOffer}%</span>
-                <span className="tabular-nums">{formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency)}</span>
               </span>
-              <input
-                type="range"
-                min={5} max={50} step={5}
-                value={quickOffer}
-                onChange={(e) => setQuickOffer(Number(e.target.value))}
-                aria-label={tr('Discount', 'Mức giảm')}
-                className="w-full accent-[var(--brand)] cursor-pointer"
-              />
+            )}
+            {quickOffer === null && (
               <button
                 type="button"
-                onClick={() => router.push(`/listings/${listing.id}?offer=${quickOffer}#contact`)}
-                className="w-full rounded-lg bg-primary py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
+                className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-white shadow-pop transition-transform hover:scale-105 active:scale-95 cursor-pointer"
               >
-                {tr('Review & send offer', 'Xem & gửi đề nghị')}
+                <MessageCircle className="h-3.5 w-3.5" /> {tr('Chat', 'Nhắn tin')}
               </button>
-            </span>
-          )}
+            )}
+            {listing.price > 0 && (
+              <button
+                type="button"
+                aria-pressed={quickOffer !== null}
+                onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold shadow-pop transition-transform hover:scale-105 active:scale-95 cursor-pointer',
+                  quickOffer !== null ? 'bg-foreground text-background' : 'bg-card/95 text-foreground',
+                )}
+              >
+                <Tag className="h-3.5 w-3.5" /> {tr('Offer', 'Trả giá')}
+              </button>
+            )}
+          </span>
         </span>
 
         {/* Locate on map — bottom-right, mirrors the heart (icon-only, white + shadow) */}

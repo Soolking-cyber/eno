@@ -534,6 +534,7 @@ export default function ThreadPage() {
               hasPendingBuyerOffer={hasPendingBuyerOffer}
               availabilityConfirmedAt={thread.listing.availabilityConfirmedAt}
               onInsert={insertQuickReply}
+              onSend={(t) => send(t)}
               className="px-4 pt-1.5"
             />
           )}

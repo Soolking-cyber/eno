@@ -12,18 +12,21 @@ import { timeAgo } from '@/lib/types'
  * and the docked chat widget so both surfaces behave identically.
  *
  * Seller side: the 3 questions every seller answers endlessly (+ a "let me think"
- * reply when the buyer's latest message is a pending offer). Chips only INSERT
- * text into the composer — they never auto-send.
+ * reply when the buyer's latest message is a pending offer).
  *
- * Buyer side: one "Is it still available?" chip. If the seller confirmed
- * availability within the last 7 days, tapping it answers INLINE (no message
- * sent) — otherwise it inserts the question for normal sending.
+ * COMPLETE replies ("Yes, still available", "Price is firm", "Is it still
+ * available?"…) AUTO-SEND on tap (user decision 2026-07-05 — one tap, done).
+ * Chips that need completing ("Can meet in …") still INSERT into the composer.
+ *
+ * Buyer side: if the seller confirmed availability within the last 7 days, the
+ * availability chip answers INLINE (no message sent) — data beats a round-trip.
  */
 export function QuickReplyChips({
   isSeller,
   hasPendingBuyerOffer,
   availabilityConfirmedAt,
   onInsert,
+  onSend,
   className,
 }: {
   isSeller: boolean
@@ -31,6 +34,8 @@ export function QuickReplyChips({
   availabilityConfirmedAt?: string | null
   /** Insert chip text into the composer (parent focuses it, cursor at the end). */
   onInsert: (text: string) => void
+  /** Send a complete reply immediately (falls back to onInsert when absent). */
+  onSend?: (text: string) => void
   className?: string
 }) {
   const { tr, lang } = useLanguage()
@@ -43,13 +48,18 @@ export function QuickReplyChips({
   const chipCls =
     'shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted hover:text-foreground cursor-pointer'
 
-  const sellerChips: { label: string; insert: string }[] = [
-    { label: tr('Yes, still available', 'Vẫn còn hàng nhé'), insert: tr('Yes, still available', 'Vẫn còn hàng nhé') },
-    { label: tr('Price is firm', 'Giá cố định ạ'), insert: tr('Price is firm', 'Giá cố định ạ') },
+  // Fire a COMPLETE reply straight away; chips that need words still insert.
+  const fire = (text: string) => {
+    if (onSend) { haptic(); onSend(text) } else onInsert(text)
+  }
+
+  const sellerChips: { label: string; text: string; complete: boolean }[] = [
+    { label: tr('Yes, still available', 'Vẫn còn hàng nhé'), text: tr('Yes, still available', 'Vẫn còn hàng nhé'), complete: true },
+    { label: tr('Price is firm', 'Giá cố định ạ'), text: tr('Price is firm', 'Giá cố định ạ'), complete: true },
     // Trailing space (no ellipsis) so the seller completes the location right away.
-    { label: tr('Can meet in …', 'Có thể gặp ở …'), insert: tr('Can meet in ', 'Có thể gặp ở ') },
+    { label: tr('Can meet in …', 'Có thể gặp ở …'), text: tr('Can meet in ', 'Có thể gặp ở '), complete: false },
     ...(hasPendingBuyerOffer
-      ? [{ label: tr('Let me think about it', 'Để mình cân nhắc nhé'), insert: tr('Let me think about it', 'Để mình cân nhắc nhé') }]
+      ? [{ label: tr('Let me think about it', 'Để mình cân nhắc nhé'), text: tr('Let me think about it', 'Để mình cân nhắc nhé'), complete: true }]
       : []),
   ]
 
@@ -59,7 +69,7 @@ export function QuickReplyChips({
       if (note !== 'dismissed') setNote('shown')
       return
     }
-    onInsert(tr('Is it still available?', 'Còn hàng không?'))
+    fire(tr('Is it still available?', 'Còn hàng không?'))
   }
 
   return (
@@ -81,7 +91,7 @@ export function QuickReplyChips({
       <div className="flex gap-1 overflow-x-auto scrollbar-none">
         {isSeller ? (
           sellerChips.map((c) => (
-            <button key={c.label} onClick={() => onInsert(c.insert)} className={chipCls}>
+            <button key={c.label} onClick={() => (c.complete ? fire(c.text) : onInsert(c.text))} className={chipCls}>
               {c.label}
             </button>
           ))
