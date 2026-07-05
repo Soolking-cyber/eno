@@ -1235,7 +1235,7 @@ export function ListingsExplorer({
                     if (e.key === 'Enter') handleLandingSearch(landingQuery)
                   }}
                   placeholder={tr('Search motorbikes, apartments, moving sales...', 'Tìm xe máy, căn hộ, đồ thanh lý...')}
-                  className="min-w-0 flex-1 bg-transparent py-2.5 sm:py-3 pr-3 text-base font-medium text-foreground outline-none placeholder:text-ink-4 placeholder:font-medium"
+                  className="min-w-0 flex-1 bg-transparent py-3 pr-3 text-base font-medium text-foreground outline-none placeholder:text-ink-4 placeholder:font-medium"
                 />
                 {landingQuery && (
                   <button
@@ -1251,7 +1251,7 @@ export function ListingsExplorer({
                 <AISearchButton
                   active={false}
                   onClick={() => { router.push('/messages/ai'); setShowSuggestions(false) }}
-                  className="px-2.5 py-2.5 sm:py-3"
+                  className="px-2.5 py-3"
                   iconClassName="h-6 w-6 sm:h-7 sm:w-7"
                 />
                 {/* Photo search folded into the AI assistant (camera in the ✨ chat
@@ -1263,7 +1263,7 @@ export function ListingsExplorer({
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
                   aria-label={tr('Map', 'Bản đồ')}
                   title={tr('Map', 'Bản đồ')}
-                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-2.5 sm:py-3 text-ink-4 hover:text-accent-foreground hover:scale-110 transition-[color,transform] duration-200 cursor-pointer"
+                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-3 text-ink-4 hover:text-accent-foreground hover:scale-110 transition-[color,transform] duration-200 cursor-pointer"
                 >
                   <Map className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                 </button>
