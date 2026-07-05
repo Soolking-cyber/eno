@@ -35,6 +35,7 @@ export type SerializedListingCard = {
   model: string | null
   verified: boolean
   postedAt: string
+  savedCount: number
   category: {
     id: string
     name: string

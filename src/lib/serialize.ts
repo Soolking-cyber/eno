@@ -98,7 +98,7 @@ export function serializeListing(
 export const LISTING_CARD_SELECT = {
   id: true, title: true, titleVi: true, price: true, priceUnit: true, currency: true,
   location: true, district: true, city: true, lat: true, lng: true, images: true,
-  brandSlug: true, model: true, verified: true, postedAt: true,
+  brandSlug: true, model: true, verified: true, postedAt: true, savedCount: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
   seller: { select: { trustScore: true, owner: { select: { accountType: true } } } },
 } as const
@@ -107,7 +107,7 @@ type ListingCardRow = {
   id: string; title: string; titleVi: string | null; price: number; priceUnit: string
   currency: string; location: string; district: string | null; city: string
   lat: number | null; lng: number | null; images: string; brandSlug: string | null
-  model: string | null; verified: boolean; postedAt: Date
+  model: string | null; verified: boolean; postedAt: Date; savedCount: number
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
   seller: { trustScore: number; owner?: { accountType: string | null } | null }
 }
@@ -130,6 +130,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     model: l.model,
     verified: l.verified,
     postedAt: l.postedAt.toISOString(),
+    savedCount: l.savedCount,
     category: {
       id: l.category.id,
       name: l.category.name,

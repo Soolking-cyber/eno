@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState, useRef, memo } from 'react'
-import { Heart, ChevronLeft, ChevronRight, Building2, MapPin } from 'lucide-react'
+import Link from 'next/link'
+import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
@@ -204,6 +205,31 @@ function ListingCardImpl({
             <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
           </span>
         </button>
+
+        {/* Social proof — "N saved" (5a #5): urgency without dark patterns. Only
+            shows once the count is genuinely impressive (≥5); bottom-left, clear of
+            the dots (center) and locate pin (right). */}
+        {listing.savedCount >= 5 && (
+          <span
+            title={tr('people saved this', 'người đã lưu tin này')}
+            className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1 rounded-full bg-foreground/70 px-2 py-0.5 text-[10px] font-bold text-background backdrop-blur-[2px]"
+          >
+            <Heart className="h-2.5 w-2.5 fill-current" /> {listing.savedCount}
+          </span>
+        )}
+
+        {/* Quick-chat (5a #6) — desktop hover only: one click from the grid to the
+            listing's composer (which prefills the opener via #contact). Centered on
+            the photo so it never collides with heart/dots/pin. */}
+        <span className="pointer-events-none absolute inset-0 z-10 hidden items-center justify-center opacity-0 transition-opacity duration-150 lg:flex lg:group-hover:opacity-100">
+          <Link
+            href={`/listings/${listing.id}#contact`}
+            onClick={(e) => e.stopPropagation()}
+            className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-white shadow-pop transition-transform hover:scale-105 active:scale-95"
+          >
+            <MessageCircle className="h-3.5 w-3.5" /> {tr('Chat', 'Nhắn tin')}
+          </Link>
+        </span>
 
         {/* Locate on map — bottom-right, mirrors the heart (icon-only, white + shadow) */}
         {onLocate && (

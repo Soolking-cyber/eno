@@ -38,6 +38,20 @@ export function ContactComposer({
   const [discount, setDiscount] = useState(10) // % off
   const ref = useRef<HTMLTextAreaElement>(null)
 
+  // Arriving via a quick-chat link (/listings/id#contact) = intent to talk: scroll
+  // the composer into view, prefill the opener, focus. Same one-tap-send promise as
+  // the sticky bar's Contact button.
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.location.hash !== '#contact') return
+    const t = window.setTimeout(() => {
+      document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setText((cur) => cur.trim() ? cur : tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?'))
+      window.setTimeout(() => ref.current?.focus({ preventScroll: true }), 350)
+    }, 150)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // "Contact seller" (sticky bar) prefills the classic opener so sending is one tap —
   // an empty composer is where chats stall. Never overwrites anything already typed.
   useEffect(() => {

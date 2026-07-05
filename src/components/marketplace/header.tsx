@@ -186,7 +186,7 @@ export function Header() {
   return (
     <header
       className={cn(
-        'sticky top-0 z-40 border-b border-border/60 bg-card pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        'sticky top-0 z-40 border-b border-border/60 bg-card/85 backdrop-blur-md pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style on ALL sizes (incl. desktop): slide UP off-screen + fade out on
         // scroll-down, slide back down + fade in on scroll-up (near the top = always shown).
         hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',
@@ -197,7 +197,7 @@ export function Header() {
         <Link
           href="/"
           onClick={() => window.dispatchEvent(new CustomEvent('eno:reset-home'))}
-          className="flex shrink-0 items-center"
+          className="flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95"
           aria-label="eno.vn"
         >
           <img src="/logo-mark.svg" alt="eno.vn" width={48} height={48} className="h-12 w-12" />

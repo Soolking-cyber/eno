@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react'
+import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react'
 import {
   Search,
   SlidersHorizontal,
@@ -22,6 +22,7 @@ import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
+import { CaptureCard } from './capture-card'
 import { LogoWordmark } from './logo-wordmark'
 import { CustomSelect } from './custom-select'
 import { BrandRail } from './brand-rail'
@@ -1458,14 +1459,18 @@ export function ListingsExplorer({
             <>
               <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
                 {deferredListings.map((l, index) => (
-                  <div
-                    key={l.id}
-                    className="flex flex-col h-full"
-                    onMouseEnter={() => prefetchListing(l.id)}
-                    onTouchStart={() => prefetchListing(l.id)}
-                  >
-                    <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={locateListing} />
-                  </div>
+                  <Fragment key={l.id}>
+                    {/* Guest capture (5a #7): one signup card at the point of interest,
+                        after the 8th listing. Renders null once signed in. */}
+                    {index === 8 && <CaptureCard />}
+                    <div
+                      className="flex flex-col h-full"
+                      onMouseEnter={() => prefetchListing(l.id)}
+                      onTouchStart={() => prefetchListing(l.id)}
+                    >
+                      <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={locateListing} />
+                    </div>
+                  </Fragment>
                 ))}
               </div>
               {/* Home feed: a "Load more" button instead of auto-infinite, so the footer
@@ -1589,7 +1594,7 @@ export function ListingsExplorer({
       return (
         <div className={cn('flex items-center gap-2 rounded-2xl bg-brand-50 px-2.5 py-2', className)}>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{chipBtns}</div>
-          <button onClick={saveSearch} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-card px-3 py-1.5 text-xs font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer">
+          <button onClick={saveSearch} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-brand-dark active:scale-95 cursor-pointer">
             <Bookmark className="h-3.5 w-3.5" /> {tr('Save search', 'Lưu tìm kiếm')}
           </button>
         </div>
@@ -1880,14 +1885,18 @@ export function ListingsExplorer({
                   /* Grid Mode (Standard Cards) */
                   <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
                     {deferredListings.map((l, index) => (
-                      <div
-                        key={l.id}
-                        className="flex flex-col h-full"
-                        onMouseEnter={() => prefetchListing(l.id)}
-                        onTouchStart={() => prefetchListing(l.id)}
-                      >
-                        <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={locateListing} />
-                      </div>
+                      <Fragment key={l.id}>
+                        {/* Guest capture (5a #7): one signup card at the point of interest,
+                            after the 8th listing. Renders null once signed in. */}
+                        {index === 8 && <CaptureCard />}
+                        <div
+                          className="flex flex-col h-full"
+                          onMouseEnter={() => prefetchListing(l.id)}
+                          onTouchStart={() => prefetchListing(l.id)}
+                        >
+                          <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={locateListing} />
+                        </div>
+                      </Fragment>
                     ))}
                   </div>
                 )}

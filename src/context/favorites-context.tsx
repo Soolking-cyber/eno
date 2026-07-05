@@ -56,6 +56,9 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     // hearting replaces rather than stacks.
     if (added) {
       haptic()
+      // First save = the contextual-signup moment (5a #10). The sheet component
+      // decides whether to show (guest + not shown before); we just announce.
+      window.dispatchEvent(new Event('eno:first-save'))
       toast(tr('Saved on this device', 'Đã lưu trên thiết bị này'), {
         id: 'fav-saved',
         action: { label: tr('View', 'Xem'), onClick: () => router.push('/saved') },

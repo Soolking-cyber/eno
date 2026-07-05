@@ -16,6 +16,7 @@ import { BackToTop } from "@/components/marketplace/back-to-top";
 import { SkipLink } from "@/components/marketplace/skip-link";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
 import { InstallHint } from "@/components/marketplace/install-hint";
+import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
@@ -175,6 +176,7 @@ export default function RootLayout({
                       <MobileNav />
                       <CookieConsent />
                       <InstallHint />
+                      <SaveSignupSheet />
                       <ImageShield />
                       </PageTransitions>
                     </QueryProvider>
