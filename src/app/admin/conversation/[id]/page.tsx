@@ -1,6 +1,5 @@
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
-import { AdminHeader } from '@/components/admin/admin-header'
 import { ShieldAlert, ChevronLeft, Tag } from 'lucide-react'
 import Link from 'next/link'
 import { formatMoneyFull } from '@/lib/vnd'
@@ -25,8 +24,7 @@ export default async function AdminConversationPage({ params }: Props) {
 
   if (!admin) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminHeader />
+      <div className="flex flex-1 flex-col">
         <main id="main" tabIndex={-1} className="flex flex-1 items-center justify-center px-3">
           <div className="max-w-sm rounded-2xl bg-card p-8 text-center shadow-pop">
             <ShieldAlert className="mx-auto h-10 w-10 text-ink-4" />
@@ -58,9 +56,8 @@ export default async function AdminConversationPage({ params }: Props) {
   const sellerName = convo?.seller?.name || 'Seller'
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <AdminHeader />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-8 sm:px-6">
+    <div className="flex flex-1 flex-col bg-background">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         <Link href="/admin" className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
           <ChevronLeft className="h-4 w-4" /> Back to moderation
         </Link>

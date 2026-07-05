@@ -1,6 +1,5 @@
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
-import { AdminHeader } from '@/components/admin/admin-header'
 import { AdminNav } from '@/components/admin/admin-nav'
 import { ModerationClient, type ModCase } from '@/components/admin/moderation-client'
 import { reportContext, targetContext, type RawReport } from '@/lib/admin-reports'
@@ -30,8 +29,7 @@ export default async function AdminPage() {
 
   if (!admin) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminHeader />
+      <div className="flex flex-1 flex-col">
         <main id="main" tabIndex={-1} className="flex flex-1 items-center justify-center px-3">
           <div className="max-w-sm rounded-2xl bg-card p-8 text-center shadow-pop">
             <ShieldAlert className="mx-auto h-10 w-10 text-ink-4" />
@@ -104,9 +102,8 @@ export default async function AdminPage() {
   const resolved: ModCase[] = resolvedRows.map((r) => buildCase(r, true))
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <AdminHeader />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
+    <div className="flex flex-1 flex-col bg-background">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         {/* The moderation panel is web/desktop-only. */}
         <div className="flex flex-col items-center justify-center gap-2 py-24 text-center md:hidden">
           <Monitor className="h-10 w-10 text-ink-4" />
