@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+import { isMockImageUrl } from '@/lib/listing-image'
 import { Search, Tag } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Price } from './price'
@@ -173,8 +175,7 @@ export function SearchSuggest({
               >
                 <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-tint">
                   {l.image && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={l.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    <Image src={l.image} alt="" fill sizes="40px" quality={60} unoptimized={isMockImageUrl(l.image) || undefined} className="object-cover" />
                   )}
                 </span>
                 <span className="min-w-0 flex-1">

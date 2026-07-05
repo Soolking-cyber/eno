@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { SerializedListing } from '@/lib/types'
@@ -114,8 +114,10 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; clearTimeout(t) }
   }, [idKey, fetchTick])
 
+  const value = useMemo(() => ({ ids, isFavorite, toggle, count: ids.size, saved, savedError, retrySaved }), [ids, isFavorite, toggle, saved, savedError, retrySaved])
+
   return (
-    <FavoritesContext.Provider value={{ ids, isFavorite, toggle, count: ids.size, saved, savedError, retrySaved }}>
+    <FavoritesContext.Provider value={value}>
       {children}
     </FavoritesContext.Provider>
   )

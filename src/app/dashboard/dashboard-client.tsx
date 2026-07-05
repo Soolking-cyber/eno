@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { Mascot } from '@/components/marketplace/mascot'
 import { HelpCenter } from '@/components/marketplace/help-center'
-import { DevelopersPanel } from '@/components/marketplace/developers-panel'
+import dynamic from 'next/dynamic'
+// Tab-gated heavyweights load on demand — they were statically bundled into the
+// default listings tab (PostWizard alone pulls taxonomy + uploads + area-filter).
+const DevelopersPanel = dynamic(() => import('@/components/marketplace/developers-panel').then((m) => m.DevelopersPanel), { ssr: false })
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
@@ -23,7 +26,7 @@ import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switcher'
 import { ChangeEmailForm } from '@/components/marketplace/change-email-form'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
-import { PostWizard } from '@/components/marketplace/post-wizard'
+const PostWizard = dynamic(() => import('@/components/marketplace/post-wizard').then((m) => m.PostWizard), { ssr: false })
 import { EnforcementBanner, type EnforcementInfo } from '@/components/marketplace/enforcement-banner'
 import type { SerializedCategory } from '@/lib/types'
 import { isStale } from '@/lib/stale'

@@ -1,10 +1,9 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from './auth-context'
 import { useLanguage } from './language-context'
-import { createSupabaseBrowser } from '@/lib/supabase/browser'
 
 type View = 'list' | 'thread'
 
@@ -170,13 +169,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // The 8s poll above stays as a backstop. Keyed only by user → never re-subscribes.
   useEffect(() => {
     if (!user) return
-    const supabase = createSupabaseBrowser()
+    // Supabase is imported LAZILY here (same pattern as auth-context) — a static
+    // import in this globally-mounted provider put ~60 KiB of supabase-js in every
+    // page's first-load bundle, including for logged-out visitors.
+    const importClient = async () => (await import('@/lib/supabase/browser')).createSupabaseBrowser()
+    let supabase: Awaited<ReturnType<typeof importClient>> | null = null
     let cancelled = false
     let debounce: ReturnType<typeof setTimeout> | null = null
-    let channel: ReturnType<typeof supabase.channel> | null = null
+    let channel: import('@supabase/supabase-js').RealtimeChannel | null = null
     const bump = () => { if (debounce) return; debounce = setTimeout(() => { debounce = null; refreshUnread(); refreshConvos() }, 300) }
     const subscribe = async () => {
       if (channel) return
+      if (!supabase) supabase = await importClient()
+      if (cancelled) return
       const { data } = await supabase.auth.getSession()
       if (cancelled || !data.session) return
       await supabase.realtime.setAuth(data.session.access_token)
@@ -190,11 +195,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         })
         .subscribe()
     }
-    const unsubscribe = () => { if (channel) { supabase.removeChannel(channel); channel = null } }
+    const unsubscribe = () => { if (channel && supabase) { supabase.removeChannel(channel); channel = null } }
     // An open WebSocket makes a page ineligible for the back/forward cache, so the
     // back button re-mounts everything instead of restoring instantly. Drop the
     // socket as the page enters bfcache (pagehide) and restore it on return.
-    const onPageHide = () => { unsubscribe(); supabase.realtime.disconnect() }
+    const onPageHide = () => { unsubscribe(); supabase?.realtime.disconnect() }
     const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) { refreshUnread(); refreshConvos(); subscribe() } }
 
     subscribe()
@@ -220,8 +225,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const back = useCallback(() => { setView('list'); setConversationId(null); setStarting(false); setDraft(''); setPendingSend(false); refreshUnread(); refreshConvos() }, [refreshUnread, refreshConvos])
   const close = useCallback(() => { setOpen(false); setStarting(false); setDraft(''); setPendingSend(false) }, [])
 
+  const value = useMemo(() => ({ open, view, conversationId, starting, unread, convos, refreshConvos, deleteConvo, getCachedThread, cacheThread, prefetchThread, draft, setDraft, pendingSend, setPendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close }), [open, view, conversationId, starting, unread, convos, refreshConvos, deleteConvo, getCachedThread, cacheThread, prefetchThread, draft, pendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close])
+
   return (
-    <ChatContext.Provider value={{ open, view, conversationId, starting, unread, convos, refreshConvos, deleteConvo, getCachedThread, cacheThread, prefetchThread, draft, setDraft, pendingSend, setPendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close }}>
+    <ChatContext.Provider value={value}>
       {children}
     </ChatContext.Provider>
   )

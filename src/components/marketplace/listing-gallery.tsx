@@ -128,7 +128,11 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
           {/* ≥md: Airbnb-style mosaic (1 big + grid) — unchanged. */}
           <div data-protected className="relative hidden h-[300px] grid-cols-2 gap-2 overflow-hidden rounded-2xl sm:h-[440px] md:grid">
             <button onClick={() => openAt(0)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-              <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 50vw, 40vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority />
+              {/* eager, NOT priority: both breakpoints mount (CSS-hidden), so priority
+                  here preloaded a second copy of the hero on phones, competing with the
+                  mobile carousel's real LCP image. A visible eager image still fetches
+                  at high priority on desktop. */}
+              <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 50vw, 40vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="eager" />
               <span className="img-watermark" aria-hidden />
             </button>
             <div className={cn('grid gap-2', restGrid)}>

@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import Image from 'next/image'
+import { isMockImageUrl } from '@/lib/listing-image'
 import { ArrowRight, BadgeCheck, MapPin } from 'lucide-react'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
@@ -77,12 +79,14 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
                 <Link key={l.id} href={`/listings/${l.id}`} className="group flex flex-col">
                   <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-tint">
                     {l.images[0] && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <Image
                         src={l.images[0]}
                         alt={l.title}
-                        loading="lazy"
-                        className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                        fill
+                        unoptimized={isMockImageUrl(l.images[0]) || undefined}
+                        sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
+                        quality={60}
+                        className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
                       />
                     )}
                   </div>

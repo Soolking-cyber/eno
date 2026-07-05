@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useMemo, useContext, useEffect, useState } from 'react'
 import { useAuth } from './auth-context'
 
 export type Notif = {
@@ -112,8 +112,10 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     try { await fetch('/api/notifications', { method: 'DELETE' }) } catch { /* optimistic */ }
   }, [])
 
+  const value = useMemo(() => ({ items, unread, refresh, markRead, markAllRead, remove, clearAll }), [items, unread, refresh, markRead, markAllRead, remove, clearAll])
+
   return (
-    <NotificationsContext.Provider value={{ items, unread, refresh, markRead, markAllRead, remove, clearAll }}>
+    <NotificationsContext.Provider value={value}>
       {children}
     </NotificationsContext.Provider>
   )

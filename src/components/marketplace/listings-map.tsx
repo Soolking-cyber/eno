@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+import { isMockImageUrl } from '@/lib/listing-image'
 import { useEffect, useRef, useState } from 'react'
 import { X, Heart } from 'lucide-react'
 import { TrustScore } from './trust-score'
@@ -335,10 +337,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
               // + a close ✕. Fits within a ~260px-tall map without dwarfing it.
               <div className="flex items-center gap-2.5 p-2">
                 <button onClick={() => onOpenListing(card)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left cursor-pointer">
-                  <span className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-tint">
+                  <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-tint">
                     {card.images[0] && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={card.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      <Image src={card.images[0]} alt="" fill sizes="44px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
                     )}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -370,10 +371,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   </button>
                 </div>
                 <button onClick={() => onOpenListing(card)} className="block w-full text-left cursor-pointer">
-                  <div className="aspect-[16/10] w-full bg-tint">
+                  <div className="relative aspect-[16/10] w-full bg-tint">
                     {card.images[0] && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={card.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      <Image src={card.images[0]} alt="" fill sizes="280px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
                     )}
                   </div>
                   <div className="p-3">

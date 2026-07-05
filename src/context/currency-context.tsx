@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useMemo, useContext, useEffect, useState } from 'react'
 import { formatMoney, CURRENCY_CODES } from '@/lib/currencies'
 
 const CUR_KEY = 'eno-currency'
@@ -58,8 +58,10 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   const format = useCallback((amountVnd: number) => formatMoney(amountVnd, currency, rates), [currency, rates])
 
+  const value = useMemo(() => ({ currency, setCurrency, rates, format }), [currency, setCurrency, rates, format])
+
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, rates, format }}>
+    <CurrencyContext.Provider value={value}>
       {children}
     </CurrencyContext.Provider>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
@@ -151,7 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace(`/onboard?next=${encodeURIComponent(here)}`)
   }, [user, identityLoaded, accountType, pathname, router])
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     // Tear down Web Push FIRST so a shared device never keeps delivering the
     // previous user's reminders to the next person who signs in here.
     try {
@@ -180,12 +180,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('eno-notifs')
       Object.keys(localStorage).filter((k) => k.startsWith('eno-thr:')).forEach((k) => localStorage.removeItem(k))
     } catch {}
-  }
+  }, [])
 
-  const markOnboarded = (type: string) => setAccountType(type)
+  const markOnboarded = useCallback((type: string) => setAccountType(type), [])
+  const openSignIn = useCallback((ctx?: SignInContext | null) => { setSignInCtx(ctx ?? null); setSignInOpen(true) }, [])
+  // Memoized: opening/closing the sign-in dialog is signInOpen state on THIS
+  // provider — without useMemo every useAuth consumer re-rendered on each toggle.
+  const value = useMemo(() => ({ user, loading, accountType, signOut, openSignIn, markOnboarded }), [user, loading, accountType, signOut, openSignIn, markOnboarded])
 
   return (
-    <AuthContext.Provider value={{ user, loading, accountType, signOut, openSignIn: (ctx) => { setSignInCtx(ctx ?? null); setSignInOpen(true) }, markOnboarded }}>
+    <AuthContext.Provider value={value}>
       {children}
       {/* Mounted only once opened, so its chunk loads on demand. */}
       {signInOpen && (

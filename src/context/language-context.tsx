@@ -1,7 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from 'react'
-import { VI_OVERRIDES } from '@/generated/vi-overrides'
+import React, { createContext, useContext, useState, useMemo, useEffect, useSyncExternalStore } from 'react'
 import { detectContentLang } from '@/lib/detect-lang'
 
 // djb2 hash of the UI string set → cache-busts the localStorage UI dictionary when
@@ -281,7 +280,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // /api/translate cascade. Repeat visits seed synchronously from localStorage.
   useEffect(() => {
     if (lang === 'en') return // source language — nothing to translate
-    // Vietnamese is hand-authored (VI_OVERRIDES, applied directly in tr()/useTr());
+    // Vietnamese is hand-authored (the lazily-imported vi-overrides dict in tr()/useTr());
     // skip the machine-translation prefetch entirely. Any string not yet in the
     // overrides falls back to lazy per-string machine translation via tr()/useTr().
     if (lang === 'vi') return
@@ -354,7 +353,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const tr = (en: string, vi?: string): string => {
     if (!en) return en
     if (lang === 'en') return en
-    if (lang === 'vi') { if (vi != null) return vi; const hv = VI_OVERRIDES[en]; if (hv != null) return hv }
+    if (lang === 'vi') {
+      if (vi != null) return vi
+      const hv = viDict[en]
+      if (hv != null) return hv
+      if (!viLoaded) { void loadViOverrides(); return en } // dict inbound — emitTrChange repaints
+    }
     const override = TR_OVERRIDES[en]?.[lang]
     if (override) return override
     const ck = `${lang} ${en}`
@@ -368,8 +372,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     return en // optimistic source fallback until the translation lands
   }
 
+  // t/tr read module-level caches at call time, so [lang, dicts] deps are enough —
+  // async translation arrivals repaint via the external store, not new closures.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const value = useMemo(() => ({ lang, setLang, t, tr }), [lang, dicts])
+
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t, tr }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   )
@@ -400,6 +409,24 @@ let scheduled = false
 // the whole tree — unlike bumping provider state.
 let trVersion = 0
 const trListeners = new Set<() => void>()
+// Hand-authored VI dictionary — lazily imported so its ~22 KB never ships in the
+// first-load bundle of non-Vietnamese sessions (mirrors the UI_STRINGS lazy pattern).
+// Sync readers (tr/useTr) see {} until the chunk lands, then emitTrChange repaints.
+let viDict: Record<string, string> = {}
+let viLoaded = false
+let viLoading: Promise<void> | null = null
+function loadViOverrides(): Promise<void> {
+  if (viLoaded) return Promise.resolve()
+  if (!viLoading) {
+    viLoading = import('@/generated/vi-overrides').then((m) => {
+      viDict = m.VI_OVERRIDES
+      viLoaded = true
+      emitTrChange()
+    })
+  }
+  return viLoading
+}
+
 function emitTrChange() {
   trVersion++
   trListeners.forEach((l) => l())
@@ -453,15 +480,26 @@ export function useTr(text: string | null | undefined): string {
   const [val, setVal] = useState<string>(() =>
     lang === 'en' || !safe
       ? safe
-      : lang === 'vi' && VI_OVERRIDES[safe] != null
-      ? VI_OVERRIDES[safe]
+      : lang === 'vi' && viDict[safe] != null
+      ? viDict[safe]
       : trCache.get(cacheKey) ?? safe,
   )
 
   useEffect(() => {
     if (!safe || lang === 'en') { setVal(safe); return }
     // Hand-authored Vietnamese wins over machine translation.
-    if (lang === 'vi') { const hv = VI_OVERRIDES[safe]; if (hv != null) { setVal(hv); return } }
+    if (lang === 'vi' && !viLoaded) {
+      // Dict inbound — wait for it before falling back to machine translation.
+      let c = false
+      loadViOverrides().then(() => {
+        if (c) return
+        const hv = viDict[safe]
+        if (hv != null) setVal(hv)
+        else translateText(safe, lang).then((t2) => { if (!c) setVal(t2) })
+      })
+      return () => { c = true }
+    }
+    if (lang === 'vi') { const hv = viDict[safe]; if (hv != null) { setVal(hv); return } }
     const ck = `${lang} ${safe}`
     const hit = trCache.get(ck)
     if (hit != null) { setVal(hit); return }
