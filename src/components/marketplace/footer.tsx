@@ -22,7 +22,6 @@ export function Footer() {
         { label: tr('About us', 'Giới thiệu'), href: '/about' },
         { label: tr('How it works', 'Cách hoạt động'), href: '/guide' },
         { label: tr('How trust works', 'Điểm uy tín hoạt động thế nào'), href: '/trust' },
-        { label: tr('Careers', 'Tuyển dụng'), href: '/about' },
       ],
     },
     {

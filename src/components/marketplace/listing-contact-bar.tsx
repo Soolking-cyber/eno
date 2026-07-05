@@ -38,7 +38,9 @@ export function ListingContactBar({
     const el = document.getElementById('contact')
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    // Focus the composer once the scroll settles so the keyboard opens in place.
+    // Prefill the classic opener (composer ignores it if something's typed), then
+    // focus once the scroll settles so the keyboard opens with Send one tap away.
+    window.dispatchEvent(new Event('eno:prefill-contact'))
     window.setTimeout(() => el.querySelector('textarea')?.focus({ preventScroll: true }), 350)
   }
 

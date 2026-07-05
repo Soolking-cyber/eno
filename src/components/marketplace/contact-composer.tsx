@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Lock, Tag, Send, X } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
@@ -37,6 +37,17 @@ export function ContactComposer({
   const [offering, setOffering] = useState(false)
   const [discount, setDiscount] = useState(10) // % off
   const ref = useRef<HTMLTextAreaElement>(null)
+
+  // "Contact seller" (sticky bar) prefills the classic opener so sending is one tap —
+  // an empty composer is where chats stall. Never overwrites anything already typed.
+  useEffect(() => {
+    const onPrefill = () => {
+      setText((cur) => cur.trim() ? cur : tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?'))
+    }
+    window.addEventListener('eno:prefill-contact', onPrefill)
+    return () => window.removeEventListener('eno:prefill-contact', onPrefill)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const hasPrice = typeof price === 'number' && price > 0
   const offerPrice = hasPrice ? Math.round(price! * (1 - discount / 100)) : 0

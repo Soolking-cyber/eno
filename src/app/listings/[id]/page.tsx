@@ -8,7 +8,6 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
 import { Footer } from '@/components/marketplace/footer'
-import { CategoryIcon } from '@/components/marketplace/category-icons'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { brandIconPath } from '@/lib/brand-icons'
 import {
@@ -151,7 +150,6 @@ export default async function ListingPage({ params }: Props) {
     ownerEnforcement && (ownerEnforcement.state === 'throttled' || ownerEnforcement.state === 'held' || ownerEnforcement.state === 'suspended')
       ? ownerEnforcement.state
       : null
-  const color = CATEGORY_COLOR_CLASSES[listing.category.color] ?? CATEGORY_COLOR_CLASSES.brand
 
   const initials = getInitials(listing.seller.name)
     .toUpperCase()
@@ -297,10 +295,6 @@ export default async function ListingPage({ params }: Props) {
         {/* Title header */}
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-1.5">
-            <span className={cn('inline-flex w-fit items-center gap-1 text-xs font-semibold', color.text)}>
-              <CategoryIcon name={listing.category.icon} className="h-3.5 w-3.5" />
-              <Tr text={listing.category.name} />
-            </span>
             <h1 className="h-title text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
             {brand && (
               <Link
@@ -314,6 +308,8 @@ export default async function ListingPage({ params }: Props) {
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4 text-ink-4 shrink-0" />
               <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
+              <span aria-hidden className="text-line-strong">·</span>
+              <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
             </div>
           </div>
           <div className="mt-0.5 flex shrink-0 items-center gap-2">
@@ -363,10 +359,6 @@ export default async function ListingPage({ params }: Props) {
               <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
             </span>
           ))}
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold">
-            <span className="text-ink-4"><Tr text="Trust" /></span>
-            <TrustScore score={listing.seller.trustScore} variant="mini" size="sm" />
-          </span>
         </div>
 
         {/* Content + sticky contact. The left column is split into two grid rows
@@ -427,6 +419,7 @@ export default async function ListingPage({ params }: Props) {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="truncate text-sm font-bold text-foreground group-hover:underline">{listing.seller.name}</span>
+                      <TrustScore score={listing.seller.trustScore} variant="mini" size="sm" />
                       {listing.seller.isBusiness && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
                           <Building2 className="h-3 w-3" /> <Tr text="Business" />
@@ -435,6 +428,11 @@ export default async function ListingPage({ params }: Props) {
                     </div>
                   </div>
                 </Link>
+                {listing.seller.responseRate >= 80 && listing.seller.responseTime && (
+                  <p className="pl-14 text-[11px] text-muted-foreground">
+                    <Tr text={`Usually replies ${listing.seller.responseTime}`} />
+                  </p>
+                )}
                 <Link href="/trust" className="inline-block pl-14 text-[11px] text-muted-foreground underline-offset-2 hover:underline">
                   <Tr text="How trust works" />
                 </Link>
@@ -442,13 +440,10 @@ export default async function ListingPage({ params }: Props) {
 
               {/* Unified contact + offer (auth-gated; number never in this payload).
                   Type a message or tap "Make an offer", then send → opens the thread.
-                  The escrow placeholder is a quiet footnote below the composer now —
-                  never a dead button on the money path (user decision 2026-07-04). */}
+                  No escrow mention anywhere on the money path — unmet promises cost
+                  trust (user decision 2026-07-05). */}
               <div id="contact" className="scroll-mt-24">
                 <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} />
-                <p className="mt-2 text-center text-[11px] text-ink-4">
-                  <Tr text="Escrow payments launching soon." />
-                </p>
               </div>
 
               {/* Safety link by the contact action (buyers look for it before reaching out) */}
@@ -456,8 +451,7 @@ export default async function ListingPage({ params }: Props) {
                 <ShieldCheck className="h-3.5 w-3.5" /> <Tr text="Safe trading tips" />
               </Link>
 
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] text-muted-foreground"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></p>
+              <div className="flex items-center justify-end gap-3">
                 <ReportButton listingId={listing.id} />
               </div>
             </div>

@@ -871,22 +871,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       placeholder="+84…"
                       className="w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
                     />
-                    {/* Zalo OTP verification — BUILT but gated until Zalo is wired up. Posting
-                        works now with an unverified number; verifying later boosts trust. */}
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        disabled
-                        aria-disabled
-                        title={t('Sắp ra mắt', 'Coming soon')}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground opacity-70 cursor-not-allowed"
-                      >
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        {t('Xác minh bằng Zalo OTP', 'Verify with Zalo OTP')}
-                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-ink-4">{t('Sắp có', 'Soon')}</span>
-                      </button>
-                      <span className="text-xs text-ink-4">{t('Xác minh để tăng uy tín — sắp có. Bạn vẫn đăng được ngay.', 'Verify to boost trust — coming soon. You can post now.')}</span>
-                    </div>
+                    {/* Zalo OTP verification is BUILT but hidden until Zalo is live —
+                        no dead "coming soon" buttons on the posting path. */}
                   </Field>
                 )}
 

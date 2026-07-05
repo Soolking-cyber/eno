@@ -1388,9 +1388,13 @@ export function ListingsExplorer({
                     <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-[var(--cat)]">
                       <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
                     </span>
-                    <span className="text-[11px] sm:text-xs text-body select-none font-semibold">
-                      {cat.verifiedCount || 0} {tr('listings', 'tin')}
-                    </span>
+                    {/* Social proof cuts both ways: a small count reads as a dead
+                        category, so show it only once it's actually impressive. */}
+                    {(cat.verifiedCount || 0) >= 20 && (
+                      <span className="text-[11px] sm:text-xs text-body select-none font-semibold">
+                        {cat.verifiedCount} {tr('listings', 'tin')}
+                      </span>
+                    )}
                   </button>
                 )
               })}
