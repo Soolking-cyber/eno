@@ -1,83 +1,36 @@
 import { NextResponse } from 'next/server'
 import { Webhook } from 'standardwebhooks'
+import { sendZnsOtp, znsConfigured } from '@/lib/zalo-zns'
 
 // Supabase "Send SMS Hook". Supabase generates, rate-limits and verifies the
 // phone OTP natively (the app's signInWithOtp/verifyOtp flow is unchanged); this
-// endpoint only DELIVERS the code — routing it through Zalo ZNS (primary) with
-// SMS-brandname auto-fallback via the eSMS.vn multichannel API.
+// endpoint only DELIVERS the code — NATIVE Zalo ZNS first (direct Business
+// OpenAPI, no aggregator — user decision 2026-07-05 replaced eSMS), falling back
+// to plain SMS (SpeedSMS stopgap) when the number has no Zalo account.
 // Docs: https://supabase.com/docs/guides/auth/auth-hooks/send-sms-hook
 //
 // SECURITY: this route is PUBLIC. The Standard Webhooks HMAC signature is the
 // only thing preventing an attacker from spraying OTP sends and burning the
-// SMS/ZNS balance — verify every request, and NEVER log the OTP.
+// ZNS/SMS balance — verify every request, and NEVER log the OTP.
 
 export const runtime = 'nodejs' // standardwebhooks needs Node crypto, not edge
 export const dynamic = 'force-dynamic'
 
 const HOOK_SECRET = process.env.SEND_SMS_HOOK_SECRET // form: "v1,whsec_<base64>"
 
-// eSMS.vn — one call does Zalo ZNS first, then SMS-brandname fallback when the
-// number has no active Zalo / ZNS isn't delivered (server-side, out-of-band).
-const ESMS_API_KEY = process.env.ESMS_API_KEY
-const ESMS_SECRET_KEY = process.env.ESMS_SECRET_KEY
-const ESMS_OAID = process.env.ESMS_OAID
-const ESMS_ZNS_TEMPLATE = process.env.ESMS_ZNS_OTP_TEMPLATE
-const ESMS_BRANDNAME = process.env.ESMS_SMS_BRANDNAME || 'ENO'
-
-// SpeedSMS.vn — day-1 stopgap using its pre-approved "Verify" sender, usable
-// before the custom ENO brandname + ZNS template approvals clear.
+// SpeedSMS.vn — SMS fallback for numbers without Zalo, using its pre-approved
+// "Verify" sender (usable before any custom brandname approval clears).
 const SPEEDSMS_TOKEN = process.env.SPEEDSMS_TOKEN
 
 const SMS_BODY = (otp: string) => `Ma OTP ENO cua ban la ${otp}. Hieu luc 5 phut. Khong chia se ma nay voi bat ky ai.`
 
 // Supabase usually delivers user.phone without a leading '+', but tolerate both
-// shapes. eSMS expects the 84-prefixed, digits-only form (e.g. 84901234567).
+// shapes. Zalo + SMS providers expect the 84-prefixed digits-only form.
 function normalizePhoneVN(raw: string): string {
   let d = (raw || '').replace(/\D/g, '')
   if (d.startsWith('0')) d = '84' + d.slice(1)
   else if (!d.startsWith('84')) d = '84' + d
   return d
-}
-
-// Returns true if the aggregator ACCEPTED the request. Field names follow eSMS's
-// documented MultiChannelMessage schema — confirm against your account's current
-// API reference before go-live.
-async function deliverViaEsms(phone: string, otp: string, requestId: string): Promise<boolean> {
-  if (!ESMS_API_KEY || !ESMS_SECRET_KEY || !ESMS_OAID || !ESMS_ZNS_TEMPLATE) return false
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 3000) // stay under the hook's ~5s budget
-  try {
-    const res = await fetch('https://rest.esms.vn/MainService.svc/json/MultiChannelMessage/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        ApiKey: ESMS_API_KEY,
-        SecretKey: ESMS_SECRET_KEY,
-        Phone: phone,
-        RequestId: requestId, // idempotency: a retried hook invocation won't double-send/charge
-        Channels: ['zalo', 'sms'],
-        Data: [
-          { Channel: 'zalo', OAID: ESMS_OAID, TempID: ESMS_ZNS_TEMPLATE, Params: [otp] },
-          { Channel: 'sms', Brandname: ESMS_BRANDNAME, SmsType: '2', Content: SMS_BODY(otp) },
-        ],
-      }),
-    })
-    if (!res.ok) {
-      console.error('[send-sms] eSMS HTTP', res.status)
-      return false
-    }
-    const json = await res.json().catch(() => ({}))
-    // CodeResult '100' = accepted (delivery + ZNS->SMS fallback then happen async).
-    const ok = String(json?.CodeResult ?? '') === '100'
-    if (!ok) console.error('[send-sms] eSMS rejected, CodeResult', json?.CodeResult)
-    return ok
-  } catch (e) {
-    console.error('[send-sms] eSMS request failed:', (e as Error).name)
-    return false
-  } finally {
-    clearTimeout(timer)
-  }
 }
 
 async function deliverViaSpeedSms(phone: string, otp: string): Promise<boolean> {
@@ -125,12 +78,18 @@ export async function POST(req: Request) {
 
   const phone = normalizePhoneVN(payload.user?.phone || '')
   const otp = String(payload.sms?.otp || '')
-  const requestId = headers['webhook-id'] || phone // idempotency key
+  const requestId = headers['webhook-id'] || phone // correlation/idempotency key
   if (!phone || !otp) return NextResponse.json({ error: 'Missing phone/otp' }, { status: 400 })
 
-  // 3) Deliver via Zalo ZNS + SMS fallback (eSMS), else the SpeedSMS stopgap.
-  //    NEVER log the OTP.
-  const delivered = (await deliverViaEsms(phone, otp, requestId)) || (await deliverViaSpeedSms(phone, otp))
+  // 3) Deliver: native Zalo ZNS first (300 VND, 1-5s, 24/7 for OTP templates);
+  //    no-Zalo numbers (or any ZNS failure) fall back to plain SMS. NEVER log the OTP.
+  let delivered = false
+  if (znsConfigured()) {
+    const zns = await sendZnsOtp(phone, otp, requestId)
+    delivered = zns.ok
+    if (!zns.ok && zns.noZalo) console.warn('[send-sms] no Zalo on number — SMS fallback')
+  }
+  if (!delivered) delivered = await deliverViaSpeedSms(phone, otp)
 
   // 4) Return 200 even on a transient delivery hiccup: Supabase already stored
   //    the code and the user can resend — a non-200 would ABORT their login. We
