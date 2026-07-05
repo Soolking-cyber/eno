@@ -222,8 +222,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     })
 
     // On hover-capable devices (desktop), HOVER reveals the card so the user can
-    // browse pins fast; clicking then opens the listing. On touch, tap reveals the
-    // card and a second tap on the same pin opens it.
+    // browse pins fast; CLICK centres the pin and opens its card (same as touch) —
+    // navigation happens by clicking the card, never straight off the pin.
     const hoverable = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
 
     const bounds: [number, number][] = []
@@ -233,9 +233,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       const icon = L.divIcon({ html: pinHtml(pinLabel(l), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
       const marker = L.marker([lat, lng], { icon, riseOnHover: true }).addTo(map)
       marker.on('click', () => {
-        if (hoverable) onOpenListing(l) // desktop: card already shown on hover → click opens
-        else if (cardIdRef.current === l.id) onOpenListing(l) // touch: 2nd tap opens
-        else openCard(l, true) // touch: 1st tap shows the card AND re-centres the pin
+        // Click = centre the pin + show the card on EVERY input (mobile pattern
+        // everywhere, user decision 2026-07-06); the card itself opens the page.
+        if (!hoverable && cardIdRef.current === l.id) onOpenListing(l) // touch: 2nd tap on the pin still opens
+        else openCard(l, true)
       })
       marker.on('mouseover', () => { if (hoverable) { cancelClose(); openCard(l) } else { onHover?.(l.id) } })
       marker.on('mouseout', () => { if (hoverable) { scheduleClose() } else { onHover?.(null) } })
