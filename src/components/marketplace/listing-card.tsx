@@ -236,58 +236,65 @@ function ListingCardImpl({
           </span>
         )}
 
-        {/* Quick actions (5a #6) — desktop hover: Chat + Offer as compact icons
-            anchored to the LEFT edge; pressing Offer rolls the discount bar open to
-            the RIGHT of the icons (never a centered overlay — it clipped at the
-            card edge). Vertically centered on the photo, clear of heart/dots/pin. */}
-        <span className="pointer-events-none absolute inset-x-2 top-1/2 z-10 hidden -translate-y-1/2 items-center gap-1.5 opacity-0 transition-opacity duration-150 lg:flex lg:group-hover:opacity-100">
+        {/* Quick actions (5a #6) — desktop: Chat over Offer, stacked on the LEFT
+            edge, sliding in left→right on hover with a slight stagger (macOS-dock
+            feel). Pressing Offer rolls the discount bar open to the RIGHT of the
+            tag icon, sized to the card. */}
+        <span className="pointer-events-none absolute inset-x-2 top-1/2 z-10 hidden -translate-y-1/2 flex-col items-stretch gap-1.5 lg:flex">
           {quickOffer === null && (
-            <button
-              type="button"
-              aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
-              title={tr('Chat with seller', 'Nhắn tin với người bán')}
-              onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-              className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-primary text-white shadow-pop transition-transform hover:scale-110 active:scale-95 cursor-pointer"
-            >
-              <MessageCircle className="h-4 w-4" />
-            </button>
-          )}
-          {listing.price > 0 && (
-            <button
-              type="button"
-              aria-label={tr('Make an offer', 'Trả giá')}
-              title={tr('Make an offer', 'Trả giá')}
-              aria-pressed={quickOffer !== null}
-              onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
-              className={cn(
-                'pointer-events-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-pop transition-transform hover:scale-110 active:scale-95 cursor-pointer',
-                quickOffer !== null ? 'bg-foreground text-background' : 'bg-card/95 text-foreground',
-              )}
-            >
-              <Tag className="h-4 w-4" />
-            </button>
-          )}
-          {quickOffer !== null && (
-            <span
-              onClick={(e) => e.stopPropagation()}
-              className="pointer-events-auto flex min-w-0 flex-1 items-center gap-1.5 rounded-full bg-card/95 py-1 pl-2.5 pr-1 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-left-2 fade-in duration-150"
-            >
-              <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
-              <input
-                type="range"
-                min={5} max={50} step={5}
-                value={quickOffer}
-                onChange={(e) => setQuickOffer(Number(e.target.value))}
-                aria-label={tr('Discount', 'Mức giảm')}
-                className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
-              />
+            <span className="flex">
+              {/* Bare glyph — same face treatment as the heart/pin (white +
+                  drop-shadow, no chip). */}
               <button
                 type="button"
-                onClick={() => quickGo({ offerAmount: Math.round(listing.price * (1 - quickOffer / 100)) })}
-                className="shrink-0 whitespace-nowrap rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+                aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
+                title={tr('Chat with seller', 'Nhắn tin với người bán')}
+                onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
+                className="pointer-events-auto flex h-8 w-8 -translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
               >
-                {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency)} →
+                <MessageCircle className="h-[20px] w-[20px]" />
               </button>
+            </span>
+          )}
+          {listing.price > 0 && (
+            <span className="flex min-w-0 items-center gap-1.5">
+              <button
+                type="button"
+                aria-label={tr('Make an offer', 'Trả giá')}
+                title={tr('Make an offer', 'Trả giá')}
+                aria-pressed={quickOffer !== null}
+                onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
+                className={cn(
+                  'pointer-events-auto flex h-8 w-8 shrink-0 -translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]',
+                  quickOffer === null && 'delay-75 group-hover:delay-75',
+                )}
+              >
+                {/* Pressed = brand fill, mirroring the heart's saved state. */}
+                <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
+              </button>
+              {quickOffer !== null && (
+                <span
+                  onClick={(e) => e.stopPropagation()}
+                  className="pointer-events-auto flex min-w-0 flex-1 items-center gap-1.5 rounded-full bg-card/95 py-1 pl-2.5 pr-1 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-left-2 fade-in duration-150"
+                >
+                  <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
+                  <input
+                    type="range"
+                    min={5} max={50} step={5}
+                    value={quickOffer}
+                    onChange={(e) => setQuickOffer(Number(e.target.value))}
+                    aria-label={tr('Discount', 'Mức giảm')}
+                    className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => quickGo({ offerAmount: Math.round(listing.price * (1 - quickOffer / 100)) })}
+                    className="shrink-0 whitespace-nowrap rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+                  >
+                    {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency)} →
+                  </button>
+                </span>
+              )}
             </span>
           )}
         </span>
