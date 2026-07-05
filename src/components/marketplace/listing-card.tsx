@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useRef, memo } from 'react'
 import Link from 'next/link'
-import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
+import { formatMoneyFull } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
@@ -59,6 +61,10 @@ function ListingCardImpl({
   // when favorites hydrate from storage on load). Cleared when the CSS animation
   // ends so a later save replays it.
   const [burst, setBurst] = useState(false)
+  // Desktop quick-offer (hover bar): slide a discount, hand off to the PDP composer
+  // in offer mode via ?offer=N#contact. null = collapsed.
+  const [quickOffer, setQuickOffer] = useState<number | null>(null)
+  const router = useRouter()
   const [idx, setIdx] = useState(0)
   // Only the first image is in the DOM until the user engages the carousel
   // (hover/touch) — cuts initial DOM nodes + image bytes on the homepage grid.
@@ -117,6 +123,7 @@ function ListingCardImpl({
         data-protected
         className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
         onMouseEnter={() => { if (images.length > 1) setExpanded(true) }}
+        onMouseLeave={() => setQuickOffer(null)}
         onTouchStart={(e) => { if (images.length > 1) setExpanded(true); touchStartX.current = e.touches[0].clientX }}
         onTouchEnd={(e) => {
           if (touchStartX.current == null || images.length < 2) return
@@ -218,17 +225,56 @@ function ListingCardImpl({
           </span>
         )}
 
-        {/* Quick-chat (5a #6) — desktop hover only: one click from the grid to the
-            listing's composer (which prefills the opener via #contact). Centered on
-            the photo so it never collides with heart/dots/pin. */}
-        <span className="pointer-events-none absolute inset-0 z-10 hidden items-center justify-center opacity-0 transition-opacity duration-150 lg:flex lg:group-hover:opacity-100">
-          <Link
-            href={`/listings/${listing.id}#contact`}
-            onClick={(e) => e.stopPropagation()}
-            className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-white shadow-pop transition-transform hover:scale-105 active:scale-95"
-          >
-            <MessageCircle className="h-3.5 w-3.5" /> {tr('Chat', 'Nhắn tin')}
-          </Link>
+        {/* Quick actions (5a #6) — desktop hover only: Chat (one click to the
+            listing's prefilled composer) + Offer with a discount slide that hands
+            off to the composer's offer mode (?offer=N#contact). Centered on the
+            photo, clear of heart/dots/pin. */}
+        <span className="pointer-events-none absolute inset-0 z-10 hidden flex-col items-center justify-center gap-2 opacity-0 transition-opacity duration-150 lg:flex lg:group-hover:opacity-100">
+          {quickOffer === null ? (
+            <span className="pointer-events-auto flex items-center gap-1.5">
+              <Link
+                href={`/listings/${listing.id}#contact`}
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-white shadow-pop transition-transform hover:scale-105 active:scale-95"
+              >
+                <MessageCircle className="h-3.5 w-3.5" /> {tr('Chat', 'Nhắn tin')}
+              </Link>
+              {listing.price > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setQuickOffer(10) }}
+                  className="flex items-center gap-1.5 rounded-full bg-card/95 px-3.5 py-1.5 text-xs font-bold text-foreground shadow-pop transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+                >
+                  <Tag className="h-3.5 w-3.5" /> {tr('Offer', 'Trả giá')}
+                </button>
+              )}
+            </span>
+          ) : (
+            <span
+              className="pointer-events-auto flex w-[85%] max-w-[240px] flex-col gap-1.5 rounded-xl bg-card/95 p-2.5 shadow-pop backdrop-blur-[2px]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="flex items-baseline justify-between text-[11px] font-bold text-foreground">
+                <span>−{quickOffer}%</span>
+                <span className="tabular-nums">{formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency)}</span>
+              </span>
+              <input
+                type="range"
+                min={5} max={50} step={5}
+                value={quickOffer}
+                onChange={(e) => setQuickOffer(Number(e.target.value))}
+                aria-label={tr('Discount', 'Mức giảm')}
+                className="w-full accent-[var(--brand)] cursor-pointer"
+              />
+              <button
+                type="button"
+                onClick={() => router.push(`/listings/${listing.id}?offer=${quickOffer}#contact`)}
+                className="w-full rounded-lg bg-primary py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+              >
+                {tr('Review & send offer', 'Xem & gửi đề nghị')}
+              </button>
+            </span>
+          )}
         </span>
 
         {/* Locate on map — bottom-right, mirrors the heart (icon-only, white + shadow) */}

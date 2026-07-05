@@ -607,6 +607,7 @@ export const UI_STRINGS: string[] = [
   "Response rate",
   "Response time",
   "Resume",
+  "Review & send offer",
   "Reviews",
   "Reviews from different buyers",
   "Revoke",

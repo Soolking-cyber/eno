@@ -43,9 +43,18 @@ export function ContactComposer({
   // the sticky bar's Contact button.
   useEffect(() => {
     if (typeof window === 'undefined' || window.location.hash !== '#contact') return
+    // A card quick-offer arrives as ?offer=N — open straight into offer mode with
+    // that discount slid in; otherwise prefill the classic chat opener.
+    const offerParam = Number(new URLSearchParams(window.location.search).get('offer'))
+    const quickOffer = Number.isFinite(offerParam) && offerParam >= 1 && offerParam <= MAX_DISCOUNT ? Math.round(offerParam) : null
     const t = window.setTimeout(() => {
       document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      setText((cur) => cur.trim() ? cur : tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?'))
+      if (quickOffer != null) {
+        setOffering(true)
+        setDiscount(quickOffer)
+      } else {
+        setText((cur) => cur.trim() ? cur : tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?'))
+      }
       window.setTimeout(() => ref.current?.focus({ preventScroll: true }), 350)
     }, 150)
     return () => window.clearTimeout(t)
