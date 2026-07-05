@@ -100,7 +100,11 @@ function buildFilter(f: SearchFilters): string | undefined {
 // over the trustScore we index on each document.
 const BOOST_SPEC = {
   conditionBoostSpecs: [
-    { condition: 'trustScore >= 110', boost: 0.5 },
+    // Bands match the TRUST V2 tier ladder (85 Trusted / 110 Exceptional). The old
+    // single ">= 110" band was v1-calibrated — under v2's evidence-based scores it
+    // boosted almost nobody. Disjoint conditions so a document gets exactly one boost.
+    { condition: 'trustScore >= 110', boost: 0.6 },
+    { condition: 'trustScore >= 85 AND trustScore < 110', boost: 0.4 },
     { condition: 'trustScore < 60', boost: -0.5 },
   ],
 }

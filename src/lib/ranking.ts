@@ -10,9 +10,13 @@ import { db } from '@/lib/db'
 // entirely — the inconsistency that made results visibly re-sort. Tunable here.
 
 export const RANK = {
-  // Trust → [0,1]. Baseline 100 maps to 0.5; Restricted (≤40) → 0, Exceptional (≥160) → 1.
-  TRUST_FLOOR: 40,
-  TRUST_SPAN: 120,
+  // Trust → [0,1], calibrated to the TRUST V2 scale (evidence-based, 0–150; the live
+  // mass sits ~48–110): floor 50 ≈ the restricted boundary zone, so Building 60→0.14,
+  // 75→0.36, Trusted 85→0.50, Exceptional 110→0.86, ≥120→1. The old floor-40/span-120
+  // was calibrated for v1's 100-baseline scores and compressed every v2 tier into the
+  // bottom half — tier differences barely moved rank.
+  TRUST_FLOOR: 50,
+  TRUST_SPAN: 70,
   // Recency decay: exp(-ageDays / DECAY_DAYS). Fresh → 1; ~2 weeks → ~0.37; a month → ~0.12.
   DECAY_DAYS: 14,
   FEATURED_BOOST: 0.15,
@@ -28,9 +32,14 @@ export const RANK = {
   // Calibrated to the live distribution (views ~0–2500, contacts ~0–40).
   DEMAND_CONTACT_W: 30,
   DEMAND_REF: 2000,
-  // Search (query present): relevance-led; trust a strong-but-bounded booster.
-  SEARCH_REL_W: 0.6,
-  SEARCH_TRUST_W: 0.3,
+  // Search (query present): relevance keeps a SLIM lead — the buyer named what they
+  // want, and a "trusted but wrong" result fails them — but trust is a heavyweight
+  // co-factor (user decision 2026-07-05: the marketplace is trust-first everywhere;
+  // browse is already 0.60 trust-majority). At 0.50/0.40, an exact match still wins,
+  // while a Trusted-vs-Building gap (~0.36 of the trust scale post-recalibration)
+  // reorders everything that isn't a clearly-better match: behave → get the deal.
+  SEARCH_REL_W: 0.5,
+  SEARCH_TRUST_W: 0.4,
   SEARCH_RECENCY_W: 0.1,
   // Map a Vertex rank position (0 = most relevant) to a relevance signal: exp(-pos/12).
   // Steep so the clearly-best matches keep the top; trust only adjusts among near-ties.

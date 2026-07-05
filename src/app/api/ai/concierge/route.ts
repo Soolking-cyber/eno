@@ -165,12 +165,16 @@ ${transcript}`
 
 // Trust-first live-DB retrieval with a RELAXATION LADDER. Brand (resolved slug) and
 // budget are what the buyer SAID — they stay hard. The category is a model guess — it
-// relaxes first; then precise-AND relaxes to ANY-token. First non-empty rung wins, so
-// an over-eager guess can narrow results but never fabricate an empty set.
+// relaxes first; then the token set relaxes by DROPPING TRAILING WORDS ("iphone pro
+// max" → "iphone pro" → "iphone"), because the head noun names the product and the
+// tail refines it — a plain OR would let "pro" surface AirPods for an iPhone ask, and
+// a brand-alone rung dumped every Apple device for "iphone 16 pro max". First
+// non-empty rung wins; `relaxed` tells the caller the results are closest-matches,
+// not exact, so the reply can say so honestly.
 async function fallbackSearch(
   query: string, take: number,
   f: { minPriceVnd: number | null; maxPriceVnd: number | null; categorySlug: string | null; brandSlug: string | null },
-) {
+): Promise<{ rows: Awaited<ReturnType<typeof db.listing.findMany<{ include: typeof INCLUDE }>>>; relaxed: boolean }> {
   const price: Prisma.FloatFilter = {}
   if (f.minPriceVnd) price.gte = f.minPriceVnd
   if (f.maxPriceVnd) price.lte = f.maxPriceVnd
@@ -183,21 +187,24 @@ async function fallbackSearch(
   // The brand word is carried by the brandSlug filter — drop it from the text tokens
   // so "huawei watch" needs only "watch" in the searchText.
   const tokens = keywords(query).filter((t) => !f.brandSlug || !f.brandSlug.includes(t))
-  const clauses = tokens.map((t) => ({ searchText: { contains: t } }))
+  const and = (n: number) => tokens.slice(0, n).map((t) => ({ searchText: { contains: t } }))
   const cat = f.categorySlug ? { category: { slug: f.categorySlug } } : null
 
-  const rungs: Prisma.ListingWhereInput[] = []
-  if (clauses.length && cat) rungs.push({ ...base, ...cat, AND: clauses })
-  if (clauses.length) rungs.push({ ...base, AND: clauses })
-  if (f.brandSlug) rungs.push(cat ? { ...base, ...cat } : base) // brand alone still honors budget
-  if (clauses.length) rungs.push({ ...base, OR: clauses })
-  if (!rungs.length) rungs.push(cat ? { ...base, ...cat } : base)
+  // rungs[i].exact — only the full token set (with or without the guessed category)
+  // counts as an exact answer; every relaxation is flagged.
+  const rungs: { where: Prisma.ListingWhereInput; exact: boolean }[] = []
+  if (tokens.length && cat) rungs.push({ where: { ...base, ...cat, AND: and(tokens.length) }, exact: true })
+  if (tokens.length) rungs.push({ where: { ...base, AND: and(tokens.length) }, exact: true })
+  for (let n = tokens.length - 1; n >= 1; n--) rungs.push({ where: { ...base, AND: and(n) }, exact: false })
+  if (f.brandSlug) rungs.push({ where: cat ? { ...base, ...cat } : base, exact: !tokens.length }) // brand alone still honors budget
+  if (tokens.length > 1) rungs.push({ where: { ...base, OR: and(tokens.length) }, exact: false })
+  if (!rungs.length) rungs.push({ where: cat ? { ...base, ...cat } : base, exact: true })
 
-  for (const where of rungs) {
-    const rows = await db.listing.findMany({ where, orderBy: order, take, include: INCLUDE })
-    if (rows.length) return rows
+  for (const rung of rungs) {
+    const rows = await db.listing.findMany({ where: rung.where, orderBy: order, take, include: INCLUDE })
+    if (rows.length) return { rows, relaxed: !rung.exact }
   }
-  return []
+  return { rows: [], relaxed: false }
 }
 
 export async function POST(req: NextRequest) {
@@ -261,8 +268,11 @@ export async function POST(req: NextRequest) {
     // fall through to the live-DB ladder instead of claiming "no match".
     if (!rows.length) { source = 'fallback'; reply = '' }
   }
+  let relaxed = false
   if (source !== 'vertex' || !rows?.length) {
-    rows = await fallbackSearch(query, take, { minPriceVnd, maxPriceVnd, categorySlug, brandSlug })
+    const r = await fallbackSearch(query, take, { minPriceVnd, maxPriceVnd, categorySlug, brandSlug })
+    rows = r.rows
+    relaxed = r.relaxed
   }
 
   // Apply explicit price-sort, then cap to 8 cards.
@@ -271,7 +281,15 @@ export async function POST(req: NextRequest) {
 
   const listings = rows.map(serializeListing)
   if (listings.length) {
-    if (!reply) reply = u.reply || (lang === 'vi' ? 'Đây là vài lựa chọn phù hợp:' : 'Here are some good matches:')
+    // Relaxed rung = we did NOT find the exact ask — say so instead of pretending
+    // ("iphone 16 pro max" → closest iPhones, never a silent pile of iPads).
+    if (relaxed) {
+      reply = lang === 'vi'
+        ? `Chưa có đúng "${query}" — đây là những món gần nhất đang bán:`
+        : `No exact match for "${query}" right now — here are the closest ones live:`
+    } else if (!reply) {
+      reply = u.reply || (lang === 'vi' ? 'Đây là vài lựa chọn phù hợp:' : 'Here are some good matches:')
+    }
   } else {
     // Honest empty: name what was searched so the buyer knows we understood them.
     const what = [brandSlug, ...keywords(query).filter((t) => !brandSlug || !brandSlug.includes(t))].filter(Boolean).join(' ') || query
