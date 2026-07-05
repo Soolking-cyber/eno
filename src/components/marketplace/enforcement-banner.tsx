@@ -24,7 +24,7 @@ export type EnforcementInfo = {
     appealedAt: string | null
     appealOutcome: string | null // 'upheld' | 'overturned' | null
   } | null
-  openReports: { id: string; reason: string; createdAt: string }[]
+  openReports: { id: string; reason: string; detail: string | null; createdAt: string; listing: { id: string; title: string; image: string | null } | null }[]
 }
 
 // Buyer report reasons → labels (mirrors the report form's options). Literal tr()
@@ -76,9 +76,30 @@ function RespondForm({ report, onDone }: { report: EnforcementInfo['openReports'
     <div>
       <p className="text-sm font-semibold text-foreground">
         {tr('A buyer reported', 'Một người mua đã báo cáo')} {reportReasonLabel(tr, report.reason)}
+        {!report.listing && <span className="ml-1 font-normal">{tr('about your account', 'về tài khoản của bạn')}</span>}
         <span className="ml-1.5 font-normal text-muted-foreground">{new Date(report.createdAt).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-GB', { day: 'numeric', month: 'short' })}</span>
       </p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{tr('Your side of the story goes straight to the reviewer.', 'Lời giải thích của bạn sẽ được gửi thẳng đến người xem xét.')}</p>
+      {/* WHICH listing — thumbnail + title, linked. A report card without the product
+          left sellers guessing ("its not what product"). */}
+      {report.listing && (
+        <a href={`/listings/${report.listing.id}`} className="mt-1.5 flex items-center gap-2.5 rounded-xl py-1 transition-colors hover:bg-muted">
+          {report.listing.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={report.listing.image} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+          ) : (
+            <span className="h-10 w-10 shrink-0 rounded-lg bg-tint" />
+          )}
+          <span className="min-w-0 truncate text-sm font-semibold text-accent-foreground">{report.listing.title}</span>
+        </a>
+      )}
+      {/* WHAT the buyer said — the complaint itself (never the reporter's identity). */}
+      {report.detail && (
+        <p className="mt-1.5 text-sm text-body">
+          <span className="font-semibold text-muted-foreground">{tr('Buyer says:', 'Người mua nói:')}</span>{' '}
+          <span className="italic">“{report.detail.slice(0, 300)}”</span>
+        </p>
+      )}
+      <p className="mt-1.5 text-xs text-muted-foreground">{tr('Your side of the story goes straight to the reviewer.', 'Lời giải thích của bạn sẽ được gửi thẳng đến người xem xét.')}</p>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

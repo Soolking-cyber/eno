@@ -36,15 +36,28 @@ async function enforcementPayload(profileId: string, sellerId: string | null) {
   // Open reports the seller hasn't answered yet (buyer-king SLA: replying within
   // 72h keeps them off the admin "buyer waiting" queue). Raw + guarded —
   // sellerRespondedAt is a Phase 2 column.
-  let openReports: { id: string; reason: string; createdAt: string }[] = []
+  // Each card must tell the seller WHICH listing and WHAT the buyer said — a bare
+  // "possible scam" left sellers replying "its not what product". Reporter identity
+  // is never included (due process = the facts, not the filer).
+  let openReports: { id: string; reason: string; detail: string | null; createdAt: string; listing: { id: string; title: string; image: string | null } | null }[] = []
   try {
-    const rows = await db.$queryRaw<{ id: string; reason: string; createdAt: Date }[]>`
-      SELECT "id", "reason", "createdAt" FROM "Report"
-      WHERE "status" = 'open' AND "sellerRespondedAt" IS NULL
-        AND ("targetProfileId" = ${profileId}::uuid OR "targetSellerId" = ${sellerId})
-      ORDER BY "createdAt" ASC
+    const rows = await db.$queryRaw<{ id: string; reason: string; detail: string | null; createdAt: Date; listing_id: string | null; listing_title: string | null; listing_images: string | null }[]>`
+      SELECT r."id", r."reason", r."detail", r."createdAt",
+             l."id" AS listing_id, l."title" AS listing_title, l."images" AS listing_images
+      FROM "Report" r
+      LEFT JOIN "Listing" l ON l."id" = r."listingId"
+      WHERE r."status" = 'open' AND r."sellerRespondedAt" IS NULL
+        AND (r."targetProfileId" = ${profileId}::uuid OR r."targetSellerId" = ${sellerId})
+      ORDER BY r."createdAt" ASC
       LIMIT 5`
-    openReports = rows.map((r) => ({ id: r.id, reason: r.reason, createdAt: r.createdAt.toISOString() }))
+    openReports = rows.map((r) => {
+      let image: string | null = null
+      try { image = (JSON.parse(r.listing_images || '[]') as string[])[0] ?? null } catch { /* bad JSON */ }
+      return {
+        id: r.id, reason: r.reason, detail: r.detail, createdAt: r.createdAt.toISOString(),
+        listing: r.listing_id && r.listing_title ? { id: r.listing_id, title: r.listing_title, image } : null,
+      }
+    })
   } catch { /* migration pending */ }
   return { state, until: until?.toISOString() ?? null, action, openReports }
 }
