@@ -80,12 +80,18 @@ export function SignInForm({ className }: { className?: string }) {
     if (error) setError(error.message)
   }
 
+  // Cryptic GoTrue captcha errors → human copy; anything else shows as-is.
+  const friendlyAuthError = (message: string) =>
+    /captcha/i.test(message)
+      ? t('Kiểm tra bảo mật chưa hoàn tất — thử lại và đánh dấu ô xác minh nếu nó hiện ra nhé.', "The security check didn't complete — try again, and tick the verification box if one appears.")
+      : message
+
   const sendEmail = async () => {
     setLoading(true); setError('')
     const captchaToken = await getCaptchaToken()
     const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirectTo, captchaToken } })
     setLoading(false)
-    if (error) setError(error.message)
+    if (error) setError(friendlyAuthError(error.message))
     else { setStage('sent'); setCountdown(RESEND_SECONDS) }
   }
 
@@ -96,7 +102,7 @@ export function SignInForm({ className }: { className?: string }) {
     const captchaToken = await getCaptchaToken()
     const { error } = await supabase.auth.signInWithOtp({ phone: intl, options: { captchaToken } })
     setLoading(false)
-    if (error) { setError(error.message); return }
+    if (error) { setError(friendlyAuthError(error.message)); return }
     setPhone(intl); setCode(''); lastSubmitted.current = ''
     setStage('code'); setCountdown(RESEND_SECONDS)
   }
