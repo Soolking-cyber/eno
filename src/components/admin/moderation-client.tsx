@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { X, Loader2, ExternalLink, MessageSquare, ChevronDown, StickyNote, Users, ShieldQuestion } from 'lucide-react'
+import { X, Loader2, ExternalLink, MessageSquare, ChevronDown, StickyNote, Users, ShieldQuestion, MoreHorizontal, Sparkles } from 'lucide-react'
 import { formatMoneyFull } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { MOD_MACROS } from '@/lib/admin-macros'
@@ -35,6 +35,9 @@ export type ModCase = {
   communityCount: number
   target: TargetInfo
   internalNote: string | null
+  // The reported party's formal reply (buyer-king SLA) — shown as evidence on the card.
+  sellerResponse: string | null
+  sellerRespondedAt: string | null
   appeal?: { note: string | null; images: string[]; at: string } | null
   resolution?: { status: string; by: string | null; at: string | null } | null
 }
@@ -51,6 +54,10 @@ async function post(body: Record<string, unknown>) {
   if (!res.ok) throw new Error('action failed')
 }
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+const askedAgo = (iso: string) => {
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000)
+  return h < 1 ? 'under 1h ago' : h < 48 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`
+}
 
 function TierChip({ tier, score }: { tier: string | null; score: number | null }) {
   if (score == null) return null
@@ -109,6 +116,151 @@ function MacroSender({ recipientId, label, listingId, conversationId }: { recipi
   )
 }
 
+// Overflow menu for secondary actions (delete listing, notify, dismiss-all). Keeps the
+// decision surface at exactly three buttons — everything else lives behind one "More".
+function MoreMenu({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+      <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title="More actions" className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted cursor-pointer">
+        <MoreHorizontal className="h-3.5 w-3.5" /> More
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" aria-hidden onClick={() => setOpen(false)} />
+          <div role="menu" className="absolute right-0 z-20 mt-1 w-64 space-y-0.5 rounded-xl border border-border bg-card p-1.5 shadow-pop">
+            {children}
+          </div>
+        </>
+      )}
+    </span>
+  )
+}
+
+// ── AI-assisted dispute review ────────────────────────────────────────────────
+// Gemini reads the actual evidence (chat, listing, images, seller reply, trust
+// history) and suggests an outcome with cited reasoning. Strictly ADVISORY: the
+// panel never submits a decision — "Use suggestion" only pre-selects severity and
+// highlights the matching button; the admin still clicks it.
+export type AiReview = {
+  outcome: 'confirm' | 'dismiss' | 'abusive'
+  severity: 'minor' | 'moderate' | 'severe' | null
+  confidence: number
+  reasoning: string[]
+  keyEvidence: { source: string; quote: string }[]
+  counterpoints: string[]
+  missing: string[]
+}
+
+const AI_OUTCOME_STYLE: Record<AiReview['outcome'], string> = {
+  confirm: 'bg-red-100 text-red-700',
+  dismiss: 'bg-tint text-ink-4',
+  abusive: 'bg-amber-100 text-amber-800',
+}
+const AI_OUTCOME_LABEL: Record<AiReview['outcome'], string> = { confirm: 'Confirm report', dismiss: 'Dismiss report', abusive: 'Abusive reporter' }
+
+function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
+  caseId: string; internalNote: string | null
+  onUse: (r: AiReview) => void
+  refresh: () => void
+}) {
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [review, setReview] = useState<AiReview | null>(null)
+  const [err, setErr] = useState('')
+  const [noteState, setNoteState] = useState<'idle' | 'saving' | 'saved'>('idle')
+
+  const run = async () => {
+    setState('loading')
+    try {
+      const res = await fetch('/api/admin/ai-review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: caseId }) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setErr(res.status === 429 ? (data.message || 'Daily AI review budget is used up — try again tomorrow.')
+          : res.status === 503 ? 'AI is not configured on this deployment.'
+          : 'AI review failed — try again.')
+        setState('error')
+        return
+      }
+      setReview(data as AiReview)
+      setState('done')
+    } catch {
+      setErr('AI review failed — try again.')
+      setState('error')
+    }
+  }
+
+  // Audit trail: append a one-line summary of the AI's suggestion to the case's
+  // internal note (the panel itself is ephemeral — nothing persists unless saved).
+  const saveNote = async () => {
+    if (!review || noteState !== 'idle') return
+    setNoteState('saving')
+    const d = new Date()
+    const stamp = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+    const line = `[AI ${stamp}] ${review.outcome} (${Math.round(review.confidence * 100)}%)${review.reasoning[0] ? ` — ${review.reasoning[0]}` : ''}`
+    try {
+      await post({ action: 'set-note', id: caseId, note: `${internalNote ? internalNote + '\n' : ''}${line}`.slice(0, 2000) })
+      setNoteState('saved')
+      refresh()
+    } catch { setNoteState('idle') }
+  }
+
+  if (state === 'idle' || state === 'loading' || state === 'error') {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={run} disabled={state === 'loading'} className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-60 cursor-pointer">
+          {state === 'loading' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+          {state === 'loading' ? 'Reading the evidence…' : 'AI review'}
+        </button>
+        {state === 'error' && <span className="text-[11px] font-semibold text-warning">{err}</span>}
+      </div>
+    )
+  }
+
+  if (!review) return null
+  return (
+    <div className="rounded-lg border border-border bg-tint/40 p-2.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 shrink-0 text-ink-4" />
+        <span className="text-[10px] font-bold uppercase tracking-wide text-ink-4">AI suggestion — you decide</span>
+        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold', AI_OUTCOME_STYLE[review.outcome])}>{AI_OUTCOME_LABEL[review.outcome]}{review.severity ? ` · ${review.severity}` : ''}</span>
+        <span className="text-[10px] text-ink-4">{Math.round(review.confidence * 100)}% confidence</span>
+      </div>
+      {review.reasoning.length > 0 && (
+        <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-xs text-foreground">
+          {review.reasoning.map((r, i) => <li key={i}>{r}</li>)}
+        </ul>
+      )}
+      {review.keyEvidence.length > 0 && (
+        <div className="mt-1.5 space-y-1">
+          {review.keyEvidence.map((e, i) => (
+            <p key={i} className="text-[11px] text-muted-foreground">
+              <span className="mr-1 rounded bg-tint px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-ink-4">{e.source.replace('_', ' ')}</span>
+              “{e.quote}”
+            </p>
+          ))}
+        </div>
+      )}
+      {review.counterpoints.length > 0 && (
+        <div className="mt-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-ink-4">On the other hand</p>
+          <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">
+            {review.counterpoints.map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        </div>
+      )}
+      {review.missing.length > 0 && <p className="mt-1.5 text-[11px] text-muted-foreground"><span className="font-bold text-ink-4">Missing:</span> {review.missing.join(' · ')}</p>}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <button onClick={() => onUse(review)} className="rounded-md bg-foreground px-2.5 py-1 text-[10px] font-bold text-background hover:opacity-90 cursor-pointer">Use suggestion</button>
+        <button onClick={saveNote} disabled={noteState !== 'idle'} className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2.5 py-1 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-60 cursor-pointer">
+          {noteState === 'saving' && <Loader2 className="h-3 w-3 animate-spin" />}
+          {noteState === 'saved' ? 'Saved to case notes ✓' : 'Save to case notes'}
+        </button>
+      </div>
+      <p className="mt-1.5 text-[10px] italic text-ink-4">AI can misread context — verify quotes in the conversation before confirming.</p>
+    </div>
+  )
+}
+
 const RAIL = { critical: 'border-l-red-500', high: 'border-l-amber-400', standard: 'border-l-slate-300' }
 
 function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onSeverity, onSelect, onAction, onListing, onDismissTarget, refresh }: {
@@ -123,6 +275,15 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
 }) {
   const t = c.target
   const isListing = t.kind === 'listing' && t.listing
+  // "Use suggestion" pre-selects the AI's severity + focuses/highlights the matching
+  // decision button — it NEVER submits. The admin makes the final call.
+  const decisionRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const [aiFocus, setAiFocus] = useState<AiReview['outcome'] | null>(null)
+  const useSuggestion = (r: AiReview) => {
+    if (r.outcome === 'confirm' && r.severity && PENALTY[r.severity]) onSeverity(c.id, r.severity)
+    setAiFocus(r.outcome)
+    decisionRefs.current[r.outcome]?.focus()
+  }
   const msgTargets = [
     c.reporter ? { recipientId: c.reporter.id, label: `reporter (${c.reporter.name})` } : null,
     t.profileId ? { recipientId: t.profileId, label: `${t.kind === 'listing' ? 'seller' : 'user'} (${t.name})` } : null,
@@ -170,6 +331,21 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
 
       {c.detail && <p className="mt-2 text-xs text-foreground">“{c.detail}”</p>}
 
+      {/* The reported party's formal reply (buyer-king SLA) — evidence BEFORE decision.
+          No reply + reachable target → show the running SLA clock instead. */}
+      {(c.sellerResponse || (!readOnly && t.profileId)) && (
+        <div className="mt-2 rounded-lg border border-border bg-tint/40 px-2 py-1.5">
+          {c.sellerResponse ? (
+            <>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-ink-4">{t.kind === 'listing' ? 'Seller' : 'Reported party'} reply{c.sellerRespondedAt ? ` · ${shortDate(c.sellerRespondedAt)}` : ''}</p>
+              <p className="mt-0.5 text-xs text-foreground">“{c.sellerResponse}”</p>
+            </>
+          ) : (
+            <p className="text-[11px] italic text-muted-foreground">No reply from the {t.kind === 'listing' ? 'seller' : 'reported party'} yet · asked {askedAgo(c.createdAt)}</p>
+          )}
+        </div>
+      )}
+
       {/* Appeal: the target's explanation + proof, shown prominently. */}
       {c.appeal && (
         <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2">
@@ -203,6 +379,11 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
         </div>
       ) : (
         <>
+          {/* AI-assisted review: suggestion + cited evidence. Advisory only — never acts. */}
+          <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+            <AiReviewPanel caseId={c.id} internalNote={c.internalNote} onUse={useSuggestion} refresh={refresh} />
+          </div>
+
           <div className="mt-3 space-y-1.5 border-t border-border pt-2">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wide text-ink-4">Penalty</span>
@@ -210,20 +391,26 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
                 <button key={s} onClick={(e) => { e.stopPropagation(); onSeverity(c.id, s) }} className={cn('rounded-md px-2 py-0.5 text-[10px] font-bold capitalize transition-colors cursor-pointer', severity === s ? 'bg-primary text-white' : 'border border-line-strong text-foreground hover:bg-muted')}>{s} {PENALTY[s]}</button>
               ))}
             </div>
+            {/* Exactly THREE decisions; everything secondary lives in the ⋯ More menu. */}
             <div className="flex flex-wrap items-center gap-1.5">
-              <button onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} className="rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm{isListing ? ' & unpublish' : ''} ({PENALTY[severity]} trust)</button>
-              <button onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} className="rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">{c.appeal ? 'Dismiss (uphold appeal)' : 'Dismiss (keep live)'}</button>
-              <button onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className="rounded-md px-2 py-1 text-[11px] font-semibold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer" title="False/abusive report — strike the reporter">Abusive</button>
-              {isListing && <button onClick={(e) => { e.stopPropagation(); onListing('reject', t.listing!.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete listing</button>}
-              {c.communityCount > 1 && <button onClick={(e) => { e.stopPropagation(); onDismissTarget(c.id) }} disabled={busy} className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount}</button>}
+              <button ref={(el) => { decisionRefs.current.confirm = el }} onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} className={cn('rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer', aiFocus === 'confirm' && 'ring-2 ring-brand ring-offset-1')}>Confirm{isListing ? ' & unpublish' : ''} ({PENALTY[severity]} trust)</button>
+              <button ref={(el) => { decisionRefs.current.dismiss = el }} onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} className={cn('rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer', aiFocus === 'dismiss' && 'ring-2 ring-brand ring-offset-1')}>{c.appeal ? 'Dismiss (uphold appeal)' : 'Dismiss (keep live)'}</button>
+              <button ref={(el) => { decisionRefs.current.abusive = el }} onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className={cn('rounded-md px-2 py-1 text-[11px] font-semibold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer', aiFocus === 'abusive' && 'ring-2 ring-brand ring-offset-1')} title="False/abusive report — strike the reporter">Abusive</button>
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              <span className="ml-auto">
+                <MoreMenu>
+                  {isListing && <button onClick={() => onListing('reject', t.listing!.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete listing permanently</button>}
+                  {c.communityCount > 1 && <button onClick={() => onDismissTarget(c.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount} on this target</button>}
+                  {(isListing || c.communityCount > 1) && (msgTargets.length > 0 || t.isGuest) && <div className="my-1 border-t border-border" />}
+                  {msgTargets.map((m) => <div key={m.recipientId} className="px-1 py-0.5"><MacroSender recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} /></div>)}
+                  {t.isGuest && <p className="px-2 py-1 text-[10px] italic text-ink-4">Reported party is a guest — can&apos;t be messaged.</p>}
+                </MoreMenu>
+              </span>
             </div>
           </div>
 
-          {/* Notify (pre-prepared, bilingual) + internal note */}
+          {/* Internal note — low-key affordance, expands in place. */}
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {msgTargets.map((m) => <MacroSender key={m.recipientId} recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} />)}
-            {t.isGuest && <span className="text-[10px] italic text-ink-4">Reported party is a guest — can&apos;t be messaged.</span>}
             <NoteEditor caseId={c.id} initial={c.internalNote} onSaved={refresh} />
           </div>
         </>

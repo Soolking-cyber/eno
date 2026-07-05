@@ -44,7 +44,7 @@ export default async function AdminPage() {
     )
   }
 
-  const SELECT = { id: true, reason: true, detail: true, severity: true, status: true, createdAt: true, resolvedBy: true, resolvedAt: true, internalNote: true, appealNote: true, appealImages: true, appealedAt: true, reporterProfileId: true, listingId: true, conversationId: true, targetSellerId: true, targetProfileId: true } as const
+  const SELECT = { id: true, reason: true, detail: true, severity: true, status: true, createdAt: true, resolvedBy: true, resolvedAt: true, internalNote: true, appealNote: true, appealImages: true, appealedAt: true, sellerResponse: true, sellerRespondedAt: true, reporterProfileId: true, listingId: true, conversationId: true, targetSellerId: true, targetProfileId: true } as const
   const [openRows, resolvedRows] = await Promise.all([
     db.report.findMany({ where: { status: 'open' }, orderBy: { createdAt: 'desc' }, take: 500, select: SELECT }),
     db.report.findMany({ where: { status: { not: 'open' } }, orderBy: { resolvedAt: 'desc' }, take: 60, select: SELECT }),
@@ -89,6 +89,9 @@ export default async function AdminPage() {
       preScreen: preScreened.has(r.id),
       reporter, conversationId: convoByReportId.get(r.id) ?? null, communityCount: community, target,
       internalNote: r.internalNote ?? null,
+      // The seller's formal reply (buyer-king SLA) — evidence the admin sees before deciding.
+      sellerResponse: r.sellerResponse ?? null,
+      sellerRespondedAt: r.sellerRespondedAt ? r.sellerRespondedAt.toISOString() : null,
       appeal: r.appealedAt ? { note: r.appealNote ?? null, images: Array.isArray(appealImages) ? appealImages : [], at: r.appealedAt.toISOString() } : null,
       resolution: resolved ? { status: r.status, by: r.resolvedBy, at: r.resolvedAt ? r.resolvedAt.toISOString() : null } : null,
     }
