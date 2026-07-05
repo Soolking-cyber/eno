@@ -42,6 +42,16 @@ async function call(path, method, body) {
 try {
   const purge = await call(`${branch}/documents:purge`, 'POST', { filter: '*', force: true })
   console.log('purge started:', purge.name || JSON.stringify(purge).slice(0, 120))
+  // Purge is an ASYNC operation — importing before it finishes lets it delete the fresh
+  // docs. Poll the operation until done (bounded), then import.
+  if (purge.name) {
+    for (let i = 0; i < 24; i++) {
+      await new Promise((r) => setTimeout(r, 5000))
+      const op = await call(purge.name, 'GET')
+      if (op.done) { console.log('purge complete'); break }
+      if (i === 23) console.warn('purge still running after 2 min — importing anyway; re-run if docs look missing')
+    }
+  }
 } catch (e) {
   console.warn(`purge skipped (${String(e.message).slice(0, 80)}…) — stale docs for delisted listings may linger`)
 }
