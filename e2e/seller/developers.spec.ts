@@ -33,6 +33,6 @@ test.describe('developers panel', () => {
   })
 
   test('exposes the copyable MCP endpoint', async ({ page }) => {
-    await expect(page.getByText('https://eno.vn/api/mcp')).toBeVisible()
+    await expect(page.getByText('https://eno.vn/api/mcp').first()).toBeVisible()
   })
 })

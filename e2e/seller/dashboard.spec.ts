@@ -10,7 +10,9 @@ test.describe('seller dashboard', () => {
     await page.goto('/dashboard')
     // Not bounced to sign-in → the storageState session is valid.
     await expect(page).not.toHaveURL(/\/signin/)
-    await expect(page.getByRole('heading', { name: /dashboard|bảng điều khiển/i }).first()).toBeVisible()
+    // The dashboard h1 is the account/business name ("Your account" fallback) — not
+    // the word "Dashboard"; assert the authed shell actually rendered its heading.
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
   })
 
   test('shows the seller’s own listings', async ({ page }) => {
