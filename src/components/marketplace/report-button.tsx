@@ -45,7 +45,15 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
       })
       // Reporting requires an account — bounce anonymous users to sign-in.
       if (res.status === 401) { setOpen(false); openSignIn(); return }
-      if (res.status === 429) { setError(t('Too many reports — please try again later.', 'Bạn đã báo cáo quá nhiều. Thử lại sau.')); return }
+      if (res.status === 429) {
+        // Two different 429s deserve different words: the hourly rate limit vs the
+        // false-report cooldown (a prior report of yours was reviewed as inaccurate).
+        const code = (await res.json().catch(() => null))?.error as string | undefined
+        setError(code === 'report_cooldown'
+          ? t('Reporting is paused on your account for now — a recent report was reviewed and found inaccurate. It re-opens automatically.', 'Tài khoản của bạn tạm dừng báo cáo — một báo cáo gần đây được xem xét là không chính xác. Sẽ tự mở lại.')
+          : t('Too many reports — please try again later.', 'Bạn đã báo cáo quá nhiều. Thử lại sau.'))
+        return
+      }
       if (!res.ok) {
         // Surface WHY instead of a generic failure — a self-report or non-participant
         // report otherwise just looks broken.
