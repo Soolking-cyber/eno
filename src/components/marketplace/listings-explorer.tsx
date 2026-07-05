@@ -1376,7 +1376,7 @@ export function ListingsExplorer({
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.slug)}
                     style={{ '--cat': hex } as CSSProperties}
-                    className="group flex snap-start flex-col items-center justify-center gap-2 p-2 text-center cursor-pointer"
+                    className="group flex snap-start flex-col items-center justify-center gap-2 p-2 text-center cursor-pointer transition-transform duration-100 active:scale-95"
                   >
                     <CategoryIcon
                       name={cat.icon}

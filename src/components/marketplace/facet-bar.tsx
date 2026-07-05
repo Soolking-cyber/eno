@@ -155,7 +155,7 @@ export function FacetBar({
       type="button"
       onClick={() => setAreaOpen((o) => !o)}
       className={cn(
-        'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
+        'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-95 cursor-pointer',
         wrap,
         areaOpen ? 'text-foreground' : areaActive ? active : 'text-body hover:bg-muted',
       )}
@@ -198,7 +198,7 @@ export function FacetBar({
             type="button"
             onClick={() => setAdvOpen((o) => !o)}
             className={cn(
-              'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
+              'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-95 cursor-pointer',
               advOpen || activeAdvCount > 0 ? active : 'text-body hover:bg-muted',
             )}
           >
