@@ -52,6 +52,7 @@ import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-sug
 import { ImageSearchButton } from './image-search-button'
 import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
+import { ListingCardSkeleton } from './listing-card-skeleton'
 
 // Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
 // engine) travel in the URL + API keyed by their numeric COLUMN as `range_<col>`
@@ -2250,12 +2251,7 @@ export function ListingsExplorer({
               viewMode === 'grid' ? (
                 <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="space-y-3">
-                      <div className="aspect-[4/3] w-full rounded-xl shimmer skeleton-photo" />
-                      <div className="h-4 w-2/3 rounded shimmer" />
-                      <div className="h-3 w-1/2 rounded shimmer" />
-                      <div className="h-3 w-1/3 rounded shimmer" />
-                    </div>
+                    <ListingCardSkeleton key={i} />
                   ))}
                 </div>
               ) : (

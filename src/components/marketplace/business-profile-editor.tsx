@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Loader2, Check, Plus, LocateFixed } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 import { compressImageFile } from '@/lib/normalize-image'
 
 type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; phone: string | null }
@@ -97,7 +97,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   }
 
   const field = 'w-full rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-muted focus:bg-muted'
-  const initials = name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+  const initials = getInitials(name)
 
   return (
     <div>

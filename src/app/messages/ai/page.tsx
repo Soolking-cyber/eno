@@ -9,6 +9,7 @@ import { useAuth } from '@/context/auth-context'
 import { ListingCard } from '@/components/marketplace/listing-card'
 import { haptic } from '@/lib/haptics'
 import type { SerializedListingCard } from '@/lib/types'
+import { fmtTime } from '@/lib/dates'
 
 // The "eno AI" conversation — rendered as a native thread in the messages tab (the AI
 // is just another contact). Self-contained: messages live in component state +
@@ -18,7 +19,6 @@ import type { SerializedListingCard } from '@/lib/types'
 type Msg = { role: 'user' | 'assistant'; content: string; listings?: SerializedListingCard[]; createdAt: string }
 
 const STORE_KEY = 'eno:ai_chat_v1'
-const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 
 export default function AiThreadPage() {
   const router = useRouter()

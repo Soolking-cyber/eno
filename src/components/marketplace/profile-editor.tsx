@@ -5,6 +5,7 @@ import { Loader2, Check, Plus } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { compressImageFile } from '@/lib/normalize-image'
+import { getInitials } from '@/lib/utils'
 
 type Profile = { displayName: string | null; avatarUrl: string | null; avatarColor: string; phone: string | null }
 
@@ -63,7 +64,7 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
   }
 
   const field = 'w-full rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-muted focus:bg-muted'
-  const initials = (name || '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+  const initials = getInitials(name)
 
   return (
     <div>

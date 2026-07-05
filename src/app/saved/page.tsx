@@ -11,6 +11,7 @@ import { SavedSearches } from '@/components/marketplace/saved-searches'
 import { Mascot } from '@/components/marketplace/mascot'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
+import { ListingCardSkeleton } from '@/components/marketplace/listing-card-skeleton'
 
 export default function SavedPage() {
   const { count, saved, savedError, retrySaved } = useFavorites()
@@ -52,12 +53,7 @@ export default function SavedPage() {
           // when the actual cards swap in.
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: Math.min(Math.max(count, 2), 24) }).map((_, i) => (
-              <div key={i} className="space-y-2">
-                <div className="aspect-[4/3] w-full rounded-xl shimmer" />
-                <div className="h-4 w-2/3 rounded shimmer" />
-                <div className="h-4 w-1/3 rounded shimmer" />
-                <div className="h-3 w-1/2 rounded shimmer" />
-              </div>
+              <ListingCardSkeleton key={i} />
             ))}
           </div>
         ) : list.length === 0 ? (

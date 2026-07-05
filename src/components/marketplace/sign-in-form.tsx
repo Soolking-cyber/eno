@@ -17,7 +17,7 @@ const RESEND_SECONDS = 60
  *  handlers (Google OAuth, email magic-link, phone OTP). */
 export function SignInForm({ className }: { className?: string }) {
   const { tr } = useLanguage()
-  const t = (vi: string, en: string) => tr(en, vi)
+  const t = (en: string, vi: string) => tr(en, vi)
 
   const [tab, setTab] = useState<'email' | 'phone'>('phone')
   const [email, setEmail] = useState('')
@@ -83,7 +83,7 @@ export function SignInForm({ className }: { className?: string }) {
   // Cryptic GoTrue captcha errors → human copy; anything else shows as-is.
   const friendlyAuthError = (message: string) =>
     /captcha/i.test(message)
-      ? t('Kiểm tra bảo mật chưa hoàn tất — thử lại và đánh dấu ô xác minh nếu nó hiện ra nhé.', "The security check didn't complete — try again, and tick the verification box if one appears.")
+      ? t("The security check didn't complete — try again, and tick the verification box if one appears.", 'Kiểm tra bảo mật chưa hoàn tất — thử lại và đánh dấu ô xác minh nếu nó hiện ra nhé.')
       : message
 
   const sendEmail = async () => {
@@ -155,18 +155,18 @@ export function SignInForm({ className }: { className?: string }) {
         <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-tint">
           <Mail className="h-7 w-7 text-accent-foreground" />
         </span>
-        <p className="mt-4 text-lg font-bold text-foreground">{t('Kiểm tra email của bạn', 'Check your email')}</p>
-        <p className="mt-1.5 text-sm text-muted-foreground">{t('Chúng tôi đã gửi liên kết đăng nhập tới', 'We sent a magic link to')}</p>
+        <p className="mt-4 text-lg font-bold text-foreground">{t('Check your email', 'Kiểm tra email của bạn')}</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">{t('We sent a magic link to', 'Chúng tôi đã gửi liên kết đăng nhập tới')}</p>
         <p className="text-sm font-semibold text-foreground">{email}</p>
         <p className="mt-3 text-xs text-muted-foreground">
-          {t('Không thấy email? Kiểm tra spam, hoặc', "Didn't get it? Check spam, or")}{' '}
+          {t("Didn't get it? Check spam, or", 'Không thấy email? Kiểm tra spam, hoặc')}{' '}
           <button onClick={sendEmail} disabled={countdown > 0 || loading} className="font-semibold text-accent-foreground hover:underline disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
-            {countdown > 0 ? `${t('gửi lại sau', 'resend in')} 0:${String(countdown).padStart(2, '0')}` : t('gửi lại', 'resend')}
+            {countdown > 0 ? `${t('resend in', 'gửi lại sau')} 0:${String(countdown).padStart(2, '0')}` : t('resend', 'gửi lại')}
           </button>
         </p>
         {error && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
         <button onClick={reset} className="mt-3 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
-          {t('Dùng cách khác', 'Use another method')}
+          {t('Use another method', 'Dùng cách khác')}
         </button>
         {/* Kept mounted here too so the email "resend" above can mint a fresh token. */}
         <Turnstile />
@@ -179,20 +179,20 @@ export function SignInForm({ className }: { className?: string }) {
       {/* OAuth — in an in-app browser / iOS PWA, Google rejects OAuth, so this hands
           off to the real browser (Android: automatic; iOS: shows the manual hint). */}
       <button onClick={() => oauth('google')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-foreground hover:bg-muted transition-colors cursor-pointer">
-        <GoogleIcon /> {oauthBlocked ? t('Mở Google trong trình duyệt', 'Open Google in your browser') : t('Tiếp tục với Google', 'Continue with Google')}
+        <GoogleIcon /> {oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
         {oauthBlocked && <ExternalLink className="h-3.5 w-3.5 text-ink-4" />}
       </button>
       {oauthBlocked && (
         <p className="rounded-xl bg-tint px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
           {iosHint
-            ? t('Chạm ••• ở trên rồi chọn “Mở trong Safari”, sau đó đăng nhập với Google. Hoặc dùng SĐT/email bên dưới — vẫn hoạt động ngay tại đây.', 'Tap ••• at the top, choose “Open in Safari/Browser”, then sign in with Google. Or just use Phone/Email below — they work right here.')
-            : t('Google chỉ hoạt động trong trình duyệt thật. Dùng SĐT hoặc email bên dưới — vẫn hoạt động ngay tại đây.', 'Google sign-in needs your real browser. Phone or email below work right here.')}
+            ? t('Tap ••• at the top, choose “Open in Safari/Browser”, then sign in with Google. Or just use Phone/Email below — they work right here.', 'Chạm ••• ở trên rồi chọn “Mở trong Safari”, sau đó đăng nhập với Google. Hoặc dùng SĐT/email bên dưới — vẫn hoạt động ngay tại đây.')
+            : t('Google sign-in needs your real browser. Phone or email below work right here.', 'Google chỉ hoạt động trong trình duyệt thật. Dùng SĐT hoặc email bên dưới — vẫn hoạt động ngay tại đây.')}
         </p>
       )}
 
       <div className="flex items-center gap-3 py-1">
         <span className="h-px flex-1 bg-border" />
-        <span className="text-xs text-ink-4">{t('hoặc', 'or')}</span>
+        <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
         <span className="h-px flex-1 bg-border" />
       </div>
 
@@ -201,7 +201,7 @@ export function SignInForm({ className }: { className?: string }) {
         {(['phone', 'email'] as const).map((m) => (
           <button key={m} onClick={() => { setTab(m); reset() }} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 transition-colors cursor-pointer', tab === m ? 'bg-card text-accent-foreground shadow-sm' : 'text-muted-foreground')}>
             {m === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
-            {m === 'email' ? tr('Email') : t('Điện thoại', 'Phone')}
+            {m === 'email' ? tr('Email') : t('Phone', 'Điện thoại')}
           </button>
         ))}
       </div>
@@ -210,7 +210,7 @@ export function SignInForm({ className }: { className?: string }) {
         <div className="space-y-2">
           <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="w-full rounded-xl bg-tint px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30" />
           <Button variant="cta" size="none" onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Gửi liên kết đăng nhập', 'Send magic link')}
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send magic link', 'Gửi liên kết đăng nhập')}
           </Button>
         </div>
       )}
@@ -219,14 +219,14 @@ export function SignInForm({ className }: { className?: string }) {
         <div className="space-y-2">
           <input type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" className="w-full rounded-xl bg-tint px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30" />
           <Button variant="cta" size="none" onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Gửi mã SMS', 'Send SMS code')}
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send SMS code', 'Gửi mã SMS')}
           </Button>
         </div>
       )}
 
       {tab === 'phone' && stage === 'code' && (
         <div className="space-y-3">
-          <p className="text-center text-xs text-muted-foreground">{t('Nhập mã 6 số gửi tới', 'Enter the 6-digit code sent to')} <strong className="text-foreground">{phone}</strong></p>
+          <p className="text-center text-xs text-muted-foreground">{t('Enter the 6-digit code sent to', 'Nhập mã 6 số gửi tới')} <strong className="text-foreground">{phone}</strong></p>
           <InputOTP maxLength={6} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
             <InputOTPGroup>
               {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -235,12 +235,12 @@ export function SignInForm({ className }: { className?: string }) {
             </InputOTPGroup>
           </InputOTP>
           <Button variant="cta" size="none" onClick={() => verifyPhone()} disabled={loading || code.length < 6} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Xác nhận', 'Verify')}
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
           </Button>
           <div className="flex items-center justify-between px-1 text-xs">
-            <button onClick={reset} className="font-semibold text-muted-foreground hover:text-accent-foreground cursor-pointer">{t('Đổi số', 'Change number')}</button>
+            <button onClick={reset} className="font-semibold text-muted-foreground hover:text-accent-foreground cursor-pointer">{t('Change number', 'Đổi số')}</button>
             <button onClick={sendPhone} disabled={countdown > 0 || loading} className="font-semibold text-accent-foreground hover:underline disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
-              {countdown > 0 ? `${t('Gửi lại sau', 'Resend in')} 0:${String(countdown).padStart(2, '0')}` : t('Gửi lại mã', 'Resend code')}
+              {countdown > 0 ? `${t('Resend in', 'Gửi lại sau')} 0:${String(countdown).padStart(2, '0')}` : t('Resend code', 'Gửi lại mã')}
             </button>
           </div>
         </div>
@@ -250,10 +250,10 @@ export function SignInForm({ className }: { className?: string }) {
       {/* Invisible Turnstile — renders a visible challenge only if one is required. */}
       <Turnstile />
       <p className="pt-1 text-center text-[11px] text-ink-4">
-        {t('Tiếp tục nghĩa là bạn đồng ý với', 'By continuing you agree to our')}{' '}
-        <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Điều khoản', 'Terms')}</a>
-        {' '}{t('và', 'and')}{' '}
-        <a href="/privacy" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Chính sách bảo mật', 'Privacy Policy')}</a>.
+        {t('By continuing you agree to our', 'Tiếp tục nghĩa là bạn đồng ý với')}{' '}
+        <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Terms', 'Điều khoản')}</a>
+        {' '}{t('and', 'và')}{' '}
+        <a href="/privacy" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo mật')}</a>.
       </p>
     </div>
   )

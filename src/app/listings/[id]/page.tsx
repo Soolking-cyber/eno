@@ -27,7 +27,7 @@ import { Price } from '@/components/marketplace/price'
 import { Tr } from '@/context/language-context'
 import { LocalizedTitle, LocalizedText, PostedAgo } from '@/components/marketplace/listing-content'
 import { cachedTranslations } from '@/lib/translate'
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
@@ -153,11 +153,7 @@ export default async function ListingPage({ params }: Props) {
       : null
   const color = CATEGORY_COLOR_CLASSES[listing.category.color] ?? CATEGORY_COLOR_CLASSES.brand
 
-  const initials = listing.seller.name
-    .split(' ')
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join('')
+  const initials = getInitials(listing.seller.name)
     .toUpperCase()
 
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []

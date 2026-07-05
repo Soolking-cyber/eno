@@ -8,6 +8,7 @@ import { formatMoneyFull } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { MOD_MACROS } from '@/lib/admin-macros'
 import type { TargetInfo } from '@/lib/admin-reports'
+import { shortDate } from '@/lib/dates'
 
 export type Reporter = {
   id: string
@@ -53,7 +54,6 @@ async function post(body: Record<string, unknown>) {
   const res = await fetch('/api/admin/moderate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   if (!res.ok) throw new Error('action failed')
 }
-const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 const askedAgo = (iso: string) => {
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000)
   return h < 1 ? 'under 1h ago' : h < 48 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`

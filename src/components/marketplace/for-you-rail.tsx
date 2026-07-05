@@ -8,6 +8,7 @@ import { ListingCard } from './listing-card'
 import { useLanguage } from '@/context/language-context'
 import { personalizationAllowed } from '@/lib/consent'
 import { getRecoSignals, getInboundQuery } from '@/lib/reco-signals'
+import { ListingCardSkeleton } from './listing-card-skeleton'
 
 const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district', 'province', 'ward', 'condition', 'priceMin', 'priceMax']
 
@@ -84,12 +85,7 @@ export function ForYouRail() {
           ? Array.from({ length: 6 }).map((_, i) => (
               // Same shape as the feed skeleton (4:3 image + title/price/location lines)
               // so it matches the real card size — not a tall block.
-              <div key={i} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start space-y-3 sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]">
-                <div className="aspect-[4/3] w-full rounded-xl shimmer skeleton-photo" />
-                <div className="h-4 w-2/3 rounded shimmer" />
-                <div className="h-3 w-1/2 rounded shimmer" />
-                <div className="h-3 w-1/3 rounded shimmer" />
-              </div>
+              <ListingCardSkeleton key={i} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]" />
             ))
           : listings.map((l) => (
               <div key={l.id} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]">

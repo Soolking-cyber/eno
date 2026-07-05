@@ -7,13 +7,14 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { ScrollTop } from '@/components/marketplace/scroll-top'
+import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { AlertTriangle, BadgeCheck, ChevronLeft, Star, CalendarDays } from 'lucide-react'
 import { Tr } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { getEnforcement } from '@/lib/enforcement'
+import { getInitials } from '@/lib/utils'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -89,13 +90,13 @@ export default async function SellerPage({ params }: Props) {
       ? enforcement.state
       : null
 
-  const initials = seller.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+  const initials = getInitials(seller.name)
   const listings = await localizeListingTitles(seller.listings.map(serializeListing))
   const memberYear = new Date(seller.memberSince).getFullYear()
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
-      <ScrollTop />
+      <ScrollToTop />
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         <div className="mb-5">

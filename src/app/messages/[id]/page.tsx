@@ -3,9 +3,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 
-// Per-message time + day-grouping helpers (client — local timezone).
-const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-const dayKey = (iso: string) => new Date(iso).toDateString()
 import { useParams } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -20,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
+import { fmtTime, dayKey } from '@/lib/dates'
 
 type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
 type Thread = {

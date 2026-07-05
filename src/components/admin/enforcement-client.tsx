@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, MessageSquare, ExternalLink, Gavel, Clock, ShieldQuestion, Flag } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { shortDate } from '@/lib/dates'
 
 // Admin enforcement console (EN-only, like the rest of /admin). Consumes
 // GET /api/admin/enforcement (getAdmin re-checked server-side on every call) and
@@ -66,7 +67,6 @@ const fmtAge = (iso: string) => {
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000)
   return h < 1 ? 'now' : h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`
 }
-const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
 function StateChip({ state }: { state: string }) {
   return <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold capitalize', STATE_CLS[state] ?? 'bg-tint text-ink-4')}>{state.replace('_', ' ')}</span>
