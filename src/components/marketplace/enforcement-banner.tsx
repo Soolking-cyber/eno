@@ -209,6 +209,11 @@ export function EnforcementBanner({ enforcement, onChanged }: { enforcement: Enf
     ] : reason === 'scam_hold' ? [
       tr('Your listings are paused while we review a serious report.', 'Tin đăng của bạn tạm dừng trong khi chúng tôi xem xét một báo cáo nghiêm trọng.'),
       tr('They return automatically when the review clears — completed sales also work the hold off.', 'Tin sẽ tự hiển thị lại khi việc xem xét kết thúc ổn — các giao dịch hoàn tất cũng giúp gỡ tạm dừng.'),
+    ] : reason === 'ban_evasion_review' ? [
+      // Phase 3: held for a HUMAN identity review. Never accusatory — VN families
+      // share numbers, so this is often a relative on the household SIM.
+      tr('Your account needs a quick manual review.', 'Tài khoản của bạn cần được xem xét thủ công nhanh.'),
+      tr('Posting is paused while a person double-checks your account details — this usually clears quickly. If it takes too long, appeal below.', 'Đăng tin tạm dừng trong khi nhân viên kiểm tra lại thông tin tài khoản — việc này thường hoàn tất nhanh. Nếu chờ quá lâu, hãy khiếu nại bên dưới.'),
     ] : state === 'suspended' ? [
       tr('Your account is suspended while we review it.', 'Tài khoản của bạn tạm ngưng trong khi chúng tôi xem xét.'),
       tr('Posting and messaging are paused — everything else stays exactly as you left it.', 'Đăng tin và nhắn tin tạm dừng — mọi thứ khác vẫn giữ nguyên như cũ.'),

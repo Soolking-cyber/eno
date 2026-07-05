@@ -30,7 +30,25 @@ export const ENFORCEMENT_REASON = {
   CONDUCT_WARNING: 'conduct_warning', // dual-threshold demote signal inside 90d
   INSURANCE_GRACE: 'insurance_grace', // good-standing insurance 72h contact-before-action
   ADMIN_MANUAL: 'admin_manual', // an admin set the state by hand
+  // ── Phase 3 (identity layer) ──
+  BAN_EVASION_REVIEW: 'ban_evasion_review', // verified phone matches a suspended account → held for HUMAN review (never auto-ban: VN families share numbers)
+  BAN_EVASION_EMAIL: 'ban_evasion_email', // email matches a suspended account — weaker signal → silent flag only, state unchanged
+  VELOCITY_REVIEW: 'velocity_review', // positive-event spike far above baseline → silent flag only, state unchanged
 } as const
+
+/**
+ * FLAG-ONLY reasons (Phase 3): EnforcementAction rows that are review ANNOTATIONS,
+ * not ladder states — they never touch Profile.enforcementState, never notify the
+ * seller, and must be EXCLUDED from every ladder query (supersede-on-transition,
+ * system-precedence reads, the seller-facing dashboard/appeal action lookups) so a
+ * silent flag can neither leak to the seller nor shadow a real action.
+ */
+export const FLAG_REASONS = [ENFORCEMENT_REASON.VELOCITY_REVIEW, ENFORCEMENT_REASON.BAN_EVASION_EMAIL] as const
+export type FlagReason = (typeof FLAG_REASONS)[number]
+
+export function isFlagReason(reason: string): reason is FlagReason {
+  return (FLAG_REASONS as readonly string[]).includes(reason)
+}
 
 export const ENFORCEMENT = {
   WARN_EXPIRES_DAYS: 30, // a conduct warning lapses after a clean month
@@ -46,6 +64,54 @@ export const ENFORCEMENT = {
     MAX_NEW_CONVERSATIONS_PER_DAY: 15,
   },
 } as const
+
+// ── Phase 3: velocity review flags (silent — a flag is a question for an admin,
+// never a punishment: the seller's state, rank and notifications are untouched).
+export const VELOCITY = {
+  REVIEWS_24H_MIN: 5, // absolute floor — small shops with a lucky day never flag
+  TX_24H_MIN: 8,
+  SPIKE_FACTOR: 3, // and the day must run >3× the trailing-30d daily average
+  WINDOW_DAYS: 30,
+} as const
+
+export type VelocityInputs = {
+  reviews24h: number // VERIFIED reviews received in the last 24h (raw, pre-dedup — a same-buyer burst IS the signal)
+  reviews30d: number // …and in the trailing 30d (includes the last 24h)
+  tx24h: number // transactions (sold listings + accepted offers) in the last 24h
+  tx30d: number
+}
+
+/**
+ * Should this profile get a silent velocity review flag? Dual condition per axis:
+ * an ABSOLUTE floor (≥5 reviews / ≥8 transactions in 24h) AND a RELATIVE spike
+ * (>3× the trailing-30d daily average). The average includes the spike day itself —
+ * strictly conservative (a spike inflates its own baseline), and it keeps the
+ * detector a pure function of four counts the trust recompute already has loaded.
+ */
+export function velocitySpike(v: VelocityInputs): boolean {
+  const reviewAvg = v.reviews30d / VELOCITY.WINDOW_DAYS
+  const txAvg = v.tx30d / VELOCITY.WINDOW_DAYS
+  return (
+    (v.reviews24h >= VELOCITY.REVIEWS_24H_MIN && v.reviews24h > VELOCITY.SPIKE_FACTOR * reviewAvg) ||
+    (v.tx24h >= VELOCITY.TX_24H_MIN && v.tx24h > VELOCITY.SPIKE_FACTOR * txAvg)
+  )
+}
+
+// ── Phase 3: repeat-false-reporter ladder (protect good sellers). Strikes come
+// from Profile.falseReportStrikes (incremented on each 'abusive' ruling).
+export const REPORTER_LADDER = {
+  PRESCREEN_STRIKES: 2, // ≥2 strikes → reports land preScreen'd (triaged LAST, excluded from buyer-waiting)
+  BLOCKED_STRIKES: 3, // ≥3 strikes → reporting is turned off (calm copy; appeal via help)
+} as const
+
+export type ReporterStanding = 'ok' | 'prescreen' | 'blocked'
+
+/** 0–1 strikes: normal (the existing cooldown already applies) · 2: pre-screened · ≥3: blocked. */
+export function reporterStanding(falseReportStrikes: number): ReporterStanding {
+  if (falseReportStrikes >= REPORTER_LADDER.BLOCKED_STRIKES) return 'blocked'
+  if (falseReportStrikes >= REPORTER_LADDER.PRESCREEN_STRIKES) return 'prescreen'
+  return 'ok'
+}
 
 /** A concrete enforcement decision — what applyEnforcement executes. */
 export type EnforcementDecision = {

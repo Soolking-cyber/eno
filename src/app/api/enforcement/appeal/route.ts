@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
+import { FLAG_REASONS } from '@/lib/enforcement'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
@@ -22,20 +23,18 @@ export async function POST(req: Request) {
   const text = String(body.text || '').trim().slice(0, 2000)
   if (text.length < 5) return NextResponse.json({ error: 'missing_fields' }, { status: 400 })
 
-  try {
-    const action = await db.enforcementAction.findFirst({
-      where: { profileId: meId, status: 'active' },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, appealedAt: true },
-    })
-    if (!action) return NextResponse.json({ error: 'no_active_action' }, { status: 404 })
-    // One-shot: a second submission while (or after) the first is pending is refused —
-    // the appeal is the seller's single considered statement, not a chat channel.
-    if (action.appealedAt) return NextResponse.json({ error: 'already_appealed' }, { status: 409 })
-    await db.enforcementAction.update({ where: { id: action.id }, data: { appealText: text, appealedAt: new Date() } })
-    return NextResponse.json({ ok: true })
-  } catch {
-    // Table not there yet (scripts/add-enforcement.mjs pending) → retryable, not a 500.
-    return NextResponse.json({ error: 'migration_pending' }, { status: 503 })
-  }
+  // Silent review flags EXCLUDED (Phase 3): a flag row is invisible to the seller,
+  // so it can be neither the target of their appeal nor allowed to shadow the real
+  // action they're appealing against.
+  const action = await db.enforcementAction.findFirst({
+    where: { profileId: meId, status: 'active', reason: { notIn: [...FLAG_REASONS] } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, appealedAt: true },
+  })
+  if (!action) return NextResponse.json({ error: 'no_active_action' }, { status: 404 })
+  // One-shot: a second submission while (or after) the first is pending is refused —
+  // the appeal is the seller's single considered statement, not a chat channel.
+  if (action.appealedAt) return NextResponse.json({ error: 'already_appealed' }, { status: 409 })
+  await db.enforcementAction.update({ where: { id: action.id }, data: { appealText: text, appealedAt: new Date() } })
+  return NextResponse.json({ ok: true })
 }

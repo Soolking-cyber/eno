@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { severityForReason } from '@/lib/trust'
+import { reporterStanding } from '@/lib/enforcement-machine'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
@@ -19,6 +20,14 @@ export async function POST(req: NextRequest) {
   // the anti-abuse rules possible (trust-weighting, false-report penalty, cooldown).
   const reporter = await getCurrentProfile()
   if (!reporter) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+
+  // Repeat-false-reporter ladder (Phase 3, protects good sellers): 1 strike → the
+  // existing cooldown below; ≥2 → reports still land but pre-screened (triaged last);
+  // ≥3 → reporting is off for this account (calm client copy; appeal via Help).
+  const standing = reporterStanding(reporter.falseReportStrikes)
+  if (standing === 'blocked') {
+    return NextResponse.json({ error: 'reporting_blocked' }, { status: 403 })
+  }
 
   // Anti-abuse: a reporter with confirmed-false reports is temporarily blocked.
   if (reporter.reportCooldownUntil && reporter.reportCooldownUntil > new Date()) {
@@ -108,7 +117,7 @@ export async function POST(req: NextRequest) {
   })
   if (dupe) return NextResponse.json({ ok: true })
 
-  await db.report.create({
+  const created = await db.report.create({
     data: {
       listingId,
       conversationId,
@@ -120,6 +129,17 @@ export async function POST(req: NextRequest) {
       severity: severityForReason(reason),
       status: 'open',
     },
+    select: { id: true },
   })
+
+  // ≥2 strikes → pre-screen the report: it stays in the queue (never silently drop a
+  // possibly-real scam report) but sorts LAST and is excluded from the buyer-waiting
+  // SLA. Raw + guarded — preScreen lands with scripts/add-ban-evasion.mjs; before it
+  // the report simply stays un-screened (fail-open toward the buyer, never a 500).
+  if (standing === 'prescreen') {
+    try {
+      await db.$executeRaw`UPDATE "Report" SET "preScreen" = true WHERE "id" = ${created.id}`
+    } catch { /* migration pending */ }
+  }
   return NextResponse.json({ ok: true }, { status: 201 })
 }

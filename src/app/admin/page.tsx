@@ -51,6 +51,16 @@ export default async function AdminPage() {
   ])
   type Rep = (typeof openRows)[number]
 
+  // Phase 3 reporter ladder: reports filed by a ≥2-strike reporter are pre-screened —
+  // still in the queue (never silently dropped) but triaged LAST. preScreen is
+  // @ignore'd until scripts/add-ban-evasion.mjs runs → guarded raw id lookup
+  // (pre-migration: nothing is screened).
+  let preScreened = new Set<string>()
+  try {
+    const rows = await db.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Report" WHERE "status" = 'open' AND "preScreen" = true LIMIT 500`
+    preScreened = new Set(rows.map((r) => r.id))
+  } catch { /* migration pending */ }
+
   const raw: RawReport[] = [...openRows, ...resolvedRows].map((r) => ({ id: r.id, reporterProfileId: r.reporterProfileId, listingId: r.listingId, conversationId: r.conversationId, targetSellerId: r.targetSellerId, targetProfileId: r.targetProfileId }))
   const [{ reporterById, convoByReportId }, { targetByReportId }] = await Promise.all([reportContext(raw), targetContext(raw)])
 
@@ -76,6 +86,7 @@ export default async function AdminPage() {
     return {
       id: r.id, reason: r.reason, detail: r.detail, severity: r.severity, createdAt: r.createdAt.toISOString(),
       ageDays: Math.floor(ageDays), bucket, priority,
+      preScreen: preScreened.has(r.id),
       reporter, conversationId: convoByReportId.get(r.id) ?? null, communityCount: community, target,
       internalNote: r.internalNote ?? null,
       appeal: r.appealedAt ? { note: r.appealNote ?? null, images: Array.isArray(appealImages) ? appealImages : [], at: r.appealedAt.toISOString() } : null,
@@ -84,7 +95,9 @@ export default async function AdminPage() {
   }
 
   const cases: ModCase[] = openRows.map((r) => buildCase(r, false))
-  cases.sort((a, b) => BUCKET_RANK[a.bucket] - BUCKET_RANK[b.bucket] || b.priority - a.priority || (a.createdAt < b.createdAt ? 1 : -1))
+  // preScreen is the LEADING sort key: a pre-screened report sinks below every
+  // bucket (spec: triaged last) — it's still reviewable, just never jumps the line.
+  cases.sort((a, b) => Number(a.preScreen) - Number(b.preScreen) || BUCKET_RANK[a.bucket] - BUCKET_RANK[b.bucket] || b.priority - a.priority || (a.createdAt < b.createdAt ? 1 : -1))
   const resolved: ModCase[] = resolvedRows.map((r) => buildCase(r, true))
 
   return (

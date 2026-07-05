@@ -46,14 +46,12 @@ model Profile {
   falseReportStrikes   Int       @default(0)   // anti-abuse: confirmed-false reports filed BY this user
   reportCooldownUntil  DateTime?               // anti-abuse: can't file new reports until this passes
   // ── Enforcement ladder (trust Phase 2) — denormalized current state ──
-  // NOTE: @ignore keeps these OFF the generated client until scripts/add-enforcement.mjs
-  // has run in prod — full-row Profile reads (getCurrentProfile/ensureProfile) would
-  // otherwise 500 on every authed request between deploy and migration. ALL access goes
-  // through src/lib/enforcement.ts (guarded raw SQL). Once the migration has run
-  // everywhere, the @ignore markers can be dropped + `prisma generate` re-run.
-  enforcementState  String    @default("good_standing") @ignore // good_standing | warned | throttled | held | suspended
-  enforcementUntil  DateTime? @ignore                            // when a timed state (warning / insurance grace) lapses
-  goodStandingSince DateTime? @ignore                            // maintained by recomputeTrust (≥85 sets, <85 clears); insured = ≥180d
+  // scripts/add-enforcement.mjs has run on prod (2026-07), so these are live typed
+  // columns now (the deploy-order @ignore markers were dropped in trust Phase 3).
+  // Writes still go through src/lib/enforcement.ts only — never mutate directly.
+  enforcementState  String    @default("good_standing") // good_standing | warned | throttled | held | suspended
+  enforcementUntil  DateTime?                            // when a timed state (warning / insurance grace) lapses
+  goodStandingSince DateTime?                            // maintained by recomputeTrust (≥85 sets, <85 clears); insured = ≥180d
   dailyReminderOptIn   Boolean   @default(true) // receive the daily "confirm availability" reminder
   availabilitySkips    Int       @default(0)    // consecutive "Skip for now" taps; ≥2 → next review hides Skip (must act). Reset to 0 on confirm.
   // ── Acquisition attribution (FIRST-touch) — measure CAC per channel ──
@@ -476,12 +474,16 @@ model Report {
   appealNote   String?                          // the reported party's appeal (re-opens the case)
   appealImages String?                          // JSON array of proof image URLs submitted with the appeal
   appealedAt   DateTime?                         // when the target appealed (tags the case "Appeal")
-  // ── Buyer-king SLA + due process (trust Phase 2). @ignore for the same deploy-order
-  // reason as Profile's enforcement columns (Report.create in /api/report RETURNs the
-  // full row) — access via guarded raw SQL in the respond/moderate/trust paths.
-  sellerResponse    String?   @ignore             // the reported seller's reply (≤600 chars) — buyer-king SLA
-  sellerRespondedAt DateTime? @ignore             // unanswered >72h → "buyer waiting" flag in the admin queue
-  remediatedAt      DateTime? @ignore             // admin "marked remediated" → this event's conduct weight ×0.5
+  // ── Buyer-king SLA + due process (trust Phase 2). Live typed columns since
+  // scripts/add-enforcement.mjs ran on prod (deploy-order @ignore dropped in Phase 3).
+  sellerResponse    String?                       // the reported seller's reply (≤600 chars) — buyer-king SLA
+  sellerRespondedAt DateTime?                     // unanswered >72h → "buyer waiting" flag in the admin queue
+  remediatedAt      DateTime?                     // admin "marked remediated" → this event's conduct weight ×0.5
+  // ── Repeat-false-reporter pre-screen (trust Phase 3). @ignore until
+  // scripts/add-ban-evasion.mjs has run in prod — Report.create in /api/report
+  // RETURNs the full row, which would 500 on the missing column. Access goes via
+  // guarded raw SQL (set in /api/report, read in the admin queues) until then.
+  preScreen Boolean @default(false) @ignore       // reporter has ≥2 false-report strikes → triaged LAST, excluded from buyer-waiting
   createdAt DateTime @default(now())
 
   @@index([listingId])
@@ -527,19 +529,23 @@ model TrustEvent {
 }
 
 // One enforcement episode on a profile (trust Phase 2, DSA/Santa-Clara due process).
-// Exactly ONE 'active' action per profile at a time — applyEnforcement supersedes the
-// previous one (status 'lifted') on every state change. Appeals are one-shot per
-// action. pulledListingIds records exactly which listings a hold pulled (verified→
-// false) so a lift/overturn restores precisely those that are still status='active'.
+// Exactly ONE 'active' LADDER action per profile at a time — applyEnforcement
+// supersedes the previous one (status 'lifted') on every state change. Appeals are
+// one-shot per action. pulledListingIds records exactly which listings a hold pulled
+// (verified→false) so a lift/overturn restores precisely those still status='active'.
 // The profile's CURRENT state is denormalized onto Profile.enforcementState so hot
-// write-path gates are a single indexed read. Every query against this table is
-// try/catch-guarded (P2021) so code deploys safely before scripts/add-enforcement.mjs.
+// write-path gates are a single indexed read.
+// Phase 3 FLAG rows (reason 'velocity_review' | 'ban_evasion_email') are silent
+// review ANNOTATIONS, not ladder actions: `state` records the profile's state AT
+// FLAG TIME (can be good_standing), they never touch the Profile denorm, never
+// notify the seller, survive ladder transitions, and close only via dismiss/act in
+// the admin console (see FLAG_REASONS in src/lib/enforcement-machine.ts).
 model EnforcementAction {
   id               String    @id @default(cuid())
   profileId        String    @db.Uuid
   profile          Profile   @relation("ProfileEnforcementActions", fields: [profileId], references: [id], onDelete: Cascade)
-  state            String    // warned | throttled | held | suspended
-  reason           String    // slug → client-side i18n copy: scam_hold | conduct_restricted | conduct_warning | insurance_grace | admin_manual
+  state            String    // ladder actions: warned | throttled | held | suspended · flag rows: the state at flag time
+  reason           String    // slug → client-side i18n copy: scam_hold | conduct_restricted | conduct_warning | insurance_grace | admin_manual | ban_evasion_review | ban_evasion_email | velocity_review
   adminNote        String?   // optional admin-written notice shown to the seller with the reason copy
   triggerReportId  String?   // the Report that triggered it, when applicable (no FK — reports are deletable)
   decidedBy        String    // 'system' | the admin's email — precedence: system never downgrades an admin action
@@ -555,6 +561,33 @@ model EnforcementAction {
 
   @@index([profileId, status])
   @@index([status, createdAt])
+}
+
+// Ban-evasion identity anchors (trust Phase 3). One row per SUSPENDED account,
+// recording the identities we can anchor on. Phone is the anchor identity in a
+// phone-verified marketplace — it's the only strong identity we hold (device/
+// payment fingerprinting is deferred infra; IP linking is explicitly OUT — VN
+// mobile CGNAT would false-positive whole neighborhoods). Rows are written when
+// an admin suspends an account and deleted when that suspension is lifted or
+// overturned (src/lib/enforcement.ts). A phone match on a NEW account never
+// auto-bans — VN families share numbers, so it parks the account 'held' for a
+// human review; an email match is a silent review flag only (weaker signal).
+// sourceProfileId deliberately has NO FK: the ban record must SURVIVE deletion
+// of the banned account — deleting the old account to free its phone for a
+// "fresh" signup is exactly the evasion this table catches.
+// Every query is try/catch-guarded (P2021) so code deploys safely before
+// scripts/add-ban-evasion.mjs runs.
+model BannedIdentity {
+  id              String   @id @default(cuid())
+  phone           String?  // normalized +84… (same canonical form as Profile.phone)
+  email           String?
+  sourceProfileId String   @db.Uuid // the suspended account these identities came from
+  reason          String   // the enforcement reason of the suspension (audit)
+  createdAt       DateTime @default(now())
+
+  @@index([phone])
+  @@index([email])
+  @@index([sourceProfileId])
 }
 
 // Machine-translation cache — avoids re-paying the translation API for the

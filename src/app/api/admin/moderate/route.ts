@@ -243,13 +243,13 @@ export async function POST(req: NextRequest) {
       const report = await db.report.findUnique({ where: { id }, select: { id: true, status: true, targetProfileId: true } })
       if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       if (report.status !== 'confirmed') return NextResponse.json({ error: 'not_confirmed' }, { status: 400 })
-      let marked = 0
-      try {
-        marked = await db.$executeRaw`UPDATE "Report" SET "remediatedAt" = now() WHERE "id" = ${id} AND "remediatedAt" IS NULL`
-      } catch {
-        // Column not there yet (scripts/add-enforcement.mjs pending) → retryable.
-        return NextResponse.json({ error: 'migration_pending' }, { status: 503 })
-      }
+      // Typed one-shot write (the Phase 2 column is live) — remediatedAt:null keeps
+      // an admin double-click from re-marking + re-recomputing.
+      const upd = await db.report.updateMany({
+        where: { id, remediatedAt: null },
+        data: { remediatedAt: new Date() },
+      })
+      const marked = upd.count
       if (marked > 0 && report.targetProfileId) {
         const res = await recomputeTrust(report.targetProfileId)
         if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score })

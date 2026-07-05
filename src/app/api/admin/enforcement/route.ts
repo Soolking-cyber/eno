@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import {
   ENFORCEMENT_REASON,
   ENFORCEMENT_STATES,
+  FLAG_REASONS,
   applyEnforcement,
+  dismissFlag,
   liftAction,
   upholdAppeal,
   type EnforcementState,
@@ -17,8 +20,8 @@ const DAY_MS = 86_400_000
 const SLA_HOURS = 72 // buyer-king: a report the seller hasn't answered in 72h jumps the queue
 
 // Admin enforcement console. Every request re-checks the session server-side via
-// getAdmin() — never trust a client-side gate. Pre-migration (table/columns absent)
-// the GET degrades to an empty queue with migrationPending:true instead of a 500.
+// getAdmin() — never trust a client-side gate. The Phase 2 columns/table are live;
+// only the Phase 3 preScreen read is still deploy-order-guarded.
 
 type QueueAction = {
   id: string
@@ -42,32 +45,52 @@ export async function GET() {
   const admin = await getAdmin()
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // Buyer-waiting reports (>72h, unanswered) — raw + guarded (sellerRespondedAt is a
-  // Phase 2 column). Sorted OLDEST first: the longest-waiting buyer is served first.
-  let buyerWaiting: Array<Record<string, unknown>> = []
-  try {
-    const rows = await db.$queryRaw<Array<{
-      id: string; reason: string; detail: string | null; createdAt: Date
-      listingId: string | null; conversationId: string | null
-      reporterProfileId: string | null; targetProfileId: string | null; targetSellerId: string | null
-    }>>`
-      SELECT "id", "reason", "detail", "createdAt", "listingId", "conversationId",
-             "reporterProfileId", "targetProfileId", "targetSellerId"
-      FROM "Report"
-      WHERE "status" = 'open' AND "sellerRespondedAt" IS NULL AND "createdAt" < now() - interval '72 hours'
-      ORDER BY "createdAt" ASC
-      LIMIT 100`
-    buyerWaiting = rows.map((r) => ({
+  // Buyer-waiting reports (>72h, unanswered), OLDEST first: the longest-waiting
+  // buyer is served first. Phase 3: pre-screened reports (repeat-false reporters)
+  // are EXCLUDED — they must not jump the queue on the SLA clock.
+  const candidates = await db.report.findMany({
+    where: {
+      status: 'open',
+      sellerRespondedAt: null,
+      createdAt: { lt: new Date(Date.now() - SLA_HOURS * 3_600_000) },
+    },
+    orderBy: { createdAt: 'asc' },
+    take: 100,
+    select: {
+      id: true, reason: true, detail: true, createdAt: true, listingId: true,
+      conversationId: true, reporterProfileId: true, targetProfileId: true, targetSellerId: true,
+    },
+  })
+  // preScreen is @ignore'd until scripts/add-ban-evasion.mjs runs → guarded raw
+  // lookup of the screened ids; pre-migration nothing is screened (empty set).
+  let preScreened = new Set<string>()
+  if (candidates.length) {
+    try {
+      const rows = await db.$queryRaw<{ id: string }[]>(
+        Prisma.sql`SELECT "id" FROM "Report" WHERE "id" IN (${Prisma.join(candidates.map((r) => r.id))}) AND "preScreen" = true`,
+      )
+      preScreened = new Set(rows.map((r) => r.id))
+    } catch { /* migration pending */ }
+  }
+  const buyerWaiting = candidates
+    .filter((r) => !preScreened.has(r.id))
+    .map((r) => ({
       ...r,
       createdAt: r.createdAt.toISOString(),
       waitingHours: Math.floor((Date.now() - r.createdAt.getTime()) / 3_600_000),
     }))
-  } catch { /* migration pending */ }
 
   try {
-    const [actions, appeals] = await Promise.all([
+    const [actions, flags, appeals] = await Promise.all([
       db.enforcementAction.findMany({
-        where: { status: 'active' },
+        where: { status: 'active', reason: { notIn: [...FLAG_REASONS] } },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      // Phase 3 silent review flags (velocity spikes, ban-evasion email matches) —
+      // their own group: annotations to dismiss or act on, not ladder actions.
+      db.enforcementAction.findMany({
+        where: { status: 'active', reason: { in: [...FLAG_REASONS] } },
         orderBy: { createdAt: 'desc' },
         take: 100,
       }),
@@ -81,7 +104,7 @@ export async function GET() {
     ])
 
     // One batched profile lookup for display (name/email/trust) — no N+1.
-    const profileIds = [...new Set([...actions, ...appeals].map((a) => a.profileId))]
+    const profileIds = [...new Set([...actions, ...flags, ...appeals].map((a) => a.profileId))]
     const profiles = profileIds.length
       ? await db.profile.findMany({
           where: { id: { in: profileIds } },
@@ -115,12 +138,15 @@ export async function GET() {
 
     return NextResponse.json({
       actions: actions.map(serialize),
+      flags: flags.map(serialize),
       appeals: appeals.map(serialize),
       buyerWaiting,
     })
-  } catch {
-    // Table not there yet — degrade to an empty queue the UI can label.
-    return NextResponse.json({ actions: [], appeals: [], buyerWaiting, migrationPending: true })
+  } catch (e) {
+    // Phase 2 tables are live, so a failure here is a real error — surface it to the
+    // client's retry path instead of a misleading "migration pending" empty queue.
+    console.error('[admin/enforcement] queue load failed', e)
+    return NextResponse.json({ error: 'queue_failed' }, { status: 500 })
   }
 }
 
@@ -128,7 +154,7 @@ export async function POST(req: NextRequest) {
   const admin = await getAdmin()
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  let body: { action?: string; id?: string; profileId?: string; state?: string; reason?: string; note?: string; days?: number }
+  let body: { action?: string; id?: string; profileId?: string; state?: string; reason?: string; note?: string; days?: number; flagId?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
   const action = String(body.action || '')
   const id = String(body.id || '').trim()
@@ -157,9 +183,20 @@ export async function POST(req: NextRequest) {
       return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: 'no_pending_appeal' }, { status: 409 })
     }
 
+    case 'dismiss_flag': {
+      // Close a silent review flag (velocity / ban-evasion email) — the flag row
+      // lifts and NOTHING else moves: deliberately not liftAction, which would reset
+      // the profile to good_standing (dismissing a flag must never un-suspend).
+      if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      const ok = await dismissFlag(id)
+      return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: 'not_a_flag' }, { status: 409 })
+    }
+
     case 'set-state': {
       // Manual state set (e.g. suspend a ban-evader, or hand-hold a case). An
       // admin-decided action is precedence-protected: the system won't downgrade it.
+      // Suspension also records the account's identity anchors (BannedIdentity) —
+      // and lift/overturn clears them — inside applyEnforcement/liftAction.
       const profileId = String(body.profileId || '').trim()
       const state = String(body.state || '') as EnforcementState
       if (!profileId || !(ENFORCEMENT_STATES as readonly string[]).includes(state)) {
@@ -177,7 +214,11 @@ export async function POST(req: NextRequest) {
         },
         { decidedBy: admin, adminNote: String(body.note || '').trim().slice(0, 1000) || null },
       )
-      // false = no-op (already in that state) OR migration pending — both non-fatal.
+      // Acting FROM a review flag answers it — close the flag in the same request so
+      // the console never shows a stale "needs review" for a case already decided.
+      const flagId = String(body.flagId || '').trim()
+      if (flagId) await dismissFlag(flagId)
+      // false = no-op (already in that state) — non-fatal.
       return NextResponse.json({ ok: true, applied })
     }
 

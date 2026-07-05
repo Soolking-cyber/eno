@@ -2,6 +2,7 @@ import 'server-only'
 import type { User } from '@supabase/supabase-js'
 import { db } from './db'
 import { normalizePhone } from './phone'
+import { checkBanEvasion } from './enforcement'
 import { recordNewAccount, recordPhoneVerified, recomputeTrust } from './trust'
 
 /**
@@ -77,6 +78,20 @@ export async function ensureProfile(user: User) {
       console.error('[profile] auto-claim failed', e)
     }
   }
+
+  // Ban-evasion check (trust Phase 3) — this is the phone-mirror moment, the ONE
+  // place a strong identity attaches to an account (create AND the login backfill
+  // when a phone gets verified later): phone is the anchor identity in a
+  // phone-verified marketplace. A verified phone matching a suspended account's
+  // recorded identity parks THIS account 'held' for admin review — never an
+  // auto-ban, because VN families share numbers (a match can be a relative on the
+  // household SIM; the admin lifting the hold clears it permanently). Email match
+  // = silent flag only. Runs AFTER auto-claim so a hold pulls any freshly-claimed
+  // listings too. Uses the auth-verified values, not the mirrored column — the
+  // mirror is dropped on phone collision, which is exactly the evasion pattern.
+  // Fail-quiet + guarded inside: login must never throw, and pre-migration
+  // (scripts/add-ban-evasion.mjs) it skips silently.
+  await checkBanEvasion(profile.id, { phone: verifiedPhone, email }).catch(() => {})
 
   return profile
 }

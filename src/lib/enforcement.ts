@@ -9,6 +9,7 @@ import {
   ENFORCEMENT,
   ENFORCEMENT_REASON,
   ENFORCEMENT_SEVERITY,
+  FLAG_REASONS,
   applyInsurance,
   blocksMessaging,
   blocksPosting,
@@ -17,35 +18,46 @@ import {
   holdForGrace,
   isInsured,
   isProbation,
+  isFlagReason,
   normalizeEnforcementState,
   type EnforcementDecision,
   type EnforcementState,
+  type FlagReason,
 } from './enforcement-machine'
 import type { TrustBreakdown } from './trust' // type-only — no runtime cycle (trust.ts imports us)
 
 /**
- * Enforcement ladder Phase 2 — DB wiring for the pure machine (enforcement-machine.ts).
+ * Enforcement ladder Phase 2+3 — DB wiring for the pure machine (enforcement-machine.ts).
  *
- * DEPLOY-ORDER SAFETY: the enforcement columns/table land via scripts/add-enforcement.mjs
- * (user-run) AFTER this code deploys. The Profile/Report columns are @ignore'd in the
- * Prisma schema (full-row reads elsewhere must not 500 pre-migration), so EVERY read/write
- * of them here is raw SQL wrapped in try/catch → defaults: enforcementState 'good_standing',
- * every feature a silent no-op. EnforcementAction queries go through the client but are
- * equally guarded (P2021 table-missing → no-op / 503 where user-facing).
+ * The Phase 2 columns/table (scripts/add-enforcement.mjs) are LIVE on prod, so the
+ * old guarded-raw-SQL reads are plain typed Prisma access now. Only the Phase 3
+ * surface (BannedIdentity table, Report.preScreen — scripts/add-ban-evasion.mjs) is
+ * still deploy-order-guarded: those reads skip silently pre-migration. The remaining
+ * try/catch blocks are FAIL-QUIET CONTRACTS, not migration guards — enforcement is a
+ * side-car to moderation/cron/login flows and must never fail its caller.
+ *
+ * FLAG rows (reason ∈ FLAG_REASONS): silent review annotations for the admin console —
+ * they never touch Profile.enforcementState and never notify the seller, so every
+ * ladder query here excludes them (see FLAG_REASONS in enforcement-machine.ts).
  *
  * SECURITY: nothing here trusts the client — callers pass a profileId they have already
  * authenticated (getCurrentProfile/getCurrentProfileId) or admin-gated (getAdmin).
  */
 
-export type { EnforcementState, EnforcementDecision } from './enforcement-machine'
+export type { EnforcementState, EnforcementDecision, FlagReason } from './enforcement-machine'
 export {
   ENFORCEMENT,
   ENFORCEMENT_REASON,
   ENFORCEMENT_STATES,
+  FLAG_REASONS,
   blocksMessaging,
   blocksPosting,
   isProbation,
+  velocitySpike,
 } from './enforcement-machine'
+
+// Prisma `reason` filter that keeps flag rows out of ladder queries.
+const NOT_FLAGS = { notIn: [...FLAG_REASONS] as string[] }
 
 // ── Seller-facing notices (calm, specific, ONE action — never punitive-corporate).
 // EN + VI; the recipient gets THEIR language (Profile.locale). Deep link: /dashboard.
@@ -84,6 +96,15 @@ const NOTICE: Record<string, Notice> = {
     body: {
       en: 'Posting and messaging are paused while we review your account. You can submit one appeal from your dashboard.',
       vi: 'Đăng tin và nhắn tin tạm dừng trong khi chúng tôi xem xét tài khoản của bạn. Bạn có thể gửi một khiếu nại từ trang quản lý.',
+    },
+  },
+  // Ban-evasion review (Phase 3): held pending a HUMAN look — the copy must not
+  // accuse (a phone match is often a family member: VN families share numbers).
+  ban_evasion_review: {
+    title: { en: 'Your account needs a quick review', vi: 'Tài khoản của bạn cần được xem xét nhanh' },
+    body: {
+      en: 'Posting is paused while a person double-checks your account details. This usually clears quickly — you can appeal from your dashboard if it takes too long.',
+      vi: 'Đăng tin tạm dừng trong khi nhân viên kiểm tra lại thông tin tài khoản của bạn. Việc này thường hoàn tất nhanh — bạn có thể khiếu nại từ trang quản lý nếu chờ quá lâu.',
     },
   },
   good_standing: {
@@ -159,27 +180,26 @@ async function revalidateSellerSurfaces(profileId: string): Promise<void> {
 }
 
 /**
- * The profile's CURRENT enforcement state — a single indexed PK read of the
- * denormalized column. Pre-migration (column missing) → 'good_standing', so every
- * gate built on this is a safe no-op until scripts/add-enforcement.mjs runs.
+ * The profile's CURRENT enforcement state — a single PK read of the denormalized
+ * column. Missing profile → 'good_standing' (gates built on this stay safe no-ops).
  */
 export async function getEnforcement(profileId: string): Promise<{ state: EnforcementState; until: Date | null }> {
-  try {
-    const rows = await db.$queryRaw<{ state: string; until: Date | null }[]>`
-      SELECT "enforcementState" AS state, "enforcementUntil" AS until FROM "Profile" WHERE "id" = ${profileId}::uuid`
-    if (!rows.length) return { state: 'good_standing', until: null }
-    return { state: normalizeEnforcementState(rows[0].state), until: rows[0].until }
-  } catch {
-    return { state: 'good_standing', until: null } // migration pending → everything no-ops
-  }
+  const p = await db.profile.findUnique({
+    where: { id: profileId },
+    select: { enforcementState: true, enforcementUntil: true },
+  })
+  if (!p) return { state: 'good_standing', until: null }
+  return { state: normalizeEnforcementState(p.enforcementState), until: p.enforcementUntil }
 }
 
 /**
  * Execute an enforcement decision. IDEMPOTENT: no-op when the state is unchanged.
- * Supersedes any previous active action (status 'lifted'), executes the effects
- * (held/suspended pull the seller's live listings, recording exactly which — carried
- * forward on escalation, restored on downgrade), denormalizes onto Profile, and
- * notifies the seller (bell + push). Fail-quiet pre-migration.
+ * Supersedes any previous active action (status 'lifted') — silent review FLAGS are
+ * NOT actions and survive the transition — executes the effects (held/suspended pull
+ * the seller's live listings, recording exactly which — carried forward on escalation,
+ * restored on downgrade; suspension records/clears the ban-evasion identity anchors),
+ * denormalizes onto Profile, and notifies the seller (bell + push). Fail-quiet:
+ * moderation/cron/login callers must never 500 because a side effect hiccupped.
  */
 export async function applyEnforcement(
   profileId: string,
@@ -187,15 +207,14 @@ export async function applyEnforcement(
   ctx: { decidedBy: string; triggerReportId?: string | null; adminNote?: string | null },
 ): Promise<boolean> {
   try {
-    const rows = await db.$queryRaw<{ state: string }[]>`
-      SELECT "enforcementState" AS state FROM "Profile" WHERE "id" = ${profileId}::uuid`
-    if (!rows.length) return false
-    const current = normalizeEnforcementState(rows[0].state)
+    const p = await db.profile.findUnique({ where: { id: profileId }, select: { enforcementState: true } })
+    if (!p) return false
+    const current = normalizeEnforcementState(p.enforcementState)
     if (current === next.state) return false // idempotent — admin double-click / cron re-derive can't stack actions
 
     const now = new Date()
     const prevActive = await db.enforcementAction.findMany({
-      where: { profileId, status: 'active' },
+      where: { profileId, status: 'active', reason: NOT_FLAGS }, // flags outlive ladder transitions
       select: { id: true, state: true, pulledListingIds: true },
     })
     if (prevActive.length) {
@@ -253,14 +272,24 @@ export async function applyEnforcement(
     }
 
     const until = next.expiresAt ? new Date(next.expiresAt) : null
-    await db.$executeRaw`
-      UPDATE "Profile" SET "enforcementState" = ${next.state}, "enforcementUntil" = ${until} WHERE "id" = ${profileId}::uuid`
+    await db.profile.update({ where: { id: profileId }, data: { enforcementState: next.state, enforcementUntil: until } })
+
+    // Ban-evasion anchors (Phase 3): entering suspension records the account's
+    // phone+email; leaving it clears them (covers admin set-state downgrades, which
+    // bypass liftAction). Phone is the anchor identity in a phone-verified marketplace.
+    if (next.state === 'suspended') await recordBannedIdentity(profileId, next.reason)
+    else if (current === 'suspended') await clearBannedIdentity(profileId)
 
     await revalidateSellerSurfaces(profileId) // ISR caution line (listing/storefront)
-    notifyEnforcement(profileId, next.reason === ENFORCEMENT_REASON.INSURANCE_GRACE ? 'grace' : next.state)
+    notifyEnforcement(
+      profileId,
+      next.reason === ENFORCEMENT_REASON.INSURANCE_GRACE ? 'grace'
+        : next.reason === ENFORCEMENT_REASON.BAN_EVASION_REVIEW ? 'ban_evasion_review'
+          : next.state,
+    )
     return true
   } catch (e) {
-    console.error('[enforcement] apply failed (migration pending?)', profileId, next.state, e)
+    console.error('[enforcement] apply failed', profileId, next.state, e)
     return false
   }
 }
@@ -276,13 +305,17 @@ export async function syncEnforcement(
   opts?: { persistedScore?: number; triggerReportId?: string | null },
 ): Promise<void> {
   try {
-    const rows = await db.$queryRaw<{ state: string; since: Date | null }[]>`
-      SELECT "enforcementState" AS state, "goodStandingSince" AS since FROM "Profile" WHERE "id" = ${profileId}::uuid`
-    if (!rows.length) return
-    const current = normalizeEnforcementState(rows[0].state)
+    const p = await db.profile.findUnique({
+      where: { id: profileId },
+      select: { enforcementState: true, goodStandingSince: true },
+    })
+    if (!p) return
+    const current = normalizeEnforcementState(p.enforcementState)
 
+    // Flags excluded: a system-decided flag row must not make an ADMIN action look
+    // system-decided (which would let the sync silently downgrade it).
     const active = await db.enforcementAction.findFirst({
-      where: { profileId, status: 'active' },
+      where: { profileId, status: 'active', reason: NOT_FLAGS },
       orderBy: { createdAt: 'desc' },
       select: { decidedBy: true, reason: true, expiresAt: true },
     })
@@ -303,7 +336,7 @@ export async function syncEnforcement(
       select: { id: true },
     }))
     const effective = applyInsurance(derived, {
-      insured: isInsured(rows[0].since ? rows[0].since.getTime() : null),
+      insured: isInsured(p.goodStandingSince ? p.goodStandingSince.getTime() : null),
       currentState: current,
       graceUsedRecently,
     })
@@ -311,7 +344,9 @@ export async function syncEnforcement(
     if (!canSystemTransition({ state: current, decidedBy: active?.decidedBy ?? 'system' }, effective.state)) return
     await applyEnforcement(profileId, effective, { decidedBy: 'system', triggerReportId: opts?.triggerReportId ?? null })
   } catch (e) {
-    console.error('[enforcement] sync failed (migration pending?)', profileId, e)
+    // Fail-quiet contract: the sync rides trust recomputes / report resolutions —
+    // an enforcement hiccup must never fail the moderation flow or the cron.
+    console.error('[enforcement] sync failed', profileId, e)
   }
 }
 
@@ -324,9 +359,12 @@ export async function liftAction(actionId: string, opts: { to: 'lifted' | 'overt
   try {
     const action = await db.enforcementAction.findUnique({
       where: { id: actionId },
-      select: { id: true, profileId: true, status: true, pulledListingIds: true, appealedAt: true, appealOutcome: true },
+      select: { id: true, profileId: true, state: true, reason: true, status: true, pulledListingIds: true, appealedAt: true, appealOutcome: true },
     })
     if (!action || action.status !== 'active') return false
+    // Flag rows have their own close-out (dismissFlag) — lifting one here would
+    // wrongly reset the profile to good_standing and notify the seller.
+    if (isFlagReason(action.reason)) return false
     await db.enforcementAction.update({
       where: { id: actionId },
       data: {
@@ -337,8 +375,14 @@ export async function liftAction(actionId: string, opts: { to: 'lifted' | 'overt
       },
     })
     await restoreListings(parsePulled(action.pulledListingIds))
-    await db.$executeRaw`
-      UPDATE "Profile" SET "enforcementState" = 'good_standing', "enforcementUntil" = NULL WHERE "id" = ${action.profileId}::uuid`
+    // updateMany: tolerate a since-deleted profile (matches the old raw-UPDATE semantics).
+    await db.profile.updateMany({
+      where: { id: action.profileId },
+      data: { enforcementState: 'good_standing', enforcementUntil: null },
+    })
+    // Lifting a SUSPENSION also frees its ban-evasion anchors (a lift/overturn says
+    // "this account is fine" — its phone must stop flagging new signups for review).
+    if (action.state === 'suspended') await clearBannedIdentity(action.profileId)
     await revalidateSellerSurfaces(action.profileId) // drop the ISR caution line
     notifyEnforcement(action.profileId, 'good_standing')
     return true
@@ -358,20 +402,25 @@ export async function expireEnforcement(): Promise<number> {
   try {
     const due = await db.enforcementAction.findMany({
       where: { status: 'active', expiresAt: { lte: new Date() } },
-      select: { id: true, profileId: true, pulledListingIds: true },
+      select: { id: true, profileId: true, state: true, pulledListingIds: true },
       take: 200,
     })
     if (!due.length) return 0
     await db.enforcementAction.updateMany({ where: { id: { in: due.map((a) => a.id) } }, data: { status: 'expired' } })
     for (const a of due) {
       await restoreListings(parsePulled(a.pulledListingIds)) // rare: a timed hold
-      await db.$executeRaw`
-        UPDATE "Profile" SET "enforcementState" = 'good_standing', "enforcementUntil" = NULL WHERE "id" = ${a.profileId}::uuid`
+      await db.profile.updateMany({
+        where: { id: a.profileId },
+        data: { enforcementState: 'good_standing', enforcementUntil: null },
+      })
+      // A TIMED suspension lapsing is a lift too — its ban anchors go with it.
+      if (a.state === 'suspended') await clearBannedIdentity(a.profileId)
       await revalidateSellerSurfaces(a.profileId) // drop the ISR caution line
     }
     return due.length
-  } catch {
-    return 0 // migration pending
+  } catch (e) {
+    console.error('[enforcement] expiry failed', e) // fail-quiet: the cron continues
+    return 0
   }
 }
 
@@ -390,6 +439,138 @@ export async function upholdAppeal(actionId: string): Promise<boolean> {
     console.error('[enforcement] uphold failed', actionId, e)
     return false
   }
+}
+
+// ── Phase 3 · Identity layer (ban evasion + silent review flags) ───────────────────
+// Phone is the anchor identity in a phone-verified marketplace — the only strong
+// identity we hold. Device/payment fingerprinting is deferred infra; IP linking is
+// explicitly OUT (VN mobile CGNAT would link whole neighborhoods). Every
+// BannedIdentity query is guarded: the table lands with scripts/add-ban-evasion.mjs,
+// so pre-migration these skip silently and nothing else changes.
+
+/** Record a suspended account's identity anchors (called by applyEnforcement). */
+async function recordBannedIdentity(profileId: string, reason: string): Promise<void> {
+  try {
+    const p = await db.profile.findUnique({ where: { id: profileId }, select: { phone: true, email: true } })
+    if (!p || (!p.phone && !p.email)) return
+    // Replace wholesale — a re-suspend refreshes the anchors instead of stacking rows.
+    await db.bannedIdentity.deleteMany({ where: { sourceProfileId: profileId } })
+    await db.bannedIdentity.create({
+      data: { phone: p.phone, email: p.email, sourceProfileId: profileId, reason },
+      select: { id: true },
+    })
+  } catch (e) {
+    console.error('[enforcement] ban-identity record skipped (migration pending?)', profileId, e)
+  }
+}
+
+/** Free a profile's identity anchors (suspension lifted / overturned / expired). */
+async function clearBannedIdentity(profileId: string): Promise<void> {
+  try {
+    await db.bannedIdentity.deleteMany({ where: { sourceProfileId: profileId } })
+  } catch { /* table lands with scripts/add-ban-evasion.mjs — nothing to clear before it */ }
+}
+
+/**
+ * Create a SILENT review flag — an EnforcementAction row that is an annotation for
+ * the admin console, never a punishment: it records the profile's CURRENT state
+ * (unchanged), never touches the Profile denorm, and NEVER notifies the seller.
+ * A velocity spike is usually just a good week, and an email match is often a
+ * shared mailbox — flagging must be free of side effects or the detectors would
+ * punish the innocent. Dedup: one ACTIVE flag per (profile, reason); `once`
+ * additionally suppresses re-flagging after a dismissal — used for identity flags,
+ * where an admin's "false positive" ruling must stick across future logins.
+ */
+export async function flagForReview(profileId: string, reason: FlagReason, opts?: { once?: boolean }): Promise<boolean> {
+  try {
+    const prior = await db.enforcementAction.findFirst({
+      where: opts?.once ? { profileId, reason } : { profileId, reason, status: 'active' },
+      select: { id: true },
+    })
+    if (prior) return false
+    const { state } = await getEnforcement(profileId)
+    await db.enforcementAction.create({
+      data: { profileId, state, reason, decidedBy: 'system', status: 'active' },
+      select: { id: true },
+    })
+    return true
+  } catch (e) {
+    console.error('[enforcement] flag failed', profileId, reason, e)
+    return false
+  }
+}
+
+/**
+ * Dismiss a review flag (admin console): the row closes, and NOTHING else moves —
+ * deliberately not liftAction, which resets Profile.enforcementState and restores
+ * listings (dismissing a flag on a suspended account must not un-suspend it).
+ */
+export async function dismissFlag(actionId: string): Promise<boolean> {
+  try {
+    const n = await db.enforcementAction.updateMany({
+      where: { id: actionId, status: 'active', reason: { in: [...FLAG_REASONS] } },
+      data: { status: 'lifted', liftedAt: new Date() },
+    })
+    return n.count > 0
+  } catch (e) {
+    console.error('[enforcement] dismiss flag failed', actionId, e)
+    return false
+  }
+}
+
+/**
+ * Ban-evasion check, run at the phone-mirror moment in ensureProfile — the ONE
+ * place a strong identity attaches to an account. A verified phone matching a
+ * BannedIdentity row from a DIFFERENT profile parks the account 'held' for admin
+ * review. NEVER auto-suspends: VN families share numbers, so a match can be a
+ * relative on the household SIM — a human decides, and lifting the hold both
+ * restores the account and (via the prior-action check below) clears it for good.
+ * An email match alone is a weaker signal (mailboxes are shared/recycled) → silent
+ * review flag only; the state stays exactly where it was.
+ */
+export async function checkBanEvasion(
+  profileId: string,
+  identity: { phone: string | null; email: string | null },
+): Promise<void> {
+  if (!identity.phone && !identity.email) return
+  try {
+    // One review per account EVER (any status): an admin lift/dismiss is a human
+    // "false positive" ruling that must stick — without this, the cleared family
+    // member would be re-held on every subsequent login.
+    const prior = await db.enforcementAction.findFirst({
+      where: { profileId, reason: { in: [ENFORCEMENT_REASON.BAN_EVASION_REVIEW, ENFORCEMENT_REASON.BAN_EVASION_EMAIL] } },
+      select: { id: true },
+    })
+    if (prior) return
+
+    if (identity.phone) {
+      // sourceProfileId ≠ self: the suspended account logging back in isn't "evasion".
+      const hit = await db.bannedIdentity.findFirst({
+        where: { phone: identity.phone, sourceProfileId: { not: profileId } },
+        select: { id: true },
+      })
+      if (hit) {
+        // Only park accounts BELOW held — an already-held/suspended account is
+        // already in front of the admin, and 'held' must never soften 'suspended'.
+        const { state } = await getEnforcement(profileId)
+        if (ENFORCEMENT_SEVERITY[state] < ENFORCEMENT_SEVERITY.held) {
+          await applyEnforcement(
+            profileId,
+            { state: 'held', reason: ENFORCEMENT_REASON.BAN_EVASION_REVIEW, expiresAt: null },
+            { decidedBy: 'system' },
+          )
+        }
+        return // the phone hit covers it — an extra email flag would just be queue noise
+      }
+    }
+    if (identity.email) {
+      const hit = await db.bannedIdentity.findFirst({
+        where: { email: identity.email, sourceProfileId: { not: profileId } },
+        select: { id: true },
+      })
+      if (hit) await flagForReview(profileId, ENFORCEMENT_REASON.BAN_EVASION_EMAIL, { once: true })
+    }
+  } catch { /* BannedIdentity lands with scripts/add-ban-evasion.mjs — skip silently pre-migration */ }
 }
 
 // ── Route gates (all server-side; callers pass an AUTHENTICATED profileId) ─────────

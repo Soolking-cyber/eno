@@ -3,16 +3,23 @@ import {
   ENFORCEMENT,
   ENFORCEMENT_REASON,
   ENFORCEMENT_SEVERITY,
+  FLAG_REASONS,
+  REPORTER_LADDER,
+  VELOCITY,
   applyInsurance,
   blocksMessaging,
   blocksPosting,
   canSystemTransition,
   deriveState,
   holdForGrace,
+  isFlagReason,
   isInsured,
   isProbation,
   normalizeEnforcementState,
+  reporterStanding,
+  velocitySpike,
   type EnforcementInputs,
+  type VelocityInputs,
 } from './enforcement-machine'
 import { TRUST, conductPenalty } from './trust-math'
 
@@ -185,6 +192,90 @@ describe('capability blocks', () => {
     expect(normalizeEnforcementState('suspended')).toBe('suspended')
     expect(normalizeEnforcementState('banned')).toBe('good_standing')
     expect(normalizeEnforcementState(undefined)).toBe('good_standing')
+  })
+})
+
+describe('velocity spike detector (Phase 3 — silent review flags)', () => {
+  const quiet: VelocityInputs = { reviews24h: 0, reviews30d: 0, tx24h: 0, tx30d: 0 }
+
+  it('a quiet account never flags', () => {
+    expect(velocitySpike(quiet)).toBe(false)
+  })
+
+  it('review burst from zero baseline flags at the absolute floor (5)', () => {
+    expect(velocitySpike({ ...quiet, reviews24h: 4, reviews30d: 4 })).toBe(false) // under floor
+    expect(velocitySpike({ ...quiet, reviews24h: 5, reviews30d: 5 })).toBe(true) // 5 > 3×(5/30)
+  })
+
+  it('transaction burst from zero baseline flags at the absolute floor (8)', () => {
+    expect(velocitySpike({ ...quiet, tx24h: 7, tx30d: 7 })).toBe(false)
+    expect(velocitySpike({ ...quiet, tx24h: 8, tx30d: 8 })).toBe(true)
+  })
+
+  it('a busy shop having a normal day never flags (relative gate)', () => {
+    // 300 reviews / 30d → avg 10/day → threshold 30; a 12-review day is just Tuesday.
+    expect(velocitySpike({ ...quiet, reviews24h: 12, reviews30d: 300 })).toBe(false)
+    // 240 tx / 30d → avg 8/day → threshold 24.
+    expect(velocitySpike({ ...quiet, tx24h: 20, tx30d: 240 })).toBe(false)
+  })
+
+  it('a busy shop 3×+ above its own baseline flags', () => {
+    // avg 2/day (60/30) → threshold 6; a 10-review day is a spike.
+    expect(velocitySpike({ ...quiet, reviews24h: 10, reviews30d: 60 })).toBe(true)
+    expect(velocitySpike({ ...quiet, tx24h: 10, tx30d: 60 })).toBe(true)
+  })
+
+  it('boundary: exactly 3× the average does NOT flag (strictly greater)', () => {
+    // avg = 90/30 = 3 → 3×avg = 9; 9 is not > 9.
+    expect(velocitySpike({ ...quiet, reviews24h: 9, reviews30d: 90 })).toBe(false)
+    expect(velocitySpike({ ...quiet, reviews24h: 10, reviews30d: 90 })).toBe(true)
+  })
+
+  it('either axis alone is enough (OR, not AND)', () => {
+    expect(velocitySpike({ reviews24h: 0, reviews30d: 0, tx24h: 8, tx30d: 8 })).toBe(true)
+    expect(velocitySpike({ reviews24h: 5, reviews30d: 5, tx24h: 0, tx30d: 0 })).toBe(true)
+  })
+
+  it('constants match the spec', () => {
+    expect(VELOCITY.REVIEWS_24H_MIN).toBe(5)
+    expect(VELOCITY.TX_24H_MIN).toBe(8)
+    expect(VELOCITY.SPIKE_FACTOR).toBe(3)
+    expect(VELOCITY.WINDOW_DAYS).toBe(30)
+  })
+})
+
+describe('repeat-false-reporter ladder (Phase 3)', () => {
+  it('0–1 strikes → normal reporting (the cooldown alone handles 1 strike)', () => {
+    expect(reporterStanding(0)).toBe('ok')
+    expect(reporterStanding(1)).toBe('ok')
+  })
+
+  it('2 strikes → pre-screened (reports land, triaged last)', () => {
+    expect(reporterStanding(2)).toBe('prescreen')
+  })
+
+  it('≥3 strikes → blocked (403 reporting_blocked with calm copy)', () => {
+    expect(reporterStanding(3)).toBe('blocked')
+    expect(reporterStanding(10)).toBe('blocked')
+  })
+
+  it('thresholds match the spec', () => {
+    expect(REPORTER_LADDER.PRESCREEN_STRIKES).toBe(2)
+    expect(REPORTER_LADDER.BLOCKED_STRIKES).toBe(3)
+  })
+})
+
+describe('flag-only reasons (silent review annotations)', () => {
+  it('velocity + ban-evasion EMAIL are flags; ban-evasion PHONE review is a real held action', () => {
+    expect(isFlagReason(ENFORCEMENT_REASON.VELOCITY_REVIEW)).toBe(true)
+    expect(isFlagReason(ENFORCEMENT_REASON.BAN_EVASION_EMAIL)).toBe(true)
+    expect(isFlagReason(ENFORCEMENT_REASON.BAN_EVASION_REVIEW)).toBe(false)
+    expect(isFlagReason(ENFORCEMENT_REASON.ADMIN_MANUAL)).toBe(false)
+  })
+
+  it('every flag reason is a defined reason slug', () => {
+    const all = Object.values(ENFORCEMENT_REASON) as string[]
+    for (const r of FLAG_REASONS) expect(all).toContain(r)
   })
 })
 

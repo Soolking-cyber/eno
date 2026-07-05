@@ -28,6 +28,8 @@ export type ModCase = {
   ageDays: number
   bucket: 'critical' | 'high' | 'standard'
   priority: number
+  // Phase 3 reporter ladder: filed by a ≥2-strike reporter — triaged LAST, never dropped.
+  preScreen?: boolean
   reporter: Reporter | null
   conversationId: string | null
   communityCount: number
@@ -133,6 +135,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
           {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5 cursor-pointer accent-brand" aria-label="Select case" />}
           {c.appeal && <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Appeal</span>}
           {c.bucket === 'critical' && !c.appeal && !readOnly && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">Critical</span>}
+          {c.preScreen && !readOnly && <span className="rounded bg-tint px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-4" title="Filed by a reporter with 2+ false-report strikes — triaged last">Pre-screened</span>}
           <span className="text-sm font-bold text-foreground">{REASON_LABEL[c.reason] || c.reason}</span>
           {c.communityCount > 1 && !readOnly && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">{c.communityCount} on this target</span>}
           <span className="rounded-full bg-tint px-2 py-0.5 text-[10px] font-semibold capitalize text-ink-4">{t.kind}</span>

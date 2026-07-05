@@ -1,8 +1,8 @@
 import 'server-only'
-import { Prisma } from '@/generated/prisma/client'
 import { db } from './db'
 import { recomputeRankScoreForSeller } from './ranking'
-import { expireEnforcement, syncEnforcement } from './enforcement'
+import { ENFORCEMENT_REASON, VELOCITY, velocitySpike } from './enforcement-machine'
+import { expireEnforcement, flagForReview, syncEnforcement } from './enforcement'
 import {
   DAY_MS,
   TRUST,
@@ -128,6 +128,9 @@ export type TrustBreakdown = {
     conversations90: number
     activeListings: number
     freshActiveListings: number
+    // Phase 3 velocity-detector counts — derived from data this recompute already
+    // loaded (zero extra queries); runTrustMaintenance feeds them to velocitySpike.
+    velocity: { reviews24h: number; reviews30d: number; tx24h: number; tx30d: number }
   }
   cached: { score: number; tier: string } // current Profile values (pre-recompute)
 }
@@ -197,7 +200,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   const reports = reportIds.length
     ? await db.report.findMany({
         where: { id: { in: reportIds } },
-        select: { id: true, severity: true, reporterProfileId: true, status: true },
+        select: { id: true, severity: true, reporterProfileId: true, status: true, remediatedAt: true },
       })
     : []
   const reportById = new Map(reports.map((r) => [r.id, r]))
@@ -208,18 +211,9 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   // reachable Report keep counting (fail-safe toward caution).
   const standingConduct = conductEvents.filter((e) => !(e.reportId && reportById.get(e.reportId)?.status === 'overturned'))
 
-  // Remediation (Amazon): a remediated report's conduct weight is halved. The column
-  // ships before scripts/add-enforcement.mjs runs → guarded raw read (pre-migration:
-  // nothing is remediated yet).
-  let remediated = new Set<string>()
-  if (reportIds.length) {
-    try {
-      const rows = await db.$queryRaw<{ id: string }[]>(
-        Prisma.sql`SELECT "id" FROM "Report" WHERE "id" IN (${Prisma.join(reportIds)}) AND "remediatedAt" IS NOT NULL`,
-      )
-      remediated = new Set(rows.map((r) => r.id))
-    } catch { /* migration pending — no remediation discounts yet */ }
-  }
+  // Remediation (Amazon): a remediated report's conduct weight is halved — read off
+  // the typed Report rows fetched above (the column went live with add-enforcement.mjs).
+  const remediated = new Set(reports.filter((r) => r.remediatedAt !== null).map((r) => r.id))
 
   const seller = await db.seller.findUnique({
     where: { ownerId: profileId },
@@ -298,6 +292,16 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
 
   const txTimes = [...txByListing.values()].sort((a, b) => a - b)
   const tx365 = txTimes.filter((t) => t >= now - TRUST.TRACK_WINDOW_DAYS * DAY_MS).length
+
+  // Phase 3 velocity-detector counts — RAW verified-review timestamps (pre-dedup: a
+  // same-buyer burst IS the fraud signal the pair-dedup would mask) + the unioned
+  // transaction times. Everything is already in memory — zero extra queries.
+  const velocity = {
+    reviews24h: reviewsRaw.filter((r) => r.createdAt.getTime() > now - DAY_MS).length,
+    reviews30d: reviewsRaw.filter((r) => r.createdAt.getTime() > now - VELOCITY.WINDOW_DAYS * DAY_MS).length,
+    tx24h: txTimes.filter((t) => t > now - DAY_MS).length,
+    tx30d: txTimes.filter((t) => t > now - VELOCITY.WINDOW_DAYS * DAY_MS).length,
+  }
 
   // Source credibility for BOTH reviewers and reporters — one batched lookup.
   const raterIds = [
@@ -400,6 +404,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     conversations90,
     activeListings,
     freshActiveListings,
+    velocity,
   }
   return { score, tier: tierFor(inputs), V, Q, T, C, M, inputs, cached: { score: profile.trustScore, tier: profile.trustTier } }
 }
@@ -439,16 +444,13 @@ export async function recomputeTrust(
 
   // Good-standing insurance clock (enforcement Phase 2): an unbroken ≥85 streak.
   // ≥85 starts it (only if not already running — the WHERE keeps it a no-write no-op),
-  // <85 resets it. Raw + guarded: the column ships before scripts/add-enforcement.mjs
-  // runs (pre-migration → silent no-op). Runs BEFORE the no-change early return so
-  // already-≥85 profiles get their clock started by the daily pass post-migration.
-  try {
-    if (score >= TRUST.TIER.TRUSTED_SCORE) {
-      await db.$executeRaw`UPDATE "Profile" SET "goodStandingSince" = now() WHERE "id" = ${profileId}::uuid AND "goodStandingSince" IS NULL`
-    } else {
-      await db.$executeRaw`UPDATE "Profile" SET "goodStandingSince" = NULL WHERE "id" = ${profileId}::uuid AND "goodStandingSince" IS NOT NULL`
-    }
-  } catch { /* migration pending */ }
+  // <85 resets it. Runs BEFORE the no-change early return so already-≥85 profiles
+  // still get their clock maintained by the daily pass.
+  if (score >= TRUST.TIER.TRUSTED_SCORE) {
+    await db.profile.updateMany({ where: { id: profileId, goodStandingSince: null }, data: { goodStandingSince: new Date() } })
+  } else {
+    await db.profile.updateMany({ where: { id: profileId, goodStandingSince: { not: null } }, data: { goodStandingSince: null } })
+  }
 
   // No change → no writes (keeps the daily recompute-all pass cheap).
   if (score === breakdown.cached.score && tier === breakdown.cached.tier) return { score, tier, breakdown }
@@ -631,6 +633,15 @@ export async function runTrustMaintenance(): Promise<{ recomputed: number; scann
             // Enforcement sync rides the same breakdown (no second computeTrustV2);
             // fail-quiet inside — a sync hiccup must not fail the trust recompute.
             if (r) await syncEnforcement(id, r.breakdown, { persistedScore: r.score })
+            // Velocity review flags (Phase 3): a positive-event spike far above the
+            // account's own baseline gets a SILENT admin flag — the seller is never
+            // notified and their state never moves (a spike is usually a good week;
+            // only a human should decide it's reputation-farming). The detector is a
+            // pure function of counts the breakdown already carries — O(1) extra
+            // queries, and only for the rare profile that actually spikes.
+            if (r && velocitySpike(r.breakdown.inputs.velocity)) {
+              await flagForReview(id, ENFORCEMENT_REASON.VELOCITY_REVIEW)
+            }
             return 1
           },
           (e) => {

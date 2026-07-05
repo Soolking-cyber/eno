@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, MessageSquare, ExternalLink, Gavel, Clock, ShieldQuestion } from 'lucide-react'
+import { Loader2, MessageSquare, ExternalLink, Gavel, Clock, ShieldQuestion, Flag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Admin enforcement console (EN-only, like the rest of /admin). Consumes
 // GET /api/admin/enforcement (getAdmin re-checked server-side on every call) and
-// posts lift/overturn/uphold_appeal/set-state. Three groups, most urgent first:
-// pending appeals → buyer-waiting reports (>72h unanswered) → active actions.
+// posts lift/overturn/uphold_appeal/set-state/dismiss_flag. Four groups, most
+// urgent first: pending appeals → buyer-waiting reports (>72h unanswered) →
+// review flags (silent — the seller was never told) → active actions.
 
 type QueueAction = {
   id: string
@@ -40,7 +41,7 @@ type BuyerWaiting = {
   targetSellerId: string | null
 }
 
-type Queue = { actions: QueueAction[]; appeals: QueueAction[]; buyerWaiting: BuyerWaiting[]; migrationPending?: boolean }
+type Queue = { actions: QueueAction[]; flags?: QueueAction[]; appeals: QueueAction[]; buyerWaiting: BuyerWaiting[] }
 
 const STATE_CLS: Record<string, string> = {
   warned: 'bg-warning/10 text-warning',
@@ -56,6 +57,9 @@ const REASON_LABEL: Record<string, string> = {
   conduct_warning: 'Conduct warning (dual-threshold)',
   insurance_grace: '72h insurance grace',
   admin_manual: 'Manual (admin)',
+  ban_evasion_review: 'Ban evasion — phone matches a suspended account',
+  ban_evasion_email: 'Ban-evasion signal — email matches a suspended account',
+  velocity_review: 'Velocity spike — positive events far above baseline',
 }
 
 const fmtAge = (iso: string) => {
@@ -124,18 +128,12 @@ export function EnforcementClient() {
     return <div className="space-y-2.5">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 rounded-2xl shimmer" />)}</div>
   }
 
-  const empty = !queue.appeals.length && !queue.buyerWaiting.length && !queue.actions.length
+  const flags = queue.flags ?? []
+  const empty = !queue.appeals.length && !queue.buyerWaiting.length && !flags.length && !queue.actions.length
 
   return (
     <div className="space-y-8">
-      {queue.migrationPending && (
-        <div className="rounded-2xl bg-warning/10 p-4 text-sm text-foreground">
-          <p className="font-bold">Migration pending</p>
-          <p className="mt-0.5 text-muted-foreground">The enforcement columns/table aren&apos;t in the database yet — run <code className="rounded bg-tint px-1">node scripts/add-enforcement.mjs</code> (DIRECT_URL). Until then the ladder no-ops and this queue stays empty.</p>
-        </div>
-      )}
-
-      {empty && !queue.migrationPending && (
+      {empty && (
         <div className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-ink-4">
           <span className="inline-flex items-center gap-2"><ShieldQuestion className="h-4 w-4" /> No appeals, waiting buyers or active actions. 🎉</span>
         </div>
@@ -204,7 +202,30 @@ export function EnforcementClient() {
         </section>
       )}
 
-      {/* 3 · Active actions — the current ladder state across the platform. */}
+      {/* 3 · Review flags (Phase 3) — SILENT annotations: the seller was never
+          notified and their state never moved. Velocity spikes are usually a good
+          week; email matches are often a shared mailbox — a human decides. */}
+      {flags.length > 0 && (
+        <section>
+          <h2 className="h-section text-foreground">Review flags ({flags.length})</h2>
+          <p className="mt-0.5 mb-3 text-xs text-muted-foreground">Silent flags — the seller was <span className="font-semibold">not</span> notified and nothing changed for them. Dismiss if it looks organic; Hold or Suspend if it doesn&apos;t (either also closes the flag).</p>
+          <div className="space-y-2">
+            {flags.map((a) => (
+              <div key={a.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-border border-l-[3px] border-l-sky-400 bg-card p-3.5 shadow-pop">
+                <Flag className="h-4 w-4 shrink-0 text-sky-500" />
+                <StateChip state={a.state} />
+                <div className="min-w-0 flex-1"><WhoLine a={a} /><ActionMeta a={a} /></div>
+                <button onClick={() => act({ action: 'dismiss_flag', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss</button>
+                <button onClick={() => act({ action: 'set-state', profileId: a.profileId, state: 'held', flagId: a.id, note: `Review flag ${a.reason}` }, a.id)} disabled={busyId === a.id} className="rounded-md border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-40 cursor-pointer">Hold</button>
+                <button onClick={() => act({ action: 'set-state', profileId: a.profileId, state: 'suspended', flagId: a.id, note: `Review flag ${a.reason}` }, a.id)} disabled={busyId === a.id} className="rounded-md border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer">Suspend</button>
+                {busyId === a.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 4 · Active actions — the current ladder state across the platform. */}
       {queue.actions.length > 0 && (
         <section>
           <h2 className="h-section text-foreground">Active actions ({queue.actions.length})</h2>

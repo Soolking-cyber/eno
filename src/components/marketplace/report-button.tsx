@@ -55,7 +55,11 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
             ? t('Bạn không thể báo cáo nội dung của chính mình.', "You can't report your own listing or account.")
             : code === 'not_participant'
               ? t('Bạn chỉ có thể báo cáo cuộc trò chuyện của mình.', 'You can only report a conversation you are part of.')
-              : t('Không gửi được. Thử lại.', 'Could not send. Try again.'),
+              : code === 'reporting_blocked'
+                // Calm, non-punitive copy (Phase 3 reporter ladder ≥3 strikes): states
+                // the fact + the appeal path, never scolds.
+                ? t('Tài khoản của bạn hiện không gửi được báo cáo, vì một số báo cáo trước đây được xác định là không chính xác. Nếu bạn cho rằng có nhầm lẫn, hãy liên hệ qua mục Trợ giúp.', 'Reporting is currently unavailable for your account after several earlier reports were reviewed and not upheld. If you think this is a mistake, reach us through Help.')
+                : t('Không gửi được. Thử lại.', 'Could not send. Try again.'),
         )
         return
       }

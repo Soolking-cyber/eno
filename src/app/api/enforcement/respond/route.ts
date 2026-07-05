@@ -38,15 +38,12 @@ export async function POST(req: Request) {
   }
   if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
-  try {
-    // Raw + guarded (the columns land with scripts/add-enforcement.mjs); the
-    // IS NULL predicate makes the write one-shot AND race-safe.
-    const n = await db.$executeRaw`
-      UPDATE "Report" SET "sellerResponse" = ${text}, "sellerRespondedAt" = now()
-      WHERE "id" = ${reportId} AND "sellerRespondedAt" IS NULL`
-    if (n === 0) return NextResponse.json({ error: 'already_responded' }, { status: 409 })
-    return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'migration_pending' }, { status: 503 })
-  }
+  // Typed one-shot write (the Phase 2 columns are live) — the sellerRespondedAt:null
+  // predicate keeps it one-shot AND race-safe (two tabs → exactly one lands).
+  const n = await db.report.updateMany({
+    where: { id: reportId, sellerRespondedAt: null },
+    data: { sellerResponse: text, sellerRespondedAt: new Date() },
+  })
+  if (n.count === 0) return NextResponse.json({ error: 'already_responded' }, { status: 409 })
+  return NextResponse.json({ ok: true })
 }
