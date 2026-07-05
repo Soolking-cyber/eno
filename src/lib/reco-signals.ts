@@ -57,9 +57,6 @@ export function getRecoSignals(): RecoSignals {
   return { terms: (Array.isArray(terms) ? terms : []).filter(Boolean).slice(0, 6), categories, brands }
 }
 
-export function hasRecoSignals(s: RecoSignals): boolean {
-  return s.terms.length > 0 || s.categories.length > 0 || s.brands.length > 0
-}
 
 // Inbound search INTENT — the one honest way to act on "what they searched elsewhere":
 // the query the visitor arrived WITH. We can read it from our own campaign params

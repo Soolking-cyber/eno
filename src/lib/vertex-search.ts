@@ -211,9 +211,3 @@ export async function importListingDocuments(docs: ListingDoc[]): Promise<number
   return submitted
 }
 
-// Fire-and-forget sync wrapper for hot mutation routes — never throws into the request.
-export function syncListingToVertex(action: 'upsert' | 'delete', payload: ListingDoc | string): void {
-  if (!vertexConfigured()) return
-  const p = action === 'upsert' ? upsertListingDocument(payload as ListingDoc) : deleteListingDocument(payload as string)
-  p.catch((e) => console.error('[vertex-search] sync', action, e))
-}

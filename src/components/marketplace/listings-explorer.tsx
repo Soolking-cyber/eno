@@ -9,7 +9,6 @@ import {
   Grid,
   List,
   MapPin,
-  ChevronRight,
   Phone,
   X,
   Sliders,
@@ -19,10 +18,8 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { TrustScore } from './trust-score'
 import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
-import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
 import { LogoWordmark } from './logo-wordmark'
@@ -33,7 +30,6 @@ import { ForYouRail } from './for-you-rail'
 import { RecentlyViewedRail } from './recently-viewed-rail'
 import { BusinessRail } from './business-rail'
 import { DISTRICTS } from './listings-explorer.constants'
-import { FavoriteHeart } from './favorite-heart'
 import { type Nearby, type Geo } from './area-filter'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { trackSearch } from '@/lib/analytics'
@@ -44,7 +40,6 @@ import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { LISTING_TYPES, INTENT_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor } from '@/lib/taxonomy'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
@@ -53,6 +48,8 @@ import { ImageSearchButton } from './image-search-button'
 import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 import { ListingCardSkeleton } from './listing-card-skeleton'
+import { ExplorerFilters } from './explorer-filters'
+import { CompactListingRow } from './compact-listing-row'
 
 // Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
 // engine) travel in the URL + API keyed by their numeric COLUMN as `range_<col>`
@@ -1147,406 +1144,6 @@ export function ListingsExplorer({
     finally { savingSearch.current = false }
   }, [activeCategory, activeSubcategory, activeBrand, activeModel, listingType, debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters, tr, openSignIn])
 
-  const renderCompactRow = useCallback((l: SerializedListingCard, index: number) => {
-    const cover = l.images[0]
-    const displayTitle = lang === 'vi' ? (l.titleVi || l.title) : l.title
-
-    return (
-      <div
-        key={l.id}
-        onClick={() => handleOpen(l)}
-        onMouseEnter={() => prefetchListing(l.id)}
-        onTouchStart={() => prefetchListing(l.id)}
-        className="group flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-colors hover:bg-muted cursor-pointer"
-      >
-        {/* Thumbnail — small, square-ish so the row reads as one line */}
-        <div className="relative h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-tint">
-          {cover ? (
-            <Image
-              src={cover}
-              alt={displayTitle}
-              fill
-              sizes="64px"
-              className="object-cover transition-transform duration-200 group-hover:scale-105"
-              loading={index < 6 ? 'eager' : 'lazy'}
-             
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-tint">
-              <CategoryIcon name={l.category.icon} className="h-5 w-5 text-ink-4" />
-            </div>
-          )}
-        </div>
-
-        {/* One-liner: title on top, price · location · trust score on a tight meta line */}
-        <div className="min-w-0 flex-1">
-          <h4 className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline">
-            <Tr text={displayTitle} />
-          </h4>
-          <div className="mt-0.5 flex items-center gap-x-2 text-xs text-muted-foreground">
-            <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 font-bold text-foreground" />
-            <span className="h-3 w-px shrink-0 bg-border" />
-            <span className="truncate"><Tr text={l.district || l.city} /></span>
-            <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className="shrink-0" />
-          </div>
-        </div>
-
-        {/* Actions paired together (not stranded): locate-on-map + favorite */}
-        <div className="flex shrink-0 items-center">
-          <button
-            type="button"
-            aria-label={tr('Show on map', 'Xem trên bản đồ')}
-            onClick={(e) => { e.stopPropagation(); locateOnMap(l.id) }}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent"
-          >
-            <MapPin className="h-[18px] w-[18px]" />
-          </button>
-          <FavoriteHeart id={l.id} className="-mr-0.5" />
-        </div>
-      </div>
-    )
-  }, [lang, t, tr, handleOpen, prefetchListing, locateOnMap])
-
-
-  const renderCategorySpecificFilters = () => {
-    if (activeCategory === 'all') return null
-
-    const handleSelectChange = (key: string, value: string) => {
-      setCustomFilters((prev) => {
-        const next = { ...prev }
-        if (value === 'all') {
-          delete next[key]
-        } else {
-          next[key] = value
-        }
-        return next
-      })
-    }
-
-    if (activeCategory === 'motorbike-rentals') {
-      return (
-        <>
-          {/* Transmission */}
-          <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Transmission', 'Hộp số')}
-            </label>
-            <CustomSelect
-              value={customFilters.transmission || 'all'}
-              onChange={(val) => handleSelectChange('transmission', val)}
-              options={[
-                { value: 'all', label: tr('All Transmissions', 'Tất cả loại xe') },
-                { value: 'automatic', label: tr('Automatic', 'Xe ga (Automatic)') },
-                { value: 'manual', label: tr('Manual / Semi-Auto', 'Xe số / Côn tay') },
-              ]}
-              placeholder={tr('Transmission', 'Hộp số')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-
-          {/* Engine Capacity */}
-          <div className="space-y-1.5 pt-1">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Engine Size', 'Phân khối')}
-            </label>
-            <CustomSelect
-              value={customFilters.cc || 'all'}
-              onChange={(val) => handleSelectChange('cc', val)}
-              options={[
-                { value: 'all', label: tr('All Capacities', 'Tất cả phân khối') },
-                { value: '110-125', label: '110cc - 125cc' },
-                { value: '150-up', label: '150cc+' },
-              ]}
-              placeholder={tr('Engine Size', 'Phân khối')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-        </>
-      )
-    }
-
-    if (activeCategory === 'house-rentals') {
-      return (
-        <>
-          {/* Bedrooms */}
-          <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Bedrooms', 'Số phòng ngủ')}
-            </label>
-            <CustomSelect
-              value={customFilters.bedrooms || 'all'}
-              onChange={(val) => handleSelectChange('bedrooms', val)}
-              options={[
-                { value: 'all', label: tr('All Bedrooms', 'Tất cả phòng') },
-                { value: '0', label: tr('Studio Room', 'Phòng Studio') },
-                { value: '1', label: tr('1 Bedroom', '1 Phòng ngủ') },
-                { value: '2', label: tr('2 Bedrooms', '2 Phòng ngủ') },
-                { value: '3', label: tr('3+ Bedrooms', '3+ Phòng ngủ') },
-              ]}
-              placeholder={tr('Bedrooms', 'Số phòng ngủ')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-
-          {/* Furnishing */}
-          <div className="space-y-1.5 pt-1">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Furnishing', 'Nội thất')}
-            </label>
-            <CustomSelect
-              value={customFilters.furnishing || 'all'}
-              onChange={(val) => handleSelectChange('furnishing', val)}
-              options={[
-                { value: 'all', label: tr('All Furnishings', 'Tất cả trạng thái') },
-                { value: 'fully', label: tr('Fully Furnished', 'Đầy đủ nội thất') },
-                { value: 'partly', label: tr('Partially / Unfurnished', 'Đồ cơ bản / Trống') },
-              ]}
-              placeholder={tr('Furnishing', 'Nội thất')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-        </>
-      )
-    }
-
-    if (activeCategory === 'moving-sale') {
-      return (
-        <>
-          {/* Material */}
-          <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Material', 'Chất liệu')}
-            </label>
-            <CustomSelect
-              value={customFilters.material || 'all'}
-              onChange={(val) => handleSelectChange('material', val)}
-              options={[
-                { value: 'all', label: tr('All Materials', 'Tất cả chất liệu') },
-                { value: 'wood', label: tr('Wood (Oak/Teak)', 'Gỗ tự nhiên (Oak/Teak)') },
-                { value: 'fabric', label: tr('Fabric / Cushion', 'Vải bọc / Nệm') },
-              ]}
-              placeholder={tr('Material', 'Chất liệu')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-        </>
-      )
-    }
-
-    if (activeCategory === 'electronics') {
-      return (
-        <>
-          {/* Brand */}
-          <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Brand', 'Thương hiệu')}
-            </label>
-            <CustomSelect
-              value={customFilters.brand || 'all'}
-              onChange={(val) => handleSelectChange('brand', val)}
-              options={[
-                { value: 'all', label: tr('All Brands', 'Tất cả thương hiệu') },
-                { value: 'apple', label: 'Apple (iPhone/Mac/iPad)' },
-                { value: 'sony', label: 'Sony (Audio/Camera)' },
-              ]}
-              placeholder={tr('Brand', 'Thương hiệu')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-
-          {/* Warranty */}
-          <div className="space-y-1.5 pt-1">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Warranty', 'Bảo hành')}
-            </label>
-            <CustomSelect
-              value={customFilters.warranty || 'all'}
-              onChange={(val) => handleSelectChange('warranty', val)}
-              options={[
-                { value: 'all', label: tr('All Warranty', 'Tất cả bảo hành') },
-                { value: 'yes', label: tr('Under Active Warranty', 'Còn bảo hành hãng') },
-              ]}
-              placeholder={tr('Warranty', 'Bảo hành')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-        </>
-      )
-    }
-
-    if (activeCategory === 'jobs') {
-      return (
-        <>
-          {/* English level */}
-          <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('English Requirement', 'Tiếng Anh')}
-            </label>
-            <CustomSelect
-              value={customFilters.english || 'all'}
-              onChange={(val) => handleSelectChange('english', val)}
-              options={[
-                { value: 'all', label: tr('Any Level', 'Bất kỳ mức độ nào') },
-                { value: 'required', label: tr('English Required', 'Yêu cầu tiếng Anh') },
-              ]}
-              placeholder={tr('English Requirement', 'Tiếng Anh')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-        </>
-      )
-    }
-
-    return null
-  }
-
-  const renderFiltersContent = (isMobile = false) => (
-    <div className="space-y-4">
-      {/* Categories Selection for Mobile Drawer */}
-      {isMobile && (
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-            {tr('Category', 'Danh mục')}
-          </label>
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              onClick={() => handleCategorySelect('all')}
-              className={cn(
-                'flex items-center gap-2 rounded-xl p-2 text-xs font-bold transition-colors cursor-pointer justify-center',
-                activeCategory === 'all'
-                  ? 'text-accent-foreground'
-                  : 'text-body hover:bg-muted'
-              )}
-            >
-              <span className="text-[11px]">{tr('All', 'Tất cả')}</span>
-            </button>
-            {categories.map((cat) => {
-              const isActive = activeCategory === cat.slug
-              return (
-                <button
-                   key={cat.id}
-                   onClick={() => handleCategorySelect(cat.slug)}
-                   className={cn(
-                     'flex items-center gap-2 rounded-xl p-2 text-xs font-bold transition-colors cursor-pointer justify-center min-w-0',
-                     isActive
-                       ? 'text-accent-foreground'
-                       : 'text-body hover:bg-muted'
-                   )}
-                >
-                  <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-accent-foreground' : 'text-body')} />
-                  <span className="text-[10px] truncate"><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Subcategories Selection for Mobile Drawer */}
-      {isMobile && activeCategory !== 'all' && SUBCATEGORIES[activeCategory] && (
-        <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-75">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-            {tr('Subcategory', 'Danh mục con')}
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              onClick={() => setActiveSubcategory('all')}
-              className={cn(
-                'rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
-                activeSubcategory === 'all'
-                  ? 'text-accent-foreground'
-                  : 'text-body hover:bg-muted'
-              )}
-            >
-              {tr('All', 'Tất cả')}
-            </button>
-            {SUBCATEGORIES[activeCategory].map((sub) => {
-              const isSubActive = activeSubcategory === sub.slug
-              return (
-                <button
-                  key={sub.slug}
-                  onClick={() => setActiveSubcategory(sub.slug)}
-                  className={cn(
-                    'rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
-                    isSubActive
-                      ? 'text-accent-foreground'
-                      : 'text-body hover:bg-muted'
-                  )}
-                >
-                  <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-      {/* Verified Filter Switch */}
-      <div className="flex items-center justify-between py-2.5 bg-card/50 border border-border/60 rounded-xl px-3 shadow-xs select-none">
-        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-          {tr('Verified Only', 'Chỉ tin đã xác thực')}
-        </span>
-        <button
-          type="button"
-          onClick={() => setVerifiedOnly(!verifiedOnly)}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-            verifiedOnly ? 'bg-primary' : 'bg-input'
-          )}
-        >
-          <span
-            className={cn(
-              'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-card shadow-md ring-0 transition duration-200 ease-in-out',
-              verifiedOnly ? 'translate-x-4' : 'translate-x-0'
-            )}
-          />
-        </button>
-      </div>
-
-      {/* District Filter */}
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-          {tr('District / Commune', 'Quận / Huyện')}
-        </label>
-        <CustomSelect
-          value={activeDistrict}
-          onChange={setActiveDistrict}
-          options={DISTRICTS.map(d => ({ value: d.slug, label: lang === 'vi' ? d.name : d.nameEn }))}
-          placeholder={tr('Select District', 'Chọn Quận / Huyện')}
-          activeClassName="text-accent-foreground border-accent-foreground/35"
-        />
-      </div>
-
-      {/* Condition Filter */}
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{t('filter.condition')}</label>
-        <div className="flex flex-col gap-1">
-          {[
-            { slug: 'all', name: tr('All Conditions', 'Tất cả tình trạng') },
-            { slug: 'new', name: tr('New / Like New', 'Mới / Like new') },
-            { slug: 'used', name: tr('Used / Pre-owned', 'Cũ / Đã dùng') },
-          ].map((cond) => (
-            <button
-              key={cond.slug}
-              onClick={() => setConditionFilter(cond.slug)}
-              className={cn(
-                'flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors cursor-pointer',
-                conditionFilter === cond.slug
-                  ? 'text-accent-foreground'
-                  : 'text-body hover:bg-muted',
-              )}
-            >
-              <ChevronRight className={cn('h-3.5 w-3.5', conditionFilter === cond.slug ? 'text-accent-foreground' : 'text-ink-4')} />
-              {cond.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Category Specific Detailed Filters */}
-      {renderCategorySpecificFilters()}
-    </div>
-  )
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -2356,7 +1953,13 @@ export function ListingsExplorer({
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5">
                     {deferredListings.map((l, index) => (
                       <div key={l.id}>
-                        {renderCompactRow(l, index)}
+                        <CompactListingRow
+                          listing={l}
+                          index={index}
+                          onOpen={handleOpen}
+                          onPrefetch={prefetchListing}
+                          onLocate={locateOnMap}
+                        />
                       </div>
                     ))}
                   </div>
@@ -2407,7 +2010,22 @@ export function ListingsExplorer({
             
             {/* Scrollable Filters */}
             <div className="max-h-[50vh] overflow-y-auto pr-1">
-              {renderFiltersContent(true)}
+              <ExplorerFilters
+                isMobile
+                categories={categories}
+                activeCategory={activeCategory}
+                handleCategorySelect={handleCategorySelect}
+                activeSubcategory={activeSubcategory}
+                setActiveSubcategory={setActiveSubcategory}
+                verifiedOnly={verifiedOnly}
+                setVerifiedOnly={setVerifiedOnly}
+                activeDistrict={activeDistrict}
+                setActiveDistrict={setActiveDistrict}
+                conditionFilter={conditionFilter}
+                setConditionFilter={setConditionFilter}
+                customFilters={customFilters}
+                setCustomFilters={setCustomFilters}
+              />
             </div>
 
             {/* Apply Action Button */}

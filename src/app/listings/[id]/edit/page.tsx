@@ -5,7 +5,7 @@ import { getCurrentProfile } from '@/lib/admin'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { PostWizard, type ListingEditData } from '@/components/marketplace/post-wizard'
-import { safeParse } from '@/lib/serialize'
+import { safeParse, serializeCategoryBasic } from '@/lib/serialize'
 import { categoryHasBrand } from '@/lib/taxonomy'
 
 export const dynamic = 'force-dynamic'
@@ -44,10 +44,7 @@ export default async function EditListingPage({ params }: Props) {
 
   // Categories for the wizard's (locked-in-edit) picker — same shape as /post.
   const cats = await db.category.findMany({ orderBy: { name: 'asc' } })
-  const categories: SerializedCategory[] = cats.map((c) => ({
-    id: c.id, name: c.name, nameVi: c.nameVi, slug: c.slug, icon: c.icon,
-    color: c.color as SerializedCategory['color'], description: c.description, verifiedCount: 0,
-  }))
+  const categories: SerializedCategory[] = cats.map(serializeCategoryBasic)
 
   const edit: ListingEditData = {
     id: listing.id,

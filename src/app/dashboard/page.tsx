@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import type { SerializedCategory } from '@/lib/types'
 import { DashboardClient } from './dashboard-client'
+import { serializeCategoryBasic } from '@/lib/serialize'
 
 // Localize the browser-tab title to the visitor's language (the page is already dynamic).
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,9 +17,6 @@ export const dynamic = 'force-dynamic'
 export default async function DashboardPage() {
   // Categories power the inline "Post a listing" tab (no redirect).
   const categories = await db.category.findMany({ orderBy: { name: 'asc' } })
-  const serialized: SerializedCategory[] = categories.map((c) => ({
-    id: c.id, name: c.name, nameVi: c.nameVi, slug: c.slug, icon: c.icon,
-    color: c.color as SerializedCategory['color'], description: c.description, verifiedCount: 0,
-  }))
+  const serialized: SerializedCategory[] = categories.map(serializeCategoryBasic)
   return <DashboardClient categories={serialized} />
 }

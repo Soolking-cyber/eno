@@ -1,5 +1,5 @@
 import type { Listing, Category, Seller } from '@/generated/prisma/client'
-import type { SerializedListing, SerializedListingCard, CategoryColor } from './types'
+import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
   if (!value) return fallback
@@ -142,5 +142,14 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
       trustScore: l.seller.trustScore,
       isBusiness: l.seller.owner?.accountType === 'business',
     },
+  }
+}
+
+// Wizard/dashboard category picker shape — was copy-pasted at 3 call sites.
+// verifiedCount is 0 here on purpose: only the homepage feed computes real counts.
+export function serializeCategoryBasic(c: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string; description: string | null }): SerializedCategory {
+  return {
+    id: c.id, name: c.name, nameVi: c.nameVi, slug: c.slug, icon: c.icon,
+    color: c.color as SerializedCategory['color'], description: c.description, verifiedCount: 0,
   }
 }

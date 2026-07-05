@@ -11,10 +11,6 @@ export function formatMoneyFull(price: number, currency: string): string {
   return `${currency}${EN.format(Math.round(price))}`
 }
 
-/** We deliberately show the full amount everywhere now (no "12 tr" shorthand). */
-export function formatMoneyCompact(price: number, currency: string): string {
-  return formatMoneyFull(price, currency)
-}
 
 /** Digits-only number from a typed string ("12,000,000" → 12000000). */
 export function parseVnd(input: string): number {

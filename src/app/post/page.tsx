@@ -6,6 +6,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { PostWizard } from '@/components/marketplace/post-wizard'
+import { serializeCategoryBasic } from '@/lib/serialize'
 
 // Per-user gate below → render dynamically (don't ISR-cache the shell).
 export const dynamic = 'force-dynamic'
@@ -19,10 +20,7 @@ export default async function PostPage() {
   if (!pid) redirect('/signin?next=/post')
 
   const categories = await db.category.findMany({ orderBy: { name: 'asc' } })
-  const serialized: SerializedCategory[] = categories.map((c) => ({
-    id: c.id, name: c.name, nameVi: c.nameVi, slug: c.slug, icon: c.icon,
-    color: c.color as SerializedCategory['color'], description: c.description, verifiedCount: 0,
-  }))
+  const serialized: SerializedCategory[] = categories.map(serializeCategoryBasic)
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">

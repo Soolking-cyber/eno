@@ -13,11 +13,6 @@ function read(): string | null {
   try { return localStorage.getItem(CONSENT_KEY) } catch { return null }
 }
 
-// Functional storage — allowed once ANY choice is made (incl. the legacy 'accepted').
-export function hasConsent(): boolean {
-  const v = read()
-  return v === 'all' || v === 'personalized' || v === 'essential' || v === 'accepted'
-}
 
 // On-site personalization (the "For You" rail using the user's OWN stored activity —
 // their eno.vn searches/views, first-party, ranked on our own server) is ON by default:

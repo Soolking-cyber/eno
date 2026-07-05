@@ -17,10 +17,6 @@ const AZURE_CODE: Record<Lang, string> = {
   ja: 'ja', ru: 'ru', km: 'km', ms: 'ms', th: 'th', fr: 'fr', hi: 'hi',
 }
 
-// Pre-translate fresh content into the highest-volume markets on write so the
-// hot read path is always a cache hit. The long tail (km/ms/th/fr/hi) is
-// translated lazily on first view (then cached forever like everything else).
-export const EAGER_LANGS: Lang[] = ['en', 'vi', 'zh-Hans', 'ko', 'ja', 'ru']
 
 const AZURE_KEY = process.env.AZURE_TRANSLATOR_KEY
 const AZURE_REGION = process.env.AZURE_TRANSLATOR_REGION
