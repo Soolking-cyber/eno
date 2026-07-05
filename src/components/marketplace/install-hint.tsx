@@ -52,13 +52,16 @@ export function InstallHint() {
         localStorage.setItem(VISITS_KEY, String(visits))
         sessionStorage.setItem(SESSION_KEY, '1')
       }
-      if (visits < 2) return
+      // Engagement gate: returning visitors get the hint quickly (4s settle);
+      // an engaged FIRST-time visitor earns it by dwell (75s on site) — never a
+      // first-load banner, which burns the one-shot ask (near-guaranteed dismissal).
+      const delay = visits >= 2 ? 4000 : 75_000
 
       // Android / Chrome: the browser tells us installability — stash the event.
       onBip = (e: Event) => {
         e.preventDefault()
         setInstallEvt(e as BeforeInstallPromptEvent)
-        if (!timer) timer = setTimeout(() => setMode('android'), 4000)
+        if (!timer) timer = setTimeout(() => setMode('android'), delay)
       }
       window.addEventListener('beforeinstallprompt', onBip)
 
@@ -66,7 +69,7 @@ export function InstallHint() {
       // shells don't offer the same Share → Add-to-Home-Screen path).
       const iosSafari =
         isIOS() && !googleOauthBlocked() && !/CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(navigator.userAgent)
-      if (iosSafari) timer = setTimeout(() => setMode('ios'), 4000)
+      if (iosSafari) timer = setTimeout(() => setMode('ios'), delay)
     } catch {
       /* storage blocked / matchMedia missing — silently skip the hint */
     }
