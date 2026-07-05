@@ -150,7 +150,9 @@ export function ListingsExplorer({
   useEffect(() => {
     if (typeof window === 'undefined') return
     const v = new URLSearchParams(window.location.search).get('view')
-    if (v === 'map' || v === 'grid' || v === 'compact') setViewMode(v)
+    // Also open the results view — landing + viewMode alone left the footer's
+    // "Map" link on the landing hero, which read as a dead link.
+    if (v === 'map' || v === 'grid' || v === 'compact') { setViewMode(v); setShowExplorer(true) }
   }, [])
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)

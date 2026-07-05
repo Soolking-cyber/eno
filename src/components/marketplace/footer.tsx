@@ -12,8 +12,7 @@ export function Footer() {
       links: [
         { label: tr('Help center', 'Trung tâm trợ giúp'), href: '/help' },
         { label: tr('Safe trading', 'An toàn giao dịch'), href: '/safety' },
-        { label: tr('Report a listing', 'Báo cáo tin đăng'), href: '/safety' },
-        { label: tr('Contact us', 'Liên hệ'), href: '/about#contact' },
+        { label: tr('Contact us', 'Liên hệ'), href: 'mailto:support@eno.vn' },
       ],
     },
     {
@@ -30,7 +29,7 @@ export function Footer() {
         { label: tr('Post a listing', 'Đăng tin'), href: '/post' },
         { label: tr('Saved listings', 'Tin đã lưu'), href: '/saved' },
         { label: tr('Map', 'Bản đồ'), href: '/?view=map' },
-        { label: tr('Help', 'Trợ giúp'), href: '/help' },
+        { label: tr('Browse by brand', 'Duyệt theo thương hiệu'), href: '/brands' },
       ],
     },
   ]

@@ -58,11 +58,11 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         />
       )}
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         {/* Hero */}
         <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
         <h1 className="h-display text-foreground">{content.h1}</h1>
-        <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-body">{content.intro}</p>
+        <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-body">{content.intro}</p>
         <Link
           href={`/c/${content.categorySlug}`}
           className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
@@ -110,8 +110,8 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
           </section>
         )}
 
-        {/* Editorial / keyword sections */}
-        <div className="mt-14 space-y-8">
+        {/* Editorial / keyword sections — wide container, readable measure */}
+        <div className="mt-14 max-w-3xl space-y-8">
           {content.sections.map((s, i) => (
             <section key={i}>
               <h2 className="h-section text-foreground mb-2">{s.title}</h2>
@@ -121,7 +121,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         </div>
 
         {/* Trust strip */}
-        <div className="mt-12 flex items-start gap-3">
+        <div className="mt-12 flex max-w-3xl items-start gap-3">
           <span className="flex h-5 w-5 shrink-0 text-accent-foreground">
             <BadgeCheck className="h-5 w-5" />
           </span>
@@ -135,7 +135,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         {content.faqs.length > 0 && (
           <section className="mt-12">
             <h2 className="h-section text-foreground mb-4">Frequently asked questions</h2>
-            <div className="space-y-5">
+            <div className="grid gap-x-14 gap-y-5 lg:grid-cols-2">
               {content.faqs.map((f, i) => (
                 <div key={i}>
                   <h3 className="text-sm font-bold text-foreground">{f.q}</h3>
@@ -147,7 +147,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         )}
 
         {/* Brand line */}
-        <p className="mt-14 text-sm leading-relaxed text-muted-foreground">
+        <p className="mt-14 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           <strong className="font-semibold text-foreground">eno.vn</strong> — the trusted marketplace for Vietnam’s
           international community.
         </p>
