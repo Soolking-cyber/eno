@@ -1,14 +1,17 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import Image from 'next/image'
-import { MapPin } from 'lucide-react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { MapPin, MessageCircle, Tag } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { FavoriteHeart } from './favorite-heart'
 import { useLanguage, Tr } from '@/context/language-context'
 import type { SerializedListingCard } from '@/lib/types'
+import { formatMoneyFull } from '@/lib/vnd'
 
 type Props = {
   listing: SerializedListingCard
@@ -24,8 +27,12 @@ type Props = {
 // All callbacks passed in are stable useCallback handlers in the explorer.
 export const CompactListingRow = memo(function CompactListingRow({ listing: l, index, onOpen, onPrefetch, onLocate }: Props) {
   const { lang, tr } = useLanguage()
+  const router = useRouter()
   const cover = l.images[0]
   const displayTitle = lang === 'vi' ? (l.titleVi || l.title) : l.title
+  // Quick-offer: pressing the Tag rolls a discount slider open to the LEFT of the
+  // action icons; confirm hands off to the composer's offer mode (?offer=N#contact).
+  const [offer, setOffer] = useState<number | null>(null)
 
   return (
     <div
@@ -66,8 +73,52 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         </div>
       </div>
 
-      {/* Actions paired together (not stranded): locate-on-map + favorite */}
-      <div className="flex shrink-0 items-center">
+      {/* Actions paired together (not stranded): offer + quick-chat + locate + favorite.
+          The offer slider rolls open leftwards, replacing nothing — icons stay put. */}
+      <div className="flex shrink-0 items-center" onMouseLeave={() => setOffer(null)}>
+        {offer !== null && (
+          <span
+            onClick={(e) => e.stopPropagation()}
+            className="mr-1 flex items-center gap-2 rounded-full bg-card py-1 pl-3 pr-1 shadow-pop animate-in slide-in-from-right-2 fade-in duration-150"
+          >
+            <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{offer}%</span>
+            <input
+              type="range"
+              min={5} max={50} step={5}
+              value={offer}
+              onChange={(e) => setOffer(Number(e.target.value))}
+              aria-label={tr('Discount', 'Mức giảm')}
+              className="w-24 accent-[var(--brand)] cursor-pointer"
+            />
+            <button
+              type="button"
+              onClick={() => router.push(`/listings/${l.id}?offer=${offer}#contact`)}
+              className="shrink-0 rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+            >
+              {formatMoneyFull(Math.round(l.price * (1 - offer / 100)), l.currency)} →
+            </button>
+          </span>
+        )}
+        {l.price > 0 && offer === null && (
+          <button
+            type="button"
+            aria-label={tr('Make an offer', 'Trả giá')}
+            title={tr('Make an offer', 'Trả giá')}
+            onClick={(e) => { e.stopPropagation(); setOffer(10) }}
+            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent lg:flex"
+          >
+            <Tag className="h-[17px] w-[17px]" />
+          </button>
+        )}
+        <Link
+          href={`/listings/${l.id}#contact`}
+          aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
+          title={tr('Chat with seller', 'Nhắn tin với người bán')}
+          onClick={(e) => e.stopPropagation()}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent"
+        >
+          <MessageCircle className="h-[18px] w-[18px]" />
+        </Link>
         <button
           type="button"
           aria-label={tr('Show on map', 'Xem trên bản đồ')}
