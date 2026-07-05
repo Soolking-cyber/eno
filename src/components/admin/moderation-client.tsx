@@ -118,6 +118,29 @@ function MacroSender({ recipientId, label, listingId, conversationId }: { recipi
 
 // Overflow menu for secondary actions (delete listing, notify, dismiss-all). Keeps the
 // decision surface at exactly three buttons — everything else lives behind one "More".
+function SeverityMenu({ value, onPick }: { value: string; onPick: (s: string) => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+      <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title="Penalty applied on Confirm" className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2 py-1 text-[11px] font-bold capitalize text-foreground hover:bg-muted cursor-pointer">
+        {value} {PENALTY[value]} <ChevronDown className="h-3 w-3 text-ink-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" aria-hidden onClick={() => setOpen(false)} />
+          <div role="menu" className="absolute left-0 z-20 mt-1 w-40 space-y-0.5 rounded-xl border border-border bg-card p-1.5 shadow-pop">
+            {SEVERITIES.map((sv) => (
+              <button key={sv} onClick={() => { onPick(sv); setOpen(false) }} className={cn('flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[11px] font-bold capitalize cursor-pointer', sv === value ? 'bg-primary text-white' : 'text-foreground hover:bg-muted')}>
+                {sv} <span className={sv === value ? '' : 'text-ink-4'}>{PENALTY[sv]}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </span>
+  )
+}
+
 function MoreMenu({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   return (
@@ -384,34 +407,25 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
             <AiReviewPanel caseId={c.id} internalNote={c.internalNote} onUse={useSuggestion} refresh={refresh} />
           </div>
 
-          <div className="mt-3 space-y-1.5 border-t border-border pt-2">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-ink-4">Penalty</span>
-              {SEVERITIES.map((s) => (
-                <button key={s} onClick={(e) => { e.stopPropagation(); onSeverity(c.id, s) }} className={cn('rounded-md px-2 py-0.5 text-[10px] font-bold capitalize transition-colors cursor-pointer', severity === s ? 'bg-primary text-white' : 'border border-line-strong text-foreground hover:bg-muted')}>{s} {PENALTY[s]}</button>
-              ))}
-            </div>
-            {/* Exactly THREE decisions; everything secondary lives in the ⋯ More menu. */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button ref={(el) => { decisionRefs.current.confirm = el }} onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} className={cn('rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer', aiFocus === 'confirm' && 'ring-2 ring-brand ring-offset-1')}>Confirm{isListing ? ' & unpublish' : ''} ({PENALTY[severity]} trust)</button>
-              <button ref={(el) => { decisionRefs.current.dismiss = el }} onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} className={cn('rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer', aiFocus === 'dismiss' && 'ring-2 ring-brand ring-offset-1')}>{c.appeal ? 'Dismiss (uphold appeal)' : 'Dismiss (keep live)'}</button>
+          {/* ONE decision row: penalty picker + the two primary verdicts on the left;
+              Abusive (rare) + note + ⋯ everything-else on the right. Tooltips carry
+              the detail the old three stacked rows spelled out. */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
+            <SeverityMenu value={severity} onPick={(sv) => onSeverity(c.id, sv)} />
+            <button ref={(el) => { decisionRefs.current.confirm = el }} onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} title={`Docks the target ${PENALTY[severity]} trust${isListing ? ' and unpublishes the listing' : ''}`} className={cn('rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer', aiFocus === 'confirm' && 'ring-2 ring-brand ring-offset-1')}>Confirm{isListing ? ' & unpublish' : ''}</button>
+            <button ref={(el) => { decisionRefs.current.dismiss = el }} onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} title={c.appeal ? 'Uphold the appeal — no penalty' : 'Keep the listing live — no penalty'} className={cn('rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer', aiFocus === 'dismiss' && 'ring-2 ring-brand ring-offset-1')}>Dismiss</button>
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            <span className="ml-auto inline-flex items-center gap-1.5">
               <button ref={(el) => { decisionRefs.current.abusive = el }} onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className={cn('rounded-md px-2 py-1 text-[11px] font-semibold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer', aiFocus === 'abusive' && 'ring-2 ring-brand ring-offset-1')} title="False/abusive report — strike the reporter">Abusive</button>
-              {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-              <span className="ml-auto">
-                <MoreMenu>
-                  {isListing && <button onClick={() => onListing('reject', t.listing!.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete listing permanently</button>}
-                  {c.communityCount > 1 && <button onClick={() => onDismissTarget(c.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount} on this target</button>}
-                  {(isListing || c.communityCount > 1) && (msgTargets.length > 0 || t.isGuest) && <div className="my-1 border-t border-border" />}
-                  {msgTargets.map((m) => <div key={m.recipientId} className="px-1 py-0.5"><MacroSender recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} /></div>)}
-                  {t.isGuest && <p className="px-2 py-1 text-[10px] italic text-ink-4">Reported party is a guest — can&apos;t be messaged.</p>}
-                </MoreMenu>
-              </span>
-            </div>
-          </div>
-
-          {/* Internal note — low-key affordance, expands in place. */}
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <NoteEditor caseId={c.id} initial={c.internalNote} onSaved={refresh} />
+              <NoteEditor caseId={c.id} initial={c.internalNote} onSaved={refresh} />
+              <MoreMenu>
+                {isListing && <button onClick={() => onListing('reject', t.listing!.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete listing permanently</button>}
+                {c.communityCount > 1 && <button onClick={() => onDismissTarget(c.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount} on this target</button>}
+                {(isListing || c.communityCount > 1) && (msgTargets.length > 0 || t.isGuest) && <div className="my-1 border-t border-border" />}
+                {msgTargets.map((m) => <div key={m.recipientId} className="px-1 py-0.5"><MacroSender recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} /></div>)}
+                {t.isGuest && <p className="px-2 py-1 text-[10px] italic text-ink-4">Reported party is a guest — can&apos;t be messaged.</p>}
+              </MoreMenu>
+            </span>
           </div>
         </>
       )}

@@ -1,7 +1,6 @@
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
-import { AdminNav } from '@/components/admin/admin-nav'
 import { ModerationClient, type ModCase } from '@/components/admin/moderation-client'
 import { reportContext, targetContext, type RawReport } from '@/lib/admin-reports'
 import { Monitor } from 'lucide-react'
@@ -101,7 +100,6 @@ export default async function AdminPage() {
           <p className="text-xs text-muted-foreground">Open eno.vn/admin on a larger screen.</p>
         </div>
         <div className="hidden md:block">
-          <AdminNav active="/admin" />
           <div className="mb-5">
             <h1 className="h-title text-foreground">Moderation</h1>
             <p className="mt-1 text-sm text-muted-foreground">Signed in as {admin}. One triaged inbox — most urgent first. Confirm docks the target&apos;s trust; abusive penalizes the reporter. Listings publish instantly (no review queue); low-trust accounts can&apos;t post until their score recovers.</p>

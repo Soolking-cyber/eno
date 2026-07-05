@@ -1,6 +1,5 @@
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { getAdmin } from '@/lib/admin'
-import { AdminNav } from '@/components/admin/admin-nav'
 import { EnforcementClient } from '@/components/admin/enforcement-client'
 import type { Metadata } from 'next'
 
@@ -25,7 +24,6 @@ export default async function AdminEnforcementPage() {
   return (
     <div className="flex flex-1 flex-col bg-background">
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
-        <AdminNav active="/admin/enforcement" />
         <div className="mb-6">
           <h1 className="h-title text-foreground">Enforcement</h1>
           <p className="mt-1 text-sm text-muted-foreground">Signed in as {admin}. The account ladder (warn → throttle → hold → suspend): pending appeals first, then buyers waiting on a seller reply, then every active action.</p>
