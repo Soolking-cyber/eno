@@ -1,6 +1,7 @@
+import { AdminDenied } from '@/components/admin/admin-denied'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
-import { ShieldAlert, ChevronLeft, Tag } from 'lucide-react'
+import { ChevronLeft, Tag } from 'lucide-react'
 import Link from 'next/link'
 import { formatMoneyFull } from '@/lib/vnd'
 import type { Metadata } from 'next'
@@ -23,17 +24,7 @@ export default async function AdminConversationPage({ params }: Props) {
   const admin = await getAdmin()
 
   if (!admin) {
-    return (
-      <div className="flex flex-1 flex-col">
-        <main id="main" tabIndex={-1} className="flex flex-1 items-center justify-center px-3">
-          <div className="max-w-sm rounded-2xl bg-card p-8 text-center shadow-pop">
-            <ShieldAlert className="mx-auto h-10 w-10 text-ink-4" />
-            <h1 className="mt-4 text-lg font-bold text-foreground">Restricted area</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Sign in with an authorized eno.vn admin account.</p>
-          </div>
-        </main>
-      </div>
-    )
+    return <AdminDenied />
   }
 
   const convo = await db.conversation.findUnique({

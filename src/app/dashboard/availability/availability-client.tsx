@@ -49,7 +49,7 @@ export function AvailabilityClient() {
   }, [user])
 
   const toggle = (id: string) => setSoldIds((prev) => {
-    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
+    const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n
   })
 
   const filtered = useMemo(() => {
@@ -85,7 +85,7 @@ export function AvailabilityClient() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-6 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-6 sm:px-6 lg:px-8">
         <div className="text-center">
           <Mascot name="success" className="mx-auto h-32 w-32" />
           <h1 className="mt-2 h-title text-foreground">{tr('Still available?', 'Còn hàng không?')}</h1>

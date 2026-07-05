@@ -26,9 +26,9 @@ const sections: [string, string[]][] = [
     ],
   ],
   [
-    'Verification',
+    'Trust & moderation',
     [
-      'The "Verified by eno.vn" badge means an agent reviewed the listing before it went live. Verification reduces risk but is not a guarantee or endorsement, and does not make eno.vn a party to any transaction. Always inspect items and meet safely.',
+      'Listings publish after automated checks, and every seller carries a trust score earned from verified activity, reviews, and confirmed reports. Trust badges reduce risk but are not a guarantee or endorsement, and do not make eno.vn a party to any transaction. Always inspect items and meet safely.',
     ],
   ],
   [
@@ -58,7 +58,7 @@ const sections: [string, string[]][] = [
   [
     'Changes and contact',
     [
-      'We may update these Terms from time to time; continued use after changes means you accept them. Questions? Email support@eno.forum.',
+      'We may update these Terms from time to time; continued use after changes means you accept them. Questions? Email support@eno.vn.',
     ],
   ],
 ]

@@ -1,9 +1,10 @@
+import { AdminDenied } from '@/components/admin/admin-denied'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { AdminNav } from '@/components/admin/admin-nav'
 import { ModerationClient, type ModCase } from '@/components/admin/moderation-client'
 import { reportContext, targetContext, type RawReport } from '@/lib/admin-reports'
-import { ShieldAlert, Monitor } from 'lucide-react'
+import { Monitor } from 'lucide-react'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -28,18 +29,7 @@ export default async function AdminPage() {
   const admin = await getAdmin()
 
   if (!admin) {
-    return (
-      <div className="flex flex-1 flex-col">
-        <main id="main" tabIndex={-1} className="flex flex-1 items-center justify-center px-3">
-          <div className="max-w-sm rounded-2xl bg-card p-8 text-center shadow-pop">
-            <ShieldAlert className="mx-auto h-10 w-10 text-ink-4" />
-            <h1 className="mt-4 text-lg font-bold text-foreground">Restricted area</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Sign in with an authorized eno.vn admin account to access the moderation queue.</p>
-            <a href="/" className="mt-5 inline-block rounded-xl bg-primary px-6 py-2 text-sm font-bold text-white hover:bg-brand-dark transition-colors">Back to eno.vn</a>
-          </div>
-        </main>
-      </div>
-    )
+    return <AdminDenied />
   }
 
   const SELECT = { id: true, reason: true, detail: true, severity: true, status: true, createdAt: true, resolvedBy: true, resolvedAt: true, internalNote: true, appealNote: true, appealImages: true, appealedAt: true, sellerResponse: true, sellerRespondedAt: true, reporterProfileId: true, listingId: true, conversationId: true, targetSellerId: true, targetProfileId: true } as const

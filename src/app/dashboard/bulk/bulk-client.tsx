@@ -92,7 +92,7 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 py-6 sm:px-6">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 py-6 sm:px-6 lg:px-8">
         <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors">
           <ChevronLeft className="h-4 w-4" /> {tr('Dashboard', 'Bảng điều khiển')}
         </Link>

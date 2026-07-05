@@ -26,8 +26,10 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
         <aside className={cn('w-full shrink-0 lg:w-[380px] lg:border-r lg:border-border', inThread && 'hidden lg:block')}>
           <ConversationList />
         </aside>
-        {/* Thread / right pane — hidden on mobile unless a thread is open. */}
-        <section className={cn('min-w-0 flex-1', !inThread && 'hidden lg:flex')}>
+        {/* Thread / right pane — hidden on mobile unless a thread is open. Carries
+            id="main" so the skip-link works on the messenger (no <main> here — the
+            panes ARE the page). */}
+        <section id="main" tabIndex={-1} className={cn('min-w-0 flex-1', !inThread && 'hidden lg:flex')}>
           {children}
         </section>
       </div>

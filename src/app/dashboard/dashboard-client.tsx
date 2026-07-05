@@ -160,7 +160,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
     return (
       <div className="flex min-h-screen flex-col bg-background">
         <Header />
-        <main id="main" tabIndex={-1} className="mx-auto w-full max-w-md flex-1 space-y-6 px-3 py-10">
+        <main id="main" tabIndex={-1} className="mx-auto w-full max-w-md flex-1 space-y-6 px-3 py-10 sm:px-6 lg:px-8">
           <div className="p-8 text-center">
             <h1 className="text-lg font-bold text-foreground">{tr('Your account', 'Tài khoản của bạn')}</h1>
             <p className="mt-2 text-sm text-muted-foreground">{tr('Sign in to manage your listings, messages and saved items.', 'Đăng nhập để quản lý tin đăng, tin nhắn và mục đã lưu.')}</p>

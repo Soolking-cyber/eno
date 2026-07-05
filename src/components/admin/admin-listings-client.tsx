@@ -42,7 +42,7 @@ export function AdminListingsClient() {
   }, [q, status, verified])
   useEffect(() => { const t = setTimeout(load, 200); return () => clearTimeout(t) }, [load])
 
-  const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggle = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const allSelected = rows.length > 0 && sel.size === rows.length
   const toggleAll = () => setSel(allSelected ? new Set() : new Set(rows.map((r) => r.id)))
 

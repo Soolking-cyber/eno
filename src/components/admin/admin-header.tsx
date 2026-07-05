@@ -23,7 +23,6 @@ export function AdminHeader() {
       <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between py-3">
           <Link href="/" className="flex items-center gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-mark.svg" alt="eno.vn" width={36} height={36} className="h-9 w-9" />
             <span className="text-sm font-bold text-foreground">Admin</span>
           </Link>
@@ -39,7 +38,7 @@ export function AdminHeader() {
                 aria-current={active ? 'page' : undefined}
                 className={cn(
                   'shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                  active ? 'bg-[#0a66c2] text-white' : 'text-body hover:bg-muted',
+                  active ? 'bg-primary text-white' : 'text-body hover:bg-muted',
                 )}
               >
                 {s.label}

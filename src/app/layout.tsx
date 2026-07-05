@@ -184,8 +184,9 @@ export default function RootLayout({
             </AuthProvider>
             </CurrencyProvider>
           </LanguageProvider>
+          {/* Inside ThemeProvider so toasts follow the in-app theme toggle. */}
+          <SonnerToaster position="top-center" closeButton />
         </ThemeProvider>
-        <SonnerToaster position="top-center" closeButton />
         <AnalyticsTags />
         <AttributionCapture />
         <SpeedInsights />

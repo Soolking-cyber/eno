@@ -260,7 +260,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
         </div>
 
         <p className="mt-10 border-t border-border pt-6 text-sm text-body">
-          Questions or need write access early? <a href="mailto:support@eno.forum" className="font-semibold text-accent-foreground hover:underline">support@eno.forum</a>.
+          Questions or need write access early? <a href="mailto:support@eno.vn" className="font-semibold text-accent-foreground hover:underline">support@eno.vn</a>.
         </p>
       </main>
       <Footer />

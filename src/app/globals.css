@@ -8,19 +8,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -173,20 +160,7 @@
   --text-caption: 0.75rem;   /* 12px — meta / eyebrow (was 11px, a touch small) */
   /* Spacing rhythm uses an 8pt grid: 4 · 8 · 12 · 16 · 24 · 32 · 48 */
 
-  --chart-1: #0a66c2;
-  --chart-2: #4285f4;
-  --chart-3: #9baffd;
-  --chart-4: #034078;
-  --chart-5: #10b981;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #1a202c;
-  --sidebar-primary: #0a66c2;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e8f1fb;
-  --sidebar-accent-foreground: #0a66c2;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #0a66c2;
 }
 
 /* ============================================================
@@ -258,20 +232,7 @@
   --shadow-card: 0 6px 20px rgba(0, 0, 0, 0.5);
   --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.6);
 
-  --chart-1: #3b8eea;
-  --chart-2: #4285f4;
-  --chart-3: #9baffd;
-  --chart-4: #5aa2ec;
-  --chart-5: #34d399;
 
-  --sidebar: #232834;
-  --sidebar-foreground: #eef1f6;
-  --sidebar-primary: #3b8ee6;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #17314d;
-  --sidebar-accent-foreground: #74b3f2;
-  --sidebar-border: #353c4a;
-  --sidebar-ring: #4f97ee;
 }
 
 @layer base {
@@ -526,11 +487,6 @@ summary:focus-visible {
 /* Tabular (fixed-width) numerals — '12,000,000 VND' digit columns align across
    card grids instead of wobbling per-digit. Same as Tailwind's `tabular-nums`
    utility (used in components); this class is for non-utility contexts. */
-.tabular-prices {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-
 /* ============================================================
    ACCESSIBILITY — honor reduced-motion preference
    ============================================================ */
@@ -543,18 +499,6 @@ summary:focus-visible {
   }
 }
 
-/* ============================================================
-   TRUST BADGE — reflective sheen (Trusted / Exceptional)
-   The global reduced-motion rule above parks the animation off-screen.
-   ============================================================ */
-@keyframes trust-sheen {
-  0% { transform: translateX(-150%); }
-  60%, 100% { transform: translateX(150%); }
-}
-.trust-sheen {
-  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%);
-  animation: trust-sheen 3.2s ease-in-out infinite;
-}
 
 
 /* ============================================================

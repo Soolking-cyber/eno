@@ -44,7 +44,7 @@ function SignInPageInner() {
             <li className="flex items-center gap-2.5"><ShieldCheck className="h-5 w-5 shrink-0" /> {tr('Spot something off? Report it in one tap', 'Thấy bất thường? Báo cáo chỉ một chạm')}</li>
           </ul>
         </div>
-        <p className="relative text-xs text-blue-200">© 2026 eno.vn · Made in Saigon</p>
+        <p className="relative text-xs text-blue-200">© {new Date().getFullYear()} eno.vn · {tr('Made in Saigon', 'Làm tại Sài Gòn')}</p>
       </div>
 
       {/* Form column — header/copy centered so every stage (tabs, code entry, the

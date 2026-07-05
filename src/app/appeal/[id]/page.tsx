@@ -56,7 +56,7 @@ export default function AppealPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-lg flex-1 px-4 py-10">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-lg flex-1 px-3 py-10 sm:px-6 lg:px-8">
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
         ) : !user ? (
@@ -98,7 +98,7 @@ export default function AppealPage() {
               )}
             </div>
 
-            {error && <p role="alert" className="mt-3 text-center text-xs font-semibold text-red-600">{error}</p>}
+            {error && <p role="alert" className="mt-3 text-center text-xs font-semibold text-destructive">{error}</p>}
 
             <Button variant="cta" size="none" onClick={submit} disabled={submitting || note.trim().length < 5} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {t('Submit appeal', 'Gửi khiếu nại')}

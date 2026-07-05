@@ -560,7 +560,7 @@ export default function ThreadPage() {
                   onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 12); setOfferInput(d ? new Intl.NumberFormat('en-US').format(Number(d)) : '') }}
                   inputMode="numeric"
                   autoFocus
-                  placeholder={tr('Offer amount (₫)', 'Số tiền đề nghị (₫)')}
+                  placeholder={tr('Offer amount (VND)', 'Số tiền đề nghị (VND)')}
                   onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
                   className="w-full rounded-2xl border border-brand px-3.5 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-brand/20"
                 />
