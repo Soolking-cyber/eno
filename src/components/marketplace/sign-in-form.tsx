@@ -147,10 +147,17 @@ export function SignInForm({ className }: { className?: string }) {
 
   if (stage === 'sent') {
     return (
-      <div className={cn('text-center', className)}>
-        <Mail className="mx-auto h-10 w-10 text-accent-foreground" />
-        <p className="mt-3 text-sm font-semibold text-foreground">{t('Kiểm tra email của bạn', 'Check your email')}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{t('Chúng tôi đã gửi liên kết đăng nhập tới', 'We sent a magic link to')} <strong>{email}</strong>.</p>
+      // className FIRST so this stage's text-center beats the page's text-left
+      // (tailwind-merge: last conflicting class wins).
+      <div className={cn(className, 'text-center')}>
+        {/* Anchored success mark — an icon floating on the bare canvas read as
+            unfinished; the tinted circle gives the state a visual center. */}
+        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-tint">
+          <Mail className="h-7 w-7 text-accent-foreground" />
+        </span>
+        <p className="mt-4 text-lg font-bold text-foreground">{t('Kiểm tra email của bạn', 'Check your email')}</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">{t('Chúng tôi đã gửi liên kết đăng nhập tới', 'We sent a magic link to')}</p>
+        <p className="text-sm font-semibold text-foreground">{email}</p>
         <p className="mt-3 text-xs text-muted-foreground">
           {t('Không thấy email? Kiểm tra spam, hoặc', "Didn't get it? Check spam, or")}{' '}
           <button onClick={sendEmail} disabled={countdown > 0 || loading} className="font-semibold text-accent-foreground hover:underline disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">

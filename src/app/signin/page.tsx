@@ -47,14 +47,17 @@ function SignInPageInner() {
         <p className="relative text-xs text-blue-200">© 2026 eno.vn · Made in Saigon</p>
       </div>
 
-      {/* Form */}
-      <div className="flex flex-col items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm">
+      {/* Form column — header/copy centered so every stage (tabs, code entry, the
+          "check your email" success) reads as ONE centered composition; the form's
+          inputs stay full-width inside the column. A hairline seam in dark mode
+          keeps the navy brand panel and the near-black canvas from colliding. */}
+      <div className="flex flex-col items-center justify-center px-6 py-12 md:dark:border-l md:dark:border-border/60">
+        <div className="w-full max-w-sm text-center">
           <Link href="/" className="mb-8 inline-block text-2xl font-black text-accent-foreground md:hidden">eno.vn</Link>
           <h2 className="text-2xl font-bold text-foreground">{tr('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{tr('Sign in or create your account in seconds.', 'Đăng nhập hoặc tạo tài khoản trong vài giây.')}</p>
-          <SignInForm className="mt-6" />
-          <Link href="/" className="mt-6 block text-center text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
+          <SignInForm className="mt-8 text-left" />
+          <Link href="/" className="mt-8 inline-block text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
             ← {tr('Back to eno.vn', 'Về trang chủ')}
           </Link>
         </div>
