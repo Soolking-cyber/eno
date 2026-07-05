@@ -82,11 +82,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
 
       {/* Actions paired together (not stranded): offer + quick-chat + locate + favorite.
           The offer slider rolls open leftwards, replacing nothing — icons stay put. */}
-      <div className="flex shrink-0 items-center" onMouseLeave={() => setOffer(null)}>
+      <div className="relative flex shrink-0 items-center" onMouseLeave={() => setOffer(null)}>
         {offer !== null && (
           <span
             onClick={(e) => e.stopPropagation()}
-            className="mr-1 flex items-center gap-2 rounded-full bg-card py-1 pl-3 pr-1 shadow-pop animate-in slide-in-from-right-2 fade-in duration-150"
+            className="absolute right-0 top-1/2 z-10 flex w-[340px] max-w-[70vw] -translate-y-1/2 items-center gap-2 rounded-full bg-card py-1 pl-3 pr-1 shadow-pop animate-in zoom-in-95 fade-in duration-150"
           >
             <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{offer}%</span>
             <input
@@ -95,7 +95,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               value={offer}
               onChange={(e) => setOffer(Number(e.target.value))}
               aria-label={tr('Discount', 'Mức giảm')}
-              className="w-24 accent-[var(--brand)] cursor-pointer"
+              className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
             />
             <button
               type="button"
@@ -106,12 +106,13 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             </button>
           </span>
         )}
-        {l.price > 0 && offer === null && (
+        {l.price > 0 && (
           <button
             type="button"
             aria-label={tr('Make an offer', 'Trả giá')}
             title={tr('Make an offer', 'Trả giá')}
-            onClick={(e) => { e.stopPropagation(); setOffer(10) }}
+            aria-pressed={offer !== null}
+            onClick={(e) => { e.stopPropagation(); setOffer(offer === null ? 10 : null) }}
             className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent lg:flex"
           >
             <Tag className="h-[17px] w-[17px]" />
