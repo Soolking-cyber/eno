@@ -298,11 +298,13 @@ export default function ThreadPage() {
   // end so partial templates ("Can meet in ") are completed in one motion.
   const insertQuickReply = (t: string) => {
     setShowOffer(false)
-    const next = text.trim() ? `${text.replace(/\s*$/, '')} ${t}` : t
-    setText(next)
+    // REPLACE the composer content — each chip is a complete reply, and appending
+    // turned two taps into garbage ("Can meet in Let me think about it"). Last tap
+    // wins; anything half-typed is superseded deliberately by the tap.
+    setText(t)
     requestAnimationFrame(() => {
       const el = composerRef.current
-      if (el) { el.focus(); el.setSelectionRange(next.length, next.length) }
+      if (el) { el.focus(); el.setSelectionRange(t.length, t.length) }
     })
   }
 

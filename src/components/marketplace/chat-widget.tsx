@@ -377,6 +377,14 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         onSent()
       } else {
         markFailed(tempId)
+        // Enforcement gate (trust Phase 2): a suspended account can't message —
+        // say so specifically instead of leaving a silent tap-to-retry bubble.
+        if (res.status === 403) {
+          const { error } = (await res.json().catch(() => ({}))) as { error?: string }
+          if (error === 'account_suspended') {
+            toast.error(tr('Your account is suspended — messaging is paused while we review it. Details are in your dashboard.', 'Tài khoản của bạn đang tạm ngưng — nhắn tin tạm dừng trong khi chúng tôi xem xét. Xem chi tiết trong trang quản lý.'))
+          }
+        }
       }
     } catch {
       markFailed(tempId)
@@ -407,7 +415,13 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerAmount: amt }),
       })
       if (res.ok) { await load(); onSent() }
-      else { setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t)); toast.error(tr('Offer not sent — please try again.', 'Chưa gửi được đề nghị — vui lòng thử lại.')) }
+      else {
+        setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+        const { error } = (await res.json().catch(() => ({}))) as { error?: string }
+        toast.error(error === 'account_suspended'
+          ? tr('Your account is suspended — messaging is paused while we review it. Details are in your dashboard.', 'Tài khoản của bạn đang tạm ngưng — nhắn tin tạm dừng trong khi chúng tôi xem xét. Xem chi tiết trong trang quản lý.')
+          : tr('Offer not sent — please try again.', 'Chưa gửi được đề nghị — vui lòng thử lại.'))
+      }
     } catch {
       setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t)); toast.error(tr('Offer not sent — please try again.', 'Chưa gửi được đề nghị — vui lòng thử lại.'))
     }
@@ -438,11 +452,13 @@ function ChatThread({ id, onBack, onClose, onSent }: { id: string; onBack: () =>
   // Quick-reply chip → INSERT into the composer (never auto-send), cursor at the
   // end so partial templates ("Can meet in ") are completed in one motion.
   const insertQuickReply = (t: string) => {
-    const next = text.trim() ? `${text.replace(/\s*$/, '')} ${t}` : t
-    setText(next)
+    // REPLACE the composer content — each chip is a complete reply, and appending
+    // turned two taps into garbage ("Can meet in Let me think about it"). Last tap
+    // wins; anything half-typed is superseded deliberately by the tap.
+    setText(t)
     requestAnimationFrame(() => {
       const el = composerRef.current
-      if (el) { el.focus(); el.setSelectionRange(next.length, next.length) }
+      if (el) { el.focus(); el.setSelectionRange(t.length, t.length) }
     })
   }
 

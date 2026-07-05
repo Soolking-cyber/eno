@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useRef, memo } from 'react'
+import { useEffect, useState, useRef, memo } from 'react'
 import { Heart, ChevronLeft, ChevronRight, Building2, MapPin } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import Image from 'next/image'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { CategoryIcon } from './category-icons'
+import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
@@ -61,9 +62,29 @@ function ListingCardImpl({
   // Only the first image is in the DOM until the user engages the carousel
   // (hover/touch) — cuts initial DOM nodes + image bytes on the homepage grid.
   const [expanded, setExpanded] = useState(false)
-  // Images that failed to load (dead URL / transient optimizer blip) → fall back to the
-  // category placeholder for that slide instead of the browser's broken-glyph + alt text.
-  const [failed, setFailed] = useState<Set<number>>(() => new Set())
+  // Image-failure recovery. All FIRST slides on a feed fetch simultaneously on page
+  // load (later slides lazy-load), and the mock host (picsum) rate-limits under that
+  // burst — a single onError used to placeholder the slide for the whole session even
+  // though a retry succeeds. Now: first failure → placeholder + ONE delayed retry
+  // (key bump remounts the <Image> → fresh fetch); a second failure → placeholder for
+  // good (genuinely dead URL). Timers cleared on unmount.
+  const [slideDown, setSlideDown] = useState<Record<number, boolean>>({})
+  const [slideTry, setSlideTry] = useState<Record<number, number>>({})
+  const imgAttempts = useRef<Record<number, number>>({})
+  const retryTimers = useRef<ReturnType<typeof setTimeout>[]>([])
+  useEffect(() => () => { retryTimers.current.forEach(clearTimeout) }, [])
+  const onImgError = (i: number) => {
+    const n = (imgAttempts.current[i] ?? 0) + 1
+    imgAttempts.current[i] = n
+    setSlideDown((prev) => ({ ...prev, [i]: true }))
+    if (n < 2) {
+      // Jittered backoff so a whole grid of blipped cards doesn't re-stampede the host.
+      retryTimers.current.push(setTimeout(() => {
+        setSlideDown((prev) => ({ ...prev, [i]: false }))
+        setSlideTry((prev) => ({ ...prev, [i]: n }))
+      }, 1200 + Math.random() * 1500))
+    }
+  }
   const touchStartX = useRef<number | null>(null)
   const suppressClick = useRef(false)
 
@@ -110,12 +131,13 @@ function ListingCardImpl({
           >
             {images.slice(0, expanded ? images.length : 1).map((src, i) => (
               <div key={i} className="relative h-full w-full shrink-0 overflow-hidden">
-                {failed.has(i) ? (
+                {slideDown[i] ? (
                   <div className="flex h-full w-full items-center justify-center bg-tint">
                     <CategoryIcon name={listing.category.icon} className="h-10 w-10 text-muted-foreground" />
                   </div>
                 ) : (
                   <Image
+                    key={`${i}:${slideTry[i] ?? 0}`}
                     src={src}
                     alt={images.length > 1 ? `${displayTitle} — ${i + 1}/${images.length}` : displayTitle}
                     fill
@@ -124,7 +146,11 @@ function ListingCardImpl({
                     placeholder="blur"
                     blurDataURL={BLUR}
                     quality={60}
-                    onError={() => setFailed((prev) => prev.has(i) ? prev : new Set(prev).add(i))}
+                    // Mock/seed images (picsum) are already CDN-sized — bypass the Vercel
+                    // optimizer (saves transformations AND removes a failure hop). No-op
+                    // for real Supabase images; goes away with the mock data at launch.
+                    unoptimized={isMockImageUrl(src)}
+                    onError={() => onImgError(i)}
                     // The true LCP image (first card of the first row, first photo) uses
                     // next/image `priority` so Next emits a <link rel=preload> — the preload
                     // scanner fetches it before render. Other above-the-fold images just load

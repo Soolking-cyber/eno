@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tr } from '@/context/language-context'
+import { isMockImageUrl } from '@/lib/listing-image'
 
 type Props = {
   images: string[]
@@ -92,7 +93,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
       {images.length === 1 ? (
         <button onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer">
           <div data-protected className="relative aspect-[16/10] w-full bg-tint">
-            <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 100vw, 60vw" quality={70} className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority />
+            <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 100vw, 60vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority />
             <span className="img-watermark" aria-hidden />
           </div>
         </button>
@@ -112,7 +113,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
             >
               {images.map((img, i) => (
                 <button key={i} onClick={() => openAt(i)} className="relative aspect-[4/3] w-full shrink-0 snap-center overflow-hidden bg-tint cursor-pointer">
-                  <Image src={img} alt={`${title} — photo ${i + 1}`} fill sizes="100vw" quality={70} className="object-cover" priority={i === 0} />
+                  <Image src={img} alt={`${title} — photo ${i + 1}`} fill sizes="100vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover" priority={i === 0} />
                   <span className="img-watermark" aria-hidden />
                 </button>
               ))}
@@ -127,13 +128,13 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
           {/* ≥md: Airbnb-style mosaic (1 big + grid) — unchanged. */}
           <div data-protected className="relative hidden h-[300px] grid-cols-2 gap-2 overflow-hidden rounded-2xl sm:h-[440px] md:grid">
             <button onClick={() => openAt(0)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-              <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 50vw, 40vw" quality={70} className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority />
+              <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 50vw, 40vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority />
               <span className="img-watermark" aria-hidden />
             </button>
             <div className={cn('grid gap-2', restGrid)}>
               {rest.map((img, i) => (
                 <button key={i} onClick={() => openAt(i + 1)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-                  <Image src={img} alt={`${title} — photo ${i + 2}`} fill sizes="25vw" quality={70} className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                  <Image src={img} alt={`${title} — photo ${i + 2}`} fill sizes="25vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
                   <span className="img-watermark" aria-hidden />
                 </button>
               ))}
@@ -209,7 +210,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
               className={cn('relative h-full w-full transition-transform duration-200 motion-reduce:transition-none', zoom && 'cursor-grab')}
               style={zoom ? { transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${ZOOM})` } : undefined}
             >
-              <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} className="object-contain" />
+              <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-contain" />
               <span className="img-watermark" aria-hidden />
             </div>
           </div>
