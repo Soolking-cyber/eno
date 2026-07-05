@@ -138,7 +138,6 @@ export const UI_STRINGS: string[] = [
   "Change number",
   "Change photo",
   "Changes saved",
-  "Chat",
   "Chat with seller",
   "Chat with sellers instantly",
   "Check your email",

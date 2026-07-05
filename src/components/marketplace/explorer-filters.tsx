@@ -307,12 +307,13 @@ export function ExplorerFilters({
                   key={sub.slug}
                   onClick={() => setActiveSubcategory(sub.slug)}
                   className={cn(
-                    'rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
+                    'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
                     isSubActive
                       ? 'text-accent-foreground'
                       : 'text-body hover:bg-muted'
                   )}
                 >
+                  <CategoryIcon name={sub.icon} className="h-3.5 w-3.5 shrink-0" />
                   <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
                 </button>
               )

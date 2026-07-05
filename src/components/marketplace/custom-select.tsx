@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronsUpDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface CustomSelectProps {
@@ -85,7 +85,8 @@ export function CustomSelect({
           {icon}
           <span className={cn('truncate', labelClassName)}>{triggerLabel ?? (selectedOption ? selectedOption.label : placeholder)}</span>
         </span>
-        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4 transition-transform', isOpen && 'rotate-180')} />
+        {/* Select-trigger convention (shadcn/macOS): stacked chevrons = value picker. */}
+        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4" />
       </button>
 
       {isOpen && mounted && createPortal(
