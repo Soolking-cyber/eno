@@ -3,7 +3,7 @@ import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
-import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
+import { getGemini, GEMINI_MODEL, GEMINI_MODEL_FALLBACK } from '@/lib/gemini'
 import { rateLimit } from '@/lib/ratelimit'
 import { reportContext } from '@/lib/admin-reports'
 
@@ -242,45 +242,56 @@ EVIDENCE:
 ${sections.join('\n\n')}`
 
   type Parsed = { outcome?: string; severity?: string | null; confidence?: number; reasoning?: unknown; keyEvidence?: unknown; counterpoints?: unknown; missing?: unknown }
+  const contents = [{
+    role: 'user',
+    parts: [
+      ...inlineImages.map((data) => ({ inlineData: { mimeType: 'image/jpeg', data } })),
+      { text: prompt },
+    ],
+  }]
+  // Adjudication gets dynamic thinking + a generous token cap (thoughts bill as
+  // output); if the model fails, fall back to the previous flash so the button
+  // degrades instead of erroring.
+  const attempts = [
+    { model: GEMINI_MODEL, config: { maxOutputTokens: 4096 } },
+    { model: GEMINI_MODEL_FALLBACK, config: { thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 768 } },
+  ]
   let parsed: Parsed = {}
-  try {
-    const res = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [{
-        role: 'user',
-        parts: [
-          ...inlineImages.map((data) => ({ inlineData: { mimeType: 'image/jpeg', data } })),
-          { text: prompt },
-        ],
-      }],
-      config: {
-        temperature: 0.2,
-        // Same as classify: thinking tokens eat the budget and truncate the JSON.
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 768,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            outcome: { type: Type.STRING },
-            severity: { type: Type.STRING },
-            confidence: { type: Type.NUMBER },
-            reasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
-            keyEvidence: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { source: { type: Type.STRING }, quote: { type: Type.STRING } }, required: ['source', 'quote'] } },
-            counterpoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-            missing: { type: Type.ARRAY, items: { type: Type.STRING } },
+  let ok = false
+  for (const attempt of attempts) {
+    try {
+      const res = await ai.models.generateContent({
+        model: attempt.model,
+        contents,
+        config: {
+          temperature: 0.2,
+          ...attempt.config,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              outcome: { type: Type.STRING },
+              severity: { type: Type.STRING },
+              confidence: { type: Type.NUMBER },
+              reasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
+              keyEvidence: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { source: { type: Type.STRING }, quote: { type: Type.STRING } }, required: ['source', 'quote'] } },
+              counterpoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+              missing: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: ['outcome', 'confidence', 'reasoning'],
           },
-          required: ['outcome', 'confidence', 'reasoning'],
         },
-      },
-    })
-    let txt = (res.text || '').trim()
-    if (txt.startsWith('```')) txt = txt.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
-    parsed = JSON.parse(txt || '{}')
-  } catch (e) {
-    console.error('[admin/ai-review]', e)
-    return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
+      })
+      let txt = (res.text || '').trim()
+      if (txt.startsWith('```')) txt = txt.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
+      parsed = JSON.parse(txt || '{}')
+      ok = true
+      break
+    } catch (e) {
+      console.error(`[admin/ai-review] ${attempt.model}`, e)
+    }
   }
+  if (!ok) return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
 
   // Validate — never trust the model's fields blindly.
   const outcome = OUTCOMES.find((o) => o === parsed.outcome)
