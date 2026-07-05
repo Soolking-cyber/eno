@@ -1196,7 +1196,7 @@ export function ListingsExplorer({
                 <button
                   onClick={() => handleLandingSearch(landingQuery)}
                   aria-label={tr('Search', 'Tìm kiếm')}
-                  className="flex shrink-0 items-center justify-center rounded-l-2xl pl-4 pr-2.5 py-2.5 sm:pl-5 sm:py-3 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  className="flex shrink-0 items-center justify-center rounded-l-2xl pl-4 pr-2.5 py-2.5 sm:pl-5 sm:py-3 text-ink-4 hover:text-accent-foreground hover:scale-110 transition-[color,transform] duration-200 cursor-pointer"
                 >
                   <Search className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                 </button>
@@ -1262,7 +1262,7 @@ export function ListingsExplorer({
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
                   aria-label={tr('Map', 'Bản đồ')}
                   title={tr('Map', 'Bản đồ')}
-                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-2.5 sm:py-3 text-ink-4 hover:text-accent-foreground transition-colors cursor-pointer"
+                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-2.5 sm:py-3 text-ink-4 hover:text-accent-foreground hover:scale-110 transition-[color,transform] duration-200 cursor-pointer"
                 >
                   <Map className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                 </button>

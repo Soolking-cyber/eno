@@ -60,7 +60,7 @@ export function BackToTop() {
           aria-label="Back to top"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className={cn(
-            'relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground active:scale-90 tap-44',
+            'relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-90 tap-44',
             show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
           )}
         >
@@ -74,7 +74,7 @@ export function BackToTop() {
           aria-label="Help"
           aria-haspopup="dialog"
           onClick={() => setHelpOpen(true)}
-          className="relative hidden h-9 w-9 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground active:scale-90 lg:flex tap-44"
+          className="relative hidden h-9 w-9 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-90 lg:flex tap-44"
         >
           <span className="text-[26px] font-bold leading-none [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]">?</span>
         </button>
