@@ -23,6 +23,7 @@ import { BusinessProfileEditor } from '@/components/marketplace/business-profile
 import { ProfileEditor } from '@/components/marketplace/profile-editor'
 import { reviewKey, todayStr } from './availability/availability-client'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
+import { DeleteAccount } from '@/components/marketplace/delete-account'
 import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switcher'
 import { ChangeEmailForm } from '@/components/marketplace/change-email-form'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
@@ -423,6 +424,12 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
         <section className="mt-8 sm:hidden">
           <h2 className="h-section text-foreground mb-3">{tr('Preferences', 'Tùy chọn')}</h2>
           <PreferencesInline />
+        </section>
+
+        {/* Danger zone — self-service account deletion (PDPL deletion right) */}
+        <section className="mt-10">
+          <h2 className="h-section text-red-600">{tr('Danger zone', 'Vùng nguy hiểm')}</h2>
+          <div className="mt-3"><DeleteAccount /></div>
         </section>
       </>)}
       </main>
