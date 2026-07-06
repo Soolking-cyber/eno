@@ -51,18 +51,13 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
       try { localStorage.setItem(KEY, JSON.stringify([...next])) } catch { /* ignore */ }
       return next
     })
-    // Favorites are device-local, so "did it save? where?" is genuinely ambiguous —
-    // confirm on ADD only, with a jump to /saved. A shared toast id means rapid
-    // hearting replaces rather than stacks.
+    // The heart filling IS the confirmation — no toast (user decision 2026-07-06:
+    // success popups only where nothing else visibly changes).
     if (added) {
       haptic()
       // First save = the contextual-signup moment (5a #10). The sheet component
       // decides whether to show (guest + not shown before); we just announce.
       window.dispatchEvent(new Event('eno:first-save'))
-      toast(tr('Saved on this device', 'Đã lưu trên thiết bị này'), {
-        id: 'fav-saved',
-        action: { label: tr('View', 'Xem'), onClick: () => router.push('/saved') },
-      })
     }
   }, [ids, tr, router])
 

@@ -176,7 +176,6 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         // NOTE: intentionally do NOT auto-write the description. Sellers describe the
         // item in their OWN words (what actually matters — condition, quirks, why
         // selling), then optionally "Polish with AI" to tidy their own text.
-        toast.success(t('Đã điền từ ảnh — kiểm tra lại nhé', 'Filled from your photo — double-check it'))
         // Couldn't confirm the brand → ask for a clearer logo photo rather than
         // filling a wrong guess. Non-blocking; the rest is already filled.
         if (d.brandUncertain) {
@@ -207,7 +206,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         return
       }
       const d = await res.json()
-      if (d.text) { setDescription(d.text); toast.success(t('Đã chỉnh lại mô tả', 'Polished your description')) }
+      if (d.text) setDescription(d.text)
     } catch {
       toast.error(t('Không thể dùng AI lúc này', 'AI is unavailable right now'))
     } finally {
@@ -256,10 +255,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           if (d.province || d.ward) {
             setProvince(d.province ? { code: '', name: d.province, nameEn: d.province } : null)
             setWard(d.ward ? { code: '', name: d.ward, nameEn: d.ward } : null)
-            toast.success(t('Đã dùng vị trí hiện tại', 'Using your current location'))
           } else {
             // Pin kept, but the address lookup returned nothing — don't claim success on a name.
-            toast.success(t('Đã ghim vị trí của bạn', 'Pinned your location'))
           }
         } catch {
           setNearby({ lat, lng, radiusKm: 5 }) // keep the pin even if address lookup fails
@@ -516,7 +513,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       })
       if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Failed')
       if (edit) {
-        toast.success(t('Đã lưu thay đổi', 'Changes saved'))
+        // landing on the updated listing IS the confirmation
         router.push(`/listings/${edit.id}`)
         return
       }

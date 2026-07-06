@@ -61,7 +61,7 @@ export function DevelopersPanel() {
   const revoke = async (id: string) => {
     setConfirmId(null)
     const res = await fetch(`/api/keys/${id}`, { method: 'DELETE' })
-    if (res.ok) { load(); toast.success(tr('Key revoked.', 'Đã thu hồi khóa.')) }
+    if (res.ok) load()
     else toast.error(tr('Could not revoke the key.', 'Không thu hồi được khóa.'))
   }
 
@@ -232,7 +232,7 @@ function WebhooksSection() {
   const remove = async (id: string) => {
     setConfirmId(null)
     const res = await fetch(`/api/webhooks/${id}`, { method: 'DELETE' })
-    if (res.ok) { load(); toast.success(tr('Webhook removed.', 'Đã xóa webhook.')) }
+    if (res.ok) load()
     else toast.error(tr('Could not remove the webhook.', 'Không xóa được webhook.'))
   }
 
