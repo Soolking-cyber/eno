@@ -7,17 +7,19 @@ import { GoogleGenAI } from '@google/genai'
 //   GOOGLE_VERTEX_CREDENTIALS  — the service-account JSON key, as a single-line string
 // Lazy singleton; returns null when unconfigured so the AI routes degrade gracefully.
 
-// ALL AI paths run gemini-2.5-flash: image classify, description polish, concierge,
-// brands, admin review. REVERTED from gemini-3.5-flash (2026-07-06): 3.5-flash is
-// served from the GLOBAL endpoint ONLY and 404s on us-central1 — so the post-wizard
-// autofill/polish broke ("AI unavailable") wherever the Gemini endpoint resolved to a
-// region. 2.5-flash is verified to work on BOTH global AND regional endpoints
-// (us-central1 + asia-southeast1), so it's immune to whatever GEMINI_LOCATION is set
-// to in prod. It's also faster on this workload (~1.7–3s vs 3.5's ~2–4.5s). If you
-// want to move back to a 3.x model, pin GEMINI_LOCATION=global in Vercel first.
-export const GEMINI_MODEL = 'gemini-2.5-flash'
-// Lighter/faster variant for high-stakes retries (admin review) — also region-robust.
-export const GEMINI_MODEL_FALLBACK = 'gemini-2.5-flash-lite'
+// ALL AI paths run gemini-3.5-flash (image classify, description polish, concierge,
+// visual-search, brands, admin review) — one constant, imported by all 6 paths.
+// HARD REQUIREMENT: 3.5-flash is served from the GLOBAL Vertex endpoint ONLY — it 404s
+// on regional endpoints (us-central1, etc.), which broke post-wizard AI on 2026-07-06
+// when GEMINI_LOCATION was us-central1. So GEMINI_LOCATION MUST be `global` in prod.
+// Verified 2026-07-06 via GET /api/admin/ai-health?probe=1&model=gemini-3.5-flash on
+// the live eno-translate project (GEMINI_LOCATION=global) → probe ok, ~1s. If AI ever
+// 404s again, hit ai-health: a regional GEMINI_LOCATION is the usual cause — fix is
+// GEMINI_LOCATION=global (or drop to the region-robust fallback below).
+export const GEMINI_MODEL = 'gemini-3.5-flash'
+// Region-robust (works on global AND regional endpoints) — used for high-stakes
+// retries (admin review) and as the safe manual downgrade if 3.5 has an incident.
+export const GEMINI_MODEL_FALLBACK = 'gemini-2.5-flash'
 
 let client: GoogleGenAI | null | undefined
 
