@@ -90,6 +90,8 @@ export function Footer() {
             <a href="/terms" className="transition-colors hover:text-accent-foreground">{tr('Terms', 'Điều khoản')}</a>
             <a href="/privacy" className="transition-colors hover:text-accent-foreground">{tr('Privacy', 'Quyền riêng tư')}</a>
             <a href="/regulations" className="transition-colors hover:text-accent-foreground">{tr('Regulations', 'Quy chế')}</a>
+            {/* Consent withdrawal entry point — reopens the cookie banner (PDPL). */}
+            <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))} className="cursor-pointer transition-colors hover:text-accent-foreground">{tr('Cookie settings', 'Cài đặt cookie')}</button>
           </div>
         </div>
       </div>

@@ -40,6 +40,21 @@ export function CookieConsent() {
   // Mirror any pre-cookie-era consent into the server-readable cookie, then
   // only prompt users who have never chosen.
   useEffect(() => { syncConsentCookie(); if (getConsent() === null) setShow(true) }, [])
+
+  // Withdrawal right (PDPL): the footer "Cookie settings" link dispatches this to
+  // reopen the banner any time, pre-filled with the current choice, so consent is
+  // as easy to change as to give (compliance verification 2026-07-06).
+  useEffect(() => {
+    const reopen = () => {
+      const c = getConsent()
+      setPerso(c !== 'essential')
+      setAds(c === 'all')
+      setView('settings')
+      setShow(true)
+    }
+    window.addEventListener('eno:open-consent', reopen)
+    return () => window.removeEventListener('eno:open-consent', reopen)
+  }, [])
   if (!show) return null
 
   const close = () => setShow(false)
@@ -70,6 +85,7 @@ export function CookieConsent() {
               </p>
               <div className="mt-3 flex items-center gap-2.5">
                 <Button variant="cta" size="none" onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</Button>
+                <button onClick={decline} className={ghost}>{tr('Decline', 'Từ chối')}</button>
                 <button onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</button>
               </div>
             </>

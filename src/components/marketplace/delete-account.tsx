@@ -41,6 +41,18 @@ export function DeleteAccount() {
 
   return (
     <div>
+      {/* Data access right (PDPL) — download everything we hold about you. */}
+      <div className="mb-4">
+        <p className="text-sm leading-relaxed text-body">
+          {tr('Download a copy of all your eno.vn data.', 'Tải xuống bản sao toàn bộ dữ liệu eno.vn của bạn.')}
+        </p>
+        <a
+          href="/api/account/export"
+          className="mt-2 inline-block rounded-xl px-4 py-2 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer"
+        >
+          {tr('Export my data', 'Xuất dữ liệu của tôi')}
+        </a>
+      </div>
       <p className="text-sm leading-relaxed text-body">
         {tr('Permanently delete your account, listings and conversations. This cannot be undone.', 'Xóa vĩnh viễn tài khoản, tin đăng và tin nhắn của bạn. Không thể hoàn tác.')}
       </p>

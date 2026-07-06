@@ -288,7 +288,7 @@ export function SignInForm({ className }: { className?: string }) {
       {/* Invisible Turnstile — renders a visible challenge only if one is required. */}
       <Turnstile />
       <p className="pt-1 text-center text-[11px] text-ink-4">
-        {t('By continuing you agree to our', 'Tiếp tục nghĩa là bạn đồng ý với')}{' '}
+        {t('By continuing you confirm you are 18 or older and agree to our', 'Tiếp tục nghĩa là bạn xác nhận đủ 18 tuổi và đồng ý với')}{' '}
         <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Terms', 'Điều khoản')}</a>
         {' '}{t('and', 'và')}{' '}
         <a href="/privacy" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo mật')}</a>.

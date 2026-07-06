@@ -51,8 +51,10 @@ const BANNED_WORDS = [
   'nga voi', 'sung te giac', 'cao ho', 'mat gau', 'vay te te', 'dong vat hoang da',
   // SIMs & personal data
   'sim kich hoat san', 'sim rac', 'danh sach khach hang', 'data khach hang',
-  // covert surveillance
-  'camera nguy trang', 'camera quay len', 'thiet bi nghe len',
+  // covert surveillance / signal jammers
+  'camera nguy trang', 'camera quay len', 'thiet bi nghe len', 'thiet bi pha song', 'pha song gps',
+  // MLM, uniforms, gambling (low-collision terms added 2026-07-06 to match /prohibited)
+  'ban hang da cap', 'quan phuc cong an', 'quan phuc quan doi', 'may danh bac', 'sung ban ca',
 ].map((w) => fold(w))
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const BANNED_RE = new RegExp(`\\b(${BANNED_WORDS.map(escapeRe).join('|')})\\b`)

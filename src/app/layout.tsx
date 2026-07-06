@@ -29,7 +29,7 @@ const inter = Inter({
   display: "swap",
 });
 
-const OG_IMAGE = { url: "/listings/hero-market.png", width: 1344, height: 768, alt: "eno.vn — verified marketplace" };
+const OG_IMAGE = { url: "/listings/hero-market.png", width: 1344, height: 768, alt: "eno.vn — trusted marketplace" };
 
 // Both schemes are supported now (real dark theme in globals.css `.dark`,
 // toggled System/Light/Dark). theme-color is media-matched so the iOS status-bar
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
   // Google Search Console / Merchant Center domain verification.
   verification: { google: "alQ9GmeeCLxBtPVZM8CEvEDmieP7JuS4wGTrYHW5hCY" },
-  title: "eno.vn - Verified Expat Marketplace in Vietnam",
+  title: "eno.vn - Trusted Expat Marketplace in Vietnam",
   description:
     "eno.vn is a trusted marketplace for expats and internationals in Vietnam. Find housing, jobs, motorbikes, services, moving sales, and more — sellers build public trust scores and the community keeps listings honest.",
   applicationName: "eno.vn",
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     "expat marketplace Vietnam",
     "Vietnam expats",
     "Viet Kieu",
-    "verified marketplace",
+    "trusted marketplace",
     "housing Vietnam expats",
     "motorbike rental Saigon",
     "house rental Thao Dien",
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "eno.vn" }],
   openGraph: {
-    title: "eno.vn - Verified Expat Marketplace in Vietnam",
+    title: "eno.vn - Trusted Expat Marketplace in Vietnam",
     description:
       "A trusted marketplace for expats and internationals in Vietnam. Housing, jobs, motorbikes, services and moving sales — sellers build trust scores and the community keeps listings honest.",
     siteName: "eno.vn",
@@ -79,8 +79,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "eno.vn - Verified Expat Marketplace in Vietnam",
-    description: "Verified marketplace for expats in Vietnam — housing, jobs, motorbikes, services, moving sales.",
+    title: "eno.vn - Trusted Expat Marketplace in Vietnam",
+    description: "Trusted marketplace for expats in Vietnam — housing, jobs, motorbikes, services, moving sales.",
     images: [OG_IMAGE.url],
   },
 };
@@ -122,7 +122,7 @@ export default function RootLayout({
               url: "https://eno.vn",
               logo: "https://eno.vn/logo.svg",
               description:
-                "eno.vn is a verified marketplace for expats and internationals in Vietnam — housing, jobs, motorbikes, services and moving sales.",
+                "eno.vn is a trusted marketplace for expats and internationals in Vietnam — housing, jobs, motorbikes, services and moving sales.",
               sameAs: [
                 "https://www.facebook.com/profile.php?id=61591370031264",
                 "https://www.instagram.com/eno.vn/",

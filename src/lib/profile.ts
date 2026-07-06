@@ -2,6 +2,7 @@ import 'server-only'
 import type { User } from '@supabase/supabase-js'
 import { db } from './db'
 import { normalizePhone } from './phone'
+import { maskEmailHandle } from './utils'
 import { checkBanEvasion } from './enforcement'
 import { recordNewAccount, recordPhoneVerified, recomputeTrust } from './trust'
 
@@ -17,10 +18,14 @@ export async function ensureProfile(user: User) {
   // Supabase stores a verified phone on user.phone (E164, no '+'); normalize to
   // the app's canonical +84… form. Only mirror a CONFIRMED phone.
   const verifiedPhone = user.phone && user.phone_confirmed_at ? normalizePhone(user.phone) : null
+  // Never seed the raw email local part as displayName — it's often a full name
+  // and displayName short-circuits maskEmailHandle everywhere it's rendered
+  // (chat counterparty, public review author). A masked handle is the fallback;
+  // the user can set a real name later. (Compliance verification 2026-07-06.)
   const displayName =
     (user.user_metadata?.full_name as string | undefined) ||
     (user.user_metadata?.name as string | undefined) ||
-    (email ? email.split('@')[0] : null)
+    maskEmailHandle(email)
   const avatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null
 
   let profile
