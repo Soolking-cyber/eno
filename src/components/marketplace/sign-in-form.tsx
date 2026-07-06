@@ -229,14 +229,20 @@ export function SignInForm({ className }: { className?: string }) {
         <div className="space-y-2">
           <input type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" className="w-full rounded-xl bg-tint px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30" />
           <Button variant="cta" size="none" onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send SMS code', 'Gửi mã SMS')}
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send code', 'Gửi mã')}
           </Button>
+          {/* The delivery cascade (Telegram → WhatsApp → Zalo → SMS) is server-side
+              and invisible — without this line, users watch the wrong inbox. */}
+          <p className="text-center text-[11px] leading-relaxed text-ink-4">
+            {t('Your code arrives by SMS — or in Zalo, Telegram or WhatsApp if your number uses one.', 'Mã sẽ đến qua SMS — hoặc qua Zalo, Telegram hay WhatsApp nếu số của bạn dùng các ứng dụng đó.')}
+          </p>
         </div>
       )}
 
       {tab === 'phone' && stage === 'code' && (
         <div className="space-y-3">
           <p className="text-center text-xs text-muted-foreground">{t('Enter the 6-digit code sent to', 'Nhập mã 6 số gửi tới')} <strong className="text-foreground">{phone}</strong></p>
+          <p className="-mt-1.5 text-center text-[11px] text-ink-4">{t('Check SMS, Zalo, Telegram or WhatsApp.', 'Kiểm tra SMS, Zalo, Telegram hoặc WhatsApp.')}</p>
           <InputOTP maxLength={6} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
             <InputOTPGroup>
               {[0, 1, 2, 3, 4, 5].map((i) => (
