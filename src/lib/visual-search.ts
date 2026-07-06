@@ -1,5 +1,7 @@
 // Client helper: POST a photo to the visual-search endpoint and get back a text
 // query (+ best-guess category/brand) to drive the normal keyword search.
+import { compressImageFile } from './normalize-image'
+
 export type VisualSearchResult = {
   query: string
   category: string | null
@@ -8,8 +10,14 @@ export type VisualSearchResult = {
 }
 
 export async function runVisualSearch(file: File): Promise<VisualSearchResult | null> {
+  // Downscale + re-encode in the browser first (same helper as the post wizard).
+  // Raw phone photos are 5–15MB and Vercel caps request bodies at ~4.5MB, so the
+  // platform 413'd BEFORE our route ran; the server resizes to 512px anyway, so
+  // shipping a ~300KB 1600px WebP loses nothing. Falls back to the original file
+  // if canvas decoding fails (the server still accepts ≤12MB when it gets through).
+  const compressed = await compressImageFile(file).catch(() => file)
   const fd = new FormData()
-  fd.append('file', file)
+  fd.append('file', compressed)
   const res = await fetch('/api/ai/visual-search', { method: 'POST', body: fd })
   // Visual search is members-only (paid Gemini Vision). On 401, ask the AuthProvider
   // to open the sign-in modal instead of failing silently on the camera tap.
