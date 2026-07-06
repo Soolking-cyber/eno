@@ -94,14 +94,14 @@ export function CustomSelect({
         {/* Transparent backdrop: it's the tap target, so an outside tap CLOSES the
             menu and is absorbed here — never passing through to a card/button below
             (the old mousedown-close let the click land on the element underneath). */}
-        <div className="fixed inset-0 z-[120]" aria-hidden onClick={() => setIsOpen(false)} />
+        <div className="fixed inset-0 z-[1200]" aria-hidden onClick={() => setIsOpen(false)} />
         <div
           ref={menuRef}
           data-portal-menu
           // Hidden until positioned so it never paints at (0,0) and "flies in" from the
           // top-left on the first frame (pos is computed in an effect after open).
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, visibility: pos.top > 0 ? 'visible' : 'hidden' }}
-          className="z-[121] max-h-60 overflow-y-auto overflow-x-hidden rounded-2xl bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in duration-150"
+          className="z-[1201] max-h-60 overflow-y-auto overflow-x-hidden rounded-2xl bg-card p-1.5 shadow-pop scroll-thin animate-in fade-in duration-150"
         >
           {options.map((opt) => {
             const isActive = opt.value === value

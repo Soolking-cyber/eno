@@ -1770,6 +1770,7 @@ export function ListingsExplorer({
             <FacetBar
               activeCategory={activeCategory}
               activeSubcategory={activeSubcategory}
+              setActiveSubcategory={setActiveSubcategory}
               province={activeProvince}
               setProvince={setActiveProvince}
               ward={activeWard}

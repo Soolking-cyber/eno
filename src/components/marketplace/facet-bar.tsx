@@ -8,12 +8,13 @@ import { PriceRangeFilter } from './price-range-filter'
 import { RangeFacetControl } from './range-facet-control'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useLanguage } from '@/context/language-context'
-import { facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
+import { facetsFor, subcategoriesFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
 
 type FacetBarProps = {
   activeCategory: string
   activeSubcategory: string // drives subcategory-specific facets (e.g. cc vs L engine)
+  setActiveSubcategory: Dispatch<SetStateAction<string>> // picker in the panel unlocks the deeper facets
   province: Geo | null
   setProvince: Dispatch<SetStateAction<Geo | null>>
   ward: Geo | null
@@ -40,6 +41,7 @@ type FacetBarProps = {
 export function FacetBar({
   activeCategory,
   activeSubcategory,
+  setActiveSubcategory,
   province,
   setProvince,
   ward,
@@ -171,8 +173,15 @@ export function FacetBar({
   // All category facets live in the advanced "Filter" panel — a real per-category
   // form (condition + the per-category fields). The quick bar keeps area/type/price.
   const advFacets = facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory)
+  // Subcategory picker inside the panel: many facets (transmission, engine cc, bike
+  // type, fuel, origin…) are gated behind a chosen subcategory, so a brand/keyword
+  // search with no subcategory would otherwise only surface the generic year/mileage/
+  // color. Letting the user pick the subcategory here unlocks the full, detailed set.
+  const subcats = subcategoriesFor(activeCategory)
+  const hasAdvanced = advFacets.length > 0 || subcats.length > 0
   const activeAdvCount =
     (conditionFilter !== 'all' ? 1 : 0) +
+    (activeSubcategory !== 'all' ? 1 : 0) +
     advFacets.filter((f) => f.key !== 'condition' && customFilters[f.key]).length
 
   const hasActive =
@@ -192,7 +201,7 @@ export function FacetBar({
       {/* Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps. */}
       <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
         {/* Advanced per-category filter form — leftmost. Only when the category has facets. */}
-        {advFacets.length > 0 && (
+        {hasAdvanced && (
           <button
             ref={advBtnRef}
             type="button"
@@ -220,6 +229,7 @@ export function FacetBar({
               setConditionFilter('all')
               setPriceRange('all')
               setListingType('all')
+              setActiveSubcategory('all')
               setCustomFilters({})
               setVerifiedOnly(true)
             }}
@@ -245,7 +255,7 @@ export function FacetBar({
       {/* Advanced per-category filter form — segmented toggles + selects. PORTALED to
           <body> + fixed-positioned so it floats above all page content (incl. the
           footer), closing on outside click. */}
-      {mounted && advOpen && advFacets.length > 0 && advPos.top > 0 && createPortal(
+      {mounted && advOpen && hasAdvanced && advPos.top > 0 && createPortal(
         <>
           <div className="fixed inset-0 z-[1099]" aria-hidden onClick={() => setAdvOpen(false)} />
           <div
@@ -258,6 +268,21 @@ export function FacetBar({
               </button>
             </div>
             <div className="space-y-3.5">
+              {/* Subcategory picker — unlocks the subcategory-specific facets below
+                  (e.g. Motorbike → bike type / engine cc / origin). */}
+              {subcats.length > 0 && (
+                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0 sm:pt-1.5">{tr('Type', 'Phân loại')}</label>
+                  <div className="flex flex-1 flex-wrap gap-1.5">
+                    <button type="button" onClick={() => setActiveSubcategory('all')} className={segBtn(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
+                    {subcats.map((s) => (
+                      <button key={s.slug} type="button" onClick={() => setActiveSubcategory(activeSubcategory === s.slug ? 'all' : s.slug)} className={segBtn(activeSubcategory === s.slug)}>
+                        {lang === 'vi' ? s.nameVi : s.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {advFacets.map((f) => {
                 const value = facetValue(f)
                 const opts = f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))

@@ -17,6 +17,13 @@ describe('containsPhoneNumber', () => {
     expect(containsPhoneNumber('only 5,000,000')).toBe(false)
   })
 
+  it('does NOT flag a model number next to a year range (the "E200 2016-2020" false positive)', () => {
+    // The trailing 0 of a model + a year range read as "0 2016-2020" ≈ a VN phone.
+    expect(containsPhoneNumber('Mercedes-Benz E200 2016-2020 Upgrade to 2021 AMG Body Kit')).toBe(false)
+    expect(containsPhoneNumber('Honda SH150 2019-2021')).toBe(false)
+    expect(containsPhoneNumber('iPhone 14 Pro 256GB 2021')).toBe(false)
+  })
+
   it('handles empty / null', () => {
     expect(containsPhoneNumber('')).toBe(false)
     expect(containsPhoneNumber(null)).toBe(false)

@@ -33,7 +33,11 @@ export function normalizePhoneNoPlus(raw: string): string {
  */
 // Separators allow spaces/dashes but NOT dots — VN prices use dot thousand-
 // separators (1.080.000.000), which must not be mistaken for a phone number.
-const EMBEDDED_PHONE_RE = /(?:\+?84|0)[\s-]?[2-9](?:[\s-]?\d){7,9}|\+\d(?:[\s-]?\d){7,}/
+// `(?<![\d+])` on the 0/84 anchor stops it starting MID-number: without it, a model
+// number ending in 0 next to a year range ("E200 2016-2020") matched as "0 2016-2020"
+// and falsely blocked legit car/electronics listings. A real phone's leading 0/8 is
+// never immediately preceded by another digit, so this only kills the false positive.
+const EMBEDDED_PHONE_RE = /(?<![\d+])(?:\+?84|0)[\s-]?[2-9](?:[\s-]?\d){7,9}|\+\d(?:[\s-]?\d){7,}/
 
 // Dot-separated phones (090.123.4567) — a VERY common VN format — evade the regex above
 // (which excludes dots so it doesn't trip on dotted VND prices). Strip ONLY dots, then

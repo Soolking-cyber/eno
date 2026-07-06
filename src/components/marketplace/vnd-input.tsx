@@ -57,6 +57,9 @@ export function VndInput({
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         <button type="button" onClick={() => mul(1_000)} disabled={!digits} className={chip}>×1,000</button>
         <button type="button" onClick={() => mul(1_000_000)} disabled={!digits} className={chip}>×1,000,000</button>
+        {/* tỷ / billion — completes the VN unit ladder (nghìn → triệu → tỷ) so cars,
+            property and other big-ticket VND amounts are one tap (type "3" → 3 tỷ). */}
+        <button type="button" onClick={() => mul(1_000_000_000)} disabled={!digits} className={chip}>×1,000,000,000</button>
         {(presets ?? []).map((p) => (
           <button type="button" key={p.label} onClick={() => set(p.value)} className={chip}>{p.label}</button>
         ))}
