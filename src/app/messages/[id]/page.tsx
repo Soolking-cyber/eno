@@ -558,7 +558,7 @@ export default function ThreadPage() {
             {showOffer && sliderOffer !== null ? (
               /* Priced listing: the −% slider rolls in (left→right) where the chat
                  input was — pick the discount, Send submits the computed offer. */
-              <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 animate-in slide-in-from-left-2 fade-in duration-150">
+              <div className="flex h-10 min-w-0 flex-1 items-center gap-2.5 self-center px-1 animate-in slide-in-from-left-2 fade-in duration-150">
                 <span className="shrink-0 text-xs font-bold tabular-nums text-foreground">−{offerPct}%</span>
                 <input
                   type="range"
