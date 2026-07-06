@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { SignInForm } from '@/components/marketplace/sign-in-form'
 import { Mascot } from '@/components/marketplace/mascot'
 import { safeNextPath } from '@/lib/url'
+import { COMPANY } from '@/lib/site-legal'
 
 // Dedicated split-layout sign-in page (commerce-login pattern, eno.vn blue). Reuses
 // the exact same <SignInForm> as the inline modal. Honors ?next= for post-login
@@ -60,6 +61,11 @@ function SignInPageInner() {
           <Link href="/" className="mt-8 inline-block text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
             ← {tr('Back to eno.vn', 'Về trang chủ')}
           </Link>
+          {/* Operator identity — the split layout has no Footer, and Đ.36 wants the
+              operator identifiable on every public page. Compact single block. */}
+          <p className="mt-6 text-[10px] leading-relaxed text-ink-4">
+            {COMPANY.name} · {COMPANY.address} · {tr('Business reg. no.', 'GCN ĐKDN số')}: {COMPANY.erc} · {COMPANY.email}
+          </p>
         </div>
       </div>
     </div>

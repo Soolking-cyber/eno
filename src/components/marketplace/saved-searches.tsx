@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Search, Bell, BellOff, Trash2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { cn } from '@/lib/utils'
 
 type SavedSearch = { id: string; label: string; notify: boolean; createdAt: string; url: string }
@@ -14,16 +15,21 @@ type SavedSearch = { id: string; label: string; notify: boolean; createdAt: stri
 export function SavedSearches() {
   const router = useRouter()
   const { tr } = useLanguage()
+  const { user, loading } = useAuth()
   const [searches, setSearches] = useState<SavedSearch[] | null>(null)
 
   useEffect(() => {
+    // Guests have no saved searches — skip the call entirely (an unauthenticated
+    // fetch here logged a 401 in every guest's console).
+    if (loading) return
+    if (!user) { setSearches([]); return }
     let off = false
     fetch('/api/saved-searches')
       .then((r) => (r.ok ? r.json() : { searches: [] }))
       .then((d) => { if (!off) setSearches(d.searches || []) })
       .catch(() => { if (!off) setSearches([]) })
     return () => { off = true }
-  }, [])
+  }, [user, loading])
 
   // Optimistic updates WITH rollback — a silently-failed toggle/delete would
   // otherwise leave the UI lying about what's saved.

@@ -117,7 +117,9 @@ Return ONLY JSON.`
     parsed = JSON.parse(txt || '{}')
   } catch (e) {
     console.error('[ai/classify]', e)
-    return NextResponse.json({ error: 'ai_failed', detail: (e as Error)?.message?.slice(0, 300) }, { status: 502 })
+    // Never echo raw upstream error text to the client (provider internals). Log it instead.
+    console.error('[ai/classify]', (e as Error)?.message?.slice(0, 300))
+    return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
   }
 
   // No single clear product → tell the user to retake a close, clear photo of the

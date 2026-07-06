@@ -114,7 +114,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             title={tr('Make an offer', 'Trả giá')}
             aria-pressed={offer !== null}
             onClick={(e) => { e.stopPropagation(); setOffer(offer === null ? 10 : null) }}
-            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent lg:flex"
+            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent sm:flex"
           >
             <Tag className="h-[17px] w-[17px]" />
           </button>

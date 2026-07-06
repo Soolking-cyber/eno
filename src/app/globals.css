@@ -2,6 +2,12 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+/* Device-capability variants: `pc` = wide AND hover-capable (a real desktop);
+   `mobile` = everything else, INCLUDING iPads/tablets at any width — hover-only
+   affordances are unusable on touch, so quick actions must follow the mobile UI
+   there (user decision 2026-07-06). Width alone (lg:) misclassifies tablets. */
+@custom-variant pc (@media (min-width: 64rem) and (pointer: fine));
+@custom-variant mobile (@media not ((min-width: 64rem) and (pointer: fine)));
 
 @theme inline {
   --color-background: var(--background);

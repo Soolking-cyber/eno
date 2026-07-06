@@ -224,7 +224,7 @@ function ListingCardImpl({
             edge, sliding in left→right on hover with a slight stagger (macOS-dock
             feel). Pressing Offer rolls the discount bar open to the RIGHT of the
             tag icon, sized to the card. */}
-        <span className="pointer-events-none absolute inset-x-2 top-1/2 z-10 hidden -translate-y-1/2 flex-col items-stretch gap-1.5 lg:flex">
+        <span className="pointer-events-none absolute inset-x-2 top-1/2 z-10 hidden -translate-y-1/2 flex-col items-stretch gap-1.5 pc:flex">
           {quickOffer === null && (
             <span className="flex">
               {/* Bare glyph — same face treatment as the heart/pin (white +
@@ -305,7 +305,7 @@ function ListingCardImpl({
             justify-between leaves the heart pinned top-right exactly as before. */}
         <span className={cn(
           'absolute bottom-2 right-2 top-2 z-10 flex flex-col items-center justify-between transition-all duration-200',
-          quickOffer !== null && 'max-lg:pointer-events-none max-lg:translate-x-8 max-lg:opacity-0',
+          quickOffer !== null && 'mobile:pointer-events-none mobile:translate-x-8 mobile:opacity-0',
         )}>
           <button
             type="button"
@@ -324,7 +324,7 @@ function ListingCardImpl({
             type="button"
             aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
             onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-            className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 lg:hidden"
+            className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
           >
             <MessageCircle className="h-[20px] w-[20px]" />
           </button>
@@ -334,7 +334,7 @@ function ListingCardImpl({
               aria-label={tr('Make an offer', 'Trả giá')}
               aria-pressed={quickOffer !== null}
               onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
-              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 lg:hidden"
+              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
             >
               <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
             </button>
@@ -344,7 +344,7 @@ function ListingCardImpl({
               type="button"
               aria-label={tr('Show on map', 'Xem trên bản đồ')}
               onClick={(e) => { e.stopPropagation(); onLocate(listing) }}
-              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 lg:hidden"
+              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
             >
               <MapPin className="h-[20px] w-[20px]" />
             </button>
@@ -357,13 +357,13 @@ function ListingCardImpl({
           <span
             aria-hidden
             onClick={(e) => { e.stopPropagation(); setQuickOffer(null) }}
-            className="absolute inset-0 z-10 lg:hidden"
+            className="absolute inset-0 z-10 pc:hidden"
           />
         )}
         {quickOffer !== null && (
           <span
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 lg:hidden"
+            className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 pc:hidden"
           >
             <span className="flex items-center gap-2">
               <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>

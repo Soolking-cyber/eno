@@ -97,7 +97,14 @@ export function containsContactInfo(text: string | null | undefined): boolean {
 export function assertPublishable(input: { trustTier?: string; images: unknown[]; texts: (string | null | undefined)[] }) {
   if (input.trustTier === 'restricted') throw new PublishBlockedError('account_restricted')
   if (input.images.length < 1) throw new PublishBlockedError('photo_required')
-  for (const t of input.texts) {
+  assertCleanTexts(input.texts)
+}
+
+/** The content screens alone (phone / contact / banned words) — shared by CREATE
+ *  (assertPublishable) and EDIT (updateListingCore), so clean-publish-then-edit
+ *  can never become a bypass (2026-07-06 compliance verification finding). */
+export function assertCleanTexts(texts: (string | null | undefined)[]) {
+  for (const t of texts) {
     if (!t) continue
     if (containsPhoneNumber(t)) throw new PublishBlockedError('contact_in_text', 'phone')
     if (containsContactInfo(t)) throw new PublishBlockedError('contact_in_text', 'contact')

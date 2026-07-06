@@ -6,6 +6,7 @@ import { insertMessage, type SerializedMessage } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
 import { rateLimit } from '@/lib/ratelimit'
 import { conversationGate } from '@/lib/enforcement'
+import { maskEmailHandle } from '@/lib/utils'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -182,7 +183,7 @@ export async function GET() {
       // The OTHER party's display identity.
       counterpart: iAmBuyer
         ? { name: c.seller.name, avatarColor: c.seller.avatarColor, avatarUrl: c.seller.avatarUrl }
-        : { name: c.buyer.displayName || c.buyer.email || 'Buyer', avatarColor: c.buyer.avatarColor, avatarUrl: c.buyer.avatarUrl },
+        : { name: c.buyer.displayName || maskEmailHandle(c.buyer.email) || 'Buyer', avatarColor: c.buyer.avatarColor, avatarUrl: c.buyer.avatarUrl },
     }
   })
   return NextResponse.json({ conversations })

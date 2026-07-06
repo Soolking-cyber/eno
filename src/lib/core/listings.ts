@@ -15,7 +15,7 @@ import { syndicateListing } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
-import { assertPublishable } from '@/lib/publish-guard'
+import { assertPublishable, assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
 // These hold the business logic for mutating a listing, decoupled from HOW the caller
@@ -124,7 +124,7 @@ export async function updateListingCore(
     // cleared, keep the existing location (a non-nullable column — never write null).
     data.location = district || current.location
   }
-  if (body.condition !== undefined) data.condition = body.condition ? String(body.condition).trim() : null
+  if (body.condition !== undefined) data.condition = body.condition ? String(body.condition).trim().slice(0, 60) : null
   if (Array.isArray(body.images)) {
     const images = (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     data.images = JSON.stringify(images)
@@ -186,6 +186,29 @@ export async function updateListingCore(
   }
 
   if (Object.keys(data).length === 0) return { ok: true }
+
+  // Full content screen on EVERY edited free-text field — the same checks as
+  // create. Without this, clean-publish-then-edit was a complete bypass of the
+  // banned-goods and contact filters (2026-07-06 compliance verification). Covers
+  // the secondary fields too (model/condition/district/city/attribute values —
+  // all publicly rendered).
+  try {
+    const attrTexts = data.attributes ? Object.values(JSON.parse(data.attributes as string) as Record<string, string>) : []
+    assertCleanTexts([
+      title, description, contactName,
+      data.district as string | null | undefined,
+      data.condition as string | null | undefined,
+      data.model as string | null | undefined,
+      data.city as string | null | undefined,
+      body.brand !== undefined ? String(body.brand ?? '') : undefined,
+      ...attrTexts,
+    ])
+  } catch (e) {
+    if (e instanceof PublishBlockedError) {
+      return { ok: false, code: 400, error: e.code === 'banned_words' ? 'banned_words' : 'no_phone_in_listing' }
+    }
+    throw e
+  }
 
   // Rebuild the folded search blob from the new values (fall back to current).
   const newTitle = (data.title as string) ?? current.title
@@ -303,6 +326,17 @@ export async function createListingCore(input: {
   // Specific model — only kept alongside a resolved brand.
   const model = brandSlug && body.model ? (String(body.model).trim().slice(0, 60) || null) : null
 
+  // Screen the SECONDARY free-text fields too (all publicly rendered): district,
+  // condition, model, raw brand input, city, attribute values. The primary texts
+  // were screened by assertPublishable above; without this a banned term or phone
+  // number could ride in via e.g. `model` (compliance verification 2026-07-06).
+  const conditionText = body.condition ? String(body.condition).trim().slice(0, 60) : null
+  assertCleanTexts([
+    district, conditionText, model, city,
+    body.brand ? String(body.brand) : undefined,
+    ...(attributes ? Object.values(JSON.parse(attributes) as Record<string, string>) : []),
+  ])
+
   const listing = await db.listing.create({
     data: {
       title,
@@ -316,7 +350,7 @@ export async function createListingCore(input: {
       city,
       lat,
       lng,
-      condition: body.condition ? String(body.condition).trim() : null,
+      condition: conditionText,
       images: JSON.stringify(images),
       searchText: buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug, model]),
       categoryId: category.id,

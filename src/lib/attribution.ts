@@ -7,6 +7,8 @@
 // first paint. First-touch is sticky (180d) so the channel that ORIGINALLY brought a
 // visitor gets the credit even if they sign up days later from a direct visit.
 
+import { getConsent } from './consent'
+
 export const ATTR_COOKIE = 'eno_attr'
 const MAX_AGE_DAYS = 180
 
@@ -87,15 +89,30 @@ function unpack(raw: string): Attribution | null {
   } catch { return null }
 }
 
-/** Client: capture FIRST-touch (only if none stored yet). Idempotent + cheap. */
+const ATTR_SESSION_KEY = 'eno_attr_pending'
+
+/** Client: capture FIRST-touch (only if none stored yet). Idempotent + cheap.
+ *  CONSENT-AWARE (2026-07-06 compliance verification): first-touch data only
+ *  exists at the moment of landing, so it's staged in sessionStorage (ephemeral,
+ *  dies with the tab) — but the 180-day cookie is written ONLY once the visitor
+ *  makes a consent choice above 'essential'. Declining leaves nothing persistent.
+ *  Called again on the eno:consent event to promote the staged value. */
 export function captureFirstTouch(): void {
   if (typeof window === 'undefined') return
   try {
     if (readRawCookie(ATTR_COOKIE, document.cookie)) return // already have first-touch
-    const attr = deriveFromLocation()
-    if (!attr) return
+    let packed = sessionStorage.getItem(ATTR_SESSION_KEY)
+    if (!packed) {
+      const attr = deriveFromLocation()
+      if (!attr) return
+      packed = pack(attr)
+      sessionStorage.setItem(ATTR_SESSION_KEY, packed)
+    }
+    const consent = getConsent()
+    if (consent === null || consent === 'essential') return // stay ephemeral
     const maxAge = MAX_AGE_DAYS * 24 * 60 * 60
-    document.cookie = `${ATTR_COOKIE}=${encodeURIComponent(pack(attr))}; path=/; max-age=${maxAge}; SameSite=Lax`
+    document.cookie = `${ATTR_COOKIE}=${encodeURIComponent(packed)}; path=/; max-age=${maxAge}; SameSite=Lax`
+    sessionStorage.removeItem(ATTR_SESSION_KEY)
   } catch { /* cookies blocked / never break the page for analytics */ }
 }
 

@@ -21,8 +21,7 @@ import { ImageShield } from "@/components/marketplace/image-shield";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
-import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Analytics } from "@vercel/analytics/next";
+import { VercelTelemetry } from "@/components/marketplace/vercel-telemetry";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -193,8 +192,7 @@ export default function RootLayout({
         </ThemeProvider>
         <AnalyticsTags />
         <AttributionCapture />
-        <SpeedInsights />
-        <Analytics />
+        <VercelTelemetry />
       </body>
     </html>
   );

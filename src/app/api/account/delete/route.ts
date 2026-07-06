@@ -20,13 +20,15 @@ import { rateLimit } from '@/lib/ratelimit'
 //    manual support path, which the law permits (retention for legal defense).
 //
 // WHAT IS DELETED vs KEPT:
-//  Deleted: listings (+their reports/stats via cascade), storefront, API keys,
+//  Deleted: listings (+stats via cascade), storefront, reviews RECEIVED by the
+//  storefront (required FK; the storefront they describe is gone), API keys,
 //  webhooks, conversations + messages (both sides of the user's threads),
 //  notifications, trust events, saved searches, push subscriptions, profile,
 //  and the Supabase auth user. Storage images are purged best-effort after the
 //  response. Kept: reviews the user WROTE are anonymized (author → null), and
-//  resolved report records referencing the user by bare id remain for the
-//  statutory retention window (e-commerce records: 3 years).
+//  resolved report records are DETACHED from the dying listings first so they
+//  survive by bare target/reporter ids for the statutory retention window
+//  (e-commerce records: 3 years).
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -88,25 +90,35 @@ export async function POST(req: Request) {
     )
   }
 
-  // Collect storage URLs before rows disappear.
-  const listings = seller
-    ? await db.listing.findMany({ where: { sellerId: seller.id }, select: { images: true } })
-    : []
-  const imageUrls = [
-    ...listings.flatMap((l) => { try { return JSON.parse(l.images) as string[] } catch { return [] } }),
-    ...(seller?.avatarUrl ? [seller.avatarUrl] : []),
-    ...(profile.avatarUrl ? [profile.avatarUrl] : []),
-  ]
-
-  // One transaction: listings → storefront → profile. FK cascades take the rest
-  // (conversations + messages on both sides, notifications, trust events, keys,
-  // webhooks, subscriptions); authored reviews anonymize via SetNull.
-  await db.$transaction([
-    ...(seller
-      ? [db.listing.deleteMany({ where: { sellerId: seller.id } }), db.seller.delete({ where: { id: seller.id } })]
-      : []),
-    db.profile.delete({ where: { id: profile.id } }),
-  ])
+  // Interactive transaction: re-resolve the seller INSIDE the tx (a storefront
+  // created concurrently must not survive as an orphan), then reports → reviews →
+  // listings → storefront → profile. FK cascades take the rest (conversations +
+  // messages on both sides, notifications, trust events, keys, webhooks,
+  // subscriptions); reviews the user WROTE anonymize via SetNull.
+  const imageUrls: string[] = profile.avatarUrl ? [profile.avatarUrl] : []
+  await db.$transaction(async (tx) => {
+    const s = await tx.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, avatarUrl: true } })
+    if (s) {
+      const listings = await tx.listing.findMany({ where: { sellerId: s.id }, select: { id: true, images: true } })
+      for (const l of listings) { try { imageUrls.push(...(JSON.parse(l.images) as string[])) } catch {} }
+      if (s.avatarUrl) imageUrls.push(s.avatarUrl)
+      // Resolved reports must SURVIVE for the statutory retention window, but
+      // Report.listingId cascades with the listing — detach them first so the
+      // record (with its bare target/reporter ids) outlives the listing. Open
+      // reports can't exist here (the hold above blocks deletion).
+      await tx.report.updateMany({
+        where: { listingId: { in: listings.map((l) => l.id) } },
+        data: { listingId: null },
+      })
+      // Reviews RECEIVED by this storefront: Review.sellerId is a required FK
+      // (restrict) — deleting the seller with reviews attached would throw. The
+      // storefront they describe is being erased; remove them with it.
+      await tx.review.deleteMany({ where: { sellerId: s.id } })
+      await tx.listing.deleteMany({ where: { sellerId: s.id } })
+      await tx.seller.delete({ where: { id: s.id } })
+    }
+    await tx.profile.delete({ where: { id: profile.id } })
+  })
 
   // Remove the auth user (invalidates every session/device). Loud log on failure:
   // ensureProfile would recreate an EMPTY profile on a later sign-in — no data

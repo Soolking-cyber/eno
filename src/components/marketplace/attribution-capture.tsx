@@ -8,6 +8,11 @@ import { captureFirstTouch } from '@/lib/attribution'
 // network, no third-party JS — so it never competes with hydration/LCP. Renders
 // nothing. Pairs with <AnalyticsTags/> in the root layout.
 export function AttributionCapture() {
-  useEffect(() => { captureFirstTouch() }, [])
+  useEffect(() => {
+    captureFirstTouch()
+    // Consent granted after landing → promote the sessionStorage-staged value.
+    window.addEventListener('eno:consent', captureFirstTouch)
+    return () => window.removeEventListener('eno:consent', captureFirstTouch)
+  }, [])
   return null
 }

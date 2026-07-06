@@ -105,6 +105,7 @@ export const UI_STRINGS: string[] = [
   "Business account",
   "Business name",
   "Business profile",
+  "Business reg. no.",
   "Business registration no.",
   "Buy and sell your own items — quick and simple.",
   "Buyer says:",

@@ -4,6 +4,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { db } from './db'
 import { sendPushToProfile } from './push'
 import { formatMoneyFull } from './vnd'
+import { maskEmailHandle } from '@/lib/utils'
 
 export type SerializedMessage = { id: string; mine: true; body: string; createdAt: string; kind: string; offerAmount: number | null; offerStatus: string | null }
 
@@ -67,7 +68,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   if (recipientId && isOffer) {
     try {
       const sender = await db.profile.findUnique({ where: { id: senderId }, select: { displayName: true, email: true } })
-      const senderName = sender?.displayName || sender?.email?.split('@')[0] || 'Someone'
+      const senderName = sender?.displayName || maskEmailHandle(sender?.email) || 'Someone'
       // Offer bodies are empty (the offer line is derived from offerAmount at render
       // time) — build the notification text from the structured amount + any note.
       const notifText = opts?.offerAmount != null
@@ -134,7 +135,7 @@ export async function actOnOffer(
   // Notify the offerer of the outcome (offers are high-signal → bell + push).
   try {
     const actor = await db.profile.findUnique({ where: { id: actorId }, select: { displayName: true, email: true } })
-    const actorName = actor?.displayName || actor?.email?.split('@')[0] || 'Someone'
+    const actorName = actor?.displayName || maskEmailHandle(actor?.email) || 'Someone'
     await db.notification.create({
       data: { recipientId: offer.senderProfileId, type: 'offer', title: actorName, body: text, actorName, conversationId: convo.id, listingId: convo.listingId },
     })

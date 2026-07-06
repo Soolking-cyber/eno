@@ -4,6 +4,7 @@ import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { recordReview } from '@/lib/trust'
 import { messagingGate } from '@/lib/enforcement'
+import { maskEmailHandle } from '@/lib/utils'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -57,7 +58,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     (await db.message.count({ where: { conversationId, kind: 'offer', offerStatus: 'accepted' } })) > 0
   if (!transacted) return NextResponse.json({ error: 'not_transacted' }, { status: 403 })
 
-  const author = me.displayName || me.email?.split('@')[0] || 'Buyer'
+  // Never expose the email local part on a PUBLIC surface (it's often a full name).
+  const author = me.displayName || maskEmailHandle(me.email) || 'Buyer'
   let review: { id: string }
   try {
     review = await db.review.create({

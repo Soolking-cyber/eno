@@ -33,7 +33,7 @@ export function CaptureCard() {
         <button
           type="button"
           onClick={() => openSignIn()}
-          className="mt-1.5 w-full text-center text-[11px] font-bold text-muted-foreground transition-colors hover:text-accent-foreground cursor-pointer"
+          className="mt-1.5 w-full text-center text-[11px] font-bold text-body transition-colors hover:text-accent-foreground cursor-pointer"
         >
           {tr('or email · free, 10 seconds', 'hoặc email · miễn phí, 10 giây')}
         </button>

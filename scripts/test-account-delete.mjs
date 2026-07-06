@@ -52,10 +52,15 @@ try {
      ('msg-a-${stamp}', $1, $2, 'hello from A'), ('msg-b-${stamp}', $1, $3, 'hello from B')`,
     [convoId, uidA, uidB])
   const reportId = 'rep-test-' + stamp
+  // Listing-scoped report: must SURVIVE deletion (detached), not cascade away.
   await db.query(
-    `INSERT INTO "Report" (id, reason, status, "targetProfileId", "reporterProfileId") VALUES ($1, 'scam', 'open', $2, $3)`,
-    [reportId, uidA, uidB])
-  console.log('seeded A/B + listing + conversation + open report')
+    `INSERT INTO "Report" (id, reason, status, "targetProfileId", "listingId", "reporterProfileId") VALUES ($1, 'scam', 'open', $2, $3, $4)`,
+    [reportId, uidA, listingId, uidB])
+  // Received review: Review.sellerId is a RESTRICT FK — deletion must handle it.
+  await db.query(
+    `INSERT INTO "Review" (id, "sellerId", author, rating, text, "authorProfileId") VALUES ('rev-test-${stamp}', $1, 'B', 5, 'great', $2)`,
+    [sellerId, uidB])
+  console.log('seeded A/B + listing + conversation + open report + received review')
 
   const cookieA = await cookieHeaderFor(emailA)
   const post = (opts = {}) => fetch(`${BASE}/api/account/delete`, {
@@ -91,6 +96,8 @@ try {
     ['messages gone', `SELECT count(*)::int n FROM "Message" WHERE "conversationId" = $1`, [convoId], 0],
     ['counterparty B intact', `SELECT count(*)::int n FROM "Profile" WHERE id = $1`, [uidB], 1],
     ['resolved report retained', `SELECT count(*)::int n FROM "Report" WHERE id = $1`, [reportId], 1],
+    ['retained report detached from listing', `SELECT count(*)::int n FROM "Report" WHERE id = $1 AND "listingId" IS NULL`, [reportId], 1],
+    ['received reviews removed', `SELECT count(*)::int n FROM "Review" WHERE "sellerId" = $1`, [sellerId], 0],
   ]
   for (const [label, sql, p, want] of checks) {
     const n = await q(sql, p)
@@ -101,6 +108,7 @@ try {
 } finally {
   // ── Cleanup everything the test created that survived ──
   await db.query(`DELETE FROM "Report" WHERE id LIKE 'rep-test-%'`)
+  await db.query(`DELETE FROM "Review" WHERE id LIKE 'rev-test-%'`)
   await db.query(`DELETE FROM "Listing" WHERE id LIKE 'lst-test-%'`)
   await db.query(`DELETE FROM "Seller" WHERE id LIKE 'sel-test-%'`)
   for (const uid of [uidA, uidB].filter(Boolean)) {
