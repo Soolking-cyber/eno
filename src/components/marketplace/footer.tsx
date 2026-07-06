@@ -69,20 +69,6 @@ export function Footer() {
           ))}
         </div>
 
-        {/* Popular keyword landing pages — sitewide internal links so Google can
-            discover + rank the expat-intent SEO entry pages. */}
-        <nav aria-label={tr('Popular', 'Phổ biến')} className="mt-10 pt-6">
-          <h3 className="text-[11px] font-bold uppercase tracking-wider text-body">{tr('Popular in Vietnam', 'Phổ biến tại Việt Nam')}</h3>
-          <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
-            <a href="/housing-vietnam-expats" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Housing for expats', 'Nhà ở cho người nước ngoài')}</a>
-            <a href="/jobs-vietnam-expats" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Jobs for expats', 'Việc làm cho người nước ngoài')}</a>
-            <a href="/motorbikes-for-sale-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Motorbikes for sale & rent', 'Xe máy mua bán & cho thuê')}</a>
-            <a href="/moving-sales-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Moving sales', 'Thanh lý chuyển nhà')}</a>
-            <a href="/services-for-expats-vietnam" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Services for expats', 'Dịch vụ cho người nước ngoài')}</a>
-            <a href="/brands" className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr('Browse by brand', 'Duyệt theo thương hiệu')}</a>
-          </div>
-        </nav>
-
         {/* Legal identity of the operator — Decree 52/2013 Đ.36/Đ.29 requires the
             company name, address, ERC and contacts displayed on the site. Values
             come from src/lib/site-legal.ts (placeholders until the ERC is issued). */}
