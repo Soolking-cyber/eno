@@ -26,11 +26,33 @@ export class PublishBlockedError extends Error {
 // are handled by REPORTS, not a word filter.) Matched on the accent-folded text with WORD
 // BOUNDARIES so "súng"(sung)→gun never trips "Samsung", and multi-word terms ("súng đạn")
 // avoid single-word collisions. Easy to extend.
+// Expanded 2026-07-06 to match the published /prohibited policy (Weapons Law
+// 42/2024 support tools, Resolution 173/2024 vapes, P2P medicine ban, CITES,
+// PDPL data-trading ban, SIM/invoice/lending). Every term is multi-word or
+// unambiguous after folding — collision-checked ("bang gia" would hit "bảng
+// giá" price lists, "lam bang" hits "làm bằng gỗ", "ruou vang" hits "tủ rượu
+// vang" wine fridges — all deliberately EXCLUDED; those rely on reports).
 const BANNED_WORDS = [
-  'ma tuy', 'can sa', 'heroin', 'cocaine', 'thuoc lac', 'ketamine', 'meth', 'thuoc phien',
-  'vu khi', 'sung dan', 'chat no', 'thuoc no', 'luu dan',
+  // drugs
+  'ma tuy', 'can sa', 'heroin', 'cocaine', 'thuoc lac', 'ketamine', 'meth', 'thuoc phien', 'bong cuoi',
+  // weapons, explosives, fireworks, support tools
+  'vu khi', 'sung dan', 'chat no', 'thuoc no', 'luu dan', 'phao no', 'phao hoa',
+  'roi dien', 'sung dien', 'binh xit hoi cay', 'con nhi khuc', 'kiem nhat',
+  // prostitution / porn
   'mai dam', 'mua dam', 'ban dam', 'khieu dam', 'porn', 'escort', 'gai goi',
-  'rua tien', 'the cao lau', 'bang lai gia', 'giay to gia',
+  // fraud, documents, money, lending
+  'rua tien', 'the cao lau', 'bang lai gia', 'giay to gia', 'tien gia',
+  'hoa don do', 'hoa don vat', 'dao han ngan hang', 'cho vay nong', 'doi no thue', 'vang mieng',
+  // medicines (no lawful P2P route exists)
+  'thuoc ke don', 'thuoc khang sinh', 'thuoc giam can', 'thuoc kich duc', 'thuoc me', 'thuoc ngu',
+  // tobacco & vapes (banned goods since 1 Jan 2025)
+  'thuoc la dien tu', 'vape', 'pod chill', 'tinh dau pod', 'shisha', 'thuoc la nung nong',
+  // wildlife (CITES)
+  'nga voi', 'sung te giac', 'cao ho', 'mat gau', 'vay te te', 'dong vat hoang da',
+  // SIMs & personal data
+  'sim kich hoat san', 'sim rac', 'danh sach khach hang', 'data khach hang',
+  // covert surveillance
+  'camera nguy trang', 'camera quay len', 'thiet bi nghe len',
 ].map((w) => fold(w))
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const BANNED_RE = new RegExp(`\\b(${BANNED_WORDS.map(escapeRe).join('|')})\\b`)

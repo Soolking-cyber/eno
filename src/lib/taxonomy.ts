@@ -686,7 +686,6 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'photography', name: 'Photography', nameVi: 'Chụp ảnh', icon: 'Camera', keywords: ['photographer', 'photography', 'video', 'chụp ảnh', 'quay phim'] },
       { slug: 'childcare', name: 'Childcare', nameVi: 'Trông trẻ', icon: 'Baby', keywords: ['nanny', 'babysitter', 'childcare', 'trông trẻ', 'giữ trẻ'] },
       { slug: 'pet-services', name: 'Pets', nameVi: 'Thú cưng', icon: 'PawPrint', keywords: ['pet grooming', 'pet sitting', 'vet', 'grooming', 'thú y', 'chăm sóc thú cưng'] },
-      { slug: 'financial', name: 'Finance', nameVi: 'Tài chính', icon: 'Landmark', keywords: ['insurance', 'financial', 'remittance', 'bảo hiểm', 'tài chính'] },
       { slug: 'service-other', name: 'Other', nameVi: 'Khác', icon: 'Shapes', keywords: ['other', 'khác'] },
     ],
     facets: [

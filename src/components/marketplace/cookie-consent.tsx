@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/context/language-context'
-import { getConsent, setConsent } from '@/lib/consent'
+import { getConsent, setConsent, syncConsentCookie } from '@/lib/consent'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -37,7 +37,9 @@ export function CookieConsent() {
   const [perso, setPerso] = useState(true)
   const [ads, setAds] = useState(true)
 
-  useEffect(() => { if (getConsent() === null) setShow(true) }, [])
+  // Mirror any pre-cookie-era consent into the server-readable cookie, then
+  // only prompt users who have never chosen.
+  useEffect(() => { syncConsentCookie(); if (getConsent() === null) setShow(true) }, [])
   if (!show) return null
 
   const close = () => setShow(false)

@@ -7,11 +7,16 @@ import { hasAdConsent } from '@/lib/consent'
 // Google Analytics (GA4) only. The Meta Pixel was removed (heaviest 3rd-party,
 // ~233 KiB; only useful for paid Meta-ad retargeting — re-add if you run Meta ads).
 //
-// GA is NOT injected until the user FIRST INTERACTS (pointer/key/touch/scroll),
-// with an idle fallback — so ~155 KiB of vendor JS never competes with
-// hydration/LCP/TBT, and Lighthouse (which never interacts) sees a clean critical
-// path. Real users get analytics within a frame of engaging; gtag self-queues so a
-// PageView is never dropped. Helpers in lib/analytics.ts guard window.gtag.
+// CONSENT: GA is a third-party tracker, and the PDP Law 91/2025 classifies
+// cyberspace behavioral data as SENSITIVE personal data needing explicit opt-in
+// (compliance audit 2026-07-06) — so BOTH tags load only with the 'all' consent
+// tier, reactively the instant the user grants it. No consent → zero third-party JS.
+//
+// GA is additionally NOT injected until the user FIRST INTERACTS (pointer/key/
+// touch/scroll), with an idle fallback — so ~155 KiB of vendor JS never competes
+// with hydration/LCP/TBT, and Lighthouse (which never interacts) sees a clean
+// critical path. gtag self-queues so a PageView is never dropped. Helpers in
+// lib/analytics.ts guard window.gtag.
 //   NEXT_PUBLIC_GA_ID e.g. G-XXXXXXXXXX (env overrides the public default below)
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-CKTZK62B0X'
 // Meta Pixel (ad-network retargeting) — OFF unless an id is configured AND the visitor
@@ -56,7 +61,7 @@ export function AnalyticsTags() {
 
   return (
     <>
-      {GA_ID && (
+      {adConsent && GA_ID && (
         <>
           <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="lazyOnload" />
           <Script id="ga-init" strategy="lazyOnload">

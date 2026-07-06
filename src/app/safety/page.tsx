@@ -10,7 +10,7 @@ const tips = [
   ['Never pay a deposit via links', 'eno.vn never asks for deposits through chat links. Treat any such request as a scam.'],
   ['Prefer trusted sellers', 'Trust badges are earned from real activity — verified accounts, good reviews, clean track records. Higher-trust sellers rank first.'],
   ['Keep chats on the record', 'Use messaging so there’s a record of what was agreed. Be wary of pressure to move off-platform.'],
-  ['Report anything suspicious', 'See a too-good-to-be-true price or a fake-looking post? Report it and we’ll review.'],
+  ['Report anything suspicious', 'See a too-good-to-be-true price or a fake-looking post? Report it and we’ll review. Every report is acknowledged within 3 working days, and confirmed violations carry real trust penalties.'],
 ]
 
 export default function SafetyPage() {

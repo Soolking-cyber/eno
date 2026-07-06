@@ -19,6 +19,7 @@ import { InstallHint } from "@/components/marketplace/install-hint";
 import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
+import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
@@ -156,6 +157,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} antialiased bg-background text-foreground`}
       >
+        <PrelaunchNotice />
         <ThemeProvider>
           <LanguageProvider>
             <SkipLink />

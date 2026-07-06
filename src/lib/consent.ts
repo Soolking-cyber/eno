@@ -37,10 +37,28 @@ export function getConsent(): ConsentLevel | null {
   return null
 }
 
+// Mirror the choice into a cookie so the SERVER can see it: server-side Meta CAPI
+// events are personal-data processing under the PDP Law 91/2025 and require the
+// same opt-in as the browser pixel (compliance audit 2026-07-06). localStorage is
+// invisible to API routes; this cookie is the bridge. Fail-closed on the server:
+// no cookie → no ad events.
+function writeConsentCookie(level: string): void {
+  try {
+    document.cookie = `${CONSENT_KEY}=${level}; path=/; max-age=31536000; SameSite=Lax`
+  } catch { /* noop */ }
+}
+
+// One-time migration for users who consented before the cookie mirror existed.
+export function syncConsentCookie(): void {
+  const v = read()
+  if (v && typeof document !== 'undefined' && !document.cookie.includes(`${CONSENT_KEY}=`)) writeConsentCookie(v)
+}
+
 // Persist the choice + broadcast it so live components (analytics tags, the For You
 // rail) react without a reload. Defaults to 'all' so a legacy no-arg call still grants
 // everything.
 export function setConsent(level: ConsentLevel = 'all'): void {
   try { localStorage.setItem(CONSENT_KEY, level) } catch { /* private mode — nothing to do */ }
+  writeConsentCookie(level)
   try { window.dispatchEvent(new CustomEvent('eno:consent', { detail: level })) } catch { /* noop */ }
 }

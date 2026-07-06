@@ -2,6 +2,7 @@
 
 import { Facebook, Instagram, Youtube } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { COMPANY } from '@/lib/site-legal'
 
 export function Footer() {
   const { tr } = useLanguage()
@@ -21,6 +22,8 @@ export function Footer() {
         { label: tr('About us', 'Giới thiệu'), href: '/about' },
         { label: tr('How it works', 'Cách hoạt động'), href: '/guide' },
         { label: tr('How trust works', 'Điểm uy tín hoạt động thế nào'), href: '/trust' },
+        { label: tr('Operating regulations', 'Quy chế hoạt động'), href: '/regulations' },
+        { label: tr('Prohibited items', 'Hàng hóa & dịch vụ cấm'), href: '/prohibited' },
       ],
     },
     {
@@ -80,7 +83,18 @@ export function Footer() {
           </div>
         </nav>
 
-        <div className="mt-10 flex flex-col items-center justify-between gap-2 pt-5 text-xs text-body sm:flex-row">
+        {/* Legal identity of the operator — Decree 52/2013 Đ.36/Đ.29 requires the
+            company name, address, ERC and contacts displayed on the site. Values
+            come from src/lib/site-legal.ts (placeholders until the ERC is issued). */}
+        <div className="mt-10 space-y-1 pt-5 text-[11px] leading-relaxed text-body">
+          <p className="font-semibold text-muted-foreground">{COMPANY.name}</p>
+          <p>{tr('Head office', 'Trụ sở')}: {COMPANY.address}</p>
+          <p>{tr('Business registration no.', 'GCN ĐKDN số')}: {COMPANY.erc} · {tr('issued', 'cấp')}: {COMPANY.ercIssued}</p>
+          <p>Email: <a href={`mailto:${COMPANY.email}`} className="transition-colors hover:text-accent-foreground">{COMPANY.email}</a> · {tr('Phone', 'Điện thoại')}: {COMPANY.phone}</p>
+          <p className="text-ink-4">{tr('E-commerce platform registration with the Ministry of Industry and Trade: in progress.', 'Đăng ký sàn giao dịch TMĐT với Bộ Công Thương: đang thực hiện.')}</p>
+        </div>
+
+        <div className="mt-6 flex flex-col items-center justify-between gap-2 pt-5 text-xs text-body sm:flex-row">
           <p className="flex items-center gap-1.5">
             <span>© {new Date().getFullYear()} eno.vn — {tr('All rights reserved.', 'Mọi quyền được bảo lưu.')}</span>
             <span aria-hidden="true">·</span>
@@ -89,6 +103,7 @@ export function Footer() {
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
             <a href="/terms" className="transition-colors hover:text-accent-foreground">{tr('Terms', 'Điều khoản')}</a>
             <a href="/privacy" className="transition-colors hover:text-accent-foreground">{tr('Privacy', 'Quyền riêng tư')}</a>
+            <a href="/regulations" className="transition-colors hover:text-accent-foreground">{tr('Regulations', 'Quy chế')}</a>
           </div>
         </div>
       </div>

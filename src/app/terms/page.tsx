@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
+import { COMPANY } from '@/lib/site-legal'
 
 export const metadata: Metadata = { title: 'Terms of Service | eno.vn' }
 
@@ -8,7 +9,7 @@ const sections: [string, string[]][] = [
   [
     'Acceptance',
     [
-      'These Terms govern your use of eno.vn, a verified classifieds marketplace. By accessing or using eno.vn you agree to these Terms. If you do not agree, please do not use the service.',
+      `These Terms govern your use of eno.vn, a classifieds marketplace operated by ${COMPANY.name} (${COMPANY.address}). By accessing or using eno.vn you agree to these Terms and to the Operating Regulations published at /regulations, which form part of them. If you do not agree, please do not use the service.`,
     ],
   ],
   [
@@ -21,7 +22,7 @@ const sections: [string, string[]][] = [
     'Listings and conduct',
     [
       'You are solely responsible for the accuracy and legality of the listings and content you post. You agree to provide truthful information and real photos, and to honour the prices you advertise.',
-      'You may not post illegal, counterfeit, stolen, unsafe or prohibited items, nor engage in scams, bait pricing, harassment, spam, or any unlawful activity. We may remove listings and suspend accounts that violate these Terms.',
+      'You may not post illegal, counterfeit, stolen, unsafe or prohibited items (the full list is published at /prohibited), nor engage in scams, bait pricing, harassment, spam, or any unlawful activity. All prices must be listed in Vietnamese dong (VND), tax inclusive. We may remove listings and suspend accounts that violate these Terms.',
     ],
   ],
   [
@@ -55,9 +56,15 @@ const sections: [string, string[]][] = [
     ],
   ],
   [
+    'Governing law and disputes',
+    [
+      'These Terms and your use of eno.vn are governed by the law of Vietnam. Disputes between you and eno.vn that cannot be settled amicably are submitted to the competent court in Ho Chi Minh City, Vietnam; consumers keep every protection Vietnamese consumer-protection law grants them, including the right to complain to consumer-protection authorities and organizations. Disputes between buyers and sellers are between those parties — the complaint process in the Operating Regulations describes how we assist.',
+    ],
+  ],
+  [
     'Changes and contact',
     [
-      'We may update these Terms from time to time; continued use after changes means you accept them. Questions? Email support@eno.vn.',
+      `We may update these Terms from time to time; changes are announced on the platform at least 5 days before taking effect, and continued use after that means you accept them. Questions? Email ${COMPANY.email}.`,
     ],
   ],
 ]
@@ -69,7 +76,7 @@ export default function TermsPage() {
       title="Terms of Service"
       meta={
         <>
-          <p className="mt-3 text-sm text-ink-4"><Tr text="Last updated: June 2026" /></p>
+          <p className="mt-3 text-sm text-ink-4"><Tr text="Last updated: July 2026" /></p>
           <p className="mt-2 max-w-3xl text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of these terms is the authoritative one." /></p>
         </>
       }

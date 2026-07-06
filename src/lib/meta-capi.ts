@@ -48,6 +48,10 @@ export type MetaUserData = {
   userAgent?: string | null
   fbp?: string | null // _fbp cookie — sent raw (not hashed)
   fbc?: string | null // _fbc cookie — sent raw (not hashed)
+  /** Ad-network consent read from the eno-cookie-consent cookie ('all' tier).
+   *  PDP Law 91/2025 makes server-side conversion events the same opt-in
+   *  processing as a browser pixel — sendMetaCapiEvent FAILS CLOSED on this. */
+  adConsent?: boolean
 }
 
 function userDataPayload(u: MetaUserData): Record<string, unknown> {
@@ -76,7 +80,14 @@ export function metaUserDataFromHeaders(
     const m = cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'))
     return m ? decodeURIComponent(m[1]) : undefined
   }
-  return { clientIp: ip, userAgent: ua, fbp: read('_fbp'), fbc: read('_fbc'), ...extra }
+  return {
+    clientIp: ip,
+    userAgent: ua,
+    fbp: read('_fbp'),
+    fbc: read('_fbc'),
+    adConsent: read('eno-cookie-consent') === 'all',
+    ...extra,
+  }
 }
 
 export type MetaEventOpts = {
@@ -87,8 +98,12 @@ export type MetaEventOpts = {
 }
 
 // Best-effort: never throws, never blocks. Call inside `after()`. No-op until configured.
+// CONSENT-GATED (fail closed): only fires when the request carried the 'all'-tier
+// consent cookie (userData must come from metaUserDataFromHeaders). A user who never
+// consented — or whose cookie predates the mirror — sends nothing.
 export async function sendMetaCapiEvent(eventName: string, opts: MetaEventOpts = {}): Promise<void> {
   if (!metaCapiConfigured()) return
+  if (opts.userData?.adConsent !== true) return
   const body = {
     data: [
       {
