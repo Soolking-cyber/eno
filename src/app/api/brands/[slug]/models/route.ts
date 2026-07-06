@@ -8,7 +8,9 @@ export const runtime = 'nodejs'
 // scoped to a category (the rail's current context). Ranked by listing count.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const category = new URL(req.url).searchParams.get('category')?.trim()
+  const sp = new URL(req.url).searchParams
+  const category = sp.get('category')?.trim()
+  const subcategory = sp.get('subcategory')?.trim()
 
   const grouped = await db.listing.groupBy({
     by: ['model'],
@@ -18,6 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       brandSlug: slug,
       model: { not: null },
       ...(category && category !== 'all' ? { category: { slug: category } } : {}),
+      ...(subcategory && subcategory !== 'all' ? { subcategorySlug: subcategory } : {}),
     },
     _count: { _all: true },
     _sum: { views: true, contactCount: true },

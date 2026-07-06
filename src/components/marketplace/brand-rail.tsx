@@ -15,12 +15,14 @@ type BrandItem = { slug: string; name: string; count: number; iconPath: string |
 // rail's interaction + the home grid's flat look.
 export function BrandRail({
   category,
+  subcategory = 'all',
   activeBrand,
   activeModel,
   onPickBrand,
   onPickModel,
 }: {
   category: string
+  subcategory?: string
   activeBrand: string
   activeModel: string
   onPickBrand: (slug: string) => void
@@ -30,6 +32,10 @@ export function BrandRail({
   const railRef = useRef<HTMLDivElement>(null)
   const [brands, setBrands] = useState<BrandItem[]>([])
   const [models, setModels] = useState<{ model: string; count: number }[]>([])
+  // Read through refs inside the fetch effects so validating the CURRENT pick
+  // doesn't add it to the deps (which would refetch on every brand/model tap).
+  const pick = useRef({ activeBrand, activeModel, onPickBrand, onPickModel })
+  pick.current = { activeBrand, activeModel, onPickBrand, onPickModel }
 
   // Slide the rail so the chosen brand sits at the left edge, models rolled out beside it.
   useEffect(() => {
@@ -47,23 +53,40 @@ export function BrandRail({
 
   useEffect(() => {
     let off = false
-    fetch(`/api/brands?category=${encodeURIComponent(category)}&limit=40`)
+    fetch(`/api/brands?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}&limit=40`)
       .then((r) => r.json())
-      .then((d) => { if (!off) setBrands(d.brands || []) })
+      .then((d) => {
+        if (off) return
+        const list: BrandItem[] = d.brands || []
+        setBrands(list)
+        // Hierarchy is category → subcategory → brand → model: a brand picked
+        // under one scope may not exist in the next (Honda under Motorbike →
+        // switch to Bicycle). Clear it instead of filtering the feed to zero.
+        const { activeBrand: cur, onPickBrand: pb, onPickModel: pm } = pick.current
+        if (cur !== 'all' && !list.some((b) => b.slug === cur)) { pb('all'); pm('all') }
+      })
       .catch(() => { if (!off) setBrands([]) })
     return () => { off = true }
-  }, [category])
+  }, [category, subcategory])
 
   useEffect(() => {
     if (activeBrand === 'all') { setModels([]); return }
     let off = false
     setModels([])
-    fetch(`/api/brands/${encodeURIComponent(activeBrand)}/models?category=${encodeURIComponent(category)}`)
+    fetch(`/api/brands/${encodeURIComponent(activeBrand)}/models?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}`)
       .then((r) => r.json())
-      .then((d) => { if (!off) setModels(d.models || []) })
+      .then((d) => {
+        if (off) return
+        const list: { model: string; count: number }[] = d.models || []
+        setModels(list)
+        // Same healing one level down: a model picked under one scope may not
+        // exist for this (brand, category, subcategory) — drop the stale pick.
+        const { activeModel: cur, onPickModel: pm } = pick.current
+        if (cur !== 'all' && !list.some((m) => m.model === cur)) pm('all')
+      })
       .catch(() => {})
     return () => { off = true }
-  }, [activeBrand, category])
+  }, [activeBrand, category, subcategory])
 
   if (brands.length === 0) return null
 

@@ -17,17 +17,26 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const q = normalizeBrand(searchParams.get('q') || '')
   const category = searchParams.get('category')?.trim()
+  const subcategory = searchParams.get('subcategory')?.trim()
   const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 60, 1), 200)
 
   let rows: { slug: string; name: string; iconSlug: string | null; logoPath: string | null; count: number }[]
 
   if (category && category !== 'all') {
-    // Brands present in this category's live listings (rail context), ranked by
-    // live DEMAND (views + weighted contacts) so the most-wanted brands lead;
-    // falls back to listing count when there's no traffic yet.
+    // Brands present in this category's (and, when set, subcategory's) live
+    // listings (rail context), ranked by live DEMAND (views + weighted contacts)
+    // so the most-wanted brands lead; falls back to listing count when there's
+    // no traffic yet. Subcategory scoping keeps the hierarchy honest: Bicycle
+    // must not offer Toyota just because both live under Vehicles.
     const grouped = await db.listing.groupBy({
       by: ['brandSlug'],
-      where: { verified: true, status: 'active', brandSlug: { not: null }, category: { slug: category } },
+      where: {
+        verified: true,
+        status: 'active',
+        brandSlug: { not: null },
+        category: { slug: category },
+        ...(subcategory && subcategory !== 'all' ? { subcategorySlug: subcategory } : {}),
+      },
       _count: { _all: true },
       _sum: { views: true, contactCount: true },
     })

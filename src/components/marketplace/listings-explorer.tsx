@@ -1753,11 +1753,12 @@ export function ListingsExplorer({
               onSubcategory={setActiveSubcategory}
             />
 
-            {/* Brand rail — brands present in this category (logo + name), tap to
-                filter + expand the brand's models in the catalogue. Brand categories only. */}
+            {/* Brand rail — brands present in this category + subcategory (logo +
+                name), tap to filter + expand the brand's models. Brand categories only. */}
             {categoryHasBrand(activeCategory) && (
               <BrandRail
                 category={activeCategory}
+                subcategory={activeSubcategory}
                 activeBrand={activeBrand}
                 activeModel={activeModel}
                 onPickBrand={setActiveBrand}
