@@ -23,12 +23,17 @@ export async function POST(req: NextRequest) {
     const files = form.getAll('files').filter((f): f is File => f instanceof File)
     if (files.length === 0) return NextResponse.json({ urls: [], failed: 0 })
 
+    // Listing photos get the eno wordmark BAKED IN (default) — "save image" keeps
+    // the mark; CSS shields don't survive a download. Avatars/shop logos
+    // (kind=avatar, sent by the profile editors) stay clean.
+    const watermark = String(form.get('kind') || 'listing') !== 'avatar'
+
     const urls: string[] = []
     let failed = 0
     for (const file of files.slice(0, 8)) {
       // Cheap pre-check on the client-provided type/size; the core re-decodes with sharp.
       if (!IMG_ALLOWED.has(file.type) || file.size === 0 || file.size > IMG_MAX_BYTES) { failed++; continue }
-      const url = await storeListingImage(Buffer.from(await file.arrayBuffer()))
+      const url = await storeListingImage(Buffer.from(await file.arrayBuffer()), { watermark })
       if (url) urls.push(url)
       else failed++
     }

@@ -32,6 +32,7 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
     try {
       file = await compressImageFile(file) // HEIC→JPEG + downscale so big photos don't 413
       const form = new FormData(); form.append('files', file)
+      form.append('kind', 'avatar') // profile photo — exempt from the listing watermark
       const res = await fetch('/api/upload', { method: 'POST', body: form })
       const d = await res.json()
       if (d.urls?.[0]) setAvatarUrl(d.urls[0]); else throw new Error('upload')
