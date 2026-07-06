@@ -303,7 +303,10 @@ function ListingCardImpl({
             spanning the photo so the icons distribute equally top→bottom. On lg the
             chat/offer/pin hide (they live in the left hover stack) and
             justify-between leaves the heart pinned top-right exactly as before. */}
-        <span className="absolute bottom-2 right-2 top-2 z-10 flex flex-col items-center justify-between">
+        <span className={cn(
+          'absolute bottom-2 right-2 top-2 z-10 flex flex-col items-center justify-between transition-all duration-200',
+          quickOffer !== null && 'max-lg:pointer-events-none max-lg:translate-x-8 max-lg:opacity-0',
+        )}>
           <button
             type="button"
             aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
@@ -348,11 +351,19 @@ function ListingCardImpl({
           )}
         </span>
 
-        {/* Mobile offer slide — centered panel (the lg stack has its own roll-out). */}
+        {/* Mobile offer slide — edge-to-edge panel; tapping anywhere outside it
+            closes the slider and the action icons glide back in from the right. */}
+        {quickOffer !== null && (
+          <span
+            aria-hidden
+            onClick={(e) => { e.stopPropagation(); setQuickOffer(null) }}
+            className="absolute inset-0 z-10 lg:hidden"
+          />
+        )}
         {quickOffer !== null && (
           <span
             onClick={(e) => e.stopPropagation()}
-            className="absolute left-11 right-11 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 lg:hidden"
+            className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 lg:hidden"
           >
             <span className="flex items-center gap-2">
               <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
