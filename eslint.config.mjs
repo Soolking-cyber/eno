@@ -71,6 +71,45 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
+  // ── i18n gate ──────────────────────────────────────────────────────────────────
+  // Every user-facing string must go through tr()/t()/<Tr> (2026-07-06 i18n audit:
+  // raw JSX literals ship English to 9 machine-translated languages and regress
+  // silently). This FAILS CI on raw text typed directly into JSX. Fix = wrap it:
+  //   <span>Hello</span>  →  <span>{tr('Hello', 'Xin chào')}</span>
+  // Strings in expressions/props are not flagged (ignoreProps) — the rule targets
+  // the common raw-text case. After adding copy, ALSO run
+  // `node scripts/gen-ui-strings.mjs` (CI checks freshness).
+  // EXEMPT (intentionally English): /developers + developers-panel (API docs incl.
+  // literal header names), the EN-SEO landing components (they target English
+  // search queries), and /admin (staff-only).
+  files: ["src/components/**/*.tsx", "src/app/**/*.tsx"],
+  ignores: [
+    "src/app/developers/**",
+    "src/components/marketplace/developers-panel.tsx",
+    "src/components/marketplace/seo-landing.tsx",
+    "src/app/admin/**",
+    "src/components/admin/**",
+  ],
+  rules: {
+    "react/jsx-no-literals": ["error", {
+      noStrings: true,
+      ignoreProps: true,          // props are usually code (className, ids); label props reviewed
+      noAttributeStrings: false,
+      allowedStrings: [
+        // symbols / punctuation / units that read the same in every language
+        "·", "—", "–", "-", "•", "…", "/", "|", "+", "%", "°", "★", "☆", "✓", "×", "→", "←", "@",
+        "(", ")", ":", ",", ".", "?", "!", "&", "#",
+        "VND", "₫", "km", "m²", "cc", "L", "kg", "GB", "TB", "MB",
+        "1 km", "20 km", "=", "−", "↓", "©", "“", "”", "💰", "❤️", "+000",
+        "×1,000", "×1,000,000", "×1,000,000,000",
+        "support@eno.vn", "eno.vn/", "eno.vn ·", "eno.vn —", ") · Email:", "Email:",
+        // brand / proper nouns
+        "eno", "eno.vn", "Zalo", "WhatsApp", "Telegram", "Facebook", "Instagram", "YouTube", "Google",
+        "DELETE", // the typed deletion keyword — must NOT be translated
+      ],
+    }],
+  },
+}, {
   // Playwright fixtures receive a `use(...)` callback that is NOT the React `use` hook;
   // the react-hooks plugin misfires on it. E2E specs are not React components.
   files: ["e2e/**"],

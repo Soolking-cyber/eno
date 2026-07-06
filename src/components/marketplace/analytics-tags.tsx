@@ -1,3 +1,4 @@
+/* eslint-disable react/jsx-no-literals -- inline <Script> bodies are JS code, not user-facing copy */
 'use client'
 
 import Script from 'next/script'

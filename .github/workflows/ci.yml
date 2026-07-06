@@ -37,5 +37,13 @@ jobs:
       - name: Lint
         run: npx eslint .
 
+      # i18n freshness: the pre-warm batch (ui-strings.ts) must include every UI
+      # string, or new copy ships English to the 9 machine-translated languages.
+      # Fails when someone adds copy without running `node scripts/gen-ui-strings.mjs`.
+      - name: i18n string harvest is fresh
+        run: |
+          node scripts/gen-ui-strings.mjs
+          git diff --exit-code src/generated/ui-strings.ts || (echo '::error::src/generated/ui-strings.ts is stale — run `node scripts/gen-ui-strings.mjs` and commit it.' && exit 1)
+
       - name: Test
         run: npx vitest run

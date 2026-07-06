@@ -1,3 +1,4 @@
+/* eslint-disable react/jsx-no-literals -- deliberately bilingual (VI+EN shown simultaneously per ND52 test-operation notice) */
 import { PRELAUNCH } from '@/lib/site-legal'
 
 // Always-visible pre-launch notice (both languages at once, deliberately NOT

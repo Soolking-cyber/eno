@@ -1174,6 +1174,7 @@ export function ListingsExplorer({
           <div className="pb-2 text-center">
             <div className="flex flex-col items-center justify-center mb-4 sm:mb-6">
               {/* SEO: a real <h1> with the exact brand phrase (the logo is an image). */}
+              {/* eslint-disable-next-line react/jsx-no-literals -- SEO brand phrase, intentionally EN */}
               <h1 className="sr-only">eno.vn — Trusted Expat Marketplace in Vietnam</h1>
               <LogoWordmark className="h-14 w-auto mb-2 select-none sm:h-20 sm:mb-4" />
               <p className="eyebrow text-body">

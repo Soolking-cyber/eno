@@ -1,3 +1,4 @@
+/* eslint-disable react/jsx-no-literals -- error boundary renders OUTSIDE providers (no language context); deliberately bilingual EN·VI */
 'use client'
 
 import { useEffect } from 'react'
