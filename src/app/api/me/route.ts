@@ -10,6 +10,13 @@ export async function GET() {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ user: null })
   const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true, phone: true } })
+  // Public @handles (user + shop) for the settings editors and share UI.
+  const handles = await db.handle.findMany({
+    where: { OR: [{ profileId: profile.id }, ...(seller ? [{ sellerId: seller.id }] : [])] },
+    select: { handle: true, profileId: true },
+  })
+  const handle = handles.find((h) => h.profileId)?.handle ?? null
+  const shopHandle = handles.find((h) => !h.profileId)?.handle ?? null
   return NextResponse.json({
     user: {
       displayName: profile.displayName,
@@ -19,6 +26,8 @@ export async function GET() {
       avatarColor: profile.avatarColor,
       accountType: profile.accountType ?? null,
       businessName: profile.businessName ?? null,
+      handle,
+      shopHandle,
       sellerId: seller?.id ?? null,
       // Storefront contact for "post as" prefill.
       seller: seller ? { name: seller.name, phone: seller.phone } : null,

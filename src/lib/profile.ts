@@ -5,6 +5,7 @@ import { normalizePhone } from './phone'
 import { maskEmailHandle } from './utils'
 import { checkBanEvasion } from './enforcement'
 import { recordNewAccount, recordPhoneVerified, recomputeTrust } from './trust'
+import { autoClaimHandle } from './handle'
 
 /**
  * Idempotent: ensure the authenticated user has exactly one Profile row
@@ -52,6 +53,10 @@ export async function ensureProfile(user: User) {
   // Verification-gated onboarding: a new account starts below 100 (≈60) and earns
   // up via verification. Both calls are idempotent (applied once ever).
   await recordNewAccount(profile.id).catch(() => {})
+  // Public @handle from the display name ("Alex Doe" → @alex_doe), Telegram-style —
+  // editable later in Dashboard → Settings. Idempotent (skips if one exists);
+  // best-effort (never blocks login).
+  await autoClaimHandle({ profileId: profile.id }, profile.displayName)
   // A confirmed phone (e.g. phone-OTP signup) is the baseline trust step → +bonus.
   if (verifiedPhone) await recordPhoneVerified(profile.id).catch(() => {})
 

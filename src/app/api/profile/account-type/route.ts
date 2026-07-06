@@ -7,6 +7,7 @@ import { phoneTakenByOther } from '@/lib/phone-unique'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { parseAttributionCookie } from '@/lib/attribution'
 import { rateLimit } from '@/lib/ratelimit'
+import { autoClaimHandle } from '@/lib/handle'
 
 export const runtime = 'nodejs'
 
@@ -85,6 +86,10 @@ export async function POST(req: Request) {
         await db.seller.create({ data: { name: businessName!, ownerId: profile.id, responseRate: 100 } })
       }
     }
+    // Public @shopname from the business name ("Apple Store" → @apple_store) so the
+    // storefront is shareable as eno.vn/@apple_store. Idempotent + best-effort.
+    const s = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true } })
+    if (s) await autoClaimHandle({ sellerId: s.id }, s.name)
   }
 
   // First-touch acquisition channel for THIS signup (from the eno_attr cookie set on

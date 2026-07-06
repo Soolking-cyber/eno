@@ -23,6 +23,11 @@ export async function GET() {
   if (!gate.success) return NextResponse.json({ error: 'Too many requests — try again later' }, { status: 429 })
 
   const seller = await db.seller.findUnique({ where: { ownerId: profile.id } })
+  // Public @handles (user + shop) — part of "everything we hold".
+  const handles = await db.handle.findMany({
+    where: { OR: [{ profileId: profile.id }, ...(seller ? [{ sellerId: seller.id }] : [])] },
+    select: { handle: true, profileId: true, createdAt: true },
+  })
 
   const [listings, savedSearches, notifications, reviewsWritten, trustEvents, buyerConvos, sellerConvos, messages] = await Promise.all([
     seller ? db.listing.findMany({ where: { sellerId: seller.id } }) : Promise.resolve([]),
@@ -43,6 +48,7 @@ export async function GET() {
     exportedAt: new Date().toISOString(),
     note: 'Your eno.vn personal data. Trust/enforcement internals are summarized, not itemized.',
     account: profilePublicish,
+    handles: handles.map((h) => ({ handle: h.handle, kind: h.profileId ? 'user' : 'shop', createdAt: h.createdAt })),
     trustSummary: { score: trustScore, tier: trustTier, positiveInteractions },
     storefront: seller ?? null,
     listings,

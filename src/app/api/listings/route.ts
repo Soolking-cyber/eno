@@ -8,6 +8,7 @@ import { fold } from '@/lib/fold'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, PublishBlockedError } from '@/lib/publish-guard'
 import { localizeListingTitles } from '@/lib/translate'
+import { autoClaimHandle } from '@/lib/handle'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { getCurrentProfileId } from '@/lib/admin'
 import { postingGate } from '@/lib/enforcement'
@@ -539,6 +540,10 @@ export async function POST(req: NextRequest) {
             data: { name: contactName || 'eno.vn seller', phone: contactPhone, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
           })
     }
+
+    // Public @shopname for the (possibly just-created) storefront so it's shareable
+    // as eno.vn/@<name>. Idempotent (skips when one exists) + best-effort.
+    await autoClaimHandle({ sellerId: seller.id }, seller.name)
 
     // Enforcement ladder + probation (trust Phase 2): a held/suspended account can't
     // post, and a brand-new account (<30d AND <3 transactions) is capped on active

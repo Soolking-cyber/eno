@@ -69,6 +69,7 @@ model Profile {
   updatedAt   DateTime @updatedAt
 
   seller      Seller?                       // a user MAY own one storefront (FK on Seller.ownerId)
+  handle      Handle?                       // public @username (see model Handle)
 
   buyerConversations  Conversation[] @relation("BuyerConversations")
   sellerConversations Conversation[] @relation("SellerConversations")
@@ -172,8 +173,25 @@ model Seller {
   conversations Conversation[]
   apiKeys       ApiKey[]
   webhooks      WebhookEndpoint[]
+  handle        Handle?                     // public @shopname (see model Handle)
 
   @@index([ownerId])
+}
+
+// ── Public @handles (Telegram-style usernames) ──────────────────────────────────
+// ONE global namespace for users AND storefronts: the handle is the PRIMARY KEY,
+// so uniqueness across both owner kinds is a DB guarantee (no cross-table races).
+// A row belongs to EXACTLY ONE of profileId / sellerId (enforced in src/lib/handle.ts
+// — Prisma can't express XOR). Rows CASCADE with their owner, so deleting an account
+// or storefront frees the name. Canonical form: ^[a-z][a-z0-9_]{2,29}$ (lowercased
+// on claim). Public URL: eno.vn/@<handle> (src/app/[handle]/page.tsx).
+model Handle {
+  handle    String   @id
+  profileId String?  @unique @db.Uuid
+  profile   Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  sellerId  String?  @unique
+  seller    Seller?  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
 
 // Partner-API credential (Phase 1). A key acts FOR one shop (Seller); the owning

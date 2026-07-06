@@ -24,6 +24,7 @@ import { ProfileEditor } from '@/components/marketplace/profile-editor'
 import { reviewKey, todayStr } from './availability/availability-client'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { DeleteAccount } from '@/components/marketplace/delete-account'
+import { HandleSettings } from '@/components/marketplace/handle-settings'
 import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switcher'
 import { ChangeEmailForm } from '@/components/marketplace/change-email-form'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
@@ -412,6 +413,12 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             <div className="mt-3"><AccountTypeSwitcher isBusiness={isBusiness} businessName={d.profile.businessName} onSaved={refresh} /></div>
           </section>
         )}
+
+        {/* Public @handles — shareable eno.vn/@name links (user + shop) */}
+        <section className="mt-8">
+          <h2 className="h-section text-foreground">{tr('Handle', 'Tên định danh')}</h2>
+          <div className="mt-3"><HandleSettings /></div>
+        </section>
 
         {/* Reminders */}
         <section className="mt-8">

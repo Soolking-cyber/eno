@@ -13,6 +13,7 @@ import { AlertTriangle, BadgeCheck, ChevronLeft, Star, CalendarDays } from 'luci
 import { Tr } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { ReportButton } from '@/components/marketplace/report-button'
+import { HandleChip } from '@/components/marketplace/handle-chip'
 import { getEnforcement } from '@/lib/enforcement'
 import { getInitials } from '@/lib/utils'
 
@@ -25,6 +26,7 @@ const getSeller = cache((id: string) =>
     where: { id },
     include: {
       listings: { where: { verified: true, status: 'active' }, orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
+      handle: { select: { handle: true } }, // public @shopname → the shareable /@name link
     },
   }),
 )
@@ -118,6 +120,7 @@ export default async function SellerPage({ params }: Props) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="h-title text-foreground">{seller.name}</h1>
+              {seller.handle && <HandleChip handle={seller.handle.handle} />}
               {seller.ownerId && (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
                   <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
