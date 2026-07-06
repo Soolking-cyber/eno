@@ -275,21 +275,24 @@ function ListingCardImpl({
               {quickOffer !== null && (
                 <span
                   onClick={(e) => e.stopPropagation()}
-                  className="pointer-events-auto flex min-w-0 flex-1 items-center gap-1.5 rounded-full bg-card/95 py-1 pl-2.5 pr-1 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-left-2 fade-in duration-150"
+                  className="pointer-events-auto flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-left-2 fade-in duration-150"
                 >
-                  <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
-                  <input
-                    type="range"
-                    min={5} max={50} step={5}
-                    value={quickOffer}
-                    onChange={(e) => setQuickOffer(Number(e.target.value))}
-                    aria-label={tr('Discount', 'Mức giảm')}
-                    className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
-                  />
+                  <span className="flex items-center gap-2">
+                    <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
+                    <input
+                      type="range"
+                      min={5} max={50} step={5}
+                      value={quickOffer}
+                      onChange={(e) => setQuickOffer(Number(e.target.value))}
+                      aria-label={tr('Discount', 'Mức giảm')}
+                      className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
+                    />
+                  </span>
+                  {/* Full-width rectangular send — big VND amounts never overflow. */}
                   <button
                     type="button"
                     onClick={() => quickGo({ offerAmount: Math.round(listing.price * (1 - quickOffer / 100)) })}
-                    className="shrink-0 whitespace-nowrap rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+                    className="w-full whitespace-nowrap rounded-lg bg-primary px-2 py-1.5 text-[11px] font-bold tabular-nums text-white transition-colors hover:bg-brand-dark cursor-pointer"
                   >
                     {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency)} →
                   </button>
@@ -351,21 +354,23 @@ function ListingCardImpl({
         {quickOffer !== null && (
           <span
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-2 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5 rounded-full bg-card/95 py-1 pl-2.5 pr-1 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 lg:hidden"
+            className="absolute inset-x-2 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 lg:hidden"
           >
-            <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
-            <input
-              type="range"
-              min={5} max={50} step={5}
-              value={quickOffer}
-              onChange={(e) => setQuickOffer(Number(e.target.value))}
-              aria-label={tr('Discount', 'Mức giảm')}
-              className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
-            />
+            <span className="flex items-center gap-2">
+              <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
+              <input
+                type="range"
+                min={5} max={50} step={5}
+                value={quickOffer}
+                onChange={(e) => setQuickOffer(Number(e.target.value))}
+                aria-label={tr('Discount', 'Mức giảm')}
+                className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
+              />
+            </span>
             <button
               type="button"
               onClick={() => quickGo({ offerAmount: Math.round(listing.price * (1 - quickOffer / 100)) })}
-              className="shrink-0 whitespace-nowrap rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+              className="w-full whitespace-nowrap rounded-lg bg-primary px-2 py-1.5 text-[11px] font-bold tabular-nums text-white transition-colors hover:bg-brand-dark cursor-pointer"
             >
               {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency)} →
             </button>
