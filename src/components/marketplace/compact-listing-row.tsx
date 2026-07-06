@@ -9,6 +9,7 @@ import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { FavoriteHeart } from './favorite-heart'
 import { useLanguage, Tr } from '@/context/language-context'
+import { useLocalized } from './listing-content'
 import type { SerializedListingCard } from '@/lib/types'
 import { formatMoneyFull } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
@@ -31,7 +32,9 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
   const { lang, tr } = useLanguage()
   const router = useRouter()
   const cover = l.images[0]
-  const displayTitle = lang === 'vi' ? (l.titleVi || l.title) : l.title
+  // Embedded per-language title (titleI18n, warmed at post time) → instant, no
+  // API call; falls back to lazy MT for langs without an embedded value.
+  const displayTitle = useLocalized(l.title, l.titleVi, l.titleI18n)
   // Quick-offer: pressing the Tag rolls a discount slider open to the LEFT of the
   // action icons; confirm hands off to the composer's offer mode (?offer=N#contact).
   const [offer, setOffer] = useState<number | null>(null)
@@ -71,7 +74,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
       {/* One-liner: title on top, price · location · trust score on a tight meta line */}
       <div className="min-w-0 flex-1">
         <h4 className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline">
-          <Tr text={displayTitle} />
+          {displayTitle}
         </h4>
         <div className="mt-0.5 flex items-center gap-x-2 text-xs text-muted-foreground">
           <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 font-bold text-foreground" />

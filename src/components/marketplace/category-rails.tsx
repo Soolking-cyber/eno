@@ -6,7 +6,7 @@ import { ChevronRight } from 'lucide-react'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
-import { useLanguage } from '@/context/language-context'
+import { useLanguage, Tr } from '@/context/language-context'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 
 const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district', 'province', 'ward', 'condition', 'priceMin', 'priceMax']
@@ -43,7 +43,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
         <button onClick={() => onCategory(cat.slug)} className="group flex items-center gap-2 cursor-pointer">
           <CategoryIcon name={cat.icon} className="h-4 w-4 text-accent-foreground" />
           <span className="text-base font-bold text-foreground transition-colors group-hover:text-accent-foreground">
-            {lang === 'vi' ? cat.nameVi : cat.name}
+            <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
           </span>
         </button>
         <button onClick={() => onCategory(cat.slug)} className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">

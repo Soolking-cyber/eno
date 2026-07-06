@@ -12,6 +12,7 @@ import { useCurrency } from '@/context/currency-context'
 import type { Language } from '@/context/language-context'
 import { useLanguage } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
+import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
 import type { Nearby } from './area-filter'
 import { cn } from '@/lib/utils'
@@ -344,7 +345,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                     )}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-bold text-foreground">{lang === 'vi' ? (card.titleVi || card.title) : card.title}</span>
+                    <span className="block truncate text-xs font-bold text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></span>
                     <span className="block text-xs font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</span>
                   </span>
                 </button>
@@ -379,7 +380,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   </div>
                   <div className="p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="truncate text-sm font-bold text-foreground">{lang === 'vi' ? (card.titleVi || card.title) : card.title}</p>
+                      <p className="truncate text-sm font-bold text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></p>
                       <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>

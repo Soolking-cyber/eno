@@ -117,7 +117,7 @@ export function FacetBar({
     : typesFor(activeCategory)
   const typeOptions = LISTING_TYPES
     .filter((t) => typeValues.includes(t.value))
-    .map((t) => ({ value: t.value, label: lang === 'vi' ? t.labelVi : t.label }))
+    .map((t) => ({ value: t.value, label: tr(t.label, t.labelVi) }))
 
   const facets: ReactNode[] = []
 
@@ -277,7 +277,7 @@ export function FacetBar({
                     <button type="button" onClick={() => setActiveSubcategory('all')} className={segBtn(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
                     {subcats.map((s) => (
                       <button key={s.slug} type="button" onClick={() => setActiveSubcategory(activeSubcategory === s.slug ? 'all' : s.slug)} className={segBtn(activeSubcategory === s.slug)}>
-                        {lang === 'vi' ? s.nameVi : s.name}
+                        {tr(s.name, s.nameVi)}
                       </button>
                     ))}
                   </div>
@@ -285,10 +285,10 @@ export function FacetBar({
               )}
               {advFacets.map((f) => {
                 const value = facetValue(f)
-                const opts = f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))
+                const opts = f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
                 return (
                   <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{lang === 'vi' ? f.labelVi : f.label}</label>
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
                     {f.kind === 'range' && f.range ? (
                       <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacetValue(f, v)} />
                     ) : f.kind === 'toggle' ? (
@@ -305,7 +305,7 @@ export function FacetBar({
                           value={value}
                           onChange={(v) => setFacetValue(f, v)}
                           options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...opts]}
-                          placeholder={lang === 'vi' ? f.labelVi : f.label}
+                          placeholder={tr(f.label, f.labelVi)}
                           activeClassName="text-accent-foreground border-accent-foreground/35"
                         />
                       </div>

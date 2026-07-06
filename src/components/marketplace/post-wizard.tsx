@@ -698,7 +698,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               // brand/facets). To switch category, delete + repost.
               <div className="inline-flex items-center gap-1.5 rounded-xl bg-muted px-3.5 py-2 text-sm font-semibold text-body">
                 {cat && <CategoryIcon name={cat.icon} className="h-4 w-4 text-body" />}
-                {cat ? (lang === 'vi' ? cat.nameVi : cat.name) : categorySlug}
+                {cat ? tr(cat.name, cat.nameVi) : categorySlug}
                 <span className="ml-1 text-xs font-normal text-ink-4">{t('(không đổi khi sửa)', '(fixed when editing)')}</span>
               </div>
             ) : (
@@ -710,7 +710,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     className={cn('inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
                   >
                     <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')} />
-                    {lang === 'vi' ? c.nameVi : c.name}
+                    {tr(c.name, c.nameVi)}
                   </button>
                 ))}
               </div>
@@ -718,12 +718,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
             {categorySlug && typeOptions.length > 1 && (
               <Field label={t('Loại tin', 'Listing type')}>
-                <Chips options={LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => ({ value: lt.value, label: lang === 'vi' ? lt.labelVi : lt.label }))} value={listingType} onPick={setListingType} />
+                <Chips options={LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => ({ value: lt.value, label: tr(lt.label, lt.labelVi) }))} value={listingType} onPick={setListingType} />
               </Field>
             )}
             {categorySlug && subOptions.length > 0 && (
               <Field label={t('Danh mục con', 'Subcategory')}>
-                <Chips options={subOptions.map((s) => ({ value: s.slug, label: lang === 'vi' ? s.nameVi : s.name }))} value={subcategorySlug} onPick={(v) => setSubcategorySlug(v === subcategorySlug ? '' : v)} />
+                <Chips options={subOptions.map((s) => ({ value: s.slug, label: tr(s.name, s.nameVi) }))} value={subcategorySlug} onPick={(v) => setSubcategorySlug(v === subcategorySlug ? '' : v)} />
               </Field>
             )}
             {showBrand && (
@@ -801,11 +801,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 </Field>
               )}
               {attrFacets.map((f) => (
-                <Field key={f.key} label={lang === 'vi' ? f.labelVi : f.label}>
+                <Field key={f.key} label={tr(f.label, f.labelVi)}>
                   {f.kind === 'range' && f.range ? (
                     <RangeSpecInput range={f.range} value={ranges[f.key] ?? null} onChange={(v) => setRanges((prev) => ({ ...prev, [f.key]: v }))} />
                   ) : (
-                    <Chips options={f.options.map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))} value={attrs[f.key] || ''} onPick={(v) => setAttrs((prev) => ({ ...prev, [f.key]: prev[f.key] === v ? '' : v }))} />
+                    <Chips options={f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))} value={attrs[f.key] || ''} onPick={(v) => setAttrs((prev) => ({ ...prev, [f.key]: prev[f.key] === v ? '' : v }))} />
                   )}
                 </Field>
               ))}

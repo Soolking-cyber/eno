@@ -1,0 +1,632 @@
+[
+ {
+  "en": "Vehicles",
+  "context": "category tile (buy/sell vehicles: motorbikes, cars, bicycles, e-bikes; VI: Xe cộ)",
+  "translations": {
+   "zh-Hans": "车辆",
+   "ko": "차량/오토바이",
+   "ja": "車・バイク",
+   "ru": "Транспорт",
+   "km": "យានយន្ត",
+   "ms": "Kenderaan",
+   "th": "ยานพาหนะ",
+   "fr": "Véhicules",
+   "hi": "वाहन"
+  }
+ },
+ {
+  "en": "Rentals",
+  "context": "category tile (ALL rent intent: bikes, cars, rooms, apartments, hotels, offices; VI: Cho thuê)",
+  "translations": {
+   "zh-Hans": "租赁",
+   "ko": "렌탈/임대",
+   "ja": "レンタル・賃貸",
+   "ru": "Аренда",
+   "km": "សម្រាប់ជួល",
+   "ms": "Sewaan",
+   "th": "ให้เช่า",
+   "fr": "Locations",
+   "hi": "किराये पर"
+  }
+ },
+ {
+  "en": "Property",
+  "context": "category tile (real estate BUY/SELL only; VI: Nhà đất) — RU must be Недвижимость, never Свойства",
+  "translations": {
+   "zh-Hans": "房产",
+   "ko": "부동산",
+   "ja": "不動産",
+   "ru": "Недвижимость",
+   "km": "អចលនទ្រព្យ",
+   "ms": "Hartanah",
+   "th": "อสังหาริมทรัพย์",
+   "fr": "Immobilier",
+   "hi": "प्रॉपर्टी"
+  }
+ },
+ {
+  "en": "Moving",
+  "context": "category tile (moving-out/clearance sale of household goods, NOT relocation services; VI: Thanh lý)",
+  "translations": {
+   "zh-Hans": "搬家甩卖",
+   "ko": "이사 정리",
+   "ja": "引っ越しセール",
+   "ru": "Распродажа при переезде",
+   "km": "លក់ឥវ៉ាន់ផ្លាស់ផ្ទះ",
+   "ms": "Jualan Pindah",
+   "th": "ขายของย้ายบ้าน",
+   "fr": "Vide-maison",
+   "hi": "मूविंग सेल"
+  }
+ },
+ {
+  "en": "Home",
+  "context": "category tile (furniture, appliances, kitchen, decor, plants — household goods, NOT a house; VI: Nhà cửa)",
+  "translations": {
+   "zh-Hans": "家居",
+   "ko": "가구/인테리어",
+   "ja": "家具・インテリア",
+   "ru": "Для дома",
+   "km": "សម្ភារៈក្នុងផ្ទះ",
+   "ms": "Perabot & Barangan Rumah",
+   "th": "ของใช้ในบ้าน",
+   "fr": "Maison",
+   "hi": "घरेलू सामान"
+  }
+ },
+ {
+  "en": "Electronics",
+  "context": "category tile (phones, laptops, TVs, audio, cameras, gaming; VI: Điện tử)",
+  "translations": {
+   "zh-Hans": "电子产品",
+   "ko": "전자기기",
+   "ja": "家電・スマホ",
+   "ru": "Электроника",
+   "km": "គ្រឿងអេឡិចត្រូនិក",
+   "ms": "Elektronik",
+   "th": "อิเล็กทรอนิกส์",
+   "fr": "Électronique",
+   "hi": "इलेक्ट्रॉनिक्स"
+  }
+ },
+ {
+  "en": "Fashion",
+  "context": "category tile (clothing, shoes, bags, watches, beauty; VI: Thời trang)",
+  "translations": {
+   "zh-Hans": "时尚",
+   "ko": "패션",
+   "ja": "ファッション",
+   "ru": "Мода",
+   "km": "ម៉ូដ",
+   "ms": "Fesyen",
+   "th": "แฟชั่น",
+   "fr": "Mode",
+   "hi": "फ़ैशन"
+  }
+ },
+ {
+  "en": "Kids",
+  "context": "category tile (mother & baby / children's goods: strollers, toys, kids clothes, maternity; VI: Mẹ & Bé)",
+  "translations": {
+   "zh-Hans": "母婴",
+   "ko": "유아동",
+   "ja": "ベビー・キッズ",
+   "ru": "Детские товары",
+   "km": "ម្ដាយ និងទារក",
+   "ms": "Ibu & Bayi",
+   "th": "แม่และเด็ก",
+   "fr": "Enfants & bébés",
+   "hi": "बच्चों का सामान"
+  }
+ },
+ {
+  "en": "Hobbies",
+  "context": "category tile (sports/fitness gear + hobby items; VI: Sở thích)",
+  "translations": {
+   "zh-Hans": "兴趣爱好",
+   "ko": "취미/레저",
+   "ja": "趣味・スポーツ",
+   "ru": "Хобби и отдых",
+   "km": "ចំណង់ចំណូលចិត្ត",
+   "ms": "Sukan & Hobi",
+   "th": "กีฬาและงานอดิเรก",
+   "fr": "Loisirs",
+   "hi": "शौक"
+  }
+ },
+ {
+  "en": "Pets",
+  "context": "category tile (dogs, cats, adoption, supplies; VI: Thú cưng) — RU Питомцы already correct, pinned here",
+  "translations": {
+   "zh-Hans": "宠物",
+   "ko": "반려동물",
+   "ja": "ペット",
+   "ru": "Питомцы",
+   "km": "សត្វចិញ្ចឹម",
+   "ms": "Haiwan Peliharaan",
+   "th": "สัตว์เลี้ยง",
+   "fr": "Animaux",
+   "hi": "पालतू जानवर"
+  }
+ },
+ {
+  "en": "Jobs",
+  "context": "category tile (job listings: teaching, hospitality, IT…; VI: Việc làm)",
+  "translations": {
+   "zh-Hans": "招聘",
+   "ko": "일자리",
+   "ja": "求人",
+   "ru": "Работа",
+   "km": "ការងារ",
+   "ms": "Kerja Kosong",
+   "th": "งาน",
+   "fr": "Emploi",
+   "hi": "नौकरियां"
+  }
+ },
+ {
+  "en": "Services",
+  "context": "category tile (visa, lessons, cleaning, repairs…; VI: Dịch vụ)",
+  "translations": {
+   "zh-Hans": "服务",
+   "ko": "서비스",
+   "ja": "サービス",
+   "ru": "Услуги",
+   "km": "សេវាកម្ម",
+   "ms": "Perkhidmatan",
+   "th": "บริการ",
+   "fr": "Services",
+   "hi": "सेवाएं"
+  }
+ },
+ {
+  "en": "Community",
+  "context": "category tile (events, meetups, classes, lost & found, volunteering; VI: Cộng đồng)",
+  "translations": {
+   "zh-Hans": "社区",
+   "ko": "커뮤니티",
+   "ja": "コミュニティ",
+   "ru": "Сообщество",
+   "km": "សហគមន៍",
+   "ms": "Komuniti",
+   "th": "ชุมชน",
+   "fr": "Communauté",
+   "hi": "समुदाय"
+  }
+ },
+ {
+  "en": "Travel",
+  "context": "category tile (event tickets, tours, transport, visa runs; VI: Du lịch)",
+  "translations": {
+   "zh-Hans": "旅游",
+   "ko": "여행",
+   "ja": "旅行",
+   "ru": "Путешествия",
+   "km": "ដំណើរកម្សាន្ត",
+   "ms": "Pelancongan",
+   "th": "ท่องเที่ยว",
+   "fr": "Voyages",
+   "hi": "यात्रा"
+  }
+ },
+ {
+  "en": "Food",
+  "context": "category tile (F&B: homemade food, groceries, catering, coffee — NOT restaurant reviews; VI: Ẩm thực)",
+  "translations": {
+   "zh-Hans": "美食",
+   "ko": "식품",
+   "ja": "食品",
+   "ru": "Еда и напитки",
+   "km": "អាហារ",
+   "ms": "Makanan & Minuman",
+   "th": "อาหาร",
+   "fr": "Alimentation",
+   "hi": "खान-पान"
+  }
+ },
+ {
+  "en": "Free & Giveaways",
+  "context": "intent shortcut tile (taxonomy INTENT_SHORTCUTS; VI: Cho tặng miễn phí) — KO 무료나눔 and RU Отдам даром are the exact native classifieds terms",
+  "translations": {
+   "zh-Hans": "免费赠送",
+   "ko": "무료나눔",
+   "ja": "無料・譲ります",
+   "ru": "Отдам даром",
+   "km": "ចែកជូនឥតគិតថ្លៃ",
+   "ms": "Barang Percuma",
+   "th": "แจกฟรี",
+   "fr": "À donner",
+   "hi": "मुफ़्त"
+  }
+ },
+ {
+  "en": "Wanted / ISO",
+  "context": "intent shortcut tile (buy-request posts; VI: Cần mua / Tìm) — KO 삽니다 / RU Куплю are the native classifieds terms",
+  "translations": {
+   "zh-Hans": "求购",
+   "ko": "삽니다",
+   "ja": "買います・求む",
+   "ru": "Куплю / Ищу",
+   "km": "ចង់ទិញ",
+   "ms": "Dicari",
+   "th": "ต้องการซื้อ",
+   "fr": "Demandes",
+   "hi": "चाहिए"
+  }
+ },
+ {
+  "en": "Recently viewed",
+  "context": "homepage rail heading (recently-viewed-rail.tsx)",
+  "translations": {
+   "zh-Hans": "最近浏览",
+   "ko": "최근 본 상품",
+   "ja": "最近見た商品",
+   "ru": "Недавно просмотренные",
+   "km": "បានមើលថ្មីៗ",
+   "ms": "Dilihat baru-baru ini",
+   "th": "ดูล่าสุด",
+   "fr": "Vus récemment",
+   "hi": "हाल में देखे गए"
+  }
+ },
+ {
+  "en": "Saved",
+  "context": "saved-listings nav/page (5 langs match existing TR_OVERRIDES in language-context.tsx; km/ms/th/hi are new)",
+  "translations": {
+   "zh-Hans": "收藏",
+   "ko": "찜 목록",
+   "ja": "お気に入り",
+   "ru": "Избранное",
+   "km": "បានរក្សាទុក",
+   "ms": "Disimpan",
+   "th": "บันทึกไว้",
+   "fr": "Favoris",
+   "hi": "सेव किए गए"
+  }
+ },
+ {
+  "en": "Messages",
+  "context": "nav item / chat inbox",
+  "translations": {
+   "zh-Hans": "消息",
+   "ko": "채팅",
+   "ja": "メッセージ",
+   "ru": "Сообщения",
+   "km": "សារ",
+   "ms": "Mesej",
+   "th": "แชท",
+   "fr": "Messages",
+   "hi": "संदेश"
+  }
+ },
+ {
+  "en": "Notifications",
+  "context": "notification bell / panel heading",
+  "translations": {
+   "zh-Hans": "通知",
+   "ko": "알림",
+   "ja": "お知らせ",
+   "ru": "Уведомления",
+   "km": "ការជូនដំណឹង",
+   "ms": "Notifikasi",
+   "th": "การแจ้งเตือน",
+   "fr": "Notifications",
+   "hi": "सूचनाएं"
+  }
+ },
+ {
+  "en": "Post a listing",
+  "context": "header CTA button (header.postBtn) — RU/FR/MS/TH are the exact Avito/Leboncoin/Mudah/Kaidee button phrases",
+  "translations": {
+   "zh-Hans": "发布信息",
+   "ko": "글쓰기",
+   "ja": "投稿する",
+   "ru": "Разместить объявление",
+   "km": "ដាក់ផ្សាយ",
+   "ms": "Pasang iklan",
+   "th": "ลงประกาศ",
+   "fr": "Déposer une annonce",
+   "hi": "विज्ञापन डालें"
+  }
+ },
+ {
+  "en": "Search",
+  "context": "search button / nav action",
+  "translations": {
+   "zh-Hans": "搜索",
+   "ko": "검색",
+   "ja": "検索",
+   "ru": "Поиск",
+   "km": "ស្វែងរក",
+   "ms": "Cari",
+   "th": "ค้นหา",
+   "fr": "Rechercher",
+   "hi": "खोजें"
+  }
+ },
+ {
+  "en": "Filter",
+  "context": "filter button (opens facet panel) — JA must be 絞り込み not フィルター",
+  "translations": {
+   "zh-Hans": "筛选",
+   "ko": "필터",
+   "ja": "絞り込み",
+   "ru": "Фильтры",
+   "km": "តម្រង",
+   "ms": "Tapis",
+   "th": "ตัวกรอง",
+   "fr": "Filtrer",
+   "hi": "फ़िल्टर"
+  }
+ },
+ {
+  "en": "Filters",
+  "context": "facet panel heading (separate harvested key from Filter)",
+  "translations": {
+   "zh-Hans": "筛选",
+   "ko": "필터",
+   "ja": "絞り込み",
+   "ru": "Фильтры",
+   "km": "តម្រង",
+   "ms": "Penapis",
+   "th": "ตัวกรอง",
+   "fr": "Filtres",
+   "hi": "फ़िल्टर"
+  }
+ },
+ {
+  "en": "Price",
+  "context": "facet/sort label",
+  "translations": {
+   "zh-Hans": "价格",
+   "ko": "가격",
+   "ja": "価格",
+   "ru": "Цена",
+   "km": "តម្លៃ",
+   "ms": "Harga",
+   "th": "ราคา",
+   "fr": "Prix",
+   "hi": "कीमत"
+  }
+ },
+ {
+  "en": "Area",
+  "context": "KEY COLLISION: facet-bar location pill (Khu vực) AND taxonomy areaM2 m² facet (Diện tích) share this EN key — translations follow the more prominent LOCATION sense (TH พื้นที่ and HI क्षेत्र cover both); recommend splitting the key, m² sense would be 面积/면적/面積/Площадь/ផ្ទៃក្រឡា/Keluasan/พื้นที่ใช้สอย/Surface/क्षेत्रफल",
+  "translations": {
+   "zh-Hans": "区域",
+   "ko": "지역",
+   "ja": "エリア",
+   "ru": "Район",
+   "km": "តំបន់",
+   "ms": "Kawasan",
+   "th": "พื้นที่",
+   "fr": "Localisation",
+   "hi": "क्षेत्र"
+  }
+ },
+ {
+  "en": "Newest",
+  "context": "sort option (by date)",
+  "translations": {
+   "zh-Hans": "最新",
+   "ko": "최신순",
+   "ja": "新着順",
+   "ru": "Сначала новые",
+   "km": "ថ្មីបំផុត",
+   "ms": "Terbaru",
+   "th": "ใหม่ล่าสุด",
+   "fr": "Plus récentes",
+   "hi": "नवीनतम"
+  }
+ },
+ {
+  "en": "Popular",
+  "context": "sort option (by demand)",
+  "translations": {
+   "zh-Hans": "热门",
+   "ko": "인기순",
+   "ja": "人気順",
+   "ru": "Популярные",
+   "km": "ពេញនិយម",
+   "ms": "Popular",
+   "th": "ยอดนิยม",
+   "fr": "Populaires",
+   "hi": "लोकप्रिय"
+  }
+ },
+ {
+  "en": "Sort",
+  "context": "sort control label",
+  "translations": {
+   "zh-Hans": "排序",
+   "ko": "정렬",
+   "ja": "並び替え",
+   "ru": "Сортировка",
+   "km": "តម្រៀប",
+   "ms": "Susun",
+   "th": "เรียงตาม",
+   "fr": "Trier",
+   "hi": "सॉर्ट करें"
+  }
+ },
+ {
+  "en": "Make an offer",
+  "context": "price-offer button on listing card / chat composer — KO 가격 제안 and JA オファー are the exact Karrot/Mercari feature names",
+  "translations": {
+   "zh-Hans": "出价",
+   "ko": "가격 제안",
+   "ja": "オファーする",
+   "ru": "Предложить цену",
+   "km": "ស្នើតម្លៃ",
+   "ms": "Buat tawaran",
+   "th": "เสนอราคา",
+   "fr": "Faire une offre",
+   "hi": "ऑफ़र भेजें"
+  }
+ },
+ {
+  "en": "Chat with seller",
+  "context": "contact button on listing card — RU Написать продавцу / FR Contacter le vendeur are the exact Avito/Leboncoin phrases",
+  "translations": {
+   "zh-Hans": "联系卖家",
+   "ko": "판매자와 채팅",
+   "ja": "出品者とチャット",
+   "ru": "Написать продавцу",
+   "km": "ឆាតជាមួយអ្នកលក់",
+   "ms": "Chat dengan penjual",
+   "th": "แชทกับผู้ขาย",
+   "fr": "Contacter le vendeur",
+   "hi": "विक्रेता से चैट करें"
+  }
+ },
+ {
+  "en": "Add favorite",
+  "context": "heart button aria-label/tooltip on listing card",
+  "translations": {
+   "zh-Hans": "收藏",
+   "ko": "찜하기",
+   "ja": "お気に入りに追加",
+   "ru": "В избранное",
+   "km": "បន្ថែមទៅចំណូលចិត្ត",
+   "ms": "Tambah ke kegemaran",
+   "th": "เพิ่มในรายการโปรด",
+   "fr": "Ajouter aux favoris",
+   "hi": "पसंदीदा में जोड़ें"
+  }
+ },
+ {
+  "en": "Remove favorite",
+  "context": "same heart button, toggled state (favorite-heart.tsx / listing-card.tsx) — included so the toggle pair is consistent",
+  "translations": {
+   "zh-Hans": "取消收藏",
+   "ko": "찜 해제",
+   "ja": "お気に入りから削除",
+   "ru": "Убрать из избранного",
+   "km": "លុបចេញពីចំណូលចិត្ត",
+   "ms": "Buang dari kegemaran",
+   "th": "ลบออกจากรายการโปรด",
+   "fr": "Retirer des favoris",
+   "hi": "पसंदीदा से हटाएं"
+  }
+ },
+ {
+  "en": "Share",
+  "context": "share button on listing page",
+  "translations": {
+   "zh-Hans": "分享",
+   "ko": "공유",
+   "ja": "シェア",
+   "ru": "Поделиться",
+   "km": "ចែករំលែក",
+   "ms": "Kongsi",
+   "th": "แชร์",
+   "fr": "Partager",
+   "hi": "शेयर करें"
+  }
+ },
+ {
+  "en": "Report",
+  "context": "report-content action — RU must be Пожаловаться (not Отчёт), JA 通報 (not レポート), ZH 举报 (not 报告), FR Signaler (not Rapporter)",
+  "translations": {
+   "zh-Hans": "举报",
+   "ko": "신고",
+   "ja": "通報",
+   "ru": "Пожаловаться",
+   "km": "រាយការណ៍",
+   "ms": "Laporkan",
+   "th": "รายงาน",
+   "fr": "Signaler",
+   "hi": "रिपोर्ट करें"
+  }
+ },
+ {
+  "en": "Reviews",
+  "context": "seller reviews section — RU must be Отзывы (not Обзоры), FR Avis (not Critiques), ZH 评价 (not 评论)",
+  "translations": {
+   "zh-Hans": "评价",
+   "ko": "후기",
+   "ja": "評価",
+   "ru": "Отзывы",
+   "km": "ការវាយតម្លៃ",
+   "ms": "Ulasan",
+   "th": "รีวิว",
+   "fr": "Avis",
+   "hi": "रिव्यू"
+  }
+ },
+ {
+  "en": "Member since",
+  "context": "profile stat label rendered as PREFIX with year appended (e.g. 'Member since 2024') — all values chosen to read correctly before a trailing year; RU На сайте с is Avito's exact pattern",
+  "translations": {
+   "zh-Hans": "加入于",
+   "ko": "가입일",
+   "ja": "登録日",
+   "ru": "На сайте с",
+   "km": "សមាជិកតាំងពី",
+   "ms": "Ahli sejak",
+   "th": "สมาชิกตั้งแต่",
+   "fr": "Membre depuis",
+   "hi": "सदस्यता वर्ष"
+  }
+ },
+ {
+  "en": "Sold",
+  "context": "listing status badge (secondhand item sold, not out-of-stock)",
+  "translations": {
+   "zh-Hans": "已售出",
+   "ko": "판매완료",
+   "ja": "売却済み",
+   "ru": "Продано",
+   "km": "លក់ហើយ",
+   "ms": "Terjual",
+   "th": "ขายแล้ว",
+   "fr": "Vendu",
+   "hi": "बिक गया"
+  }
+ },
+ {
+  "en": "For rent",
+  "context": "listing intent badge (rooms, bikes, apartments)",
+  "translations": {
+   "zh-Hans": "出租",
+   "ko": "임대",
+   "ja": "貸します",
+   "ru": "Сдаётся",
+   "km": "សម្រាប់ជួល",
+   "ms": "Untuk disewa",
+   "th": "ให้เช่า",
+   "fr": "À louer",
+   "hi": "किराये के लिए"
+  }
+ },
+ {
+  "en": "For sale",
+  "context": "listing intent badge",
+  "translations": {
+   "zh-Hans": "出售",
+   "ko": "판매중",
+   "ja": "販売中",
+   "ru": "Продаётся",
+   "km": "សម្រាប់លក់",
+   "ms": "Untuk dijual",
+   "th": "ขาย",
+   "fr": "À vendre",
+   "hi": "बिक्री के लिए"
+  }
+ },
+ {
+  "en": "Trusted",
+  "context": "trust-tier badge for sellers (trust-progress.tsx; VI: Đáng tin cậy)",
+  "translations": {
+   "zh-Hans": "值得信赖",
+   "ko": "신뢰 인증",
+   "ja": "信頼できる",
+   "ru": "Надёжный",
+   "km": "អាចទុកចិត្តបាន",
+   "ms": "Dipercayai",
+   "th": "น่าเชื่อถือ",
+   "fr": "Fiable",
+   "hi": "विश्वसनीय"
+  }
+ }
+]

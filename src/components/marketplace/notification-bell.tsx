@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, X } from 'lucide-react'
 import { useNotifications } from '@/context/notifications-context'
 import { useAuth } from '@/context/auth-context'
-import { useLanguage } from '@/context/language-context'
+import { useLanguage, Tr } from '@/context/language-context'
 import { timeAgo } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -129,11 +129,11 @@ export function NotificationBell() {
                         <div className="flex items-center justify-between gap-2">
                           <span className={cn('flex min-w-0 items-center gap-1.5 truncate text-sm', n.read ? 'font-medium text-body' : 'font-bold text-foreground')}>
                             {!n.read && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-foreground" />}
-                            <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : n.title}</span>
+                            <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : <Tr text={n.title} />}</span>
                           </span>
                           <span className="shrink-0 text-[10px] text-ink-4">{timeAgo(n.createdAt, lang === 'vi' ? 'vi' : 'en')}</span>
                         </div>
-                        {n.body && <p className={cn('text-xs', n.type === 'system' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}>{n.body}</p>}
+                        {n.body && <p className={cn('text-xs', n.type === 'system' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}><Tr text={n.body} /></p>}
                       </div>
                     </Link>
                     {/* Delete — reveals on hover (desktop); always visible on touch */}

@@ -146,7 +146,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
           </>
         )}
       </svg>
-      {showLabel && <span className="text-sm font-bold" style={{ color }}>{lang === 'vi' ? labelVi : label}</span>}
+      {showLabel && <span className="text-sm font-bold" style={{ color }}>{tr(label, labelVi)}</span>}
     </span>,
   )
 }

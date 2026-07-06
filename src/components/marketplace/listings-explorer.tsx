@@ -94,7 +94,7 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
     <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none animate-pulse">
       <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand border-t-transparent" />
       <span className="text-[10px] font-bold text-body uppercase tracking-wider">
-        Loading Map...
+        <Tr text="Loading map…" />
       </span>
     </div>
   )
@@ -1349,7 +1349,7 @@ export function ListingsExplorer({
                                   onClick={() => { setShowSuggestions(false); handleCategorySelect(c.slug) }}
                                   className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
                                 >
-                                  {lang === 'vi' ? c.nameVi : c.name}
+                                  <Tr text={lang === 'vi' ? c.nameVi : c.name} />
                                 </button>
                               ))}
                             </div>
@@ -1408,7 +1408,7 @@ export function ListingsExplorer({
                     className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-brand"
                   />
                   <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
-                    {lang === 'vi' ? s.nameVi : s.name}
+                    <Tr text={lang === 'vi' ? s.nameVi : s.name} />
                   </span>
                   <span className="text-[11px] sm:text-xs text-body select-none font-semibold">
                     {s.type === 'free' ? tr('Giveaways', 'Miễn phí') : tr('In search of', 'Cần tìm')}
@@ -1661,7 +1661,7 @@ export function ListingsExplorer({
                   onClick={() => handleCategorySelect(c.slug)}
                   className="inline-flex items-center rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
                 >
-                  {lang === 'vi' ? c.nameVi : c.name}
+                  <Tr text={lang === 'vi' ? c.nameVi : c.name} />
                 </button>
               ))}
             </div>
