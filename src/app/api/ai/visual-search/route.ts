@@ -26,7 +26,11 @@ export async function POST(req: NextRequest) {
   const gate = await aiGuard('visual-search')
   if (!gate.ok) return gate.res
 
-  const form = await req.formData()
+  // A malformed/truncated multipart body (aborted mobile upload, wrong content-type)
+  // makes formData() throw — return 400, not an unhandled 500 the wizard mis-reports
+  // as "AI unavailable".
+  let form: FormData
+  try { form = await req.formData() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
   const file = form.get('file')
   if (!(file instanceof File)) return NextResponse.json({ error: 'no_file' }, { status: 400 })
   if (file.size === 0) return NextResponse.json({ error: 'empty_file' }, { status: 400 })

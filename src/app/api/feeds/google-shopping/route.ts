@@ -52,7 +52,7 @@ export async function GET(req: Request) {
   <channel>
     <title>eno.vn — Your Trusted Vietnam Network.</title>
     <link>${hostUrl}</link>
-    <description>Verified classifieds listings for expats. Moving sales, rentals, jobs and more.</description>
+    <description>Trusted classifieds listings for expats. Moving sales, rentals, jobs and more.</description>
     <language>vi-vn</language>
 `
 

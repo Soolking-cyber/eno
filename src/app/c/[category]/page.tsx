@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!cat) return {}
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   return {
-    title: `${cat.name} in Vietnam — Verified listings | eno.vn`,
+    title: `${cat.name} in Vietnam — Trusted listings | eno.vn`,
     description: `Browse ${cat.name.toLowerCase()} for expats in Vietnam. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`,
     alternates: { canonical: `${hostUrl}/c/${cat.slug}` },
   }

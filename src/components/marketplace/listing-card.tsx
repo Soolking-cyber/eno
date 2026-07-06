@@ -234,7 +234,7 @@ function ListingCardImpl({
                 aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
                 title={tr('Chat with seller', 'Nhắn tin với người bán')}
                 onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-                className="pointer-events-auto flex h-8 w-8 -translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
+                className="pointer-events-auto flex h-8 w-8 -translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
               >
                 <MessageCircle className="h-[20px] w-[20px]" />
               </button>
@@ -249,7 +249,7 @@ function ListingCardImpl({
                 aria-pressed={quickOffer !== null}
                 onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
                 className={cn(
-                  'pointer-events-auto flex h-8 w-8 shrink-0 -translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]',
+                  'pointer-events-auto flex h-8 w-8 shrink-0 -translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]',
                   quickOffer === null && 'delay-75 group-hover:delay-75',
                 )}
               >
@@ -291,7 +291,7 @@ function ListingCardImpl({
                 aria-label={tr('Show on map', 'Xem trên bản đồ')}
                 title={tr('Show on map', 'Xem trên bản đồ')}
                 onClick={(e) => { e.stopPropagation(); onLocate(listing) }}
-                className="pointer-events-auto flex h-8 w-8 -translate-x-3 items-center justify-center text-white opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
+                className="pointer-events-auto flex h-8 w-8 -translate-x-3 items-center justify-center text-white opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
               >
                 <MapPin className="h-[20px] w-[20px]" />
               </button>
@@ -312,7 +312,7 @@ function ListingCardImpl({
             aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
             aria-pressed={favorited}
             onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listing.id) }}
-            className="flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer tap-44"
+            className="relative flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer tap-44"
           >
             {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow —
                 legible on ANY photo; blue fill when saved; heart-pop on save. */}
@@ -324,7 +324,7 @@ function ListingCardImpl({
             type="button"
             aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
             onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-            className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
+            className="relative flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
           >
             <MessageCircle className="h-[20px] w-[20px]" />
           </button>
@@ -334,7 +334,7 @@ function ListingCardImpl({
               aria-label={tr('Make an offer', 'Trả giá')}
               aria-pressed={quickOffer !== null}
               onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
-              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
+              className="relative flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
             >
               <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
             </button>
@@ -344,7 +344,7 @@ function ListingCardImpl({
               type="button"
               aria-label={tr('Show on map', 'Xem trên bản đồ')}
               onClick={(e) => { e.stopPropagation(); onLocate(listing) }}
-              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
+              className="relative flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
             >
               <MapPin className="h-[20px] w-[20px]" />
             </button>

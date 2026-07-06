@@ -1,6 +1,6 @@
 # eno.vn
 
-> eno.vn is a verified classifieds marketplace for the international community in Vietnam — housing, motorbikes, electronics, furniture, jobs, services and moving sales. Listings auto-translate into 11 languages, sellers carry a public trust score, and contact happens in-app so phone numbers stay private.
+> eno.vn is a trusted classifieds marketplace for the international community in Vietnam — housing, motorbikes, electronics, furniture, jobs, services and moving sales. Listings auto-translate into 11 languages, sellers carry a public trust score, and contact happens in-app so phone numbers stay private.
 
 ## About
 

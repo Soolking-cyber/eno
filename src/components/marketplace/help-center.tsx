@@ -151,7 +151,7 @@ export function HelpCenter() {
           <p className="text-sm text-body"><Tr text="Our team replies within one business day." /></p>
         </div>
         <a href="mailto:support@eno.vn" className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
-          <Mail className="h-4 w-4" /> support@eno.forum
+          <Mail className="h-4 w-4" /> support@eno.vn
         </a>
       </div>
 

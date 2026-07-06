@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { PRELAUNCH } from "./src/lib/site-legal";
 
 const nextConfig: NextConfig = {
   // Standalone server output for local `npm start` / self-hosting. NOT on Vercel:
@@ -96,6 +97,16 @@ const nextConfig: NextConfig = {
           // Named endpoint group for the CSP `report-to` directive (Reporting API).
           { key: "Reporting-Endpoints", value: 'csp-endpoint="/api/csp-report"' },
           { key: "Content-Security-Policy", value: csp },
+          // PRE-LAUNCH: keep the whole site OUT of search indexes while it is in test
+          // operation with seed/mock inventory. This is set sitewide as a header (not
+          // per-page metadata) so it ALSO covers the mock listing pages that set
+          // `robots: undefined` (indexable) — nothing leaks into Google until we flip
+          // PRELAUNCH=false with real inventory. robots.txt stays crawlable ON PURPOSE
+          // so Googlebot can fetch each page, SEE this noindex, and drop already-indexed
+          // seed URLs. Flipping PRELAUNCH is a rebuild+redeploy (i.e. the launch itself),
+          // at which point this header disappears. `nofollow` too so seed link-graph
+          // isn't followed. See src/lib/site-legal.ts and src/app/sitemap.xml/route.ts.
+          ...(PRELAUNCH ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] : []),
         ],
       },
     ];

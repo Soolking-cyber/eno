@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!data) return {}
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   return {
-    title: `${data.cat.name} in ${data.districtName} — Verified | eno.vn`,
+    title: `${data.cat.name} in ${data.districtName} — Trusted | eno.vn`,
     description: `${data.cat.name} in ${data.districtName}. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`,
     alternates: { canonical: `${hostUrl}/c/${data.cat.slug}/${district}` },
   }

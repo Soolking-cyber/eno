@@ -36,7 +36,9 @@ type Result = { address: string; district: string | null; province: string; ward
 async function geocodeGoogle(lat: string, lng: string, lang: string): Promise<Result | null> {
   if (!GOOGLE_KEY) return null
   const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(`${lat},${lng}`)}&language=${lang}&key=${GOOGLE_KEY}`
-  const res = await fetch(url)
+  // Bound the upstream — the two providers run SEQUENTIALLY and the post-wizard's
+  // "use my location" spinner waits on this; a hung provider must not stall it.
+  const res = await fetch(url, { signal: AbortSignal.timeout(4000) })
   if (!res.ok) return null
   const data = await res.json()
   if (data.status !== 'OK' || !data.results?.length) return null
@@ -70,7 +72,7 @@ async function geocodeGoogle(lat: string, lng: string, lang: string): Promise<Re
 // Nominatim (free) fallback.
 async function geocodeNominatim(lat: string, lng: string, lang: string): Promise<Result | null> {
   const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&accept-language=${lang}&zoom=16`
-  const res = await fetch(url, { headers: { 'User-Agent': 'eno.vn Marketplace/1.0 (https://eno.vn)' } })
+  const res = await fetch(url, { headers: { 'User-Agent': 'eno.vn Marketplace/1.0 (https://eno.vn)' }, signal: AbortSignal.timeout(4000) })
   if (!res.ok) return null
   const data = await res.json()
   const a = (data.address || {}) as Record<string, string>
@@ -103,7 +105,10 @@ export async function GET(req: Request) {
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   try {
-    const result = (await geocodeGoogle(lat, lng, lang)) || (await geocodeNominatim(lat, lng, lang))
+    // Per-call catch so a Google timeout/error FALLS THROUGH to Nominatim instead of
+    // bailing the whole request (the point of having a fallback provider).
+    const result = (await geocodeGoogle(lat, lng, lang).catch(() => null))
+      || (await geocodeNominatim(lat, lng, lang).catch(() => null))
     if (!result) return NextResponse.json({ error: 'geocode_failed' }, { status: 502 })
     return NextResponse.json(result)
   } catch {

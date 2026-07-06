@@ -110,7 +110,10 @@
   --muted-foreground: #64748b;
   --accent: #e8f1fb;
   --accent-foreground: #0a66c2;
-  --destructive: #ef4444;
+  /* red-600, not red-500 (#ef4444): as TEXT on white #ef4444 is only 3.6:1 (fails
+     WCAG AA); #dc2626 clears 4.5:1 for the form-error / destructive labels, and
+     white-on-#dc2626 still passes for the solid delete buttons. */
+  --destructive: #dc2626;
   --border: #e2e8f0;
   --input: #e2e8f0;
   --ring: #0a66c2;

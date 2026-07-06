@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { slugify } from '@/lib/slug'
+import { PRELAUNCH } from '@/lib/site-legal'
 import { NextResponse } from 'next/server'
 
 // Cache the generated sitemap for an hour instead of rebuilding it (DB query over
@@ -64,6 +65,12 @@ export async function GET() {
       xml += `  <url><loc>${hostUrl}/${p}</loc>${lm(siteLastmod)}<changefreq>weekly</changefreq><priority>0.8</priority></url>\n`
     }
 
+    // PRE-LAUNCH: do NOT advertise the seed catalogue (listings/sellers/facets are
+    // ~99% mock picsum inventory) to search engines. Ship a minimal sitemap of only
+    // the homepage + static info/legal pages until PRELAUNCH is flipped with real
+    // data. (Pages are noindex'd sitewide via X-Robots-Tag in next.config.ts anyway;
+    // this just stops feeding fake URLs to Google in the first place.)
+    if (!PRELAUNCH) {
     // Faceted category pages (programmatic SEO entry points)
     for (const c of categories) {
       xml += `  <url><loc>${hostUrl}/c/${c.slug}</loc>${lm(catMax.get(c.slug))}<changefreq>daily</changefreq><priority>0.7</priority></url>\n`
@@ -88,6 +95,7 @@ export async function GET() {
   </url>
 `
     }
+    } // end !PRELAUNCH data-driven section
 
     xml += `</urlset>`
 

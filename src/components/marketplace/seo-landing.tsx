@@ -73,7 +73,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         {/* Real verified listings (crawlable internal links) */}
         {listings.length > 0 && (
           <section className="mt-12">
-            <h2 className="h-section text-foreground mb-4">Verified listings</h2>
+            <h2 className="h-section text-foreground mb-4">Trusted listings</h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {listings.map((l) => (
                 <Link key={l.id} href={`/listings/${l.id}`} className="group flex flex-col">

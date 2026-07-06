@@ -83,7 +83,7 @@ export function CookieConsent() {
                 )}
                 <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
               </p>
-              <div className="mt-3 flex items-center gap-2.5">
+              <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 <Button variant="cta" size="none" onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</Button>
                 <button onClick={decline} className={ghost}>{tr('Decline', 'Từ chối')}</button>
                 <button onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</button>
@@ -97,7 +97,7 @@ export function CookieConsent() {
                 <Toggle value={perso} onChange={setPerso} title={tr('Personalized', 'Cá nhân hoá')} desc={tr('Rank the most relevant items first from your activity.', 'Xếp hạng mục phù hợp nhất theo hoạt động của bạn.')} />
                 <Toggle value={ads} onChange={setAds} title={tr('Ad personalization', 'Quảng cáo cá nhân hoá')} desc={tr('Ad-network signals (Meta/Google) for retargeting.', 'Tín hiệu mạng quảng cáo (Meta/Google) để tiếp thị lại.')} />
               </div>
-              <div className="mt-3 flex items-center gap-2.5">
+              <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 <Button variant="cta" size="none" onClick={save} className={primary}>{tr('Save', 'Lưu')}</Button>
                 <button onClick={decline} className={ghost}>{tr('Decline all', 'Từ chối tất cả')}</button>
               </div>

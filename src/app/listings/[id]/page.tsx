@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { formatMoneyFull } from '@/lib/vnd'
-import { serializeListing } from '@/lib/serialize'
+import { serializeListing, safeParse } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -74,7 +74,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Vietnamese tab. The visible H1 still localizes per-user via <LocalizedTitle>.
   const displayTitle = listing.title
   const desc = listing.description.slice(0, 160)
-  const images = JSON.parse(listing.images || '[]')
+  // Guard against corrupt/legacy image rows (a known reality here — see the mock
+  // self-heal in serialize.ts): a single bad row must not 500 the top SEO page.
+  const parsedImages = safeParse<unknown>(listing.images, [])
+  const images: string[] = Array.isArray(parsedImages) ? parsedImages.filter((u): u is string => typeof u === 'string') : []
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
   // Bake the price into the social title/description so it shows in every link
