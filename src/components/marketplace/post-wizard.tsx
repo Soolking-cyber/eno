@@ -33,11 +33,11 @@ const DESC_MAX = 5000
 // subcategory across — so AI's default-to-sale classification is one tap from rental.
 const RENTABLE_SALE_CATS = new Set(['vehicles', 'property'])
 const SALE_TO_RENT: Record<string, Record<string, string>> = {
-  vehicles: { 'motorbike-scooter': 'motorbike-rental', 'motorbike-manual': 'motorbike-rental', car: 'car-rental', bicycle: 'bicycle-rental', 'ebike-scooter': 'ebike-rental' },
+  vehicles: { motorbike: 'motorbike-rental', car: 'car-rental', bicycle: 'bicycle-rental', 'ebike-scooter': 'ebike-rental' },
   property: { apartment: 'apartment-rental', house: 'house-rental', 'room-shared': 'room-rental' },
 }
 const RENT_TO_SALE: Record<string, { category: string; sub: string }> = {
-  'motorbike-rental': { category: 'vehicles', sub: 'motorbike-scooter' },
+  'motorbike-rental': { category: 'vehicles', sub: 'motorbike' },
   'car-rental': { category: 'vehicles', sub: 'car' },
   'bicycle-rental': { category: 'vehicles', sub: 'bicycle' },
   'ebike-rental': { category: 'vehicles', sub: 'ebike-scooter' },

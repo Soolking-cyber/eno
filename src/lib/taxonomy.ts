@@ -129,8 +129,7 @@ export const TAXONOMY: CategoryDef[] = [
     description: 'Buy or sell motorbikes, bicycles, cars, e-bikes, parts & gear. (To rent, see the Rentals category.)',
     types: ['sell', 'wanted'],
     subcategories: [
-      { slug: 'motorbike-scooter', name: 'Scooter', nameVi: 'Xe tay ga', icon: 'Gauge', keywords: ['scooter', 'vision', 'airblade', 'air blade', 'lead', 'sh', 'vespa', 'xe ga', 'tay ga'] },
-      { slug: 'motorbike-manual', name: 'Manual', nameVi: 'Xe số', icon: 'Cog', keywords: ['manual', 'wave', 'sirius', 'exciter', 'winner', 'xe số', 'côn tay'] },
+      { slug: 'motorbike', name: 'Motorbike', nameVi: 'Xe máy', icon: 'Gauge', keywords: ['motorbike', 'scooter', 'vision', 'airblade', 'air blade', 'lead', 'sh', 'vespa', 'xe ga', 'tay ga', 'manual', 'wave', 'sirius', 'exciter', 'winner', 'xe máy', 'xe số', 'côn tay'] },
       { slug: 'bicycle', name: 'Bicycle', nameVi: 'Xe đạp', icon: 'Bike', keywords: ['bicycle', 'bike', 'mountain bike', 'road bike', 'xe đạp'] },
       { slug: 'car', name: 'Car', nameVi: 'Ô tô', icon: 'Car', keywords: ['car', 'ô tô', 'sedan', 'suv', 'toyota', 'honda civic', 'mazda'] },
       { slug: 'ebike-scooter', name: 'E-bike', nameVi: 'Xe điện', icon: 'Zap', keywords: ['e-bike', 'ebike', 'electric', 'vinfast', 'xe điện'] },
@@ -142,6 +141,13 @@ export const TAXONOMY: CategoryDef[] = [
       // aware: cc for motorbikes, LITRES (0.1 steps) for cars. Year & mileage exact.
       { key: 'year', label: 'Year', labelVi: 'Đời xe', kind: 'range', options: [],
         range: { min: 1990, max: MAX_YEAR, step: 1, column: 'year' } },
+      // xe.chotot's #1 motorbike facet — a filter now, not a subcategory split.
+      { key: 'bikeType', label: 'Bike type', labelVi: 'Loại xe', kind: 'toggle',
+        subcats: ['motorbike'], options: [
+        { value: 'scooter', label: 'Scooter', labelVi: 'Tay ga' },
+        { value: 'semi-auto', label: 'Semi-auto', labelVi: 'Xe số' },
+        { value: 'clutch', label: 'Clutch', labelVi: 'Tay côn' },
+      ] },
       { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', kind: 'toggle',
         subcats: ['car'], options: [
         { value: 'automatic', label: 'Automatic', labelVi: 'Số tự động' },
@@ -156,7 +162,7 @@ export const TAXONOMY: CategoryDef[] = [
       ] },
       // Uniquely-Vietnamese trust/price axis (bonbanh + chotot first-class filter).
       { key: 'origin', label: 'Origin', labelVi: 'Xuất xứ', kind: 'toggle',
-        subcats: ['motorbike-scooter', 'motorbike-manual', 'car'], options: [
+        subcats: ['motorbike', 'car'], options: [
         { value: 'domestic', label: 'Assembled VN', labelVi: 'Lắp ráp trong nước' },
         { value: 'imported', label: 'Imported', labelVi: 'Nhập khẩu' },
       ] },
@@ -174,7 +180,7 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'wagon', label: 'Wagon', labelVi: 'Wagon' },
       ] },
       { key: 'engineCc', label: 'Engine', labelVi: 'Phân khối', kind: 'range', options: [],
-        subcats: ['motorbike-scooter', 'motorbike-manual'],
+        subcats: ['motorbike'],
         range: { min: 50, max: 1500, step: 5, unit: 'cc', column: 'engineCc' } },
       { key: 'engineL', label: 'Engine', labelVi: 'Dung tích', kind: 'range', options: [],
         subcats: ['car'],
