@@ -3,9 +3,8 @@
 // IDEMPOTENT — safe to re-run, and MUST be re-applied after any `prisma db push`
 // (Prisma doesn't manage these raw/partial indexes, like profile_auth_fk).
 //
-// Run:  cd /Users/mk1e3/eno.vn && \
-//   DIRECT_URL='postgresql://postgres.xihiryllwmjoouipkyhw:doXVkbI6nPqbHSW0@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres' \
-//   node scripts/unique-constraints.mjs
+// Run:  cd /Users/mk1e3/eno.vn && DIRECT_URL="$DIRECT_URL" node scripts/unique-constraints.mjs
+//   (DIRECT_URL is read from .env — never hardcode the prod DB password in this file.)
 //
 // What it does:
 //   1. TrustEvent: dedupe existing one-time events (keep earliest), then a PARTIAL

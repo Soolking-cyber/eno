@@ -16,7 +16,10 @@ export async function GET() {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const gate = await rateLimit('account-export', profile.id, 5, '1 h')
+  // strict: this runs 8 unbounded findMany queries per call, so the limiter must
+  // fail CLOSED if Redis is down (matches the sibling /api/account/delete) — a
+  // re-request once Redis recovers is acceptable, same rationale as deletion.
+  const gate = await rateLimit('account-export', profile.id, 5, '1 h', { strict: true })
   if (!gate.success) return NextResponse.json({ error: 'Too many requests — try again later' }, { status: 429 })
 
   const seller = await db.seller.findUnique({ where: { ownerId: profile.id } })

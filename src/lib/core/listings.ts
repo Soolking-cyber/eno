@@ -327,12 +327,15 @@ export async function createListingCore(input: {
   const model = brandSlug && body.model ? (String(body.model).trim().slice(0, 60) || null) : null
 
   // Screen the SECONDARY free-text fields too (all publicly rendered): district,
-  // condition, model, raw brand input, city, attribute values. The primary texts
-  // were screened by assertPublishable above; without this a banned term or phone
-  // number could ride in via e.g. `model` (compliance verification 2026-07-06).
+  // condition, model, raw brand input, city, LOCATION, attribute values. The primary
+  // texts were screened by assertPublishable above; without this a banned term or
+  // phone number could ride in via e.g. `model` or the free-text `location` (which
+  // is card/detail-rendered AND auto-syndicated to Telegram/Facebook, so a direct-
+  // or partner-API caller could smuggle "Zalo 090… - bán súng đạn" past the gate —
+  // 2026-07-06 launch audit; the UI wizard sends controlled geo names).
   const conditionText = body.condition ? String(body.condition).trim().slice(0, 60) : null
   assertCleanTexts([
-    district, conditionText, model, city,
+    district, conditionText, model, city, location,
     body.brand ? String(body.brand) : undefined,
     ...(attributes ? Object.values(JSON.parse(attributes) as Record<string, string>) : []),
   ])

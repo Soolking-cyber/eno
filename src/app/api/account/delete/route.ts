@@ -25,7 +25,8 @@ import { rateLimit } from '@/lib/ratelimit'
 //  webhooks, conversations + messages (both sides of the user's threads),
 //  notifications, trust events, saved searches, push subscriptions, profile,
 //  and the Supabase auth user. Storage images are purged best-effort after the
-//  response. Kept: reviews the user WROTE are anonymized (author → null), and
+//  response. Kept: reviews the user WROTE are anonymized (author name scrubbed +
+//  authorProfileId → null), and
 //  resolved report records are DETACHED from the dying listings first so they
 //  survive by bare target/reporter ids for the statutory retention window
 //  (e-commerce records: 3 years).
@@ -36,12 +37,32 @@ export const dynamic = 'force-dynamic'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SECRET_KEY = process.env.SUPABASE_SECRET_KEY
 
+// True if any SURVIVING row still references this image URL. Storage object paths
+// are flat (`${ts}-${rand}.webp`, no per-owner namespace) and the images array is
+// user-supplied, so a caller could paste a VICTIM's image URL into their own
+// listing and, on deletion, wipe someone else's image with the service-role key
+// (cross-tenant destruction — 2026-07-06 launch audit). Gate every delete on this
+// check: run AFTER the caller's own profile/seller/listings are already removed
+// from the DB, so a match means another user genuinely owns the object → skip it.
+// `contains` is a substring match on the JSON blob; it can only OVER-match (leave a
+// harmless orphan), never under-match the exact URL — so it can't reintroduce the bug.
+async function isStillReferenced(url: string): Promise<boolean> {
+  const [inListing, sellerAvatar, profileAvatar] = await Promise.all([
+    db.listing.count({ where: { images: { contains: url } } }),
+    db.seller.count({ where: { avatarUrl: url } }),
+    db.profile.count({ where: { avatarUrl: url } }),
+  ])
+  return inListing > 0 || sellerAvatar > 0 || profileAvatar > 0
+}
+
 // Best-effort storage purge — never blocks or fails the deletion.
 async function purgeStorageObjects(urls: string[]): Promise<void> {
   if (!SUPABASE_URL || !SECRET_KEY) return
-  for (const url of urls) {
+  for (const url of [...new Set(urls)]) {
     const m = url.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/)
     if (!m) continue
+    // Never delete an object another (surviving) user still references.
+    try { if (await isStillReferenced(url)) continue } catch { continue }
     try {
       await fetch(`${SUPABASE_URL}/storage/v1/object/${m[1]}/${m[2]}`, {
         method: 'DELETE',
@@ -117,6 +138,11 @@ export async function POST(req: Request) {
       await tx.listing.deleteMany({ where: { sellerId: s.id } })
       await tx.seller.delete({ where: { id: s.id } })
     }
+    // Reviews the user WROTE stay (they belong to the reviewed storefront), but the
+    // captured author DISPLAY NAME renders publicly and must be erased too — nulling
+    // only authorProfileId (via SetNull) would leave the name visible forever after a
+    // PDPL erasure request (2026-07-06 launch audit). Scrub it before deleting the FK.
+    await tx.review.updateMany({ where: { authorProfileId: profile.id }, data: { author: 'Anonymous' } })
     await tx.profile.delete({ where: { id: profile.id } })
   })
 

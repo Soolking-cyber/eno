@@ -3,9 +3,8 @@
 // "seller-%" storefronts (+ all seed reviews, which have no real write path yet).
 // Preserves real Profiles, real Sellers, real Listings, and the Category taxonomy.
 //
-// Run:  cd /Users/mk1e3/eno.vn && \
-//   DATABASE_URL='postgresql://postgres.xihiryllwmjoouipkyhw:doXVkbI6nPqbHSW0@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true' \
-//   node scripts/purge-mock.mjs
+// Run:  cd /Users/mk1e3/eno.vn && DATABASE_URL="$DATABASE_URL" node scripts/purge-mock.mjs
+//   (DATABASE_URL is read from .env — never hardcode the prod DB password here.)
 import { PrismaClient } from '@prisma/client'
 
 const db = new PrismaClient()

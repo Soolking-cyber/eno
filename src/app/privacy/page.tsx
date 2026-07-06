@@ -43,7 +43,7 @@ const sections: [string, string[]][] = [
     'Service providers & international transfers',
     [
       'We use trusted providers strictly to run eno.vn, and we never sell your personal data (Vietnamese law prohibits trading in personal data, and so do we). Providers: Supabase (authentication, database and image storage), Vercel (hosting, and — with your consent — anonymous performance analytics), Cloudflare (network security and the sign-in CAPTCHA), Upstash (rate-limiting state such as IP addresses, to stop abuse), Google (sign-in if you choose it, translation, AI-powered search, and — with your consent — Google Analytics), Meta (with your consent — conversion measurement), Microsoft Azure Translator (content translation, not retained for training), and messaging providers (Telegram, WhatsApp, Zalo and SpeedSMS) that deliver one-time login codes.',
-      'Several of these providers process data on servers outside Vietnam (primarily Singapore). Under Vietnamese law this is a cross-border data transfer: we document these transfers, maintain data-transfer agreements with the providers, and file the required transfer impact assessments with the Ministry of Public Security.',
+      'Several of these providers process data on servers outside Vietnam (primarily Singapore). Under Vietnamese law this is a cross-border data transfer: we document these transfers, rely on the providers’ data-processing agreements, and are preparing the required transfer impact assessment for filing with the Ministry of Public Security as we complete our business registration.',
     ],
   ],
   [

@@ -55,6 +55,31 @@ const BANNED_WORDS = [
   'camera nguy trang', 'camera quay len', 'thiet bi nghe len', 'thiet bi pha song', 'pha song gps',
   // MLM, uniforms, gambling (low-collision terms added 2026-07-06 to match /prohibited)
   'ban hang da cap', 'quan phuc cong an', 'quan phuc quan doi', 'may danh bac', 'sung ban ca',
+  // ── ENGLISH terms ──────────────────────────────────────────────────────────────
+  // The audience is English-first, so the VI-only list above let "selling weed / a
+  // Glock / Juul pods" publish instantly (2026-07-06 launch audit). Collision-checked
+  // against real listings: NO bare 'gun' (glue/nail/spray/heat gun), 'weed' (weed
+  // killer), 'pistol'/'rifle' (pistol-grip drill, rifle scope, airsoft), 'silencer'
+  // (motorbike exhaust = "silencer" in BrE), or 'ivory' (a fashion colour) — those
+  // rely on reports. Everything below is a brand, chemical, or multi-word phrase.
+  // drugs
+  'cannabis', 'marijuana', 'hashish', 'mdma', 'ecstasy pill', 'crystal meth', 'methamphetamine',
+  'magic mushroom', 'lsd', 'xanax', 'valium', 'adderall', 'fentanyl', 'oxycontin', 'oxycodone',
+  'tramadol', 'diazepam', 'codeine',
+  // weapons
+  'firearm', 'handgun', 'revolver', 'shotgun', 'glock', 'taser', 'stun gun', 'grenade',
+  'brass knuckle', 'switchblade', 'butterfly knife',
+  // vapes & tobacco
+  'e-cigarette', 'ecig', 'vaping', 'juul', 'elf bar', 'iqos', 'heets', 'hookah', 'nicotine pod',
+  // wildlife (CITES)
+  'rhino horn', 'tiger bone', 'pangolin', 'bear bile', 'shark fin', 'elephant tusk',
+  // fraud, documents, money
+  'fake passport', 'fake id', 'counterfeit money', 'counterfeit currency', 'forged document',
+  'stolen credit card', 'money laundering',
+  // prostitution
+  'prostitute', 'prostitution', 'sex service',
+  // covert surveillance / jammers
+  'spy camera', 'gps jammer', 'signal jammer',
 ].map((w) => fold(w))
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const BANNED_RE = new RegExp(`\\b(${BANNED_WORDS.map(escapeRe).join('|')})\\b`)
