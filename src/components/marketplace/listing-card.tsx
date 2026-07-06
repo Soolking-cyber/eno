@@ -208,22 +208,6 @@ function ListingCardImpl({
           </span>
         )}
 
-        {/* favorite heart */}
-        <button
-          type="button"
-          aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
-          aria-pressed={favorited}
-          onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listing.id) }}
-          className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer tap-44"
-        >
-          {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow so
-              it stays legible on ANY photo, in light & dark. Blue fill when saved.
-              animate-heart-pop = one-shot pop + radial ring (globals.css). */}
-          <span onAnimationEnd={() => setBurst(false)} className={cn('inline-flex', burst && 'animate-heart-pop')}>
-            <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
-          </span>
-        </button>
-
         {/* Social proof — "N saved" (5a #5): urgency without dark patterns. Only
             shows once the count is genuinely impressive (≥5); bottom-left, clear of
             the dots (center) and locate pin (right). */}
@@ -275,7 +259,7 @@ function ListingCardImpl({
               {quickOffer !== null && (
                 <span
                   onClick={(e) => e.stopPropagation()}
-                  className="pointer-events-auto flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-left-2 fade-in duration-150"
+                  className="pointer-events-auto mr-9 flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-left-2 fade-in duration-150"
                 >
                   <span className="flex items-center gap-2">
                     <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
@@ -315,15 +299,29 @@ function ListingCardImpl({
           )}
         </span>
 
-        {/* Mobile action column (< lg): chat + offer + pin stacked below the heart
-            on the right edge, equally spaced top→bottom. Desktop reaches these via
-            the left hover stack instead. */}
-        <span className="absolute bottom-2 right-2 top-12 z-10 flex flex-col items-center justify-evenly lg:hidden">
+        {/* Right-edge action column: heart + (mobile) chat/offer/pin, ONE column
+            spanning the photo so the icons distribute equally top→bottom. On lg the
+            chat/offer/pin hide (they live in the left hover stack) and
+            justify-between leaves the heart pinned top-right exactly as before. */}
+        <span className="absolute bottom-2 right-2 top-2 z-10 flex flex-col items-center justify-between">
+          <button
+            type="button"
+            aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
+            aria-pressed={favorited}
+            onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listing.id) }}
+            className="flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer tap-44"
+          >
+            {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow —
+                legible on ANY photo; blue fill when saved; heart-pop on save. */}
+            <span onAnimationEnd={() => setBurst(false)} className={cn('inline-flex', burst && 'animate-heart-pop')}>
+              <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
+            </span>
+          </button>
           <button
             type="button"
             aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
             onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-            className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44"
+            className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 lg:hidden"
           >
             <MessageCircle className="h-[20px] w-[20px]" />
           </button>
@@ -333,7 +331,7 @@ function ListingCardImpl({
               aria-label={tr('Make an offer', 'Trả giá')}
               aria-pressed={quickOffer !== null}
               onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
-              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44"
+              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 lg:hidden"
             >
               <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
             </button>
@@ -343,7 +341,7 @@ function ListingCardImpl({
               type="button"
               aria-label={tr('Show on map', 'Xem trên bản đồ')}
               onClick={(e) => { e.stopPropagation(); onLocate(listing) }}
-              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44"
+              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 lg:hidden"
             >
               <MapPin className="h-[20px] w-[20px]" />
             </button>
@@ -354,7 +352,7 @@ function ListingCardImpl({
         {quickOffer !== null && (
           <span
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-2 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 lg:hidden"
+            className="absolute left-11 right-11 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 lg:hidden"
           >
             <span className="flex items-center gap-2">
               <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
