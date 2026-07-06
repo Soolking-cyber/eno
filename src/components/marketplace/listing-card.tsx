@@ -297,18 +297,79 @@ function ListingCardImpl({
               )}
             </span>
           )}
+          {onLocate && quickOffer === null && (
+            <span className="flex">
+              <button
+                type="button"
+                aria-label={tr('Show on map', 'Xem trên bản đồ')}
+                title={tr('Show on map', 'Xem trên bản đồ')}
+                onClick={(e) => { e.stopPropagation(); onLocate(listing) }}
+                className="pointer-events-auto flex h-8 w-8 -translate-x-3 items-center justify-center text-white opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
+              >
+                <MapPin className="h-[20px] w-[20px]" />
+              </button>
+            </span>
+          )}
         </span>
 
-        {/* Locate on map — bottom-right, mirrors the heart (icon-only, white + shadow) */}
-        {onLocate && (
+        {/* Mobile action column (< lg): chat + offer + pin stacked below the heart
+            on the right edge, equally spaced top→bottom. Desktop reaches these via
+            the left hover stack instead. */}
+        <span className="absolute bottom-2 right-2 top-12 z-10 flex flex-col items-center justify-evenly lg:hidden">
           <button
             type="button"
-            aria-label={tr('Show on map', 'Xem trên bản đồ')}
-            onClick={(e) => { e.stopPropagation(); onLocate(listing) }}
-            className="absolute right-2 bottom-2 z-10 flex h-8 w-8 items-center justify-center text-white transition-transform hover:scale-110 active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44"
+            aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
+            onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
+            className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44"
           >
-            <MapPin className="h-[20px] w-[20px]" />
+            <MessageCircle className="h-[20px] w-[20px]" />
           </button>
+          {listing.price > 0 && (
+            <button
+              type="button"
+              aria-label={tr('Make an offer', 'Trả giá')}
+              aria-pressed={quickOffer !== null}
+              onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
+              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44"
+            >
+              <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
+            </button>
+          )}
+          {onLocate && (
+            <button
+              type="button"
+              aria-label={tr('Show on map', 'Xem trên bản đồ')}
+              onClick={(e) => { e.stopPropagation(); onLocate(listing) }}
+              className="flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44"
+            >
+              <MapPin className="h-[20px] w-[20px]" />
+            </button>
+          )}
+        </span>
+
+        {/* Mobile offer slide — centered panel (the lg stack has its own roll-out). */}
+        {quickOffer !== null && (
+          <span
+            onClick={(e) => e.stopPropagation()}
+            className="absolute inset-x-2 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5 rounded-full bg-card/95 py-1 pl-2.5 pr-1 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 lg:hidden"
+          >
+            <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
+            <input
+              type="range"
+              min={5} max={50} step={5}
+              value={quickOffer}
+              onChange={(e) => setQuickOffer(Number(e.target.value))}
+              aria-label={tr('Discount', 'Mức giảm')}
+              className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
+            />
+            <button
+              type="button"
+              onClick={() => quickGo({ offerAmount: Math.round(listing.price * (1 - quickOffer / 100)) })}
+              className="shrink-0 whitespace-nowrap rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+            >
+              {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency)} →
+            </button>
+          </span>
         )}
 
         {/* carousel arrows (desktop hover, only when multiple images) */}

@@ -70,8 +70,9 @@ export function BrandRail({
   // Most-used first (by listing count), 8 inline + the rest in a "More" dropdown.
   // The active item is always kept visible so its models can still roll out beside it.
   const sortedBrands = [...brands].sort((a, b) => b.count - a.count)
-  const visibleBrands = sortedBrands.filter((b, i) => i < 8 || b.slug === activeBrand)
-  const overflowBrands = sortedBrands.filter((b, i) => i >= 8 && b.slug !== activeBrand)
+  // Full-width swipeable rail like the category row (user decision 2026-07-06):
+  // every brand rides the horizontal scroll — no More dropdown.
+  const visibleBrands = sortedBrands
   const sortedModels = [...models].sort((a, b) => b.count - a.count)
   // 3×3 grid (9 cells): "All" + up to 8 models fills it exactly, so only collapse into
   // a "More" cell when there are MORE than 8 — at ≤8 show them all.
@@ -146,23 +147,6 @@ export function BrandRail({
           </Fragment>
         )
       })}
-      {overflowBrands.length > 0 && (
-        <div className="shrink-0 self-start pt-3">
-          <MoreOverflow count={overflowBrands.length}>
-            {overflowBrands.map((b) => (
-              <button
-                key={b.slug}
-                onClick={() => { onPickBrand(b.slug); onPickModel('all') }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-accent-foreground"
-              >
-                <BrandLogo name={b.name} iconPath={b.iconPath} size={22} flat className="!text-body shrink-0" />
-                <span className="truncate">{b.name}</span>
-                <span className="ml-auto shrink-0 text-[10px] font-semibold text-ink-4">{b.count}</span>
-              </button>
-            ))}
-          </MoreOverflow>
-        </div>
-      )}
     </div>
   )
 }

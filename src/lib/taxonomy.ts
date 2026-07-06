@@ -46,7 +46,7 @@ export const INTENT_SHORTCUTS: { type: ListingType; name: string; nameVi: string
 // as a min/max range), not in the stringly-typed `attributes` JSON. `column` is
 // the Listing field; the wizard renders a draggable slider + number input, and the
 // advanced filter renders a min–max range over the same scale.
-export type RangeColumn = 'year' | 'mileageKm' | 'engineL' | 'engineCc'
+export type RangeColumn = 'year' | 'mileageKm' | 'engineL' | 'engineCc' | 'areaM2' | 'salaryM'
 export type RangeMeta = {
   min: number
   max: number
@@ -138,21 +138,41 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'vehicle-other', name: 'Other', nameVi: 'Khác', icon: 'Truck', keywords: ['truck', 'van', 'boat', 'trailer', 'xe tải', 'xe van', 'thuyền', 'khác'] },
     ],
     facets: [
-      { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', kind: 'toggle', options: [
-        { value: 'automatic', label: 'Automatic', labelVi: 'Xe ga / Tự động' },
-        { value: 'manual', label: 'Manual', labelVi: 'Xe số / Côn tay' },
-      ] },
-      { key: 'fuel', label: 'Fuel', labelVi: 'Nhiên liệu', kind: 'toggle', options: [
-        { value: 'petrol', label: 'Petrol', labelVi: 'Xăng' },
-        { value: 'electric', label: 'Electric', labelVi: 'Điện' },
-        { value: 'diesel', label: 'Diesel', labelVi: 'Dầu' },
-      ] },
       // Precise, draggable numeric specs (slider + type-in). Engine is subcategory-
       // aware: cc for motorbikes, LITRES (0.1 steps) for cars. Year & mileage exact.
       { key: 'year', label: 'Year', labelVi: 'Đời xe', kind: 'range', options: [],
         range: { min: 1990, max: MAX_YEAR, step: 1, column: 'year' } },
+      { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', kind: 'toggle',
+        subcats: ['car'], options: [
+        { value: 'automatic', label: 'Automatic', labelVi: 'Số tự động' },
+        { value: 'manual', label: 'Manual', labelVi: 'Số sàn' },
+      ] },
+      { key: 'fuel', label: 'Fuel', labelVi: 'Nhiên liệu', kind: 'toggle',
+        subcats: ['car'], options: [
+        { value: 'petrol', label: 'Petrol', labelVi: 'Xăng' },
+        { value: 'diesel', label: 'Diesel', labelVi: 'Dầu' },
+        { value: 'hybrid', label: 'Hybrid', labelVi: 'Hybrid' },
+        { value: 'electric', label: 'Electric', labelVi: 'Điện' },
+      ] },
+      // Uniquely-Vietnamese trust/price axis (bonbanh + chotot first-class filter).
+      { key: 'origin', label: 'Origin', labelVi: 'Xuất xứ', kind: 'toggle',
+        subcats: ['motorbike-scooter', 'motorbike-manual', 'car'], options: [
+        { value: 'domestic', label: 'Assembled VN', labelVi: 'Lắp ráp trong nước' },
+        { value: 'imported', label: 'Imported', labelVi: 'Nhập khẩu' },
+      ] },
       { key: 'mileage', label: 'Mileage', labelVi: 'Số km đã đi', kind: 'range', options: [],
         range: { min: 0, max: 300000, step: 1000, unit: 'km', column: 'mileageKm' } },
+      { key: 'bodyType', label: 'Body type', labelVi: 'Kiểu dáng', subcats: ['car'], options: [
+        { value: 'sedan', label: 'Sedan', labelVi: 'Sedan' },
+        { value: 'suv-crossover', label: 'SUV/Crossover', labelVi: 'SUV / Crossover' },
+        { value: 'hatchback', label: 'Hatchback', labelVi: 'Hatchback' },
+        { value: 'pickup', label: 'Pickup', labelVi: 'Bán tải' },
+        { value: 'minivan-mpv', label: 'MPV/Minivan', labelVi: 'Minivan (MPV)' },
+        { value: 'van', label: 'Van', labelVi: 'Van' },
+        { value: 'coupe', label: 'Coupe', labelVi: 'Coupe (2 cửa)' },
+        { value: 'convertible', label: 'Convertible', labelVi: 'Mui trần' },
+        { value: 'wagon', label: 'Wagon', labelVi: 'Wagon' },
+      ] },
       { key: 'engineCc', label: 'Engine', labelVi: 'Phân khối', kind: 'range', options: [],
         subcats: ['motorbike-scooter', 'motorbike-manual'],
         range: { min: 50, max: 1500, step: 5, unit: 'cc', column: 'engineCc' } },
@@ -194,19 +214,21 @@ export const TAXONOMY: CategoryDef[] = [
     ],
     facets: [
       { key: 'rentalPeriod', label: 'Rental period', labelVi: 'Kỳ thuê', kind: 'toggle', options: [
+        { value: 'hourly', label: 'Hourly', labelVi: 'Theo giờ' },
         { value: 'daily', label: 'Daily', labelVi: 'Theo ngày' },
         { value: 'weekly', label: 'Weekly', labelVi: 'Theo tuần' },
         { value: 'monthly', label: 'Monthly', labelVi: 'Theo tháng' },
+        { value: 'long-term', label: 'Long term', labelVi: 'Dài hạn' },
       ] },
-      { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', kind: 'toggle',
-        subcats: ['motorbike-rental', 'car-rental'], options: [
-        { value: 'automatic', label: 'Automatic', labelVi: 'Tự động / Xe ga' },
-        { value: 'manual', label: 'Manual', labelVi: 'Số / Côn tay' },
-      ] },
-      { key: 'delivery', label: 'Delivery', labelVi: 'Giao nhận', kind: 'toggle',
-        subcats: ['motorbike-rental', 'car-rental', 'bicycle-rental', 'ebike-rental'], options: [
-        { value: 'delivered', label: 'Delivered to you', labelVi: 'Giao tận nơi' },
-        { value: 'pickup', label: 'Self-pickup', labelVi: 'Tự đến lấy' },
+      // batdongsan/nhatot rank Diện tích right after price on rent panels too.
+      { key: 'areaM2', label: 'Area', labelVi: 'Diện tích', kind: 'range', options: [],
+        subcats: ['apartment-rental', 'house-rental', 'room-rental', 'office-rental'],
+        range: { min: 0, max: 500, step: 5, unit: 'm²', column: 'areaM2' } },
+      { key: 'furnishing', label: 'Furnishing', labelVi: 'Nội thất', kind: 'toggle',
+        subcats: ['apartment-rental', 'house-rental', 'room-rental', 'office-rental', 'homestay-serviced'], options: [
+        { value: 'premium', label: 'Premium', labelVi: 'Nội thất cao cấp' },
+        { value: 'fully', label: 'Furnished', labelVi: 'Nội thất đầy đủ' },
+        { value: 'partly', label: 'Unfurnished', labelVi: 'Nhà trống' },
       ] },
       { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', kind: 'toggle',
         subcats: ['apartment-rental', 'house-rental', 'room-rental'], options: [
@@ -215,16 +237,29 @@ export const TAXONOMY: CategoryDef[] = [
         { value: '2', label: '2 BR', labelVi: '2 PN' },
         { value: '3', label: '3+ BR', labelVi: '3+ PN' },
       ] },
-      { key: 'furnishing', label: 'Furnishing', labelVi: 'Nội thất', kind: 'toggle',
-        subcats: ['apartment-rental', 'house-rental', 'room-rental', 'homestay-serviced'], options: [
-        { value: 'fully', label: 'Furnished', labelVi: 'Đầy đủ' },
-        { value: 'partly', label: 'Unfurnished', labelVi: 'Cơ bản' },
+      { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', kind: 'toggle',
+        subcats: ['motorbike-rental', 'car-rental'], options: [
+        { value: 'automatic', label: 'Automatic', labelVi: 'Tự động / Xe ga' },
+        { value: 'manual', label: 'Manual', labelVi: 'Số / Côn tay' },
+      ] },
+      // Mioto-class car-rental sites lead with 4/5/7-chỗ.
+      { key: 'seats', label: 'Seats', labelVi: 'Số chỗ', kind: 'toggle',
+        subcats: ['car-rental'], options: [
+        { value: '4', label: '4 seats', labelVi: '4 chỗ' },
+        { value: '5', label: '5 seats', labelVi: '5 chỗ' },
+        { value: '7', label: '7 seats', labelVi: '7 chỗ' },
+        { value: '9plus', label: '9+ seats', labelVi: '9+ chỗ' },
+      ] },
+      { key: 'delivery', label: 'Delivery', labelVi: 'Giao nhận', kind: 'toggle',
+        subcats: ['motorbike-rental', 'car-rental', 'bicycle-rental', 'ebike-rental'], options: [
+        { value: 'delivered', label: 'Delivered to you', labelVi: 'Giao tận nơi' },
+        { value: 'pickup', label: 'Self-pickup', labelVi: 'Tự đến lấy' },
       ] },
       { key: 'guests', label: 'Guests', labelVi: 'Số khách', kind: 'toggle',
         subcats: ['hotel-short-stay', 'homestay-serviced'], options: [
-        { value: '1-2', label: '1–2', labelVi: '1–2' },
-        { value: '3-4', label: '3–4', labelVi: '3–4' },
-        { value: '5-up', label: '5+', labelVi: '5+' },
+        { value: '1-2', label: '1–2', labelVi: '1–2 khách' },
+        { value: '3-4', label: '3–4', labelVi: '3–4 khách' },
+        { value: '5plus', label: '5+', labelVi: '5+ khách' },
       ] },
     ],
   },
@@ -247,21 +282,60 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'office-retail', name: 'Office', nameVi: 'Văn phòng', icon: 'Store', keywords: ['office', 'retail', 'commercial', 'shop', 'văn phòng', 'mặt bằng'] },
     ],
     facets: [
-      { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', kind: 'toggle', options: [
+      // batdongsan ranks Diện tích co-equal with price — a true from–to range.
+      { key: 'areaM2', label: 'Area', labelVi: 'Diện tích', kind: 'range', options: [],
+        range: { min: 0, max: 2000, step: 10, unit: 'm²', column: 'areaM2' } },
+      { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', kind: 'toggle',
+        subcats: ['apartment', 'house'], options: [
         { value: '0', label: 'Studio', labelVi: 'Studio' },
         { value: '1', label: '1 BR', labelVi: '1 PN' },
         { value: '2', label: '2 BR', labelVi: '2 PN' },
-        { value: '3', label: '3+ BR', labelVi: '3+ PN' },
+        { value: '3', label: '3 BR', labelVi: '3 PN' },
+        { value: '4', label: '4+ BR', labelVi: '4+ PN' },
       ] },
-      { key: 'area', label: 'Area', labelVi: 'Diện tích', options: [
-        { value: 'under-40', label: 'Under 40 m²', labelVi: 'Dưới 40 m²' },
-        { value: '40-70', label: '40–70 m²', labelVi: '40–70 m²' },
-        { value: '70-100', label: '70–100 m²', labelVi: '70–100 m²' },
-        { value: 'over-100', label: 'Over 100 m²', labelVi: 'Trên 100 m²' },
+      { key: 'legalStatus', label: 'Legal status', labelVi: 'Pháp lý', kind: 'toggle', options: [
+        { value: 'red-pink-book', label: 'Title deed', labelVi: 'Sổ đỏ / Sổ hồng' },
+        { value: 'sale-contract', label: 'Sale contract', labelVi: 'Hợp đồng mua bán' },
+        { value: 'pending-book', label: 'Deed pending', labelVi: 'Đang chờ sổ' },
+        { value: 'other-papers', label: 'Other papers', labelVi: 'Giấy tờ khác' },
       ] },
-      { key: 'furnishing', label: 'Furnishing', labelVi: 'Nội thất', kind: 'toggle', options: [
-        { value: 'fully', label: 'Furnished', labelVi: 'Đầy đủ' },
-        { value: 'partly', label: 'Unfurnished', labelVi: 'Cơ bản' },
+      { key: 'direction', label: 'Direction', labelVi: 'Hướng nhà',
+        subcats: ['apartment', 'house', 'land'], options: [
+        { value: 'east', label: 'East', labelVi: 'Đông' },
+        { value: 'west', label: 'West', labelVi: 'Tây' },
+        { value: 'south', label: 'South', labelVi: 'Nam' },
+        { value: 'north', label: 'North', labelVi: 'Bắc' },
+        { value: 'northeast', label: 'Northeast', labelVi: 'Đông Bắc' },
+        { value: 'southeast', label: 'Southeast', labelVi: 'Đông Nam' },
+        { value: 'northwest', label: 'Northwest', labelVi: 'Tây Bắc' },
+        { value: 'southwest', label: 'Southwest', labelVi: 'Tây Nam' },
+      ] },
+      { key: 'furnishing', label: 'Furnishing', labelVi: 'Nội thất', kind: 'toggle',
+        subcats: ['apartment', 'house'], options: [
+        { value: 'premium', label: 'Premium', labelVi: 'Nội thất cao cấp' },
+        { value: 'fully', label: 'Furnished', labelVi: 'Nội thất đầy đủ' },
+        { value: 'partly', label: 'Basic finish', labelVi: 'Hoàn thiện cơ bản' },
+        { value: 'bare', label: 'Bare shell', labelVi: 'Bàn giao thô' },
+      ] },
+      { key: 'houseType', label: 'House type', labelVi: 'Loại nhà', subcats: ['house'], options: [
+        { value: 'nha-rieng', label: 'Detached', labelVi: 'Nhà riêng' },
+        { value: 'nha-mat-pho', label: 'Street-front', labelVi: 'Nhà mặt phố' },
+        { value: 'biet-thu', label: 'Villa', labelVi: 'Biệt thự' },
+        { value: 'lien-ke', label: 'Townhouse', labelVi: 'Nhà liền kề' },
+        { value: 'shophouse', label: 'Shophouse', labelVi: 'Shophouse' },
+      ] },
+      { key: 'bathrooms', label: 'Bathrooms', labelVi: 'Số toilet', kind: 'toggle',
+        subcats: ['apartment', 'house'], options: [
+        { value: '1', label: '1', labelVi: '1' },
+        { value: '2', label: '2', labelVi: '2' },
+        { value: '3', label: '3+', labelVi: '3+' },
+      ] },
+      { key: 'floors', label: 'Floors', labelVi: 'Số tầng', kind: 'toggle',
+        subcats: ['house'], options: [
+        { value: '1', label: '1', labelVi: '1' },
+        { value: '2', label: '2', labelVi: '2' },
+        { value: '3', label: '3', labelVi: '3' },
+        { value: '4', label: '4+', labelVi: '4+' },
       ] },
     ],
   },
@@ -282,7 +356,15 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'kitchen-home', name: 'Kitchen', nameVi: 'Đồ bếp', icon: 'CookingPot', keywords: ['kitchen', 'cookware', 'plates', 'bếp', 'nồi', 'chén'] },
       { slug: 'misc', name: 'Other', nameVi: 'Khác', icon: 'Shapes', keywords: ['misc', 'various', 'linh tinh'] },
     ],
-    facets: [COND],
+    facets: [
+      COND,
+      // Garage-sale behavior is driven by seller urgency (leaving date ≈ discount depth).
+      { key: 'urgency', label: 'Urgency', labelVi: 'Mức độ gấp', kind: 'toggle', options: [
+        { value: 'this-week', label: 'This week', labelVi: 'Đi trong tuần' },
+        { value: 'this-month', label: 'This month', labelVi: 'Trong tháng' },
+        { value: 'flexible', label: 'Flexible', labelVi: 'Linh hoạt' },
+      ] },
+    ],
   },
 
   // 4 ── FURNITURE & APPLIANCES ─────────────────────────────────────────────────
@@ -306,10 +388,13 @@ export const TAXONOMY: CategoryDef[] = [
     ],
     facets: [
       COND,
-      { key: 'material', label: 'Material', labelVi: 'Chất liệu', options: [
+      { key: 'material', label: 'Material', labelVi: 'Chất liệu', kind: 'toggle',
+        subcats: ['sofa-seating', 'tables-desks', 'beds-mattresses', 'storage'], options: [
         { value: 'wood', label: 'Wood', labelVi: 'Gỗ' },
-        { value: 'fabric', label: 'Fabric', labelVi: 'Vải' },
+        { value: 'fabric', label: 'Fabric/Leather', labelVi: 'Vải / Da' },
         { value: 'metal', label: 'Metal', labelVi: 'Kim loại' },
+        { value: 'glass', label: 'Glass', labelVi: 'Kính' },
+        { value: 'rattan-bamboo', label: 'Rattan', labelVi: 'Mây tre' },
       ] },
     ],
   },
@@ -334,22 +419,39 @@ export const TAXONOMY: CategoryDef[] = [
     ],
     facets: [
       COND,
-      { key: 'storage', label: 'Storage', labelVi: 'Bộ nhớ', kind: 'toggle', options: [
+      { key: 'storage', label: 'Storage', labelVi: 'Bộ nhớ', kind: 'toggle',
+        subcats: ['phones-tablets', 'laptops-pcs', 'gaming'], options: [
         { value: '64', label: '64 GB', labelVi: '64 GB' },
         { value: '128', label: '128 GB', labelVi: '128 GB' },
         { value: '256', label: '256 GB', labelVi: '256 GB' },
         { value: '512-up', label: '512 GB+', labelVi: '512 GB+' },
       ] },
-      { key: 'ram', label: 'RAM', labelVi: 'RAM', kind: 'toggle', options: [
+      { key: 'ram', label: 'RAM', labelVi: 'RAM', kind: 'toggle',
+        subcats: ['phones-tablets', 'laptops-pcs', 'gaming'], options: [
         { value: '4-8', label: '4–8 GB', labelVi: '4–8 GB' },
         { value: '16', label: '16 GB', labelVi: '16 GB' },
         { value: '32-up', label: '32 GB+', labelVi: '32 GB+' },
       ] },
-      { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: COLOR_OPTIONS },
+      { key: 'cpu', label: 'Processor', labelVi: 'Chip', kind: 'toggle',
+        subcats: ['laptops-pcs'], options: [
+        { value: 'intel-i3', label: 'Core i3', labelVi: 'Core i3' },
+        { value: 'intel-i5', label: 'Core i5', labelVi: 'Core i5' },
+        { value: 'intel-i7-i9', label: 'Core i7/i9', labelVi: 'Core i7/i9' },
+        { value: 'amd-ryzen', label: 'AMD Ryzen', labelVi: 'AMD Ryzen' },
+        { value: 'apple-silicon', label: 'Apple M-series', labelVi: 'Chip Apple M' },
+      ] },
+      { key: 'screenSize', label: 'Screen size', labelVi: 'Kích thước màn', kind: 'toggle',
+        subcats: ['tv-monitors'], options: [
+        { value: 'under-27', label: 'Under 27"', labelVi: 'Dưới 27"' },
+        { value: '27-32', label: '27–32"', labelVi: '27–32"' },
+        { value: '40-55', label: '40–55"', labelVi: '40–55"' },
+        { value: '55-plus', label: '55"+', labelVi: '55" trở lên' },
+      ] },
       { key: 'warranty', label: 'Warranty', labelVi: 'Bảo hành', kind: 'toggle', options: [
         { value: 'yes', label: 'In warranty', labelVi: 'Còn bảo hành' },
         { value: 'no', label: 'No warranty', labelVi: 'Hết bảo hành' },
       ] },
+      { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: COLOR_OPTIONS },
     ],
   },
 
@@ -377,11 +479,25 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'men', label: 'Men', labelVi: 'Nam' },
         { value: 'unisex', label: 'Unisex', labelVi: 'Unisex' },
       ] },
-      { key: 'size', label: 'Size', labelVi: 'Kích cỡ', kind: 'toggle', options: [
+      { key: 'size', label: 'Size', labelVi: 'Kích cỡ', kind: 'toggle',
+        subcats: ['womens', 'mens'], options: [
         { value: 'xs-s', label: 'XS–S', labelVi: 'XS–S' },
         { value: 'm', label: 'M', labelVi: 'M' },
         { value: 'l', label: 'L', labelVi: 'L' },
         { value: 'xl-up', label: 'XL+', labelVi: 'XL+' },
+        { value: 'free-size', label: 'Free size', labelVi: 'Free size' },
+      ] },
+      { key: 'shoeSize', label: 'Shoe size', labelVi: 'Cỡ giày', subcats: ['shoes'], options: [
+        { value: 'eu-35', label: 'EU 35', labelVi: '35' },
+        { value: 'eu-36', label: 'EU 36', labelVi: '36' },
+        { value: 'eu-37', label: 'EU 37', labelVi: '37' },
+        { value: 'eu-38', label: 'EU 38', labelVi: '38' },
+        { value: 'eu-39', label: 'EU 39', labelVi: '39' },
+        { value: 'eu-40', label: 'EU 40', labelVi: '40' },
+        { value: 'eu-41', label: 'EU 41', labelVi: '41' },
+        { value: 'eu-42', label: 'EU 42', labelVi: '42' },
+        { value: 'eu-43', label: 'EU 43', labelVi: '43' },
+        { value: 'eu-44-plus', label: 'EU 44+', labelVi: '44+' },
       ] },
       { key: 'color', label: 'Color', labelVi: 'Màu sắc', options: COLOR_OPTIONS },
     ],
@@ -403,7 +519,24 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'kids-clothing', name: 'Clothes', nameVi: 'Quần áo', icon: 'Shirt', keywords: ['kids clothes', 'children', 'quần áo trẻ em', 'đồ trẻ em'] },
       { slug: 'maternity', name: 'Maternity', nameVi: 'Đồ bầu', icon: 'Heart', keywords: ['maternity', 'pregnancy', 'đồ bầu', 'bà bầu'] },
     ],
-    facets: [COND],
+    facets: [
+      COND,
+      // Carousell/Shopee baby verticals segment by child age band above all else.
+      { key: 'ageRange', label: 'Age range', labelVi: 'Độ tuổi', kind: 'toggle',
+        subcats: ['strollers-seats', 'baby-gear', 'toys', 'kids-clothing'], options: [
+        { value: '0-6-months', label: '0–6 mo', labelVi: '0–6 tháng' },
+        { value: '6-12-months', label: '6–12 mo', labelVi: '6–12 tháng' },
+        { value: '1-3-years', label: '1–3 yrs', labelVi: '1–3 tuổi' },
+        { value: '3-6-years', label: '3–6 yrs', labelVi: '3–6 tuổi' },
+        { value: 'over-6-years', label: '6+ yrs', labelVi: 'Trên 6 tuổi' },
+      ] },
+      { key: 'kidsGender', label: 'For', labelVi: 'Dành cho', kind: 'toggle',
+        subcats: ['kids-clothing'], options: [
+        { value: 'boy', label: 'Boy', labelVi: 'Bé trai' },
+        { value: 'girl', label: 'Girl', labelVi: 'Bé gái' },
+        { value: 'unisex', label: 'Unisex', labelVi: 'Unisex' },
+      ] },
+    ],
   },
 
   // 8 ── HOBBIES, SPORTS & BOOKS ────────────────────────────────────────────────
@@ -423,7 +556,16 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'camping-outdoor', name: 'Camping', nameVi: 'Cắm trại', icon: 'Tent', keywords: ['camping', 'tent', 'hiking', 'outdoor', 'cắm trại', 'lều'] },
       { slug: 'art-crafts', name: 'Art', nameVi: 'Nghệ thuật', icon: 'Palette', keywords: ['art', 'painting', 'craft', 'tranh', 'thủ công'] },
     ],
-    facets: [COND],
+    facets: [
+      COND,
+      // High-value for the bilingual audience: book language.
+      { key: 'bookLanguage', label: 'Language', labelVi: 'Ngôn ngữ', kind: 'toggle',
+        subcats: ['books'], options: [
+        { value: 'english', label: 'English', labelVi: 'Tiếng Anh' },
+        { value: 'vietnamese', label: 'Vietnamese', labelVi: 'Tiếng Việt' },
+        { value: 'other', label: 'Other', labelVi: 'Khác' },
+      ] },
+    ],
   },
 
   // 9 ── PETS ───────────────────────────────────────────────────────────────────
@@ -442,7 +584,26 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'supplies', name: 'Supplies', nameVi: 'Phụ kiện', icon: 'Bone', keywords: ['pet food', 'cage', 'leash', 'thức ăn', 'lồng', 'phụ kiện thú cưng'] },
       { slug: 'other-pets', name: 'Other', nameVi: 'Khác', icon: 'Bird', keywords: ['bird', 'fish', 'aquarium', 'hamster', 'chim', 'cá', 'thú cưng khác'] },
     ],
-    facets: [],
+    facets: [
+      // chotot thú cưng: age bucket + vaccination + sex for live animals.
+      { key: 'petAge', label: 'Age', labelVi: 'Độ tuổi', kind: 'toggle',
+        subcats: ['dogs', 'cats', 'adoption', 'other-pets'], options: [
+        { value: 'under-3-months', label: 'Baby', labelVi: 'Dưới 3 tháng' },
+        { value: '3-12-months', label: 'Young', labelVi: '3–12 tháng' },
+        { value: 'over-1-year', label: 'Adult', labelVi: 'Trên 1 tuổi' },
+      ] },
+      { key: 'vaccinated', label: 'Vaccination', labelVi: 'Tiêm phòng', kind: 'toggle',
+        subcats: ['dogs', 'cats', 'adoption', 'other-pets'], options: [
+        { value: 'vaccinated', label: 'Vaccinated', labelVi: 'Đã tiêm' },
+        { value: 'not-vaccinated', label: 'Not yet', labelVi: 'Chưa tiêm' },
+      ] },
+      { key: 'petSex', label: 'Sex', labelVi: 'Giới tính', kind: 'toggle',
+        subcats: ['dogs', 'cats', 'adoption', 'other-pets'], options: [
+        { value: 'male', label: 'Male', labelVi: 'Đực' },
+        { value: 'female', label: 'Female', labelVi: 'Cái' },
+      ] },
+      { ...COND, subcats: ['supplies'] },
+    ],
   },
 
   // 10 ── JOBS ──────────────────────────────────────────────────────────────────
@@ -468,11 +629,28 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'job-other', name: 'Other', nameVi: 'Khác', icon: 'Shapes', keywords: ['other', 'khác'] },
     ],
     facets: [
-      { key: 'jobtype', label: 'Type', labelVi: 'Hình thức', options: [
+      // VietnamWorks/TopCV panel order: salary → type → experience → work mode.
+      { key: 'salary', label: 'Salary', labelVi: 'Mức lương', kind: 'range', options: [],
+        range: { min: 0, max: 100, step: 1, unit: 'tr/tháng', column: 'salaryM' } },
+      { key: 'jobtype', label: 'Type', labelVi: 'Loại hình', options: [
         { value: 'fulltime', label: 'Full-time', labelVi: 'Toàn thời gian' },
         { value: 'parttime', label: 'Part-time', labelVi: 'Bán thời gian' },
         { value: 'contract', label: 'Contract', labelVi: 'Hợp đồng' },
+        { value: 'freelance', label: 'Freelance', labelVi: 'Tự do' },
+        { value: 'temporary', label: 'Temporary', labelVi: 'Thời vụ' },
         { value: 'remote', label: 'Remote', labelVi: 'Từ xa' },
+      ] },
+      { key: 'experience', label: 'Experience', labelVi: 'Kinh nghiệm', kind: 'toggle', options: [
+        { value: 'no-experience', label: 'None', labelVi: 'Không cần' },
+        { value: 'under-1-year', label: 'Under 1yr', labelVi: 'Dưới 1 năm' },
+        { value: '1-3-years', label: '1–3 yrs', labelVi: '1–3 năm' },
+        { value: '3-5-years', label: '3–5 yrs', labelVi: '3–5 năm' },
+        { value: 'over-5-years', label: '5+ yrs', labelVi: 'Trên 5 năm' },
+      ] },
+      { key: 'workMode', label: 'Work mode', labelVi: 'Hình thức', kind: 'toggle', options: [
+        { value: 'on-site', label: 'On-site', labelVi: 'Tại chỗ' },
+        { value: 'remote', label: 'Remote', labelVi: 'Từ xa' },
+        { value: 'hybrid', label: 'Hybrid', labelVi: 'Kết hợp' },
       ] },
       { key: 'english', label: 'English', labelVi: 'Tiếng Anh', options: [
         { value: 'required', label: 'Required', labelVi: 'Yêu cầu' },
@@ -505,7 +683,17 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'financial', name: 'Finance', nameVi: 'Tài chính', icon: 'Landmark', keywords: ['insurance', 'financial', 'remittance', 'bảo hiểm', 'tài chính'] },
       { slug: 'service-other', name: 'Other', nameVi: 'Khác', icon: 'Shapes', keywords: ['other', 'khác'] },
     ],
-    facets: [],
+    facets: [
+      { key: 'serviceLocation', label: 'Location type', labelVi: 'Địa điểm', kind: 'toggle', options: [
+        { value: 'at-customer', label: 'At yours', labelVi: 'Tận nơi' },
+        { value: 'at-provider', label: 'At theirs', labelVi: 'Tại cơ sở' },
+        { value: 'online', label: 'Online', labelVi: 'Trực tuyến' },
+      ] },
+      { key: 'providerType', label: 'Provider', labelVi: 'Người cung cấp', kind: 'toggle', options: [
+        { value: 'individual', label: 'Individual', labelVi: 'Cá nhân' },
+        { value: 'business', label: 'Business', labelVi: 'Doanh nghiệp' },
+      ] },
+    ],
   },
 
   // 12 ── COMMUNITY & EVENTS ────────────────────────────────────────────────────
@@ -525,7 +713,18 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'lost-found', name: 'Lost & Found', nameVi: 'Thất lạc', icon: 'PackageSearch', keywords: ['lost', 'found', 'mất', 'thất lạc', 'nhặt được'] },
       { slug: 'volunteers', name: 'Volunteers', nameVi: 'Tình nguyện', icon: 'HandHeart', keywords: ['volunteer', 'charity', 'cause', 'tình nguyện', 'từ thiện'] },
     ],
-    facets: [],
+    facets: [
+      { key: 'entryCost', label: 'Cost', labelVi: 'Chi phí', kind: 'toggle',
+        subcats: ['events-meetups', 'language-exchange', 'classes-workshops', 'sports-clubs'], options: [
+        { value: 'free', label: 'Free', labelVi: 'Miễn phí' },
+        { value: 'paid', label: 'Paid', labelVi: 'Có phí' },
+      ] },
+      { key: 'eventFormat', label: 'Format', labelVi: 'Hình thức', kind: 'toggle',
+        subcats: ['events-meetups', 'language-exchange', 'classes-workshops'], options: [
+        { value: 'in-person', label: 'In person', labelVi: 'Trực tiếp' },
+        { value: 'online', label: 'Online', labelVi: 'Trực tuyến' },
+      ] },
+    ],
   },
 
   // 13 ── TICKETS & TRAVEL ──────────────────────────────────────────────────────
@@ -544,7 +743,20 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'visa-runs', name: 'Visa runs', nameVi: 'Visa run', icon: 'Stamp', keywords: ['visa run', 'border run', 'visa run'] },
       { slug: 'vouchers', name: 'Vouchers', nameVi: 'Voucher', icon: 'TicketPercent', keywords: ['voucher', 'coupon', 'deal', 'ưu đãi'] },
     ],
-    facets: [],
+    facets: [
+      { key: 'ticketFormat', label: 'Format', labelVi: 'Hình thức vé', kind: 'toggle',
+        subcats: ['event-tickets', 'vouchers'], options: [
+        { value: 'e-ticket', label: 'E-ticket', labelVi: 'Vé điện tử' },
+        { value: 'physical', label: 'Physical', labelVi: 'Vé giấy' },
+        { value: 'voucher-code', label: 'Code', labelVi: 'Mã voucher' },
+      ] },
+      { key: 'tourDuration', label: 'Duration', labelVi: 'Thời lượng', kind: 'toggle',
+        subcats: ['tours'], options: [
+        { value: 'day-trip', label: 'Day trip', labelVi: 'Trong ngày' },
+        { value: '2-3-days', label: '2–3 days', labelVi: '2–3 ngày' },
+        { value: '4-plus-days', label: '4+ days', labelVi: 'Từ 4 ngày' },
+      ] },
+    ],
   },
 
   // 14 ── FOOD & DRINK ──────────────────────────────────────────────────────────
@@ -562,7 +774,19 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'meal-prep', name: 'Catering', nameVi: 'Suất ăn', icon: 'Salad', keywords: ['meal prep', 'catering', 'tiffin', 'suất ăn', 'đặt tiệc'] },
       { slug: 'coffee-tea', name: 'Coffee', nameVi: 'Cà phê', icon: 'Coffee', keywords: ['coffee', 'tea', 'beans', 'cà phê', 'trà'] },
     ],
-    facets: [],
+    facets: [
+      // Dietary tags are critical for the expat audience; ready-now vs pre-order.
+      { key: 'dietary', label: 'Dietary', labelVi: 'Chế độ ăn', kind: 'toggle', options: [
+        { value: 'vegetarian', label: 'Vegetarian', labelVi: 'Chay' },
+        { value: 'vegan', label: 'Vegan', labelVi: 'Thuần chay' },
+        { value: 'halal', label: 'Halal', labelVi: 'Halal' },
+        { value: 'gluten-free', label: 'Gluten-free', labelVi: 'Không gluten' },
+      ] },
+      { key: 'orderType', label: 'Availability', labelVi: 'Tình trạng hàng', kind: 'toggle', options: [
+        { value: 'ready-now', label: 'Ready now', labelVi: 'Có sẵn' },
+        { value: 'pre-order', label: 'Pre-order', labelVi: 'Đặt trước' },
+      ] },
+    ],
   },
 ]
 
@@ -600,7 +824,7 @@ export function rangeFacetsFor(categorySlug: string, subcategorySlug?: string | 
 
 // Allow-list of columns a `range_<col>` query param may target — guards the API
 // from filtering on an arbitrary client-supplied field name.
-export const RANGE_COLUMNS: readonly RangeColumn[] = ['year', 'mileageKm', 'engineL', 'engineCc']
+export const RANGE_COLUMNS: readonly RangeColumn[] = ['year', 'mileageKm', 'engineL', 'engineCc', 'areaM2', 'salaryM']
 export function isRangeColumn(s: string): s is RangeColumn {
   return (RANGE_COLUMNS as readonly string[]).includes(s)
 }
