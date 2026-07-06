@@ -16,24 +16,29 @@ export async function GET(req: NextRequest) {
   if (!(await getAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const diag = geminiDiag()
-  if (new URL(req.url).searchParams.get('probe') !== '1') return NextResponse.json(diag)
+  const params = new URL(req.url).searchParams
+  if (params.get('probe') !== '1') return NextResponse.json(diag)
 
   const ai = getGemini()
   if (!ai) return NextResponse.json({ ...diag, probe: { ok: false, error: 'client_null — no project/credentials resolved' } })
 
+  // Optional ?model= override: probe ANY model against the LIVE prod config (project +
+  // region + creds) WITHOUT committing a model change — so we can confirm e.g.
+  // gemini-3.5-flash resolves on this project's global endpoint before flipping to it.
+  const probeModel = params.get('model')?.trim() || GEMINI_MODEL
   const t0 = Date.now()
   try {
     const r = await ai.models.generateContent({
-      model: GEMINI_MODEL,
+      model: probeModel,
       contents: 'Reply with the single word OK.',
       config: { maxOutputTokens: 12, thinkingConfig: { thinkingBudget: 0 } },
     })
-    return NextResponse.json({ ...diag, probe: { ok: true, ms: Date.now() - t0, model: GEMINI_MODEL, text: (r.text || '').trim().slice(0, 40) } })
+    return NextResponse.json({ ...diag, probe: { ok: true, ms: Date.now() - t0, model: probeModel, text: (r.text || '').trim().slice(0, 40) } })
   } catch (e) {
     const msg = String((e as Error)?.message || e)
     const httpCode = (msg.match(/"code":\s*(\d+)/) || [])[1] || null
     // Admin-only, so surfacing the upstream error (incl. a 404 "model not found in
     // region") is the whole point — it's the fastest way to diagnose config drift.
-    return NextResponse.json({ ...diag, probe: { ok: false, ms: Date.now() - t0, httpCode, error: msg.slice(0, 240) } })
+    return NextResponse.json({ ...diag, probe: { ok: false, ms: Date.now() - t0, model: probeModel, httpCode, error: msg.slice(0, 240) } })
   }
 }
