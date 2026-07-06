@@ -17,6 +17,11 @@ export const COMPANY = {
   privacyEmail: 'support@eno.vn',
 }
 
+// Bump when the Terms/Regulations change materially — new acceptances stamp this
+// onto Profile.tosVersion (E-Transactions Law: keep a record of what was accepted
+// when). Announce changes on-platform ≥5 days before the new version takes effect.
+export const TOS_VERSION = '2026-07'
+
 // True while the site is in pre-launch test operation (before the MoIT sàn TMĐT
 // registration at online.gov.vn is confirmed). Drives the always-visible bilingual
 // notice. Flip to false on the day the registration is confirmed — and add the

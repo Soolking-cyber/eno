@@ -61,6 +61,11 @@ export async function dashboardStatsCore(profile: Profile) {
           location: seller.location,
           phone: seller.phone,
           avatarUrl: seller.avatarUrl,
+          // Legal identity (owner-scoped payload only — never in public serializers)
+          legalName: seller.legalName,
+          legalAddress: seller.legalAddress,
+          idNumber: seller.idNumber,
+          taxCode: seller.taxCode,
         }
       : null,
     stats,

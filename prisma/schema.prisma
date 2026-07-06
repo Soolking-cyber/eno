@@ -60,6 +60,11 @@ model Profile {
   attrCampaign  String?  // utm_campaign
   attrReferrer  String?  // referring hostname on first landing
   attrLandingAt DateTime? // first-touch timestamp
+  // ── ToS acceptance record (E-Transactions Law: keep a tamper-evident record of
+  //    click-wrap acceptance). Stamped at onboarding; re-stamped if a user accepts
+  //    a newer TOS_VERSION (src/lib/site-legal.ts). ──
+  tosAcceptedAt DateTime?
+  tosVersion    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -154,6 +159,14 @@ model Seller {
   location      String?
   bio           String?
   phone         String?   @unique           // KEEP: the guest-claim join key
+  // ── Seller legal identity (Đ.29 ND52 + Law 122/2025 collection duty; VNeID
+  //    verification enforceable 1 Jan 2027). Provided to buyers on request and to
+  //    authorities — idNumber/taxCode must NEVER appear in public serializations. ──
+  legalName         String?   // full legal name (individual) or registered company name
+  legalAddress      String?   // residence (individual) / head office (business)
+  idNumber          String?   // CCCD (individual) or ERC number (business)
+  taxCode           String?   // mã số thuế, if any
+  identityUpdatedAt DateTime? // when the seller last edited these fields
   listings      Listing[]
   reviews       Review[]
   conversations Conversation[]

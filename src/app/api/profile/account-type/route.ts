@@ -1,5 +1,6 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
+import { TOS_VERSION } from '@/lib/site-legal'
 import { getCurrentProfile } from '@/lib/admin'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
@@ -58,6 +59,10 @@ export async function POST(req: Request) {
       displayName,
       // Only set the profile phone if we don't already have a verified one.
       ...(profile.phone ? {} : phone ? { phone } : {}),
+      // ToS acceptance record (E-Transactions Law): onboarding is the affirmative
+      // "continue = agree" step every account passes through — stamp what was
+      // accepted and when. Re-stamps if the user re-onboards under a newer version.
+      ...(profile.tosVersion === TOS_VERSION ? {} : { tosAcceptedAt: new Date(), tosVersion: TOS_VERSION }),
     },
   })
 

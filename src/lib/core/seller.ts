@@ -36,6 +36,33 @@ export async function updateSellerCore(
     if (phone && (await phoneTakenByOther(phone, profileId))) return { ok: false, code: 409, error: 'phone_taken' }
     data.phone = phone || null
   }
+  // ── Legal identity (Đ.29 ND52 / Law 122/2025 collection duty). Stored, provided
+  //    to buyers on request + authorities; idNumber/taxCode never render publicly. ──
+  let identityTouched = false
+  if (body.legalName !== undefined) {
+    data.legalName = String(body.legalName).trim().slice(0, 160) || null
+    identityTouched = true
+  }
+  if (body.legalAddress !== undefined) {
+    data.legalAddress = String(body.legalAddress).trim().slice(0, 240) || null
+    identityTouched = true
+  }
+  if (body.idNumber !== undefined) {
+    const digits = String(body.idNumber).replace(/\D/g, '')
+    // CMND 9 / ERC 10 / CCCD 12 — accept the range, reject noise.
+    if (digits && (digits.length < 9 || digits.length > 13)) return { ok: false, code: 400, error: 'bad_id_number' }
+    data.idNumber = digits || null
+    identityTouched = true
+  }
+  if (body.taxCode !== undefined) {
+    const tax = String(body.taxCode).trim().replace(/[^0-9-]/g, '')
+    // MST: 10 digits, or 14 with the -NNN branch suffix.
+    if (tax && !/^\d{10}(-\d{3})?$/.test(tax)) return { ok: false, code: 400, error: 'bad_tax_code' }
+    data.taxCode = tax || null
+    identityTouched = true
+  }
+  if (identityTouched) data.identityUpdatedAt = new Date()
+
   // Public-facing text can't carry a phone number (same rule as listings).
   if (containsPhoneNumber(String(data.name ?? '')) || containsPhoneNumber(String(data.bio ?? ''))) {
     return { ok: false, code: 400, error: 'no_phone_in_profile' }

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { cn, getInitials } from '@/lib/utils'
 import { compressImageFile } from '@/lib/normalize-image'
 
-type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; phone: string | null }
+type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; phone: string | null; legalName?: string | null; legalAddress?: string | null; idNumber?: string | null; taxCode?: string | null }
 
 /** Inline business-profile editor (business tier). Edits the storefront's
  *  name/about/location/logo via the owner-scoped PATCH /api/seller. */
@@ -19,6 +19,11 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   const [location, setLocation] = useState(seller.location || '')
   const [phone, setPhone] = useState(seller.phone || '')
   const [avatarUrl, setAvatarUrl] = useState(seller.avatarUrl)
+  // Legal identity (Đ.29 e-commerce law collection duty; owner-only, never public)
+  const [legalName, setLegalName] = useState(seller.legalName || '')
+  const [legalAddress, setLegalAddress] = useState(seller.legalAddress || '')
+  const [idNumber, setIdNumber] = useState(seller.idNumber || '')
+  const [taxCode, setTaxCode] = useState(seller.taxCode || '')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -47,10 +52,11 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   // returns the server-trimmed values) so the form doesn't read perpetually dirty.
   useEffect(() => {
     setName(seller.name); setBio(seller.bio || ''); setLocation(seller.location || ''); setPhone(seller.phone || ''); setAvatarUrl(seller.avatarUrl)
-  }, [seller.name, seller.bio, seller.location, seller.phone, seller.avatarUrl])
+    setLegalName(seller.legalName || ''); setLegalAddress(seller.legalAddress || ''); setIdNumber(seller.idNumber || ''); setTaxCode(seller.taxCode || '')
+  }, [seller.name, seller.bio, seller.location, seller.phone, seller.avatarUrl, seller.legalName, seller.legalAddress, seller.idNumber, seller.taxCode])
   useEffect(() => { setRep(repName || '') }, [repName])
 
-  const dirty = name !== seller.name || rep !== (repName || '') || bio !== (seller.bio || '') || location !== (seller.location || '') || phone !== (seller.phone || '') || avatarUrl !== seller.avatarUrl
+  const dirty = name !== seller.name || rep !== (repName || '') || bio !== (seller.bio || '') || location !== (seller.location || '') || phone !== (seller.phone || '') || avatarUrl !== seller.avatarUrl || legalName !== (seller.legalName || '') || legalAddress !== (seller.legalAddress || '') || idNumber !== (seller.idNumber || '') || taxCode !== (seller.taxCode || '')
 
   const uploadLogo = async (file: File) => {
     setUploading(true); setError('')
@@ -75,7 +81,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
       }
       // Only send avatarUrl when it changed — re-sending an unchanged non-bucket
       // logo URL would 400 (the API only accepts Supabase-hosted images).
-      const payload: Record<string, unknown> = { name: name.trim(), bio, location, phone }
+      const payload: Record<string, unknown> = { name: name.trim(), bio, location, phone, legalName, legalAddress, idNumber, taxCode }
       if (avatarUrl !== seller.avatarUrl) payload.avatarUrl = avatarUrl
       const res = await fetch('/api/seller', {
         method: 'PATCH',
@@ -88,6 +94,8 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
           d.error === 'no_phone_in_profile' ? tr("Phone numbers aren't allowed in the name/about.", 'Không ghi số trong tên/giới thiệu.')
           : d.error === 'phone_taken' ? tr('That phone is already used by another storefront.', 'Số này đã được dùng cho gian hàng khác.')
           : d.error === 'bad_phone' ? tr('Enter a valid phone number.', 'Nhập số điện thoại hợp lệ.')
+          : d.error === 'bad_id_number' ? tr('ID/ERC number should be 9–13 digits.', 'Số CCCD/ĐKDN gồm 9–13 chữ số.')
+          : d.error === 'bad_tax_code' ? tr('Tax code format: 10 digits (or 10-3 with branch).', 'Mã số thuế: 10 chữ số (hoặc 10-3 cho chi nhánh).')
           : tr('Could not save. Try again.', 'Không lưu được. Thử lại.'),
         )
         return
@@ -142,6 +150,34 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
       <div className="mt-3">
         <label htmlFor="biz-bio" className="mb-1 block text-xs font-semibold text-body">{tr('About', 'Giới thiệu')}</label>
         <textarea id="biz-bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={1000} placeholder={tr('Tell buyers about your business…', 'Giới thiệu doanh nghiệp của bạn…')} className={cn(field, 'resize-none')} />
+      </div>
+
+      {/* Legal information — Đ.29 ND52 + Law 122/2025: platforms must collect the
+          seller's legal name, address, ID/registration number and tax code. Shown
+          to authorities/buyers on request only — never on the public storefront. */}
+      <div className="mt-6">
+        <h3 className="text-sm font-bold text-foreground">{tr('Legal information', 'Thông tin pháp lý')}</h3>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-ink-4">
+          {tr('Required of sellers by Vietnamese e-commerce law. Kept private — provided only to authorities, or to a buyer on lawful request. Never shown on your storefront.', 'Pháp luật TMĐT Việt Nam yêu cầu người bán cung cấp. Được bảo mật — chỉ cung cấp cho cơ quan chức năng hoặc người mua theo yêu cầu hợp pháp. Không hiển thị trên gian hàng.')}
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="biz-legal-name" className="mb-1 block text-xs font-semibold text-body">{tr('Registered legal name', 'Tên pháp lý / tên đăng ký')}</label>
+            <input id="biz-legal-name" value={legalName} onChange={(e) => setLegalName(e.target.value)} maxLength={160} placeholder={tr('Company name on the ERC, or your full legal name', 'Tên trên GCN ĐKDN, hoặc họ tên đầy đủ')} className={field} />
+          </div>
+          <div>
+            <label htmlFor="biz-legal-address" className="mb-1 block text-xs font-semibold text-body">{tr('Registered address', 'Địa chỉ đăng ký')}</label>
+            <input id="biz-legal-address" value={legalAddress} onChange={(e) => setLegalAddress(e.target.value)} maxLength={240} placeholder={tr('Head office (business) or residence (individual)', 'Trụ sở (doanh nghiệp) hoặc nơi cư trú (cá nhân)')} className={field} />
+          </div>
+          <div>
+            <label htmlFor="biz-id-number" className="mb-1 block text-xs font-semibold text-body">{tr('CCCD / business registration no.', 'Số CCCD / GCN ĐKDN')}</label>
+            <input id="biz-id-number" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} inputMode="numeric" maxLength={16} className={field} />
+          </div>
+          <div>
+            <label htmlFor="biz-tax-code" className="mb-1 block text-xs font-semibold text-body">{tr('Tax code (if any)', 'Mã số thuế (nếu có)')}</label>
+            <input id="biz-tax-code" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} inputMode="numeric" maxLength={14} placeholder="0312345678" className={field} />
+          </div>
+        </div>
       </div>
 
       <div className="mt-3 flex items-center gap-3">
