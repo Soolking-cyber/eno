@@ -7,15 +7,17 @@ import { GoogleGenAI } from '@google/genai'
 //   GOOGLE_VERTEX_CREDENTIALS  — the service-account JSON key, as a single-line string
 // Lazy singleton; returns null when unconfigured so the AI routes degrade gracefully.
 
-// ALL AI paths run gemini-3.5-flash (user decision 2026-07-05): image classify,
-// description polish, concierge, brands, admin review. Verified on eno-vn (text +
-// multimodal + JSON schema + thinkingBudget:0) — served from the GLOBAL endpoint
-// ONLY; us-central1 404s it, which is why the location default below is NOT
-// GOOGLE_VERTEX_LOCATION (that stays us-central1 for vertex-search.ts's data store).
-export const GEMINI_MODEL = 'gemini-3.5-flash'
-// If 3.5 ever fails (regional incident, quota), high-stakes callers can retry on the
-// previous workhorse — also available on the global endpoint.
-export const GEMINI_MODEL_FALLBACK = 'gemini-2.5-flash'
+// ALL AI paths run gemini-2.5-flash: image classify, description polish, concierge,
+// brands, admin review. REVERTED from gemini-3.5-flash (2026-07-06): 3.5-flash is
+// served from the GLOBAL endpoint ONLY and 404s on us-central1 — so the post-wizard
+// autofill/polish broke ("AI unavailable") wherever the Gemini endpoint resolved to a
+// region. 2.5-flash is verified to work on BOTH global AND regional endpoints
+// (us-central1 + asia-southeast1), so it's immune to whatever GEMINI_LOCATION is set
+// to in prod. It's also faster on this workload (~1.7–3s vs 3.5's ~2–4.5s). If you
+// want to move back to a 3.x model, pin GEMINI_LOCATION=global in Vercel first.
+export const GEMINI_MODEL = 'gemini-2.5-flash'
+// Lighter/faster variant for high-stakes retries (admin review) — also region-robust.
+export const GEMINI_MODEL_FALLBACK = 'gemini-2.5-flash-lite'
 
 let client: GoogleGenAI | null | undefined
 
