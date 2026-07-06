@@ -53,3 +53,35 @@ export function getGemini(): GoogleGenAI | null {
 }
 
 export const aiEnabled = () => getGemini() !== null
+
+/** Non-secret summary of the RESOLVED Gemini config — WHICH env source is actually in
+ *  effect (GEMINI_* preferred, GOOGLE_VERTEX_* fallback), the project/location the
+ *  client will hit, and whether it initialised. Powers GET /api/admin/ai-health so you
+ *  can see the live config without reading Vercel secrets. Exposes only ids/the service-
+ *  account email (identifiers, not keys) — never the private key or credential blob. */
+export function geminiDiag() {
+  const gProj = process.env.GEMINI_PROJECT, vProj = process.env.GOOGLE_VERTEX_PROJECT
+  const gLoc = process.env.GEMINI_LOCATION
+  const gCred = process.env.GEMINI_CREDENTIALS, vCred = process.env.GOOGLE_VERTEX_CREDENTIALS
+  const rawCreds = gCred || vCred || ''
+  let credServiceAccount: string | null = null
+  try {
+    if (rawCreds) {
+      const json = rawCreds.trim().startsWith('{') ? rawCreds : Buffer.from(rawCreds.trim(), 'base64').toString('utf8')
+      credServiceAccount = (JSON.parse(json) as { client_email?: string }).client_email ?? null
+    }
+  } catch { credServiceAccount = 'PARSE_ERROR' }
+  return {
+    model: GEMINI_MODEL,
+    fallbackModel: GEMINI_MODEL_FALLBACK,
+    // `.trim() || fallback` so a present-but-EMPTY var falls through exactly like getGemini().
+    project: (gProj?.trim() || vProj?.trim()) || null,
+    projectSource: gProj?.trim() ? 'GEMINI_PROJECT' : vProj?.trim() ? 'GOOGLE_VERTEX_PROJECT' : 'none',
+    location: gLoc?.trim() || 'global',
+    locationSource: gLoc?.trim() ? 'GEMINI_LOCATION' : 'default(global)',
+    credSource: gCred?.trim() ? 'GEMINI_CREDENTIALS' : vCred?.trim() ? 'GOOGLE_VERTEX_CREDENTIALS' : 'none',
+    credServiceAccount,
+    aiAssistFlag: process.env.NEXT_PUBLIC_AI_ASSIST || null,
+    clientReady: getGemini() !== null,
+  }
+}
