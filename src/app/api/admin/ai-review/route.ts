@@ -4,6 +4,7 @@ import { Type } from '@google/genai'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { getGemini, GEMINI_MODEL, GEMINI_MODEL_FALLBACK } from '@/lib/gemini'
+import { safeFetch } from '@/lib/ssrf'
 import { rateLimit } from '@/lib/ratelimit'
 import { reportContext } from '@/lib/admin-reports'
 
@@ -40,9 +41,12 @@ const parseImages = (raw: string | null | undefined): string[] => {
 // (classify's pattern). Skips >4MB / non-image / undecodable — an image can never
 // fail the whole review.
 async function fetchInline(url: string): Promise<string | null> {
-  if (!/^https?:\/\//i.test(url)) return null
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    // safeFetch enforces https-only + blocks internal/metadata addresses (revalidated
+    // per redirect hop). Evidence URLs are already write-time-pinned to our Supabase
+    // bucket, but routing through the SSRF guard means a future unfiltered image-write
+    // path can't silently turn this admin endpoint into an SSRF proxy (2026-07-06).
+    const res = await safeFetch(url, { timeoutMs: 8000 })
     if (!res.ok) return null
     const ct = res.headers.get('content-type') || ''
     if (!ct.startsWith('image/')) return null

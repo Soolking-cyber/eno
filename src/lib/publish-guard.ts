@@ -74,8 +74,10 @@ export function findBannedWord(text: string | null | undefined): string | null {
 const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i
 // Obfuscated email — "name at gmail dot com", "shop (at) yahoo [dot] com", "gmail chấm
 // com" (folded → cham). A real TLD must follow so coincidental "… at … dot …" prose
-// can't trip it.
-const EMAIL_OBF = /[a-z0-9._%+-]{2,}\s*[([]?\s*(?:@|\bat\b)\s*[)\]]?\s*[a-z0-9-]{2,}\s*[([]?\s*(?:\.|\bdot\b|\bcham\b)\s*[)\]]?\s*(?:com|net|org|vn|io|co|info|mail|edu|gov)\b/i
+// can't trip it. Every quantifier is BOUNDED (local/domain ≤64, whitespace ≤4) so the
+// match is O(n): unbounded `{2,}` + `\s*` made this super-linear and a 5k-char field
+// cost ~350ms, amplified 200× by bulk import (ReDoS/DoS lever, verified 2026-07-06).
+const EMAIL_OBF = /[a-z0-9._%+-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}(?:@|\bat\b)[ \t]{0,4}[)\]]?[ \t]{0,4}[a-z0-9-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}(?:\.|\bdot\b|\bcham\b)[ \t]{0,4}[)\]]?[ \t]{0,4}(?:com|net|org|vn|io|co|info|mail|edu|gov)\b/i
 const LINK = /\b(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]{2,}\.(?:com|net|org|io|me|co|info|shop|store|link|xyz)\b/i
 const HANDLE = /(?:^|\s)@[a-z0-9._]{3,}/
 const SOCIAL = /\b(?:zalo|whatsapp|telegram|wechat|viber|messenger|facebook|instagram|tiktok)\b\s*[:@#]\s*[\w.+-]{2,}/i

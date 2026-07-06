@@ -15,7 +15,9 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-  const gate = await rateLimit('otp-channel-read', ip, 30, '10 m')
+  // strict: fail CLOSED — if Redis is down this weak has-app/mid-signup oracle
+  // must not become unbounded (verification sweep 2026-07-06).
+  const gate = await rateLimit('otp-channel-read', ip, 30, '10 m', { strict: true })
   if (!gate.success) return NextResponse.json({ channel: null }, { status: 429 })
 
   const phone = normalizePhoneVN(new URL(req.url).searchParams.get('phone') || '')

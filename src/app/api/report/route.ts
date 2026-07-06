@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (reporter.reportCooldownUntil && reporter.reportCooldownUntil > new Date()) {
     return NextResponse.json({ error: 'report_cooldown' }, { status: 429 })
   }
-  const rl = await rateLimit('report', reporter.id, 10, '1 h')
+  const rl = await rateLimit('report', reporter.id, 10, '1 h', { strict: true })
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   let body: { listingId?: string; sellerId?: string; conversationId?: string; reason?: string; detail?: string }
