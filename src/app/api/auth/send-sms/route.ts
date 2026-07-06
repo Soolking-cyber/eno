@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { Webhook } from 'standardwebhooks'
 import { sendZnsOtp, znsConfigured } from '@/lib/zalo-zns'
 import { sendTelegramOtp, sendWhatsAppOtp, sendSpeedSmsOtp, telegramConfigured, whatsappConfigured } from '@/lib/otp-channels'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimit, escalatingCooldown } from '@/lib/ratelimit'
 
 // Supabase "Send SMS Hook". Supabase generates, rate-limits and verifies the
 // phone OTP natively (signInWithOtp/verifyOtp unchanged); this endpoint only
@@ -19,9 +19,13 @@ import { rateLimit } from '@/lib/ratelimit'
 //    the token; enabled in the Supabase dashboard 2026-07-05).
 //  - Standard Webhooks HMAC is the only auth on this public route — verify
 //    every request.
-//  - Per-PREFIX limiter below throttles pumping runs across a number range
-//    (many numbers, one carrier block) that per-number limits can't see, plus
-//    a global daily breaker caps worst-case spend. Both fail CLOSED.
+//  - Per-NUMBER escalating cooldown (60s → 5m → 15m → 30m cap — the Twilio/
+//    Auth0-recommended resend pattern) + 8 sends/day hard cap: a real user
+//    retries once or twice; a script hammers. Violations 429 with a visible
+//    wait time so the user knows to wait, not mash resend.
+//  - Per-PREFIX limiter throttles pumping runs across a number range (many
+//    numbers, one carrier block) that per-number limits can't see, plus a
+//    global daily breaker caps worst-case spend. All limits fail CLOSED.
 //  - NEVER log the OTP.
 // Docs: https://supabase.com/docs/guides/auth/auth-hooks/send-sms-hook
 
@@ -63,21 +67,37 @@ export async function POST(req: Request) {
   const requestId = headers['webhook-id'] || phone // correlation/idempotency key
   if (!phone || !otp) return NextResponse.json({ error: 'Missing phone/otp' }, { status: 400 })
 
-  // 3) Pumping breakers (fail CLOSED — a Redis blip must not open the wallet):
-  //    ≤20 sends/hour per 6-digit prefix (a legit block of users never bursts
-  //    like a pumping run does) and ≤2,000 sends/day globally. On trip: swallow
-  //    the delivery, return 200 (Supabase keeps the code; a real user retries
-  //    later), and log loudly.
-  const [prefixGate, globalGate] = await Promise.all([
+  // 3) Per-number escalating cooldown — the send that clears each gate arms
+  //    the next one: 1st send → 60s, 2nd → 5m, 3rd → 15m, 4th+ → 30m (counter
+  //    resets after 24h quiet). Unlike the silent breakers below, a cooldown
+  //    hit returns a 429 whose message Supabase surfaces to the sign-in form,
+  //    so a legit user sees HOW LONG to wait instead of a dead resend button.
+  const cd = await escalatingCooldown('otp-send', phone, [60, 300, 900, 1800])
+  if (!cd.allowed) {
+    const wait = cd.retryAfterSec < 120 ? `${cd.retryAfterSec}s` : `${Math.ceil(cd.retryAfterSec / 60)} min`
+    return NextResponse.json(
+      { error: { http_code: 429, message: `Please wait ${wait} before requesting another code.` } },
+      { status: 429 },
+    )
+  }
+
+  // 4) Pumping breakers (fail CLOSED — a Redis blip must not open the wallet):
+  //    ≤8 sends/day per number, ≤20 sends/hour per 6-digit prefix (a prefix is
+  //    a ~10k-number carrier block shared by many users — this catches runs
+  //    across MANY numbers that per-number limits can't see) and ≤2,000
+  //    sends/day globally. On trip: swallow the delivery, return 200 (Supabase
+  //    keeps the code; a real user retries later), and log loudly.
+  const [numberGate, prefixGate, globalGate] = await Promise.all([
+    rateLimit('otp-number', phone, 8, '1 d', { strict: true }),
     rateLimit('otp-prefix', phone.slice(0, 6), 20, '1 h', { strict: true }),
     rateLimit('otp-global', 'all', 2000, '1 d', { strict: true }),
   ])
-  if (!prefixGate.success || !globalGate.success) {
-    console.error('[send-sms] pumping breaker tripped', { prefix: phone.slice(0, 6), global: !globalGate.success })
+  if (!numberGate.success || !prefixGate.success || !globalGate.success) {
+    console.error('[send-sms] pumping breaker tripped', { prefix: phone.slice(0, 6), number: !numberGate.success, global: !globalGate.success })
     return NextResponse.json({}, { status: 200 })
   }
 
-  // 4) Deliver — cheapest channel that can reach this number wins. `noApp`
+  // 5) Deliver — cheapest channel that can reach this number wins. `noApp`
   //    means "this number doesn't have that app": cascade, don't retry.
   let delivered = false
   if (telegramConfigured()) {
@@ -93,7 +113,7 @@ export async function POST(req: Request) {
   }
   if (!delivered) delivered = (await sendSpeedSmsOtp(phone, otp)).ok
 
-  // 5) Return 200 even on a transient delivery hiccup: Supabase already stored
+  // 6) Return 200 even on a transient delivery hiccup: Supabase already stored
   //    the code and the user can resend — a non-200 would ABORT their login. We
   //    log (without the OTP) so a silent provider outage is still noticed.
   if (!delivered) console.error('[send-sms] all channels failed for', phone)

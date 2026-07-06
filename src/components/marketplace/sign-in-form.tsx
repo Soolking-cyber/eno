@@ -11,6 +11,11 @@ import { googleOauthBlocked, openInSystemBrowser } from '@/lib/in-app-browser'
 import { useTurnstile } from './turnstile'
 
 const RESEND_SECONDS = 60
+// SMS resend cooldown escalates per send (mirrors the server schedule in
+// api/auth/send-sms — the server is the enforcement; this keeps the button
+// honest so it never invites a tap that would be rejected).
+const SMS_RESEND_STEPS = [60, 300, 900, 1800]
+const fmtCountdown = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 /** All sign-in logic + UI, with NO outer chrome — rendered by both the modal
  *  (SignInDialog) and the dedicated /signin page so they share identical
@@ -27,6 +32,7 @@ export function SignInForm({ className }: { className?: string }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [countdown, setCountdown] = useState(0)
+  const smsSends = useRef(0) // client-side mirror of the server's escalation counter
   const lastSubmitted = useRef('')
   // Google blocks OAuth inside in-app browsers / iOS PWAs (403 disallowed_useragent).
   // Detect that client-side and hand off to the real browser instead of dead-ending.
@@ -104,7 +110,9 @@ export function SignInForm({ className }: { className?: string }) {
     setLoading(false)
     if (error) { setError(friendlyAuthError(error.message)); return }
     setPhone(intl); setCode(''); lastSubmitted.current = ''
-    setStage('code'); setCountdown(RESEND_SECONDS)
+    setStage('code')
+    setCountdown(SMS_RESEND_STEPS[Math.min(smsSends.current, SMS_RESEND_STEPS.length - 1)])
+    smsSends.current += 1
   }
 
   const verifyPhone = async (c = code) => {
@@ -143,7 +151,9 @@ export function SignInForm({ className }: { className?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage])
 
-  const reset = () => { setStage('input'); setCode(''); setError(''); lastSubmitted.current = '' }
+  // Escalation counter resets too — the server tracks it PER NUMBER, so a
+  // different number legitimately starts back at 60s.
+  const reset = () => { setStage('input'); setCode(''); setError(''); lastSubmitted.current = ''; smsSends.current = 0 }
 
   if (stage === 'sent') {
     return (
@@ -161,7 +171,7 @@ export function SignInForm({ className }: { className?: string }) {
         <p className="mt-3 text-xs text-muted-foreground">
           {t("Didn't get it? Check spam, or", 'Không thấy email? Kiểm tra spam, hoặc')}{' '}
           <button onClick={sendEmail} disabled={countdown > 0 || loading} className="font-semibold text-accent-foreground hover:underline disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
-            {countdown > 0 ? `${t('resend in', 'gửi lại sau')} 0:${String(countdown).padStart(2, '0')}` : t('resend', 'gửi lại')}
+            {countdown > 0 ? `${t('resend in', 'gửi lại sau')} ${fmtCountdown(countdown)}` : t('resend', 'gửi lại')}
           </button>
         </p>
         {error && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
@@ -240,7 +250,7 @@ export function SignInForm({ className }: { className?: string }) {
           <div className="flex items-center justify-between px-1 text-xs">
             <button onClick={reset} className="font-semibold text-muted-foreground hover:text-accent-foreground cursor-pointer">{t('Change number', 'Đổi số')}</button>
             <button onClick={sendPhone} disabled={countdown > 0 || loading} className="font-semibold text-accent-foreground hover:underline disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
-              {countdown > 0 ? `${t('Resend in', 'Gửi lại sau')} 0:${String(countdown).padStart(2, '0')}` : t('Resend code', 'Gửi lại mã')}
+              {countdown > 0 ? `${t('Resend in', 'Gửi lại sau')} ${fmtCountdown(countdown)}` : t('Resend code', 'Gửi lại mã')}
             </button>
           </div>
         </div>

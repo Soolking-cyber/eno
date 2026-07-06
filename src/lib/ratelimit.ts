@@ -57,3 +57,34 @@ export async function rateLimit(
     return { success: !opts?.strict, remaining: 0 }
   }
 }
+
+/**
+ * Escalating per-key resend cooldown — the OTP industry pattern (Twilio Verify /
+ * Auth0 guidance): each successive send within the window must wait longer than
+ * the last (e.g. 60s → 5m → 15m → 30m cap). A real user retries once or twice;
+ * a script hammers. The attempt counter resets after 24h of quiet.
+ *
+ * Fails CLOSED (used only on paid-delivery security routes): if Redis is down,
+ * the send is denied rather than un-throttled.
+ */
+export async function escalatingCooldown(
+  name: string,
+  key: string,
+  stepsSec: number[],
+): Promise<{ allowed: boolean; retryAfterSec: number }> {
+  if (!redis) return { allowed: false, retryAfterSec: stepsSec[0] ?? 60 }
+  const untilKey = `cd:${name}:${key}:until`
+  const countKey = `cd:${name}:${key}:n`
+  try {
+    const ttl = await redis.ttl(untilKey)
+    if (ttl > 0) return { allowed: false, retryAfterSec: ttl }
+    const n = await redis.incr(countKey)
+    if (n === 1) await redis.expire(countKey, 86400)
+    const cooldown = stepsSec[Math.min(n - 1, stepsSec.length - 1)] ?? 60
+    await redis.set(untilKey, '1', { ex: cooldown })
+    return { allowed: true, retryAfterSec: 0 }
+  } catch (e) {
+    console.error('[ratelimit] cooldown backend error for', name, e)
+    return { allowed: false, retryAfterSec: stepsSec[0] ?? 60 }
+  }
+}

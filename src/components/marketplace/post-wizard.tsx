@@ -276,14 +276,21 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [postingAs, setPostingAs] = useState<string | null>(null)
   const [meLoaded, setMeLoaded] = useState(false)
 
-  // ── Draft autosave (new listings only; photos aren't persisted). Restores the
-  // typed fields on return so an accidental close doesn't lose the work. ──
+  // ── Draft autosave (new listings only; photos aren't persisted). Crash
+  // insurance, not a drafts feature: restores only within a short window
+  // (industry norm — protect against accidental close, don't resurrect stale
+  // intent), and only when real typing happened. A category tap alone is not a
+  // draft; anything older than the TTL is silently deleted. ──
+  const DRAFT_TTL_MS = 15 * 60_000
   const draftHydrated = useRef(false)
   useEffect(() => {
     if (edit) { draftHydrated.current = true; return }
     try {
       const d = JSON.parse(localStorage.getItem('eno-listing-draft') || 'null')
-      if (d && (d.title || d.description || d.categorySlug || d.price)) {
+      const meaningful = d && (d.title?.trim() || d.description?.trim() || d.price)
+      const fresh = d && Date.now() - (d.savedAt || 0) < DRAFT_TTL_MS
+      if (d && !(meaningful && fresh)) localStorage.removeItem('eno-listing-draft')
+      if (d && meaningful && fresh) {
         if (d.categorySlug != null) setCategorySlug(d.categorySlug)
         if (d.subcategorySlug != null) setSubcategorySlug(d.subcategorySlug)
         if (d.listingType) setListingType(d.listingType)
@@ -307,7 +314,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   useEffect(() => {
     if (edit || !draftHydrated.current) return
     try {
-      localStorage.setItem('eno-listing-draft', JSON.stringify({ categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, condition, brand, model, province, ward, nearby }))
+      // Only typed work is worth keeping — clicking around the form isn't.
+      if (!title.trim() && !description.trim() && !price) {
+        localStorage.removeItem('eno-listing-draft')
+        return
+      }
+      localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, condition, brand, model, province, ward, nearby }))
     } catch {}
   }, [edit, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, condition, brand, model, province, ward, nearby])
 
