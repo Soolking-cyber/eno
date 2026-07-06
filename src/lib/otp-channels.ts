@@ -11,6 +11,15 @@ import 'server-only'
 
 export type ChannelResult = { ok: boolean; noApp?: boolean }
 
+// Supabase usually delivers user.phone without a leading '+', but tolerate both
+// shapes. All providers here expect the 84-prefixed digits-only form.
+export function normalizePhoneVN(raw: string): string {
+  let d = (raw || '').replace(/\D/g, '')
+  if (d.startsWith('0')) d = '84' + d.slice(1)
+  else if (!d.startsWith('84')) d = '84' + d
+  return d
+}
+
 const TIMEOUT_MS = 3000
 
 async function timedFetch(url: string, init: RequestInit): Promise<Response> {

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { Webhook } from 'standardwebhooks'
 import { sendZnsOtp, znsConfigured } from '@/lib/zalo-zns'
-import { sendTelegramOtp, sendWhatsAppOtp, sendSpeedSmsOtp, telegramConfigured, whatsappConfigured } from '@/lib/otp-channels'
-import { rateLimit, escalatingCooldown } from '@/lib/ratelimit'
+import { sendTelegramOtp, sendWhatsAppOtp, sendSpeedSmsOtp, telegramConfigured, whatsappConfigured, normalizePhoneVN } from '@/lib/otp-channels'
+import { rateLimit, escalatingCooldown, getRedis } from '@/lib/ratelimit'
 
 // Supabase "Send SMS Hook". Supabase generates, rate-limits and verifies the
 // phone OTP natively (signInWithOtp/verifyOtp unchanged); this endpoint only
@@ -33,15 +33,6 @@ export const runtime = 'nodejs' // standardwebhooks needs Node crypto, not edge
 export const dynamic = 'force-dynamic'
 
 const HOOK_SECRET = process.env.SEND_SMS_HOOK_SECRET // form: "v1,whsec_<base64>"
-
-// Supabase usually delivers user.phone without a leading '+', but tolerate both
-// shapes. All providers here expect the 84-prefixed digits-only form.
-function normalizePhoneVN(raw: string): string {
-  let d = (raw || '').replace(/\D/g, '')
-  if (d.startsWith('0')) d = '84' + d.slice(1)
-  else if (!d.startsWith('84')) d = '84' + d
-  return d
-}
 
 export async function POST(req: Request) {
   if (!HOOK_SECRET) {
@@ -99,19 +90,27 @@ export async function POST(req: Request) {
 
   // 5) Deliver — cheapest channel that can reach this number wins. `noApp`
   //    means "this number doesn't have that app": cascade, don't retry.
-  let delivered = false
+  let channel: 'telegram' | 'whatsapp' | 'zalo' | 'sms' | null = null
   if (telegramConfigured()) {
-    delivered = (await sendTelegramOtp(phone, otp)).ok
+    if ((await sendTelegramOtp(phone, otp)).ok) channel = 'telegram'
   }
-  if (!delivered && whatsappConfigured()) {
-    delivered = (await sendWhatsAppOtp(phone, otp)).ok
+  if (!channel && whatsappConfigured()) {
+    if ((await sendWhatsAppOtp(phone, otp)).ok) channel = 'whatsapp'
   }
-  if (!delivered && znsConfigured()) {
+  if (!channel && znsConfigured()) {
     const zns = await sendZnsOtp(phone, otp, requestId)
-    delivered = zns.ok
-    if (!zns.ok && zns.noZalo) console.warn('[send-sms] no Zalo on number — SMS fallback')
+    if (zns.ok) channel = 'zalo'
+    else if (zns.noZalo) console.warn('[send-sms] no Zalo on number — SMS fallback')
   }
-  if (!delivered) delivered = (await sendSpeedSmsOtp(phone, otp)).ok
+  if (!channel && (await sendSpeedSmsOtp(phone, otp)).ok) channel = 'sms'
+  const delivered = channel !== null
+
+  // Remember WHERE the code landed so the sign-in form can say "check your
+  // Telegram" instead of "check everywhere" (read back by /api/auth/otp-channel).
+  // Best-effort: a Redis blip only degrades the copy, never the login.
+  if (channel) {
+    try { await getRedis()?.set(`otp-ch:${phone}`, channel, { ex: 600 }) } catch {}
+  }
 
   // 6) Return 200 even on a transient delivery hiccup: Supabase already stored
   //    the code and the user can resend — a non-200 would ABORT their login. We

@@ -22,6 +22,10 @@ if (url && token) {
   console.warn('[ratelimit] No Upstash credentials (UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN) — rate limiting is DISABLED. Set them (Production scope) and redeploy to enable it.')
 }
 
+/** Raw client for the few non-limiter uses (e.g. remembering which channel an
+ *  OTP was delivered on). Null when Upstash is unconfigured — callers degrade. */
+export const getRedis = () => redis
+
 const limiters = new Map<string, Ratelimit>()
 
 /**

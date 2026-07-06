@@ -32,6 +32,9 @@ export function SignInForm({ className }: { className?: string }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [countdown, setCountdown] = useState(0)
+  // Which channel the code actually landed on (telegram/whatsapp/zalo/sms) —
+  // written by the delivery hook, read back so we can point at ONE inbox.
+  const [sentChannel, setSentChannel] = useState<string | null>(null)
   const smsSends = useRef(0) // client-side mirror of the server's escalation counter
   const lastSubmitted = useRef('')
   // Google blocks OAuth inside in-app browsers / iOS PWAs (403 disallowed_useragent).
@@ -101,6 +104,21 @@ export function SignInForm({ className }: { className?: string }) {
     else { setStage('sent'); setCountdown(RESEND_SECONDS) }
   }
 
+  // The hook finishes before signInWithOtp resolves, so one read usually hits;
+  // the retry covers replication lag. Fire-and-forget — unknown just means the
+  // code screen shows no inbox hint, never a blocked login.
+  const fetchChannel = async (p: string) => {
+    setSentChannel(null)
+    for (let i = 0; i < 2; i++) {
+      try {
+        const r = await fetch(`/api/auth/otp-channel?phone=${encodeURIComponent(p)}`)
+        const { channel } = await r.json()
+        if (channel) { setSentChannel(channel); return }
+      } catch {}
+      await new Promise((res) => setTimeout(res, 1200))
+    }
+  }
+
   const sendPhone = async () => {
     setLoading(true); setError('')
     const d = phone.replace(/\D/g, '')
@@ -113,6 +131,7 @@ export function SignInForm({ className }: { className?: string }) {
     setStage('code')
     setCountdown(SMS_RESEND_STEPS[Math.min(smsSends.current, SMS_RESEND_STEPS.length - 1)])
     smsSends.current += 1
+    fetchChannel(intl)
   }
 
   const verifyPhone = async (c = code) => {
@@ -231,18 +250,21 @@ export function SignInForm({ className }: { className?: string }) {
           <Button variant="cta" size="none" onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send code', 'Gửi mã')}
           </Button>
-          {/* The delivery cascade (Telegram → WhatsApp → Zalo → SMS) is server-side
-              and invisible — without this line, users watch the wrong inbox. */}
-          <p className="text-center text-[11px] leading-relaxed text-ink-4">
-            {t('Your code arrives by SMS — or in Zalo, Telegram or WhatsApp if your number uses one.', 'Mã sẽ đến qua SMS — hoặc qua Zalo, Telegram hay WhatsApp nếu số của bạn dùng các ứng dụng đó.')}
-          </p>
         </div>
       )}
 
       {tab === 'phone' && stage === 'code' && (
         <div className="space-y-3">
           <p className="text-center text-xs text-muted-foreground">{t('Enter the 6-digit code sent to', 'Nhập mã 6 số gửi tới')} <strong className="text-foreground">{phone}</strong></p>
-          <p className="-mt-1.5 text-center text-[11px] text-ink-4">{t('Check SMS, Zalo, Telegram or WhatsApp.', 'Kiểm tra SMS, Zalo, Telegram hoặc WhatsApp.')}</p>
+          {/* Point at the ONE inbox the hook actually delivered to — shown only
+              once /api/auth/otp-channel confirms it, never a guess. */}
+          {sentChannel && (
+            <p className="-mt-1.5 text-center text-[11px] text-ink-4">
+              {sentChannel === 'sms'
+                ? t('Sent by SMS — check your messages.', 'Đã gửi qua SMS — kiểm tra tin nhắn của bạn.')
+                : `${t('Sent to your', 'Đã gửi tới')} ${sentChannel === 'telegram' ? 'Telegram' : sentChannel === 'whatsapp' ? 'WhatsApp' : 'Zalo'}.`}
+            </p>
+          )}
           <InputOTP maxLength={6} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
             <InputOTPGroup>
               {[0, 1, 2, 3, 4, 5].map((i) => (
