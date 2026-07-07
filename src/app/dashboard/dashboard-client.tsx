@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { AlertTriangle, Eye, MessageSquareText, Tag, Clock, Upload, List, LayoutGrid, Store } from 'lucide-react'
+import { AlertTriangle, Eye, MessageSquareText, Tag, Clock, Upload, List, LayoutGrid, Store, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { Mascot } from '@/components/marketplace/mascot'
@@ -33,6 +33,7 @@ const PostWizard = dynamic(() => import('@/components/marketplace/post-wizard').
 import { EnforcementBanner, type EnforcementInfo } from '@/components/marketplace/enforcement-banner'
 import type { SerializedCategory } from '@/lib/types'
 import { isStale } from '@/lib/stale'
+import { fold } from '@/lib/fold'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -94,6 +95,9 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   const [listView, setListView] = useState<'list' | 'grid'>('list')
   useEffect(() => { try { const v = localStorage.getItem('eno-dash-view'); if (v === 'grid' || v === 'list') setListView(v) } catch {} }, [])
   const setView = (v: 'list' | 'grid') => { setListView(v); try { localStorage.setItem('eno-dash-view', v) } catch {} }
+  // Filter the seller's own listings by title — surfaced once a shop grows past a
+  // scannable handful (matches EN + VI titles, accent-insensitive).
+  const [listQ, setListQ] = useState('')
   const reviewedRef = useRef(false)
 
   // Daily availability review: the FIRST time a seller with live listings opens
@@ -358,6 +362,25 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
               </div>
             )}
           </div>
+          {/* Search-your-own-listings — appears once a shop grows past a scannable
+              handful so a seller can jump to one item instead of scrolling. */}
+          {d && d.listings.length > 10 && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl bg-tint px-3 py-2 focus-within:ring-2 focus-within:ring-brand/20">
+              <Search className="h-4 w-4 shrink-0 text-ink-4" />
+              <input
+                value={listQ}
+                onChange={(e) => setListQ(e.target.value)}
+                placeholder={tr('Search your listings…', 'Tìm trong tin của bạn…')}
+                aria-label={tr('Search your listings', 'Tìm trong tin của bạn')}
+                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              />
+              {listQ && (
+                <button onClick={() => setListQ('')} aria-label={tr('Clear', 'Xóa')} className="shrink-0 text-ink-4 hover:text-foreground cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
           {!d && fetchFailed ? (
             // Failed fetch with no cache — show error + retry instead of an
             // empty-looking dashboard (mirrors the explorer's error state).
@@ -384,11 +407,22 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
                 {tr('Post your first listing', 'Đăng tin đầu tiên')}
               </button>
             </div>
-          ) : (
-            <div className={cn('mt-3', listView === 'grid' ? 'grid grid-cols-2 gap-2.5 lg:grid-cols-3' : 'space-y-2.5')}>
-              {d.listings.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} variant={listView === 'grid' ? 'grid' : 'row'} series={spark ? spark[l.id] ?? [] : undefined} />)}
-            </div>
-          )}
+          ) : (() => {
+            const q = fold(listQ.trim())
+            const shown = q ? d.listings.filter((l) => fold(`${l.title} ${l.titleVi ?? ''}`).includes(q)) : d.listings
+            if (shown.length === 0) {
+              return (
+                <p className="mt-6 text-center text-sm text-muted-foreground">
+                  {tr('No listings match', 'Không có tin nào khớp')} “{listQ.trim()}”.
+                </p>
+              )
+            }
+            return (
+              <div className={cn('mt-3', listView === 'grid' ? 'grid grid-cols-2 gap-2.5 lg:grid-cols-3' : 'space-y-2.5')}>
+                {shown.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} variant={listView === 'grid' ? 'grid' : 'row'} series={spark ? spark[l.id] ?? [] : undefined} />)}
+              </div>
+            )
+          })()}
         </section>
       </>)}
 

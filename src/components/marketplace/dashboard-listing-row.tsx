@@ -6,6 +6,7 @@ import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, 
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { ShareButton } from './share-button'
+import { QuickDiscount } from './quick-discount'
 import { ListingSparkline, type SparkPoint } from './listing-sparkline'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -119,6 +120,11 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   const actions = (
     <div className="flex flex-wrap gap-1.5">
+      {/* Obvious price-cut action (was buried in Edit). Only for a priced, LIVE
+          listing — a free/sold/hidden item can't be discounted. */}
+      {status === 'active' && listing.price > 0 && (
+        <QuickDiscount listing={{ id: listing.id, price: listing.price, currency: listing.currency }} onChanged={onChanged} />
+      )}
       {/* Availability confirmation lives in the daily review popup now — not here. */}
       {status === 'active' ? (
         <button onClick={() => setStatus('sold')} className={btn}>
