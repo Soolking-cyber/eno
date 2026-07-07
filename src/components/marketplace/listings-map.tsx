@@ -120,7 +120,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     const mapH = el?.clientHeight ?? 500
     const compact = mapH < 360
     const w = Math.round(Math.min(compact ? 248 : 300, mapW - 24))
-    const h = compact ? 78 : Math.round(w * 0.625 + 84) // approx card height for the flip/recenter math
+    const h = compact ? 78 : Math.round(w + 92) // square image (= w tall) + the p-3 content block (~88); keep in sync with the card render so the flip + recenter math is right
     return { w, h, compact }
   }
   const placeCardFor = (l: SerializedListingCard) => {
@@ -144,9 +144,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     const { lat, lng } = getListingCoordinates(l)
     const z = map.getZoom()
     const pt = map.project([lat, lng], z)
-    // Bias down by ~⅓ of the card height so the above-card is roughly centred; clamp the
-    // shift to the viewport so it never over-pans on a short map.
-    const shift = Math.min(cardDims().h * 0.45, el.clientHeight * 0.28)
+    // Push the pin BELOW centre by ~half the card height so the card — which pops ABOVE the
+    // pin — lands vertically CENTRED on the map instead of clipped at the top edge. Clamp so
+    // the pin never pans off the bottom on a short map.
+    const shift = Math.min(cardDims().h / 2 + 10, el.clientHeight * 0.4)
     map.panTo(map.unproject(L.point(pt.x, pt.y - shift), z), { animate: true, duration: 0.25 })
   }
   const openCard = (l: SerializedListingCard, center = false) => {
@@ -177,6 +178,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     // No attribution control — neutral map, no flags/branding badge.
     const map = L.map(mapRef.current, { zoomControl: true, attributionControl: false, scrollWheelZoom: true })
       .setView([10.7769, 106.7009], 12)
+    // Keep +/- in the bottom-right — the info card pops centred ABOVE a tapped pin (upper
+    // half of the map), so a top-left control would sit under it. Bottom corner stays clear.
+    map.zoomControl.setPosition('bottomright')
     // Tile weight: retina (@2x) tiles are ~4× the bytes and TIME OUT on slow mobile networks
     // (the cartocdn ERR_TIMED_OUT spam). Drop to 1× when the connection is slow or Save-Data
     // is on; keep crisp @2x on fast / unknown connections.
