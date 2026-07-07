@@ -4,6 +4,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { insertMessage } from '@/lib/messages'
 import { messagingGate } from '@/lib/enforcement'
+import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,13 +41,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const convo = await db.conversation.findUnique({
     where: { id },
-    select: { id: true, buyerProfileId: true, sellerProfileId: true, listing: { select: { id: true } } },
+    select: { id: true, buyerProfileId: true, sellerProfileId: true, listing: { select: { id: true, negotiable: true } } },
   })
   if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   const iAmBuyer = convo.buyerProfileId === meId
   const iAmSeller = convo.sellerProfileId === meId
   if (!iAmBuyer && !iAmSeller) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+
+  // Fixed-price listing → offers are off. The UI hides the offer control, so this is
+  // the abuse/stale-tab path: reject the offer. Only a BUYER spamming offers is abuse
+  // worth a trust dock — offers here are bidirectional (insertMessage supports seller
+  // counters), so a seller's stray counter on their own fixed-price listing must NOT
+  // self-penalize. Both roles still get the 409; only the buyer's attempts are counted.
+  if (isOffer && !convo.listing.negotiable) {
+    if (iAmBuyer) await recordFixedPriceOfferAttempt(meId)
+    return NextResponse.json({ error: 'not_negotiable' }, { status: 409 })
+  }
 
   const message = await insertMessage(
     { id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId, listingId: convo.listing.id },

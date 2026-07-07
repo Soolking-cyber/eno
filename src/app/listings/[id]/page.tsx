@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Heart,
   Eye,
+  Tag,
 } from 'lucide-react'
 import { RelatedListings } from '@/components/marketplace/related-listings'
 import { RecentlyViewedRail } from '@/components/marketplace/recently-viewed-rail'
@@ -346,7 +347,14 @@ export default async function ListingPage({ params }: Props) {
             Server-rendered duplicate (zero JS); the desktop column keeps its own
             copy, hidden <lg there / ≥lg here. */}
         <div className="mb-4 space-y-1 lg:hidden">
-          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="block text-2xl font-bold text-foreground tracking-tight" />
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="block text-2xl font-bold text-foreground tracking-tight" />
+            {!listing.negotiable && (
+              <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-[11px] font-bold text-body">
+                <Tag className="mr-1 h-3 w-3" /><Tr text="Fixed price" />
+              </span>
+            )}
+          </div>
           {showProof && <p className="flex items-center gap-2 text-xs text-muted-foreground">{socialProof}</p>}
         </div>
 
@@ -408,8 +416,13 @@ export default async function ListingPage({ params }: Props) {
           <div className="lg:col-span-5 lg:row-span-2">
             <div className="lg:sticky lg:top-24 space-y-5 lg:border-l lg:border-border/70 lg:pl-10">
               {/* Price + social proof — desktop copy (the mobile copy sits under the title) */}
-              <div className="hidden items-baseline gap-2 lg:flex">
+              <div className="hidden flex-wrap items-baseline gap-2 lg:flex">
                 <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-foreground tracking-tight" />
+                {!listing.negotiable && (
+                  <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-[11px] font-bold text-body">
+                    <Tag className="mr-1 h-3 w-3" /><Tr text="Fixed price" />
+                  </span>
+                )}
               </div>
               {showProof && (
                 <p className="-mt-2.5 hidden items-center gap-2 text-xs text-muted-foreground lg:flex">{socialProof}</p>
@@ -451,7 +464,7 @@ export default async function ListingPage({ params }: Props) {
                   No escrow mention anywhere on the money path — unmet promises cost
                   trust (user decision 2026-07-05). */}
               <div id="contact" className="scroll-mt-24">
-                <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} />
+                <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
               </div>
 
               {/* Safety link by the contact action (buyers look for it before reaching out) */}

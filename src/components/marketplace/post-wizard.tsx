@@ -53,6 +53,7 @@ export type ListingEditData = {
   title: string
   description: string
   price: number
+  negotiable: boolean
   categorySlug: string
   subcategorySlug: string | null
   listingType: string
@@ -230,6 +231,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [title, setTitle] = useState(edit?.title ?? '')
   const [description, setDescription] = useState(edit?.description ?? '')
   const [price, setPrice] = useState(edit ? String(edit.price) : '')
+  // Price is open to offers by default (haggling norm); the seller can switch to a
+  // FIXED price so buyers just ask availability + buy (no offer messages).
+  const [negotiable, setNegotiable] = useState(edit?.negotiable ?? true)
   const [condition, setCondition] = useState(edit?.condition ?? '')
   const [brand, setBrand] = useState(edit?.brand ?? '')
   const [model, setModel] = useState(edit?.model ?? '')
@@ -299,6 +303,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         if (d.title) setTitle(d.title)
         if (d.description) setDescription(d.description)
         if (d.price) setPrice(d.price)
+        if (typeof d.negotiable === 'boolean') setNegotiable(d.negotiable)
         if (d.condition) setCondition(d.condition)
         if (d.brand) setBrand(d.brand)
         if (d.model) setModel(d.model)
@@ -319,9 +324,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         localStorage.removeItem('eno-listing-draft')
         return
       }
-      localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, condition, brand, model, province, ward, nearby }))
+      localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, condition, brand, model, province, ward, nearby }))
     } catch {}
-  }, [edit, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, condition, brand, model, province, ward, nearby])
+  }, [edit, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, condition, brand, model, province, ward, nearby])
 
   // Contact name + phone come from the ACCOUNT (not re-typed per post — a number is
   // unique per account). If the account is missing either, we prompt them to add it
@@ -505,6 +510,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         title: title.trim(),
         description: description.trim(),
         price: Number(price),
+        negotiable,
         district: district || null,
         city: province?.name || null,
         location: ward?.name || province?.name || null,
@@ -820,6 +826,28 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
               </div>
               {priceErr && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{priceErr}</p>}
+              {/* Negotiable vs fixed — a fixed price hides the offer UI so buyers just
+                  ask availability and buy directly (seller's convenience). */}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[
+                  { val: true, label: t('Có thể trả giá', 'Negotiable'), hint: t('Người mua có thể trả giá', 'Buyers can send offers') },
+                  { val: false, label: t('Giá cố định', 'Fixed price'), hint: t('Không nhận trả giá', 'No offers — ask & buy directly') },
+                ].map((opt) => (
+                  <button
+                    key={String(opt.val)}
+                    type="button"
+                    onClick={() => setNegotiable(opt.val)}
+                    aria-pressed={negotiable === opt.val}
+                    className={cn(
+                      'rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
+                      negotiable === opt.val ? 'bg-[#0a66c2] text-white' : 'bg-tint text-body hover:bg-muted',
+                    )}
+                  >
+                    {opt.label}
+                    <span className={cn('block text-xs font-medium', negotiable === opt.val ? 'text-white/80' : 'text-ink-4')}>{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </Section>
 

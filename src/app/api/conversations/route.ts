@@ -7,6 +7,7 @@ import { sendPushToProfile } from '@/lib/push'
 import { rateLimit } from '@/lib/ratelimit'
 import { conversationGate } from '@/lib/enforcement'
 import { maskEmailHandle } from '@/lib/utils'
+import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,13 +38,20 @@ export async function POST(req: Request) {
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
-    select: { id: true, title: true, verified: true, sellerId: true, seller: { select: { ownerId: true } } },
+    select: { id: true, title: true, verified: true, negotiable: true, sellerId: true, seller: { select: { ownerId: true } } },
   })
   if (!listing || !listing.verified) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   // Can't message your own storefront.
   if (listing.seller.ownerId && listing.seller.ownerId === profile.id) {
     return NextResponse.json({ error: 'own_listing' }, { status: 400 })
+  }
+
+  // Fixed-price listing → no opening offer (UI hides it; this is the bypass/stale-tab
+  // path). Reject and dock trust past a grace. Plain first messages are unaffected.
+  if (isOffer && !listing.negotiable) {
+    await recordFixedPriceOfferAttempt(profile.id)
+    return NextResponse.json({ error: 'not_negotiable' }, { status: 409 })
   }
 
   // Enforcement + probation (trust Phase 2): suspended blocks all conversation

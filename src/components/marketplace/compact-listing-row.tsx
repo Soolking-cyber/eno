@@ -110,7 +110,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             </button>
           </span>
         )}
-        {l.price > 0 && (
+        {l.price > 0 && l.negotiable !== false && (
           <button
             type="button"
             aria-label={tr('Make an offer', 'Trả giá')}

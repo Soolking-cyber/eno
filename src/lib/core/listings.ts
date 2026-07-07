@@ -125,6 +125,8 @@ export async function updateListingCore(
     data.location = district || current.location
   }
   if (body.condition !== undefined) data.condition = body.condition ? String(body.condition).trim().slice(0, 60) : null
+  // Price-negotiable toggle (edit): honored on the same edit path the wizard resubmits.
+  if (body.negotiable !== undefined) data.negotiable = Boolean(body.negotiable)
   if (Array.isArray(body.images)) {
     const images = (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     data.images = JSON.stringify(images)
@@ -347,7 +349,10 @@ export async function createListingCore(input: {
       price,
       priceUnit,
       currency: '₫',
-      negotiable: Boolean(body.negotiable),
+      // Default to negotiable when the caller omits it (matches the column default +
+      // the pre-feature norm); the wizard sends an explicit true/false, partner API /
+      // MCP send it when they want a fixed price.
+      negotiable: body.negotiable === undefined ? true : Boolean(body.negotiable),
       location,
       district,
       city,

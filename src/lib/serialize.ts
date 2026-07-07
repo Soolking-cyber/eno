@@ -96,7 +96,7 @@ export function serializeListing(
 // and dragged searchText/PII through Postgres for nothing. Query with
 // LISTING_CARD_SELECT and serialize with serializeListingCard on every list surface.
 export const LISTING_CARD_SELECT = {
-  id: true, title: true, titleVi: true, price: true, priceUnit: true, currency: true,
+  id: true, title: true, titleVi: true, price: true, priceUnit: true, currency: true, negotiable: true,
   location: true, district: true, city: true, lat: true, lng: true, images: true,
   brandSlug: true, model: true, verified: true, postedAt: true, savedCount: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
@@ -105,7 +105,7 @@ export const LISTING_CARD_SELECT = {
 
 type ListingCardRow = {
   id: string; title: string; titleVi: string | null; price: number; priceUnit: string
-  currency: string; location: string; district: string | null; city: string
+  currency: string; negotiable: boolean; location: string; district: string | null; city: string
   lat: number | null; lng: number | null; images: string; brandSlug: string | null
   model: string | null; verified: boolean; postedAt: Date; savedCount: number
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
@@ -120,6 +120,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     price: l.price,
     priceUnit: l.priceUnit,
     currency: l.currency,
+    negotiable: l.negotiable,
     location: l.location,
     district: l.district,
     city: l.city,

@@ -21,7 +21,7 @@ export const COMPOSE_KEY = 'eno-compose' // sessionStorage handoff → /messages
  * real thread. "Redirect first, load in background."
  */
 export function ContactComposer({
-  listingId, listingTitle, listingImage, sellerName, price, currency,
+  listingId, listingTitle, listingImage, sellerName, price, currency, negotiable = true,
 }: {
   listingId: string
   listingTitle?: string
@@ -29,6 +29,7 @@ export function ContactComposer({
   sellerName?: string
   price?: number
   currency: string // raw listing currency, e.g. '₫'
+  negotiable?: boolean // false = fixed price → no offer control (ask + buy directly)
 }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
@@ -46,7 +47,9 @@ export function ContactComposer({
     // A card quick-offer arrives as ?offer=N — open straight into offer mode with
     // that discount slid in; otherwise prefill the classic chat opener.
     const offerParam = Number(new URLSearchParams(window.location.search).get('offer'))
-    const quickOffer = Number.isFinite(offerParam) && offerParam >= 1 && offerParam <= MAX_DISCOUNT ? Math.round(offerParam) : null
+    // Ignore a stray ?offer= on a fixed-price listing (e.g. a stale card link) — the
+    // seller takes no offers, so fall through to the plain "is this available?" opener.
+    const quickOffer = negotiable && Number.isFinite(offerParam) && offerParam >= 1 && offerParam <= MAX_DISCOUNT ? Math.round(offerParam) : null
     const t = window.setTimeout(() => {
       document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       if (quickOffer != null) {
@@ -72,10 +75,12 @@ export function ContactComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Offers are only possible on a negotiable, priced listing.
   const hasPrice = typeof price === 'number' && price > 0
+  const canOffer = hasPrice && negotiable
   const offerPrice = hasPrice ? Math.round(price! * (1 - discount / 100)) : 0
 
-  const canSend = (offering && hasPrice) || text.trim().length > 0
+  const canSend = (offering && canOffer) || text.trim().length > 0
 
   const send = () => {
     if (!canSend) return
@@ -87,7 +92,7 @@ export function ContactComposer({
     // line — so the first message lands as a proper offer card (kind='offer'),
     // identical to in-thread offers. The /messages/pending resolver posts it and
     // swaps to the real thread.
-    const offerAmount = offering && hasPrice ? offerPrice : null
+    const offerAmount = offering && canOffer ? offerPrice : null
     try {
       sessionStorage.setItem(COMPOSE_KEY, JSON.stringify({
         listingId,
@@ -112,7 +117,7 @@ export function ContactComposer({
 
   return (
     <div className="space-y-2">
-      {hasPrice && !offering && (
+      {canOffer && !offering && (
         <button
           type="button"
           onClick={() => { setOffering(true); setTimeout(() => ref.current?.focus(), 0) }}
@@ -122,7 +127,7 @@ export function ContactComposer({
         </button>
       )}
 
-      {hasPrice && offering && (
+      {canOffer && offering && (
         <div className="rounded-xl bg-accent p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-body">{tr('Your offer', 'Giá đề nghị')}</span>
@@ -163,7 +168,7 @@ export function ContactComposer({
         className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 disabled:opacity-40 cursor-pointer"
       >
         <Send className="h-4 w-4" />
-        {offering && hasPrice ? `${tr('Send offer', 'Gửi đề nghị')} · ${formatMoneyFull(offerPrice, currency)}` : tr('Send', 'Gửi')}
+        {offering && canOffer ? `${tr('Send offer', 'Gửi đề nghị')} · ${formatMoneyFull(offerPrice, currency)}` : tr('Send', 'Gửi')}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
         {tr('Request their number or Zalo once they reply.', 'Yêu cầu số điện thoại hoặc Zalo sau khi họ trả lời.')}

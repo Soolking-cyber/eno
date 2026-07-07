@@ -94,7 +94,7 @@ export async function bulkImportCore(
       if (hosted.length < 1) { results.push({ row: rowNo, error: 'Needs at least one photo' }); continue }
       const listing = await db.listing.create({
         data: {
-          title, description, price, priceUnit: 'VND', currency: '₫', negotiable: false,
+          title, description, price, priceUnit: 'VND', currency: '₫', negotiable: true,
           location: district || 'Ho Chi Minh City', district, city: 'Ho Chi Minh City',
           condition, images: JSON.stringify(hosted),
           searchText: buildSearchText([title, description, district, cat.name, cat.nameVi]),

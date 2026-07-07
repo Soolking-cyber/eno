@@ -25,6 +25,7 @@ export type SerializedListingCard = {
   price: number
   priceUnit: string
   currency: string
+  negotiable: boolean
   location: string
   district: string | null
   city: string

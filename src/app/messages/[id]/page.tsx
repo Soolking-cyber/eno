@@ -25,7 +25,7 @@ type Thread = {
   me: string // current user's profile id — to tell my messages from incoming
   iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
   hasReviewed?: boolean // buyer side: this conversation already produced a review → no prompt
-  listing: { id: string; title: string; image: string | null; price?: number; availabilityConfirmedAt?: string | null; status?: string }
+  listing: { id: string; title: string; image: string | null; price?: number; negotiable?: boolean; availabilityConfirmedAt?: string | null; status?: string }
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null; sellerId?: string | null }
   messages: Msg[]
 }
@@ -460,7 +460,13 @@ export default function ThreadPage() {
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         <Button variant="cta" size="none" onClick={() => actOffer(m.id, 'accept')} className="rounded-lg px-3 py-1 text-xs transition-colors cursor-pointer">{tr('Accept', 'Chấp nhận')}</Button>
                         <button onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted cursor-pointer">{tr('Decline', 'Từ chối')}</button>
-                        <button onClick={() => { setOfferInput(new Intl.NumberFormat('en-US').format(m.offerAmount ?? 0)); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
+                        {/* Countering SENDS a new offer, so hide it on a fixed-price listing
+                            (Accept/Decline don't send offers and stay). A stale pending offer
+                            can outlive a switch to fixed price — the 409 would otherwise reject
+                            the counter and, for a buyer, dock trust for a control we showed. */}
+                        {thread?.listing.negotiable !== false && (
+                          <button onClick={() => { setOfferInput(new Intl.NumberFormat('en-US').format(m.offerAmount ?? 0)); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
+                        )}
                       </div>
                     )}
                     {m.mine && m.offerStatus === 'pending' && (
@@ -546,14 +552,19 @@ export default function ThreadPage() {
               and the offer-amount field (no separate input bar). In offer mode the
               field shows an inline +000 chip and Send submits the offer. */}
           <div className="flex items-end gap-2 bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-            <button
-              onClick={toggleOffer}
-              aria-label={tr('Make an offer', 'Gửi đề nghị giá')}
-              title={tr('Make an offer', 'Gửi đề nghị giá')}
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer relative tap-44 ${showOffer ? 'bg-primary/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
-            >
-              <Tag className="h-[18px] w-[18px]" />
-            </button>
+            {/* Offer control only on negotiable listings — a fixed-price seller takes
+                no offers (buyers just ask availability + buy). Undefined = older cached
+                thread → allow (server still enforces). */}
+            {thread?.listing.negotiable !== false && (
+              <button
+                onClick={toggleOffer}
+                aria-label={tr('Make an offer', 'Gửi đề nghị giá')}
+                title={tr('Make an offer', 'Gửi đề nghị giá')}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer relative tap-44 ${showOffer ? 'bg-primary/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
+              >
+                <Tag className="h-[18px] w-[18px]" />
+              </button>
+            )}
 
             {showOffer && sliderOffer !== null ? (
               /* Priced listing: the −% slider rolls in (left→right) where the chat

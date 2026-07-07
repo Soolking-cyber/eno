@@ -240,7 +240,7 @@ function ListingCardImpl({
               </button>
             </span>
           )}
-          {listing.price > 0 && (
+          {listing.price > 0 && listing.negotiable !== false && (
             <span className="flex min-w-0 items-center gap-1.5">
               <button
                 type="button"
@@ -328,7 +328,7 @@ function ListingCardImpl({
           >
             <MessageCircle className="h-[20px] w-[20px]" />
           </button>
-          {listing.price > 0 && (
+          {listing.price > 0 && listing.negotiable !== false && (
             <button
               type="button"
               aria-label={tr('Make an offer', 'Trả giá')}

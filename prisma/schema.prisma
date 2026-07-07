@@ -280,7 +280,10 @@ model Listing {
   price              Float
   priceUnit          String    @default("VND")
   currency           String    @default("₫")
-  negotiable         Boolean   @default(false)
+  // Price is open to offers. Default TRUE (Vietnamese haggling norm + preserves the
+  // pre-2026-07-07 "offers work everywhere" behavior). Sellers opt into a FIXED price
+  // in the post wizard → the offer UI is hidden and offer POSTs are rejected server-side.
+  negotiable         Boolean   @default(true)
   location           String
   district           String?
   city               String
