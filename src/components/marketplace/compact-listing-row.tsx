@@ -11,7 +11,7 @@ import { FavoriteHeart } from './favorite-heart'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
 import type { SerializedListingCard } from '@/lib/types'
-import { formatMoneyFull, dropPercent } from '@/lib/vnd'
+import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { stashQuickCompose } from '@/lib/quick-contact'
@@ -84,7 +84,8 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               <Zap className="h-2.5 w-2.5 fill-current" /> {tr('Urgent', 'Bán gấp')}
             </span>
           )}
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 font-bold text-foreground" />
+          {/* The row's single color anchor — brand blue, matching the grid card. */}
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 text-base font-bold text-accent-foreground" />
           {l.prevPrice != null && dropPercent(l.prevPrice, l.price) && (
             <span className="shrink-0 rounded-full bg-red-600 px-1.5 py-px text-[10px] font-bold tabular-nums text-white">
               {dropPercent(l.prevPrice, l.price)}
@@ -92,6 +93,13 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           )}
           <span className="h-3 w-px shrink-0 bg-border" />
           <span className="truncate"><Tr text={l.district || l.city} /></span>
+          {/* Demand proof (≥3 contact reveals) — desktop only: the one-line meta row
+              can't spare the width on mobile. */}
+          {l.contactCount >= 3 && (
+            <span className="hidden shrink-0 text-[11px] text-muted-foreground tabular-nums sm:inline">
+              {tr(`${formatCount(l.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(l.contactCount, moneyLocale(lang))}`)}
+            </span>
+          )}
           <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className="shrink-0" />
         </div>
       </div>
@@ -118,7 +126,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               onClick={() => quickGo({ offerAmount: Math.round(l.price * (1 - offer / 100)) })}
               className="shrink-0 rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
             >
-              {formatMoneyFull(Math.round(l.price * (1 - offer / 100)), l.currency)} →
+              {formatMoneyFull(Math.round(l.price * (1 - offer / 100)), l.currency, moneyLocale(lang))} →
             </button>
           </span>
         )}

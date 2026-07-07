@@ -112,7 +112,7 @@ export const LISTING_CARD_SELECT = {
   id: true, title: true, titleVi: true, price: true, priceUnit: true, currency: true, negotiable: true,
   previousPrice: true, priceDropAt: true, urgentUntil: true,
   location: true, district: true, city: true, lat: true, lng: true, images: true,
-  brandSlug: true, model: true, verified: true, postedAt: true, savedCount: true,
+  brandSlug: true, model: true, verified: true, postedAt: true, savedCount: true, contactCount: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
   seller: { select: { trustScore: true, owner: { select: { accountType: true } } } },
 } as const
@@ -122,7 +122,7 @@ type ListingCardRow = {
   currency: string; negotiable: boolean; location: string; district: string | null; city: string
   previousPrice: number | null; priceDropAt: Date | null; urgentUntil: Date | null
   lat: number | null; lng: number | null; images: string; brandSlug: string | null
-  model: string | null; verified: boolean; postedAt: Date; savedCount: number
+  model: string | null; verified: boolean; postedAt: Date; savedCount: number; contactCount: number
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
   seller: { trustScore: number; owner?: { accountType: string | null } | null }
 }
@@ -149,6 +149,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     verified: l.verified,
     postedAt: l.postedAt.toISOString(),
     savedCount: l.savedCount,
+    contactCount: l.contactCount,
     category: {
       id: l.category.id,
       name: l.category.name,

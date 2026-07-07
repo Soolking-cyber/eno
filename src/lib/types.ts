@@ -43,6 +43,9 @@ export type SerializedListingCard = {
   verified: boolean
   postedAt: string
   savedCount: number
+  // Demand proof for the card meta line ("Đã liên hệ N") — distinct authenticated
+  // contact reveals, same counter the detail page uses. Cards render it only at ≥3.
+  contactCount: number
   category: {
     id: string
     name: string

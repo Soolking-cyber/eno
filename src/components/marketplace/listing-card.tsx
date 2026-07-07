@@ -7,7 +7,7 @@ import { TrustScore } from './trust-score'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
-import { formatMoneyFull, dropPercent } from '@/lib/vnd'
+import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
@@ -230,9 +230,9 @@ function ListingCardImpl({
         )}
 
         {/* Social proof — "N saved" (5a #5): urgency without dark patterns. Only
-            shows once the count is genuinely impressive (≥5); bottom-left, clear of
+            shows once the count is meaningful (≥3); bottom-left, clear of
             the dots (center) and locate pin (right). */}
-        {listing.savedCount >= 5 && (
+        {listing.savedCount >= 3 && (
           <span
             title={tr('people saved this', 'người đã lưu tin này')}
             className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1 rounded-full bg-foreground/70 px-2 py-0.5 text-[10px] font-bold text-background backdrop-blur-[2px]"
@@ -377,7 +377,7 @@ function ListingCardImpl({
               onClick={() => quickGo({ offerAmount: Math.round(listing.price * (1 - quickOffer / 100)) })}
               className="w-full whitespace-nowrap rounded-lg bg-primary px-2 py-1.5 text-[11px] font-bold tabular-nums text-white transition-colors hover:bg-brand-dark cursor-pointer"
             >
-              {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency)} →
+              {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency, moneyLocale(lang))} →
             </button>
           </span>
         )}
@@ -428,15 +428,17 @@ function ListingCardImpl({
           {displayTitle}
         </h3>
 
-        {/* Brand · model — shown when the listing carries them (product categories). */}
+        {/* Brand · model — shown when the listing carries them (product categories).
+            Neutral on purpose: the price owns the card's single blue accent. */}
         {(listing.brandSlug || listing.model) && (
-          <span className="truncate text-[11px] font-semibold text-accent-foreground">
+          <span className="truncate text-[11px] font-semibold text-muted-foreground">
             {[listing.brandSlug ? prettyBrand(listing.brandSlug) : null, listing.model].filter(Boolean).join(' · ')}
           </span>
         )}
 
         <span className="flex items-baseline gap-1.5">
-          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
+          {/* The card's single color anchor — brand blue, one step up from the title. */}
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-base font-bold text-accent-foreground" />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, only
               present while the drop badge is live. */}
           {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
@@ -446,13 +448,22 @@ function ListingCardImpl({
 
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="truncate">{displayLocation}</span>
-          {/* Mini chip (glyph + number), not a bare number guests can't decode. Display
-              only — the card itself is the button (no nested interactive). */}
-          <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />
+          <span className="flex shrink-0 items-center gap-1.5">
+            {/* Demand proof — distinct contact reveals. Only once meaningful (≥3);
+                shares this row, so presence never changes the card height. */}
+            {listing.contactCount >= 3 && (
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {tr(`${formatCount(listing.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(listing.contactCount, moneyLocale(lang))}`)}
+              </span>
+            )}
+            {/* Mini chip (glyph + number), not a bare number guests can't decode. Display
+                only — the card itself is the button (no nested interactive). */}
+            <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />
+          </span>
         </div>
 
         {listing.seller.isBusiness && (
-          <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
+          <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-muted-foreground">
             <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
           </span>
         )}
