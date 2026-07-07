@@ -9,6 +9,7 @@ import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
 import { Footer } from '@/components/marketplace/footer'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
+import { CountValue } from '@/components/marketplace/rating-value'
 import { brandIconPath } from '@/lib/brand-icons'
 import {
   MapPin,
@@ -251,13 +252,13 @@ export default async function ListingPage({ params }: Props) {
     <>
       {listing.savedCount >= 3 && (
         <span className="inline-flex items-center gap-1">
-          <Heart className="h-3.5 w-3.5" /> {new Intl.NumberFormat('en-US').format(listing.savedCount)} <Tr text="saved" />
+          <Heart className="h-3.5 w-3.5" /> <CountValue value={listing.savedCount} /> <Tr text="saved" />
         </span>
       )}
       {listing.savedCount >= 3 && listing.views >= 20 && <span aria-hidden>·</span>}
       {listing.views >= 20 && (
         <span className="inline-flex items-center gap-1">
-          <Eye className="h-3.5 w-3.5" /> {new Intl.NumberFormat('en-US').format(listing.views)} <Tr text="views" />
+          <Eye className="h-3.5 w-3.5" /> <CountValue value={listing.views} /> <Tr text="views" />
         </span>
       )}
     </>
@@ -290,8 +291,15 @@ export default async function ListingPage({ params }: Props) {
       <Header />
 
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:pb-12">
+        {/* Header block — ONE set of DOM nodes, two visual orders. DOM order
+            (breadcrumb → title → caution → price → gallery → highlights) IS the
+            ≥lg layout and keeps the single H1 early for SEO; <lg, flex `order-*`
+            re-sequences it deal-first (breadcrumb → gallery → price → title →
+            highlights) — price is the headline on a deal marketplace. Pure CSS,
+            no duplicated blocks → no hydration variance, no CLS. */}
+        <div className="flex flex-col">
         {/* Breadcrumb — Home / Category / Title */}
-        <nav aria-label="Breadcrumb" className="mb-4 truncate text-sm text-muted-foreground">
+        <nav aria-label="Breadcrumb" className="order-1 mb-4 truncate text-sm text-muted-foreground lg:order-none">
           <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
           <span className="mx-1.5 text-line-strong">/</span>
           <Link href={`/c/${rawListing.category.slug}`} className="hover:text-accent-foreground transition-colors"><Tr text={listing.category.name} /></Link>
@@ -301,8 +309,9 @@ export default async function ListingPage({ params }: Props) {
           <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
         </nav>
 
-        {/* Title header */}
-        <div className="mb-4 flex items-start justify-between gap-3">
+        {/* Title header — on mobile it follows the price block; share/save live
+            on the gallery overlay there, so the right-side pair is desktop-only. */}
+        <div className="order-4 mb-4 flex items-start justify-between gap-3 lg:order-none">
           <div className="min-w-0 space-y-1.5">
             <h1 className="h-title text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
             {brand && (
@@ -321,7 +330,7 @@ export default async function ListingPage({ params }: Props) {
               <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
             </div>
           </div>
-          <div className="mt-0.5 flex shrink-0 items-center gap-2">
+          <div className="mt-0.5 hidden shrink-0 items-center gap-2 lg:flex">
             <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} />
             <SaveListingButton id={listing.id} />
           </div>
@@ -332,7 +341,8 @@ export default async function ListingPage({ params }: Props) {
         {sellerCaution && (
           <p
             className={cn(
-              'mb-4 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold',
+              // self-start: as a flex child it would otherwise stretch full-width.
+              'order-5 mb-4 inline-flex items-center gap-2 self-start rounded-xl px-3 py-2 text-[13px] font-semibold lg:order-none',
               sellerCaution === 'throttled' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive',
             )}
           >
@@ -343,11 +353,11 @@ export default async function ListingPage({ params }: Props) {
           </p>
         )}
 
-        {/* Price directly under the title on MOBILE — when the two-column layout
-            stacks, the contact column's price lands ~4 viewports down (ux-24).
-            Server-rendered duplicate (zero JS); the desktop column keeps its own
-            copy, hidden <lg there / ≥lg here. */}
-        <div className="mb-4 space-y-1 lg:hidden">
+        {/* Price directly under the GALLERY on MOBILE (headline of the page) —
+            when the two-column layout stacks, the contact column's price lands
+            ~4 viewports down (ux-24). Server-rendered duplicate (zero JS); the
+            desktop column keeps its own copy, hidden <lg there / ≥lg here. */}
+        <div className="order-3 mt-4 mb-4 space-y-1 lg:hidden">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="block text-2xl font-bold text-foreground tracking-tight" />
             {/* Server-computed drop anchor (30-day-min reference) — never a seller-entered "was". */}
@@ -374,11 +384,23 @@ export default async function ListingPage({ params }: Props) {
         </div>
 
         {/* Gallery mosaic */}
-        <ListingGallery images={listing.images} title={displayTitle} showAllLabel="View all photos" />
+        <div className="relative order-2 lg:order-none">
+          <ListingGallery images={listing.images} title={displayTitle} showAllLabel="View all photos" />
+          {/* Mobile/tablet: share + save overlay the media header (Shopee pattern) —
+              the title-row pair above is desktop-only. Absolutely positioned (zero
+              layout cost, no CLS) at top-right, clear of the carousel's n/N counter
+              (bottom-right); z-10 stays under the lightbox (z-[100]). */}
+          <div className="absolute right-3 top-3 z-10 flex items-center gap-2 lg:hidden">
+            <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
+            <SaveListingButton id={listing.id} compact className="h-9 w-9 border-0 bg-card/80 backdrop-blur" />
+          </div>
+        </div>
 
         {/* Highlights — scannable item facts up front (buyers scan before they read).
-            Trust is just the color-coded score number, kept low-key (no second shield). */}
-        <div className="mt-5 flex flex-wrap items-center gap-2">
+            Trust is just the color-coded score number, kept low-key (no second shield).
+            Flex margins don't collapse, so <lg the title/caution mb-4 above already
+            provides the gap (mt-0); ≥lg it follows the gallery with the original mt-5. */}
+        <div className="order-6 flex flex-wrap items-center gap-2 lg:order-none lg:mt-5">
           {listing.condition && (
             <span className="inline-flex items-center rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground">
               <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
@@ -389,6 +411,7 @@ export default async function ListingPage({ params }: Props) {
               <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
             </span>
           ))}
+        </div>
         </div>
 
         {/* Content + sticky contact. The left column is split into two grid rows
@@ -531,12 +554,13 @@ export default async function ListingPage({ params }: Props) {
         {/* The buyer's own recently-viewed trail (excludes this listing). */}
         <RecentlyViewedRail excludeId={listing.id} />
 
-        {/* Sticky mobile CTA bar (<lg): price + contact always one thumb away —
-            main reserves matching bottom padding so nothing hides behind it. */}
+        {/* Sticky mobile CTA bar (<lg): segmented Chat / primary action always one
+            thumb away — main reserves matching bottom padding so nothing hides
+            behind it. */}
         <ListingContactBar
           price={listing.price}
           currency={listing.currency}
-          priceUnit={listing.priceUnit}
+          negotiable={listing.negotiable}
           listingTitle={displayTitle}
           listingImage={listing.images[0] ?? null}
           sellerName={listing.seller.name}

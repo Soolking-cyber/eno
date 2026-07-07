@@ -2,54 +2,61 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Skeleton } from '@/components/ui/skeleton'
 
-// Mirrors the listing detail layout so the skeleton → real swap causes no CLS:
-// breadcrumb → title header (share/save right) → mobile price → gallery
-// (4:3 carousel <md, 2-col mosaic ≥md) → highlight chips → 12-col grid with the
-// flat sticky contact column (left rule, ContactComposer shapes) and the map in
-// the left column's second row. Bottom padding reserves the mobile contact bar.
+// Mirrors the listing detail layout so the skeleton → real swap causes no CLS.
+// DOM/desktop order: breadcrumb → title header (share/save right) → mobile price
+// → gallery (4:3 carousel <md, 2-col mosaic ≥md) → highlight chips; <lg the same
+// flex `order-*` re-sequence as the page puts the gallery + price first. Then the
+// 12-col grid with the flat sticky contact column (left rule, ContactComposer
+// shapes) and the map in the left column's second row. Bottom padding reserves
+// the mobile contact bar.
 export default function ListingLoading() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:pb-12">
+        <div className="flex flex-col">
         {/* Breadcrumb (text-sm → 20px line) */}
-        <Skeleton className="mb-4 h-5 w-48" />
+        <Skeleton className="order-1 mb-4 h-5 w-48 lg:order-none" />
 
-        {/* Title header — title/location left, share+save right */}
-        <div className="mb-4 flex items-start justify-between gap-3">
+        {/* Title header — title/location left, share+save right (desktop-only:
+            mobile puts them on the gallery overlay, which needs no skeleton) */}
+        <div className="order-4 mb-4 flex items-start justify-between gap-3 lg:order-none">
           <div className="min-w-0 flex-1 space-y-1.5">
             {/* h-title */}
             <Skeleton className="h-7 w-2/3 max-w-md" />
             {/* location · posted line (text-sm) */}
             <Skeleton className="h-5 w-56 max-w-full" />
           </div>
-          <div className="mt-0.5 flex shrink-0 items-center gap-2">
+          <div className="mt-0.5 hidden shrink-0 items-center gap-2 lg:flex">
             <Skeleton className="h-9 w-9 rounded-full" />
             <Skeleton className="h-9 w-9 rounded-full" />
           </div>
         </div>
 
-        {/* Price under the title — mobile only (text-2xl) */}
-        <div className="mb-4 lg:hidden">
+        {/* Price under the gallery — mobile only (text-2xl) */}
+        <div className="order-3 mt-4 mb-4 lg:hidden">
           <Skeleton className="h-8 w-36" />
         </div>
 
         {/* Gallery — 4:3 carousel on mobile, 2-col mosaic ≥md */}
-        <Skeleton className="aspect-[4/3] w-full rounded-2xl md:hidden" />
-        <div className="hidden h-[300px] grid-cols-2 gap-2 overflow-hidden rounded-2xl sm:h-[440px] md:grid">
-          <Skeleton className="h-full w-full rounded-none" />
-          <div className="grid grid-cols-2 grid-rows-2 gap-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-full w-full rounded-none" />
-            ))}
+        <div className="order-2 lg:order-none">
+          <Skeleton className="aspect-[4/3] w-full rounded-2xl md:hidden" />
+          <div className="hidden h-[300px] grid-cols-2 gap-2 overflow-hidden rounded-2xl sm:h-[440px] md:grid">
+            <Skeleton className="h-full w-full rounded-none" />
+            <div className="grid grid-cols-2 grid-rows-2 gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-full w-full rounded-none" />
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Highlight chips (rounded-full px-3 py-1.5 text-xs → 28px) */}
-        <div className="mt-5 flex flex-wrap items-center gap-2">
+        <div className="order-6 flex flex-wrap items-center gap-2 lg:order-none lg:mt-5">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-7 w-20 rounded-full" />
           ))}
+        </div>
         </div>
 
         {/* Content + sticky contact */}
