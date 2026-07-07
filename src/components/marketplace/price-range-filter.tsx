@@ -8,6 +8,7 @@ import { useCurrency } from '@/context/currency-context'
 import { compactPrice, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { PricePresetChips } from './price-preset-chips'
 
 const BINS = 30
 const PANEL_W = 320
@@ -135,6 +136,7 @@ export function PriceRangeFilter({
   const digits = (s: string) => Number(s.replace(/\D/g, '')) || 0
 
   const active = value !== 'all'
+
   // Compact label for the bar trigger (e.g. "1.5M–3.9M ₫") — the full grouped numbers
   // were far too long. The dropdown inputs still show exact amounts.
   const sym = currency === 'VND' || currency === '₫' ? '₫' : currency
@@ -224,7 +226,11 @@ export function PriceRangeFilter({
                 </div>
               </div>
 
-              <div className="mt-5 flex items-end gap-3">
+              {/* Preset budget chips — one tap sets the range via onChange (shared with
+                  the mobile filter drawer). Hidden when outside the loaded data range. */}
+              <PricePresetChips value={value} onChange={onChange} bounds={[dataMin, dataMax]} className="mt-4" />
+
+              <div className="mt-4 flex items-end gap-3">
                 <label className="min-w-0 flex-1">
                   <span className="mb-1 block text-[11px] font-semibold text-ink-4">{tr('Minimum', 'Tối thiểu')}</span>
                   <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted">
