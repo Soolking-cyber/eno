@@ -137,7 +137,7 @@ function ListingCardImpl({
           — otherwise the adjacent (next) image leaks through at the edge on hover. */}
       <div
         data-protected
-        className="relative aspect-[4/5] w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
+        className="relative aspect-[6/7] w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
         onMouseEnter={() => { if (images.length > 1) setExpanded(true) }}
         onMouseLeave={() => setQuickOffer(null)}
         onTouchStart={(e) => { if (images.length > 1) setExpanded(true); touchStartX.current = e.touches[0].clientX }}

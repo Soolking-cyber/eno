@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 export function ListingCardSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-3', className)}>
-      <div className="aspect-[4/5] w-full rounded-xl shimmer skeleton-photo" />
+      <div className="aspect-[6/7] w-full rounded-xl shimmer skeleton-photo" />
       <div className="h-4 w-2/3 rounded shimmer" />
       <div className="h-3 w-1/2 rounded shimmer" />
       <div className="h-3 w-1/3 rounded shimmer" />
