@@ -30,7 +30,7 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager, hover }: {
   return (
     <>
       <Image src={img} alt="" fill sizes="64px" quality={40} unoptimized={mock || undefined} aria-hidden className="scale-110 object-cover blur-2xl" />
-      <span aria-hidden className="pointer-events-none absolute inset-0 bg-repeat opacity-70 [background-image:url('/watermark.svg')] [background-size:116px_80px]" />
+      <span aria-hidden className="pointer-events-none absolute inset-0 bg-repeat opacity-70 [background-image:url('/watermark.svg')] [background-size:116px_80px] md:[background-size:248px_171px]" />
       <Image
         src={img}
         alt={alt}
