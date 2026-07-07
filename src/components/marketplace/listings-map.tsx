@@ -7,7 +7,7 @@ import { X, Heart } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import type { SerializedListingCard } from '@/lib/types'
 import { formatPrice } from '@/lib/types'
-import { formatMoneyFull, compactPrice } from '@/lib/vnd'
+import { formatMoneyFull, compactPrice, moneyLocale, type MoneyLocale } from '@/lib/vnd'
 import { useCurrency } from '@/context/currency-context'
 import type { Language } from '@/context/language-context'
 import { useLanguage } from '@/context/language-context'
@@ -18,11 +18,12 @@ import type { Nearby } from './area-filter'
 import { cn } from '@/lib/utils'
 
 // Compact price for map labels (Airbnb-style price pins). VND uses the shared
-// compactPrice ("850K" / "51M" / "1.2B" — explicit suffixes in every language;
-// "51 tr" was opaque to the expat audience); the rare non-₫ listing keeps its
+// compactPrice, which follows the viewer's language — "850K" / "51M" / "1.2B"
+// for everyone else (the Vietnamese shorthand is opaque to the expat audience),
+// native "500k" / "51tr" / "1,2 tỷ" for vi; the rare non-₫ listing keeps its
 // symbol-prefixed format.
-function pinLabel(l: SerializedListingCard): string {
-  if (l.currency === '₫') return compactPrice(l.price)
+function pinLabel(l: SerializedListingCard, locale: MoneyLocale): string {
+  if (l.currency === '₫') return compactPrice(l.price, locale)
   return formatPrice(l.price, l.currency, l.priceUnit)
 }
 
@@ -83,9 +84,13 @@ function pinHtml(label: string, active: boolean): string {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, selectedId, onHover, focusId, nearby, areaKey }: Props) {
-  const { tr } = useLanguage()
+  const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
   const { format: formatPrice } = useCurrency()
+  // Pin + card amounts follow the viewer's UI language from CONTEXT — the `lang`
+  // prop is a content-localization hint some hosts hardcode (listing-detail-map
+  // passes 'vi'), so it can't drive money formatting.
+  const locale = moneyLocale(uiLang)
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markersRef = useRef<Map<string, any>>(new Map())
@@ -231,7 +236,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     listings.forEach((l) => {
       const { lat, lng } = getListingCoordinates(l)
       bounds.push([lat, lng])
-      const icon = L.divIcon({ html: pinHtml(pinLabel(l), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
+      const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
       const marker = L.marker([lat, lng], { icon, riseOnHover: true }).addTo(map)
       marker.on('click', () => {
         // Click = centre the pin + show the card on EVERY input (mobile pattern
@@ -275,7 +280,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     }
     setTimeout(() => map.invalidateSize(), 80)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listings, ready, activeDistrict, areaKey, nearby])
+  }, [listings, ready, activeDistrict, areaKey, nearby, locale])
 
   // Update marker styling on selection / hover (no full rebuild).
   useEffect(() => {
@@ -284,7 +289,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     markersRef.current.forEach((marker, id) => {
       const l = listings.find((x) => x.id === id)
       if (!l) return
-      marker.setIcon(L.divIcon({ html: pinHtml(pinLabel(l), selectedId === id), className: 'eno-pin', iconSize: [0, 0] }))
+      marker.setIcon(L.divIcon({ html: pinHtml(pinLabel(l, locale), selectedId === id), className: 'eno-pin', iconSize: [0, 0] }))
       if (selectedId === id) marker.setZIndexOffset(1000)
       else marker.setZIndexOffset(0)
     })
@@ -346,7 +351,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-bold text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></span>
-                    <span className="block text-xs font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</span>
+                    <span className="block text-xs font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</span>
                   </span>
                 </button>
                 <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
@@ -384,7 +389,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                       <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
-                    <p className="mt-1 text-sm font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price) : formatMoneyFull(card.price, card.currency)}</p>
+                    <p className="mt-1 text-sm font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</p>
                   </div>
                 </button>
               </>

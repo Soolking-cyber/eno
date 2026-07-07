@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { TrendingDown, Loader2, Sparkles } from 'lucide-react'
 import { EnoSlider } from './eno-slider'
 import { useLanguage } from '@/context/language-context'
-import { formatMoneyFull, parseVnd, groupVnd, dropPercent } from '@/lib/vnd'
+import { formatMoneyFull, parseVnd, groupVnd, dropPercent, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -67,7 +67,8 @@ export function QuickDiscount({
   onChanged: () => void
   className?: string
 }) {
-  const { tr } = useLanguage()
+  const { lang, tr } = useLanguage()
+  const locale = moneyLocale(lang) // amounts + live grouping follow the viewer's language
   const [open, setOpen] = useState(false)
   const [pct, setPctState] = useState(10)
   const [amount, setAmount] = useState('') // grouped new-price string, e.g. "3,600,000"
@@ -79,11 +80,11 @@ export function QuickDiscount({
   const setPct = (p: number) => {
     const c = clampPct(p)
     setPctState(c)
-    setAmount(groupVnd(String(tidyPrice(cur * (1 - c / 100)))))
+    setAmount(groupVnd(String(tidyPrice(cur * (1 - c / 100))), locale))
   }
   // Typed price → %. Keeps the exact typed figure; the slider follows.
   const onAmount = (raw: string) => {
-    setAmount(groupVnd(raw))
+    setAmount(groupVnd(raw, locale))
     const np = parseVnd(raw)
     if (np > 0 && np < cur) setPctState(clampPct((1 - np / cur) * 100))
   }
@@ -144,7 +145,7 @@ export function QuickDiscount({
           <div className="mt-4 space-y-4">
             <div className="text-center">
               <p className="text-xs text-muted-foreground">{tr('Current price', 'Giá hiện tại')}</p>
-              <p className="text-sm font-semibold text-foreground">{formatMoneyFull(cur, listing.currency)}</p>
+              <p className="text-sm font-semibold text-foreground">{formatMoneyFull(cur, listing.currency, locale)}</p>
             </div>
 
             <PercentPicker pct={pct} onPct={setPct} />
@@ -168,7 +169,7 @@ export function QuickDiscount({
             {valid && (
               <div className="rounded-xl bg-accent p-3 text-center">
                 <p className="text-sm font-bold text-accent-foreground tabular-nums">
-                  {formatMoneyFull(newPrice, listing.currency)} <span className="text-destructive">{pctLabel}</span>
+                  {formatMoneyFull(newPrice, listing.currency, locale)} <span className="text-destructive">{pctLabel}</span>
                 </p>
                 {willEarnBadge ? (
                   <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-accent-foreground">

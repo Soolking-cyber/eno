@@ -2,7 +2,7 @@
 // a display currency (independent of UI language) and we convert with live rates
 // from /api/fx. Conversion is DISPLAY-ONLY — offers and transactions stay in VND.
 
-import { formatMoneyFull } from './vnd'
+import { formatMoneyFull, type MoneyLocale } from './vnd'
 
 export type CurrencyCode =
   | 'VND' | 'USD' | 'EUR' | 'GBP' | 'CNY' | 'KRW' | 'JPY'
@@ -31,17 +31,20 @@ export const CURRENCY_CODES = CURRENCIES.map((c) => c.code)
 
 /**
  * Format a VND amount in the chosen display currency. `rates` are "currency per
- * 1 VND" (from /api/fx). VND keeps the app's "12,000,000 VND" suffix style; other
- * currencies use their native symbol via Intl (rounded to whole units — cleaner
- * for marketplace prices). Falls back to VND if the rate isn't loaded yet.
+ * 1 VND" (from /api/fx). VND keeps the app's locale-aware suffix style
+ * ("12,000,000 VND" en / "12.000.000 đ" vi — see vnd.ts); other currencies use
+ * their native symbol via Intl (rounded to whole units — cleaner for marketplace
+ * prices; a viewer who picked a foreign display currency gets its international
+ * rendering regardless of UI language). Falls back to VND if the rate isn't
+ * loaded yet.
  */
-export function formatMoney(amountVnd: number, currency: string, rates: Record<string, number>): string {
-  if (currency === 'VND' || currency === '₫') return formatMoneyFull(amountVnd, '₫')
+export function formatMoney(amountVnd: number, currency: string, rates: Record<string, number>, locale: MoneyLocale = 'en'): string {
+  if (currency === 'VND' || currency === '₫') return formatMoneyFull(amountVnd, '₫', locale)
   const rate = rates[currency]
-  if (!rate || !Number.isFinite(rate)) return formatMoneyFull(amountVnd, '₫')
+  if (!rate || !Number.isFinite(rate)) return formatMoneyFull(amountVnd, '₫', locale)
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amountVnd * rate)
   } catch {
-    return formatMoneyFull(amountVnd, '₫')
+    return formatMoneyFull(amountVnd, '₫', locale)
   }
 }

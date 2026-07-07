@@ -1,14 +1,37 @@
-// Money formatting. Across the app we show the FULL grouped amount with comma
-// thousands separators and a "VND" suffix — e.g. "12,000,000 VND" — everywhere
-// (cards, detail, input, offers). Non-VND currencies (the rare '$' listing) keep
-// their symbol prefix.
+// Money formatting. Across the app we show the FULL grouped amount everywhere
+// (cards, detail, input, offers) — but the SEPARATORS follow the viewer's
+// language. Vietnamese convention is the exact reverse of English: DOT for
+// thousands, COMMA for decimals, and the "đ" suffix (Shopee: "₫1.250.000",
+// ratings "4,9") — comma-grouped "12,000,000 VND" reads foreign/untrustworthy
+// to the home market. So every formatter takes a MoneyLocale that DEFAULTS to
+// 'en' ("12,000,000 VND", unchanged for the expat audience and every untouched
+// call site) and renders native Vietnamese for 'vi' ("12.000.000 đ").
+
+export type MoneyLocale = 'en' | 'vi'
 
 const EN = new Intl.NumberFormat('en-US') // comma thousands separator
+const VI = new Intl.NumberFormat('vi-VN') // dot thousands separator
 
-/** Full grouped amount: "12,000,000 VND" for VND, "$1,200" for other currencies. */
-export function formatMoneyFull(price: number, currency: string): string {
-  if (currency === '₫') return `${EN.format(Math.round(price))} VND`
-  return `${currency}${EN.format(Math.round(price))}`
+/** Narrow the active UI language (useLanguage().lang) to a money locale:
+ *  Vietnamese gets native separators, every other language keeps the
+ *  international 'en' style. */
+export function moneyLocale(lang: string): MoneyLocale {
+  return lang === 'vi' ? 'vi' : 'en'
+}
+
+// Grouping only differs by locale; decimal handling is done by callers (money
+// amounts are always whole VND).
+function group(n: number, locale: MoneyLocale): string {
+  return (locale === 'vi' ? VI : EN).format(n)
+}
+
+/** Full grouped amount. en: "12,000,000 VND" / "$1,200". vi: "12.000.000 đ"
+ *  (space before đ); the rare non-VND listing keeps its symbol prefix with
+ *  vi grouping. */
+export function formatMoneyFull(price: number, currency: string, locale: MoneyLocale = 'en'): string {
+  const amount = group(Math.round(price), locale)
+  if (currency === '₫') return locale === 'vi' ? `${amount} đ` : `${amount} VND`
+  return `${currency}${amount}`
 }
 
 
@@ -32,40 +55,67 @@ export function parseVnd(input: string): number {
   return digits ? parseInt(digits, 10) : 0
 }
 
-/** Group raw digits for live input display: "12000000" → "12,000,000". */
-export function groupVnd(input: string): string {
+/** Group raw digits for live input display: "12000000" → "12,000,000" (en) /
+ *  "12.000.000" (vi). parseVnd round-trips both (it strips all non-digits). */
+export function groupVnd(input: string, locale: MoneyLocale = 'en'): string {
   const digits = (input || '').replace(/\D/g, '')
-  return digits ? EN.format(parseInt(digits, 10)) : ''
+  return digits ? group(parseInt(digits, 10), locale) : ''
 }
 
-// One decimal max, trailing ".0" dropped: 12 → "12", 12.5 → "12.5".
-function short(n: number): string {
+// One decimal max, trailing ".0" dropped: 12 → "12", 12.5 → "12.5" (en) /
+// "12,5" (vi — comma decimal).
+function short(n: number, locale: MoneyLocale = 'en'): string {
   const r = Math.round(n * 10) / 10
-  return Number.isInteger(r) ? String(r) : r.toFixed(1)
+  const s = Number.isInteger(r) ? String(r) : r.toFixed(1)
+  return locale === 'vi' ? s.replace('.', ',') : s
 }
 
 /**
  * Compact VND label for MAP PINS ONLY — the single sanctioned exception to the
- * full-grouped format. Explicit international suffixes in every language
- * ("850K", "51M", "1.2B"): the Vietnamese "51 tr" shorthand is opaque to the
- * expat audience, and pins are too narrow for "51,000,000 VND".
+ * full-grouped format (pins are too narrow for "51,000,000 VND"). en keeps the
+ * explicit international suffixes ("850K", "51M", "1.2B") — the Vietnamese
+ * shorthand is opaque to the expat audience — while vi uses the native
+ * abbreviations every local reads instantly: "500k", "51tr", "1,2 tỷ".
  */
-export function compactPrice(n: number): string {
+export function compactPrice(n: number, locale: MoneyLocale = 'en'): string {
+  if (locale === 'vi') {
+    if (n >= 1_000_000_000) return `${short(n / 1_000_000_000, 'vi')} tỷ`
+    if (n >= 1_000_000) return `${short(n / 1_000_000, 'vi')}tr`
+    if (n >= 1_000) return `${Math.round(n / 1_000)}k`
+    return VI.format(n)
+  }
   if (n >= 1_000_000_000) return `${short(n / 1_000_000_000)}B`
   if (n >= 1_000_000) return `${short(n / 1_000_000)}M`
   if (n >= 1_000) return `${Math.round(n / 1_000)}K`
   return EN.format(n)
 }
 
-/** Readable helper under the price input: "12 million VND" / "12 triệu VND". */
+/** Compact COUNT label (views, saves, followers…): 1200 → "1.2k" (en) /
+ *  "1,2k" (vi); millions "3.4M" (en) / "3,4tr" (vi). Not for money — prices
+ *  use formatMoneyFull/compactPrice. */
+export function formatCount(n: number, locale: MoneyLocale = 'en'): string {
+  if (n >= 1_000_000) return `${short(n / 1_000_000, locale)}${locale === 'vi' ? 'tr' : 'M'}`
+  if (n >= 1_000) return `${short(n / 1_000, locale)}k`
+  return group(n, locale)
+}
+
+/** Average-rating label, always one decimal: 4.8 → "4.8" (en) / "4,8" (vi). */
+export function formatRating(n: number, locale: MoneyLocale = 'en'): string {
+  const s = n.toFixed(1)
+  return locale === 'vi' ? s.replace('.', ',') : s
+}
+
+/** Readable helper under the price input: "12 million VND" / "12 triệu VND".
+ *  Accepts the full UI language (any non-vi value behaves as en). */
 export function vndWords(n: number, lang: string): string {
   if (!n) return ''
-  const vi = lang === 'vi'
+  const locale = moneyLocale(lang)
+  const vi = locale === 'vi'
   let val: number
   let word: string
   if (n >= 1_000_000_000) { val = n / 1_000_000_000; word = vi ? 'tỷ' : 'billion' }
   else if (n >= 1_000_000) { val = n / 1_000_000; word = vi ? 'triệu' : 'million' }
   else if (n >= 1_000) { val = n / 1_000; word = vi ? 'nghìn' : 'thousand' }
-  else return `${EN.format(n)} VND`
-  return `${short(val)} ${word} VND`
+  else return `${group(n, locale)} VND`
+  return `${short(val, locale)} ${word} VND`
 }

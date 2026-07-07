@@ -35,7 +35,9 @@ function caption(l: SyndicationInput): string {
   const where = l.district || l.location
   return [
     l.title,
-    `${formatMoneyFull(l.price, l.currency)}${where ? ` · ${where}` : ''}`,
+    // 'vi' money format: these channels broadcast to the Vietnamese-market
+    // audience, where "12.000.000 đ" is the trusted native convention.
+    `${formatMoneyFull(l.price, l.currency, 'vi')}${where ? ` · ${where}` : ''}`,
     listingUrl(l.id),
   ].join('\n')
 }

@@ -10,13 +10,13 @@ import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Search, Trash2, X, Sparkles } from 'lucide-react'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
 // Borderless conversation list — the left pane of the desktop two-pane messenger
 // (and the whole screen on mobile). Highlights the open thread on desktop.
 export function ConversationList() {
   const { user, loading } = useAuth()
-  const { tr } = useLanguage()
+  const { lang, tr } = useLanguage()
   const { convos, deleteConvo, refreshConvos, prefetchThread } = useChat()
   const { id: activeId } = useParams<{ id?: string }>()
   const pathname = usePathname()
@@ -117,7 +117,7 @@ export function ConversationList() {
                       const o = c.lastOffer
                       // Make offer direction + status legible at a glance: an incoming
                       // pending offer ("New offer") is the actionable one and stands out.
-                      const amt = o ? formatMoneyFull(o.amount || 0, '₫') : ''
+                      const amt = o ? formatMoneyFull(o.amount || 0, '₫', moneyLocale(lang)) : ''
                       const label = o
                         ? o.status === 'accepted' ? tr('✅ Offer accepted', '✅ Đã chấp nhận đề nghị')
                           : o.status === 'declined' ? tr('❌ Offer declined', '❌ Đã từ chối đề nghị')

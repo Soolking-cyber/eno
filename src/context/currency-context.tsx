@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useMemo, useContext, useEffect, useState } from 'react'
 import { formatMoney, CURRENCY_CODES } from '@/lib/currencies'
+import type { MoneyLocale } from '@/lib/vnd'
 
 const CUR_KEY = 'eno-currency'
 const FX_KEY = 'eno-fx'
@@ -11,8 +12,10 @@ type CurrencyCtx = {
   currency: string
   setCurrency: (c: string) => void
   rates: Record<string, number>
-  /** Format a VND amount in the active display currency. */
-  format: (amountVnd: number) => string
+  /** Format a VND amount in the active display currency. Pass the viewer's
+   *  money locale (moneyLocale(lang)) for Vietnamese-native separators; the
+   *  default 'en' keeps the international style. */
+  format: (amountVnd: number, locale?: MoneyLocale) => string
 }
 
 const CurrencyContext = createContext<CurrencyCtx | undefined>(undefined)
@@ -56,7 +59,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem(CUR_KEY, c) } catch { /* ignore */ }
   }, [])
 
-  const format = useCallback((amountVnd: number) => formatMoney(amountVnd, currency, rates), [currency, rates])
+  const format = useCallback((amountVnd: number, locale?: MoneyLocale) => formatMoney(amountVnd, currency, rates, locale), [currency, rates])
 
   const value = useMemo(() => ({ currency, setCurrency, rates, format }), [currency, setCurrency, rates, format])
 

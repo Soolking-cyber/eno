@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 
 // Brand glyphs (single-path, 24² viewBox). Rendered white on a brand-colour chip.
@@ -27,8 +27,8 @@ function XIcon(props: { className?: string }) {
  * that matter for the audience, plus Copy link. Native share is offered as a "More"
  * fallback where available (phones).
  */
-export function ShareButton({ url, title, price, currency, className }: { url: string; title: string; price?: number; currency?: string; className?: string }) {
-  const { tr } = useLanguage()
+export function ShareButton({ url, title, price, currency, className, compact = false }: { url: string; title: string; price?: number; currency?: string; className?: string; compact?: boolean }) {
+  const { lang, tr } = useLanguage()
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -80,7 +80,7 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
 
   // Lead with the price — it's the part people share for. Falls back to the bare
   // title when no price is supplied.
-  const shareText = price != null && currency ? `${title} — ${formatMoneyFull(price, currency)}` : title
+  const shareText = price != null && currency ? `${title} — ${formatMoneyFull(price, currency, moneyLocale(lang))}` : title
   const u = encodeURIComponent(url)
   const t = encodeURIComponent(shareText)
   const channels = [
@@ -112,13 +112,17 @@ export function ShareButton({ url, title, price, currency, className }: { url: s
         aria-label={tr('Share', 'Chia sẻ')}
         aria-expanded={open}
         className={cn(
-          'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95 tap-44 relative',
-          open ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted',
+          // compact: icon-only circle for overlaying media (mirrors SaveListingButton's
+          // compact mode) — sized/tinted for the gallery's top-right corner.
+          compact
+            ? 'flex h-9 w-9 items-center justify-center rounded-full bg-card/80 backdrop-blur transition-colors cursor-pointer active:scale-95 tap-44 relative'
+            : 'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95 tap-44 relative',
+          open ? (compact ? 'text-accent-foreground' : 'bg-accent text-accent-foreground') : compact ? 'text-body' : 'text-body hover:bg-muted',
           className,
         )}
       >
         <Share2 className="h-4 w-4" />
-        <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>
+        {!compact && <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>}
       </button>
 
       {mounted && open && pos && createPortal(

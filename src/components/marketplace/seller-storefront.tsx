@@ -13,6 +13,7 @@ import { Tr } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
+import { RatingValue } from '@/components/marketplace/rating-value'
 import { getEnforcement } from '@/lib/enforcement'
 import { getInitials } from '@/lib/utils'
 
@@ -154,7 +155,7 @@ export async function SellerStorefront({ id }: { id: string }) {
         <div className={`mt-6 grid gap-x-4 gap-y-5 ${seller.reviewCount > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <Stat icon={null} value={<TrustScore score={seller.trustScore} size="md" href="/trust" />} label={<Tr text="Trust score" />} />
           {seller.reviewCount > 0 && (
-            <Stat icon={<Star className="h-4 w-4" />} value={`${seller.rating.toFixed(1)}★`} label={<Tr text="Rating" />} />
+            <Stat icon={<Star className="h-4 w-4" />} value={<><RatingValue value={seller.rating} />★</>} label={<Tr text="Rating" />} />
           )}
           <Stat icon={<CalendarDays className="h-4 w-4" />} value={`${memberYear}`} label={<Tr text="Member since" />} />
         </div>

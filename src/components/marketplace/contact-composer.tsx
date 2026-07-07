@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Lock, Tag, Send, X } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { EnoSlider } from './eno-slider'
 import { Button } from '@/components/ui/button'
 
@@ -32,7 +32,8 @@ export function ContactComposer({
   negotiable?: boolean // false = fixed price → no offer control (ask + buy directly)
 }) {
   const { user, loading, openSignIn } = useAuth()
-  const { tr } = useLanguage()
+  const { lang, tr } = useLanguage()
+  const locale = moneyLocale(lang) // offer amounts follow the viewer's language
   const router = useRouter()
   const [text, setText] = useState('')
   const [offering, setOffering] = useState(false)
@@ -79,6 +80,14 @@ export function ContactComposer({
   const hasPrice = typeof price === 'number' && price > 0
   const canOffer = hasPrice && negotiable
   const offerPrice = hasPrice ? Math.round(price! * (1 - discount / 100)) : 0
+
+  // "Make offer" (sticky bar segment) opens the composer straight in offer mode —
+  // slider stays at its default 10% (or wherever the buyer already dragged it).
+  useEffect(() => {
+    const onOffer = () => { if (canOffer) setOffering(true) }
+    window.addEventListener('eno:open-offer', onOffer)
+    return () => window.removeEventListener('eno:open-offer', onOffer)
+  }, [canOffer])
 
   const canSend = (offering && canOffer) || text.trim().length > 0
 
@@ -134,7 +143,7 @@ export function ContactComposer({
             <button type="button" onClick={() => setOffering(false)} aria-label={tr('Cancel offer', 'Hủy đề nghị')} className="rounded-full p-0.5 text-ink-4 hover:text-foreground cursor-pointer relative tap-44"><X className="h-4 w-4" /></button>
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-accent-foreground tabular-nums">{formatMoneyFull(offerPrice, currency)}</span>
+            <span className="text-2xl font-bold text-accent-foreground tabular-nums">{formatMoneyFull(offerPrice, currency, locale)}</span>
             <span className="text-xs font-semibold text-muted-foreground">−{discount}%</span>
           </div>
           <EnoSlider
@@ -144,7 +153,7 @@ export function ContactComposer({
             className="mt-2"
           />
           <div className="flex justify-between text-[10px] font-medium text-ink-4">
-            <span>{tr('Asking', 'Giá rao')}: {formatMoneyFull(price!, currency)}</span>
+            <span>{tr('Asking', 'Giá rao')}: {formatMoneyFull(price!, currency, locale)}</span>
             <span>−{MAX_DISCOUNT}%</span>
           </div>
         </div>
@@ -168,7 +177,7 @@ export function ContactComposer({
         className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 disabled:opacity-40 cursor-pointer"
       >
         <Send className="h-4 w-4" />
-        {offering && canOffer ? `${tr('Send offer', 'Gửi đề nghị')} · ${formatMoneyFull(offerPrice, currency)}` : tr('Send', 'Gửi')}
+        {offering && canOffer ? `${tr('Send offer', 'Gửi đề nghị')} · ${formatMoneyFull(offerPrice, currency, locale)}` : tr('Send', 'Gửi')}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
         {tr('Request their number or Zalo once they reply.', 'Yêu cầu số điện thoại hoặc Zalo sau khi họ trả lời.')}

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useCurrency } from '@/context/currency-context'
+import { compactPrice, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -30,7 +31,8 @@ export function PriceRangeFilter({
   activeClassName?: string
   wrapperClassName?: string
 }) {
-  const { tr } = useLanguage()
+  const { lang, tr } = useLanguage()
+  const locale = moneyLocale(lang) // labels/inputs follow the viewer's language
   const { currency, rates } = useCurrency()
   const rate = currency === 'VND' || currency === '₫' ? 1 : rates[currency] || 0
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -129,7 +131,7 @@ export function PriceRangeFilter({
   const inRangeCount = prices.filter((p) => p >= effLo && p <= effHi).length
   const toDisplay = (vnd: number) => (rate ? Math.round(vnd * rate) : Math.round(vnd))
   const fromDisplay = (disp: number) => (rate ? disp / rate : disp)
-  const grp = (n: number) => (n ? new Intl.NumberFormat('en-US').format(n) : '')
+  const grp = (n: number) => (n ? new Intl.NumberFormat(locale === 'vi' ? 'vi-VN' : 'en-US').format(n) : '')
   const digits = (s: string) => Number(s.replace(/\D/g, '')) || 0
 
   const active = value !== 'all'
@@ -138,6 +140,9 @@ export function PriceRangeFilter({
   const sym = currency === 'VND' || currency === '₫' ? '₫' : currency
   const compactAmt = (vnd: number) => {
     const d = toDisplay(vnd)
+    // vi + ₫ display: native shorthand ("1,5tr–3,9tr ₫"), matching the map pins.
+    // A foreign display currency keeps the international suffixes below.
+    if (locale === 'vi' && sym === '₫') return compactPrice(d, 'vi')
     if (d >= 1_000_000) return `${(d / 1_000_000).toFixed(d % 1_000_000 === 0 ? 0 : 1)}M`
     if (d >= 1_000) return `${Math.round(d / 1_000)}k`
     return String(d)

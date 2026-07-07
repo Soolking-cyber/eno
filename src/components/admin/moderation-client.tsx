@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { X, Loader2, ExternalLink, MessageSquare, ChevronDown, StickyNote, Users, ShieldQuestion, MoreHorizontal, Sparkles , Scale } from 'lucide-react'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { MOD_MACROS } from '@/lib/admin-macros'
 import type { TargetInfo } from '@/lib/admin-reports'
@@ -298,6 +299,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
 }) {
   const t = c.target
   const isListing = t.kind === 'listing' && t.listing
+  const { lang } = useLanguage() // admin chrome stays English; amounts follow the viewer's language
   // "Use suggestion" pre-selects the AI's severity + focuses/highlights the matching
   // decision button — it NEVER submits. The admin makes the final call.
   const decisionRefs = useRef<Record<string, HTMLButtonElement | null>>({})
@@ -337,7 +339,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
           {isListing ? (
             <>
               <a href={`/listings/${t.listing!.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 truncate text-sm font-bold text-foreground hover:text-accent-foreground"><span className="truncate">{t.listing!.title}</span><ExternalLink className="h-3 w-3 shrink-0 opacity-50" /></a>
-              <p className="mt-0.5 text-xs font-semibold text-accent-foreground">{formatMoneyFull(t.listing!.price, t.listing!.currency)}</p>
+              <p className="mt-0.5 text-xs font-semibold text-accent-foreground">{formatMoneyFull(t.listing!.price, t.listing!.currency, moneyLocale(lang))}</p>
               <p className="truncate text-[11px] text-muted-foreground">{t.listing!.category} · {t.listing!.location}</p>
             </>
           ) : (

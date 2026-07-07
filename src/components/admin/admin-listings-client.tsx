@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Search, Trash2, EyeOff, Eye, Star, Check } from 'lucide-react'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
 type Row = {
@@ -21,6 +22,7 @@ const VERIFIED = [
 // Admin listings tool: browse + batch act (delete / hide / activate / feature /
 // hold-release) over selected listings. Every action re-checks getAdmin server-side.
 export function AdminListingsClient() {
+  const { lang } = useLanguage() // admin chrome stays English; amounts follow the viewer's language
   const [rows, setRows] = useState<Row[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -103,7 +105,7 @@ export function AdminListingsClient() {
               {r.image ? <img src={r.image} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" /> : <div className="h-12 w-12 shrink-0 rounded-lg bg-tint" />}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold text-foreground">{r.title}</div>
-                <div className="truncate text-xs text-muted-foreground">{formatMoneyFull(r.price, r.currency)} · {r.category} · {r.sellerName}</div>
+                <div className="truncate text-xs text-muted-foreground">{formatMoneyFull(r.price, r.currency, moneyLocale(lang))} · {r.category} · {r.sellerName}</div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 {r.featured && <Badge>★</Badge>}

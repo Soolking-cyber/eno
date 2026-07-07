@@ -18,7 +18,7 @@ import { trackPostListing } from '@/lib/analytics'
 import { VndInput } from './vnd-input'
 import { AreaFilter, type Geo, type Nearby } from './area-filter'
 import { Mascot } from './mascot'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { subcategoriesFor, typesFor, facetsFor, rangeFacetsFor, categoryHasBrand, LISTING_TYPES } from '@/lib/taxonomy'
 import { RangeSpecInput } from './range-spec-input'
 import { compressImageFile } from '@/lib/normalize-image'
@@ -1118,6 +1118,7 @@ function Chips({ options, value, onPick }: { options: { value: string; label: st
 }
 
 function Preview({ cover, title, price, priceUnit, area, categoryIcon, t }: { cover?: string; title: string; price: string; priceUnit: string; area: string; categoryIcon?: string; t: (vi: string, en: string) => string }) {
+  const { lang } = useLanguage() // preview price mirrors what buyers in this language will see
   return (
     <div className="w-full">
       <div className="relative aspect-[10/11] w-full overflow-hidden rounded-xl bg-tint">
@@ -1132,7 +1133,7 @@ function Preview({ cover, title, price, priceUnit, area, categoryIcon, t }: { co
       </div>
       <h3 className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-foreground">{title || t('Tiêu đề tin của bạn', 'Your listing title')}</h3>
       <p className="mt-0.5 text-sm font-bold text-foreground">
-        {price ? formatMoneyFull(Number(price), '₫') : t('Giá', 'Price')}{price && priceUnit ? <span className="font-normal text-ink-4"> {priceUnit}</span> : null}
+        {price ? formatMoneyFull(Number(price), '₫', moneyLocale(lang)) : t('Giá', 'Price')}{price && priceUnit ? <span className="font-normal text-ink-4"> {priceUnit}</span> : null}
       </p>
       {area && <p className="text-xs text-muted-foreground">{area}</p>}
     </div>

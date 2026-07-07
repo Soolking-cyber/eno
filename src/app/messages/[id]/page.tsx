@@ -12,7 +12,7 @@ import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
@@ -33,7 +33,8 @@ type Thread = {
 export default function ThreadPage() {
   const { id } = useParams<{ id: string }>()
   const { user, loading } = useAuth()
-  const { tr } = useLanguage()
+  const { lang, tr } = useLanguage()
+  const locale = moneyLocale(lang) // offer amounts follow the viewer's language
   const { getCachedThread, cacheThread, refreshUnread, refreshConvos } = useChat()
   // Paint instantly from the cached thread (e.g. one the offer/Message action just
   // seeded) and revalidate in the background — no blank "loading" flash on open.
@@ -439,9 +440,9 @@ export default function ThreadPage() {
                         format) — never from the stored body. Legacy messages still carry a
                         baked "💰 Offered …₫" body: skip it (rendering it too would double up). */}
                     <div className="text-[11px] font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
-                    <div className="mt-0.5 text-base font-bold text-foreground">{tr('Offered', 'Đã trả giá')} {formatMoneyFull(m.offerAmount || 0, '₫')}</div>
+                    <div className="mt-0.5 text-base font-bold text-foreground">{tr('Offered', 'Đã trả giá')} {formatMoneyFull(m.offerAmount || 0, '₫', locale)}</div>
                     {askPct != null && (
-                      <div className="text-[11px] font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({formatMoneyFull(thread!.listing.price!, '₫')})</div>
+                      <div className="text-[11px] font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({formatMoneyFull(thread!.listing.price!, '₫', locale)})</div>
                     )}
                     {m.body && !m.body.startsWith('💰') && (
                       <div className="mt-1 text-sm leading-relaxed text-foreground">{m.body}</div>
@@ -579,7 +580,7 @@ export default function ThreadPage() {
                   aria-label={tr('Discount', 'Mức giảm')}
                   className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
                 />
-                <span className="shrink-0 text-xs font-bold tabular-nums text-accent-foreground">{formatMoneyFull(sliderOffer, '₫')}</span>
+                <span className="shrink-0 text-xs font-bold tabular-nums text-accent-foreground">{formatMoneyFull(sliderOffer, '₫', locale)}</span>
               </div>
             ) : showOffer ? (
               <div className="relative flex-1">
