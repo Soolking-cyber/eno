@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart } from 'lucide-react'
+import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { ShareButton } from './share-button'
@@ -16,7 +16,7 @@ import { toast } from 'sonner'
 // OPTIMISTIC: the row's status/availability flips INSTANTLY (local override), the
 // request fires in the background, and we only revert + revalidate if it fails.
 // No blocking spinner — the user never waits on the network for feedback.
-export function DashboardListingRow({ listing, onChanged, variant = 'row', series }: { listing: SerializedListing; onChanged: () => void; variant?: 'row' | 'grid'; series?: SparkPoint[] }) {
+export function DashboardListingRow({ listing, onChanged, variant = 'row', series, selectable = false, selected = false, onSelectToggle }: { listing: SerializedListing; onChanged: () => void; variant?: 'row' | 'grid'; series?: SparkPoint[]; selectable?: boolean; selected?: boolean; onSelectToggle?: () => void }) {
   const { lang, tr } = useLanguage()
   const router = useRouter()
   const [gone, setGone] = useState(false)
@@ -82,7 +82,24 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   // Warm the listing page on hover/touch so opening it is instant.
   const prefetch = () => router.prefetch(`/listings/${listing.id}`)
-  const open = () => router.push(`/listings/${listing.id}`)
+  // In select mode, tapping the thumbnail toggles selection instead of opening.
+  const open = () => (selectable ? onSelectToggle?.() : router.push(`/listings/${listing.id}`))
+
+  const checkbox = selectable ? (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onSelectToggle?.() }}
+      role="checkbox"
+      aria-checked={selected}
+      aria-label={tr('Select listing', 'Chọn tin')}
+      className={cn(
+        'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors cursor-pointer',
+        selected ? 'border-brand bg-primary text-white' : 'border-line-strong bg-card hover:border-brand',
+      )}
+    >
+      {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+    </button>
+  ) : null
 
   // Shared between the row + square-card layouts.
   const meta = (
@@ -164,12 +181,13 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
     // No overflow-hidden on the card — it would clip the Share popover. The image
     // rounds its own top corners instead.
     return (
-      <div className="flex flex-col rounded-2xl border border-border/70 bg-card transition-colors hover:border-line-strong" onMouseEnter={prefetch} onTouchStart={prefetch}>
+      <div className={cn('flex flex-col rounded-2xl border bg-card transition-colors', selected ? 'border-brand ring-1 ring-brand' : 'border-border/70 hover:border-line-strong')} onMouseEnter={prefetch} onTouchStart={prefetch}>
         <button onClick={open} className="relative aspect-square w-full overflow-hidden rounded-t-2xl bg-tint cursor-pointer" aria-label={title}>
           {img && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
           )}
+          {selectable && <span className="absolute right-2 top-2">{checkbox}</span>}
           <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
         </button>
         <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
@@ -185,7 +203,8 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   // Row (list view) — horizontal thumbnail + details.
   return (
-    <div className="flex gap-3 rounded-2xl p-3 transition-colors hover:bg-muted" onMouseEnter={prefetch} onTouchStart={prefetch}>
+    <div className={cn('flex gap-3 rounded-2xl p-3 transition-colors', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch}>
+      {selectable && <span className="self-center">{checkbox}</span>}
       <button onClick={open} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-tint cursor-pointer" aria-label={title}>
         {img && (
           // eslint-disable-next-line @next/next/no-img-element

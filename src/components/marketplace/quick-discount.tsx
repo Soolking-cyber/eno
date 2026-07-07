@@ -3,22 +3,61 @@
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TrendingDown, Loader2, Sparkles } from 'lucide-react'
+import { EnoSlider } from './eno-slider'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, parseVnd, groupVnd, dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
+// Discount % model shared by the single-listing dialog + the bulk-discount bar.
+export const DISCOUNT_PRESETS = [10, 20, 30] as const
+// ≥20% off the current price is the floor that most reliably clears the drop-badge
+// gate (see price-drop rules) — surfaced as a gentle hint, not a hard rule.
+export const BADGE_HINT_PCT = 20
+
+const clampPct = (p: number) => Math.max(1, Math.min(99, Math.round(p)))
+// Round a raw discounted price to a tidy VND figure so it never reads 3,599,910 ₫.
+export function tidyPrice(raw: number): number {
+  const step = raw >= 1_000_000 ? 100_000 : raw >= 100_000 ? 10_000 : 1_000
+  return Math.max(1000, Math.round(raw / step) * step)
+}
+
+/** The 1–99% discount picker: a big live %, a slider, and the quick presets.
+ *  Shared so the single + bulk discount dialogs feel identical. */
+export function PercentPicker({ pct, onPct }: { pct: number; onPct: (p: number) => void }) {
+  const { tr } = useLanguage()
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground">{tr('Discount', 'Mức giảm')}</span>
+        <span className="text-lg font-bold tabular-nums text-destructive">−{pct}%</span>
+      </div>
+      <EnoSlider value={pct} min={1} max={99} step={1} onChange={(v) => onPct(clampPct(v))} aria-label={tr('Discount percent', 'Phần trăm giảm')} />
+      <div className="grid grid-cols-3 gap-2">
+        {DISCOUNT_PRESETS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onPct(p)}
+            className={cn(
+              'rounded-xl border py-1.5 text-sm font-bold transition-colors cursor-pointer',
+              pct === p ? 'border-brand bg-accent text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
+            )}
+          >
+            −{p}%
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // The obvious "make a discount" affordance on the seller's own listing (the price
 // cut used to be buried inside full Edit). Sends ONLY { price } through the same
 // PATCH → updateListingCore path, so a qualifying cut auto-earns the buyer-facing
 // price-drop badge (server-computed against the 30-day reference — no seller "was"
-// price is ever entered). Presets round to a clean VND figure; a custom amount is
-// always available. Lives as a chip in the dashboard row + grid card.
-const PRESETS = [10, 20, 30] as const
-// ≥20% off the current price is the floor that most reliably clears the drop-badge
-// gate (see price-drop rules) — surfaced as a gentle hint, not a hard rule.
-const BADGE_HINT_PCT = 20
-
+// price is ever entered). The slider gives any 1–99% cut; the VND field stays in
+// sync for exact figures. Lives as a chip in the dashboard row + grid card.
 export function QuickDiscount({
   listing,
   onChanged,
@@ -30,24 +69,32 @@ export function QuickDiscount({
 }) {
   const { tr } = useLanguage()
   const [open, setOpen] = useState(false)
-  const [amount, setAmount] = useState('') // grouped new-price string, e.g. "160,000"
-  const [activePreset, setActivePreset] = useState<number | null>(null)
+  const [pct, setPctState] = useState(10)
+  const [amount, setAmount] = useState('') // grouped new-price string, e.g. "3,600,000"
   const [saving, setSaving] = useState(false)
 
   const cur = listing.price
+
+  // % → price (tidy-rounded). Slider + presets drive this.
+  const setPct = (p: number) => {
+    const c = clampPct(p)
+    setPctState(c)
+    setAmount(groupVnd(String(tidyPrice(cur * (1 - c / 100)))))
+  }
+  // Typed price → %. Keeps the exact typed figure; the slider follows.
+  const onAmount = (raw: string) => {
+    setAmount(groupVnd(raw))
+    const np = parseVnd(raw)
+    if (np > 0 && np < cur) setPctState(clampPct((1 - np / cur) * 100))
+  }
+
   const newPrice = parseVnd(amount)
   const valid = newPrice > 0 && newPrice < cur
   const pctLabel = valid ? dropPercent(cur, newPrice) : null
   const willEarnBadge = valid && newPrice <= cur * (1 - BADGE_HINT_PCT / 100)
 
-  const applyPreset = (pct: number) => {
-    const raw = cur * (1 - pct / 100)
-    // Round to a tidy step so the price reads clean (no 179,910 ₫).
-    const step = raw >= 1_000_000 ? 100_000 : raw >= 100_000 ? 10_000 : 1_000
-    const rounded = Math.max(1000, Math.round(raw / step) * step)
-    setAmount(groupVnd(String(rounded)))
-    setActivePreset(pct)
-  }
+  const openDialog = () => { setOpen(true); setPct(pct) }
+  const reset = () => { setPctState(10); setAmount('') }
 
   const apply = async () => {
     if (!valid || saving) return
@@ -61,8 +108,7 @@ export function QuickDiscount({
       if (!res.ok) throw new Error('failed')
       toast.success(tr('Price lowered', 'Đã giảm giá'))
       setOpen(false)
-      setAmount('')
-      setActivePreset(null)
+      reset()
       onChanged()
     } catch {
       toast.error(tr('Could not update the price — try again.', 'Không cập nhật được giá — thử lại.'))
@@ -78,7 +124,7 @@ export function QuickDiscount({
           drop-badge / report red, and not the blue primary CTA. */}
       <button
         type="button"
-        onClick={() => { setOpen(true); if (!amount) applyPreset(10) }}
+        onClick={openDialog}
         className={cn(
           'inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/40 cursor-pointer',
           className,
@@ -87,7 +133,7 @@ export function QuickDiscount({
         <TrendingDown className="h-3 w-3" /> {tr('Discount', 'Giảm giá')}
       </button>
 
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setAmount(''); setActivePreset(null) } }}>
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
         <DialogContent className="bg-card rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
           <DialogHeader>
             <DialogTitle className="text-center text-lg font-bold text-foreground">
@@ -101,31 +147,16 @@ export function QuickDiscount({
               <p className="text-sm font-semibold text-foreground">{formatMoneyFull(cur, listing.currency)}</p>
             </div>
 
-            {/* One-tap preset cuts. */}
-            <div className="grid grid-cols-3 gap-2">
-              {PRESETS.map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => applyPreset(pct)}
-                  className={cn(
-                    'rounded-xl border py-2 text-sm font-bold transition-colors cursor-pointer',
-                    activePreset === pct ? 'border-brand bg-accent text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
-                  )}
-                >
-                  −{pct}%
-                </button>
-              ))}
-            </div>
+            <PercentPicker pct={pct} onPct={setPct} />
 
-            {/* Or a custom new price. */}
+            {/* Exact new price (kept in sync with the slider). */}
             <div>
               <label className="text-xs font-semibold text-muted-foreground">{tr('New price', 'Giá mới')}</label>
               <div className="mt-1 flex items-center gap-2 rounded-xl bg-tint px-3 py-2 focus-within:ring-2 focus-within:ring-brand/20">
                 <input
                   inputMode="numeric"
                   value={amount}
-                  onChange={(e) => { setAmount(groupVnd(e.target.value)); setActivePreset(null) }}
+                  onChange={(e) => onAmount(e.target.value)}
                   placeholder="0"
                   className="min-w-0 flex-1 bg-transparent text-sm font-semibold tabular-nums text-foreground outline-none"
                 />

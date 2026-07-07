@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { AlertTriangle, Eye, MessageSquareText, Tag, Clock, Upload, List, LayoutGrid, Store, Search, X } from 'lucide-react'
+import { AlertTriangle, Eye, MessageSquareText, Tag, Clock, Upload, List, LayoutGrid, Store, Search, X, CheckSquare, TrendingDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { Mascot } from '@/components/marketplace/mascot'
@@ -17,6 +17,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
+import { BulkDiscount } from '@/components/marketplace/bulk-discount'
 import type { SparkPoint } from '@/components/marketplace/listing-sparkline'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { TrustProgress, type TrustProgressData } from '@/components/marketplace/trust-progress'
@@ -98,6 +99,10 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   // Filter the seller's own listings by title — surfaced once a shop grows past a
   // scannable handful (matches EN + VI titles, accent-insensitive).
   const [listQ, setListQ] = useState('')
+  // Bulk-discount selection mode over "My listings".
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkOpen, setBulkOpen] = useState(false)
   const reviewedRef = useRef(false)
 
   // Daily availability review: the FIRST time a seller with live listings opens
@@ -189,6 +194,15 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   // "Needs attention" = LIVE listings only: those held (failed auto-publish) or
   // active-but-stale. Sold/hidden are terminal — never actionable here.
   const needsAttention = d ? d.listings.filter((l) => l.status === 'active' && (!l.verified || isStale(l.availabilityConfirmedAt, l.postedAt))) : []
+
+  // "My listings" filtered by the seller's own search box.
+  const qFold = fold(listQ.trim())
+  const shownListings = d ? (qFold ? d.listings.filter((l) => fold(`${l.title} ${l.titleVi ?? ''}`).includes(qFold)) : d.listings) : []
+  // Only LIVE, priced listings can be discounted — the selectable set for bulk.
+  const discountable = shownListings.filter((l) => l.status === 'active' && l.price > 0)
+  const selectedItems = discountable.filter((l) => selected.has(l.id))
+  const toggleSelect = (id: string) => setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()) }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -345,23 +359,65 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
         <section className="mt-8">
           <div className="flex items-center justify-between gap-3">
             <h2 className="h-section text-foreground">{tr('My listings', 'Tin của tôi')}{d ? ` (${d.listings.length})` : ''}</h2>
-            {/* Line ↔ grid view toggle (mirrors the explorer's). */}
-            {d && d.listings.length > 0 && (
-              <div className="flex items-center gap-0.5 rounded-xl bg-tint p-0.5">
-                {([['list', List], ['grid', LayoutGrid]] as const).map(([v, Icon]) => (
-                  <button
-                    key={v}
-                    onClick={() => setView(v)}
-                    aria-label={v === 'list' ? tr('List view', 'Dạng danh sách') : tr('Grid view', 'Dạng lưới')}
-                    aria-pressed={listView === v}
-                    className={cn('flex h-7 w-7 items-center justify-center rounded-lg transition-colors cursor-pointer', listView === v ? 'bg-card text-accent-foreground shadow-sm' : 'text-ink-4 hover:text-foreground')}
-                  >
-                    <Icon className="h-4 w-4" />
+            <div className="flex items-center gap-2">
+              {/* Bulk-discount: enter selection mode (only meaningful when there's a
+                  live, priced listing to discount). */}
+              {d && discountable.length > 0 && (
+                selectMode ? (
+                  <button onClick={exitSelect} className="rounded-lg px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
+                    {tr('Cancel', 'Hủy')}
                   </button>
-                ))}
-              </div>
-            )}
+                ) : (
+                  <button onClick={() => setSelectMode(true)} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
+                    <CheckSquare className="h-3.5 w-3.5" /> {tr('Select', 'Chọn')}
+                  </button>
+                )
+              )}
+              {/* Line ↔ grid view toggle (mirrors the explorer's). */}
+              {d && d.listings.length > 0 && (
+                <div className="flex items-center gap-0.5 rounded-xl bg-tint p-0.5">
+                  {([['list', List], ['grid', LayoutGrid]] as const).map(([v, Icon]) => (
+                    <button
+                      key={v}
+                      onClick={() => setView(v)}
+                      aria-label={v === 'list' ? tr('List view', 'Dạng danh sách') : tr('Grid view', 'Dạng lưới')}
+                      aria-pressed={listView === v}
+                      className={cn('flex h-7 w-7 items-center justify-center rounded-lg transition-colors cursor-pointer', listView === v ? 'bg-card text-accent-foreground shadow-sm' : 'text-ink-4 hover:text-foreground')}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+          {/* Select-mode toolbar: select-all / clear + the bulk discount trigger.
+              Counts reflect the currently-shown eligible set (search-aware). */}
+          {selectMode && d && (() => {
+            const allSelected = discountable.length > 0 && discountable.every((l) => selected.has(l.id))
+            return (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-accent px-3 py-2">
+                <span className="text-xs font-semibold text-accent-foreground">
+                  {tr(`${selectedItems.length} selected`, `Đã chọn ${selectedItems.length}`)}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelected(allSelected ? new Set() : new Set(discountable.map((l) => l.id)))}
+                    className="rounded-lg px-2 py-1 text-xs font-semibold text-accent-foreground transition-colors hover:bg-brand/10 cursor-pointer"
+                  >
+                    {allSelected ? tr('Clear', 'Bỏ chọn') : tr('Select all', 'Chọn tất cả')}
+                  </button>
+                  <button
+                    onClick={() => setBulkOpen(true)}
+                    disabled={selectedItems.length === 0}
+                    className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
+                  >
+                    <TrendingDown className="h-3.5 w-3.5" /> {tr('Discount', 'Giảm giá')}{selectedItems.length > 0 ? ` (${selectedItems.length})` : ''}
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
           {/* Search-your-own-listings — appears once a shop grows past a scannable
               handful so a seller can jump to one item instead of scrolling. */}
           {d && d.listings.length > 10 && (
@@ -407,23 +463,38 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
                 {tr('Post your first listing', 'Đăng tin đầu tiên')}
               </button>
             </div>
-          ) : (() => {
-            const q = fold(listQ.trim())
-            const shown = q ? d.listings.filter((l) => fold(`${l.title} ${l.titleVi ?? ''}`).includes(q)) : d.listings
-            if (shown.length === 0) {
-              return (
-                <p className="mt-6 text-center text-sm text-muted-foreground">
-                  {tr('No listings match', 'Không có tin nào khớp')} “{listQ.trim()}”.
-                </p>
-              )
-            }
-            return (
-              <div className={cn('mt-3', listView === 'grid' ? 'grid grid-cols-2 gap-2.5 lg:grid-cols-3' : 'space-y-2.5')}>
-                {shown.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} variant={listView === 'grid' ? 'grid' : 'row'} series={spark ? spark[l.id] ?? [] : undefined} />)}
-              </div>
-            )
-          })()}
+          ) : shownListings.length === 0 ? (
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              {tr('No listings match', 'Không có tin nào khớp')} “{listQ.trim()}”.
+            </p>
+          ) : (
+            <div className={cn('mt-3', listView === 'grid' ? 'grid grid-cols-2 gap-2.5 lg:grid-cols-3' : 'space-y-2.5')}>
+              {shownListings.map((l) => {
+                const canSelect = selectMode && l.status === 'active' && l.price > 0
+                return (
+                  <DashboardListingRow
+                    key={l.id}
+                    listing={l}
+                    onChanged={refresh}
+                    variant={listView === 'grid' ? 'grid' : 'row'}
+                    series={spark ? spark[l.id] ?? [] : undefined}
+                    selectable={canSelect}
+                    selected={selected.has(l.id)}
+                    onSelectToggle={() => toggleSelect(l.id)}
+                  />
+                )
+              })}
+            </div>
+          )}
         </section>
+
+        {/* Bulk-discount dialog — % applied across the selected live listings. */}
+        <BulkDiscount
+          open={bulkOpen}
+          onOpenChange={setBulkOpen}
+          listings={selectedItems.map((l) => ({ id: l.id, price: l.price, currency: l.currency }))}
+          onDone={() => { exitSelect(); refresh() }}
+        />
       </>)}
 
       {tab === 'account' && (<>
