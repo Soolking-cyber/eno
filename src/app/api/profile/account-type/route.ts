@@ -7,7 +7,7 @@ import { phoneTakenByOther } from '@/lib/phone-unique'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { parseAttributionCookie } from '@/lib/attribution'
 import { rateLimit } from '@/lib/ratelimit'
-import { autoClaimHandle } from '@/lib/handle'
+import { consolidateSellerHandle } from '@/lib/handle'
 
 export const runtime = 'nodejs'
 
@@ -86,10 +86,11 @@ export async function POST(req: Request) {
         await db.seller.create({ data: { name: businessName!, ownerId: profile.id, responseRate: 100 } })
       }
     }
-    // Public @shopname from the business name ("Apple Store" → @apple_store) so the
-    // storefront is shareable as eno.vn/@apple_store. Idempotent + best-effort.
+    // ONE public handle from the business name ("Apple Store" → apple_store) so the
+    // storefront is shareable as eno.vn/apple_store. Frees any handle the profile held
+    // (a business account gets a single shop handle, not two). Idempotent + best-effort.
     const s = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true } })
-    if (s) await autoClaimHandle({ sellerId: s.id }, s.name)
+    if (s) await consolidateSellerHandle(s.id, s.name, profile.id)
   }
 
   // First-touch acquisition channel for THIS signup (from the eno_attr cookie set on

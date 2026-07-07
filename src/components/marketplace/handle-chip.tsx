@@ -5,14 +5,14 @@ import { AtSign, Check } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 
 /** Compact public-handle chip (storefront header): shows @name, tap to copy the
- *  shareable eno.vn/@name URL — the whole point of handles is pasting that link
- *  into Zalo/Facebook/anywhere. */
+ *  shareable eno.vn/name URL (no "@" in the link) — the whole point of handles is
+ *  pasting that clean link into Zalo/Facebook/anywhere. */
 export function HandleChip({ handle }: { handle: string }) {
   const { tr } = useLanguage()
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(`https://eno.vn/@${handle}`)
+      await navigator.clipboard.writeText(`https://eno.vn/${handle}`)
       setCopied(true); setTimeout(() => setCopied(false), 1500)
     } catch {}
   }

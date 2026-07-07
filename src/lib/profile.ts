@@ -5,7 +5,7 @@ import { normalizePhone } from './phone'
 import { maskEmailHandle } from './utils'
 import { checkBanEvasion } from './enforcement'
 import { recordNewAccount, recordPhoneVerified, recomputeTrust } from './trust'
-import { autoClaimHandle } from './handle'
+import { autoClaimHandle, consolidateSellerHandle } from './handle'
 
 /**
  * Idempotent: ensure the authenticated user has exactly one Profile row
@@ -53,10 +53,13 @@ export async function ensureProfile(user: User) {
   // Verification-gated onboarding: a new account starts below 100 (≈60) and earns
   // up via verification. Both calls are idempotent (applied once ever).
   await recordNewAccount(profile.id).catch(() => {})
-  // Public @handle from the display name ("Alex Doe" → @alex_doe), Telegram-style —
-  // editable later in Dashboard → Settings. Idempotent (skips if one exists);
-  // best-effort (never blocks login).
-  await autoClaimHandle({ profileId: profile.id }, profile.displayName)
+  // Public handle from the display name ("Alex Doe" → alex_doe), Telegram-style,
+  // shareable as eno.vn/alex_doe — editable later in Dashboard → Settings. ONE handle
+  // per account: a storefront owner's single handle lives on the SHOP (see
+  // consolidateSellerHandle), so skip the personal claim when they already run one —
+  // otherwise every login would re-create a second handle. Idempotent + best-effort.
+  const ownsSeller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
+  if (!ownsSeller) await autoClaimHandle({ profileId: profile.id }, profile.displayName)
   // A confirmed phone (e.g. phone-OTP signup) is the baseline trust step → +bonus.
   if (verifiedPhone) await recordPhoneVerified(profile.id).catch(() => {})
 
@@ -73,7 +76,7 @@ export async function ensureProfile(user: User) {
         data: { ownerId: profile.id, claimedAt: new Date() },
       })
       if (r.count > 0) {
-        const claimed = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
+        const claimed = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true } })
         // Light up any conversations that were waiting on this seller to claim.
         if (claimed) {
           await db.conversation.updateMany({
@@ -82,6 +85,9 @@ export async function ensureProfile(user: User) {
           })
           // Mirror the owner's (new-account) trust onto the freshly-claimed storefront.
           await recomputeTrust(profile.id).catch(() => {})
+          // The account just gained a storefront → collapse to ONE handle on the shop
+          // (frees the personal handle claimed moments ago at signup).
+          await consolidateSellerHandle(claimed.id, claimed.name, profile.id)
         }
       }
     } catch (e) {

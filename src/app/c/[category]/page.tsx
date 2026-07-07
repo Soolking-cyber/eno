@@ -23,7 +23,8 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category } = await params
   const cat = await db.category.findUnique({ where: { slug: category } })
-  if (!cat) return {}
+  // Real 404 (not soft-404) for an unknown category — notFound() before streaming.
+  if (!cat) notFound()
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   return {
     title: `${cat.name} in Vietnam — Trusted listings | eno.vn`,

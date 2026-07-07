@@ -66,7 +66,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const listing = await getListing(id)
 
-  if (!listing) return {}
+  // notFound() in generateMetadata (before any streaming/Suspense boundary) makes a
+  // missing/sold/hidden/unverified listing a REAL 404 instead of a soft-404 (200 +
+  // not-found UI) — the root loading.tsx boundary otherwise flushes 200 before the
+  // page's own notFound(). Mirrors the page's viewability guard exactly.
+  if (!listing || !listing.verified || listing.status !== 'active') notFound()
 
   // Use the listing's SOURCE title (as posted) for all BAKED, shared output — the
   // <title> tab, OG tags, JSON-LD, share text. This page is static HTML shared across

@@ -52,7 +52,7 @@ type Stats = {
 type Dashboard = {
   tier: 'business' | 'individual'
   profile: { displayName: string | null; email: string | null; phone: string | null; avatarUrl: string | null; avatarColor: string; businessName: string | null; trustScore: number; trustTier: string }
-  seller: { id: string; name: string; verifiedSeller: boolean; trustScore: number; trustTier: string; responseRate: number; bio: string | null; location: string | null; phone: string | null; avatarUrl: string | null } | null
+  seller: { id: string; name: string; handle: string | null; verifiedSeller: boolean; trustScore: number; trustTier: string; responseRate: number; bio: string | null; location: string | null; phone: string | null; avatarUrl: string | null } | null
   stats: Stats
   listings: SerializedListing[]
   // Optional: absent in stale localStorage caches from before the panel shipped.
@@ -212,13 +212,13 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             {d?.seller && (
               <>
                 <a
-                  href={`/sellers/${d.seller.id}`}
+                  href={d.seller.handle ? `/${d.seller.handle}` : `/sellers/${d.seller.id}`}
                   className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted"
                 >
                   <Store className="h-4 w-4" /> {tr('View storefront', 'Xem gian hàng')}
                 </a>
                 <ShareButton
-                  url={`${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/sellers/${d.seller.id}`}
+                  url={`${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/${d.seller.handle ?? `sellers/${d.seller.id}`}`}
                   title={d.profile.businessName || d.seller.name}
                 />
               </>
@@ -414,7 +414,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
           </section>
         )}
 
-        {/* Public @handles — shareable eno.vn/@name links (user + shop) */}
+        {/* Public handle — the account's one shareable eno.vn/name link (shop or personal) */}
         <section className="mt-8">
           <h2 className="h-section text-foreground">{tr('Handle', 'Tên định danh')}</h2>
           <div className="mt-3"><HandleSettings /></div>

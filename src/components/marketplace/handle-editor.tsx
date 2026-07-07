@@ -10,7 +10,7 @@ import { HANDLE_RE } from '@/lib/handle-format'
 // and the shop handle (business profile editor) via `target`. Live availability
 // check (debounced 400ms against /api/handle/check), save via POST /api/handle
 // (owner-scoped server-side — no ids travel from the client), and a copy chip for
-// the shareable eno.vn/@name URL.
+// the shareable eno.vn/name URL (clean, no "@").
 
 export function HandleEditor({ target, initial, label }: { target: 'profile' | 'seller'; initial: string | null; label?: string }) {
   const { tr } = useLanguage()
@@ -75,7 +75,7 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(`https://eno.vn/@${current}`)
+      await navigator.clipboard.writeText(`https://eno.vn/${current}`)
       setCopied(true); setTimeout(() => setCopied(false), 1500)
     } catch {}
   }
@@ -137,7 +137,7 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
       </div>
       <p className={cn('mt-1 h-4 text-xs font-semibold', hint ? hint.cls : 'text-transparent')}>{hint?.text || '—'}</p>
       {current && !dirty && (
-        <p className="text-xs text-muted-foreground">eno.vn/<span className="font-semibold text-body">@{current}</span></p>
+        <p className="text-xs text-muted-foreground">eno.vn/<span className="font-semibold text-body">{current}</span></p>
       )}
       {error && <p role="alert" className="mt-1 text-xs font-semibold text-destructive">{error}</p>}
     </div>

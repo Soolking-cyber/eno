@@ -49,6 +49,46 @@ export async function claimHandle(owner: HandleOwner, rawHandle: string): Promis
   return h
 }
 
+/** ONE handle per account: when a profile owns a storefront, the single public handle
+ *  lives on the SELLER (the shop is what people share). This frees any handle the
+ *  profile itself held — so a business account never ends up with two (a personal
+ *  @name AND a shop @name). Prefers a shop-name handle; transfers the profile's row
+ *  in place when it already matches (keeps the clean name). Best-effort; never throws.
+ *  A guest storefront (no profileId) just auto-claims a shop handle. */
+export async function consolidateSellerHandle(
+  sellerId: string,
+  sellerName: string | null | undefined,
+  profileId: string | null | undefined,
+): Promise<void> {
+  try {
+    const shopHandle = await db.handle.findUnique({ where: { sellerId }, select: { handle: true } })
+    const profileHandle = profileId
+      ? await db.handle.findUnique({ where: { profileId }, select: { handle: true } })
+      : null
+
+    // Shop already has its handle → just make sure the profile isn't also holding one.
+    if (shopHandle) {
+      if (profileHandle) await db.handle.delete({ where: { handle: profileHandle.handle } }).catch(() => {})
+      return
+    }
+
+    // Shop needs a handle. If the profile's handle already equals the shop-name slug,
+    // move that row to the shop in place (atomic, keeps the clean name).
+    const desired = slugifyHandle(sellerName)
+    if (profileHandle && profileHandle.handle === desired) {
+      await db.handle.update({ where: { handle: desired }, data: { profileId: null, sellerId } })
+      return
+    }
+
+    // Otherwise claim a fresh shop-name handle, THEN release the profile's (claim-first
+    // so a failure never leaves the account with no handle at all).
+    await autoClaimHandle({ sellerId }, sellerName)
+    if (profileHandle) await db.handle.delete({ where: { handle: profileHandle.handle } }).catch(() => {})
+  } catch (e) {
+    console.error('[handle] consolidate failed', { sellerId, profileId }, (e as Error).message)
+  }
+}
+
 /** Best-effort auto-claim at signup / storefront creation — NEVER throws (a handle
  *  is a nicety; account/listing creation must not fail on it). Skips owners that
  *  already have one. Retries once on a lost race. */

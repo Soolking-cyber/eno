@@ -46,7 +46,8 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category, district } = await params
   const data = await load(category, district)
-  if (!data) return {}
+  // Real 404 (not soft-404) for an unknown category/district — before streaming.
+  if (!data) notFound()
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   return {
     title: `${data.cat.name} in ${data.districtName} — Trusted | eno.vn`,

@@ -8,36 +8,38 @@ import { HANDLE_RE } from '@/lib/handle'
 import { getInitials } from '@/lib/utils'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
+import { SellerStorefront } from '@/components/marketplace/seller-storefront'
 import { Tr } from '@/context/language-context'
 
-// eno.vn/@<handle> — the shareable Telegram-style URL for users and storefronts.
-// This is a root-level dynamic segment, so it doubles as the catch-all for unknown
-// top-level paths: anything that doesn't start with "@" (or doesn't resolve)
-// 404s immediately. Static routes always win over this segment in Next routing.
+// eno.vn/<handle> — the shareable, Telegram-style clean URL for users and storefronts
+// (NO "@" in the address bar: eno.vn/apple_store, not eno.vn/@apple_store). This is a
+// root-level dynamic segment, so it doubles as the catch-all for unknown top-level
+// paths: anything that isn't a valid, existing handle 404s. Static routes always win
+// over this segment in Next routing.
 //
-// Resolution: shop handle → the storefront page; user handle → their storefront
-// if they own one (the shop is the public destination), else a minimal profile
-// card (name/avatar/member-since only — no contact info, noindex).
+// Resolution: a handle that belongs to a storefront (or a user who owns one) renders
+// the storefront IN PLACE — the clean handle stays in the address bar. A user handle
+// with no storefront renders a minimal profile card (name/avatar/member-since only —
+// no contact info, noindex). Old eno.vn/@name links redirect to the clean eno.vn/name.
 
 export const dynamic = 'force-dynamic'
 
 type Props = { params: Promise<{ handle: string }> }
 
-// Shared by generateMetadata + the page (one DB round-trip per request).
+// Shared by generateMetadata + the page (one DB round-trip per request). Accepts the
+// bare handle; a leading "@" (legacy links) is tolerated and stripped.
 const resolve = cache(async (raw: string) => {
-  const decoded = decodeURIComponent(raw)
-  if (!decoded.startsWith('@')) return null
-  const h = decoded.slice(1).toLowerCase()
+  const h = decodeURIComponent(raw).replace(/^@/, '').toLowerCase()
   if (!HANDLE_RE.test(h)) return null
   return db.handle.findUnique({
     where: { handle: h },
     select: {
       handle: true,
-      seller: { select: { id: true } },
+      seller: { select: { id: true, name: true } },
       profile: {
         select: {
           displayName: true, avatarUrl: true, avatarColor: true, createdAt: true,
-          seller: { select: { id: true } },
+          seller: { select: { id: true, name: true } },
         },
       },
     },
@@ -46,8 +48,23 @@ const resolve = cache(async (raw: string) => {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle } = await params
+  // Legacy eno.vn/@name → the page redirects it to the clean URL; no metadata needed.
+  if (decodeURIComponent(handle).startsWith('@')) return {}
   const row = await resolve(handle)
-  if (!row || row.seller || row.profile?.seller) return {} // 404s and redirects need none
+  // notFound() HERE (in generateMetadata, before any streaming/Suspense boundary)
+  // makes an unknown handle a REAL HTTP 404 rather than a soft-404 (200 + 404 UI)
+  // that the force-dynamic render under the root loading.tsx boundary would produce.
+  if (!row) notFound()
+
+  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  const seller = row.seller || row.profile?.seller
+  if (seller) {
+    return {
+      title: `${seller.name} | eno.vn`,
+      description: `${seller.name} on eno.vn`,
+      alternates: { canonical: `${hostUrl}/${row.handle}` },
+    }
+  }
   return {
     title: `@${row.handle} | eno.vn`,
     description: `${row.profile?.displayName || `@${row.handle}`} on eno.vn`,
@@ -58,13 +75,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function HandlePage({ params }: Props) {
   const { handle } = await params
+  const decoded = decodeURIComponent(handle)
+  // Normalize legacy eno.vn/@name links to the clean eno.vn/name URL.
+  if (decoded.startsWith('@')) redirect(`/${decoded.slice(1).toLowerCase()}`)
+
   const row = await resolve(handle)
   if (!row) notFound()
 
-  // Storefront handle — or a user who owns a storefront: the shop page is the
-  // public destination people mean when they share the link.
-  if (row.seller) redirect(`/sellers/${row.seller.id}`)
-  if (row.profile?.seller) redirect(`/sellers/${row.profile.seller.id}`)
+  // Storefront handle — or a user who owns a storefront: render the shop in place so
+  // the clean handle is the URL people see and share (no bounce to /sellers/<id>).
+  const sellerId = row.seller?.id ?? row.profile?.seller?.id
+  if (sellerId) return <SellerStorefront id={sellerId} />
   if (!row.profile) notFound()
 
   const name = row.profile.displayName || `@${row.handle}`

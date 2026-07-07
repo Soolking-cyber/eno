@@ -8,7 +8,7 @@ import { fold } from '@/lib/fold'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, PublishBlockedError } from '@/lib/publish-guard'
 import { localizeListingTitles } from '@/lib/translate'
-import { autoClaimHandle } from '@/lib/handle'
+import { consolidateSellerHandle } from '@/lib/handle'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { getCurrentProfileId } from '@/lib/admin'
 import { postingGate } from '@/lib/enforcement'
@@ -541,9 +541,10 @@ export async function POST(req: NextRequest) {
           })
     }
 
-    // Public @shopname for the (possibly just-created) storefront so it's shareable
-    // as eno.vn/@<name>. Idempotent (skips when one exists) + best-effort.
-    await autoClaimHandle({ sellerId: seller.id }, seller.name)
+    // ONE public handle for the (possibly just-created) storefront so it's shareable
+    // as eno.vn/<name>. Frees any handle the owner's profile held (one per account).
+    // Idempotent + best-effort. Guest storefronts (no ownerId) just get a shop handle.
+    await consolidateSellerHandle(seller.id, seller.name, seller.ownerId)
 
     // Enforcement ladder + probation (trust Phase 2): a held/suspended account can't
     // post, and a brand-new account (<30d AND <3 transactions) is capped on active

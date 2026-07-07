@@ -1234,7 +1234,7 @@ export const UI_STRINGS: string[] = [
   "Your explanation",
   "Your first listing is live! 🎉",
   "Your handle",
-  "Your handle is your public link — share eno.vn/@you anywhere and people land on your page.",
+  "Your handle is your public link — share eno.vn/you anywhere and people land on your page.",
   "Your listing is live!",
   "Your listing is live. We run automated checks on every post.",
   "Your listing title",

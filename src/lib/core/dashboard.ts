@@ -10,7 +10,10 @@ import type { Profile } from '@/generated/prisma/client'
 export async function dashboardStatsCore(profile: Profile) {
   const seller = await db.seller.findUnique({
     where: { ownerId: profile.id },
-    include: { listings: { orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } } },
+    include: {
+      listings: { orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
+      handle: { select: { handle: true } }, // clean eno.vn/<name> storefront link
+    },
   })
 
   // Unread messages where this user is the seller side of the conversation.
@@ -53,6 +56,7 @@ export async function dashboardStatsCore(profile: Profile) {
       ? {
           id: seller.id,
           name: seller.name,
+          handle: seller.handle?.handle ?? null,
           verifiedSeller: seller.verifiedSeller,
           trustScore: seller.trustScore,
           trustTier: seller.trustTier,
