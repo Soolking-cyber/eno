@@ -16,6 +16,37 @@ type Props = {
 // Lightbox double-tap zoom factor. Transform-only (compositor) — no library.
 const ZOOM = 2.5
 
+/** One hero slide that never crops: the full photo (object-contain) over a blurred,
+ *  scaled copy of ITSELF so portrait/pano shots fill the frame with their own colors
+ *  instead of dead bars, plus a faint repeating eno.vn brand mark in the letterbox
+ *  gutters (hidden behind the sharp photo, so only the empty edges are branded — and
+ *  when the photo already fits the frame, nothing shows). Only the sharp foreground
+ *  carries priority/eager and gates the LCP; the backdrop requests a tiny 64px source
+ *  (invisible once blurred) so it's a cheap raster + negligible fetch, never competing
+ *  with the hero. */
+function BlurFillImage({ img, alt, sizes, mock, priority, eager, hover }: {
+  img: string; alt: string; sizes: string; mock?: boolean; priority?: boolean; eager?: boolean; hover?: boolean
+}) {
+  return (
+    <>
+      <Image src={img} alt="" fill sizes="64px" quality={40} unoptimized={mock || undefined} aria-hidden className="scale-110 object-cover blur-2xl" />
+      <span aria-hidden className="pointer-events-none absolute inset-0 bg-repeat opacity-60 [background-image:url('/watermark.svg')] [background-size:200px_138px]" />
+      <Image
+        src={img}
+        alt={alt}
+        fill
+        sizes={sizes}
+        quality={70}
+        unoptimized={mock || undefined}
+        priority={priority}
+        loading={eager && !priority ? 'eager' : undefined}
+        className={cn('object-contain', hover && 'transition-transform duration-300 group-hover:scale-[1.02]')}
+      />
+      <span className="img-watermark" aria-hidden />
+    </>
+  )
+}
+
 /** Photo gallery: full-width swipe carousel on mobile (buyers judge condition
  *  from photos — 45%-wide mosaic tiles were too small on a phone), Airbnb-style
  *  mosaic ≥md, and a full-screen lightbox with swipe nav + double-tap zoom. */
@@ -92,9 +123,8 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
     <>
       {images.length === 1 ? (
         <button onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer">
-          <div data-protected className="relative aspect-[16/10] w-full bg-tint">
-            <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 100vw, 60vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" priority />
-            <span className="img-watermark" aria-hidden />
+          <div data-protected className="relative aspect-[4/3] w-full overflow-hidden bg-tint">
+            <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority hover />
           </div>
         </button>
       ) : (
@@ -113,8 +143,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
             >
               {images.map((img, i) => (
                 <button key={i} onClick={() => openAt(i)} className="relative aspect-[4/3] w-full shrink-0 snap-center overflow-hidden bg-tint cursor-pointer">
-                  <Image src={img} alt={`${title} — photo ${i + 1}`} fill sizes="100vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover" priority={i === 0} />
-                  <span className="img-watermark" aria-hidden />
+                  <BlurFillImage img={img} alt={`${title} — photo ${i + 1}`} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0} />
                 </button>
               ))}
             </div>
@@ -127,13 +156,12 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
 
           {/* ≥md: Airbnb-style mosaic (1 big + grid) — unchanged. */}
           <div data-protected className="relative hidden h-[300px] grid-cols-2 gap-2 overflow-hidden rounded-2xl sm:h-[440px] md:grid">
+            {/* eager, NOT priority: both breakpoints mount (CSS-hidden), so priority
+                here preloaded a second copy of the hero on phones, competing with the
+                mobile carousel's real LCP image. A visible eager image still fetches
+                at high priority on desktop. */}
             <button onClick={() => openAt(0)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-              {/* eager, NOT priority: both breakpoints mount (CSS-hidden), so priority
-                  here preloaded a second copy of the hero on phones, competing with the
-                  mobile carousel's real LCP image. A visible eager image still fetches
-                  at high priority on desktop. */}
-              <Image src={images[0]} alt={title} fill sizes="(max-width:1024px) 50vw, 40vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="eager" />
-              <span className="img-watermark" aria-hidden />
+              <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 50vw, 40vw" mock={isMockImageUrl(images[0])} eager hover />
             </button>
             <div className={cn('grid gap-2', restGrid)}>
               {rest.map((img, i) => (

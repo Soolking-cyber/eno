@@ -63,11 +63,17 @@ export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string
     const { data, info } = await sharp(buf, { limitInputPixels: 50_000_000 })
       .rotate()
       .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
+      // Flatten alpha onto white: listing photos render over a blurred self-backdrop
+      // in the gallery, so a transparent cut-out PNG would otherwise let the backdrop
+      // + brand pattern bleed through the subject — and the baked watermark would
+      // composite onto empty pixels. A no-op for the common opaque camera JPEG.
+      .flatten({ background: '#ffffff' })
       .png()
       .toBuffer({ resolveWithObject: true })
     if (opts.watermark !== false) {
-      // ~15% of the width, clamped; anchored bottom-right with ~2.5% padding.
-      const mw = Math.min(300, Math.max(72, Math.round(info.width * 0.15)))
+      // ~28% of the width (prominent for web-address memorability — user ask
+      // 2026-07-07), clamped; anchored bottom-right with ~2.5% padding.
+      const mw = Math.min(580, Math.max(190, Math.round(info.width * 0.28)))
       const mh = Math.round((mw / MARK_W) * MARK_H)
       const pad = Math.round(info.width * 0.025)
       out = await sharp(data)
