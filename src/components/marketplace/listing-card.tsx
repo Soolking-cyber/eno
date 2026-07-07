@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useRef, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag, Zap } from 'lucide-react'
+import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag } from 'lucide-react'
 import { TrustScore } from './trust-score'
+import { CardBadges } from './card-badges'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
@@ -114,10 +115,6 @@ function ListingCardImpl({
   const last = images.length - 1
   const goTo = (n: number) => setIdx(Math.max(0, Math.min(last, n)))
 
-  // Freshness cue: a quiet "New" chip for the first ~48h only. Absence is neutral —
-  // we never stamp a date on every card (that would just visibly age stale stock).
-  const isNew = !!listing.postedAt && Date.now() - new Date(listing.postedAt).getTime() < 48 * 60 * 60 * 1000
-
   return (
     <div
       role="button"
@@ -206,28 +203,10 @@ function ListingCardImpl({
         {/* eno.vn watermark — hidden until a save/copy/drag attempt (ImageShield) */}
         {images.length > 0 && <span className="img-watermark" aria-hidden />}
 
-        {/* Top-left chip stack: Urgent (orange) → price-drop % (red) → New. Urgent and
-            the drop pill are the seller's strongest honest signals, so "New" (pure
-            recency) yields when either is present — three pills crowd a narrow card. */}
-        {(listing.urgent || (listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price)) || isNew) && (
-          <span className="absolute left-2 top-2 z-10 flex items-center gap-1">
-            {listing.urgent && (
-              <span className="flex items-center gap-0.5 rounded-full bg-orange-700 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                <Zap className="h-2.5 w-2.5 fill-current" /> {tr('Urgent', 'Bán gấp')}
-              </span>
-            )}
-            {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
-              <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold tabular-nums text-white shadow-sm">
-                {dropPercent(listing.prevPrice, listing.price)}
-              </span>
-            )}
-            {isNew && !listing.urgent && !(listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price)) && (
-              <span className="rounded-full bg-foreground/85 px-2 py-0.5 text-[10px] font-bold text-background shadow-sm backdrop-blur-[2px]">
-                {tr('New', 'Mới')}
-              </span>
-            )}
-          </span>
-        )}
+        {/* Top-left signals: Urgent → price-drop % → New (the shared, app-wide badge
+            system — see card-badges.tsx). "New" yields when a stronger, honest signal
+            (urgent/drop) is present so a narrow card never crowds. */}
+        <CardBadges listing={listing} className="absolute left-2 top-2 z-10" />
 
         {/* Social proof — "N saved" (5a #5): urgency without dark patterns. Only
             shows once the count is meaningful (≥3); bottom-left, clear of

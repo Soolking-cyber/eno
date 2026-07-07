@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { MapPin, MessageCircle, Tag, Zap } from 'lucide-react'
 import { TrustScore } from './trust-score'
+import { Badge } from './card-badges'
 import { Price } from './price'
 import { CategoryIcon } from './category-icons'
 import { FavoriteHeart } from './favorite-heart'
@@ -77,19 +78,18 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {displayTitle}
         </h4>
         <div className="mt-0.5 flex items-center gap-x-2 text-xs text-muted-foreground">
-          {/* Urgent + price-drop, compact forms: tiny orange bolt pill + red % — the
-              row is one line, so signals stay glyph-sized. */}
+          {/* Same app-wide badges as the grid card (card-badges.tsx), inline form:
+              urgent before the price, drop % after — the row is one line, so signals
+              stay glyph-sized. */}
           {l.urgent && (
-            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-orange-700 px-1.5 py-px text-[10px] font-bold text-white">
+            <Badge kind="urgent" variant="inline" className="shrink-0">
               <Zap className="h-2.5 w-2.5 fill-current" /> {tr('Urgent', 'Bán gấp')}
-            </span>
+            </Badge>
           )}
           {/* The row's single color anchor — brand blue, matching the grid card. */}
           <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 text-base font-bold text-accent-foreground" />
           {l.prevPrice != null && dropPercent(l.prevPrice, l.price) && (
-            <span className="shrink-0 rounded-full bg-red-600 px-1.5 py-px text-[10px] font-bold tabular-nums text-white">
-              {dropPercent(l.prevPrice, l.price)}
-            </span>
+            <Badge kind="drop" variant="inline" className="shrink-0">{dropPercent(l.prevPrice, l.price)}</Badge>
           )}
           <span className="h-3 w-px shrink-0 bg-border" />
           <span className="truncate"><Tr text={l.district || l.city} /></span>
