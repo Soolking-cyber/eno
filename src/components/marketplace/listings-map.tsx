@@ -373,7 +373,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   </button>
                 </div>
                 <button onClick={() => onOpenListing(card)} className="block w-full text-left cursor-pointer">
-                  <div className="relative aspect-[6/7] w-full bg-tint">
+                  <div className="relative aspect-square w-full bg-tint">
                     {card.images[0] && (
                       <Image src={card.images[0]} alt="" fill sizes="280px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
                     )}

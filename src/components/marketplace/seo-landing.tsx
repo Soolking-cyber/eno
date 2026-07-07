@@ -77,7 +77,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {listings.map((l) => (
                 <Link key={l.id} href={`/listings/${l.id}`} className="group flex flex-col">
-                  <div className="relative aspect-[6/7] w-full overflow-hidden rounded-xl bg-tint">
+                  <div className="relative aspect-[10/11] w-full overflow-hidden rounded-xl bg-tint">
                     {l.images[0] && (
                       <Image
                         src={l.images[0]}
