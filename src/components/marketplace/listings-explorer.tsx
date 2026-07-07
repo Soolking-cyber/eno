@@ -3,9 +3,11 @@
 import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react'
 import {
   Search,
-  SlidersHorizontal,
   Inbox,
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Grid,
   List,
   MapPin,
@@ -24,7 +26,7 @@ import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
 import { CaptureCard } from './capture-card'
 import { LogoWordmark } from './logo-wordmark'
-import { CustomSelect } from './custom-select'
+import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
 import { ForYouRail } from './for-you-rail'
@@ -106,7 +108,10 @@ function prettyBrand(slug: string): string {
   return slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 }
 
-type SortKey = 'newest' | 'price-low' | 'price-high' | 'popular'
+// 'newest' is the legacy param name for the DEFAULT relevance blend (rankScore —
+// the API's default case AND its semantic-search gate both key on it), shown as
+// "Liên quan". TRUE recency is the separate 'recent' value.
+type SortKey = 'newest' | 'recent' | 'price-low' | 'price-high' | 'popular'
 type ViewMode = 'compact' | 'grid' | 'map'
 
 type Props = {
@@ -163,6 +168,9 @@ export function ListingsExplorer({
   const router = useRouter()
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
   const [showExplorer, setShowExplorer] = useState(false)
+  // The sticky sort strip tracks the auto-hiding header (same hook): header shown →
+  // pinned just below it; header rolled away → pinned at the viewport top.
+  const headerHidden = useHideOnScroll()
 
   const [listings, setListings] = useState<SerializedListingCard[]>(initialListings)
   // Freshness anchor for the SSR seed, captured at CLIENT mount (not baked on the
@@ -515,6 +523,10 @@ export function ListingsExplorer({
     setActiveModel(params.get('model') || 'all')
     setListingType(params.get('type') || 'all')
     setConditionFilter(params.get('condition') || 'all')
+    // Sort is shareable/back-button state like any filter; unknown/absent → the
+    // default relevance blend ('newest' — legacy param name, see SortKey).
+    const sortParam = params.get('sort')
+    setSort(sortParam === 'recent' || sortParam === 'price-low' || sortParam === 'price-high' || sortParam === 'popular' ? sortParam : 'newest')
     const pmin = params.get('priceMin'), pmax = params.get('priceMax')
     setPriceRange(pmin || pmax ? `${pmin || ''}-${pmax || ''}` : 'all')
     // Parse custom filters (attr_* + range_* → keyed back by facet key).
@@ -608,6 +620,10 @@ export function ListingsExplorer({
     if (conditionFilter !== 'all') params.set('condition', conditionFilter)
     else params.delete('condition')
 
+    // The default relevance blend stays out of the URL so plain links keep clean.
+    if (sort !== 'newest') params.set('sort', sort)
+    else params.delete('sort')
+
     params.delete('priceMin'); params.delete('priceMax')
     if (priceRange !== 'all') {
       const [mn, mx] = priceRange.split('-')
@@ -633,7 +649,7 @@ export function ListingsExplorer({
       ? [prettyBrand(activeBrand), activeModel !== 'all' ? activeModel : null].filter(Boolean).join(' ')
       : ''
     window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() || brandLabel } }))
-  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, priceRange])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, priceRange, sort])
 
   // Debounce search query input to avoid making API requests on every keystroke
   useEffect(() => {
@@ -1715,6 +1731,61 @@ export function ListingsExplorer({
     </>
   )
 
+  // One-row sort strip (Shopee's learned pattern: Liên quan | Mới nhất | Được quan
+  // tâm | Giá) — one-tap tabs replacing the results-mode sort dropdown on ALL sizes.
+  // Same underline-tab system as the dashboard/admin tabs. The price tab carries its
+  // direction arrow: first tap = ascending, re-tap flips.
+  const priceSortActive = sort === 'price-low' || sort === 'price-high'
+  const pickSort = (val: SortKey) => startFilterTransition(() => setSort(val))
+  const sortTab = (selected: boolean) =>
+    cn(
+      '-mb-px flex shrink-0 items-center gap-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
+      selected ? 'border-brand text-accent-foreground' : 'border-transparent text-body hover:text-foreground',
+    )
+  const renderSortStrip = () => (
+    <div
+      className={cn(
+        // Sticky below the header's slot; when the header auto-hides on scroll-down
+        // the offset follows it to the viewport edge. Swapping `top` (vs transform)
+        // is a no-op while the strip is still in normal flow, so it never jolts the
+        // layout above — it only glides once actually stuck.
+        'sticky z-30 border-b border-border bg-background/95 backdrop-blur transition-[top] duration-[250ms] ease-out motion-reduce:transition-none',
+        headerHidden ? 'top-0' : 'top-[calc(env(safe-area-inset-top)+4rem)]',
+        // Edge bleed coupled to the page gutter (max-w-7xl px-3 sm:px-6 lg:px-8) so
+        // the strip meets the Header's content edges at every size.
+        '-mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8',
+      )}
+    >
+      <div className="scrollbar-none flex flex-nowrap items-center gap-1 overflow-x-auto">
+        <button type="button" onClick={() => pickSort('newest')} aria-pressed={sort === 'newest'} className={sortTab(sort === 'newest')}>
+          {tr('Relevance', 'Liên quan')}
+        </button>
+        <button type="button" onClick={() => pickSort('recent')} aria-pressed={sort === 'recent'} className={sortTab(sort === 'recent')}>
+          {tr('Newest', 'Mới nhất')}
+        </button>
+        <button type="button" onClick={() => pickSort('popular')} aria-pressed={sort === 'popular'} className={sortTab(sort === 'popular')}>
+          {tr('Most contacted', 'Được quan tâm')}
+        </button>
+        <button
+          type="button"
+          onClick={() => pickSort(sort === 'price-low' ? 'price-high' : 'price-low')}
+          aria-pressed={priceSortActive}
+          aria-label={tr('Sort by price', 'Sắp xếp theo giá')}
+          className={sortTab(priceSortActive)}
+        >
+          {tr('Price', 'Giá')}
+          {sort === 'price-low' ? (
+            <ArrowUp className="h-3.5 w-3.5" />
+          ) : sort === 'price-high' ? (
+            <ArrowDown className="h-3.5 w-3.5" />
+          ) : (
+            <ArrowUpDown className="h-3.5 w-3.5 text-ink-4" />
+          )}
+        </button>
+      </div>
+    </div>
+  )
+
   // Distinct from the empty state: a failed fetch (DB down, 500) must NOT read as
   // "no listings" — show an error + retry so the marketplace never looks empty.
   const renderErrorState = () => (
@@ -1731,7 +1802,10 @@ export function ListingsExplorer({
   )
 
   return (
-    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden py-5 sm:py-8">
+    // overflow-x-CLIP (not hidden): hidden would make this section the sort strip's
+    // scroll box and position:sticky would never pin; clip contains the horizontal
+    // bleed without creating a scroll container.
+    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip py-5 sm:py-8">
       {/* Width + edge gutter owned by the parent page <main> (see landing branch). */}
       <div className="relative w-full">
         {/* Page heading for the search/results view — keeps a sequential outline
@@ -1789,50 +1863,16 @@ export function ListingsExplorer({
               verifiedOnly={verifiedOnly}
               setVerifiedOnly={setVerifiedOnly}
               histogramQuery={histogramQuery}
-              trailing={
-                /* MOBILE ONLY: the sort control rides the filter chip row as a
-                   chip-styled dropdown (the standalone sort/view row is collapsed
-                   below lg — see the desktop-only row further down). */
-                <div className="shrink-0 lg:hidden">
-                  <CustomSelect
-                    value={sort}
-                    onChange={(val) => startFilterTransition(() => setSort(val as SortKey))}
-                    options={[
-                      { value: 'newest', label: tr('Newest', 'Mới đăng') },
-                      { value: 'price-low', label: tr('Price: Low to High', 'Giá: thấp-cao') },
-                      { value: 'price-high', label: tr('Price: High to Low', 'Giá: cao-thấp') },
-                      { value: 'popular', label: tr('Popular', 'Xem nhiều') },
-                    ]}
-                    placeholder={tr('Sort', 'Sắp xếp')}
-                    wrapperClassName="w-auto shrink-0"
-                  />
-                </div>
-              }
             />
 
-            {/* Sort & View row — DESKTOP ONLY. On mobile this row collapses: the sort
-                chip merges into the facet bar above and the view toggles sit on the
-                results-count row, so the results start a full row higher. Desktop: the
-                Save-search box fills the left up to the sort dropdown. */}
+            {/* Save-search & View row — DESKTOP ONLY (sorting moved to the strip
+                below). On mobile this row collapses: the view toggles sit on the
+                results-count row, so the results start a full row higher. */}
             <div className="hidden items-start gap-3 lg:flex">
               {renderSaveBox(true, 'hidden min-w-0 flex-1 lg:flex')}
-              {/* Sorting & Views — pinned top-right (ml-auto keeps it right even
+              {/* View toggles — pinned top-right (ml-auto keeps them right even
                   when there are no chips / no save box on the left). */}
               <div className="flex items-center gap-2.5 lg:ml-auto lg:shrink-0">
-                <CustomSelect
-                  value={sort}
-                  onChange={(val) => startFilterTransition(() => setSort(val as SortKey))}
-                  options={[
-                    { value: 'newest', label: tr('Newest', 'Mới đăng') },
-                    { value: 'price-low', label: tr('Price: Low to High', 'Giá: thấp-cao') },
-                    { value: 'price-high', label: tr('Price: High to Low', 'Giá: cao-thấp') },
-                    { value: 'popular', label: tr('Popular', 'Xem nhiều') },
-                  ]}
-                  placeholder={tr('Sort', 'Sắp xếp')}
-                  className="py-2 pl-3 pr-2.5 w-44 font-semibold border-border text-muted-foreground"
-                  activeClassName="border-brand"
-                  icon={<SlidersHorizontal className="h-3.5 w-3.5 text-ink-4 shrink-0" />}
-                />
                 {renderViewToggles()}
               </div>
             </div>
@@ -1840,6 +1880,9 @@ export function ListingsExplorer({
             {/* Mobile: the full save box stays below the facet bar (unchanged); desktop
                 renders the compact 1/3 box on the filter line above. */}
             {renderSaveBox(false, 'lg:hidden')}
+
+            {/* One-row sort strip — sticks under the header while the results scroll. */}
+            {renderSortStrip()}
 
             {/* Results metadata count — also the feed's h2 (keeps headings sequential).
                 On mobile the view toggles live here (the sort/view row is collapsed). */}

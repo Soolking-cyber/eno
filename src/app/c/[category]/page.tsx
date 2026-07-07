@@ -108,7 +108,7 @@ export default async function CategoryPage({ params }: Props) {
 
         <div className="mt-8">
           {listings.length > 0 ? (
-            <SellerListings listings={listings} />
+            <SellerListings listings={listings} sortable />
           ) : (
             <p className="rounded-2xl border border-dashed border-line-strong py-12 text-center text-sm text-muted-foreground">
               <Tr text="No verified" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="yet — check back soon." />

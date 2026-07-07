@@ -104,7 +104,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
         </p>
 
         <div className="mt-8">
-          <SellerListings listings={listings} />
+          <SellerListings listings={listings} sortable />
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">

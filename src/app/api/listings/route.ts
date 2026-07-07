@@ -237,6 +237,13 @@ export async function GET(req: NextRequest) {
   const RANK: Prisma.ListingOrderByWithRelationInput = { rankScore: 'desc' }
   let orderBy: Prisma.ListingOrderByWithRelationInput[]
   switch (sort) {
+    case 'recent':
+      // TRUE recency (the results strip's "Mới nhất" tab): pure postedAt, no rank
+      // blend. Deliberately a NEW value — the legacy 'newest' keeps its long-standing
+      // meaning as the DEFAULT balanced blend (old URLs/params + the semantic-search
+      // gate below both key on 'newest'), so nothing pre-existing changes behavior.
+      orderBy = [{ postedAt: 'desc' }, { id: 'desc' }]
+      break
     case 'price-low':
       orderBy = [{ price: 'asc' }, RANK, { id: 'desc' }]
       break
@@ -244,7 +251,10 @@ export async function GET(req: NextRequest) {
       orderBy = [{ price: 'desc' }, RANK, { id: 'desc' }]
       break
     case 'popular':
-      orderBy = [{ views: 'desc' }, RANK, { id: 'desc' }]
+      // "Được quan tâm" / "Most contacted": lead with contactCount (the same demand
+      // signal now shown on the card as "Đã liên hệ N"), then views, so the tab's
+      // label and its ordering agree. Was views-only, which read as "Most viewed".
+      orderBy = [{ contactCount: 'desc' }, { views: 'desc' }, RANK, { id: 'desc' }]
       break
     case 'verified-first':
       orderBy = [{ verified: 'desc' }, RANK, { id: 'desc' }]
