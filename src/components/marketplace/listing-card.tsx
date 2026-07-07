@@ -2,12 +2,12 @@
 
 import { useEffect, useState, useRef, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag } from 'lucide-react'
+import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag, Zap } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
@@ -201,10 +201,26 @@ function ListingCardImpl({
         {/* eno.vn watermark — hidden until a save/copy/drag attempt (ImageShield) */}
         {images.length > 0 && <span className="img-watermark" aria-hidden />}
 
-        {/* Freshness chip — top-left, only for recently posted listings. */}
-        {isNew && (
-          <span className="absolute left-2 top-2 z-10 rounded-full bg-foreground/85 px-2 py-0.5 text-[10px] font-bold text-background shadow-sm backdrop-blur-[2px]">
-            {tr('New', 'Mới')}
+        {/* Top-left chip stack: Urgent (orange) → price-drop % (red) → New. Urgent and
+            the drop pill are the seller's strongest honest signals, so "New" (pure
+            recency) yields when either is present — three pills crowd a narrow card. */}
+        {(listing.urgent || (listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price)) || isNew) && (
+          <span className="absolute left-2 top-2 z-10 flex items-center gap-1">
+            {listing.urgent && (
+              <span className="flex items-center gap-0.5 rounded-full bg-orange-700 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                <Zap className="h-2.5 w-2.5 fill-current" /> {tr('Urgent', 'Bán gấp')}
+              </span>
+            )}
+            {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
+              <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold tabular-nums text-white shadow-sm">
+                {dropPercent(listing.prevPrice, listing.price)}
+              </span>
+            )}
+            {isNew && !listing.urgent && !(listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price)) && (
+              <span className="rounded-full bg-foreground/85 px-2 py-0.5 text-[10px] font-bold text-background shadow-sm backdrop-blur-[2px]">
+                {tr('New', 'Mới')}
+              </span>
+            )}
           </span>
         )}
 
@@ -439,7 +455,14 @@ function ListingCardImpl({
           </span>
         )}
 
-        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
+        <span className="flex items-baseline gap-1.5">
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
+          {/* Struck-through "was" anchor — server-computed 30-day-min reference, only
+              present while the drop badge is live. */}
+          {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
+            <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" compact className="truncate text-[11px] text-ink-4 line-through" />
+          )}
+        </span>
 
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="truncate">{displayLocation}</span>

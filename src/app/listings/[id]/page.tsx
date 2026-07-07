@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { db } from '@/lib/db'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, dropPercent } from '@/lib/vnd'
 import { serializeListing, safeParse } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -18,6 +18,7 @@ import {
   Heart,
   Eye,
   Tag,
+  Zap,
 } from 'lucide-react'
 import { RelatedListings } from '@/components/marketplace/related-listings'
 import { RecentlyViewedRail } from '@/components/marketplace/recently-viewed-rail'
@@ -349,6 +350,20 @@ export default async function ListingPage({ params }: Props) {
         <div className="mb-4 space-y-1 lg:hidden">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="block text-2xl font-bold text-foreground tracking-tight" />
+            {/* Server-computed drop anchor (30-day-min reference) — never a seller-entered "was". */}
+            {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
+              <>
+                <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-sm text-ink-4 line-through" />
+                <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">
+                  {dropPercent(listing.prevPrice, listing.price)}
+                </span>
+              </>
+            )}
+            {listing.urgent && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-orange-700 px-2.5 py-1 text-[11px] font-bold text-white">
+                <Zap className="h-3 w-3 fill-current" /><Tr text="Urgent sale" />
+              </span>
+            )}
             {!listing.negotiable && (
               <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-[11px] font-bold text-body">
                 <Tag className="mr-1 h-3 w-3" /><Tr text="Fixed price" />
@@ -418,6 +433,19 @@ export default async function ListingPage({ params }: Props) {
               {/* Price + social proof — desktop copy (the mobile copy sits under the title) */}
               <div className="hidden flex-wrap items-baseline gap-2 lg:flex">
                 <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-foreground tracking-tight" />
+                {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
+                  <>
+                    <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-base text-ink-4 line-through" />
+                    <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">
+                      {dropPercent(listing.prevPrice, listing.price)}
+                    </span>
+                  </>
+                )}
+                {listing.urgent && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-orange-700 px-2.5 py-1 text-[11px] font-bold text-white">
+                    <Zap className="h-3 w-3 fill-current" /><Tr text="Urgent sale" />
+                  </span>
+                )}
                 {!listing.negotiable && (
                   <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-[11px] font-bold text-body">
                     <Tag className="mr-1 h-3 w-3" /><Tr text="Fixed price" />

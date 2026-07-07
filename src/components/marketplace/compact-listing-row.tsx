@@ -3,7 +3,7 @@
 import { memo, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { MapPin, MessageCircle, Tag } from 'lucide-react'
+import { MapPin, MessageCircle, Tag, Zap } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import { Price } from './price'
 import { CategoryIcon } from './category-icons'
@@ -11,7 +11,7 @@ import { FavoriteHeart } from './favorite-heart'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
 import type { SerializedListingCard } from '@/lib/types'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { stashQuickCompose } from '@/lib/quick-contact'
@@ -77,7 +77,19 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {displayTitle}
         </h4>
         <div className="mt-0.5 flex items-center gap-x-2 text-xs text-muted-foreground">
+          {/* Urgent + price-drop, compact forms: tiny orange bolt pill + red % — the
+              row is one line, so signals stay glyph-sized. */}
+          {l.urgent && (
+            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-orange-700 px-1.5 py-px text-[10px] font-bold text-white">
+              <Zap className="h-2.5 w-2.5 fill-current" /> {tr('Urgent', 'Bán gấp')}
+            </span>
+          )}
           <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 font-bold text-foreground" />
+          {l.prevPrice != null && dropPercent(l.prevPrice, l.price) && (
+            <span className="shrink-0 rounded-full bg-red-600 px-1.5 py-px text-[10px] font-bold tabular-nums text-white">
+              {dropPercent(l.prevPrice, l.price)}
+            </span>
+          )}
           <span className="h-3 w-px shrink-0 bg-border" />
           <span className="truncate"><Tr text={l.district || l.city} /></span>
           <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className="shrink-0" />

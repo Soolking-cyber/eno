@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X } from 'lucide-react'
+import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X, TrendingDown } from 'lucide-react'
 import { useNotifications } from '@/context/notifications-context'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
@@ -105,7 +105,7 @@ export function NotificationBell() {
             ) : (
               sorted.map((n) => {
                 const href = n.url ? n.url : n.type === 'reminder' ? '/dashboard' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
-                const Icon = n.type === 'offer' ? Tag : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
+                const Icon = n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
                 return (
                   // Unread = brand-tinted with a left rail + dot; read = plain. Opening
                   // a notification marks just it read (so it sinks below on next view).
@@ -129,7 +129,7 @@ export function NotificationBell() {
                         <div className="flex items-center justify-between gap-2">
                           <span className={cn('flex min-w-0 items-center gap-1.5 truncate text-sm', n.read ? 'font-medium text-body' : 'font-bold text-foreground')}>
                             {!n.read && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-foreground" />}
-                            <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : <Tr text={n.title} />}</span>
+                            <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : <Tr text={n.title} />}</span>
                           </span>
                           <span className="shrink-0 text-[10px] text-ink-4">{timeAgo(n.createdAt, lang === 'vi' ? 'vi' : 'en')}</span>
                         </div>

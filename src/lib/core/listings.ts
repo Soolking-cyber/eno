@@ -16,6 +16,8 @@ import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 import { assertPublishable, assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
+import { priceChangeEffects } from '@/lib/price-drop'
+import { activateUrgentGate, urgentQuotaFree, URGENT } from '@/lib/urgent'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
 // These hold the business logic for mutating a listing, decoupled from HOW the caller
@@ -89,7 +91,12 @@ export async function updateListingCore(
 ): Promise<{ ok: true } | { ok: false; code: number; error: string }> {
   const current = await db.listing.findUnique({
     where: { id: listingId },
-    select: { title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true, seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } } },
+    select: {
+      title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true,
+      // Price-drop pipeline + urgent gate inputs
+      price: true, createdAt: true, sellerId: true, previousPrice: true, priceDropAt: true, lowestNotifiedPrice: true, priceDropNotifiedAt: true, urgentUntil: true,
+      seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
+    },
   })
   if (!current) return { ok: false, code: 404, error: 'not_found' }
 
@@ -127,6 +134,31 @@ export async function updateListingCore(
   if (body.condition !== undefined) data.condition = body.condition ? String(body.condition).trim().slice(0, 60) : null
   // Price-negotiable toggle (edit): honored on the same edit path the wizard resubmits.
   if (body.negotiable !== undefined) data.negotiable = Boolean(body.negotiable)
+  // Urgent-sale toggle (edit). Activation runs the full server gate (no-op while
+  // already active — never a silent renewal; 7-day re-arm cooldown; 2-per-seller
+  // quota) and force-enables offers — urgency IS a promise of flexibility. An early
+  // switch-OFF stamps urgentUntil=now (not null): the past value anchors the
+  // cooldown so off/on cycling can't keep a listing permanently urgent.
+  if (body.urgent !== undefined) {
+    if (body.urgent === true || body.urgent === 'true') {
+      const gate = await activateUrgentGate({ id: listingId, sellerId: current.sellerId, urgentUntil: current.urgentUntil })
+      // Over quota is worth telling the seller (409). Cooldown is NOT fatal to the
+      // edit: the wizard prefills urgent=true for a listing that was active at open,
+      // and it may expire mid-edit — failing the whole (price/photo) edit over a stale
+      // chip resend would be maddening. So a cooldown just skips re-arming the chip.
+      if (gate.ok === false) { if (gate.error === 'urgent_quota') return { ok: false, code: 409, error: gate.error } }
+      else if (gate.ok === true) { data.urgentUntil = gate.urgentUntil; data.negotiable = true }
+    } else if (current.urgentUntil && current.urgentUntil.getTime() > Date.now()) {
+      data.urgentUntil = new Date()
+    }
+  }
+  // Fixed price and urgent are mutually exclusive — urgency promises flexibility. If
+  // this edit sets a fixed price on a still-urgent listing (and didn't just activate
+  // urgent, which forces negotiable=true above), end the urgent run — mirrors the
+  // wizard, where picking "Fixed price" clears the urgent chip.
+  if (data.negotiable === false && data.urgentUntil === undefined && current.urgentUntil && current.urgentUntil.getTime() > Date.now()) {
+    data.urgentUntil = new Date()
+  }
   if (Array.isArray(body.images)) {
     const images = (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     data.images = JSON.stringify(images)
@@ -230,7 +262,43 @@ export async function updateListingCore(
     if (imgs.length >= 1) data.verified = true
   }
 
-  await db.listing.update({ where: { id: listingId }, data })
+  // Price-drop pipeline — runs LAST, once every validation above has passed, so a
+  // rejected edit never writes an audit row. Reads history, computes the 30-day-min
+  // reference, merges the badge fields (for a qualifying drop), and hands back the
+  // audit-row payload + the buyer-notification thunk. A raise clears any active badge
+  // instantly. All rules in src/lib/price-drop.ts.
+  let dropNotify: (() => Promise<void>) | null = null
+  let dropAudit: { listingId: string; oldPrice: number; newPrice: number } | null = null
+  if (data.price !== undefined && (data.price as number) !== current.price) {
+    const effects = await priceChangeEffects(
+      {
+        id: listingId,
+        price: current.price,
+        createdAt: current.createdAt,
+        previousPrice: current.previousPrice,
+        priceDropAt: current.priceDropAt,
+        lowestNotifiedPrice: current.lowestNotifiedPrice,
+        priceDropNotifiedAt: current.priceDropNotifiedAt,
+      },
+      data.price as number,
+    )
+    Object.assign(data, effects.data)
+    dropNotify = effects.notify
+    dropAudit = effects.audit
+  }
+
+  // Commit the audit row and the listing update ATOMICALLY — a failed update must not
+  // leave a phantom PriceChange (it would drag the 30-day reference down and mis-anchor
+  // the "was" price on a future drop). Plain update when the price didn't change.
+  if (dropAudit) {
+    await db.$transaction([
+      db.priceChange.create({ data: dropAudit }),
+      db.listing.update({ where: { id: listingId }, data }),
+    ])
+  } else {
+    await db.listing.update({ where: { id: listingId }, data })
+  }
+  if (dropNotify) after(dropNotify) // buyer fan-out never delays the response
   if (brandChange) after(() => Promise.all([
     brandChange!.from ? bumpBrandCount(brandChange!.from, -1) : Promise.resolve(),
     brandChange!.to ? bumpBrandCount(brandChange!.to, 1) : Promise.resolve(),
@@ -328,6 +396,12 @@ export async function createListingCore(input: {
   // Specific model — only kept alongside a resolved brand.
   const model = brandSlug && body.model ? (String(body.model).trim().slice(0, 60) || null) : null
 
+  // Urgent-sale chip at posting. Quota-gated (max 2 concurrently urgent per seller) —
+  // but NEVER fails the post over a chip: over quota, the listing is simply created
+  // without it (the seller can re-arm from edit once a slot frees). No cooldown check
+  // here — a brand-new listing has no urgent history.
+  const urgentOk = (body.urgent === true || body.urgent === 'true') && (await urgentQuotaFree(seller.id))
+
   // Screen the SECONDARY free-text fields too (all publicly rendered): district,
   // condition, model, raw brand input, city, LOCATION, attribute values. The primary
   // texts were screened by assertPublishable above; without this a banned term or
@@ -351,8 +425,10 @@ export async function createListingCore(input: {
       currency: '₫',
       // Default to negotiable when the caller omits it (matches the column default +
       // the pre-feature norm); the wizard sends an explicit true/false, partner API /
-      // MCP send it when they want a fixed price.
-      negotiable: body.negotiable === undefined ? true : Boolean(body.negotiable),
+      // MCP send it when they want a fixed price. Urgent force-enables offers —
+      // urgency is a promise of flexibility (the wizard mirrors this client-side).
+      negotiable: urgentOk ? true : body.negotiable === undefined ? true : Boolean(body.negotiable),
+      ...(urgentOk ? { urgentUntil: new Date(Date.now() + URGENT.DURATION_MS) } : {}),
       location,
       district,
       city,

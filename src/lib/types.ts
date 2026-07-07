@@ -26,6 +26,12 @@ export type SerializedListingCard = {
   priceUnit: string
   currency: string
   negotiable: boolean
+  // Active price-drop anchor (server-normalized): the struck-through "was" price
+  // while the drop badge is live (7 days), else null. Server-computed 30-day-min
+  // reference — never a seller-entered number.
+  prevPrice: number | null
+  // Urgent sale ("Bán gấp") — resolved read-time from urgentUntil.
+  urgent: boolean
   location: string
   district: string | null
   city: string
@@ -63,6 +69,11 @@ export type SerializedListing = {
   priceUnit: string
   currency: string
   negotiable: boolean
+  // Price-drop badge (see SerializedListingCard.prevPrice) + when the drop landed
+  // (ISO, only while the badge is live — powers "dropped 3 days ago" on the detail page).
+  prevPrice: number | null
+  priceDropAt: string | null
+  urgent: boolean
   location: string
   district: string | null
   city: string

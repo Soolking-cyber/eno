@@ -10,6 +10,16 @@ export function safeParse<T>(value: string | null, fallback: T): T {
   }
 }
 
+// Price-drop badge normalization: the struck-through anchor is exposed ONLY while
+// the badge is live — a qualifying drop within the last 7 days and an anchor still
+// above the current price. Everything else serializes to null, so clients never
+// have to reason about stale campaigns. Mirrors DROP.BADGE_MS in src/lib/price-drop.ts.
+const DROP_BADGE_MS = 7 * 24 * 60 * 60 * 1000
+function activeDropAnchor(previousPrice: number | null, priceDropAt: Date | null, price: number): number | null {
+  if (previousPrice == null || !priceDropAt || previousPrice <= price) return null
+  return Date.now() - priceDropAt.getTime() < DROP_BADGE_MS ? previousPrice : null
+}
+
 // MOCK DATA self-heal: older mock rows stored loremflickr image URLs, which now
 // 502. Rewrite them to a stable picsum URL at serialize time so the catalog renders
 // without a re-seed. No-op for real (Supabase) images. Remove with the mock data at launch.
@@ -32,6 +42,9 @@ export function serializeListing(
     priceUnit: l.priceUnit,
     currency: l.currency,
     negotiable: l.negotiable,
+    prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),
+    priceDropAt: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price) != null ? l.priceDropAt!.toISOString() : null,
+    urgent: !!l.urgentUntil && l.urgentUntil.getTime() > Date.now(),
     location: l.location,
     district: l.district,
     city: l.city,
@@ -97,6 +110,7 @@ export function serializeListing(
 // LISTING_CARD_SELECT and serialize with serializeListingCard on every list surface.
 export const LISTING_CARD_SELECT = {
   id: true, title: true, titleVi: true, price: true, priceUnit: true, currency: true, negotiable: true,
+  previousPrice: true, priceDropAt: true, urgentUntil: true,
   location: true, district: true, city: true, lat: true, lng: true, images: true,
   brandSlug: true, model: true, verified: true, postedAt: true, savedCount: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
@@ -106,6 +120,7 @@ export const LISTING_CARD_SELECT = {
 type ListingCardRow = {
   id: string; title: string; titleVi: string | null; price: number; priceUnit: string
   currency: string; negotiable: boolean; location: string; district: string | null; city: string
+  previousPrice: number | null; priceDropAt: Date | null; urgentUntil: Date | null
   lat: number | null; lng: number | null; images: string; brandSlug: string | null
   model: string | null; verified: boolean; postedAt: Date; savedCount: number
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
@@ -121,6 +136,8 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     priceUnit: l.priceUnit,
     currency: l.currency,
     negotiable: l.negotiable,
+    prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),
+    urgent: !!l.urgentUntil && l.urgentUntil.getTime() > Date.now(),
     location: l.location,
     district: l.district,
     city: l.city,

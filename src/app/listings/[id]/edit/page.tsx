@@ -25,7 +25,7 @@ export default async function EditListingPage({ params }: Props) {
   const listing = await db.listing.findUnique({
     where: { id },
     select: {
-      id: true, sellerId: true, title: true, description: true, price: true, negotiable: true,
+      id: true, sellerId: true, title: true, description: true, price: true, negotiable: true, urgentUntil: true,
       categoryId: true, subcategorySlug: true, listingType: true, condition: true,
       brandSlug: true, model: true, attributes: true,
       year: true, mileageKm: true, engineL: true, engineCc: true,
@@ -52,6 +52,7 @@ export default async function EditListingPage({ params }: Props) {
     description: listing.description,
     price: listing.price,
     negotiable: listing.negotiable,
+    urgent: !!listing.urgentUntil && listing.urgentUntil.getTime() > Date.now(),
     categorySlug: listing.category.slug,
     subcategorySlug: listing.subcategorySlug,
     listingType: listing.listingType,

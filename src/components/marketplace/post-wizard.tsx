@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock, Sparkles, Loader2, LocateFixed } from 'lucide-react'
+import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock, Sparkles, Loader2, LocateFixed, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
@@ -54,6 +54,7 @@ export type ListingEditData = {
   description: string
   price: number
   negotiable: boolean
+  urgent: boolean
   categorySlug: string
   subcategorySlug: string | null
   listingType: string
@@ -234,6 +235,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // Price is open to offers by default (haggling norm); the seller can switch to a
   // FIXED price so buyers just ask availability + buy (no offer messages).
   const [negotiable, setNegotiable] = useState(edit?.negotiable ?? true)
+  // Urgent sale ("Bán gấp") — server-gated (7-day window, re-arm cooldown, 2/seller).
+  const [urgent, setUrgent] = useState(edit?.urgent ?? false)
   const [condition, setCondition] = useState(edit?.condition ?? '')
   const [brand, setBrand] = useState(edit?.brand ?? '')
   const [model, setModel] = useState(edit?.model ?? '')
@@ -304,6 +307,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         if (d.description) setDescription(d.description)
         if (d.price) setPrice(d.price)
         if (typeof d.negotiable === 'boolean') setNegotiable(d.negotiable)
+        if (typeof d.urgent === 'boolean') setUrgent(d.urgent)
         if (d.condition) setCondition(d.condition)
         if (d.brand) setBrand(d.brand)
         if (d.model) setModel(d.model)
@@ -324,9 +328,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         localStorage.removeItem('eno-listing-draft')
         return
       }
-      localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, condition, brand, model, province, ward, nearby }))
+      localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby }))
     } catch {}
-  }, [edit, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, condition, brand, model, province, ward, nearby])
+  }, [edit, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby])
 
   // Contact name + phone come from the ACCOUNT (not re-typed per post — a number is
   // unique per account). If the account is missing either, we prompt them to add it
@@ -511,6 +515,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         description: description.trim(),
         price: Number(price),
         negotiable,
+        urgent,
         district: district || null,
         city: province?.name || null,
         location: ward?.name || province?.name || null,
@@ -557,6 +562,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post.")
           : msg === 'banned_words'
           ? t('Tin của bạn có từ ngữ không được phép. Vui lòng chỉnh sửa rồi đăng lại.', "Your listing contains a word that isn't allowed. Please edit it and try again.")
+          : msg === 'urgent_quota'
+          ? t('Bạn đã có 2 tin "Bán gấp" đang chạy — chờ một tin hết hạn rồi thử lại.', 'You already have 2 urgent listings running — wait for one to expire and try again.')
+          : msg === 'urgent_cooldown'
+          ? t('Tin này vừa hết hạn "Bán gấp" — có thể bật lại sau 7 ngày.', 'This listing just finished an urgent run — you can turn it on again after 7 days.')
           : msg === 'photo_required'
           ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
           : msg === 'account_restricted'
@@ -827,7 +836,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               </div>
               {priceErr && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{priceErr}</p>}
               {/* Negotiable vs fixed — a fixed price hides the offer UI so buyers just
-                  ask availability and buy directly (seller's convenience). */}
+                  ask availability and buy directly (seller's convenience). Fixed price
+                  also switches off Urgent: urgency promises flexibility. */}
               <div className="mt-3 flex flex-wrap gap-2">
                 {[
                   { val: true, label: t('Có thể trả giá', 'Negotiable'), hint: t('Người mua có thể trả giá', 'Buyers can send offers') },
@@ -836,7 +846,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   <button
                     key={String(opt.val)}
                     type="button"
-                    onClick={() => setNegotiable(opt.val)}
+                    onClick={() => { setNegotiable(opt.val); if (!opt.val) setUrgent(false) }}
                     aria-pressed={negotiable === opt.val}
                     className={cn(
                       'rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
@@ -847,6 +857,28 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     <span className={cn('block text-xs font-medium', negotiable === opt.val ? 'text-white/80' : 'text-ink-4')}>{opt.hint}</span>
                   </button>
                 ))}
+              </div>
+              {/* Urgent sale ("Bán gấp") — free, 7 days, auto-expires. Selecting it
+                  force-enables offers (the server enforces the same coupling). Orange
+                  = its badge color on cards, distinct from the blue selections. */}
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => { const next = !urgent; setUrgent(next); if (next) setNegotiable(true) }}
+                  aria-pressed={urgent}
+                  className={cn(
+                    'flex items-center gap-2 rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
+                    urgent ? 'bg-orange-700 text-white' : 'bg-tint text-body hover:bg-muted',
+                  )}
+                >
+                  <Zap className={cn('h-4 w-4 shrink-0', urgent && 'fill-current')} />
+                  <span>
+                    {t('Bán gấp', 'Urgent sale')}
+                    <span className={cn('block text-xs font-medium', urgent ? 'text-white/80' : 'text-ink-4')}>
+                      {t('Nổi bật 7 ngày — cần bán nhanh, sẵn sàng nhận trả giá', 'Highlighted for 7 days — sell fast, open to offers')}
+                    </span>
+                  </span>
+                </button>
               </div>
             </div>
           </Section>

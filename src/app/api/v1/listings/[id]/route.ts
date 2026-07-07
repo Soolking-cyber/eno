@@ -37,7 +37,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return apiError(400, 'bad_request', 'Invalid JSON body.', r.rate) }
   const res = await updateListingCore(id, body)
-  if (!res.ok) return apiError(res.code === 404 ? 404 : 422, res.error, res.error, r.rate)
+  // Pass through the real status: 404 not-found and 409 conflict (e.g. urgent_quota —
+  // a retryable state conflict) must not be flattened to 422 "invalid payload".
+  if (!res.ok) return apiError(res.code === 404 ? 404 : res.code === 409 ? 409 : 422, res.error, res.error, r.rate)
   return apiOk({ ok: true }, r.rate)
 }
 

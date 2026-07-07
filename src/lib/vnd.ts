@@ -12,6 +12,20 @@ export function formatMoneyFull(price: number, currency: string): string {
 }
 
 
+/** Price-drop badge label: "−12%", capped at "−50%+" (honest-display rule — beyond
+ *  50% we stop advertising a bigger number). null when not a real drop. Shared by
+ *  the server rules engine (notification copy) and the client badges so the % a
+ *  buyer sees is ALWAYS the same figure everywhere. */
+export function dropPercent(fromPrice: number, toPrice: number): string | null {
+  if (!(fromPrice > 0) || toPrice >= fromPrice) return null
+  const ratio = 1 - toPrice / fromPrice
+  // Cap on the UNROUNDED ratio, not the rounded pct — otherwise a true 49.5–49.99%
+  // drop rounds to 50 and shows "-50%+" ("at least 50% off"), overstating the deal.
+  if (ratio >= 0.5) return '-50%+'
+  const pct = Math.round(ratio * 100)
+  return pct < 1 ? null : `-${pct}%`
+}
+
 /** Digits-only number from a typed string ("12,000,000" → 12000000). */
 export function parseVnd(input: string): number {
   const digits = (input || '').replace(/\D/g, '')

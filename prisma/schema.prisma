@@ -284,6 +284,24 @@ model Listing {
   // pre-2026-07-07 "offers work everywhere" behavior). Sellers opt into a FIXED price
   // in the post wizard → the offer UI is hidden and offer POSTs are rejected server-side.
   negotiable         Boolean   @default(true)
+  // ── Price drop (anti-fake-discount, 2026-07-07) ──────────────────────────────
+  // The struck-through "was" anchor. SERVER-COMPUTED ONLY: the lowest price the
+  // listing was offered at in the trailing 30 days (EU-Omnibus-style reference,
+  // from the PriceChange audit) — never seller-entered, so raise-then-drop can't
+  // fake a discount. null = no active badge. Cleared instantly on any price raise.
+  previousPrice       Float?
+  priceDropAt         DateTime? // badge clock — the drop badge shows for 7 days from here
+  // Monotonic notification ratchet (Poshmark model): the lowest price buyers were
+  // ever notified at. A new drop notification requires ≥10% below this. NEVER reset
+  // upward (not even by raises), so cycling can't re-farm notifications.
+  lowestNotifiedPrice Float?
+  priceDropNotifiedAt DateTime? // max 1 drop notification per listing per 24h (DB-enforced)
+  // ── Urgent sale "Bán gấp" (2026-07-07) ───────────────────────────────────────
+  // Active while > now (read-time check — no cron). A PAST value is kept as history:
+  // it anchors the 7-day re-arm cooldown (early switch-off sets it to now), so
+  // off/on cycling can't keep a listing permanently urgent. null = never urgent.
+  urgentUntil         DateTime?
+  priceChanges        PriceChange[]
   location           String
   district           String?
   city               String
@@ -392,6 +410,22 @@ model Listing {
   // pg_trgm extension (already installed). Trivial at current row counts but keeps
   // search from sequential-scanning as the catalog grows.
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+// Append-only price audit — one row per actual price change, written inside
+// updateListingCore (the single choke point shared by the web PATCH and the
+// partner API). Powers the EU-Omnibus-style reference price (lowest offered in
+// the trailing 30 days) that makes raise-then-drop fake discounts impossible,
+// and doubles as the proof trail for the drop badge the platform renders.
+model PriceChange {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  oldPrice  Float
+  newPrice  Float
+  createdAt DateTime @default(now())
+
+  @@index([listingId, createdAt])
 }
 
 // One row per (listing, authenticated viewer) who revealed the seller's contact.
