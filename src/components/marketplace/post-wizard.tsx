@@ -108,8 +108,12 @@ function PublishButton({
   return (
     <Button variant="cta" size="none"
       onClick={onSubmit}
-      disabled={!canSubmit}
-      className={cn('w-full rounded-xl px-7 py-3 text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
+      // NOT disabled when fields are missing — a click then reveals what's left
+      // (disabled submit hides the reason). Only blocked mid-submit. `canSubmit`
+      // still drives the label ("N left" vs "Publish").
+      disabled={submitting}
+      aria-disabled={!canSubmit}
+      className={cn('w-full rounded-xl px-7 py-3 text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer', !canSubmit && !submitting && 'opacity-70', className)}
     >
       {submitting
         ? (edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…'))
@@ -427,10 +431,31 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // user leaves a field, not only on submit (says what's wrong + how to fix).
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const touch = (k: string) => setTouched((p) => (p[k] ? p : { ...p, [k]: true }))
-  const titleErr = touched.title && title.trim().length > 0 && title.trim().length < 3
-    ? t('Tiêu đề cần tối thiểu 3 ký tự', 'Title needs at least 3 characters') : undefined
-  const priceErr = touched.price && price.trim().length === 0
-    ? t('Hãy nhập giá', 'Set a price') : undefined
+  // "Attempted": the user pressed Publish while something was missing → flag EVERY
+  // unfilled required field in red at once so they can be spotted at a glance
+  // (GOV.UK/Nielsen: don't disable submit — validate on submit + highlight). Per-
+  // field flags clear the instant a field is filled, so the red recedes as they go.
+  const [attempted, setAttempted] = useState(false)
+  const err = {
+    photo: attempted && photos.length < 1,
+    category: attempted && !categorySlug,
+    title: (touched.title || attempted) && title.trim().length < 3,
+    price: (touched.price || attempted) && price.trim().length === 0,
+    location: attempted && !hasLocation,
+    contact: attempted && !isGuest && !(contactName.trim().length >= 2 && phoneOk),
+  }
+  const titleErr = err.title
+    ? (title.trim().length === 0 ? t('Hãy nhập tiêu đề', 'Add a title') : t('Tiêu đề cần tối thiểu 3 ký tự', 'Title needs at least 3 characters'))
+    : undefined
+  const priceErr = err.price ? t('Hãy nhập giá', 'Set a price') : undefined
+  // Jump to (and focus) the first still-missing field when a publish attempt fails.
+  const scrollToMissing = () => {
+    const first = missing[0]
+    if (!first) return
+    const el = document.getElementById(`pw-${first.key}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.focus({ preventScroll: true })
+  }
 
   const [converting, setConverting] = useState(false)
   // Drag-to-reorder photos (touch + mouse) — index 0 is the cover.
@@ -468,7 +493,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }
 
   const submit = async () => {
-    if (!canSubmit || submittingRef.current) return
+    if (submittingRef.current || submitting) return
+    // Missing required fields → don't silently no-op: flag them all in red and jump
+    // to the first so the user sees exactly what's left.
+    if (missing.length > 0) { setAttempted(true); scrollToMissing(); return }
     // Catch fixable issues client-side so they're noted BEFORE submitting (the server
     // enforces the same rules). Contact info / addresses stay off the public listing —
     // buyers reach sellers in-app.
@@ -644,12 +672,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         {/* ── FORM ── */}
         <div className="min-w-0 space-y-10">
           {/* Photos */}
-          <Section title={t('Ảnh', 'Photos')} hint={t('Tối đa 6 ảnh. Ảnh đầu là ảnh bìa. Tin có ảnh được xem nhiều hơn hẳn.', 'Up to 6. The first is your cover. Listings with photos get far more views.')}>
+          <Section id="pw-photo" title={t('Ảnh', 'Photos')} hint={t('Tối đa 6 ảnh. Ảnh đầu là ảnh bìa. Tin có ảnh được xem nhiều hơn hẳn.', 'Up to 6. The first is your cover. Listings with photos get far more views.')}>
             <div
               onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => { e.preventDefault(); setDragOver(false); addPhotos(e.dataTransfer.files) }}
-              className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'ring-2 ring-brand/40')}
+              className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'ring-2 ring-brand/40', err.photo && 'p-2 -m-2 ring-2 ring-red-500/60')}
             >
               {photos.map((p, i) => (
                 <div
@@ -677,6 +705,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 </label>
               )}
             </div>
+            {err.photo && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{t('Thêm ít nhất 1 ảnh', 'Add at least one photo')}</p>}
             {aiEnabled && photos.length > 0 && (
               <button
                 type="button"
@@ -691,7 +720,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           </Section>
 
           {/* Category & type */}
-          <Section title={t('Danh mục', 'Category')} hint={t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
+          <Section id="pw-category" title={t('Danh mục', 'Category')} hint={t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
             {showRentToggle && (
               <Field label={t('Bán hay cho thuê?', 'For sale or for rent?')}>
                 <div className="inline-flex rounded-xl bg-tint p-1">
@@ -717,18 +746,21 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 <span className="ml-1 text-xs font-normal text-ink-4">{t('(không đổi khi sửa)', '(fixed when editing)')}</span>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {categories.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => chooseCategory(c.slug)}
-                    className={cn('inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
-                  >
-                    <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')} />
-                    {tr(c.name, c.nameVi)}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className={cn('flex flex-wrap gap-2 rounded-xl transition-colors', err.category && 'p-2 -m-2 ring-2 ring-red-500/60')}>
+                  {categories.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => chooseCategory(c.slug)}
+                      className={cn('inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
+                    >
+                      <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')} />
+                      {tr(c.name, c.nameVi)}
+                    </button>
+                  ))}
+                </div>
+                {err.category && <p role="alert" className="text-xs font-semibold text-red-600">{t('Chọn một danh mục', 'Pick a category')}</p>}
+              </>
             )}
 
             {categorySlug && typeOptions.length > 1 && (
@@ -773,12 +805,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           <Section title={t('Chi tiết', 'Details')}>
             <Field label={t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`} error={titleErr}>
               <input
+                id="pw-title"
                 value={title}
                 maxLength={TITLE_MAX}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={() => touch('title')}
                 placeholder={t('VD: iPhone 14 128GB — pin 92%', 'e.g. iPhone 14 128GB — battery 92%')}
-                className="w-full max-w-2xl rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                className={cn('w-full max-w-2xl rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4', err.title && 'ring-2 ring-red-500/60')}
               />
             </Field>
             <Field label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')}>
@@ -828,10 +861,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           )}
 
           {/* Price */}
-          <Section title={t('Giá', 'Price')}>
+          <Section id="pw-price" title={t('Giá', 'Price')}>
             <div onBlur={() => touch('price')}>
               <div className="flex max-w-xs items-center gap-2">
-                <div className="flex-1"><VndInput value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} /></div>
+                <div className="flex-1"><VndInput id="pw-price-input" value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} invalid={err.price} /></div>
                 {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
               </div>
               {priceErr && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{priceErr}</p>}
@@ -884,13 +917,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           </Section>
 
           {/* Location */}
-          <Section title={t('Khu vực', 'Location')}>
+          <Section id="pw-location" title={t('Khu vực', 'Location')}>
             <div className="flex max-w-md items-center gap-2">
               <button
                 type="button"
                 ref={areaBtnRef}
                 onClick={() => setAreaOpen((o) => !o)}
-                className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted"
+                className={cn('flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted', err.location && 'ring-2 ring-red-500/60')}
               >
                 <span className={cn('flex min-w-0 items-center gap-2', areaLabel ? 'text-foreground font-medium' : 'text-ink-4')}>
                   <MapPin className="h-4 w-4 shrink-0 text-accent-foreground" />
@@ -910,11 +943,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {locating ? <Loader2 className="h-5 w-5 animate-spin" /> : <LocateFixed className="h-5 w-5" />}
               </button>
             </div>
+            {err.location && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{t('Chọn khu vực', 'Set the area')}</p>}
           </Section>
 
           {/* Contact — taken from your ACCOUNT (a number belongs to one account, so
               it isn't re-typed per post). Missing name/phone → add it in Settings. */}
-          <Section title={t('Liên hệ', 'Contact')} hint={t('Số của bạn được giữ kín — người mua nhắn tin trong ứng dụng, chỉ hiện số sau khi bạn trả lời.', 'Your number stays private — buyers message you in-app; it’s revealed only after you reply.')}>
+          <Section id="pw-contact" title={t('Liên hệ', 'Contact')} hint={t('Số của bạn được giữ kín — người mua nhắn tin trong ứng dụng, chỉ hiện số sau khi bạn trả lời.', 'Your number stays private — buyers message you in-app; it’s revealed only after you reply.')}>
             {!meLoaded ? (
               <div className="h-5 w-56 rounded shimmer" />
             ) : isGuest ? (
@@ -936,13 +970,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {contactName.trim().length >= 2 ? (
                   <p className="text-sm font-semibold text-foreground">{contactName}</p>
                 ) : (
-                  <Field label={t('Tên của bạn', 'Your name')}>
+                  <Field label={t('Tên của bạn', 'Your name')} error={err.contact && contactName.trim().length < 2 ? t('Thêm tên của bạn', 'Add your name') : undefined}>
                     <input
                       value={contactName}
                       maxLength={80}
                       onChange={(e) => setContactName(e.target.value)}
                       placeholder={t('Tên hiển thị cho người mua', 'Name buyers will see')}
-                      className="w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                      className={cn('w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4', err.contact && contactName.trim().length < 2 && 'ring-2 ring-red-500/60')}
                     />
                   </Field>
                 )}
@@ -957,14 +991,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     </button>
                   </div>
                 ) : (
-                  <Field label={t('Số điện thoại', 'Phone number')} hint={t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')}>
+                  <Field label={t('Số điện thoại', 'Phone number')} hint={t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')} error={err.contact && !phoneOk ? t('Thêm số điện thoại hợp lệ', 'Add a valid phone number') : undefined}>
                     <input
                       type="tel"
                       inputMode="tel"
                       value={contactPhone}
                       onChange={(e) => setContactPhone(e.target.value)}
                       placeholder="+84…"
-                      className="w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                      className={cn('w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4', err.contact && !phoneOk && 'ring-2 ring-red-500/60')}
                     />
                     {/* Zalo OTP verification is BUILT but hidden until Zalo is live —
                         no dead "coming soon" buttons on the posting path. */}
@@ -1041,9 +1075,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   )
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({ title, hint, children, id }: { title: string; hint?: string; children: React.ReactNode; id?: string }) {
   return (
-    <section className="space-y-3">
+    <section id={id} className="space-y-3 scroll-mt-24">
       <div>
         <h2 className="h-section text-foreground">{title}</h2>
         {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}

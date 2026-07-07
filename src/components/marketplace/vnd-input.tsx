@@ -16,7 +16,7 @@ const chip = 'rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-body t
  * "= 12 triệu đồng" readability helper. Emits a digits-only string.
  */
 export function VndInput({
-  value, onChange, presets, placeholder, autoFocus, id, className,
+  value, onChange, presets, placeholder, autoFocus, id, className, invalid,
 }: {
   value: string
   onChange: (digits: string) => void
@@ -25,6 +25,7 @@ export function VndInput({
   autoFocus?: boolean
   id?: string
   className?: string
+  invalid?: boolean
 }) {
   const { lang, tr } = useLanguage()
   const digits = (value || '').replace(/\D/g, '')
@@ -43,7 +44,7 @@ export function VndInput({
           value={groupVnd(digits)}
           onChange={(e) => set(e.target.value)}
           placeholder={placeholder ?? '0'}
-          className="w-full rounded-xl bg-tint py-2.5 pl-3.5 pr-14 text-lg font-bold tabular-nums text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20"
+          className={cn('w-full rounded-xl bg-tint py-2.5 pl-3.5 pr-14 text-lg font-bold tabular-nums text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20', invalid && 'ring-2 ring-red-500/60')}
         />
         <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-4">VND</span>
       </div>
