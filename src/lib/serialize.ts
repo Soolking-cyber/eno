@@ -44,6 +44,12 @@ export function serializeListing(
     negotiable: l.negotiable,
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),
     priceDropAt: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price) != null ? l.priceDropAt!.toISOString() : null,
+    // When the drop badge expires (droppedAt + DROP.BADGE_MS) while a drop is live —
+    // lets the PDP render "còn N ngày". Null once the anchor lapses or never dropped.
+    dropExpiresAt:
+      activeDropAnchor(l.previousPrice, l.priceDropAt, l.price) != null
+        ? new Date(l.priceDropAt!.getTime() + DROP_BADGE_MS).toISOString()
+        : null,
     urgent: !!l.urgentUntil && l.urgentUntil.getTime() > Date.now(),
     location: l.location,
     district: l.district,
@@ -77,6 +83,10 @@ export function serializeListing(
       trustScore: l.seller.trustScore,
       responseRate: l.seller.responseRate,
       responseTime: l.seller.responseTime,
+      // Join year source for the PDP SellerCard ("Thành viên từ 2024"). ISO; derive the
+      // year client-side. Raw responseRate/responseTime above are consumed ONLY by the
+      // server-side responseBucket helper — never surface the number to buyers.
+      memberSince: l.seller.memberSince.toISOString(),
       // Public-safe by default: phone is omitted from list/feed payloads to prevent
       // bulk PII harvesting. Use serializeListingWithContact for single-listing detail.
       phone: null,

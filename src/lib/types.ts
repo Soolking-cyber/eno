@@ -76,6 +76,10 @@ export type SerializedListing = {
   // (ISO, only while the badge is live — powers "dropped 3 days ago" on the detail page).
   prevPrice: number | null
   priceDropAt: string | null
+  // When the drop badge lapses (priceDropAt + DROP.BADGE_MS, ISO) while the drop is
+  // live, else null. WHY: the PDP counts down the badge ("còn N ngày") — cards keep
+  // the bare "−12%" so this is intentionally NOT on SerializedListingCard.
+  dropExpiresAt: string | null
   urgent: boolean
   location: string
   district: string | null
@@ -109,6 +113,10 @@ export type SerializedListing = {
     trustScore: number
     responseRate: number
     responseTime: string
+    // Seller join date (ISO) — powers the PDP SellerCard "Thành viên từ {year}".
+    // Derive the year client-side; the raw responseRate/responseTime are for the
+    // server-side responseBucket helper only (never render the number to buyers).
+    memberSince: string
     phone: string | null
     isBusiness: boolean
   }
