@@ -97,14 +97,18 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
 
   return (
     <>
-      {/* Distinct on purpose (user ask 2026-07-07): red label + icon so the safety
-          action is findable at a glance — still borderless/flush at rest per the
-          one-canvas rules (color emphasis via TEXT; tint only on hover). */}
+      {/* Prominent-at-rest safety chip (user ask 2026-07-07): a soft red-tinted pill
+          (fill + hairline + flag) so Report is findable at a glance EVERYWHERE without
+          hover, yet calm — font-semibold + low-saturation tint keep it subordinate to
+          the Contact/Buy CTAs (over-prominence invites frivolous reports). Reads as the
+          red safety sibling of the blue "Safe trading tips" link. text-red-700/red-300
+          (not the red-600 destructive token) is the AA-forced foreground on the tint:
+          red-700 on red-50 = 5.9:1 light, red-300 on red-950 ≈ 9:1 dark (both pass AA). */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          'inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold text-destructive transition-colors hover:bg-red-50 dark:hover:bg-red-950 cursor-pointer tap-44 relative',
+          'inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:border-red-300 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-900/40 cursor-pointer tap-44 relative',
           className,
         )}
       >
