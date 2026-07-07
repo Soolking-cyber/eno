@@ -495,12 +495,13 @@ export default async function ListingPage({ params }: Props) {
                 <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
               </div>
 
-              {/* Safety link by the contact action (buyers look for it before reaching out) */}
-              <Link href="/safety" className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:underline">
-                <ShieldCheck className="h-3.5 w-3.5" /> <Tr text="Safe trading tips" />
-              </Link>
-
-              <div className="flex items-center justify-end gap-3">
+              {/* Safety + report share one balanced row: the blue "Safe trading tips"
+                  link on the left and its red safety sibling, the Report chip, on the
+                  right — reads as a paired footer, not a stranded lone button. */}
+              <div className="flex items-center justify-between gap-3">
+                <Link href="/safety" className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:underline">
+                  <ShieldCheck className="h-3.5 w-3.5" /> <Tr text="Safe trading tips" />
+                </Link>
                 <ReportButton listingId={listing.id} />
               </div>
             </div>

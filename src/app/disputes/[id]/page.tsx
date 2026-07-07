@@ -287,7 +287,7 @@ export default function DisputeRoomPage() {
             {(data.listing || data.conversationId) && (
               <div className="mt-4 flex items-center gap-3">
                 {data.listing && (
-                  <Link href={`/listings/${data.listing.id}`} className="flex min-w-0 items-center gap-2.5 rounded-xl py-1.5 pr-3 transition-colors hover:bg-muted">
+                  <Link href={`/listings/${data.listing.id}`} className="flex min-w-0 items-center gap-2.5 -ml-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-muted">
                     {data.listing.image
                       ? <Image src={data.listing.image} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-lg object-cover" />
                       : <span className="h-9 w-9 shrink-0 rounded-lg bg-tint" />}

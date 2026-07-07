@@ -12,12 +12,23 @@ const MAX_EDGE = 1600 // longest edge; covers ×2-retina detail hero with no vis
 const WEBP_QUALITY = 82
 
 // ── Watermark ────────────────────────────────────────────────────────────────────
-// The "eno" wordmark from public/logo.svg, INLINED as raw path data: pure vectors,
-// so rendering never depends on system fonts (serverless has none we control —
-// SVG <text> would silently fall back to an ugly default or nothing). Glyphs span
-// x 249–1002 (753 wide) × y 35–265 (230 tall) in the original 1200×300 canvas.
-const WORDMARK_D = 'M 476 150 C 476 86 426 35 363 35 C 300 35 249 86 249 150 C 249 214 301 265 364 265 C 415 265 459 233 471 193 L 397 193 C 389 203 377 208 364 208 C 342 208 323 195 315 173 L 472 173 C 475 165 476 158 476 150 Z M 315 127 C 323 107 343 93 364 93 C 385 93 403 106 412 127 Z M 509 263 L 509 151 C 509 85 558 35 622 35 C 686 35 734 85 734 151 L 734 263 L 669 263 L 669 151 C 669 122 650 101 622 101 C 594 101 574 122 574 151 L 574 263 Z M 886 35 C 950 35 1002 87 1002 150 C 1002 213 950 265 886 265 C 823 265 771 213 771 150 C 771 87 823 35 886 35 Z M 886 101 C 913 101 935 123 935 150 C 935 177 913 199 886 199 C 859 199 837 177 837 150 C 837 123 859 101 886 101 Z'
-const MARK_W = 753, MARK_H = 230, MARK_X = 249, MARK_Y = 35
+// The "eno.vn" wordmark, INLINED as raw path data: pure vectors, so rendering never
+// depends on system fonts (serverless has none we control — SVG <text> would silently
+// fall back to an ugly default or nothing). The domain (not just "eno") is baked in so
+// scraped/re-shared photos carry the web address for memorability. "eno" comes from
+// public/logo.svg; ".vn" is appended as matching vector glyphs (a baseline dot, a
+// parallel-stroke "v", and the same "n" glyph translated right). Glyphs span
+// x 249–1602 (1353 wide) × y 35–265 (230 tall) in the original 1200×300-derived canvas.
+const WORDMARK_D =
+  // e · n · o
+  'M 476 150 C 476 86 426 35 363 35 C 300 35 249 86 249 150 C 249 214 301 265 364 265 C 415 265 459 233 471 193 L 397 193 C 389 203 377 208 364 208 C 342 208 323 195 315 173 L 472 173 C 475 165 476 158 476 150 Z M 315 127 C 323 107 343 93 364 93 C 385 93 403 106 412 127 Z M 509 263 L 509 151 C 509 85 558 35 622 35 C 686 35 734 85 734 151 L 734 263 L 669 263 L 669 151 C 669 122 650 101 622 101 C 594 101 574 122 574 151 L 574 263 Z M 886 35 C 950 35 1002 87 1002 150 C 1002 213 950 265 886 265 C 823 265 771 213 771 150 C 771 87 823 35 886 35 Z M 886 101 C 913 101 935 123 935 150 C 935 177 913 199 886 199 C 859 199 837 177 837 150 C 837 123 859 101 886 101 Z ' +
+  // "." — baseline dot (circle centred 1072,230 r35)
+  'M 1107 230 C 1107 249.3 1091.3 265 1072 265 C 1052.7 265 1037 249.3 1037 230 C 1037 210.7 1052.7 195 1072 195 C 1091.3 195 1107 210.7 1107 230 Z ' +
+  // "v" — parallel-stroke wedge
+  'M 1142 35 L 1199 35 L 1242 134 L 1285 35 L 1342 35 L 1242 265 Z ' +
+  // "n" — the eno "n" glyph, translated +868
+  'M 1377 263 L 1377 151 C 1377 85 1426 35 1490 35 C 1554 35 1602 85 1602 151 L 1602 263 L 1537 263 L 1537 151 C 1537 122 1518 101 1490 101 C 1462 101 1442 122 1442 151 L 1442 263 Z'
+const MARK_W = 1353, MARK_H = 230, MARK_X = 249, MARK_Y = 35
 
 /** Translucent white wordmark over a soft dark offset copy — legible on both bright
  *  skies and dark interiors without wrecking the photo. `w` = target pixel width. */

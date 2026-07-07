@@ -76,6 +76,11 @@ function ListingCardImpl({
     if (stashQuickCompose(listing, opts)) router.push('/messages/pending')
     else router.push(`/listings/${listing.id}#contact`)
   }
+  // "Locate on map" is a default on every card (see card/feed standards). When a
+  // parent that owns the map is on-screen (the explorer, its home rails) it passes
+  // onLocate for an in-page focus; everywhere else (PDP related/recently-viewed,
+  // AI results) we deep-link to the home map focused on this listing via ?focus=.
+  const locate = onLocate ?? ((l: SerializedListingCard) => router.push(`/?focus=${l.id}`))
   const [idx, setIdx] = useState(0)
   // Only the first image is in the DOM until the user engages the carousel
   // (hover/touch) — cuts initial DOM nodes + image bytes on the homepage grid.
@@ -300,13 +305,13 @@ function ListingCardImpl({
               )}
             </span>
           )}
-          {onLocate && quickOffer === null && (
+          {quickOffer === null && (
             <span className="flex">
               <button
                 type="button"
                 aria-label={tr('Show on map', 'Xem trên bản đồ')}
                 title={tr('Show on map', 'Xem trên bản đồ')}
-                onClick={(e) => { e.stopPropagation(); onLocate(listing) }}
+                onClick={(e) => { e.stopPropagation(); locate(listing) }}
                 className="pointer-events-auto flex h-8 w-8 -translate-x-3 items-center justify-center text-white opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
               >
                 <MapPin className="h-[20px] w-[20px]" />
@@ -355,16 +360,14 @@ function ListingCardImpl({
               <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
             </button>
           )}
-          {onLocate && (
-            <button
-              type="button"
-              aria-label={tr('Show on map', 'Xem trên bản đồ')}
-              onClick={(e) => { e.stopPropagation(); onLocate(listing) }}
-              className="relative flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
-            >
-              <MapPin className="h-[20px] w-[20px]" />
-            </button>
-          )}
+          <button
+            type="button"
+            aria-label={tr('Show on map', 'Xem trên bản đồ')}
+            onClick={(e) => { e.stopPropagation(); locate(listing) }}
+            className="relative flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
+          >
+            <MapPin className="h-[20px] w-[20px]" />
+          </button>
         </span>
 
         {/* Mobile offer slide — edge-to-edge panel; tapping anywhere outside it

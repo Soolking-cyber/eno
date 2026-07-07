@@ -128,7 +128,7 @@ export function ContactComposer({
       )}
 
       {canOffer && offering && (
-        <div className="rounded-xl bg-accent p-3">
+        <div className="rounded-2xl bg-accent p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-body">{tr('Your offer', 'Giá đề nghị')}</span>
             <button type="button" onClick={() => setOffering(false)} aria-label={tr('Cancel offer', 'Hủy đề nghị')} className="rounded-full p-0.5 text-ink-4 hover:text-foreground cursor-pointer relative tap-44"><X className="h-4 w-4" /></button>
