@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { Check, CheckCircle2, Clock, ImagePlus, Loader2, Scale, Shield, X, XCircle } from 'lucide-react'
+import { Check, CheckCircle2, Clock, ImagePlus, Info, Loader2, Scale, Shield, X, XCircle } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { compressImageFile } from '@/lib/normalize-image'
@@ -35,6 +35,7 @@ type CaseData = {
   status: string
   stage: 'evidence' | 'review' | 'decided'
   canPost: boolean
+  submitted: boolean
   withdrawn: boolean
   createdAt: string
   evidenceUntil: string | null
@@ -126,6 +127,7 @@ export default function DisputeRoomPage() {
         const up = await fetch(`/api/disputes/${data.id}/evidence`, { method: 'POST', body: form })
         const uj = (await up.json().catch(() => null)) as { paths?: string[]; error?: string } | null
         if (!up.ok || !uj?.paths) {
+          if (uj?.error === 'already_submitted') { await load(); return } // already spoke — show the locked state
           setError(uj?.error === 'window_closed'
             ? t('The evidence window has closed.', 'Đã hết thời gian nộp bằng chứng.')
             : t('Could not upload the photos — try again.', 'Không tải được ảnh — thử lại.'))
@@ -140,6 +142,7 @@ export default function DisputeRoomPage() {
       })
       if (!res.ok) {
         const code = (await res.json().catch(() => null))?.error as string | undefined
+        if (code === 'already_submitted') { setText(''); setFiles([]); await load(); return } // one-shot done — show locked state
         setError(code === 'window_closed'
           ? t('The evidence window has closed.', 'Đã hết thời gian nộp bằng chứng.')
           : code === 'rate_limited'
@@ -346,17 +349,22 @@ export default function DisputeRoomPage() {
               <div ref={endRef} />
             </div>
 
-            {/* ── Composer ── */}
+            {/* ── Composer (one-shot: each side submits a single statement) ── */}
             {data.canPost ? (
               <div className="mt-6">
+                {/* One-shot notice — you submit ONCE, so put everything in now. */}
+                <div className="mb-2 flex items-start gap-2 rounded-xl bg-tint px-3 py-2 text-xs text-body">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" />
+                  <span>{t('You can submit your statement once — add all your details and photos before sending. The reviewer decides from what both sides submit.', 'Bạn chỉ gửi được một lần — hãy bổ sung đầy đủ chi tiết và ảnh trước khi gửi. Người xem xét sẽ quyết định dựa trên nội dung cả hai bên gửi.')}</span>
+                </div>
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   rows={3}
                   maxLength={2000}
                   placeholder={data.role === 'reporter'
-                    ? t('Add details or reply — be specific.', 'Bổ sung chi tiết hoặc phản hồi — càng cụ thể càng tốt.')
-                    : t('Share your side — what actually happened?', 'Trình bày phía bạn — sự việc thực tế thế nào?')}
+                    ? t('Explain what happened and attach any proof — this is your one statement.', 'Giải thích sự việc và đính kèm bằng chứng — đây là lần trình bày duy nhất của bạn.')
+                    : t('Share your side and attach any proof — this is your one statement.', 'Trình bày phía bạn và đính kèm bằng chứng — đây là lần trình bày duy nhất của bạn.')}
                   className="w-full resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30"
                 />
                 <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -375,19 +383,6 @@ export default function DisputeRoomPage() {
                     </label>
                   )}
                   <div className="ml-auto flex items-center gap-2">
-                    {data.role === 'reporter' && data.status === 'open' && (
-                      confirmWithdraw ? (
-                        <span className="flex items-center gap-2 text-xs font-semibold text-body">
-                          {t('Withdraw this case?', 'Rút lại hồ sơ này?')}
-                          <button onClick={withdraw} disabled={withdrawing} className="font-bold text-destructive hover:underline cursor-pointer">{withdrawing ? '…' : t('Yes', 'Có')}</button>
-                          <button onClick={() => setConfirmWithdraw(false)} className="font-bold text-ink-4 hover:underline cursor-pointer">{t('No', 'Không')}</button>
-                        </span>
-                      ) : (
-                        <button onClick={() => setConfirmWithdraw(true)} className="rounded-xl px-3 py-2 text-xs font-bold text-ink-4 transition-colors hover:bg-muted cursor-pointer">
-                          {t('Withdraw', 'Rút lại')}
-                        </button>
-                      )
-                    )}
                     <button
                       onClick={send}
                       disabled={sending || (text.trim().length === 0 && files.length === 0)}
@@ -405,11 +400,37 @@ export default function DisputeRoomPage() {
                   {t('Screenshots of payments, chats or the item help most. The other party and the eno.vn team can see what you post. Photos are stored privately and only visible inside this case.', 'Ảnh chụp thanh toán, trò chuyện hoặc sản phẩm là hữu ích nhất. Bên còn lại và đội ngũ eno.vn sẽ thấy nội dung bạn gửi. Ảnh được lưu riêng tư và chỉ hiển thị trong hồ sơ này.')}
                 </p>
               </div>
+            ) : data.submitted && data.status === 'open' ? (
+              // One-shot done: this party has spoken; they wait for the other side + review.
+              <div className="mt-6 rounded-2xl bg-tint px-4 py-4 text-center">
+                <Check className="mx-auto h-6 w-6 text-success" />
+                <p className="mt-1.5 text-sm font-semibold text-foreground">{t('Your statement is in', 'Đã nhận phần trình bày của bạn')}</p>
+                <p className="mt-0.5 text-xs text-ink-4">
+                  {t('The other side has until the window closes to add theirs, then the eno.vn team reviews and decides. If they add nothing, your account stands.', 'Bên còn lại có thời gian đến khi hết hạn để bổ sung, sau đó đội ngũ eno.vn xem xét và quyết định. Nếu họ không bổ sung, phần trình bày của bạn được giữ nguyên.')}
+                </p>
+              </div>
             ) : data.status === 'open' ? (
               <p className="mt-6 text-center text-sm text-ink-4">
                 {t('The evidence window has closed — the case is with the review team.', 'Đã hết thời gian nộp bằng chứng — hồ sơ đang chờ đội xem xét.')}
               </p>
             ) : null}
+            {/* Withdraw — reporter-only, available for the whole time the case is open
+                (independent of the one-shot composer, which closes once they've spoken). */}
+            {data.role === 'reporter' && data.status === 'open' && (
+              <div className="mt-3 text-center">
+                {confirmWithdraw ? (
+                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-body">
+                    {t('Withdraw this case?', 'Rút lại hồ sơ này?')}
+                    <button onClick={withdraw} disabled={withdrawing} className="font-bold text-destructive hover:underline cursor-pointer">{withdrawing ? '…' : t('Yes', 'Có')}</button>
+                    <button onClick={() => setConfirmWithdraw(false)} className="font-bold text-ink-4 hover:underline cursor-pointer">{t('No', 'Không')}</button>
+                  </span>
+                ) : (
+                  <button onClick={() => setConfirmWithdraw(true)} className="rounded-xl px-3 py-2 text-xs font-bold text-ink-4 transition-colors hover:bg-muted cursor-pointer">
+                    {t('Withdraw this case', 'Rút lại hồ sơ')}
+                  </button>
+                )}
+              </div>
+            )}
             {error && !data.canPost && <p role="alert" className="mt-2 text-center text-xs font-semibold text-destructive">{error}</p>}
           </>
         )}

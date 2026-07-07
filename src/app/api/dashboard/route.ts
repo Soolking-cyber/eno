@@ -47,7 +47,7 @@ async function enforcementPayload(profileId: string, sellerId: string | null) {
     orderBy: { createdAt: 'asc' },
     take: 5,
     select: {
-      id: true, reason: true, detail: true, createdAt: true,
+      id: true, reason: true, detail: true, createdAt: true, evidenceUntil: true,
       listing: { select: { id: true, title: true, images: true } },
     },
   })
@@ -56,6 +56,7 @@ async function enforcementPayload(profileId: string, sellerId: string | null) {
     try { image = (JSON.parse(r.listing?.images || '[]') as string[])[0] ?? null } catch { /* bad JSON */ }
     return {
       id: r.id, reason: r.reason, detail: r.detail, createdAt: r.createdAt.toISOString(),
+      evidenceUntil: r.evidenceUntil?.toISOString() ?? null,
       listing: r.listing ? { id: r.listing.id, title: r.listing.title, image } : null,
     }
   })

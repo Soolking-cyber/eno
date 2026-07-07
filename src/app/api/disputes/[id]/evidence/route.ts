@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { IMG_ALLOWED, IMG_MAX_BYTES, storeEvidenceImage } from '@/lib/core/media'
-import { DISPUTE_IMAGES_MAX, loadDisputeForParty, partyCanPost, signEvidenceUrls } from '@/lib/dispute'
+import { DISPUTE_IMAGES_MAX, loadDisputeForParty, partyCanPost, partyHasSubmitted, signEvidenceUrls } from '@/lib/dispute'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,6 +20,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const loaded = await loadDisputeForParty(id, meId)
   if (!loaded) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   if (!partyCanPost(loaded.report)) return NextResponse.json({ error: 'window_closed' }, { status: 409 })
+  // One-shot: no more uploads once this party has submitted their single statement.
+  if (await partyHasSubmitted(loaded.report.id, meId)) return NextResponse.json({ error: 'already_submitted' }, { status: 409 })
 
   // Storage-abuse vector → strict (Redis down = denied), like the other paid routes.
   const rl = await rateLimit('dispute-evidence', meId, 60, '1 h', { strict: true })

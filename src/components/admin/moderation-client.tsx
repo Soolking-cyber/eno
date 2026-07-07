@@ -355,14 +355,18 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
       {c.detail && <p className="mt-2 text-xs text-foreground">“{c.detail}”</p>}
 
       {/* The reported party's formal reply (buyer-king SLA) — evidence BEFORE decision.
+          One-shot dispute replies set sellerRespondedAt (not sellerResponse — the text
+          lives as their thread statement), so a stamped time = replied in the room.
           No reply + reachable target → show the running SLA clock instead. */}
-      {(c.sellerResponse || (!readOnly && t.profileId)) && (
+      {(c.sellerResponse || c.sellerRespondedAt || (!readOnly && t.profileId)) && (
         <div className="mt-2 rounded-lg border border-border bg-tint/40 px-2 py-1.5">
           {c.sellerResponse ? (
             <>
               <p className="text-[10px] font-bold uppercase tracking-wide text-ink-4">{t.kind === 'listing' ? 'Seller' : 'Reported party'} reply{c.sellerRespondedAt ? ` · ${shortDate(c.sellerRespondedAt)}` : ''}</p>
               <p className="mt-0.5 text-xs text-foreground">“{c.sellerResponse}”</p>
             </>
+          ) : c.sellerRespondedAt ? (
+            <p className="text-[11px] font-semibold text-body">{t.kind === 'listing' ? 'Seller' : 'Reported party'} replied in the dispute room · {shortDate(c.sellerRespondedAt)} — open the case to read it.</p>
           ) : (
             <p className="text-[11px] italic text-muted-foreground">No reply from the {t.kind === 'listing' ? 'seller' : 'reported party'} yet · asked {askedAgo(c.createdAt)}</p>
           )}

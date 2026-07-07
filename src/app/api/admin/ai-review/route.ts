@@ -245,7 +245,14 @@ export async function POST(req: NextRequest) {
 
   sections.push([
     "SELLER'S FORMAL REPLY TO THIS REPORT",
-    report.sellerResponse ? `"${report.sellerResponse}"` : `Not provided (asked ${ageStr(report.createdAt)} ago).`,
+    report.sellerResponse
+      ? `"${report.sellerResponse}"`
+      // The one-shot dispute flow records the respondent's statement as a thread
+      // message (see DISPUTE-CASE THREAD below) and only stamps sellerRespondedAt —
+      // so a set timestamp means they DID reply, in the thread, not "not provided".
+      : report.sellerRespondedAt
+        ? 'Provided as their statement in the dispute-case thread below.'
+        : `Not provided (asked ${ageStr(report.createdAt)} ago).`,
   ].join('\n'))
 
   if (report.appealedAt) {

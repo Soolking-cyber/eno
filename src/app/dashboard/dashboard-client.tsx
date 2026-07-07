@@ -12,6 +12,7 @@ import dynamic from 'next/dynamic'
 // Tab-gated heavyweights load on demand — they were statically bundled into the
 // default listings tab (PostWizard alone pulls taxonomy + uploads + area-filter).
 const DevelopersPanel = dynamic(() => import('@/components/marketplace/developers-panel').then((m) => m.DevelopersPanel), { ssr: false })
+const DisputesPanel = dynamic(() => import('@/components/marketplace/disputes-panel').then((m) => m.DisputesPanel), { ssr: false })
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
@@ -88,7 +89,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   // A failed /api/dashboard on a first-time load (no localStorage cache) must not
   // read as an empty dashboard — surfaced below as an error + retry.
   const [fetchFailed, setFetchFailed] = useState(false)
-  const [tab, setTab] = useState<'post' | 'listings' | 'account' | 'help' | 'dev'>('listings')
+  const [tab, setTab] = useState<'post' | 'listings' | 'account' | 'help' | 'dev' | 'disputes'>('listings')
   // Listings layout: line (rows) vs grid (cards). Persisted per device.
   const [listView, setListView] = useState<'list' | 'grid'>('list')
   useEffect(() => { try { const v = localStorage.getItem('eno-dash-view'); if (v === 'grid' || v === 'list') setListView(v) } catch {} }, [])
@@ -113,7 +114,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   // /dashboard — a one-time mount effect left them inert in that case.
   useEffect(() => {
     const t = searchParams.get('tab')
-    if (t === 'post' || t === 'listings' || t === 'account' || t === 'help' || t === 'dev') setTab(t)
+    if (t === 'post' || t === 'listings' || t === 'account' || t === 'help' || t === 'dev' || t === 'disputes') setTab(t)
   }, [searchParams])
 
   const refresh = useCallback(() => {
@@ -227,11 +228,12 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
           </div>
         </div>
 
-        {/* Tabs — Post · Listings · Settings · [Developers] · Help. All render inline
-            under the tab (no redirect). Developers (API keys) is business-tier only. */}
+        {/* Tabs — Post · Listings · Settings · Disputes · [Developers] · Help. All
+            render inline under the tab (no redirect). Developers (API keys) is
+            business-tier only. */}
         <div className="mt-5 flex flex-wrap items-center gap-1">
           {([
-            'post', 'listings', 'account',
+            'post', 'listings', 'account', 'disputes',
             ...(isBusiness ? ['dev' as const] : []),
             'help',
           ] as const).map((tb) => (
@@ -246,6 +248,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
               {tb === 'post' ? tr('Post', 'Đăng tin')
                 : tb === 'listings' ? tr('Listings', 'Tin đăng')
                 : tb === 'account' ? tr('Settings', 'Cài đặt')
+                : tb === 'disputes' ? tr('Disputes', 'Khiếu nại')
                 : tb === 'dev' ? tr('Developers', 'Lập trình')
                 : tr('Help', 'Trợ giúp')}
             </button>
@@ -255,6 +258,12 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
         {tab === 'help' && (
           <div className="mt-6 pb-12">
             <HelpCenter />
+          </div>
+        )}
+
+        {tab === 'disputes' && (
+          <div className="mt-6 pb-12">
+            <DisputesPanel compact />
           </div>
         )}
 

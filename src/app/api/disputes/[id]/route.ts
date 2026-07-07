@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
-import { counterpartyName, disputeStage, disputeTimeline, loadDisputeForParty, partyCanPost } from '@/lib/dispute'
+import { counterpartyName, disputeStage, disputeTimeline, loadDisputeForParty, partyCanPost, partyHasSubmitted } from '@/lib/dispute'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -28,13 +28,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     ? await db.listing.findUnique({ where: { id: report.listingId }, select: { id: true, title: true, images: true, status: true, verified: true } })
     : null
 
+  // One-shot: the composer closes once THIS party has posted their single room
+  // statement (the reporter's initial complaint `detail` is NOT a DisputeMessage, so
+  // it doesn't count — they still get one evidence submission with photos).
+  const submitted = await partyHasSubmitted(report.id, meId)
+
   return NextResponse.json({
     id: report.id,
     role,
     reason: report.reason,
     status: report.status,
     stage: disputeStage(report),
-    canPost: partyCanPost(report),
+    canPost: partyCanPost(report) && !submitted,
+    submitted,
     withdrawn: report.resolvedBy === 'withdrawn-by-reporter',
     createdAt: report.createdAt.toISOString(),
     evidenceUntil: report.evidenceUntil?.toISOString() ?? null,

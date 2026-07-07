@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, ShieldAlert, Loader2, Check } from 'lucide-react'
+import { AlertTriangle, ShieldAlert, Loader2, Scale, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -24,7 +24,7 @@ export type EnforcementInfo = {
     appealedAt: string | null
     appealOutcome: string | null // 'upheld' | 'overturned' | null
   } | null
-  openReports: { id: string; reason: string; detail: string | null; createdAt: string; listing: { id: string; title: string; image: string | null } | null }[]
+  openReports: { id: string; reason: string; detail: string | null; createdAt: string; evidenceUntil: string | null; listing: { id: string; title: string; image: string | null } | null }[]
 }
 
 // Buyer report reasons → labels (mirrors the report form's options). Literal tr()
@@ -41,94 +41,60 @@ function reportReasonLabel(tr: (en: string, vi?: string) => string, reason: stri
   }
 }
 
-/** One open report → inline reply form (buyer-king SLA: answer within 72h). */
-function RespondForm({ report, onDone }: { report: EnforcementInfo['openReports'][number]; onDone: () => void }) {
+/** One open report → a prominent link into the dedicated dispute case. The seller's
+ *  reply + evidence now live ENTIRELY in the dispute room (one statement + photos per
+ *  side), so this is a highlight + one CTA, not an inline reply form. */
+function ReportAlert({ report }: { report: EnforcementInfo['openReports'][number] }) {
   const { tr, lang } = useLanguage()
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [sent, setSent] = useState(false)
-
-  const send = async () => {
-    const t = text.trim()
-    if (t.length < 2 || busy) return
-    setBusy(true)
-    try {
-      const res = await fetch('/api/enforcement/respond', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportId: report.id, text: t }),
-      })
-      if (res.ok || res.status === 409) { setSent(true); onDone() } // 409 = already answered elsewhere — same outcome
-      else if (res.status === 503) toast.error(tr("Couldn't send right now — please try again later.", 'Chưa gửi được — vui lòng thử lại sau.'))
-      else toast.error(tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.'))
-    } catch {
-      toast.error(tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.'))
-    } finally { setBusy(false) }
-  }
-
-  if (sent) {
-    return (
-      <div>
-        <p className="flex items-center gap-1.5 text-sm font-semibold text-success">
-          <Check className="h-4 w-4" /> {tr('Your reply was sent to our review team.', 'Phản hồi của bạn đã được gửi đến đội xem xét.')}
-        </p>
-        <a href={`/disputes/${report.id}`} className="mt-1 inline-block text-xs font-bold text-accent-foreground hover:underline">
-          {tr('Add photos or follow the case →', 'Thêm ảnh hoặc theo dõi hồ sơ →')}
-        </a>
-      </div>
-    )
-  }
+  // Once the 72h evidence window has closed, the seller can no longer add their side —
+  // relabel so the CTA isn't a dead end (they can still open the case to follow it).
+  const windowOpen = !report.evidenceUntil || new Date(report.evidenceUntil).getTime() > Date.now()
   return (
-    <div>
-      <p className="text-sm font-semibold text-foreground">
-        {tr('A buyer reported', 'Một người mua đã báo cáo')} {reportReasonLabel(tr, report.reason)}
-        {!report.listing && <span className="ml-1 font-normal">{tr('about your account', 'về tài khoản của bạn')}</span>}
-        <span className="ml-1.5 font-normal text-muted-foreground">{new Date(report.createdAt).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-GB', { day: 'numeric', month: 'short' })}</span>
-      </p>
-      {/* WHICH listing — thumbnail + title, linked. A report card without the product
-          left sellers guessing ("its not what product"). */}
-      {report.listing && (
-        <a href={`/listings/${report.listing.id}`} className="mt-1.5 flex items-center gap-2.5 rounded-xl py-1 transition-colors hover:bg-muted">
-          {report.listing.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={report.listing.image} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
-          ) : (
-            <span className="h-10 w-10 shrink-0 rounded-lg bg-tint" />
+    <a
+      href={`/disputes/${report.id}`}
+      className="block rounded-xl bg-card/70 p-3 transition-colors hover:bg-card"
+    >
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warning/15"><Scale className="h-4 w-4 text-warning" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground">
+            {tr('A buyer reported', 'Một người mua đã báo cáo')} {reportReasonLabel(tr, report.reason)}
+            {!report.listing && <span className="ml-1 font-normal">{tr('about your account', 'về tài khoản của bạn')}</span>}
+            <span className="ml-1.5 font-normal text-muted-foreground">{new Date(report.createdAt).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-GB', { day: 'numeric', month: 'short' })}</span>
+          </p>
+          {/* WHICH listing — thumbnail + title. A report without the product left
+              sellers guessing ("its not what product"). */}
+          {report.listing && (
+            <span className="mt-1.5 flex items-center gap-2.5">
+              {report.listing.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={report.listing.image} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+              ) : (
+                <span className="h-9 w-9 shrink-0 rounded-lg bg-tint" />
+              )}
+              <span className="min-w-0 truncate text-sm font-semibold text-accent-foreground">{report.listing.title}</span>
+            </span>
           )}
-          <span className="min-w-0 truncate text-sm font-semibold text-accent-foreground">{report.listing.title}</span>
-        </a>
-      )}
-      {/* WHAT the buyer said — the complaint itself (never the reporter's identity). */}
-      {report.detail && (
-        <p className="mt-1.5 text-sm text-body">
-          <span className="font-semibold text-muted-foreground">{tr('Buyer says:', 'Người mua nói:')}</span>{' '}
-          <span className="italic">“{report.detail.slice(0, 300)}”</span>
-        </p>
-      )}
-      <p className="mt-1.5 text-xs text-muted-foreground">{tr('Your side of the story goes straight to the reviewer.', 'Lời giải thích của bạn sẽ được gửi thẳng đến người xem xét.')}</p>
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={2}
-        maxLength={600}
-        placeholder={tr('What happened, from your side…', 'Sự việc theo góc nhìn của bạn…')}
-        className="mt-2 w-full resize-none rounded-xl bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-ink-4 focus:ring-2 focus:ring-brand/20"
-      />
-      <div className="mt-1.5 flex flex-wrap items-center gap-2">
-        <button
-          onClick={send}
-          disabled={busy || text.trim().length < 2}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
-        >
-          {busy && <Loader2 className="h-3 w-3 animate-spin" />} {tr('Send reply', 'Gửi phản hồi')}
-        </button>
-        <span className="text-[11px] text-muted-foreground">{tr('Replying within 72 hours keeps your standing.', 'Phản hồi trong 72 giờ giúp giữ uy tín của bạn.')}</span>
-        {/* The full two-way flow (photo evidence, follow-ups, the decision) lives in
-            the dispute room — this inline box is just the fastest first reply. */}
-        <a href={`/disputes/${report.id}`} className="text-[11px] font-bold text-accent-foreground hover:underline">
-          {tr('Open the dispute case →', 'Mở hồ sơ khiếu nại →')}
-        </a>
+          {/* WHAT the buyer said — the complaint itself (never the reporter's identity). */}
+          {report.detail && (
+            <p className="mt-1.5 text-sm text-body">
+              <span className="font-semibold text-muted-foreground">{tr('Buyer says:', 'Người mua nói:')}</span>{' '}
+              <span className="italic">“{report.detail.slice(0, 300)}”</span>
+            </p>
+          )}
+          <p className="mt-2 inline-flex items-center gap-1 text-sm font-bold text-accent-foreground">
+            {windowOpen
+              ? tr('Open the dispute case to add your side', 'Mở hồ sơ khiếu nại để trình bày')
+              : tr('Open the dispute case to follow it', 'Mở hồ sơ khiếu nại để theo dõi')} <ChevronRight className="h-4 w-4" />
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {windowOpen
+              ? tr('You get one statement with photos — add it within 72 hours to keep your standing.', 'Bạn được trình bày một lần kèm ảnh — gửi trong 72 giờ để giữ uy tín.')
+              : tr('The response window has closed — the case is with the eno.vn team.', 'Đã hết thời gian phản hồi — hồ sơ đang chờ đội ngũ eno.vn.')}
+          </p>
+        </div>
       </div>
-    </div>
+    </a>
   )
 }
 
@@ -261,10 +227,10 @@ export function EnforcementBanner({ enforcement, onChanged }: { enforcement: Enf
         </div>
       </div>
 
-      {/* ONE next action: an unanswered report is the action; otherwise the appeal. */}
+      {/* ONE next action: an open report routes to its dispute case; otherwise appeal. */}
       {openReports.length > 0 && (
-        <div className="mt-3 space-y-3 pl-8">
-          {openReports.map((r) => <RespondForm key={r.id} report={r} onDone={() => onChanged?.()} />)}
+        <div className="mt-3 space-y-2 pl-8">
+          {openReports.map((r) => <ReportAlert key={r.id} report={r} />)}
         </div>
       )}
       {action && (

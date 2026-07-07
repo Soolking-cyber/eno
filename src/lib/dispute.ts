@@ -41,8 +41,8 @@ async function loadPartyReport(id: string) {
   return db.report.findUnique({ where: { id }, select: PARTY_SELECT })
 }
 
-/** Which side of the case is `meId`? The respondent gate mirrors /api/enforcement/respond:
- *  direct targetProfileId match OR ownership of the reported storefront. */
+/** Which side of the case is `meId`? Respondent = the reported party: a direct
+ *  targetProfileId match OR ownership of the reported storefront. */
 export async function partyRoleFor(report: { reporterProfileId: string | null; targetProfileId: string | null; targetSellerId: string | null }, meId: string): Promise<DisputeRole | null> {
   if (report.reporterProfileId === meId) return 'reporter'
   if (report.targetProfileId === meId) return 'respondent'
@@ -74,6 +74,20 @@ export function disputeStage(report: { status: string; evidenceUntil: Date | nul
  *  (Admins post any time; the window disciplines the PARTIES, Binance-style.) */
 export function partyCanPost(report: { status: string; evidenceUntil: Date | null }): boolean {
   return report.status === 'open' && !!report.evidenceUntil && report.evidenceUntil.getTime() > Date.now()
+}
+
+/** One-shot evidence rule (anti-spam, 2026-07-07): each side gets EXACTLY ONE
+ *  statement (text + photos) in the case room. Once a party has posted their
+ *  DisputeMessage, both the message and evidence endpoints reject further posts —
+ *  they've had their say, the reviewer decides. Admins are never limited. If a side
+ *  never submits, the other side's statement stands and the reviewer decides ex
+ *  parte (AI-assisted). Returns true if THIS party already submitted. */
+export async function partyHasSubmitted(reportId: string, meId: string): Promise<boolean> {
+  const existing = await db.disputeMessage.findFirst({
+    where: { reportId, senderProfileId: meId },
+    select: { id: true },
+  })
+  return !!existing
 }
 
 /** Evidence paths are pinned to the case's private-bucket folder — a message can
@@ -262,9 +276,27 @@ export async function respondentProfileId(report: { targetProfileId: string | nu
  * both parties unless `notify: false` (e.g. a system row that accompanies an event
  * which already sends its own richer notification).
  */
+type DisputeReportRef = { id: string; reporterProfileId: string | null; targetProfileId: string | null; targetSellerId: string | null }
+type DisputeMsgInput = { senderProfileId: string | null; senderRole: 'reporter' | 'respondent' | 'admin' | 'system'; body: string; images?: string[] }
+
+/** Notify the counterparty/parties of a new dispute message (shared by the admin and
+ *  party post paths). Never notifies the sender. Best-effort. */
+async function notifyDisputeCounterparties(report: DisputeReportRef, senderRole: DisputeMsgInput['senderRole'], senderProfileId: string | null): Promise<void> {
+  const respondent = await respondentProfileId(report)
+  const recipients = new Set<string>()
+  if (senderRole === 'reporter' && respondent) recipients.add(respondent)
+  else if (senderRole === 'respondent' && report.reporterProfileId) recipients.add(report.reporterProfileId)
+  else if (senderRole === 'admin' || senderRole === 'system') {
+    if (report.reporterProfileId) recipients.add(report.reporterProfileId)
+    if (respondent) recipients.add(respondent)
+  }
+  recipients.delete(senderProfileId ?? '')
+  for (const r of recipients) await notifyDispute(r, report.id, 'new_message')
+}
+
 export async function addDisputeMessage(
-  report: { id: string; reporterProfileId: string | null; targetProfileId: string | null; targetSellerId: string | null },
-  msg: { senderProfileId: string | null; senderRole: 'reporter' | 'respondent' | 'admin' | 'system'; body: string; images?: string[] },
+  report: DisputeReportRef,
+  msg: DisputeMsgInput,
   opts: { notify?: boolean } = {},
 ): Promise<{ id: string; createdAt: Date }> {
   const row = await db.disputeMessage.create({
@@ -278,19 +310,44 @@ export async function addDisputeMessage(
     select: { id: true, createdAt: true },
   })
   await db.report.update({ where: { id: report.id }, data: { lastMessageAt: row.createdAt } }).catch(() => {})
+  if (opts.notify !== false) await notifyDisputeCounterparties(report, msg.senderRole, msg.senderProfileId)
+  return row
+}
 
-  if (opts.notify !== false) {
-    const respondent = await respondentProfileId(report)
-    const recipients = new Set<string>()
-    if (msg.senderRole === 'reporter' && respondent) recipients.add(respondent)
-    else if (msg.senderRole === 'respondent' && report.reporterProfileId) recipients.add(report.reporterProfileId)
-    else if (msg.senderRole === 'admin' || msg.senderRole === 'system') {
-      if (report.reporterProfileId) recipients.add(report.reporterProfileId)
-      if (respondent) recipients.add(respondent)
-    }
-    recipients.delete(msg.senderProfileId ?? '')
-    for (const r of recipients) await notifyDispute(r, report.id, 'new_message')
-  }
+/**
+ * A PARTY's one-shot statement — atomic under concurrency. A plain check-then-create
+ * (partyHasSubmitted → create) races: two simultaneous posts (double-click / scripted
+ * burst) both see "no message yet" and both insert, defeating the one-shot rule. A
+ * transaction-scoped advisory lock keyed on (reportId, senderProfileId) serializes
+ * same-party posts so the re-check inside sees the first row — without a unique index
+ * (which would reject the legacy open-thread cases that legitimately have >1 row per
+ * party). Returns null if this party already submitted. senderProfileId is required
+ * (admins use addDisputeMessage, which is never one-shot).
+ */
+export async function addPartyStatementOnce(
+  report: DisputeReportRef,
+  msg: DisputeMsgInput & { senderProfileId: string },
+): Promise<{ id: string; createdAt: Date } | null> {
+  const lockKey = `dispute-stmt:${report.id}:${msg.senderProfileId}`
+  const row = await db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`
+    const exists = await tx.disputeMessage.findFirst({ where: { reportId: report.id, senderProfileId: msg.senderProfileId }, select: { id: true } })
+    if (exists) return null
+    const created = await tx.disputeMessage.create({
+      data: {
+        reportId: report.id,
+        senderProfileId: msg.senderProfileId,
+        senderRole: msg.senderRole,
+        body: msg.body,
+        images: msg.images && msg.images.length ? JSON.stringify(msg.images.slice(0, DISPUTE_IMAGES_MAX)) : null,
+      },
+      select: { id: true, createdAt: true },
+    })
+    await tx.report.update({ where: { id: report.id }, data: { lastMessageAt: created.createdAt } })
+    return created
+  })
+  if (!row) return null
+  await notifyDisputeCounterparties(report, msg.senderRole, msg.senderProfileId)
   return row
 }
 
