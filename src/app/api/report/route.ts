@@ -4,6 +4,7 @@ import { getCurrentProfile } from '@/lib/admin'
 import { severityForReason } from '@/lib/trust'
 import { reporterStanding } from '@/lib/enforcement-machine'
 import { rateLimit } from '@/lib/ratelimit'
+import { DISPUTE_WINDOW_MS, notifyDispute, respondentProfileId } from '@/lib/dispute'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -115,7 +116,9 @@ export async function POST(req: NextRequest) {
     where: { reporterProfileId: reporter.id, status: 'open', ...dupeWhere },
     select: { id: true },
   })
-  if (dupe) return NextResponse.json({ ok: true })
+  // Duplicate → hand back the EXISTING case so the client can still route the
+  // reporter into their open dispute room instead of silently swallowing the tap.
+  if (dupe) return NextResponse.json({ ok: true, id: dupe.id })
 
   const created = await db.report.create({
     data: {
@@ -128,8 +131,11 @@ export async function POST(req: NextRequest) {
       detail,
       severity: severityForReason(reason),
       status: 'open',
+      // Dispute center: every report opens a case with a 72h evidence window in
+      // which BOTH sides can post statements/evidence in the case room (/disputes).
+      evidenceUntil: new Date(Date.now() + DISPUTE_WINDOW_MS),
     },
-    select: { id: true },
+    select: { id: true, targetProfileId: true, targetSellerId: true },
   })
 
   // ≥2 strikes → pre-screen the report: it stays in the queue (never silently drop a
@@ -141,5 +147,13 @@ export async function POST(req: NextRequest) {
       await db.$executeRaw`UPDATE "Report" SET "preScreen" = true WHERE "id" = ${created.id}`
     } catch { /* migration pending */ }
   }
-  return NextResponse.json({ ok: true }, { status: 201 })
+
+  // Open the loop on both sides (new with the dispute center — filing used to be
+  // silent): the reporter gets their case link, the respondent gets due-process
+  // notice + the 72h window. Guest storefront → unreachable → ex parte, as today.
+  await notifyDispute(reporter.id, created.id, 'opened_reporter')
+  const respondent = await respondentProfileId(created)
+  if (respondent && respondent !== reporter.id) await notifyDispute(respondent, created.id, 'opened_respondent')
+
+  return NextResponse.json({ ok: true, id: created.id }, { status: 201 })
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Flag, Loader2, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
@@ -32,6 +33,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
   const [detail, setDetail] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
+  const [caseId, setCaseId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   const submit = async () => {
@@ -71,6 +73,10 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
         )
         return
       }
+      // The report opened (or re-surfaced) a dispute case — keep the id so the
+      // success state can route the reporter into their case room.
+      const d = (await res.json().catch(() => null)) as { id?: string } | null
+      setCaseId(d?.id ?? null)
       setDone(true)
     } catch {
       setError(t('Could not send. Try again.', 'Không gửi được. Thử lại.'))
@@ -79,7 +85,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
     }
   }
 
-  const reset = () => { setReason(''); setDetail(''); setDone(false); setError('') }
+  const reset = () => { setReason(''); setDetail(''); setDone(false); setCaseId(null); setError('') }
 
   const isChat = !!conversationId
   const title = isChat
@@ -91,12 +97,18 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
 
   return (
     <>
+      {/* Distinct on purpose (user ask 2026-07-07): red label + icon so the safety
+          action is findable at a glance — still borderless/flush at rest per the
+          one-canvas rules (color emphasis via TEXT; tint only on hover). */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cn('inline-flex items-center gap-1 text-[11px] text-ink-4 hover:text-destructive transition-colors cursor-pointer tap-44 relative', className)}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold text-destructive transition-colors hover:bg-red-50 dark:hover:bg-red-950 cursor-pointer tap-44 relative',
+          className,
+        )}
       >
-        <Flag className="h-3 w-3" /> {t('Report', 'Báo cáo')}
+        <Flag className="h-3.5 w-3.5" /> {t('Report', 'Báo cáo')}
       </button>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
@@ -110,11 +122,26 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
           {done ? (
             <div className="mt-4 text-center">
               <CheckCircle2 className="mx-auto h-10 w-10 text-accent-foreground" />
-              <p className="mt-3 text-sm font-semibold text-foreground">{t('Thanks for the heads-up', 'Cảm ơn bạn')}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{t('The eno.vn team will review this report.', 'Đội ngũ eno.vn sẽ xem xét báo cáo này.')}</p>
-              <Button variant="cta" size="none" onClick={() => { setOpen(false); reset() }} className="mt-4 rounded-xl px-6 py-2 text-sm transition-colors cursor-pointer">
+              <p className="mt-3 text-sm font-semibold text-foreground">{t('Dispute case opened', 'Đã mở hồ sơ khiếu nại')}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('You can add evidence and follow progress. The eno.vn team will review and decide.', 'Bạn có thể bổ sung bằng chứng và theo dõi tiến trình. Đội ngũ eno.vn sẽ xem xét và quyết định.')}
+              </p>
+              {caseId ? (
+                <Link
+                  href={`/disputes/${caseId}`}
+                  onClick={() => { setOpen(false); reset() }}
+                  className="mt-4 inline-block w-full rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+                >
+                  {t('Add evidence & follow progress', 'Bổ sung bằng chứng & theo dõi')}
+                </Link>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => { setOpen(false); reset() }}
+                className="mt-2 w-full rounded-xl px-6 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted cursor-pointer"
+              >
                 {t('Close', 'Đóng')}
-              </Button>
+              </button>
             </div>
           ) : (
             <div className="mt-4 space-y-3">
@@ -131,7 +158,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
                     <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', reason === r.value ? 'border-brand' : 'border-line-strong')}>
                       {reason === r.value && <span className="h-2 w-2 rounded-full bg-primary" />}
                     </span>
-                    {t(r.vi, r.en)}
+                    {t(r.en, r.vi)}
                   </button>
                 ))}
               </div>

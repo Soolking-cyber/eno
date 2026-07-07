@@ -5,19 +5,34 @@ import { getAdmin } from '@/lib/admin'
 import { applyTrustEvent, penalizeSeller, recomputeTrust, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
 import { syncEnforcement } from '@/lib/enforcement'
 import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
+import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS, addDisputeMessage, notifyDispute, respondentProfileId } from '@/lib/dispute'
 
 export const dynamic = 'force-dynamic'
 
 const DAY_MS = 86_400_000
 
-// Notify the reported party (if they have an account) that their content was actioned,
-// with a deep-link to appeal. In their language (Profile.locale, EN/VI). Best-effort.
+// Notify the reported party (if they have an account) that their content was actioned.
+// Deep-links into the dispute room, where the decision + appeal path live. In their
+// language (Profile.locale, EN/VI). Best-effort.
 async function notifyActioned(targetProfileId: string, reportId: string) {
   const p = await db.profile.findUnique({ where: { id: targetProfileId }, select: { locale: true } })
   const l = pickLocale(p?.locale)
   await db.notification.create({
-    data: { recipientId: targetProfileId, type: 'system', title: APPEAL_NOTICE.title[l], body: APPEAL_NOTICE.body[l], actorName: 'eno.vn moderation', url: `/appeal/${reportId}` },
+    data: { recipientId: targetProfileId, type: 'dispute', title: APPEAL_NOTICE.title[l], body: APPEAL_NOTICE.body[l], actorName: 'eno.vn moderation', url: `/disputes/${reportId}` },
   }).catch(() => {})
+}
+
+// Tell each reporter their case closed with no violation — but ONLY for rows the
+// caller actually transitioned this instant (matched by the unique resolve stamp),
+// so a bulk/target dismiss can't double-notify on a concurrent resolve or replay.
+async function notifyDismissedReporters(match: { resolvedBy: string; resolvedAt: Date } & Record<string, unknown>) {
+  const rows = await db.report.findMany({
+    where: { ...match, status: 'dismissed' },
+    select: { id: true, reporterProfileId: true },
+  })
+  for (const r of rows) {
+    if (r.reporterProfileId) await notifyDispute(r.reporterProfileId, r.id, 'decided_dismissed_reporter')
+  }
 }
 
 // Single admin endpoint for the moderation queue. Every action re-checks the
@@ -30,12 +45,15 @@ export async function POST(req: NextRequest) {
   const admin = await getAdmin()
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  let body: { action?: string; id?: string; severity?: string; ids?: string[]; note?: string }
+  let body: { action?: string; id?: string; severity?: string; ids?: string[]; note?: string; decisionNote?: string; message?: string }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
+  // Optional outcome note on resolutions — shown to BOTH parties in the dispute room
+  // (unlike internalNote, which stays staff-only).
+  const decisionNote = String(body.decisionNote ?? '').trim().slice(0, DISPUTE_BODY_MAX) || null
 
   const action = String(body.action || '')
   const id = String(body.id || '').trim()
@@ -59,14 +77,22 @@ export async function POST(req: NextRequest) {
       const where = report.targetProfileId ? { targetProfileId: report.targetProfileId }
         : report.targetSellerId ? { targetSellerId: report.targetSellerId }
         : report.listingId ? { listingId: report.listingId } : { id }
-      const upd = await db.report.updateMany({ where: { ...where, status: 'open' }, data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date() } })
+      const stamp = new Date()
+      const upd = await db.report.updateMany({ where: { ...where, status: 'open' }, data: { status: 'dismissed', resolvedBy: admin, resolvedAt: stamp } })
+      // Notify from the rows THIS call actually transitioned (matched by our exact
+      // resolve stamp), not a pre-read snapshot — so a concurrent resolve / double
+      // click can't double-fire or send a "no violation" note on a case another admin
+      // just confirmed.
+      await notifyDismissedReporters({ ...where, resolvedBy: admin, resolvedAt: stamp })
       return NextResponse.json({ ok: true, dismissed: upd.count })
     }
 
     case 'bulk-dismiss': {
       const ids = (body.ids || []).map((x) => String(x)).slice(0, 200)
       if (!ids.length) return NextResponse.json({ error: 'No ids' }, { status: 400 })
-      const upd = await db.report.updateMany({ where: { id: { in: ids }, status: 'open' }, data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date() } })
+      const stamp = new Date()
+      const upd = await db.report.updateMany({ where: { id: { in: ids }, status: 'open' }, data: { status: 'dismissed', resolvedBy: admin, resolvedAt: stamp } })
+      await notifyDismissedReporters({ id: { in: ids }, resolvedBy: admin, resolvedAt: stamp })
       return NextResponse.json({ ok: true, dismissed: upd.count })
     }
 
@@ -77,7 +103,7 @@ export async function POST(req: NextRequest) {
       const penalty = -SEVERITY_PENALTY[severity]
       let confirmed = 0
       for (const rid of ids) {
-        const report = await db.report.findUnique({ where: { id: rid }, select: { targetProfileId: true, targetSellerId: true, listingId: true } })
+        const report = await db.report.findUnique({ where: { id: rid }, select: { targetProfileId: true, targetSellerId: true, listingId: true, reporterProfileId: true } })
         if (!report) continue
         const upd = await db.report.updateMany({ where: { id: rid, status: 'open' }, data: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date() } })
         if (upd.count === 0) continue // already resolved — no double-dock
@@ -88,6 +114,7 @@ export async function POST(req: NextRequest) {
         } else if (report.targetSellerId) await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${rid}`, reportId: rid })
         if (report.listingId) { await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {}); revalidatePath(`/listings/${report.listingId}`) }
         if (report.targetProfileId) await notifyActioned(report.targetProfileId, rid)
+        if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, rid, 'decided_upheld_reporter')
         confirmed++
       }
       return NextResponse.json({ ok: true, confirmed })
@@ -140,7 +167,7 @@ export async function POST(req: NextRequest) {
       // double-click / retry can't re-dock the score).
       const upd = await db.report.updateMany({
         where: { id, status: 'open' },
-        data: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date() },
+        data: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date(), decisionNote },
       })
       if (upd.count === 0) return NextResponse.json({ ok: true })
       const penalty = -SEVERITY_PENALTY[severity]
@@ -158,29 +185,50 @@ export async function POST(req: NextRequest) {
         await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {})
         revalidatePath(`/listings/${report.listingId}`)
       }
-      // Tell the reported party (if they have an account) + give them an appeal path.
+      // Tell the reported party (if they have an account) + give them an appeal path,
+      // and close the loop for the reporter (dispute center: outcomes reach both sides).
       if (report.targetProfileId) await notifyActioned(report.targetProfileId, id)
+      const upheldReporter = await db.report.findUnique({ where: { id }, select: { reporterProfileId: true } })
+      if (upheldReporter?.reporterProfileId) await notifyDispute(upheldReporter.reporterProfileId, id, 'decided_upheld_reporter')
       return NextResponse.json({ ok: true })
     }
 
     case 'dismiss-report': {
-      await db.report.updateMany({
-        where: { id, status: 'open' },
-        data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date() },
+      const report = await db.report.findUnique({
+        where: { id },
+        select: { id: true, reporterProfileId: true, targetProfileId: true, targetSellerId: true },
       })
+      if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      const upd = await db.report.updateMany({
+        where: { id, status: 'open' },
+        data: { status: 'dismissed', resolvedBy: admin, resolvedAt: new Date(), decisionNote },
+      })
+      if (upd.count === 0) return NextResponse.json({ ok: true })
+      // Outcome to both sides: reporter learns the finding; the respondent (who got
+      // due-process notice at filing) learns the case closed with no action.
+      if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, id, 'decided_dismissed_reporter')
+      const dismissedRespondent = await respondentProfileId(report)
+      if (dismissedRespondent) await notifyDispute(dismissedRespondent, id, 'decided_closed_respondent')
       return NextResponse.json({ ok: true })
     }
 
     case 'abusive-report': {
       // The report was false/abusive → penalize the REPORTER (anti-fake-report):
       // a trust hit + a strike + a reporting cooldown. Idempotent on open→abusive.
-      const report = await db.report.findUnique({ where: { id }, select: { id: true, reporterProfileId: true } })
+      const report = await db.report.findUnique({
+        where: { id },
+        select: { id: true, reporterProfileId: true, targetProfileId: true, targetSellerId: true },
+      })
       if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       const upd = await db.report.updateMany({
         where: { id, status: 'open' },
-        data: { status: 'abusive', resolvedBy: admin, resolvedAt: new Date() },
+        data: { status: 'abusive', resolvedBy: admin, resolvedAt: new Date(), decisionNote },
       })
       if (upd.count === 0) return NextResponse.json({ ok: true })
+      // Outcome to both sides (best-effort, before the purge below).
+      if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, id, 'decided_abusive_reporter')
+      const clearedRespondent = await respondentProfileId(report)
+      if (clearedRespondent) await notifyDispute(clearedRespondent, id, 'decided_closed_respondent')
       if (report.reporterProfileId) {
         await db.profile.update({
           where: { id: report.reporterProfileId },
@@ -234,6 +282,44 @@ export async function POST(req: NextRequest) {
         }
       }
       return NextResponse.json({ ok: true })
+    }
+
+    case 'extend-window': {
+      // Give both sides 72 more hours of evidence (Binance CS "requesting more proof").
+      // Extends from now (or the current deadline if it's still in the future).
+      const report = await db.report.findUnique({
+        where: { id },
+        select: { id: true, status: true, evidenceUntil: true, reporterProfileId: true, targetProfileId: true, targetSellerId: true },
+      })
+      if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      if (report.status !== 'open') return NextResponse.json({ error: 'already_resolved' }, { status: 409 })
+      const base = Math.max(Date.now(), report.evidenceUntil?.getTime() ?? 0)
+      const until = new Date(base + DISPUTE_WINDOW_MS)
+      await db.report.update({ where: { id }, data: { evidenceUntil: until } })
+      // A visible thread event (notify:false — the richer copy below covers both sides).
+      await addDisputeMessage(report, {
+        senderProfileId: null, senderRole: 'system',
+        body: `Evidence window extended until ${until.toISOString()}`,
+      }, { notify: false }).catch(() => {})
+      if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, id, 'window_extended')
+      const extendedRespondent = await respondentProfileId(report)
+      if (extendedRespondent) await notifyDispute(extendedRespondent, id, 'window_extended')
+      return NextResponse.json({ ok: true, evidenceUntil: until.toISOString() })
+    }
+
+    case 'dispute-message': {
+      // Free-text admin message INTO the case room — the mediation channel the old
+      // macro-only one-way notifications never allowed. The admin's individual
+      // identity is never stored/exposed; rows render as "eno.vn moderation".
+      const text = String(body.message ?? '').trim().slice(0, DISPUTE_BODY_MAX)
+      if (!text) return NextResponse.json({ error: 'empty' }, { status: 400 })
+      const report = await db.report.findUnique({
+        where: { id },
+        select: { id: true, status: true, reporterProfileId: true, targetProfileId: true, targetSellerId: true },
+      })
+      if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      const row = await addDisputeMessage(report, { senderProfileId: null, senderRole: 'admin', body: text })
+      return NextResponse.json({ ok: true, id: row.id })
     }
 
     case 'remediated': {

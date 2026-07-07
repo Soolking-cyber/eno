@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, X } from 'lucide-react'
+import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X } from 'lucide-react'
 import { useNotifications } from '@/context/notifications-context'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
@@ -105,7 +105,7 @@ export function NotificationBell() {
             ) : (
               sorted.map((n) => {
                 const href = n.url ? n.url : n.type === 'reminder' ? '/dashboard' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
-                const Icon = n.type === 'offer' ? Tag : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : MessageSquare
+                const Icon = n.type === 'offer' ? Tag : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
                 return (
                   // Unread = brand-tinted with a left rail + dot; read = plain. Opening
                   // a notification marks just it read (so it sinks below on next view).

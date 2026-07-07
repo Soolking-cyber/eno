@@ -1,6 +1,6 @@
 import 'server-only'
 import sharp from 'sharp'
-import { getSupabaseAdmin, LISTINGS_BUCKET } from '@/lib/supabase-admin'
+import { getSupabaseAdmin, LISTINGS_BUCKET, EVIDENCE_BUCKET } from '@/lib/supabase-admin'
 
 // Listing-image media core. Single place that turns raw image bytes into a stored,
 // first-party WebP asset — shared by /api/upload (post wizard), the bulk importer's
@@ -77,4 +77,37 @@ export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string
     return null
   }
   return admin.storage.from(LISTINGS_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
+// Evidence keeps more detail than a listing hero: receipts/chat screenshots must stay
+// legible, so a larger edge cap and slightly higher quality. Still EXIF/GPS-stripped.
+const EVIDENCE_MAX_EDGE = 2000
+const EVIDENCE_WEBP_QUALITY = 85
+
+/**
+ * Dispute-evidence flavor of the pipeline: same decode/rotate/metadata-strip safety,
+ * NO watermark (evidence must not look tampered with), stored in the PRIVATE
+ * evidence bucket under `disputes/<reportId>/…`. Returns the storage PATH (not a
+ * URL) — callers mint short-lived signed URLs inside party/admin-gated routes.
+ * Never throws; null on bad input or storage failure.
+ */
+export async function storeEvidenceImage(buf: Buffer, reportId: string): Promise<string | null> {
+  let out: Buffer
+  try {
+    out = await sharp(buf, { limitInputPixels: 50_000_000 })
+      .rotate()
+      .resize({ width: EVIDENCE_MAX_EDGE, height: EVIDENCE_MAX_EDGE, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: EVIDENCE_WEBP_QUALITY })
+      .toBuffer()
+  } catch {
+    return null
+  }
+  const path = `disputes/${reportId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`
+  const admin = getSupabaseAdmin()
+  const { error } = await admin.storage.from(EVIDENCE_BUCKET).upload(path, out, { contentType: 'image/webp', upsert: false })
+  if (error) {
+    console.error('[media] store evidence', error.message)
+    return null
+  }
+  return path
 }

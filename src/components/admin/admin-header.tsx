@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 // admin lines up with the rest of the site. No consumer search bar / area picker.
 const SECTIONS = [
   { href: '/admin', label: 'Reports' },
+  { href: '/admin/disputes', label: 'Disputes' },
   { href: '/admin/enforcement', label: 'Enforcement' },
   { href: '/admin/listings', label: 'Listings' },
   { href: '/admin/brands', label: 'Brands' },

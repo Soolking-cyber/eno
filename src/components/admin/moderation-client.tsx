@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { X, Loader2, ExternalLink, MessageSquare, ChevronDown, StickyNote, Users, ShieldQuestion, MoreHorizontal, Sparkles } from 'lucide-react'
+import { X, Loader2, ExternalLink, MessageSquare, ChevronDown, StickyNote, Users, ShieldQuestion, MoreHorizontal, Sparkles , Scale } from 'lucide-react'
 import { formatMoneyFull } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { MOD_MACROS } from '@/lib/admin-macros'
@@ -392,6 +392,8 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
           <span>By {c.reporter.sellerId ? <a href={`/sellers/${c.reporter.sellerId}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="font-semibold text-foreground hover:underline">{c.reporter.name}</a> : <span className="font-semibold text-foreground">{c.reporter.name}</span>}<span className="text-ink-4"> · trust {c.reporter.trustScore}</span>{c.reporter.strikes > 0 && <span className="font-semibold text-warning"> · {c.reporter.strikes} false-report strike{c.reporter.strikes > 1 ? 's' : ''}</span>}</span>
         ) : <span className="italic">reporter account removed</span>}
         {c.conversationId && <a href={`/admin/conversation/${c.conversationId}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline"><MessageSquare className="h-3 w-3" /> View conversation</a>}
+        {/* The full case room: thread + evidence + AI + decision, one case per page. */}
+        <a href={`/admin/disputes/${c.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline"><Scale className="h-3 w-3" /> Dispute room</a>
       </div>
 
       {readOnly ? (

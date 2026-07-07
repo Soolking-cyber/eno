@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Store, LogOut, Settings, CircleHelp } from 'lucide-react'
+import { Store, LogOut, Settings, CircleHelp, Scale } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { PreferencesInline } from './preferences-inline'
@@ -78,6 +78,9 @@ export function AccountMenu() {
             </Link>
             <Link href="/dashboard?tab=account" role="menuitem" onClick={() => setOpen(false)} className={item}>
               <Settings className="h-4 w-4 text-accent-foreground" /> {tr('Settings', 'Cài đặt')}
+            </Link>
+            <Link href="/disputes" role="menuitem" onClick={() => setOpen(false)} className={item}>
+              <Scale className="h-4 w-4 text-accent-foreground" /> {tr('Disputes', 'Khiếu nại')}
             </Link>
             <Link href="/help" role="menuitem" onClick={() => setOpen(false)} className={item}>
               <CircleHelp className="h-4 w-4 text-accent-foreground" /> {tr('Help', 'Trợ giúp')}

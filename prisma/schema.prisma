@@ -519,6 +519,16 @@ model Report {
   // RETURNs the full row, which would 500 on the missing column. Access goes via
   // guarded raw SQL (set in /api/report, read in the admin queues) until then.
   preScreen Boolean @default(false) @ignore       // reporter has ≥2 false-report strikes → triaged LAST, excluded from buyer-waiting
+  // ── Dispute center (2026-07-07): every report IS a dispute case with a threaded
+  // room (DisputeMessage) where reporter + respondent + admin exchange statements
+  // and evidence, Binance-P2P style. This is the Decree 52/85-required complaint-
+  // resolution mechanism — admin is always party to the thread (not open social chat).
+  evidenceUntil DateTime?                          // evidence window (filing + 72h; admin-extendable)
+  lastMessageAt DateTime?                          // last thread activity — sorts the queues
+  aiAnalysis    String?                            // cached /api/admin/ai-review JSON (advisory)
+  aiAnalyzedAt  DateTime?
+  decisionNote  String?                            // admin's outcome note — shown to BOTH parties
+  messages      DisputeMessage[]
   createdAt DateTime @default(now())
 
   @@index([listingId])
@@ -527,6 +537,23 @@ model Report {
   @@index([targetProfileId])
   @@index([targetSellerId])
   @@index([conversationId])
+}
+
+// One entry in a dispute-case thread. senderProfileId is a bare uuid (NO FK) so the
+// thread survives account deletion — resolved-report records are retained for the
+// statutory period (see /privacy). Role is stamped at write time so rendering never
+// re-derives identity; 'system' rows are machine-generated (decision, window events).
+model DisputeMessage {
+  id              String   @id @default(cuid())
+  reportId        String
+  report          Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  senderProfileId String?  @db.Uuid                // null = admin/system (never expose admin identity)
+  senderRole      String                            // 'reporter' | 'respondent' | 'admin' | 'system'
+  body            String
+  images          String?                           // JSON array — PRIVATE-bucket paths (disputes/<reportId>/…)
+  createdAt       DateTime @default(now())
+
+  @@index([reportId, createdAt])
 }
 
 // User feedback + technical-problem reports from the Help sheet / Help Center.

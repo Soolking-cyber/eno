@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   // predicate keeps it one-shot AND race-safe (two tabs → exactly one lands).
   const n = await db.report.updateMany({
     where: { id: reportId, sellerRespondedAt: null },
-    data: { sellerResponse: text, sellerRespondedAt: new Date() },
+    data: { sellerResponse: text, sellerRespondedAt: new Date(), lastMessageAt: new Date() },
   })
   if (n.count === 0) return NextResponse.json({ error: 'already_responded' }, { status: 409 })
   return NextResponse.json({ ok: true })

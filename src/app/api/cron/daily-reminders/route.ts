@@ -6,6 +6,7 @@ import { STALE_DAYS } from '@/lib/stale'
 import { runTrustMaintenance } from '@/lib/trust'
 import { recomputeRankScoreAllActive } from '@/lib/ranking'
 import { rollupListingDailyStats } from '@/lib/listing-analytics'
+import { sweepDisputeWindows } from '@/lib/dispute'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -56,42 +57,47 @@ export async function GET(req: NextRequest) {
     const owner = l.seller.ownerId
     if (owner) countByOwner.set(owner, (countByOwner.get(owner) ?? 0) + 1)
   }
-  if (countByOwner.size === 0) return NextResponse.json({ ok: true, notified: 0 })
-
-  // Respect the opt-out AND skip anyone already reminded within the window
-  // (cross-run dedupe → one nudge/day, idempotent on a duplicate cron fire).
-  const since = new Date(Date.now() - REMIND_EVERY_MS)
-  const ownerIds = [...countByOwner.keys()].slice(0, MAX_SELLERS)
-  const [optedIn, recent] = await Promise.all([
-    db.profile.findMany({ where: { id: { in: ownerIds }, dailyReminderOptIn: true }, select: { id: true } }),
-    db.notification.findMany({ where: { recipientId: { in: ownerIds }, type: 'reminder', createdAt: { gt: since } }, select: { recipientId: true } }),
-  ])
-  const remindedRecently = new Set(recent.map((r) => r.recipientId))
-  const targets = optedIn.filter((p) => !remindedRecently.has(p.id))
-
   let notified = 0
   let pushed = 0
-  // Bounded-concurrency fan-out so a few thousand sellers don't serialize past
-  // maxDuration; each owner's work (1 notif insert + push) runs independently.
-  for (let i = 0; i < targets.length; i += CONCURRENCY) {
-    const batch = targets.slice(i, i + CONCURRENCY)
-    const res = await Promise.all(
-      batch.map(async (p) => {
-        const n = countByOwner.get(p.id) ?? 0
-        if (n === 0) return { notified: 0, pushed: 0 }
-        const title = '⏰ ' + (n === 1 ? 'Confirm your listing is still available' : `Confirm ${n} listings are still available`)
-        const body = 'Tap to refresh availability — fresh listings rise back to the top.'
-        try {
-          await db.notification.create({ data: { recipientId: p.id, type: 'reminder', title, body, actorName: null } })
-          const sent = await sendPushToProfile(p.id, { title, body, url: '/dashboard', tag: 'eno-availability' })
-          return { notified: 1, pushed: sent }
-        } catch (e) {
-          console.error('[cron] reminder failed for', p.id, e)
-          return { notified: 0, pushed: 0 }
-        }
-      }),
-    )
-    for (const r of res) { notified += r.notified; pushed += r.pushed }
+  let skippedRecent = 0
+  // NOTE: no early return here — the maintenance passes below (trust, rank decay,
+  // stat rollup, dispute-window nudges) must run even on a day with zero stale
+  // listings (the old `return` skipped them all).
+  if (countByOwner.size > 0) {
+    // Respect the opt-out AND skip anyone already reminded within the window
+    // (cross-run dedupe → one nudge/day, idempotent on a duplicate cron fire).
+    const since = new Date(Date.now() - REMIND_EVERY_MS)
+    const ownerIds = [...countByOwner.keys()].slice(0, MAX_SELLERS)
+    const [optedIn, recent] = await Promise.all([
+      db.profile.findMany({ where: { id: { in: ownerIds }, dailyReminderOptIn: true }, select: { id: true } }),
+      db.notification.findMany({ where: { recipientId: { in: ownerIds }, type: 'reminder', createdAt: { gt: since } }, select: { recipientId: true } }),
+    ])
+    const remindedRecently = new Set(recent.map((r) => r.recipientId))
+    const targets = optedIn.filter((p) => !remindedRecently.has(p.id))
+    skippedRecent = optedIn.length - targets.length
+
+    // Bounded-concurrency fan-out so a few thousand sellers don't serialize past
+    // maxDuration; each owner's work (1 notif insert + push) runs independently.
+    for (let i = 0; i < targets.length; i += CONCURRENCY) {
+      const batch = targets.slice(i, i + CONCURRENCY)
+      const res = await Promise.all(
+        batch.map(async (p) => {
+          const n = countByOwner.get(p.id) ?? 0
+          if (n === 0) return { notified: 0, pushed: 0 }
+          const title = '⏰ ' + (n === 1 ? 'Confirm your listing is still available' : `Confirm ${n} listings are still available`)
+          const body = 'Tap to refresh availability — fresh listings rise back to the top.'
+          try {
+            await db.notification.create({ data: { recipientId: p.id, type: 'reminder', title, body, actorName: null } })
+            const sent = await sendPushToProfile(p.id, { title, body, url: '/dashboard', tag: 'eno-availability' })
+            return { notified: 1, pushed: sent }
+          } catch (e) {
+            console.error('[cron] reminder failed for', p.id, e)
+            return { notified: 0, pushed: 0 }
+          }
+        }),
+      )
+      for (const r of res) { notified += r.notified; pushed += r.pushed }
+    }
   }
 
   // Trust maintenance v2: recompute-all-active. NO calendar drift (the old +1/day
@@ -110,5 +116,10 @@ export async function GET(req: NextRequest) {
   let statRows = 0
   try { statRows = await rollupListingDailyStats() } catch (e) { console.error('[cron] daily stat rollup', e) }
 
-  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, skipped: optedIn.length - targets.length, notified, pushed, trust, reranked, statRows })
+  // Dispute center: nudge respondents whose evidence window closes within 24h and
+  // who haven't said anything yet — the Binance "respond or the case proceeds" beat.
+  let disputeNudges = 0
+  try { disputeNudges = await sweepDisputeWindows() } catch (e) { console.error('[cron] dispute window sweep', e) }
+
+  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, skipped: skippedRecent, notified, pushed, trust, reranked, statRows, disputeNudges })
 }

@@ -67,9 +67,14 @@ function RespondForm({ report, onDone }: { report: EnforcementInfo['openReports'
 
   if (sent) {
     return (
-      <p className="flex items-center gap-1.5 text-sm font-semibold text-success">
-        <Check className="h-4 w-4" /> {tr('Your reply was sent to our review team.', 'Phản hồi của bạn đã được gửi đến đội xem xét.')}
-      </p>
+      <div>
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-success">
+          <Check className="h-4 w-4" /> {tr('Your reply was sent to our review team.', 'Phản hồi của bạn đã được gửi đến đội xem xét.')}
+        </p>
+        <a href={`/disputes/${report.id}`} className="mt-1 inline-block text-xs font-bold text-accent-foreground hover:underline">
+          {tr('Add photos or follow the case →', 'Thêm ảnh hoặc theo dõi hồ sơ →')}
+        </a>
+      </div>
     )
   }
   return (
@@ -117,6 +122,11 @@ function RespondForm({ report, onDone }: { report: EnforcementInfo['openReports'
           {busy && <Loader2 className="h-3 w-3 animate-spin" />} {tr('Send reply', 'Gửi phản hồi')}
         </button>
         <span className="text-[11px] text-muted-foreground">{tr('Replying within 72 hours keeps your standing.', 'Phản hồi trong 72 giờ giúp giữ uy tín của bạn.')}</span>
+        {/* The full two-way flow (photo evidence, follow-ups, the decision) lives in
+            the dispute room — this inline box is just the fastest first reply. */}
+        <a href={`/disputes/${report.id}`} className="text-[11px] font-bold text-accent-foreground hover:underline">
+          {tr('Open the dispute case →', 'Mở hồ sơ khiếu nại →')}
+        </a>
       </div>
     </div>
   )

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { rateLimit } from '@/lib/ratelimit'
+import { DISPUTE_WINDOW_MS, notifyDispute } from '@/lib/dispute'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,16 +26,29 @@ export async function POST(req: Request) {
   const images = Array.isArray(body.images) ? (body.images as unknown[]).filter(isListingImageUrl).slice(0, 6) : []
   if (!reportId || note.length < 5) return NextResponse.json({ error: 'missing_fields' }, { status: 400 })
 
-  const report = await db.report.findUnique({ where: { id: reportId }, select: { id: true, targetProfileId: true, status: true, appealedAt: true } })
+  const report = await db.report.findUnique({ where: { id: reportId }, select: { id: true, targetProfileId: true, reporterProfileId: true, status: true, appealedAt: true } })
   if (!report) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   // Only the reported account can appeal its own case.
   if (report.targetProfileId !== meId) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   // Already appealed and awaiting review → accept idempotently (no spam re-open).
   if (report.status === 'open' && report.appealedAt) return NextResponse.json({ ok: true, already: true })
+  // An appeal only makes sense against a DECIDED case. Blocking it while the case is
+  // still open stops a respondent from unilaterally dragging a case out of review and
+  // resetting the 72h evidence window (they use the dispute room to respond instead).
+  if (report.status === 'open') return NextResponse.json({ error: 'not_decided' }, { status: 409 })
 
   await db.report.update({
     where: { id: reportId },
-    data: { status: 'open', appealNote: note, appealImages: images.length ? JSON.stringify(images) : null, appealedAt: new Date(), resolvedBy: null, resolvedAt: null },
+    data: {
+      status: 'open', appealNote: note, appealImages: images.length ? JSON.stringify(images) : null,
+      appealedAt: new Date(), resolvedBy: null, resolvedAt: null, decisionNote: null,
+      // Re-opened case → fresh evidence window so BOTH sides can respond to the
+      // appeal in the dispute room (the appeal itself lands in the timeline).
+      evidenceUntil: new Date(Date.now() + DISPUTE_WINDOW_MS),
+      lastMessageAt: new Date(),
+    },
   })
+  // The reporter should know the case re-opened (their upheld outcome is on hold).
+  if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, reportId, 'new_message')
   return NextResponse.json({ ok: true })
 }

@@ -2,6 +2,10 @@ import 'server-only'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 export const LISTINGS_BUCKET = 'listings'
+// PRIVATE bucket for dispute evidence (receipts, chat screenshots — often carries
+// names/account numbers). Never public-URL'd: access is via short-lived signed URLs
+// minted inside party/admin-gated routes only. Created by scripts/setup-storage.mjs.
+export const EVIDENCE_BUCKET = 'evidence'
 
 let _admin: SupabaseClient | null = null
 

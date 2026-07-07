@@ -12,7 +12,7 @@ export const HANDLE_RE = /^[a-z][a-z0-9_]{2,29}$/
 const RESERVED = new Set([
   // app routes
   'about', 'account', 'admin', 'api', 'appeal', 'auth', 'brands', 'c', 'dashboard',
-  'developers', 'guide', 'help', 'listings', 'messages', 'onboard', 'post', 'privacy',
+  'developers', 'dispute', 'disputes', 'guide', 'help', 'listings', 'messages', 'onboard', 'post', 'privacy',
   'prohibited', 'regulations', 'reports', 'safety', 'saved', 'search', 'sellers',
   'signin', 'signup', 'sitemap', 'terms', 'trust',
   // platform identity / staff impersonation

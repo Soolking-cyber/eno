@@ -4,6 +4,7 @@ import { Type } from '@google/genai'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { getGemini, GEMINI_MODEL, GEMINI_MODEL_FALLBACK } from '@/lib/gemini'
+import { getSupabaseAdmin, EVIDENCE_BUCKET } from '@/lib/supabase-admin'
 import { safeFetch } from '@/lib/ssrf'
 import { rateLimit } from '@/lib/ratelimit'
 import { reportContext } from '@/lib/admin-reports'
@@ -20,13 +21,13 @@ export const dynamic = 'force-dynamic'
 // Privacy: display names only — never phone/email. Budget: one GLOBAL daily cap
 // (strict — Redis down means no paid calls, matching the other Gemini routes).
 
-const MAX_IMAGES = 2
+const MAX_IMAGES = 4 // dispute-evidence photos are primary; listing/appeal fill the rest
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024
 const DAILY_BUDGET = 200
 
 const OUTCOMES = ['confirm', 'dismiss', 'abusive'] as const
 const SEVS = ['minor', 'moderate', 'severe'] as const
-const SOURCES = ['conversation', 'listing', 'images', 'report', 'seller_response'] as const
+const SOURCES = ['conversation', 'listing', 'images', 'report', 'seller_response', 'dispute_thread'] as const
 
 const vnd = (n: number) => `${Math.round(n).toLocaleString('en-US')} VND`
 const ageStr = (d: Date) => {
@@ -52,6 +53,28 @@ async function fetchInline(url: string): Promise<string | null> {
     if (!ct.startsWith('image/')) return null
     const buf = Buffer.from(await res.arrayBuffer())
     if (buf.byteLength === 0 || buf.byteLength > MAX_IMAGE_BYTES) return null
+    return downscale(buf)
+  } catch {
+    return null
+  }
+}
+
+// Dispute evidence lives in the PRIVATE bucket as storage paths — read the bytes
+// directly with the service client (no HTTP hop, no signed-URL detour).
+async function downloadInline(path: string): Promise<string | null> {
+  try {
+    const { data, error } = await getSupabaseAdmin().storage.from(EVIDENCE_BUCKET).download(path)
+    if (error || !data) return null
+    const buf = Buffer.from(await data.arrayBuffer())
+    if (buf.byteLength === 0 || buf.byteLength > MAX_IMAGE_BYTES) return null
+    return downscale(buf)
+  } catch {
+    return null
+  }
+}
+
+async function downscale(buf: Buffer): Promise<string | null> {
+  try {
     const jpeg = await sharp(buf, { limitInputPixels: 50_000_000 })
       .rotate()
       .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
@@ -70,11 +93,7 @@ export async function POST(req: NextRequest) {
   const ai = getGemini()
   if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })
 
-  // Global daily budget breaker — admin-only surface, so one shared bucket.
-  const gate = await rateLimit('admin-ai-review', 'global', DAILY_BUDGET, '1 d', { strict: true })
-  if (!gate.success) return NextResponse.json({ error: 'budget_exhausted', message: `Daily AI review budget (${DAILY_BUDGET}) is used up — it resets tomorrow.` }, { status: 429 })
-
-  let body: { reportId?: string }
+  let body: { reportId?: string; force?: boolean }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
   const reportId = String(body.reportId || '').trim()
   if (!reportId) return NextResponse.json({ error: 'missing_report_id' }, { status: 400 })
@@ -85,9 +104,25 @@ export async function POST(req: NextRequest) {
       id: true, reason: true, detail: true, severity: true, status: true, createdAt: true,
       listingId: true, conversationId: true, reporterProfileId: true, targetProfileId: true, targetSellerId: true,
       sellerResponse: true, sellerRespondedAt: true, appealNote: true, appealImages: true, appealedAt: true,
+      aiAnalysis: true, aiAnalyzedAt: true, lastMessageAt: true,
     },
   })
   if (!report) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
+  // Cached analysis (free) unless forced or the thread moved since it was produced —
+  // re-opening a case doesn't silently re-spend the daily budget.
+  if (!body.force && report.aiAnalysis && report.aiAnalyzedAt) {
+    const stale = report.lastMessageAt && report.lastMessageAt > report.aiAnalyzedAt
+    if (!stale) {
+      try {
+        return NextResponse.json({ ...JSON.parse(report.aiAnalysis), cached: true, analyzedAt: report.aiAnalyzedAt.toISOString() })
+      } catch { /* corrupt cache → fall through to a fresh run */ }
+    }
+  }
+
+  // Global daily budget breaker — admin-only surface, so one shared bucket.
+  const gate = await rateLimit('admin-ai-review', 'global', DAILY_BUDGET, '1 d', { strict: true })
+  if (!gate.success) return NextResponse.json({ error: 'budget_exhausted', message: `Daily AI review budget (${DAILY_BUDGET}) is used up — it resets tomorrow.` }, { status: 429 })
 
   // ── Evidence gathering (all server-side, display names only — no phone/email) ──
   const listing = report.listingId
@@ -139,11 +174,26 @@ export async function POST(req: NextRequest) {
     ? await db.profile.findUnique({ where: { id: report.reporterProfileId }, select: { displayName: true, trustScore: true, falseReportStrikes: true, createdAt: true } })
     : null
 
-  // ── Images: up to 2 total as inlineData. Appeals prefer the appeal proof photos. ──
+  // ── Dispute-case thread: both parties' statements + admin mediation, in order. ──
+  const thread = await db.disputeMessage.findMany({
+    where: { reportId: report.id },
+    orderBy: { createdAt: 'asc' },
+    take: 60,
+    select: { senderRole: true, body: true, images: true, createdAt: true },
+  })
+
+  // ── Images: up to MAX_IMAGES as inlineData. Dispute evidence is primary (that's
+  // what the parties submitted to be judged), then appeal proof, then listing photos.
   const listingImages = parseImages(listing?.images)
   const appealImages = parseImages(report.appealImages)
-  const candidates = report.appealedAt ? [...appealImages, ...listingImages] : [...listingImages, ...appealImages]
+  const evidencePaths = thread.flatMap((m) => parseImages(m.images)).filter((p) => !p.startsWith('http'))
   const inlineImages: string[] = []
+  for (const path of evidencePaths) {
+    if (inlineImages.length >= MAX_IMAGES) break
+    const b64 = await downloadInline(path)
+    if (b64) inlineImages.push(b64)
+  }
+  const candidates = report.appealedAt ? [...appealImages, ...listingImages] : [...listingImages, ...appealImages]
   for (const url of candidates) {
     if (inlineImages.length >= MAX_IMAGES) break
     const b64 = await fetchInline(url)
@@ -207,6 +257,15 @@ export async function POST(req: NextRequest) {
     ].join('\n'))
   }
 
+  if (thread.length) {
+    const roleLabel: Record<string, string> = { reporter: 'Reporter', respondent: 'Reported party', admin: 'eno.vn moderator', system: 'System' }
+    const lines = thread.map((m) => {
+      const imgs = parseImages(m.images).length
+      return `${roleLabel[m.senderRole] || 'System'} (${m.createdAt.toISOString().slice(0, 10)}): ${m.body.slice(0, 600)}${imgs ? ` [+${imgs} evidence photo(s)]` : ''}`
+    })
+    sections.push(`DISPUTE CASE THREAD (statements + evidence both parties submitted for judgment, oldest first)\n${lines.join('\n')}`)
+  }
+
   if (convo && convo.messages.length) {
     const lines = [...convo.messages].reverse().map((m) => {
       const who = m.senderProfileId === convo.buyerProfileId ? 'Buyer' : 'Seller'
@@ -221,7 +280,7 @@ export async function POST(req: NextRequest) {
     sections.push('CONVERSATION\nNo conversation between the parties is on record.')
   }
 
-  sections.push(`ATTACHED IMAGES\n${inlineImages.length ? `${inlineImages.length} photo(s) attached (${report.appealedAt && appealImages.length ? 'appeal proof first, then listing' : 'listing'} photos).` : 'None available.'}`)
+  sections.push(`ATTACHED IMAGES\n${inlineImages.length ? `${inlineImages.length} photo(s) attached (${evidencePaths.length ? 'dispute evidence first, then ' : ''}${report.appealedAt && appealImages.length ? 'appeal proof, then listing' : 'listing'} photos).` : 'None available.'}`)
 
   const prompt = `You are a neutral trust-&-safety adjudicator for eno.vn, a classifieds marketplace in Vietnam. Content may be English or Vietnamese — quote evidence in its ORIGINAL language.
 
@@ -239,7 +298,7 @@ Watch for BOTH directions:
 Rules: weigh ONLY the provided evidence; never invent facts; every "quote" in keyEvidence must be VERBATIM from the material above (or describe exactly what an attached image shows, source "images"); explicitly list what is MISSING that would firm up the call; set confidence low when evidence is thin or one-sided.
 
 Return ONLY JSON:
-{"outcome":"confirm"|"dismiss"|"abusive","severity":"minor"|"moderate"|"severe"|null,"confidence":0..1,"reasoning":[up to 5 short bullets],"keyEvidence":[{"source":"conversation"|"listing"|"images"|"report"|"seller_response","quote":"..."}],"counterpoints":[up to 3 bullets for the opposite reading],"missing":[what would firm this up]}
+{"outcome":"confirm"|"dismiss"|"abusive","severity":"minor"|"moderate"|"severe"|null,"confidence":0..1,"reasoning":[up to 5 short bullets],"keyEvidence":[{"source":"conversation"|"listing"|"images"|"report"|"seller_response"|"dispute_thread","quote":"..."}],"counterpoints":[up to 3 bullets for the opposite reading],"missing":[what would firm this up]}
 
 EVIDENCE:
 
@@ -309,7 +368,7 @@ ${sections.join('\n\n')}`
     .map((e) => ({ source: SOURCES.find((s) => s === e.source) ?? 'report', quote: e.quote.trim().slice(0, 300) }))
     .slice(0, 5)
 
-  return NextResponse.json({
+  const result = {
     outcome,
     severity,
     confidence,
@@ -317,5 +376,14 @@ ${sections.join('\n\n')}`
     keyEvidence,
     counterpoints: strList(parsed.counterpoints, 3),
     missing: strList(parsed.missing, 4, 200),
-  })
+  }
+
+  // Cache on the case — reopening the room shows the analysis for free; a moved
+  // thread (lastMessageAt newer) invalidates it on the next request. Best-effort.
+  await db.report.update({
+    where: { id: reportId },
+    data: { aiAnalysis: JSON.stringify(result), aiAnalyzedAt: new Date() },
+  }).catch(() => {})
+
+  return NextResponse.json(result)
 }
