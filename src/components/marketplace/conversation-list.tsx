@@ -29,16 +29,16 @@ export function ConversationList() {
   const filtered = useMemo(() => {
     if (!convos) return convos
     const q = query.trim().toLowerCase()
-    const base = q
+    // Stable newest-first order (`convos` is already recency-sorted). We deliberately
+    // do NOT re-sort by unread/active: doing so made the clicked thread jump to the
+    // top of the list (and an unread thread jump down the instant opening it marked it
+    // read). Unread threads are already unmistakable via the blue rail + count badge +
+    // accent background, so opening a conversation now leaves the list order untouched —
+    // only genuinely new activity (a fresh message bumping recency) reorders it.
+    return q
       ? convos.filter((c) => `${c.counterpart.name} ${c.listingTitle} ${c.lastMessageText ?? ''}`.toLowerCase().includes(q))
       : convos
-    // Unread threads float to the top (newest first within each group — `convos` is
-    // already newest-first, and Array.sort is stable in modern engines). The OPEN
-    // thread counts as "top" too, so it doesn't jump down the moment opening it marks
-    // it read (it re-sorts to its natural spot only after you leave it).
-    const top = (c: (typeof base)[number]) => (c.unread > 0 || c.id === activeId ? 0 : 1)
-    return [...base].sort((a, b) => top(a) - top(b))
-  }, [convos, query, activeId])
+  }, [convos, query])
 
   return (
     <div className="flex h-full flex-col">
