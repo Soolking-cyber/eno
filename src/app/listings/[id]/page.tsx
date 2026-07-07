@@ -14,7 +14,6 @@ import { brandIconPath } from '@/lib/brand-icons'
 import {
   MapPin,
   AlertTriangle,
-  Building2,
   ShieldCheck,
   Heart,
   Eye,
@@ -24,12 +23,17 @@ import {
 import { RelatedListings } from '@/components/marketplace/related-listings'
 import { RecentlyViewedRail } from '@/components/marketplace/recently-viewed-rail'
 import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
-import { TrustScore } from '@/components/marketplace/trust-score'
 import { Price } from '@/components/marketplace/price'
 import { Tr } from '@/context/language-context'
 import { LocalizedTitle, LocalizedText, PostedAgo } from '@/components/marketplace/listing-content'
 import { cachedTranslations } from '@/lib/translate'
-import { cn, getInitials } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { PdpSellerCard } from '@/components/marketplace/pdp-seller-card'
+import { ReviewsPreview } from '@/components/marketplace/reviews-preview'
+import { SameSellerShelf } from '@/components/marketplace/same-seller-shelf'
+import { ProtectionsRow } from '@/components/marketplace/protections-row'
+import { DropCountdown } from '@/components/marketplace/drop-countdown'
+import { sellerMetrics, topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
@@ -146,13 +150,28 @@ export default async function ListingPage({ params }: Props) {
   // enforcement columns are @ignore'd in Prisma until the migration runs (it
   // returns good_standing pre-migration). One parallel batch → no added latency,
   // and it only runs on ISR regen; enforcement transitions revalidate this path.
-  const [i18n, brand, ownerEnforcement] = await Promise.all([
+  // Same batch also warms three CHEAP, ISR-cached seller reads for the enriched
+  // seller area (all single-seller, indexed): top-2 verified-first reviews + denorm
+  // avg/count, up to 10 other active listings from this seller (card projection),
+  // and the seller's 90d conversation count — the honest denominator behind the
+  // responsiveness bucket (Seller.responseRate defaults to 100 and lies without it).
+  const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000
+  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90] = await Promise.all([
     cachedTranslations([listing.title, listing.description, listing.location]),
     listing.brandSlug
       ? db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true, logoPath: true } })
       : Promise.resolve(null),
     rawListing.seller.ownerId ? getEnforcement(rawListing.seller.ownerId) : Promise.resolve(null),
+    topSellerReviews(listing.sellerId, 2, { total: listing.seller.reviewCount, avg: listing.seller.rating }),
+    sameSellerListings(listing.sellerId, listing.id, 10),
+    db.conversation.count({
+      where: { sellerId: listing.sellerId, createdAt: { gte: new Date(Date.now() - NINETY_DAYS_MS) } },
+    }),
   ])
+  // Honest, decomposed seller display bundle (raw responseRate never leaves here —
+  // only the suppressed/bucketed label rides into the client SellerCard).
+  const sellerMetricsBundle = sellerMetrics(listing.seller, convoCount90)
+  const sellerHref = `/sellers/${listing.sellerId}`
   // Caution line for throttled/held/suspended sellers (warned is notice-only, never
   // public). Held/suspended pages are usually pulled (404) — direct-link stragglers
   // still get the stronger wording.
@@ -160,9 +179,6 @@ export default async function ListingPage({ params }: Props) {
     ownerEnforcement && (ownerEnforcement.state === 'throttled' || ownerEnforcement.state === 'held' || ownerEnforcement.state === 'suspended')
       ? ownerEnforcement.state
       : null
-
-  const initials = getInitials(listing.seller.name)
-    .toUpperCase()
 
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []
   // Structured numeric specs (vehicles) — rendered first in Details, with units.
@@ -367,6 +383,7 @@ export default async function ListingPage({ params }: Props) {
                 <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">
                   {dropPercent(listing.prevPrice, listing.price)}
                 </span>
+                <DropCountdown expiresAt={listing.dropExpiresAt} />
               </>
             )}
             {listing.urgent && (
@@ -419,8 +436,12 @@ export default async function ListingPage({ params }: Props) {
             contact column — on mobile the stack reads price → seller → contact →
             map (ux-24) while ≥lg the grid restores map under the description. */}
         <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-x-10">
-          {/* LEFT (row 1): description + details */}
+          {/* LEFT (row 1): protections strip + description + details. The strip is
+              the first left-column child so on MOBILE (single column) it lands right
+              after the header's price/highlights and immediately before the
+              Description; ≥lg it sits under the gallery at the head of the copy. */}
           <div className="lg:col-span-7 flex flex-col gap-8">
+            <ProtectionsRow />
             <div className="space-y-2">
               <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
               <p className="whitespace-pre-line text-[15px] leading-relaxed text-body"><LocalizedText text={listing.description} i18n={i18n[listing.description]} /></p>
@@ -462,6 +483,7 @@ export default async function ListingPage({ params }: Props) {
                     <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">
                       {dropPercent(listing.prevPrice, listing.price)}
                     </span>
+                    <DropCountdown expiresAt={listing.dropExpiresAt} />
                   </>
                 )}
                 {listing.urgent && (
@@ -479,35 +501,27 @@ export default async function ListingPage({ params }: Props) {
                 <p className="-mt-2.5 hidden items-center gap-2 text-xs text-muted-foreground lg:flex">{socialProof}</p>
               )}
 
-              {/* Seller identity + trust in ONE cohesive block right under the price
-                  (single trust badge — no duplicate shields). The block links to the
-                  storefront; "How trust works" is a quiet secondary link. */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-3">
-                  <Link href={`/sellers/${listing.sellerId}`} className="group flex min-w-0 flex-1 items-center gap-3 cursor-pointer">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">
-                      {initials}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="truncate text-sm font-bold text-foreground group-hover:underline">{listing.seller.name}</span>
-                        {listing.seller.isBusiness && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-accent-foreground">
-                            <Building2 className="h-3 w-3" /> <Tr text="Business" />
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                  {/* The badge IS the "how trust works" link — no separate text link. */}
-                  <TrustScore score={listing.seller.trustScore} variant="mini" size="sm" href="/trust" />
-                </div>
-                {listing.seller.responseRate >= 80 && listing.seller.responseTime && (
-                  <p className="pl-14 text-[11px] text-muted-foreground">
-                    <Tr text={`Usually replies ${listing.seller.responseTime}`} />
-                  </p>
-                )}
-
+              {/* Seller identity + honest trust metrics (shared SellerCard). "Chat now"
+                  scrolls to the composer below; "View shop" opens the storefront.
+                  Directly beneath: up to two verified-first reviews + the seller avg
+                  (renders nothing when the seller has no reviews yet). */}
+              <div className="space-y-4">
+                <PdpSellerCard
+                  seller={{
+                    id: listing.seller.id,
+                    name: listing.seller.name,
+                    avatarColor: listing.seller.avatarColor,
+                    isBusiness: listing.seller.isBusiness,
+                  }}
+                  metrics={sellerMetricsBundle}
+                  storefrontHref={sellerHref}
+                />
+                <ReviewsPreview
+                  reviews={reviewsPreview.reviews}
+                  total={reviewsPreview.total}
+                  avg={reviewsPreview.avg}
+                  sellerHref={sellerHref}
+                />
               </div>
 
               {/* Unified contact + offer (auth-gated; number never in this payload).
@@ -547,6 +561,11 @@ export default async function ListingPage({ params }: Props) {
             </p>
           </div>
         </div>
+
+        {/* More from THIS seller (server-fetched cards) — renders nothing when the
+            seller has fewer than two other active listings. Sits above the broader
+            same-category shelf so a buyer sees the seller's own range first. */}
+        <SameSellerShelf listings={moreFromSeller} sellerHref={sellerHref} sellerName={listing.seller.name} />
 
         {/* More like this — same-category listings (client-fetched, ISR-safe) */}
         <RelatedListings listingId={listing.id} categorySlug={rawListing.category.slug} />

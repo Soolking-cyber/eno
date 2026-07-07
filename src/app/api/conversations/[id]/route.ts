@@ -18,7 +18,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     select: {
       id: true, buyerProfileId: true, sellerProfileId: true, buyerUnread: true, sellerUnread: true,
       listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true } },
-      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true } },
+      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
       messages: { orderBy: { createdAt: 'asc' }, select: { id: true, senderProfileId: true, body: true, createdAt: true, kind: true, offerAmount: true, offerStatus: true } },
     },
@@ -42,9 +42,32 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // Counterpart's public storefront id (so the chat header name can deep-link to
   // their seller/business page). As a buyer that's the listing's seller directly;
   // as the seller it's the buyer's own storefront, if they have one.
-  const counterpartSellerId = iAmBuyer
-    ? convo.seller.id
-    : (await db.seller.findUnique({ where: { ownerId: convo.buyerProfileId }, select: { id: true } }))?.id ?? null
+  // When I'm the seller, the counterpart is the buyer's own storefront (if they have
+  // one) — fetch its trust fields in the same lookup that resolves the deep-link id.
+  const buyerStorefront = iAmBuyer
+    ? null
+    : await db.seller.findUnique({
+        where: { ownerId: convo.buyerProfileId },
+        select: { id: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true },
+      })
+  const counterpartSellerId = iAmBuyer ? convo.seller.id : (buyerStorefront?.id ?? null)
+
+  // Trust meta for the chat header (under the counterpart's name). Only present when
+  // the counterpart has a seller identity. `isNew` = account <30d old with no reviews
+  // yet → the client shows a neutral "New user" chip instead of a positive badge
+  // (asymmetric honesty). The raw responseRate number is intentionally NOT sent — the
+  // response bucket needs a per-thread 90d conversation count we don't add to this
+  // frequently-polled endpoint, so the client renders only score/tenure/new state.
+  const trustSrc = iAmBuyer ? convo.seller : buyerStorefront
+  const NEW_ACCOUNT_MS = 30 * 24 * 60 * 60 * 1000
+  const counterpartTrust = trustSrc
+    ? {
+        trustScore: trustSrc.trustScore,
+        trustTier: trustSrc.trustTier,
+        memberSinceYear: new Date(trustSrc.memberSince).getFullYear(),
+        isNew: Date.now() - new Date(trustSrc.memberSince).getTime() < NEW_ACCOUNT_MS && trustSrc.reviewCount === 0,
+      }
+    : null
 
   // Buyer side only: has this conversation already produced a review? One indexed
   // exists-check (unique on Review.conversationId) powers the post-transaction
@@ -70,8 +93,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     // Buyer already reviewed this conversation → the thread UIs hide the review prompt.
     hasReviewed,
     counterpart: iAmBuyer
-      ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId }
-      : { name: convo.buyer.displayName || maskEmailHandle(convo.buyer.email) || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId },
+      ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust }
+      : { name: convo.buyer.displayName || maskEmailHandle(convo.buyer.email) || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust },
     messages: convo.messages.map((m) => ({ id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString(), kind: m.kind, offerAmount: m.offerAmount, offerStatus: m.offerStatus })),
   })
 }

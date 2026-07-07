@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, BadgeCheck, ChevronLeft, Star, CalendarDays } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, ChevronLeft } from 'lucide-react'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
@@ -10,12 +10,11 @@ import { Footer } from '@/components/marketplace/footer'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
-import { TrustScore } from '@/components/marketplace/trust-score'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
-import { RatingValue } from '@/components/marketplace/rating-value'
+import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
+import { sellerMetrics } from '@/lib/seller-metrics'
 import { getEnforcement } from '@/lib/enforcement'
-import { getInitials } from '@/lib/utils'
 
 // Shared storefront body — rendered by BOTH the canonical clean-handle URL
 // (src/app/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
@@ -30,6 +29,7 @@ export const loadSeller = cache((id: string) =>
     include: {
       listings: { where: { verified: true, status: 'active' }, orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
       handle: { select: { handle: true } }, // public shopname → the shareable eno.vn/<name> link
+      owner: { select: { accountType: true } }, // → SellerCard's Business chip
     },
   }),
 )
@@ -61,20 +61,15 @@ const loadReviews = cache(async (sellerId: string) => {
   }
 })
 
-function Stat({ icon, value, label }: { icon: React.ReactNode; value: React.ReactNode; label: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      {icon && <span className="shrink-0 text-accent-foreground">{icon}</span>}
-      <div className="leading-tight">
-        <div className="text-sm font-bold text-foreground">{value}</div>
-        <div className="text-[11px] text-ink-4">{label}</div>
-      </div>
-    </div>
-  )
-}
-
 export async function SellerStorefront({ id }: { id: string }) {
-  const [seller, reviews] = await Promise.all([loadSeller(id), loadReviews(id)])
+  // 90d conversation count → the responsiveness bucket's honesty gate (suppressed
+  // below RESPONSE_MIN_CONVOS so a fresh seller never shows a fake "100%"). Same
+  // window + query shape the trust engine uses; one cheap indexed count, batched.
+  const [seller, reviews, convoCount] = await Promise.all([
+    loadSeller(id),
+    loadReviews(id),
+    db.conversation.count({ where: { sellerId: id, createdAt: { gte: new Date(Date.now() - 90 * 86400000) } } }),
+  ])
   if (!seller) notFound()
 
   // Owner enforcement state (Phase 2 caution line). The columns are @ignore'd in
@@ -87,9 +82,23 @@ export async function SellerStorefront({ id }: { id: string }) {
       ? enforcement.state
       : null
 
-  const initials = getInitials(seller.name)
   const listings = await localizeListingTitles(seller.listings.map(serializeListing))
-  const memberYear = new Date(seller.memberSince).getFullYear()
+
+  // Honest, decomposed display metrics for the shared SellerCard (raw responseRate
+  // stays server-side; only the bucketed label escapes). Trust score / rating /
+  // member-year now ride in the card's metrics strip, so the old flat Stat grid is
+  // retired to avoid duplicating the same three signals.
+  const metrics = sellerMetrics(seller, convoCount)
+  const cardSeller = {
+    id: seller.id,
+    name: seller.name,
+    avatarColor: seller.avatarColor,
+    avatarUrl: seller.avatarUrl,
+    isBusiness: seller.owner?.accountType === 'business',
+  }
+  // Anchor "Chat" to the newest active listing (listings already ordered postedAt
+  // desc). Null when there's nothing active to talk about → button self-omits.
+  const chatListingId = seller.listings[0]?.id ?? null
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
@@ -102,35 +111,35 @@ export async function SellerStorefront({ id }: { id: string }) {
           </Link>
         </div>
 
-        {/* Seller header */}
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          {seller.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={seller.avatarUrl} alt="" className="h-20 w-20 shrink-0 rounded-full object-cover" />
-          ) : (
-            <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-accent text-2xl font-bold text-accent-foreground">
-              {initials}
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="h-title text-foreground">{seller.name}</h1>
-              {seller.handle && <HandleChip handle={seller.handle.handle} />}
-              {seller.ownerId && (
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
-                  <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
-                </span>
-              )}
+        {/* Seller header — shared SellerCard (identity + trust + honest metrics
+            strip + the primary "Chat" CTA that was previously ABSENT here). The
+            storefront variant omits the "View shop" link back to itself. Storefront-
+            only bits SellerCard doesn't carry (public @handle, active-account pill,
+            bio, the "report a business" control) sit alongside it. */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="max-w-md">
+              <StorefrontSellerCard
+                seller={cardSeller}
+                metrics={metrics}
+                chatListingId={chatListingId}
+                listingCount={listings.length}
+              />
             </div>
-            {seller.reviewCount > 0 && (
-              <div className="mt-1 text-sm text-ink-4">
-                {seller.reviewCount} <Tr text="completed reviews" />
+            {(seller.handle || seller.ownerId) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {seller.handle && <HandleChip handle={seller.handle.handle} />}
+                {seller.ownerId && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
+                    <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
+                  </span>
+                )}
               </div>
             )}
-            {seller.bio && <p className="mt-2 max-w-2xl text-sm text-body"><Tr text={seller.bio} /></p>}
-            <div className="mt-3">
-              <ReportButton sellerId={seller.id} />
-            </div>
+            {seller.bio && <p className="max-w-2xl text-sm text-body"><Tr text={seller.bio} /></p>}
+          </div>
+          <div className="shrink-0">
+            <ReportButton sellerId={seller.id} />
           </div>
         </div>
 
@@ -148,17 +157,6 @@ export async function SellerStorefront({ id }: { id: string }) {
               : <Tr text="This seller's account is on hold — don't send money or deposits" />}
           </p>
         )}
-
-        {/* Trust stats — flat (monolith): no box, separation by spacing. Only
-            real signals (response rate/time were placeholder values → removed
-            until computed from actual conversations). Rating shows once earned. */}
-        <div className={`mt-6 grid gap-x-4 gap-y-5 ${seller.reviewCount > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          <Stat icon={null} value={<TrustScore score={seller.trustScore} size="md" href="/trust" />} label={<Tr text="Trust score" />} />
-          {seller.reviewCount > 0 && (
-            <Stat icon={<Star className="h-4 w-4" />} value={<><RatingValue value={seller.rating} />★</>} label={<Tr text="Rating" />} />
-          )}
-          <Stat icon={<CalendarDays className="h-4 w-4" />} value={`${memberYear}`} label={<Tr text="Member since" />} />
-        </div>
 
         {/* Reviews */}
         {reviews.length > 0 && (
@@ -188,7 +186,7 @@ export async function SellerStorefront({ id }: { id: string }) {
         {listings.length > 0 && (
           <section className="mt-10 space-y-4">
             <h2 className="h-section text-foreground"><Tr text="Listings by" /> {seller.name} ({listings.length})</h2>
-            <SellerListings listings={listings} searchable />
+            <SellerListings listings={listings} searchable sortable />
           </section>
         )}
       </main>

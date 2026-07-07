@@ -47,6 +47,8 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
+import { TrendingSearches } from './trending-searches'
+import { useTrendingSearches } from '@/hooks/use-trending-searches'
 import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 import { ListingCardSkeleton } from './listing-card-skeleton'
@@ -351,6 +353,10 @@ export function ListingsExplorer({
   const heroSuggestItems = buildSuggestItems(landingQuery, heroSuggest.brands, heroSuggest.categories, heroSuggest.listings)
   const [heroActiveIdx, setHeroActiveIdx] = useState(-1)
   useEffect(() => { setHeroActiveIdx(-1) }, [landingQuery])
+
+  // Trending searches for the empty-focus hero dropdown (shared hook/component with
+  // the header). Fetched only while the panel is showing an empty query.
+  const trending = useTrendingSearches(showSuggestions && landingQuery.trim().length < 2)
 
   // One pick handler for the hero dropdown (mouse + keyboard): the query row runs
   // the raw search; a brand opens its facets (dominant category resolves via the
@@ -887,6 +893,16 @@ export function ListingsExplorer({
             category: activeCategory !== 'all' ? activeCategory : undefined,
             contentIds: listingsData.listings.slice(0, 10).map((l) => l.id),
           })
+          // Log the committed query to the trending counters (fire-and-forget,
+          // keepalive so it survives a navigation; fails silently).
+          try {
+            void fetch('/api/search/trending', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ q: term }),
+              keepalive: true,
+            }).catch(() => {})
+          } catch { /* fail-open */ }
         }
       }
     }
@@ -1178,7 +1194,7 @@ export function ListingsExplorer({
     // it needs recents/locations or the Popular fallback (categories, already
     // client-side). With nothing to show the pill stays a plain pill.
     const heroPanelOpen = showSuggestions && (
-      landingQuery.trim().length >= 2 || recentSearches.length > 0 || recentLocations.length > 0 || categories.length > 0
+      landingQuery.trim().length >= 2 || recentSearches.length > 0 || recentLocations.length > 0 || categories.length > 0 || trending.length > 0
     )
     return (
       <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pt-2 pb-5 sm:pt-3 sm:pb-8">
@@ -1353,6 +1369,14 @@ export function ListingsExplorer({
                             </div>
                           </div>
                         )}
+                        {/* Trending searches — hottest committed queries site-wide,
+                            between the user's own history and the Popular category
+                            fallback; hidden when unavailable. */}
+                        <TrendingSearches
+                          items={trending}
+                          variant="hero"
+                          onPick={(term) => { setLandingQuery(term); handleLandingSearch(term) }}
+                        />
                         {/* Popular — seeds a first-visit dropdown (no recents yet) from
                             the demand-ordered categories already on the client; never
                             an empty white slab, never an extra fetch. */}

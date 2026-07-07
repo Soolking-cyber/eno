@@ -15,6 +15,7 @@ import { haptic } from '@/lib/haptics'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
 import { ReportButton } from '@/components/marketplace/report-button'
+import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 import { fmtTime, dayKey } from '@/lib/dates'
@@ -26,7 +27,14 @@ type Thread = {
   iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
   hasReviewed?: boolean // buyer side: this conversation already produced a review → no prompt
   listing: { id: string; title: string; image: string | null; price?: number; negotiable?: boolean; availabilityConfirmedAt?: string | null; status?: string }
-  counterpart: { name: string; avatarColor: string; avatarUrl: string | null; sellerId?: string | null }
+  counterpart: {
+    name: string
+    avatarColor: string
+    avatarUrl: string | null
+    sellerId?: string | null
+    // Trust meta for the header row (only when the counterpart has a seller identity).
+    trust?: { trustScore: number; trustTier: string; memberSinceYear: number; isNew: boolean } | null
+  }
   messages: Msg[]
 }
 
@@ -382,7 +390,18 @@ export default function ThreadPage() {
               ) : (
                 <div className="truncate text-sm font-bold text-foreground">{thread?.counterpart.name || '…'}</div>
               )}
-              {thread && <Link href={`/listings/${thread.listing.id}`} className="truncate text-xs text-accent-foreground hover:underline">{thread.listing.title}</Link>}
+              {thread?.counterpart.trust && (
+                <div className="mt-0.5">
+                  <TrustMeta
+                    trustScore={thread.counterpart.trust.trustScore}
+                    trustTier={thread.counterpart.trust.trustTier}
+                    memberSinceYear={thread.counterpart.trust.memberSinceYear}
+                    isNew={thread.counterpart.trust.isNew}
+                    responseBucket={{ key: null, en: '', vi: '' }}
+                  />
+                </div>
+              )}
+              {thread && <Link href={`/listings/${thread.listing.id}`} className="block truncate text-xs text-accent-foreground hover:underline">{thread.listing.title}</Link>}
             </div>
             {/* Report this conversation (harassment / scam in chat) — the report links
                 the thread so an admin can read the exchange. */}

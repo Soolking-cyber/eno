@@ -61,8 +61,10 @@ export default function ListingLoading() {
 
         {/* Content + sticky contact */}
         <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-x-10">
-          {/* LEFT (row 1): description + details */}
+          {/* LEFT (row 1): protections strip + description + details */}
           <div className="lg:col-span-7 flex flex-col gap-8">
+            {/* ProtectionsRow trust strip (rounded-xl px-3.5 py-2.5 + h-5 icon) */}
+            <Skeleton className="h-11 w-full rounded-xl" />
             <div className="space-y-2">
               <Skeleton className="h-6 w-32" />
               <Skeleton className="h-4 w-full" />
@@ -90,13 +92,20 @@ export default function ListingLoading() {
               {/* Price — desktop copy (text-3xl) */}
               <Skeleton className="hidden h-9 w-40 lg:block" />
 
-              {/* Seller identity + trust badge */}
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-11 w-11 shrink-0 rounded-full" />
-                <div className="min-w-0 flex-1">
-                  <Skeleton className="h-4 w-32" />
+              {/* Seller card — avatar + name/trust chip + honest metrics strip, then
+                  the twin Chat / View-shop buttons (matches <SellerCard variant=pdp>) */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-40 max-w-full" />
+                    <Skeleton className="h-3 w-52 max-w-full" />
+                  </div>
                 </div>
-                <Skeleton className="h-6 w-14 rounded-full" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-10 flex-1 rounded-xl" />
+                  <Skeleton className="h-10 flex-1 rounded-xl" />
+                </div>
               </div>
 
               {/* ContactComposer — offer chip, 2-row message box, send, footnote */}

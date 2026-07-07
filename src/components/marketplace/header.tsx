@@ -15,6 +15,8 @@ import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
+import { TrendingSearches } from './trending-searches'
+import { useTrendingSearches } from '@/hooks/use-trending-searches'
 import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 import { toast } from 'sonner'
@@ -78,7 +80,10 @@ export function Header() {
   // The window is "open" (morph + panel) when focused with EITHER history to show
   // (empty query) OR live instant-match results (≥2 chars). Otherwise it stays a
   // normal pill (no flat-bottom).
-  const suggestOpen = showSuggestions && searchVal.trim().length === 0 && (recentSearches.length > 0 || recentLocations.length > 0)
+  // Trending searches — lazily fetched while the empty-focus panel is eligible, so a
+  // first-time visitor with no local history still gets a populated dropdown.
+  const trending = useTrendingSearches(showSuggestions && searchVal.trim().length === 0)
+  const suggestOpen = showSuggestions && searchVal.trim().length === 0 && (recentSearches.length > 0 || recentLocations.length > 0 || trending.length > 0)
   const instantOpen = showSuggestions && searchVal.trim().length >= 2
   const panelOpen = suggestOpen || instantOpen
 
@@ -308,6 +313,13 @@ export function Header() {
                       </div>
                     </div>
                   )}
+                  {/* Trending searches — hottest committed queries site-wide; hidden
+                      when unavailable. Shared component (mobile + desktop, header + hero). */}
+                  <TrendingSearches
+                    items={trending}
+                    variant="header"
+                    onPick={(term) => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
+                  />
                 </div>
               </>
             )}
