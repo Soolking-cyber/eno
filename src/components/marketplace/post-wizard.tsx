@@ -1120,7 +1120,7 @@ function Chips({ options, value, onPick }: { options: { value: string; label: st
 function Preview({ cover, title, price, priceUnit, area, categoryIcon, t }: { cover?: string; title: string; price: string; priceUnit: string; area: string; categoryIcon?: string; t: (vi: string, en: string) => string }) {
   return (
     <div className="w-full">
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-tint">
+      <div className="relative aspect-[6/7] w-full overflow-hidden rounded-xl bg-tint">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={cover} alt="" className="h-full w-full object-cover" />
