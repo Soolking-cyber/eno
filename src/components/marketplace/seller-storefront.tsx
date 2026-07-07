@@ -13,6 +13,7 @@ import { Tr } from '@/context/language-context'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
 import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
+import { StorefrontRails } from '@/components/marketplace/storefront-rails'
 import { sellerMetrics } from '@/lib/seller-metrics'
 import { getEnforcement } from '@/lib/enforcement'
 
@@ -157,6 +158,12 @@ export async function SellerStorefront({ id }: { id: string }) {
               : <Tr text="This seller's account is on hold — don't send money or deposits" />}
           </p>
         )}
+
+        {/* Auto-curated showcase rails (Shopee-style). Self-omit at ≤8 active
+            listings; above that, two ListingCard rails ("Mới đăng" postedAt-desc /
+            "Được quan tâm nhất" contactCount-desc) merchandise the shop above the
+            full grid. Derived from the already-loaded set — no extra query. */}
+        <StorefrontRails listings={listings} />
 
         {/* Reviews */}
         {reviews.length > 0 && (
