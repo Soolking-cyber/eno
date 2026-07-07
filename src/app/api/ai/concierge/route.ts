@@ -187,7 +187,25 @@ async function fallbackSearch(
   // The brand word is carried by the brandSlug filter — drop it from the text tokens
   // so "huawei watch" needs only "watch" in the searchText.
   const tokens = keywords(query).filter((t) => !f.brandSlug || !f.brandSlug.includes(t))
-  const and = (n: number) => tokens.slice(0, n).map((t) => ({ searchText: { contains: t } }))
+  // Match a token at a WORD BOUNDARY, not as a raw substring. A plain `contains: 'pen'`
+  // (LIKE '%pen%') matched "dependable", so "pen" surfaced a motorcycle; word-boundary
+  // matching keeps the real hits ("pen" → "pencil", "pens") and drops the buried-
+  // substring noise ("pen"→"dependable/open", "art"→"apartment"). A token is a word
+  // start iff it begins the blob OR follows a boundary char. fold() KEEPS punctuation,
+  // so the boundary isn't only a space — "scooter" lives in "e-scooter" and "(scooter)";
+  // a space-only test silently halved scooter recall. This BOUNDARY set reproduces a
+  // true `~ '(^|[^a-z0-9])tok'` regex exactly across the live table (verified per-token:
+  // pen 2→1, scooter 50→100, art 144→28). Prisma has no regex filter, and widening the
+  // shared fold() would ripple into phone/banned-word detection — so we enumerate here.
+  // (Vertex semantic search is the primary path; this is the free Postgres fallback.)
+  const BOUNDARY = [' ', '-', '/', '(', ',', '.', '&']
+  const wordMatch = (t: string): Prisma.ListingWhereInput => ({
+    OR: [
+      { searchText: { startsWith: t } },
+      ...BOUNDARY.map((b): Prisma.ListingWhereInput => ({ searchText: { contains: `${b}${t}` } })),
+    ],
+  })
+  const and = (n: number) => tokens.slice(0, n).map(wordMatch)
   const cat = f.categorySlug ? { category: { slug: f.categorySlug } } : null
 
   // rungs[i].exact — only the full token set (with or without the guessed category)
