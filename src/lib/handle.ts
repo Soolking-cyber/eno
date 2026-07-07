@@ -10,12 +10,12 @@ import { HANDLE_RE, validateHandle, slugifyHandle } from './handle-format'
 
 export { HANDLE_RE, validateHandle, slugifyHandle, isReservedHandle } from './handle-format'
 
-/** First free variant of `base`: base, base2 … base99, then base_<4 random digits>.
- *  One indexed IN-query instead of N lookups; the caller's CREATE is still the only
- *  authority (a concurrent claim just makes it retry). */
+/** First free variant of `base`: base, base1 … base98, then base_<4 random digits>
+ *  ("alex" taken → "alex1"). One indexed IN-query instead of N lookups; the caller's
+ *  CREATE is still the only authority (a concurrent claim just makes it retry). */
 export async function generateUniqueHandle(base: string): Promise<string> {
   const b = slugifyHandle(base)
-  const candidates = [b, ...Array.from({ length: 98 }, (_, i) => `${b.slice(0, 28)}${i + 2}`)]
+  const candidates = [b, ...Array.from({ length: 98 }, (_, i) => `${b.slice(0, 28)}${i + 1}`)]
     .filter((c) => validateHandle(c) === null)
   const taken = new Set(
     (await db.handle.findMany({ where: { handle: { in: candidates } }, select: { handle: true } })).map((r) => r.handle),
@@ -86,6 +86,32 @@ export async function consolidateSellerHandle(
     if (profileHandle) await db.handle.delete({ where: { handle: profileHandle.handle } }).catch(() => {})
   } catch (e) {
     console.error('[handle] consolidate failed', { sellerId, profileId }, (e as Error).message)
+  }
+}
+
+/** Business → individual ("delete the business"): free the SHOP's business-name handle
+ *  and restore a PERSONAL handle on the profile. Prefers the exact display-name slug
+ *  ("Alex" → alex); if that's already taken, takes the first free numbered variant
+ *  (alex → alex1) — the user can still rename it in Settings. Mirror image of
+ *  consolidateSellerHandle. Best-effort; never throws. */
+export async function revertToPersonalHandle(
+  profileId: string,
+  sellerId: string | null | undefined,
+  displayName: string | null | undefined,
+): Promise<void> {
+  try {
+    // Free the shop's handle — the account is no longer a business.
+    if (sellerId) {
+      const shop = await db.handle.findUnique({ where: { sellerId }, select: { handle: true } })
+      if (shop) await db.handle.delete({ where: { handle: shop.handle } }).catch(() => {})
+    }
+    // Already holding a personal handle → nothing to restore.
+    const existing = await db.handle.findUnique({ where: { profileId }, select: { handle: true } })
+    if (existing) return
+    // Claim the name (or its first free numbered variant) back onto the profile.
+    await autoClaimHandle({ profileId }, displayName)
+  } catch (e) {
+    console.error('[handle] revert-to-personal failed', { profileId, sellerId }, (e as Error).message)
   }
 }
 

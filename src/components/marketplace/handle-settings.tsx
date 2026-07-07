@@ -10,18 +10,21 @@ import { HandleEditor } from './handle-editor'
 // payload stays untouched.
 export function HandleSettings() {
   const { tr } = useLanguage()
-  const [me, setMe] = useState<{ handle: string | null; shopHandle: string | null; sellerId: string | null } | null>(null)
+  const [me, setMe] = useState<{ handle: string | null; shopHandle: string | null; sellerId: string | null; accountType: string | null } | null>(null)
 
   useEffect(() => {
     let alive = true
     fetch('/api/me')
       .then((r) => r.json())
-      .then((d) => { if (alive && d.user) setMe({ handle: d.user.handle ?? null, shopHandle: d.user.shopHandle ?? null, sellerId: d.user.sellerId ?? null }) })
+      .then((d) => { if (alive && d.user) setMe({ handle: d.user.handle ?? null, shopHandle: d.user.shopHandle ?? null, sellerId: d.user.sellerId ?? null, accountType: d.user.accountType ?? null }) })
       .catch(() => {})
     return () => { alive = false }
   }, [])
 
   if (!me) return null
+  // The single handle lives on the SHOP only for a BUSINESS account; an individual
+  // (even one with a lingering storefront row) manages a personal handle.
+  const isBusiness = me.accountType === 'business' && !!me.sellerId
   return (
     <div className="space-y-5">
       <p className="text-sm leading-relaxed text-body">
@@ -30,8 +33,8 @@ export function HandleSettings() {
           'Tên định danh là liên kết công khai của bạn — chia sẻ eno.vn/ban ở bất cứ đâu.',
         )}
       </p>
-      {/* One handle per account: the shop's when they run a storefront, else personal. */}
-      {me.sellerId ? (
+      {/* One handle per account: the shop's for a business, else personal. */}
+      {isBusiness ? (
         <HandleEditor target="seller" initial={me.shopHandle} label={tr('Shop handle', 'Tên gian hàng')} />
       ) : (
         <HandleEditor target="profile" initial={me.handle} label={tr('Your handle', 'Tên của bạn')} />

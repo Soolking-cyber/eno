@@ -7,7 +7,7 @@ import { phoneTakenByOther } from '@/lib/phone-unique'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { parseAttributionCookie } from '@/lib/attribution'
 import { rateLimit } from '@/lib/ratelimit'
-import { consolidateSellerHandle } from '@/lib/handle'
+import { consolidateSellerHandle, revertToPersonalHandle } from '@/lib/handle'
 
 export const runtime = 'nodejs'
 
@@ -91,6 +91,12 @@ export async function POST(req: Request) {
     // (a business account gets a single shop handle, not two). Idempotent + best-effort.
     const s = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true } })
     if (s) await consolidateSellerHandle(s.id, s.name, profile.id)
+  } else {
+    // Switched to individual ("deleted" the business): drop the shop's business-name
+    // handle and fall back to a PERSONAL handle from the display name (numbered if the
+    // plain name is taken — "alex" → "alex1"). Keeps ONE handle per account.
+    const s = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
+    await revertToPersonalHandle(profile.id, s?.id ?? null, displayName)
   }
 
   // First-touch acquisition channel for THIS signup (from the eno_attr cookie set on
