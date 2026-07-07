@@ -12,7 +12,7 @@ import { formatMoneyFull, dropPercent } from '@/lib/vnd'
 // That single rule makes raise-then-drop mathematically worthless: the pre-raise
 // price stays in the 30-day window, so the "drop" is measured against it.
 //
-// A qualifying drop earns (a) the badge for 1 day and (b) at most ONE buyer
+// A qualifying drop earns (a) the badge for 3 days and (b) at most ONE buyer
 // notification per listing per 24h — and only when the new price undercuts the
 // lowest price buyers were EVER notified at by ≥10% (a monotonic ratchet that no
 // raise resets), so every ping a buyer receives is a genuinely better deal.
@@ -26,7 +26,7 @@ const DAY = 24 * 60 * 60 * 1000
 
 export const DROP = {
   WINDOW_MS: 30 * DAY,        // reference window: lowest offered price in 30 days
-  BADGE_MS: 1 * DAY,          // drop badge lifetime — after a day the cut just becomes the normal price
+  BADGE_MS: 3 * DAY,          // drop badge lifetime — after 3 days the cut just becomes the normal price
   MIN_PRICE: 50_000,          // ₫ floor — penny listings can't farm drop badges
   TYPO_FLOOR: 0.2,            // below 20% of ref = probable typo/giá ảo → no badge
   BAND_SPLIT: 5_000_000,      // ₫ — the % needed to qualify depends on price band
@@ -107,7 +107,7 @@ export async function priceChangeEffects(
   if (!qualifying) return { data: {}, audit, notify: null }
 
   // Progressive campaign (EU rule): further qualifying drops inside an active badge
-  // window keep the ORIGINAL anchor (cumulative % shown) and reset the 1-day clock.
+  // window keep the ORIGINAL anchor (cumulative % shown) and reset the 3-day clock.
   const badgeActive =
     current.previousPrice != null && current.priceDropAt != null && now - current.priceDropAt.getTime() < DROP.BADGE_MS
   const anchor = badgeActive ? current.previousPrice! : ref

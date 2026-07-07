@@ -11,10 +11,10 @@ export function safeParse<T>(value: string | null, fallback: T): T {
 }
 
 // Price-drop badge normalization: the struck-through anchor is exposed ONLY while
-// the badge is live — a qualifying drop within the last day and an anchor still
+// the badge is live — a qualifying drop within the last 3 days and an anchor still
 // above the current price. Everything else serializes to null, so clients never
 // have to reason about stale campaigns. Mirrors DROP.BADGE_MS in src/lib/price-drop.ts.
-const DROP_BADGE_MS = 1 * 24 * 60 * 60 * 1000
+const DROP_BADGE_MS = 3 * 24 * 60 * 60 * 1000
 function activeDropAnchor(previousPrice: number | null, priceDropAt: Date | null, price: number): number | null {
   if (previousPrice == null || !priceDropAt || previousPrice <= price) return null
   return Date.now() - priceDropAt.getTime() < DROP_BADGE_MS ? previousPrice : null
