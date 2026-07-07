@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
+import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { useSlideRouter } from './page-transitions'
 import { cn } from '@/lib/utils'
 
@@ -74,6 +75,11 @@ export function MobileNav() {
   const { navigate } = useSlideRouter()
   // Slide the bar down out of view on scroll-down, back up on scroll-up.
   const hidden = useHideOnScroll()
+  // Hide entirely while the on-screen keyboard is up: iOS lifts a fixed bottom bar
+  // ABOVE the keyboard, so it wedges between a chat composer and the keyboard. A
+  // typing user doesn't need the tabs (standard mobile pattern) — drop it so the
+  // input can sit flush above the keyboard.
+  const { open: keyboardOpen } = useVirtualKeyboard()
 
   // Don't apply the active-tab state until after mount. On a STATICALLY prerendered
   // page (the home feed), usePathname() in the build-time render can differ from the
@@ -109,8 +115,8 @@ export function MobileNav() {
       className={cn(
         'lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style: slide DOWN off-screen + fade out at the same rate on scroll-down;
-        // slide up + fade in on scroll-up.
-        hidden ? 'translate-y-full opacity-0' : 'translate-y-0 opacity-100',
+        // slide up + fade in on scroll-up. Also drop it while the keyboard is open.
+        hidden || keyboardOpen ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100',
       )}
     >
       {/* Fixed 64px tab row; the safe-area padding sits BELOW it (filled white) so
