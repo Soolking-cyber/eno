@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { PdpSellerCard } from '@/components/marketplace/pdp-seller-card'
 import { ReviewsPreview } from '@/components/marketplace/reviews-preview'
 import { SameSellerShelf } from '@/components/marketplace/same-seller-shelf'
+import { SoldListing } from '@/components/marketplace/sold-listing'
 import { ProtectionsRow } from '@/components/marketplace/protections-row'
 import { DropCountdown } from '@/components/marketplace/drop-countdown'
 import { sellerMetrics, topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
@@ -52,7 +53,7 @@ type Props = {
 // ISR: render on-demand, then cache the HTML at the global edge (the #1 SEO page,
 // served ~globally in tens of ms instead of a function+DB hit in Singapore per
 // view). Self-heals hourly; mutation routes call revalidatePath('/listings/<id>')
-// so an edit/sold/hidden/delete purges it immediately (a sold listing must 404).
+// so an edit/sold/hidden/delete purges it immediately (sold → the sold page, hidden → 404).
 // Content renders in the visitor's language CLIENT-side (LocalizedTitle + <Tr>),
 // same as the cards — so no per-request server translation forces it dynamic.
 export const revalidate = 2592000 // 30d — HIGH-cardinality route (one page per listing). Real edits/status/sold/moderation revalidate ON-DEMAND, so the only time-based regen is for off-listing changes (e.g. a seller renaming their storefront). A long 30d window keeps eventual freshness while cutting ISR writes hugely.
@@ -74,10 +75,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const listing = await getListing(id)
 
   // notFound() in generateMetadata (before any streaming/Suspense boundary) makes a
-  // missing/sold/hidden/unverified listing a REAL 404 instead of a soft-404 (200 +
+  // missing/hidden/held/unverified listing a REAL 404 instead of a soft-404 (200 +
   // not-found UI) — the root loading.tsx boundary otherwise flushes 200 before the
   // page's own notFound(). Mirrors the page's viewability guard exactly.
-  if (!listing || !listing.verified || listing.status !== 'active') notFound()
+  // SOLD is the ONE exception: it renders a dedicated "this item has been sold" page
+  // (not a 404), so here we return noindex metadata for it rather than notFound() — a
+  // sold URL shouldn't stay in search, but it's still a real, on-brand page.
+  if (!listing || !listing.verified || (listing.status !== 'active' && listing.status !== 'sold')) notFound()
+  if (listing.status === 'sold') {
+    return { title: `${listing.title} — Sold | eno.vn`, robots: { index: false, follow: true } }
+  }
 
   // Use the listing's SOURCE title (as posted) for all BAKED, shared output — the
   // <title> tab, OG tags, JSON-LD, share text. This page is static HTML shared across
@@ -127,10 +134,25 @@ export default async function ListingPage({ params }: Props) {
   const { id } = await params
   const rawListing = await getListing(id)
 
-  // Only publicly-live listings are viewable by direct URL; sold/hidden/held are
-  // pulled from public view (sellers manage them in their dashboard).
-  if (!rawListing || !rawListing.verified || rawListing.status !== 'active') {
+  // Only publicly-live listings get the full detail page; hidden/held/unverified are
+  // pulled from public view entirely (sellers manage them in their dashboard → 404).
+  if (!rawListing || !rawListing.verified || (rawListing.status !== 'active' && rawListing.status !== 'sold')) {
     notFound()
+  }
+
+  // Sold → a dedicated, on-brand "this item has been sold" page (not a dead 404):
+  // it names what sold and keeps the shopper moving (seller's other stock + category).
+  if (rawListing.status === 'sold') {
+    const sold = serializeListing(rawListing)
+    const moreFromSeller = await sameSellerListings(sold.sellerId, sold.id, 10)
+    return (
+      <SoldListing
+        listing={sold}
+        moreFromSeller={moreFromSeller}
+        sellerName={rawListing.seller.name}
+        sellerHref={`/sellers/${sold.sellerId}`}
+      />
+    )
   }
 
   const listing = serializeListing(rawListing)
