@@ -25,6 +25,18 @@ const subscribers = new Set<(s: KB) => void>()
 let wired = false
 let settleTimer: ReturnType<typeof setTimeout> | null = null
 let rafId = 0
+// Largest visualViewport height seen this orientation — the keyboard-free baseline.
+// Detecting "keyboard open" as a DROP FROM THIS BASELINE is robust where the classic
+// `innerHeight - vv.height` fails: some iOS standalone-PWA/webview contexts shrink
+// innerHeight together with the visual viewport, making their difference ~0 even with
+// the keyboard fully up. The URL bar only moves vv.height by ~60-100px, under the 120px
+// threshold, so it never false-positives.
+let maxVvh = 0
+
+function keyboardOpen(vv: VisualViewport): boolean {
+  if (vv.height > maxVvh) maxVvh = vv.height
+  return window.innerHeight - vv.height > 120 || maxVvh - vv.height > 120
+}
 
 // IMPERATIVE geometry writer — runs every frame the visual viewport moves. Writes CSS
 // vars + toggles `kb-open` DIRECTLY on <html>, with NO React state: per-frame setState
@@ -35,7 +47,7 @@ function syncVars() {
   const vv = window.visualViewport
   if (!vv) return
   const root = document.documentElement
-  const open = window.innerHeight - vv.height > 120 // >120px ⇒ a keyboard, not the URL bar
+  const open = keyboardOpen(vv)
   root.style.setProperty('--vvh', `${vv.height}px`)
   // Only apply the scroll offset while the keyboard is up; on close snap back to 0 so a
   // stale offsetTop (iOS 26 regression, WebKit #297779) can't strand the shell.
@@ -51,7 +63,7 @@ function scheduleSync() {
 function recompute() {
   const vv = window.visualViewport
   if (!vv) return
-  const open = window.innerHeight - vv.height > 120
+  const open = keyboardOpen(vv)
   const next: KB = open ? { open: true, height: vv.height } : CLOSED
   if (next.open === current.open && next.height === current.height) return // no-op ⇒ no re-render
   current = next
@@ -84,6 +96,9 @@ export function ensureKeyboardWired() {
   vv.addEventListener('resize', onViewportChange)
   vv.addEventListener('scroll', scheduleSync) // offsetTop changes fire `scroll`, NOT `resize`
   window.addEventListener('focusout', onFocusOut)
+  // Rotation changes the keyboard-free baseline — reset it so the drop-from-max
+  // detector re-learns the new orientation's full height.
+  window.addEventListener('orientationchange', () => { maxVvh = 0; onViewportChange() })
   syncVars() // initial — no keyboard animation in flight
   recompute()
 }

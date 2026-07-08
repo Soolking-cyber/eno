@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Header } from '@/components/marketplace/header'
 import { ConversationList } from '@/components/marketplace/conversation-list'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
+import { KbDebug } from '@/components/marketplace/kb-debug'
 import { cn } from '@/lib/utils'
 
 // Desktop messenger shell: a persistent two-pane layout (conversation list left,
@@ -37,6 +38,7 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
       className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden bg-background lg:h-[calc(100dvh-var(--banner-h,0px))]"
     >
       <Header />
+      <KbDebug />
       {/* Same max-width + gutter as the header navbar so the two-pane edges line up
           with the logo (left) and Post button (right). Mobile stays edge-to-edge. */}
       <div className="mx-auto flex w-full max-w-7xl flex-1 overflow-hidden px-0 sm:px-6 lg:px-8">
