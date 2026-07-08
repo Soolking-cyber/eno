@@ -223,6 +223,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     // map view) — otherwise each toggle leaks a Leaflet instance + DOM listeners.
     return () => {
       clearTimeout(sizer)
+      // Halt any in-flight pan/zoom/fly animation BEFORE removing the map: an animation
+      // frame that runs after remove() reads getPosition(_mapPane) on a deleted pane →
+      // "Cannot read properties of undefined (reading '_leaflet_pos')". stop() cancels it.
+      map.stop()
       map.off()
       map.remove()
       mapInstanceRef.current = null
@@ -299,7 +303,11 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
         map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 })
       }
     }
-    setTimeout(() => map.invalidateSize(), 80)
+    // Guard + CLEAR this deferred resize: it re-runs on every filter change and fires on
+    // unmount otherwise — invalidateSize() on a removed map reads the deleted _mapPane's
+    // position → the '_leaflet_pos' crash. The ref check skips a map that's been torn down.
+    const sizeT = setTimeout(() => { if (mapInstanceRef.current === map) map.invalidateSize() }, 80)
+    return () => clearTimeout(sizeT)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listings, ready, activeDistrict, areaKey, nearby, locale])
 
