@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { Header } from '@/components/marketplace/header'
 import { ConversationList } from '@/components/marketplace/conversation-list'
@@ -14,10 +15,21 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
   const pathname = usePathname()
   const inThread = /^\/messages\/.+/.test(pathname || '') // viewing a specific conversation
 
-  // KNOWN-GOOD: size the shell to the visible viewport height while the keyboard is up
-  // (iOS overlays the keyboard without shrinking dvh). Composer stays the bottom flex row.
-  // (A flush-to-keyboard rework is being researched separately; this is the stable base.)
+  // Size the shell to the visible viewport height while the keyboard is up (iOS overlays
+  // the keyboard without shrinking dvh). Composer is the bottom flex row. The shell is
+  // NEVER position:fixed — that collapses the flex height chain. Only the composer FOOTER
+  // lifts to fixed (see globals.css .chat-footer + the page's chat-footer wrapper).
   const { height: kbHeight } = useVirtualKeyboard()
+
+  // Lock the DOCUMENT the whole time a thread is open (stable signal — NOT the keyboard
+  // threshold). `touch-action:none` on <body> (globals.css html.chat-locked) is what
+  // actually stops iOS scrolling the layout viewport on focus, keeping
+  // visualViewport.offsetTop ~0 → the fixed footer sits FLUSH with no gap and no jitter.
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.toggle('chat-locked', inThread)
+    return () => root.classList.remove('chat-locked')
+  }, [inThread])
 
   return (
     <div

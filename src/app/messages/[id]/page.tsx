@@ -59,6 +59,7 @@ export default function ThreadPage() {
   const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const footerRef = useRef<HTMLDivElement>(null) // review+quick-replies+composer; lifts to fixed on keyboard
   const openedRef = useRef<string | null>(null) // conversation id already auto-pinned to newest
   const prevCountRef = useRef(0)
   const [newBelow, setNewBelow] = useState(false) // unseen message below the fold
@@ -205,6 +206,20 @@ export default function ThreadPage() {
   }, [thread?.messages.length, id, scrollBottom]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setNewBelow(false) }, [id])
   useEffect(() => { meRef.current = thread?.me ?? null }, [thread?.me])
+
+  // Publish the composer footer's live height into --footer-h so the message list can
+  // reserve exactly that much bottom padding once the footer lifts to position:fixed
+  // (keyboard up) — the last message then always clears it, for a 1-line or grown composer.
+  useEffect(() => {
+    const el = footerRef.current
+    if (!el) return
+    const root = document.documentElement
+    const set = () => root.style.setProperty('--footer-h', `${el.offsetHeight}px`)
+    set()
+    const ro = new ResizeObserver(set)
+    ro.observe(el)
+    return () => { ro.disconnect(); root.style.removeProperty('--footer-h') }
+  }, [id])
 
   const send = async (override?: string) => {
     const body = (override ?? text).trim()
@@ -441,7 +456,7 @@ export default function ThreadPage() {
           )}
 
           {/* Messages */}
-          <div ref={listRef} onScroll={() => { if (newBelow && distanceFromBottom() < 40) setNewBelow(false) }} role="log" aria-live="polite" aria-relevant="additions" className="flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-4 scroll-thin">
+          <div ref={listRef} onScroll={() => { if (newBelow && distanceFromBottom() < 40) setNewBelow(false) }} role="log" aria-live="polite" aria-relevant="additions" className="chat-scroll flex-1 min-h-0 space-y-2 overflow-y-auto overscroll-contain px-4 py-4 scroll-thin">
             {thread?.messages.map((m, i, arr) => {
               const prev = arr[i - 1]
               const showDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
@@ -548,6 +563,11 @@ export default function ThreadPage() {
             )}
           </div>
 
+          {/* ── FOOTER (review prompt + quick-replies + composer): one unit that lifts to
+              position:fixed FLUSH above the keyboard when kb-open (globals.css .chat-footer);
+              a plain flow footer when the keyboard is closed. Wrapped together so the
+              quick-reply chips are never hidden behind the fixed composer. */}
+          <div ref={footerRef} className="chat-footer shrink-0">
           {/* Post-transaction review prompt (buyer only) — one quiet card above the
               composer; ✕ hides it for the session, it stays gone once reviewed. */}
           {showReviewPrompt && thread && (
@@ -576,7 +596,7 @@ export default function ThreadPage() {
           {/* Composer — the Tag toggle flips this same bar between a message field
               and the offer-amount field (no separate input bar). In offer mode the
               field shows an inline +000 chip and Send submits the offer. */}
-          <div className="flex items-end gap-2 bg-card px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          <div className="chat-composer flex items-end gap-2 bg-card px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             {/* Offer control only on negotiable listings — a fixed-price seller takes
                 no offers (buyers just ask availability + buy). Undefined = older cached
                 thread → allow (server still enforces). */}
@@ -674,6 +694,7 @@ export default function ThreadPage() {
                 <Send className="h-4 w-4" />
               </button>
             )}
+          </div>
           </div>
         </div>
       )}

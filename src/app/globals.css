@@ -349,16 +349,81 @@
    on the <html> element; the fallbacks keep a sane full-height shell before first paint.
    `.kb-open` never fires on desktop (no VisualViewport keyboard) so desktop is untouched.
    ============================================================ */
-/* Hide the fixed bottom-nav + its spacer while the on-screen keyboard is up (iOS
-   otherwise lifts a fixed bottom bar ABOVE the keyboard, wedging it against the composer).
-   The --vvh/--vvt vars + a flush-to-keyboard chat shell are being researched separately;
-   for now the messages layout sizes itself to the visible viewport (known-good). */
+/* ============================================================
+   VIRTUAL-KEYBOARD PINNING (iOS) — see use-virtual-keyboard.ts + messages/[id]/page.tsx
+   The composer sits FLUSH above the keyboard via two levers:
+   (1) html.chat-locked locks the DOCUMENT so visualViewport.offsetTop stays ~0 (no gap,
+       no momentum jitter); (2) html.kb-open lifts ONLY the chat FOOTER to position:fixed,
+       pinned to the visual-viewport bottom (= keyboard top). --vvh/--vvt are written every
+       frame on <html> by the hook. Neither class fires on desktop and the pin rules are
+       mobile-gated, so the two-pane messenger is untouched. The shell is NEVER fixed (that
+       collapsed the flex-height chain and stranded the composer at the top).
+   ============================================================ */
+
+/* Hide the fixed bottom-nav + its spacer while the keyboard is up. */
 html.kb-open .mobile-nav {
   transform: translateY(100%);
   opacity: 0;
   pointer-events: none;
 }
 html.kb-open .bottom-nav-spacer { display: none; }
+
+@media (max-width: 1023px) {
+  /* (1) DOCUMENT LOCK while inside a thread. touch-action:none on <body> is what actually
+     stops iOS scrolling the layout viewport on focus (overflow:hidden alone is ignored by
+     WebKit) → offsetTop stays ~0 → flush + no jitter. */
+  html.chat-locked,
+  html.chat-locked body {
+    overflow: hidden;
+    overscroll-behavior: none;
+    height: 100%;
+  }
+  html.chat-locked body {
+    position: relative;
+    touch-action: none;
+  }
+  /* The message list must still scroll though the body is touch-action:none — a touch that
+     STARTS on the list uses the list's own touch-action. */
+  html.chat-locked .chat-scroll {
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* (2) FLUSH FOOTER. Only this small element tracks the keyboard per frame (cheap GPU
+     transform) — the shell/list are never reflowed per frame (which aborts the keyboard).
+       top: calc(--vvt + --vvh) → keyboard top in layout coords (--vvt compensates any
+                                  residual iOS scroll offset the lock didn't catch, ~0px)
+       translateY(-100%)        → lift by the footer's OWN height so its BOTTOM lands on
+                                  the keyboard, self-correcting for any composer height. */
+  html.kb-open .chat-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    top: calc(var(--vvt, 0px) + var(--vvh, 100dvh));
+    transform: translateY(-100%);
+    z-index: 45;
+    background: var(--background);
+    will-change: transform;
+  }
+  /* Zero the home-indicator inset while typing (the keyboard already covers it) so the
+     input sits snug on the keyboard instead of floating a safe-area's height above it. */
+  html.kb-open .chat-composer {
+    padding-bottom: 0.75rem;
+  }
+  /* Reserve exactly the fixed footer's height at the bottom of the scroller so the last
+     message clears it (--footer-h measured by the page's ResizeObserver). */
+  html.kb-open .chat-scroll {
+    padding-bottom: calc(var(--footer-h, 96px) + 0.5rem);
+  }
+  /* WebKit doesn't reposition a fixed element until it repaints; force one the instant the
+     composer gains focus so the footer snaps to the keyboard with no visible lag. */
+  html.kb-open .chat-footer:focus-within { animation: kbblink 0.02s; }
+}
+
+/* Imperceptible repaint trigger for the fixed footer on focus. */
+@keyframes kbblink { from { opacity: 0.999; } to { opacity: 1; } }
 
 /* ============================================================
    SCROLLBARS — hidden EVERYWHERE (scrolling still works). User preference:
