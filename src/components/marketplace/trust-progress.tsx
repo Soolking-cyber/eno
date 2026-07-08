@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Check } from 'lucide-react'
+import { Check, Gauge, Handshake, Star, MessageSquare, CalendarClock, ShieldCheck } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +35,7 @@ type Row = {
   pct: number // 0..1 fill of the progress bar
   met: boolean
   action: React.ReactNode // exactly ONE plain-language action per criterion
+  icon: React.ReactNode // criterion glyph — becomes a green tick once met
 }
 
 /**
@@ -103,6 +104,7 @@ export function TrustProgress({
       pct: Math.min(score / scoreTarget, 1),
       met: score >= scoreTarget,
       action: scoreAction,
+      icon: <Gauge className="h-5 w-5" />,
     },
   ]
 
@@ -118,6 +120,7 @@ export function TrustProgress({
       'Mark listings as sold or accept offers in chat — real deals are the strongest signal.',
       'Đánh dấu tin đã bán hoặc chấp nhận đề nghị trong chat — giao dịch thật là tín hiệu mạnh nhất.',
     ),
+    icon: <Handshake className="h-5 w-5" />,
   })
 
   if (towardExceptional) {
@@ -132,6 +135,7 @@ export function TrustProgress({
       pct: Math.min(distinctBuyerReviews / EXCEPTIONAL_REVIEWS, 1),
       met: distinctBuyerReviews >= EXCEPTIONAL_REVIEWS,
       action: tr('Ask buyers to leave a review after the deal closes.', 'Nhờ người mua để lại đánh giá sau khi chốt giao dịch.'),
+      icon: <Star className="h-5 w-5" />,
     })
     // Exceptional: replied-within-24h at ≥85% (Wilson lower bound — needs volume too).
     rows.push({
@@ -144,6 +148,7 @@ export function TrustProgress({
         'Reply to new buyers within 24 hours — a few perfect replies aren’t enough, keep it up over many chats.',
         'Trả lời người mua mới trong 24 giờ — vài lần chưa đủ, hãy duy trì qua nhiều cuộc trò chuyện.',
       ),
+      icon: <MessageSquare className="h-5 w-5" />,
     })
   } else {
     // Trusted: ≥60d account age OR ≥3 distinct-buyer reviews (either satisfies the gate).
@@ -162,6 +167,7 @@ export function TrustProgress({
         '60 days on eno — or 3 reviews from different verified buyers, whichever comes first.',
         '60 ngày trên eno — hoặc 3 đánh giá từ những người mua đã xác minh khác nhau, cái nào đến trước cũng được.',
       ),
+      icon: <CalendarClock className="h-5 w-5" />,
     })
   }
 
@@ -191,6 +197,7 @@ export function TrustProgress({
               'Resolve any buyer concerns — recent reports stop counting after 90 days of clean trading.',
               'Giải quyết vướng mắc với người mua — báo cáo gần đây hết hiệu lực sau 90 ngày giao dịch sạch.',
             ),
+    icon: <ShieldCheck className="h-5 w-5" />,
   })
 
   return (
@@ -200,18 +207,22 @@ export function TrustProgress({
       </h2>
       <div className="mt-3 space-y-4">
         {rows.map((r) => (
-          <div key={r.key}>
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm font-semibold text-foreground">{r.label}</span>
-              <span className={cn('inline-flex items-center gap-1 text-xs', r.met ? 'font-semibold text-success' : 'text-muted-foreground')}>
-                {r.met && <Check className="h-3 w-3" aria-hidden />}
-                {r.current}
-              </span>
+          <div key={r.key} className="flex items-start gap-3">
+            {/* Circular status glyph — same treatment as the stat cards above; the
+                criterion icon flips to a green tick the moment it's met. */}
+            <span className={cn('mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full', r.met ? 'bg-success/10 text-success' : 'bg-tint text-accent-foreground')}>
+              {r.met ? <Check className="h-5 w-5" aria-hidden /> : r.icon}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-semibold text-foreground">{r.label}</span>
+                <span className={cn('shrink-0 text-xs', r.met ? 'font-semibold text-success' : 'text-muted-foreground')}>{r.current}</span>
+              </div>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-tint">
+                <div className={cn('h-full rounded-full', r.met ? 'bg-success' : 'bg-primary')} style={{ width: `${Math.round(r.pct * 100)}%` }} />
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{r.action}</p>
             </div>
-            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-tint">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.round(r.pct * 100)}%` }} />
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">{r.action}</p>
           </div>
         ))}
       </div>

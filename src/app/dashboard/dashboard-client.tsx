@@ -483,7 +483,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
               {tr('No listings match', 'Không có tin nào khớp')} “{listQ.trim()}”.
             </p>
           ) : (
-            <div className={cn('mt-3', listView === 'grid' ? 'grid grid-cols-2 gap-2.5 lg:grid-cols-3' : 'space-y-2.5')}>
+            <div className={cn('mt-3', listView === 'grid' ? 'grid grid-cols-2 gap-2.5 lg:grid-cols-3' : 'space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-2.5 lg:space-y-0')}>
               {shownListings.map((l) => {
                 const canSelect = selectMode && l.status === 'active' && l.price > 0
                 return (
