@@ -241,6 +241,11 @@ export function Header() {
                 inputMode="search"
                 enterKeyHint="search"
                 autoComplete="off"
+                // Inside a chat thread, drop this out of the focus order so the composer is
+                // the ONLY navigable form field — that greys out the iOS keyboard's prev/next
+                // chevrons over the composer (the accessory bar's "Done" itself is a native
+                // WKWebView feature the web can't remove). Still tap-usable elsewhere.
+                tabIndex={pathname && /^\/messages\/.+/.test(pathname) ? -1 : undefined}
                 placeholder={tr('Find products…', 'Tìm sản phẩm…')}
                 aria-label={tr('Search', 'Tìm kiếm')}
                 className="min-w-0 flex-1 bg-transparent py-3 pl-2 pr-2 text-base text-foreground outline-none placeholder:text-ink-4"

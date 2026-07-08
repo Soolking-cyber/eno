@@ -12,6 +12,7 @@ import { FavoritesProvider } from "@/context/favorites-context";
 import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
 import { BottomNavSpacer } from "@/components/marketplace/bottom-nav-spacer";
+import { KeyboardViewportSync } from "@/components/marketplace/keyboard-viewport-sync";
 import { PageTransitions } from "@/components/marketplace/page-transitions";
 import { BackToTop } from "@/components/marketplace/back-to-top";
 import { SkipLink } from "@/components/marketplace/skip-link";
@@ -44,6 +45,11 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: dark)", color: "#1a1e26" },
   ],
   viewportFit: "cover",
+  // Android/Chromium: shrink the LAYOUT viewport when the keyboard opens so 100dvh +
+  // fixed bottom bars fit above it with zero JS. iOS Safari ignores this (it overlays
+  // the keyboard — handled via VisualViewport in use-virtual-keyboard.ts), so it's a
+  // free correctness win on Android and a harmless no-op on iOS.
+  interactiveWidget: "resizes-content",
 };
 
 export const metadata: Metadata = {
@@ -177,6 +183,7 @@ export default function RootLayout({
                           chat composer. */}
                       <BottomNavSpacer />
                       <BackToTop />
+                      <KeyboardViewportSync />
                       <MobileNav />
                       <CookieConsent />
                       <InstallHint />

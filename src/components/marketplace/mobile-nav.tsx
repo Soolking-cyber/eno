@@ -99,9 +99,11 @@ export function MobileNav() {
     navigate(href, to >= from ? 'forward' : 'back')
   }
 
-  // Hidden only on the full-screen sign-in page. (Listing detail pages used to hide it
-  // behind a custom sticky contact bar — that bar was removed; listing pages now show
-  // the normal bottom nav like every other page.)
+  // Hidden only on the full-screen sign-in page. In a chat thread the nav stays put when
+  // the keyboard is CLOSED (composer sits right above it, no gap — the existing good
+  // state); when the keyboard OPENS it's hidden reliably by `html.kb-open .mobile-nav`
+  // (globals.css), driven by the frame-accurate kb-open class — not the old laggy React
+  // boolean that let it wedge above the keyboard.
   if (pathname?.startsWith('/signin')) return null
 
   // Gate auth-only tabs once auth has resolved logged-out. During the brief boot
@@ -113,7 +115,7 @@ export function MobileNav() {
   return (
     <nav
       className={cn(
-        'lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style: slide DOWN off-screen + fade out at the same rate on scroll-down;
         // slide up + fade in on scroll-up. Also drop it while the keyboard is open.
         hidden || keyboardOpen ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100',

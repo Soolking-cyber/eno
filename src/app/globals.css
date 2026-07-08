@@ -341,6 +341,41 @@
 .shadow-overlay { box-shadow: var(--shadow-overlay); }
 
 /* ============================================================
+   VIRTUAL-KEYBOARD PINNING (iOS) — see use-virtual-keyboard.ts
+   While the on-screen keyboard is up (html.kb-open, set imperatively), pin the chat
+   shell as a fixed overlay EXACTLY over the visual viewport: height = its visible
+   height, translated by the iOS scroll offset. Its bottom edge then sits flush on the
+   keyboard (zero gap) and the header stays pinned. --vvh/--vvt are written every frame
+   on the <html> element; the fallbacks keep a sane full-height shell before first paint.
+   `.kb-open` never fires on desktop (no VisualViewport keyboard) so desktop is untouched.
+   ============================================================ */
+html.kb-open .chat-shell {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: var(--vvh, 100dvh);
+  transform: translateY(var(--vvt, 0px));
+  will-change: transform;
+}
+/* The fixed bottom-nav + its spacer must vanish while typing (iOS otherwise lifts a
+   fixed bottom bar ABOVE the keyboard, wedging it between the composer and the keys). */
+html.kb-open .mobile-nav {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+html.kb-open .bottom-nav-spacer { display: none; }
+
+/* In a chat thread, lock the document so nothing scrolls behind the pinned shell and iOS
+   has nothing to scroll on focus (so offsetTop usually stays 0 → flush even pre-translate). */
+html.chat-locked, html.chat-locked body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* ============================================================
    SCROLLBARS — hidden EVERYWHERE (scrolling still works). User preference:
    no visible scroll track/thumb anywhere — page, dropdowns, rows, modals.
    ============================================================ */
