@@ -211,7 +211,7 @@ function ListingCardImpl({
         {/* Social proof — "N saved" (5a #5): urgency without dark patterns. Only
             shows once the count is meaningful (≥3); bottom-left, clear of
             the dots (center) and locate pin (right). */}
-        {listing.savedCount >= 3 && (
+        {listing.savedCount + (favorited ? 1 : 0) >= 3 && (
           <span
             title={tr('people saved this', 'người đã lưu tin này')}
             className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1 rounded-full bg-foreground/70 px-2 py-0.5 text-[10px] font-bold text-background backdrop-blur-[2px]"

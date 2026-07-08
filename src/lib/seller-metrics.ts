@@ -35,7 +35,7 @@ const RESPONSE_FAST_RATE = 80
 // Flip to true — and keep it typed `boolean` so the bucket logic stays reachable — the
 // moment those columns are backed by real data. The >=5-convo gate proves activity, not
 // responsiveness, so it can't stand in for a real signal.
-const RESPONSE_METRIC_IS_REAL: boolean = false
+export const RESPONSE_METRIC_IS_REAL: boolean = false
 
 export type ResponseBucket = {
   key: 'fast' | 'day' | null

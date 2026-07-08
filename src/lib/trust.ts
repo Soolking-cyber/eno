@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from './db'
 import { recomputeRankScoreForSeller } from './ranking'
+import { RESPONSE_METRIC_IS_REAL } from './seller-metrics'
 import { ENFORCEMENT_REASON, VELOCITY, velocitySpike } from './enforcement-machine'
 import { expireEnforcement, flagForReview, syncEnforcement } from './enforcement'
 import {
@@ -326,8 +327,13 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   // the denormalized Seller.responseRate (the app's replied-within-24h measure);
   // n from the indexed Conversation count. successes = round(p̂·n) — the closest
   // fair approximation without a per-message reply scan.
-  const responseWilson = seller ? wilsonLowerBound(Math.round(((seller.responseRate ?? 0) / 100) * conversations90), conversations90) : 0
-  const responseQ = responseScore(responseWilson)
+  // HONESTY GATE: Seller.responseRate is NOT computed from real reply behaviour yet
+  // (it's the fabricated =100 default — see RESPONSE_METRIC_IS_REAL in seller-metrics).
+  // Feeding that fake 100% into the score inflated EVERY seller's Q term AND the
+  // Exceptional Wilson gate (via inputs.responseWilson). Zero the whole response term
+  // until real first-reply latency exists — same suppression as the display bucket.
+  const responseWilson = seller && RESPONSE_METRIC_IS_REAL ? wilsonLowerBound(Math.round(((seller.responseRate ?? 0) / 100) * conversations90), conversations90) : 0
+  const responseQ = RESPONSE_METRIC_IS_REAL ? responseScore(responseWilson) : 0
 
   // Q · availability freshness.
   const freshQ = freshnessScore(freshActiveListings, activeListings)

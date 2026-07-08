@@ -64,11 +64,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!phone) return NextResponse.json({ error: 'no_contact' }, { status: 404 })
 
   // Log the reveal once per (listing, viewer); bump contactCount only on a NEW row.
+  // ATOMIC: the reveal row and the counter must commit together — otherwise a partial
+  // failure (row created, increment lost) leaves the unique (listing,viewer) row in
+  // place so every future reveal by this buyer hits P2002 and skips the bump forever,
+  // permanently undercounting by 1. A P2002 on the create rejects the whole tx and is
+  // handled by the catch below (already-revealed → no double count).
   try {
-    await db.contactReveal.create({
-      data: { listingId: listing.id, viewerId: user.id, ipHash: hashIp(ip) },
-    })
-    await db.listing.update({ where: { id: listing.id }, data: { contactCount: { increment: 1 } } })
+    await db.$transaction([
+      db.contactReveal.create({
+        data: { listingId: listing.id, viewerId: user.id, ipHash: hashIp(ip) },
+      }),
+      db.listing.update({ where: { id: listing.id }, data: { contactCount: { increment: 1 } } }),
+    ])
     // New buyer lead → Meta CAPI Contact (server-side, after response flushes — zero
     // client cost; no-ops until CAPI env is set). Only on a NEW reveal (this try block).
     after(() =>
