@@ -13,7 +13,9 @@ export default function DisputesPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-10 sm:px-6 lg:px-8">
+      {/* Same max-w-7xl content width as the dashboard/header so the standalone page
+          matches the dashboard Disputes tab (the list is already 2-col on desktop). */}
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-10 sm:px-6 lg:px-8">
         <DisputesPanel />
       </main>
       <Footer />

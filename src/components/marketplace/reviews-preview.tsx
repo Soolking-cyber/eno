@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Star, BadgeCheck } from 'lucide-react'
-import { useLanguage } from '@/context/language-context'
+import { useLanguage, Tr } from '@/context/language-context'
 import { getInitials } from '@/lib/utils'
 import { RatingValue } from './rating-value'
 import type { SellerReviewPreview } from '@/lib/seller-metrics'
@@ -53,7 +53,9 @@ export function ReviewsPreview({
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 line-clamp-3 text-sm text-body">{r.text}</p>
+              {/* User content — machine-translated into the viewer's language like the
+                  storefront reviews (Tr handles arbitrary strings, not just UI copy). */}
+              <p className="mt-0.5 line-clamp-3 text-sm text-body"><Tr text={r.text} /></p>
             </div>
           </li>
         ))}
