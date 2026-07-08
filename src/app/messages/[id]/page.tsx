@@ -441,7 +441,7 @@ export default function ThreadPage() {
           )}
 
           {/* Messages */}
-          <div ref={listRef} onScroll={() => { if (newBelow && distanceFromBottom() < 40) setNewBelow(false) }} role="log" aria-live="polite" aria-relevant="additions" className="flex-1 space-y-2 overflow-y-auto px-4 py-4 scroll-thin">
+          <div ref={listRef} onScroll={() => { if (newBelow && distanceFromBottom() < 40) setNewBelow(false) }} role="log" aria-live="polite" aria-relevant="additions" className="flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-4 scroll-thin">
             {thread?.messages.map((m, i, arr) => {
               const prev = arr[i - 1]
               const showDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
@@ -576,7 +576,7 @@ export default function ThreadPage() {
           {/* Composer — the Tag toggle flips this same bar between a message field
               and the offer-amount field (no separate input bar). In offer mode the
               field shows an inline +000 chip and Send submits the offer. */}
-          <div className="flex items-end gap-2 bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          <div className="flex items-end gap-2 bg-card px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             {/* Offer control only on negotiable listings — a fixed-price seller takes
                 no offers (buyers just ask availability + buy). Undefined = older cached
                 thread → allow (server still enforces). */}
