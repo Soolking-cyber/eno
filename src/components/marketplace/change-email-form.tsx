@@ -6,7 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 
-const FIELD = 'w-full max-w-md rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:border-line-strong focus:border-brand focus:ring-2 focus:ring-brand/20 placeholder:text-ink-4'
+const FIELD = 'w-full max-w-md rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20 placeholder:text-ink-4'
 
 // Change-email under account Settings. supabase.auth.updateUser({ email }) sends a
 // confirmation to the new address (the branded "Change Email" template); the email

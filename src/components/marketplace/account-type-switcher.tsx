@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 
-const FIELD = 'w-full max-w-md rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:border-line-strong focus:border-brand focus:ring-2 focus:ring-brand/20 placeholder:text-ink-4'
+const FIELD = 'w-full max-w-md rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20 placeholder:text-ink-4'
 
 // Self-serve account-type switch in dashboard Settings — onboarding promises "you
 // can change this later", and this is the "later". POSTs to the existing

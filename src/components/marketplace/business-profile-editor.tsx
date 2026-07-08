@@ -105,7 +105,9 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
     } catch { setError(tr('Could not save. Try again.', 'Không lưu được. Thử lại.')) } finally { setSaving(false) }
   }
 
-  const field = 'w-full rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:border-line-strong focus:border-brand focus:ring-2 focus:ring-brand/20'
+  // Borderless house input — a slate tint fill (no border) reads clearly as fillable
+  // while staying flat, with a brand focus ring. Matches the header search + handle field.
+  const field = 'w-full rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20 placeholder:text-ink-4'
   const initials = getInitials(name)
 
   return (

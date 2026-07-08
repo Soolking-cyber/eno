@@ -85,7 +85,9 @@ function StatCard({ icon, value, label, href, accent }: { icon: React.ReactNode;
  *  tints the header for destructive groups (account deletion). */
 function SettingsCard({ title, description, tone = 'default', children }: { title: string; description?: string; tone?: 'default' | 'danger'; children: React.ReactNode }) {
   return (
-    <section className={cn('rounded-2xl border bg-card p-5 sm:p-6', tone === 'danger' ? 'border-red-200' : 'border-border')}>
+    // Borderless house panel — a flat white card lifted by a soft shadow (no border),
+    // matching the app's dropdowns/menus. The red title alone marks the danger group.
+    <section className="rounded-2xl bg-card p-5 sm:p-6 shadow-pop">
       <h2 className={cn('h-section', tone === 'danger' ? 'text-red-600' : 'text-foreground')}>{title}</h2>
       {description && <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
       <div className="mt-4">{children}</div>

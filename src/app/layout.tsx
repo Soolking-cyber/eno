@@ -11,6 +11,7 @@ import { NotificationsProvider } from "@/context/notifications-context";
 import { FavoritesProvider } from "@/context/favorites-context";
 import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
+import { BottomNavSpacer } from "@/components/marketplace/bottom-nav-spacer";
 import { PageTransitions } from "@/components/marketplace/page-transitions";
 import { BackToTop } from "@/components/marketplace/back-to-top";
 import { SkipLink } from "@/components/marketplace/skip-link";
@@ -171,8 +172,10 @@ export default function RootLayout({
                       {/* Reserve room for the fixed mobile bottom-nav. A WHITE
                           spacer (not body padding) so when the nav auto-hides at
                           the page bottom it blends with the footer instead of
-                          exposing a grey band. */}
-                      <div aria-hidden className="lg:hidden h-[calc(4rem+env(safe-area-inset-bottom))] bg-card" />
+                          exposing a grey band. Collapses when the keyboard is up
+                          (the nav hides then) so it doesn't leave a gap under the
+                          chat composer. */}
+                      <BottomNavSpacer />
                       <BackToTop />
                       <MobileNav />
                       <CookieConsent />
