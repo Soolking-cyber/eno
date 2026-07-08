@@ -468,7 +468,9 @@ export default function ThreadPage() {
                     <span className="rounded-full bg-tint px-3 py-0.5 text-[10px] font-semibold text-ink-4">{dayText}</span>
                   </div>
                 )}
-                <div className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'}`}>
+                {/* Only the NEWEST bubble animates in (each new send/receive), so the
+                    history never mass-animates on thread open. */}
+                <div className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 ? 'bubble-in' : ''}`}>
                 {m.kind === 'offer' ? (
                   <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-card'}`}>
                     {/* Offer line is DERIVED from the structured offerAmount (tr'd + money

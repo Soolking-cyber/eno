@@ -157,6 +157,16 @@
   --shadow-card: 0 6px 20px rgba(16, 24, 40, 0.10);    /* card hover lift */
   --shadow-overlay: 0 16px 48px rgba(16, 24, 40, 0.16); /* dialogs / modals */
 
+  /* Spring easings authored as linear() sampled curves (iOS Safari 17.2+, degrades to
+     ease-out on older). Overshoot points >1 give a physical settle. Compositor-only when
+     paired with transform/opacity; the global reduced-motion switch neutralizes them.
+       --ease-spring        gentle, ~no overshoot   → default (pair 220–340ms)
+       --ease-spring-snappy quick, tiny overshoot   → toggles/chips/press (pair 160–220ms)
+       --ease-bounce        playful, big overshoot  → success moments only (pair 400–520ms) */
+  --ease-spring: linear(0, 0.007, 0.029, 0.063, 0.108, 0.219, 0.354, 0.5, 0.638, 0.756, 0.85, 0.919, 0.965, 0.992, 1.006, 1.011, 1.009, 1.005, 1.001, 1);
+  --ease-spring-snappy: linear(0, 0.026, 0.101, 0.219, 0.375, 0.559, 0.727, 0.859, 0.949, 1.001, 1.025, 1.03, 1.024, 1.014, 1.005, 0.999, 0.998, 1);
+  --ease-bounce: linear(0, 0.004, 0.036, 0.098, 0.19, 0.417, 0.685, 0.912, 1.062, 1.13, 1.147, 1.13, 1.098, 1.062, 1.033, 1.013, 1.002, 0.998, 0.999, 1);
+
   /* ── Type scale (~1.25 modular ratio) & rhythm — base 15px ──────────
      Display + title are FLUID (clamp) so they scale smoothly from phone to
      desktop with no breakpoint jumps; the smaller steps stay fixed for rhythm.
@@ -562,7 +572,7 @@ summary:focus-visible {
 }
 .animate-heart-pop {
   position: relative;
-  animation: heart-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: heart-pop 0.42s var(--ease-bounce);
 }
 .animate-heart-pop::after {
   content: '';
@@ -582,6 +592,43 @@ summary:focus-visible {
    card grids instead of wobbling per-digit. Same as Tailwind's `tabular-nums`
    utility (used in components); this class is for non-utility contexts. */
 /* ============================================================
+   MICROINTERACTIONS — premium but subtle (transform/opacity only; reduced-motion safe)
+   ============================================================ */
+
+/* .press — tactile press for buttons/tappables. The trick is ASYMMETRIC timing: the
+   press-down is near-instant, the release SPRINGS back. 0.96 reads as "pressed", not the
+   toy-ish 0.90. Add to a button; safe on top of existing active:scale (this wins). */
+.press {
+  transition: transform 260ms var(--ease-spring-snappy);
+  touch-action: manipulation; /* also removes the legacy 300ms tap delay */
+}
+.press:active { transform: scale(0.96); transition-duration: 40ms; }
+
+/* Chat bubbles rise + fade in as they arrive (own + incoming). Subtle, one-shot. */
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+.bubble-in { animation: bubble-in 220ms var(--ease-spring) both; }
+
+/* Scroll-driven feed reveal: cards gently rise + fade as they enter. Runs OFF the main
+   thread with ZERO scroll listeners. iOS Safari 26+ only → pure enhancement behind
+   @supports; iOS 18–25 and reduced-motion users just see the card (no animation). */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal-on-scroll {
+      animation: reveal-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 26%;
+    }
+    @keyframes reveal-rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: none; }
+    }
+  }
+}
+
+/* ============================================================
    ACCESSIBILITY — honor reduced-motion preference
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
@@ -591,6 +638,10 @@ summary:focus-visible {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* View Transitions aren't covered by the transition/animation kill above. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
 }
 
 

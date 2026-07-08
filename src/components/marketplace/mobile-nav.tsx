@@ -13,7 +13,8 @@ import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { useSlideRouter } from './page-transitions'
 import { cn } from '@/lib/utils'
 
-const TAB = 'flex flex-1 cursor-pointer transition-transform active:scale-90'
+// Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay.
+const TAB = 'flex flex-1 cursor-pointer transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-90 active:duration-[60ms] [touch-action:manipulation]'
 
 // Tab order drives the slide direction: tapping a tab to the RIGHT slides forward
 // (new from the right), to the LEFT slides back (new from the left).
