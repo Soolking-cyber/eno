@@ -9,7 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw, CornerDownLeft } from 'lucide-react'
+import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -658,18 +658,21 @@ export default function ThreadPage() {
                 <Send className="h-4 w-4" />
               </button>
             ) : (
-              /* Text mode: no tap-Send button. On mobile it was unreliable — tapping it
-                 blurs the field, the keyboard closes, the viewport resizes and the
-                 button moves before the tap registers. The Return key sends flawlessly
-                 (enterKeyHint="send" labels it "Send"), so we show a quiet ↵ hint in the
-                 same slot: muted when empty, brand-blue once there's a message to send. */
-              <div
-                title={tr('Press Enter to send', 'Nhấn Enter để gửi')}
-                aria-hidden
-                className={`flex h-10 w-10 shrink-0 items-center justify-center self-center transition-colors ${text.trim() ? 'text-accent-foreground' : 'text-ink-4'}`}
+              /* Text mode: a real tap-Send button (the Zalo/FB pattern users expect).
+                 onMouseDown preventDefault HOLDS the composer's focus so the tap never
+                 blurs the field → dismisses the keyboard → shifts the button out from
+                 under the finger (the earlier reason tap-Send was unreliable). Return
+                 still sends too (enterKeyHint="send"). */
+              <button
+                onClick={() => send()}
+                onMouseDown={(e) => e.preventDefault()}
+                disabled={!text.trim()}
+                aria-label={tr('Send', 'Gửi')}
+                title={tr('Send', 'Gửi')}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
               >
-                <CornerDownLeft className="h-[18px] w-[18px]" strokeWidth={2.25} />
-              </div>
+                <Send className="h-4 w-4" />
+              </button>
             )}
           </div>
         </div>
