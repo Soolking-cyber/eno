@@ -37,7 +37,10 @@ export function CountValue({ value }: { value: number }) {
  */
 export function SavedCount({ base, id }: { base: number; id: string }) {
   const { lang } = useLanguage()
-  const { isFavorite } = useFavorites()
-  const value = base + (isFavorite(id) ? 1 : 0)
+  // base = server savedCount (already includes saves persisted before this page loaded);
+  // savedDelta = this session's not-yet-in-base toggles. Adding the all-time favorite
+  // flag instead would double-count the viewer's own save once base reloads with it.
+  const { savedDelta } = useFavorites()
+  const value = Math.max(0, base + savedDelta(id))
   return <>{new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(value)}</>
 }

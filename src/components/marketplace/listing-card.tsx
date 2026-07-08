@@ -57,7 +57,7 @@ function ListingCardImpl({
   const images = listing.images
   const displayTitle = useLocalized(listing.title, listing.titleVi, listing.titleI18n)
   const displayLocation = useTr(listing.location)
-  const { isFavorite, toggle } = useFavorites()
+  const { isFavorite, toggle, savedDelta } = useFavorites()
   const favorited = isFavorite(listing.id)
   // One-shot heart-burst: set ONLY when the user saves (not on unsave, and not
   // when favorites hydrate from storage on load). Cleared when the CSS animation
@@ -211,14 +211,15 @@ function ListingCardImpl({
         {/* Social proof — "N saved" (5a #5): urgency without dark patterns. Only
             shows once the count is meaningful (≥3); bottom-left, clear of
             the dots (center) and locate pin (right). */}
-        {listing.savedCount + (favorited ? 1 : 0) >= 3 && (
+        {Math.max(0, listing.savedCount + savedDelta(listing.id)) >= 3 && (
           <span
             title={tr('people saved this', 'người đã lưu tin này')}
             className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1 rounded-full bg-foreground/70 px-2 py-0.5 text-[10px] font-bold text-background backdrop-blur-[2px]"
           >
-            {/* Optimistic: reflect the viewer's own (device-local) save so the count
-                moves the moment they tap the heart — consistent with the PDP. */}
-            <Heart className="h-2.5 w-2.5 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(listing.savedCount + (favorited ? 1 : 0))}
+            {/* base savedCount now persists server-side (real saves), and savedDelta adds
+                this session's own toggle so it moves the moment the heart is tapped —
+                without double-counting once base reloads with the save. */}
+            <Heart className="h-2.5 w-2.5 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(Math.max(0, listing.savedCount + savedDelta(listing.id)))}
           </span>
         )}
 

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import type { SerializedListing } from '@/lib/types'
 import { useLanguage } from '@/context/language-context'
@@ -15,6 +15,10 @@ type FavoritesCtx = {
   isFavorite: (id: string) => boolean
   toggle: (id: string) => void
   count: number
+  // Net saves made THIS session that aren't yet in a page's SSR savedCount, so a card's
+  // displayed count updates the instant you tap the heart without double-counting your
+  // own save once the server value (which now includes it) is reloaded. Reset on nav.
+  savedDelta: (id: string) => number
   saved: SerializedListing[] | null // preloaded hydrated saved listings (null = loading)
   savedError: boolean // the hydrating fetch failed AND there was no cache — /saved shows retry
   retrySaved: () => void // re-run the hydrating fetch (clears savedError)
@@ -25,7 +29,17 @@ const FavoritesContext = createContext<FavoritesCtx | undefined>(undefined)
 export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   const [ids, setIds] = useState<Set<string>>(new Set())
   const router = useRouter()
+  const pathname = usePathname()
   const { tr } = useLanguage()
+
+  // Per-listing net saves made in the current view (this session, this route). The
+  // server savedCount already reflects saves persisted before the page loaded (they're
+  // baked into the SSR base), so we only add THIS session's not-yet-in-base toggles on
+  // top of the base. Reset on route change — a freshly loaded page carries a fresh base
+  // that already accounts for them, so keeping the delta would double-count.
+  const [optimisticSaves, setOptimisticSaves] = useState<Record<string, number>>({})
+  useEffect(() => { setOptimisticSaves({}) }, [pathname])
+  const savedDelta = useCallback((id: string) => optimisticSaves[id] ?? 0, [optimisticSaves])
 
   useEffect(() => {
     try {
@@ -51,6 +65,17 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
       try { localStorage.setItem(KEY, JSON.stringify([...next])) } catch { /* ignore */ }
       return next
     })
+    // Optimistically move THIS session's displayed count (base + delta) so the number
+    // updates the instant the heart is tapped.
+    setOptimisticSaves((m) => ({ ...m, [id]: (m[id] ?? 0) + (added ? 1 : -1) }))
+    // Persist the aggregate savedCount server-side (fire-and-forget — the local favorite
+    // is the source of truth for the heart; this only feeds the social-proof number).
+    fetch(`/api/listings/${id}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ saved: added }),
+      keepalive: true,
+    }).catch(() => {})
     // The heart filling IS the confirmation — no toast (user decision 2026-07-06:
     // success popups only where nothing else visibly changes).
     if (added) {
@@ -112,7 +137,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; clearTimeout(t) }
   }, [idKey, fetchTick])
 
-  const value = useMemo(() => ({ ids, isFavorite, toggle, count: ids.size, saved, savedError, retrySaved }), [ids, isFavorite, toggle, saved, savedError, retrySaved])
+  const value = useMemo(() => ({ ids, isFavorite, toggle, count: ids.size, savedDelta, saved, savedError, retrySaved }), [ids, isFavorite, toggle, savedDelta, saved, savedError, retrySaved])
 
   return (
     <FavoritesContext.Provider value={value}>
