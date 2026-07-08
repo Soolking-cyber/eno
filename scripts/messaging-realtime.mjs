@@ -135,6 +135,33 @@ console.log('✓ revoked EXECUTE on broadcast_* from public/anon/authenticated')
 // 2) Realtime Authorization: RLS SELECT (receive) policy on realtime.messages so
 //    only the conversation's participants can receive the private broadcasts.
 //    Only a SELECT/receive policy is needed — the definer trigger does the send.
+//    GOTCHA (2026-07-08, prod outage): the policy MUST NOT read "Conversation"
+//    directly — it evaluates AS the subscriber, and "Conversation" has RLS enabled
+//    with no policies, so a plain EXISTS was always empty → every join Unauthorized
+//    (realtime dead, clients retry-looping). The check lives in a SECURITY DEFINER
+//    function (bypasses table RLS; boolean-only, no data exposure) which also covers
+//    sellers via Seller."ownerId" (sellerProfileId is null until the seller claims).
+await client.query(`
+  create or replace function public.is_convo_participant(p_convo text)
+  returns boolean
+  language sql stable security definer
+  set search_path = public
+  as $$
+    select exists (
+      select 1
+      from "Conversation" c
+      left join "Seller" s on s.id = c."sellerId"
+      where c.id = p_convo
+        and (
+          c."buyerProfileId" = auth.uid()
+          or c."sellerProfileId" = auth.uid()
+          or s."ownerId" = auth.uid()
+        )
+    );
+  $$;
+`)
+await client.query(`revoke all on function public.is_convo_participant(text) from public`)
+await client.query(`grant execute on function public.is_convo_participant(text) to authenticated`)
 await client.query(`alter table realtime.messages enable row level security`)
 await client.query(`drop policy if exists "convo participants can receive" on realtime.messages`)
 await client.query(`
@@ -144,14 +171,10 @@ await client.query(`
     to authenticated
     using (
       realtime.messages.extension = 'broadcast'
-      and exists (
-        select 1 from public."Conversation" c
-        where c.id = split_part(realtime.topic(), ':', 2)
-          and ((select auth.uid()) = c."buyerProfileId" or (select auth.uid()) = c."sellerProfileId")
-      )
+      and public.is_convo_participant(split_part(realtime.topic(), ':', 2))
     );
 `)
-console.log('✓ RLS receive policy on realtime.messages (participants only)')
+console.log('✓ RLS receive policy on realtime.messages (participants only, definer check)')
 
 // 2a) Receive policy for a user's OWN topic ('user:<auth.uid()>'). Profile.id ==
 //     auth.users.id == auth.uid(), so a user can only ever subscribe to their own

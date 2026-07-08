@@ -1,5 +1,5 @@
 import 'server-only'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '@/generated/prisma/client'
 import { db } from './db'
 import { fold } from './fold'
 
