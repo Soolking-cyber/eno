@@ -118,7 +118,7 @@ export function ContactComposer({
         <button
           type="button"
           onClick={() => openSignIn({ listingTitle, listingImage, sellerName })}
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-tint cursor-pointer"
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-tint cursor-pointer"
         >
           <Tag className="h-4 w-4" /> {tr('Sign in to make an offer', 'Đăng nhập để trả giá')}
         </button>
@@ -134,7 +134,7 @@ export function ContactComposer({
         <button
           type="button"
           onClick={() => setOffering(true)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-tint cursor-pointer"
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-tint cursor-pointer"
         >
           <Tag className="h-4 w-4" /> {tr('Make an offer', 'Trả giá')}
         </button>
