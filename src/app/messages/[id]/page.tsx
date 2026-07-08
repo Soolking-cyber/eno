@@ -18,6 +18,7 @@ import { ReportButton } from '@/components/marketplace/report-button'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
+import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/chat-composer'
 import { fmtTime, dayKey } from '@/lib/dates'
 
 type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
@@ -63,7 +64,7 @@ export default function ThreadPage() {
   const openedRef = useRef<string | null>(null) // conversation id already auto-pinned to newest
   const prevCountRef = useRef(0)
   const [newBelow, setNewBelow] = useState(false) // unseen message below the fold
-  const composerRef = useRef<HTMLTextAreaElement>(null)
+  const composerRef = useRef<ChatComposerHandle>(null)
   // Current user's profile id, in a ref so the realtime handler (a stable closure)
   // can tell an incoming counterpart message from my own echo without re-subscribing.
   const meRef = useRef<string | null>(null)
@@ -229,6 +230,7 @@ export default function ThreadPage() {
     const tempId = `temp-${Date.now()}`
     const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true }
     setText('')
+    composerRef.current?.clear() // empty the contenteditable DOM immediately (no 1-frame lag)
     haptic()
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
@@ -360,16 +362,10 @@ export default function ThreadPage() {
     // REPLACE the composer content — each chip is a complete reply, and appending
     // turned two taps into garbage ("Can meet in Let me think about it"). Last tap
     // wins; anything half-typed is superseded deliberately by the tap.
-    setText(t)
-    // Focus SYNCHRONOUSLY inside the tap gesture — iOS only opens the keyboard for
-    // focus in the same call stack as the user's touch. Deferring it to rAF (as before)
-    // focuses the field but leaves the keyboard closed. Selection can wait a frame for
-    // the value to render.
-    const el = composerRef.current
-    if (el) {
-      el.focus()
-      requestAnimationFrame(() => { const e2 = composerRef.current; if (e2) e2.setSelectionRange(t.length, t.length) })
-    }
+    setText(t)                       // keep parent state + send-button styling in sync
+    // insert() focuses SYNCHRONOUSLY inside the tap gesture (iOS only opens the keyboard
+    // for focus in the same call stack as the touch) and drops the caret at the end.
+    composerRef.current?.insert(t)
   }
 
   // Seller-only "Let me think about it" chip appears while the buyer's latest
@@ -649,15 +645,16 @@ export default function ThreadPage() {
                 </button>
               </div>
             ) : (
-              <textarea
+              /* contenteditable, NOT <textarea> — iOS attaches the keyboard accessory
+                 bar (‹ › + Done) to form controls only, so this removes it entirely.
+                 Enter-to-send + Vietnamese IME are handled inside ChatComposer. */
+              <ChatComposer
                 ref={composerRef}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                rows={1}
-                enterKeyHint="send"
+                onChange={setText}
+                onSend={() => send()}
                 placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
-                className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                ariaLabel={tr('Write a message', 'Nhập tin nhắn')}
               />
             )}
 
