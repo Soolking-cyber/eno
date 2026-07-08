@@ -44,10 +44,12 @@ test.describe('Guest · listing detail (BMW XM SUV)', () => {
   })
 
   test('contact is gated for guests', async ({ page }) => {
-    const gate = page.getByRole('button', { name: /Sign in to contact seller/i })
-    await expect(gate).toBeVisible()
-    await gate.click()
-    // The gate opens a sign-in dialog (rather than navigating) — a guest cannot reach the seller.
+    // The contact CTA reads "Chat now" (desktop seller card) / "Chat" (mobile sticky bar);
+    // the sign-in gate now lives IN the click handler rather than in the button copy. A guest
+    // who taps it must get the sign-in dialog — never a live thread / the seller's contact.
+    const chat = page.getByRole('button', { name: /^(Chat now|Chat)$/i }).first()
+    await expect(chat).toBeVisible()
+    await chat.click()
     await expect(page.getByRole('dialog')).toBeVisible()
   })
 
