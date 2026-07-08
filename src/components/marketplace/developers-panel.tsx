@@ -73,7 +73,9 @@ export function DevelopersPanel() {
   const active = (keys ?? []).filter((k) => !k.revokedAt)
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    // Full width, left-aligned to the logo/tabs edge — consistent with every other
+    // dashboard tab (was mx-auto max-w-3xl, which centered + indented it from the left).
+    <div className="w-full space-y-6">
       <div>
         <h2 className="h-section text-foreground">{tr('API keys', 'Khóa API')}</h2>
         <p className="mt-1 text-sm leading-relaxed text-body">
