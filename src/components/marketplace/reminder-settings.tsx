@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bell, BellOff, Loader2 } from 'lucide-react'
+import { Bell, BellOff, Loader2, Mail } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 
 const VAPID = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
@@ -23,6 +23,8 @@ export function ReminderSettings() {
   const { tr } = useLanguage()
   const [pushState, setPushState] = useState<'unsupported' | 'default' | 'granted' | 'denied'>('default')
   const [busy, setBusy] = useState(false)
+  // Weekly marketing digest opt-in (null = not yet loaded / not signed in → hide the row).
+  const [digest, setDigest] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !VAPID) {
@@ -31,6 +33,25 @@ export function ReminderSettings() {
       setPushState(Notification.permission === 'granted' ? 'granted' : Notification.permission === 'denied' ? 'denied' : 'default')
     }
   }, [])
+
+  useEffect(() => {
+    fetch('/api/profile/digest-prefs')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && typeof d.weeklyDigestOptIn === 'boolean') setDigest(d.weeklyDigestOptIn) })
+      .catch(() => {})
+  }, [])
+
+  const toggleDigest = async () => {
+    if (digest === null) return
+    const next = !digest
+    setDigest(next) // optimistic
+    try {
+      const res = await fetch('/api/profile/digest-prefs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weeklyDigestOptIn: next }),
+      })
+      if (!res.ok) setDigest(!next) // revert on failure
+    } catch { setDigest(!next) }
+  }
 
   const enablePush = async () => {
     setBusy(true)
@@ -78,6 +99,27 @@ export function ReminderSettings() {
           </button>
         )}
       </div>
+
+      {/* Weekly digest email (all accounts) — the email footer also has a one-click
+          unsubscribe, this is the in-app control. Hidden until the pref loads. */}
+      {digest !== null && (
+        <div className="mt-6 flex items-start justify-between gap-4 border-t border-border pt-5">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-bold text-foreground"><Mail className="h-4 w-4 shrink-0" />{tr('Weekly digest email', 'Email tổng hợp hằng tuần')}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{tr('Once a week: top products and the latest price drops. No spam.', 'Mỗi tuần một lần: sản phẩm nổi bật và các đợt giảm giá mới nhất. Không spam.')}</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={digest}
+            aria-label={tr('Weekly digest email', 'Email tổng hợp hằng tuần')}
+            onClick={toggleDigest}
+            className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors cursor-pointer ${digest ? 'bg-primary' : 'bg-muted'}`}
+          >
+            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${digest ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

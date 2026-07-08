@@ -54,6 +54,8 @@ model Profile {
   goodStandingSince DateTime?                            // maintained by recomputeTrust (≥85 sets, <85 clears); insured = ≥180d
   dailyReminderOptIn   Boolean   @default(true) // receive the daily "confirm availability" reminder
   availabilitySkips    Int       @default(0)    // consecutive "Skip for now" taps; ≥2 → next review hides Skip (must act). Reset to 0 on confirm.
+  weeklyDigestOptIn    Boolean   @default(true) // receive the weekly "top products + moving sales" email digest
+  unsubscribeToken     String    @unique @default(cuid()) // tamper-proof one-click email unsubscribe (no login)
   // ── Acquisition attribution (FIRST-touch) — measure CAC per channel ──
   attrSource    String?  // 'facebook' | 'google' | 'reddit' | 'direct' | utm_source…
   attrMedium    String?  // 'social' | 'cpc' | 'organic' | 'referral' | 'none' | utm_medium…
