@@ -206,7 +206,10 @@ function ListingCardImpl({
         {/* Top-left signals: Urgent → price-drop % → New (the shared, app-wide badge
             system — see card-badges.tsx). "New" yields when a stronger, honest signal
             (urgent/drop) is present so a narrow card never crowds. */}
-        <CardBadges listing={listing} className="absolute left-2 top-2 z-10" />
+        {/* Discount / urgent / new badges — top-left. On desktop hover they fade out
+            so the action icons unfurling from the save heart own the top edge cleanly;
+            back on mouse-out. (Touch has no hover, so mobile/tablet always show them.) */}
+        <CardBadges listing={listing} className="absolute left-2 top-2 z-10 transition-opacity duration-200 pc:group-hover:opacity-0" />
 
         {/* Social proof — "N saved" (5a #5): urgency without dark patterns. Only
             shows once the count is meaningful (≥3); bottom-left, clear of
@@ -223,58 +226,54 @@ function ListingCardImpl({
           </span>
         )}
 
-        {/* Quick actions (5a #6) — desktop: Chat over Offer, stacked on the LEFT
-            edge, sliding in left→right on hover with a slight stagger (macOS-dock
-            feel). Pressing Offer rolls the discount bar open to the RIGHT of the
-            tag icon, sized to the card. */}
-        <span className="pointer-events-none absolute inset-x-2 top-1/2 z-10 hidden -translate-y-1/2 flex-col items-stretch gap-1.5 pc:flex">
+        {/* Quick actions (5a #6) — desktop ONLY: Chat · Offer · Locate unfurl
+            horizontally OUT of the save heart (top-right), sliding LEFT into place
+            with a slight stagger — chat (nearest the heart) first, then offer, then
+            locate — so the row reads as fanning out of the save icon. flex-row-reverse
+            lays them out [locate · offer · chat] left→right with chat against the heart.
+            Mobile/tablet keep the always-on right-edge column below. Pressing Offer
+            opens the centered discount bar (shared with mobile). */}
+        <span className="pointer-events-none absolute right-11 top-2 z-10 hidden flex-row-reverse items-center gap-1 pc:flex">
           {quickOffer === null && (
-            <span className="flex">
-              {/* Bare glyph — same face treatment as the heart/pin (white +
-                  drop-shadow, no chip). */}
-              <button
-                type="button"
-                aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
-                title={tr('Chat with seller', 'Nhắn tin với người bán')}
-                onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-                className="pointer-events-auto flex h-8 w-8 -translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
-              >
-                <MessageCircle className="h-[20px] w-[20px]" />
-              </button>
-            </span>
+            /* Bare glyph — same face treatment as the heart/pin (white + drop-shadow). */
+            <button
+              type="button"
+              aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
+              title={tr('Chat with seller', 'Nhắn tin với người bán')}
+              onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
+              className="pointer-events-auto flex h-8 w-8 translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
+            >
+              <MessageCircle className="h-[20px] w-[20px]" />
+            </button>
           )}
           {listing.price > 0 && listing.negotiable !== false && (
-            <span className="flex min-w-0 items-center gap-1.5">
-              <button
-                type="button"
-                aria-label={tr('Make an offer', 'Trả giá')}
-                title={tr('Make an offer', 'Trả giá')}
-                aria-pressed={quickOffer !== null}
-                onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
-                className={cn(
-                  'pointer-events-auto flex h-8 w-8 shrink-0 -translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]',
-                  quickOffer === null && 'delay-75 group-hover:delay-75',
-                )}
-              >
-                {/* Pressed = brand fill, mirroring the heart's saved state. The offer
-                    controls open as ONE wide edge-to-edge bar (shared with mobile,
-                    below) so the amount never gets cramped on a narrow card. */}
-                <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
-              </button>
-            </span>
+            <button
+              type="button"
+              aria-label={tr('Make an offer', 'Trả giá')}
+              title={tr('Make an offer', 'Trả giá')}
+              aria-pressed={quickOffer !== null}
+              onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
+              className={cn(
+                'pointer-events-auto flex h-8 w-8 shrink-0 translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]',
+                quickOffer === null && 'delay-75 group-hover:delay-75',
+              )}
+            >
+              {/* Pressed = brand fill, mirroring the heart's saved state. The offer
+                  controls open as ONE wide edge-to-edge bar (shared with mobile,
+                  below) so the amount never gets cramped on a narrow card. */}
+              <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
+            </button>
           )}
           {quickOffer === null && (
-            <span className="flex">
-              <button
-                type="button"
-                aria-label={tr('Show on map', 'Xem trên bản đồ')}
-                title={tr('Show on map', 'Xem trên bản đồ')}
-                onClick={(e) => { e.stopPropagation(); locate(listing) }}
-                className="pointer-events-auto flex h-8 w-8 -translate-x-3 items-center justify-center text-white opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
-              >
-                <MapPin className="h-[20px] w-[20px]" />
-              </button>
-            </span>
+            <button
+              type="button"
+              aria-label={tr('Show on map', 'Xem trên bản đồ')}
+              title={tr('Show on map', 'Xem trên bản đồ')}
+              onClick={(e) => { e.stopPropagation(); locate(listing) }}
+              className="pointer-events-auto flex h-8 w-8 translate-x-3 items-center justify-center text-white opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
+            >
+              <MapPin className="h-[20px] w-[20px]" />
+            </button>
           )}
         </span>
 
