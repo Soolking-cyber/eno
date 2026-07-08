@@ -28,7 +28,7 @@ export default function AiThreadPage() {
   const [messages, setMessages] = useState<Msg[]>([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null) // scroll only THIS, never the document (scrollIntoView can scroll <body> → header off)
   const footerRef = useRef<HTMLDivElement>(null) // composer; lifts to position:fixed above the keyboard (globals.css .chat-footer)
 
   const greeting: Msg = {
@@ -53,7 +53,12 @@ export default function AiThreadPage() {
     if (messages.length) { try { localStorage.setItem(STORE_KEY, JSON.stringify(messages.slice(-30))) } catch { /* quota */ } }
   }, [messages])
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages.length, loading])
+  // Keep the latest message in view by scrolling the LIST ONLY (setting its scrollTop) —
+  // never scrollIntoView, which on iOS can scroll <body> and shove the header off-screen.
+  useEffect(() => {
+    const el = listRef.current
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  }, [messages.length, loading])
 
   // Publish the composer's live height into --footer-h so the message list reserves exactly
   // that much bottom padding once the footer lifts to position:fixed (keyboard up) — the last
@@ -116,7 +121,11 @@ export default function AiThreadPage() {
       </div>
 
       {/* Messages */}
-      <div role="log" aria-live="polite" className="chat-scroll flex-1 min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 scroll-thin [&_.reveal-on-scroll]:![animation:none]">
+      <div ref={listRef} role="log" aria-live="polite" className="chat-scroll flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-contain px-4 py-4 scroll-thin [&_.reveal-on-scroll]:![animation:none]">
+        {/* Bottom-anchor: a short chat (greeting + a reply) sits just above the composer
+            instead of stranded at the top with a huge gap. mt-auto pushes content down when
+            it's shorter than the list, and simply collapses (scrolls normally) once it fills. */}
+        <div className="mt-auto space-y-3">
         {messages.map((m, i) => (
           <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} ${i === messages.length - 1 ? 'bubble-in' : ''}`}>
             <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'bg-primary text-white' : 'bg-card text-foreground'}`}>
@@ -139,7 +148,7 @@ export default function AiThreadPage() {
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
+        </div>
       </div>
 
       {/* Composer — message field + send (no offer mode; the AI doesn't haggle).
