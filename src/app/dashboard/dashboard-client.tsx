@@ -513,10 +513,10 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
       </>)}
 
       {tab === 'account' && (
-        // A readable, left-aligned settings column: flat titled sections (no boxes —
-        // one-canvas/borderless language), separated by generous spacing so the
-        // hierarchy is clear without sprawling across the full page width.
-        <div className="mt-6 max-w-3xl space-y-9">
+        // Full-width to match every other dashboard tab (Listings/Developers/Help all
+        // span the max-w-7xl main, logo→Post-button). Flat titled sections (one-canvas/
+        // borderless); the form fields inside each section keep their own readable widths.
+        <div className="mt-6 space-y-9 pb-12">
           {/* Profile editor — business storefront (with representative) OR the
               individual's own profile. */}
           {isBusiness && d?.seller ? (
