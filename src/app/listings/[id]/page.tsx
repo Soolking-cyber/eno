@@ -9,7 +9,7 @@ import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
 import { Footer } from '@/components/marketplace/footer'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
-import { CountValue } from '@/components/marketplace/rating-value'
+import { CountValue, SavedCount } from '@/components/marketplace/rating-value'
 import { brandIconPath } from '@/lib/brand-icons'
 import {
   MapPin,
@@ -268,7 +268,7 @@ export default async function ListingPage({ params }: Props) {
     <>
       {listing.savedCount >= 3 && (
         <span className="inline-flex items-center gap-1">
-          <Heart className="h-3.5 w-3.5" /> <CountValue value={listing.savedCount} /> <Tr text="saved" />
+          <Heart className="h-3.5 w-3.5" /> <SavedCount base={listing.savedCount} id={listing.id} /> <Tr text="saved" />
         </span>
       )}
       {listing.savedCount >= 3 && listing.views >= 20 && <span aria-hidden>·</span>}

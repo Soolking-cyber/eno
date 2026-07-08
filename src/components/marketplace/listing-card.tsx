@@ -216,7 +216,9 @@ function ListingCardImpl({
             title={tr('people saved this', 'người đã lưu tin này')}
             className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1 rounded-full bg-foreground/70 px-2 py-0.5 text-[10px] font-bold text-background backdrop-blur-[2px]"
           >
-            <Heart className="h-2.5 w-2.5 fill-current" /> {listing.savedCount}
+            {/* Optimistic: reflect the viewer's own (device-local) save so the count
+                moves the moment they tap the heart — consistent with the PDP. */}
+            <Heart className="h-2.5 w-2.5 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(listing.savedCount + (favorited ? 1 : 0))}
           </span>
         )}
 
