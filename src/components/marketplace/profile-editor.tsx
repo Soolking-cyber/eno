@@ -64,7 +64,7 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
     } catch { setError(tr('Could not save. Try again.', 'Không lưu được. Thử lại.')) } finally { setSaving(false) }
   }
 
-  const field = 'w-full rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:bg-muted focus:bg-muted'
+  const field = 'w-full rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors hover:border-line-strong focus:border-brand focus:ring-2 focus:ring-brand/20'
   const initials = getInitials(name)
 
   return (

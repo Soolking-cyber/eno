@@ -79,6 +79,20 @@ function StatCard({ icon, value, label, href, accent }: { icon: React.ReactNode;
   return href ? <Link href={href}>{inner}</Link> : inner
 }
 
+/** A titled settings panel — the familiar SaaS-settings shape: one card per group,
+ *  a bold title, a one-line description, then the control. Groups the Settings tab
+ *  into a clean, scannable hierarchy instead of a flat wall of fields. `tone="danger"`
+ *  tints the header for destructive groups (account deletion). */
+function SettingsCard({ title, description, tone = 'default', children }: { title: string; description?: string; tone?: 'default' | 'danger'; children: React.ReactNode }) {
+  return (
+    <section className={cn('rounded-2xl border bg-card p-5 sm:p-6', tone === 'danger' ? 'border-red-200' : 'border-border')}>
+      <h2 className={cn('h-section', tone === 'danger' ? 'text-red-600' : 'text-foreground')}>{title}</h2>
+      {description && <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
+      <div className="mt-4">{children}</div>
+    </section>
+  )
+}
+
 /** Seller CRM dashboard. Cache-first paint (businesses hit it daily) then
  *  revalidate. Tiered: everyone gets stats + listings + messages; business adds
  *  the business-profile editor + bulk upload. Built on semantic tokens (dark-ready). */
@@ -497,62 +511,86 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
         />
       </>)}
 
-      {tab === 'account' && (<>
-        {/* Profile editor — business storefront (with representative) OR the
-            individual's own profile. */}
-        {isBusiness && d?.seller ? (
-          <section className="mt-6">
-            <h2 className="h-section text-foreground">{tr('Business profile', 'Hồ sơ doanh nghiệp')}</h2>
-            <div className="mt-3"><BusinessProfileEditor seller={d.seller} repName={d.profile.displayName} onSaved={refresh} /></div>
-          </section>
-        ) : d ? (
-          <section className="mt-6">
-            <h2 className="h-section text-foreground">{tr('Your profile', 'Hồ sơ của bạn')}</h2>
-            <div className="mt-3"><ProfileEditor profile={d.profile} onSaved={refresh} /></div>
-          </section>
-        ) : null}
+      {tab === 'account' && (
+        // A readable, left-aligned settings column of titled cards — the familiar
+        // Stripe/Shopify/GitHub shape: one group per card, clear title + description,
+        // no sprawl across the full page width.
+        <div className="mt-6 max-w-3xl space-y-4">
+          {/* Profile editor — business storefront (with representative) OR the
+              individual's own profile. */}
+          {isBusiness && d?.seller ? (
+            <SettingsCard
+              title={tr('Business profile', 'Hồ sơ doanh nghiệp')}
+              description={tr('Your storefront — logo, name, area and contact buyers see.', 'Gian hàng của bạn — logo, tên, khu vực và liên hệ mà người mua thấy.')}
+            >
+              <BusinessProfileEditor seller={d.seller} repName={d.profile.displayName} onSaved={refresh} />
+            </SettingsCard>
+          ) : d ? (
+            <SettingsCard
+              title={tr('Your profile', 'Hồ sơ của bạn')}
+              description={tr('Your name, photo and area — how you appear to buyers.', 'Tên, ảnh và khu vực của bạn — cách người mua nhìn thấy bạn.')}
+            >
+              <ProfileEditor profile={d.profile} onSaved={refresh} />
+            </SettingsCard>
+          ) : null}
 
-        {/* Email — change-email (passwordless app, so this is the only credential here) */}
-        {d && (
-          <section className="mt-8">
-            <h2 className="h-section text-foreground">{tr('Email', 'Email')}</h2>
-            <div className="mt-3"><ChangeEmailForm currentEmail={d.profile.email} /></div>
-          </section>
-        )}
+          {/* Public handle — the account's one shareable eno.vn/name link (shop or personal) */}
+          <SettingsCard
+            title={tr('Handle', 'Tên định danh')}
+            description={tr('Your one shareable eno.vn link.', 'Liên kết eno.vn duy nhất bạn có thể chia sẻ.')}
+          >
+            <HandleSettings />
+          </SettingsCard>
 
-        {/* Account type — self-serve individual ↔ business switch */}
-        {d && (
-          <section className="mt-8">
-            <h2 className="h-section text-foreground">{tr('Account type', 'Loại tài khoản')}</h2>
-            <div className="mt-3"><AccountTypeSwitcher isBusiness={isBusiness} businessName={d.profile.businessName} onSaved={refresh} /></div>
-          </section>
-        )}
+          {/* Email — change-email (passwordless app, so this is the only credential here) */}
+          {d && (
+            <SettingsCard
+              title={tr('Email', 'Email')}
+              description={tr('Used for sign-in and important account notices.', 'Dùng để đăng nhập và nhận thông báo quan trọng.')}
+            >
+              <ChangeEmailForm currentEmail={d.profile.email} />
+            </SettingsCard>
+          )}
 
-        {/* Public handle — the account's one shareable eno.vn/name link (shop or personal) */}
-        <section className="mt-8">
-          <h2 className="h-section text-foreground">{tr('Handle', 'Tên định danh')}</h2>
-          <div className="mt-3"><HandleSettings /></div>
-        </section>
+          {/* Account type — self-serve individual ↔ business switch */}
+          {d && (
+            <SettingsCard
+              title={tr('Account type', 'Loại tài khoản')}
+              description={tr('Switch between an individual and a business account.', 'Chuyển đổi giữa tài khoản cá nhân và doanh nghiệp.')}
+            >
+              <AccountTypeSwitcher isBusiness={isBusiness} businessName={d.profile.businessName} onSaved={refresh} />
+            </SettingsCard>
+          )}
 
-        {/* Reminders */}
-        <section className="mt-8">
-          <h2 className="h-section text-foreground">{tr('Reminders', 'Nhắc nhở')}</h2>
-          <div className="mt-3"><ReminderSettings /></div>
-        </section>
+          {/* Reminders */}
+          <SettingsCard
+            title={tr('Reminders', 'Nhắc nhở')}
+            description={tr('Get a nudge to keep your listings fresh and answer buyers.', 'Nhận nhắc nhở để giữ tin đăng mới và trả lời người mua.')}
+          >
+            <ReminderSettings />
+          </SettingsCard>
 
-        {/* Preferences — language + appearance. Mobile only: on desktop (sm+) these
-            live in the header account dropdown, so they'd be redundant here. */}
-        <section className="mt-8 sm:hidden">
-          <h2 className="h-section text-foreground mb-3">{tr('Preferences', 'Tùy chọn')}</h2>
-          <PreferencesInline />
-        </section>
+          {/* Preferences — language + appearance. Mobile only: on desktop (sm+) these
+              live in the header account dropdown, so they'd be redundant here. */}
+          <div className="sm:hidden">
+            <SettingsCard
+              title={tr('Preferences', 'Tùy chọn')}
+              description={tr('Language and appearance.', 'Ngôn ngữ và giao diện.')}
+            >
+              <PreferencesInline />
+            </SettingsCard>
+          </div>
 
-        {/* Danger zone — self-service account deletion (PDPL deletion right) */}
-        <section className="mt-10">
-          <h2 className="h-section text-red-600">{tr('Danger zone', 'Vùng nguy hiểm')}</h2>
-          <div className="mt-3"><DeleteAccount /></div>
-        </section>
-      </>)}
+          {/* Danger zone — self-service account deletion (PDPL deletion right) */}
+          <SettingsCard
+            tone="danger"
+            title={tr('Danger zone', 'Vùng nguy hiểm')}
+            description={tr('Permanently delete your account and all its data.', 'Xóa vĩnh viễn tài khoản và toàn bộ dữ liệu.')}
+          >
+            <DeleteAccount />
+          </SettingsCard>
+        </div>
+      )}
       </main>
       <Footer />
     </div>
