@@ -168,7 +168,7 @@ export default function AiThreadPage() {
           iOS keyboard. Same wiring as the regular thread (messages/[id]). */}
       <div ref={footerRef} className="chat-footer shrink-0">
       {user ? (
-        <div className="chat-composer flex items-end gap-2 bg-card px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+        <div className="chat-composer flex items-end gap-2 bg-card px-4 pt-3 pb-3">
           {/* Photo search lives IN the assistant now (the search bars' camera icon
               folded in here) — recognize the item, then ask as a normal message.
               Same auth + hourly limits as typed messages, so no extra credit burn. */}
@@ -202,7 +202,7 @@ export default function AiThreadPage() {
           </button>
         </div>
       ) : (
-        <div className="chat-composer bg-card px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+        <div className="chat-composer bg-card px-4 pt-3 pb-3">
           <button
             onClick={() => openSignIn()}
             className="w-full rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-white transition-transform active:scale-[0.98] tap-44"
