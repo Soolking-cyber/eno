@@ -29,6 +29,7 @@ export default function AiThreadPage() {
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const footerRef = useRef<HTMLDivElement>(null) // composer; lifts to position:fixed above the keyboard (globals.css .chat-footer)
 
   const greeting: Msg = {
     role: 'assistant',
@@ -53,6 +54,20 @@ export default function AiThreadPage() {
   }, [messages])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages.length, loading])
+
+  // Publish the composer's live height into --footer-h so the message list reserves exactly
+  // that much bottom padding once the footer lifts to position:fixed (keyboard up) — the last
+  // message then always clears it. Same mechanism as the regular thread (messages/[id]).
+  useEffect(() => {
+    const el = footerRef.current
+    if (!el) return
+    const root = document.documentElement
+    const set = () => root.style.setProperty('--footer-h', `${el.offsetHeight}px`)
+    set()
+    const ro = new ResizeObserver(set)
+    ro.observe(el)
+    return () => { ro.disconnect(); root.style.removeProperty('--footer-h') }
+  }, [user])
 
   async function send(override?: string) {
     const body = (override ?? text).trim()
@@ -101,7 +116,7 @@ export default function AiThreadPage() {
       </div>
 
       {/* Messages */}
-      <div role="log" aria-live="polite" className="chat-scroll flex-1 min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 scroll-thin">
+      <div role="log" aria-live="polite" className="chat-scroll flex-1 min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 scroll-thin [&_.reveal-on-scroll]:![animation:none]">
         {messages.map((m, i) => (
           <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} ${i === messages.length - 1 ? 'bubble-in' : ''}`}>
             <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'bg-primary text-white' : 'bg-card text-foreground'}`}>
@@ -129,9 +144,13 @@ export default function AiThreadPage() {
 
       {/* Composer — message field + send (no offer mode; the AI doesn't haggle).
           Members-only: logged-out users get a sign-in CTA instead (the API is
-          login-gated + 10/h per account to protect the paid AI credit). */}
+          login-gated + 10/h per account to protect the paid AI credit).
+          Wrapped in .chat-footer so it lifts to position:fixed FLUSH above the keyboard
+          (globals.css) instead of reflowing the list on focus — which was aborting the
+          iOS keyboard. Same wiring as the regular thread (messages/[id]). */}
+      <div ref={footerRef} className="chat-footer shrink-0">
       {user ? (
-        <div className="flex items-end gap-2 bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+        <div className="chat-composer flex items-end gap-2 bg-card px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           {/* Photo search lives IN the assistant now (the search bars' camera icon
               folded in here) — recognize the item, then ask as a normal message.
               Same auth + hourly limits as typed messages, so no extra credit burn. */}
@@ -165,7 +184,7 @@ export default function AiThreadPage() {
           </button>
         </div>
       ) : (
-        <div className="bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+        <div className="chat-composer bg-card px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <button
             onClick={() => openSignIn()}
             className="w-full rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-white transition-transform active:scale-[0.98] tap-44"
@@ -177,6 +196,7 @@ export default function AiThreadPage() {
           </p>
         </div>
       )}
+      </div>
     </div>
   )
 }

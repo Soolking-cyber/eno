@@ -22,6 +22,25 @@ function directionsUrl(to: LatLng): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${to.lat},${to.lng}&travelmode=driving`
 }
 
+/** Standalone Google Maps directions FAB — positioned by the caller (e.g. absolute in the
+ *  map popup card's bottom-right corner). Tap opens directions to the listing, ready to go. */
+export function MapsDirectionsButton({ to, className = '' }: { to: LatLng; className?: string }) {
+  const { tr } = useLanguage()
+  return (
+    <a
+      href={directionsUrl(to)}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      aria-label={tr('Get directions in Google Maps', 'Chỉ đường trong Google Maps')}
+      title={tr('Directions in Google Maps', 'Chỉ đường trong Google Maps')}
+      className={`press inline-flex items-center justify-center rounded-full bg-card shadow-pop ring-1 ring-border transition-transform hover:scale-105 active:scale-90 ${className}`}
+    >
+      <GoogleMapsPin className="h-[18px] w-[18px]" />
+    </a>
+  )
+}
+
 // Shown inside the map popup card: a rough "how far is this from me" — travel time +
 // road distance from the viewer's location to the listing. Reuses the "search near you"
 // location when it's already known (no re-prompt); otherwise a small button asks for it.
@@ -37,42 +56,20 @@ export function MapTravel({
   const { lang, tr } = useLanguage()
   const l = lang === 'vi' ? 'vi' : 'en'
 
-  // Tap-and-go directions to the listing, opened in Google Maps (new tab). stopPropagation
-  // so it doesn't also trigger the popup card's "open listing" click.
-  const mapsBtn = (
-    <a
-      href={directionsUrl(to)}
-      target="_blank"
-      rel="noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      aria-label={tr('Get directions in Google Maps', 'Chỉ đường trong Google Maps')}
-      title={tr('Directions in Google Maps', 'Chỉ đường trong Google Maps')}
-      className={`inline-flex ${compact ? 'h-6 w-6' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-full bg-muted transition-colors hover:bg-accent active:scale-90`}
-    >
-      <GoogleMapsPin className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
-    </a>
-  )
-
+  // Estimate text only — the Google Maps directions button is a separate FAB
+  // (<MapsDirectionsButton>) the caller floats in the card's bottom-right corner.
   if (userLoc) {
     const est = estimateTravel(userLoc, to)
     if (!est) {
-      return (
-        <span className="inline-flex items-center gap-2">
-          <span className="text-[11px] text-ink-4">{tr('Too far to estimate', 'Quá xa để ước tính')}</span>
-          {mapsBtn}
-        </span>
-      )
+      return <span className="text-[11px] text-ink-4">{tr('Too far to estimate', 'Quá xa để ước tính')}</span>
     }
     const { dist, time } = formatTravel(est, l)
     return (
-      <span className="inline-flex items-center gap-2">
-        <span className={`inline-flex items-center gap-1.5 ${compact ? 'text-[11px]' : 'text-xs'} text-muted-foreground`}>
-          <Navigation className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
-          <span className="font-bold text-foreground tabular-nums">~{time}</span>
-          <span className="text-ink-4">·</span>
-          <span className="tabular-nums">{dist} {tr('from you', 'từ bạn')}</span>
-        </span>
-        {mapsBtn}
+      <span className={`inline-flex items-center gap-1.5 ${compact ? 'text-[11px]' : 'text-xs'} text-muted-foreground`}>
+        <Navigation className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
+        <span className="font-bold text-foreground tabular-nums">~{time}</span>
+        <span className="text-ink-4">·</span>
+        <span className="tabular-nums">{dist} {tr('from you', 'từ bạn')}</span>
       </span>
     )
   }

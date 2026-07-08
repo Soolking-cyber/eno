@@ -5,7 +5,7 @@ import { isMockImageUrl } from '@/lib/listing-image'
 import { useEffect, useRef, useState } from 'react'
 import { Heart } from 'lucide-react'
 import { TrustScore } from './trust-score'
-import { MapTravel } from './map-travel'
+import { MapTravel, MapsDirectionsButton } from './map-travel'
 import type { LatLng } from '@/lib/travel'
 import type { SerializedListingCard } from '@/lib/types'
 import { formatPrice } from '@/lib/types'
@@ -385,6 +385,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   </span>
                 </button>
                 <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
+                <MapsDirectionsButton to={getListingCoordinates(card)} className="h-8 w-8 shrink-0" />
               </div>
             ) : (
               <>
@@ -414,10 +415,13 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                     <p className="mt-1 text-sm font-bold text-accent-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</p>
                   </div>
                 </button>
-                {/* Travel estimate — separate tap target, below the open-listing button. */}
-                <div className="px-3 pb-3">
+                {/* Travel estimate — separate tap target, below the open-listing button.
+                    The Google Maps directions FAB floats in the card's bottom-right corner
+                    (opposite the favorite heart), clear of the short estimate text. */}
+                <div className="px-3 pb-3 pr-12">
                   <MapTravel to={getListingCoordinates(card)} userLoc={userLoc} state={locState} onRequest={requestLoc} />
                 </div>
+                <MapsDirectionsButton to={getListingCoordinates(card)} className="absolute bottom-2.5 right-2.5 z-10 h-9 w-9" />
               </>
             )}
           </div>
