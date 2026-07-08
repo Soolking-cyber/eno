@@ -84,9 +84,9 @@ function StatCard({ icon, value, label, href, accent }: { icon: React.ReactNode;
  *  spacing + a bold title and a one-line description. The hierarchy comes from typography
  *  and the constrained column, not from cards. `tone="danger"` reddens the destructive
  *  group's title. (Fillable clarity lives on the inputs — flat `bg-tint`, no border.) */
-function SettingsCard({ title, description, tone = 'default', children }: { title: string; description?: string; tone?: 'default' | 'danger'; children: React.ReactNode }) {
+function SettingsCard({ title, description, tone = 'default', className, children }: { title: string; description?: string; tone?: 'default' | 'danger'; className?: string; children: React.ReactNode }) {
   return (
-    <section>
+    <section className={className}>
       <h2 className={cn('h-section', tone === 'danger' ? 'text-red-600' : 'text-foreground')}>{title}</h2>
       {description && <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
       <div className="mt-4">{children}</div>
@@ -513,14 +513,17 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
       </>)}
 
       {tab === 'account' && (
-        // Full-width to match every other dashboard tab (Listings/Developers/Help all
-        // span the max-w-7xl main, logo→Post-button). Flat titled sections (one-canvas/
-        // borderless); the form fields inside each section keep their own readable widths.
-        <div className="mt-6 space-y-9 pb-12">
+        // Full width, matching every other dashboard tab. On desktop the sections flow
+        // into TWO columns (CSS multi-column) with a `column-rule` divider line between —
+        // a long single column read sparse. `break-inside-avoid` keeps each section whole;
+        // the profile section spans BOTH columns (its form needs the full width). Stacks
+        // to one column on mobile.
+        <div className="mt-6 pb-12 lg:columns-2 lg:gap-10 lg:[column-rule:1px_solid_var(--border)] [&>*]:mb-9 [&>*]:break-inside-avoid">
           {/* Profile editor — business storefront (with representative) OR the
-              individual's own profile. */}
+              individual's own profile. Spans both columns. */}
           {isBusiness && d?.seller ? (
             <SettingsCard
+              className="lg:[column-span:all]"
               title={tr('Business profile', 'Hồ sơ doanh nghiệp')}
               description={tr('Your storefront — logo, name, area and contact buyers see.', 'Gian hàng của bạn — logo, tên, khu vực và liên hệ mà người mua thấy.')}
             >
@@ -528,6 +531,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             </SettingsCard>
           ) : d ? (
             <SettingsCard
+              className="lg:[column-span:all]"
               title={tr('Your profile', 'Hồ sơ của bạn')}
               description={tr('Your name, photo and area — how you appear to buyers.', 'Tên, ảnh và khu vực của bạn — cách người mua nhìn thấy bạn.')}
             >

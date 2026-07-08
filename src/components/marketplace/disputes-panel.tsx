@@ -106,7 +106,7 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
           </p>
         </div>
       ) : (
-        <ul className="mt-6">
+        <ul className="mt-6 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-1">
           {cases.map((c) => {
             const [en, vi] = REASON_LABELS[c.reason] || REASON_LABELS.other
             return (
