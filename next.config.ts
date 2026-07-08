@@ -75,7 +75,12 @@ const nextConfig: NextConfig = {
       // CSP blocks them and they render as a broken-image icon in the navbar/profile.
       "img-src 'self' data: blob: https://*.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://picsum.photos https://*.picsum.photos https://loremflickr.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://unpkg.com https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
+      // capig.stape.id + *.run.app = the Meta Pixel's CAPI Gateway (Stape) it POSTs
+      // browser events to when NEXT_PUBLIC_META_PIXEL_ID is set with a gateway configured
+      // in Events Manager. Without these the pixel spams the console with connect-src
+      // violations. (To drop these entirely, unset NEXT_PUBLIC_META_PIXEL_ID — the
+      // browser pixel is off by default; server-side CAPI via after() is unaffected.)
+      "connect-src 'self' https://unpkg.com https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com https://cloudflareinsights.com https://static.cloudflareinsights.com https://capig.stape.id https://*.run.app",
       "frame-src 'self' https://www.facebook.com https://td.doubleclick.net https://challenges.cloudflare.com",
       "worker-src 'self' blob:",
       "manifest-src 'self'",

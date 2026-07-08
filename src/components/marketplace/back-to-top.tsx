@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { usePathname } from 'next/navigation'
 import { ChevronUp } from 'lucide-react'
 import { HelpPopover } from './help-popover'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,7 @@ export function BackToTop() {
   // post-wizard publish bar, availability bar — all marked data-fab-clear): the
   // controls must sit ABOVE the bar, never over its CTA.
   const [lift, setLift] = useState(0)
+  const pathname = usePathname()
 
   useEffect(() => { setMounted(true) }, [])
   useEffect(() => {
@@ -39,6 +41,10 @@ export function BackToTop() {
   }, [])
 
   if (!mounted) return null
+  // The messenger owns the bottom-right corner (its composer's Send button + the AI
+  // "Ask" bar), and its panes don't page-scroll — so the floating "?" / back-to-top
+  // would only overlay the composer. Suppress the whole cluster there.
+  if (pathname?.startsWith('/messages')) return null
 
   return createPortal(
     <>
