@@ -101,9 +101,9 @@ export default function AiThreadPage() {
       </div>
 
       {/* Messages */}
-      <div role="log" aria-live="polite" className="flex-1 space-y-3 overflow-y-auto px-4 py-4 scroll-thin">
+      <div role="log" aria-live="polite" className="chat-scroll flex-1 min-h-0 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 scroll-thin">
         {messages.map((m, i) => (
-          <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+          <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} ${i === messages.length - 1 ? 'bubble-in' : ''}`}>
             <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'bg-primary text-white' : 'bg-card text-foreground'}`}>
               {m.content}
             </div>
