@@ -18,11 +18,11 @@ import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
  * below the photo lightbox (z-[100]) so it never floats over full-screen
  * photos.
  *
- * Signed-in → smooth-scroll to the existing #contact composer and hand it the
- * intent via an event ('eno:prefill-contact' for chat, 'eno:open-offer' for
- * offer mode at the slider's default 10%) — zero duplicate compose/offer
- * logic lives here. Guest → the sign-in gate with listing context, identical
- * to the composer's own gate.
+ * Signed-in → the Chat segment fires 'eno:chat-now' (the composer sends the
+ * canned opener and jumps straight to the thread — no scroll, no typing); the
+ * offer segment smooth-scrolls to the #contact composer and opens its slider
+ * via 'eno:open-offer'. Zero duplicate compose/offer logic lives here. Guest →
+ * the sign-in gate with listing context, identical to the composer's own gate.
  */
 export function ListingContactBar({
   price, currency, listingTitle, listingImage, sellerName, negotiable = true,
@@ -39,16 +39,15 @@ export function ListingContactBar({
   const { format } = useCurrency()
   const locale = moneyLocale(lang)
 
-  const goToComposer = (intent: 'eno:prefill-contact' | 'eno:open-offer') => {
+  const goToComposer = (intent: 'eno:chat-now' | 'eno:open-offer') => {
     if (!user) { if (!loading) openSignIn({ listingTitle, listingImage, sellerName }); return }
+    // Chat → the composer sends the opener + redirects to the thread; no scroll.
+    if (intent === 'eno:chat-now') { window.dispatchEvent(new Event('eno:chat-now')); return }
+    // Offer → bring the composer's slider into view and open it.
     const el = document.getElementById('contact')
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    // Hand the composer the intent (it ignores a prefill if something's typed),
-    // then focus once the scroll settles so the keyboard opens with Send one
-    // tap away.
-    window.dispatchEvent(new Event(intent))
-    window.setTimeout(() => el.querySelector('textarea')?.focus({ preventScroll: true }), 350)
+    window.dispatchEvent(new Event('eno:open-offer'))
   }
 
   // Offers need a negotiable, priced listing — same rule as the composer.
@@ -63,7 +62,7 @@ export function ListingContactBar({
       <div className="mx-auto flex h-[52px] max-w-7xl items-stretch">
         <button
           type="button"
-          onClick={() => goToComposer('eno:prefill-contact')}
+          onClick={() => goToComposer('eno:chat-now')}
           className="flex w-[35%] shrink-0 flex-col items-center justify-center gap-1 bg-tint text-accent-foreground transition-colors active:bg-muted cursor-pointer"
         >
           <MessageCircle className="h-5 w-5" />
@@ -71,7 +70,7 @@ export function ListingContactBar({
         </button>
         <button
           type="button"
-          onClick={() => goToComposer(canOffer ? 'eno:open-offer' : 'eno:prefill-contact')}
+          onClick={() => goToComposer(canOffer ? 'eno:open-offer' : 'eno:chat-now')}
           className="flex w-[65%] items-center justify-center bg-primary px-3 text-sm font-bold text-white transition-opacity active:opacity-90 cursor-pointer"
         >
           {canOffer ? (
