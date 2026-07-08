@@ -79,15 +79,14 @@ function StatCard({ icon, value, label, href, accent }: { icon: React.ReactNode;
   return href ? <Link href={href}>{inner}</Link> : inner
 }
 
-/** A titled settings panel — the familiar SaaS-settings shape: one card per group,
- *  a bold title, a one-line description, then the control. Groups the Settings tab
- *  into a clean, scannable hierarchy instead of a flat wall of fields. `tone="danger"`
- *  tints the header for destructive groups (account deletion). */
+/** A titled settings section. ONE-CANVAS / borderless per the house language: NO box,
+ *  border, resting fill or shadow — sections sit flush on the canvas, separated only by
+ *  spacing + a bold title and a one-line description. The hierarchy comes from typography
+ *  and the constrained column, not from cards. `tone="danger"` reddens the destructive
+ *  group's title. (Fillable clarity lives on the inputs — flat `bg-tint`, no border.) */
 function SettingsCard({ title, description, tone = 'default', children }: { title: string; description?: string; tone?: 'default' | 'danger'; children: React.ReactNode }) {
   return (
-    // Borderless house panel — a flat white card lifted by a soft shadow (no border),
-    // matching the app's dropdowns/menus. The red title alone marks the danger group.
-    <section className="rounded-2xl bg-card p-5 sm:p-6 shadow-pop">
+    <section>
       <h2 className={cn('h-section', tone === 'danger' ? 'text-red-600' : 'text-foreground')}>{title}</h2>
       {description && <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
       <div className="mt-4">{children}</div>
@@ -514,10 +513,10 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
       </>)}
 
       {tab === 'account' && (
-        // A readable, left-aligned settings column of titled cards — the familiar
-        // Stripe/Shopify/GitHub shape: one group per card, clear title + description,
-        // no sprawl across the full page width.
-        <div className="mt-6 max-w-3xl space-y-4">
+        // A readable, left-aligned settings column: flat titled sections (no boxes —
+        // one-canvas/borderless language), separated by generous spacing so the
+        // hierarchy is clear without sprawling across the full page width.
+        <div className="mt-6 max-w-3xl space-y-9">
           {/* Profile editor — business storefront (with representative) OR the
               individual's own profile. */}
           {isBusiness && d?.seller ? (

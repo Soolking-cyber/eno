@@ -46,7 +46,7 @@ export function SoldListing({
 
           {/* What sold — grayscale thumbnail + SOLD ribbon + title, so the visitor
               sees they reached the right item, just too late. */}
-          <div className="mx-auto mt-6 flex max-w-sm items-center gap-3 rounded-2xl bg-card p-3 text-left shadow-pop">
+          <div className="mx-auto mt-6 flex max-w-sm items-center gap-3 rounded-2xl bg-tint p-3 text-left">
             {cover ? (
               <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-muted">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
