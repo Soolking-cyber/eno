@@ -594,6 +594,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? t('Bạn đã có 2 tin "Bán gấp" đang chạy — chờ một tin hết hạn rồi thử lại.', 'You already have 2 urgent listings running — wait for one to expire and try again.')
           : msg === 'urgent_cooldown'
           ? t('Tin này vừa hết hạn "Bán gấp" — có thể bật lại sau 7 ngày.', 'This listing just finished an urgent run — you can turn it on again after 7 days.')
+          : msg === 'duplicate_listing'
+          ? t('Bạn đã có tin đang hiển thị cho sản phẩm này. Vào Tin đăng để chỉnh sửa hoặc xác nhận còn hàng thay vì đăng lại.', "You already have a live listing for this item. Open My Listings to edit it or confirm it's still available instead of posting it again.")
           : msg === 'photo_required'
           ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
           : msg === 'account_restricted'

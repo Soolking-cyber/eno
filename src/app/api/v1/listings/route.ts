@@ -68,8 +68,9 @@ export async function POST(req: NextRequest) {
         const message = e.code === 'account_restricted' ? 'Shop is restricted (low trust) — cannot publish until its score recovers.'
           : e.code === 'photo_required' ? 'At least one image is required.'
           : e.code === 'banned_words' ? 'The title or description contains a disallowed word.'
+          : e.code === 'duplicate_listing' ? 'Duplicate of a live listing on this shop (see detail for its id) — update or bump the existing listing instead of re-posting it.'
           : 'Remove phone numbers, contact info or addresses from the title/description.'
-        return { status: e.code === 'account_restricted' ? 403 : 422, body: { error: { code: e.code, message, ...(e.detail ? { detail: e.detail } : {}) } } }
+        return { status: e.code === 'account_restricted' ? 403 : e.code === 'duplicate_listing' ? 409 : 422, body: { error: { code: e.code, message, ...(e.detail ? { detail: e.detail } : {}) } } }
       }
       throw e
     }

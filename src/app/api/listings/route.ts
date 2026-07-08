@@ -571,10 +571,14 @@ export async function POST(req: NextRequest) {
     const result = await createListingCore({ seller, category, title, price, body, headers: req.headers })
     return NextResponse.json(result, { status: 201 })
   } catch (e) {
-    // Restricted account / no photo / banned / contact-in-text → a clear, fixable code
-    // (403 for the trust gate since it isn't fixable now; 400 for the rest).
+    // Restricted account / no photo / banned / contact-in-text / duplicate → a clear,
+    // fixable code (403 for the trust gate since it isn't fixable now; 409 for a
+    // duplicate of a live listing — detail carries the existing listing's id; 400 rest).
     if (e instanceof PublishBlockedError) {
-      return NextResponse.json({ error: e.code, detail: e.detail }, { status: e.code === 'account_restricted' ? 403 : 400 })
+      return NextResponse.json(
+        { error: e.code, detail: e.detail },
+        { status: e.code === 'account_restricted' ? 403 : e.code === 'duplicate_listing' ? 409 : 400 },
+      )
     }
     console.error('[POST /api/listings]', e)
     return NextResponse.json({ error: 'Failed to create listing' }, { status: 500 })

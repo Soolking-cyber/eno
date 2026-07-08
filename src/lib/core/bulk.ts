@@ -3,7 +3,8 @@ import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord } from '@/lib/publish-guard'
-import { buildSearchText } from '@/lib/fold'
+import { buildSearchText, fold } from '@/lib/fold'
+import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { safeFetch } from '@/lib/ssrf'
@@ -56,6 +57,9 @@ export async function bulkImportCore(
   const warm: string[] = []
   let imgFetched = 0 // counts REMOTE rehosts against MAX_IMG_FETCHES (per-import budget)
   let imageBudgetReached = false
+  // Within-file duplicate tracker: two rows with the same (folded title, category) in ONE
+  // import are the CSV cousin of repost spam — reject the later row, naming the earlier one.
+  const seenInBatch = new Map<string, number>() // "<categoryId>|<foldedTitle>" → row number
 
   // Process sequentially (image re-hosting is network-bound; pacing avoids a burst).
   // Each row is independent — one bad row never aborts the batch.
@@ -78,6 +82,24 @@ export async function bulkImportCore(
       { const bw = findBannedWord(`${title} ${description}`); if (bw) { results.push({ row: rowNo, error: `Contains a banned word ("${bw}")` }); continue } }
       // Restricted (low-trust) account → can't publish until its score recovers.
       if (seller.trustTier === 'restricted') { results.push({ row: rowNo, error: 'Account restricted — wait for your trust score to recover before posting' }); continue }
+
+      // Duplicate protection. Partner-managed rows (external_id) keep their own identity
+      // semantics (the sync flow updates by external_id), so only ad-hoc rows are checked:
+      // first against earlier rows in THIS file, then against the seller's live listings.
+      if (!r.external_id) {
+        const batchKey = `${cat.id}|${fold(title)}`
+        const earlier = seenInBatch.get(batchKey)
+        if (earlier) { results.push({ row: rowNo, error: `Duplicate of row ${earlier} in this file` }); continue }
+        seenInBatch.set(batchKey, rowNo)
+        const dup = await findDuplicateListing({
+          sellerId: seller.id,
+          categoryId: cat.id,
+          title,
+          searchText: buildSearchText([title, description, district, cat.name, cat.nameVi]),
+          price,
+        })
+        if (dup) { results.push({ row: rowNo, error: `Duplicate of your live listing "${dup.title}" — edit or bump that one instead` }); continue }
+      }
 
       // Re-host up to 8 images. First-party URLs pass through free; remote URLs each
       // cost one unit of the per-import MAX_IMG_FETCHES budget.

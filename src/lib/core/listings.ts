@@ -16,6 +16,7 @@ import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 import { assertPublishable, assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
+import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { priceChangeEffects } from '@/lib/price-drop'
 import { activateUrgentGate, urgentQuotaFree, URGENT } from '@/lib/urgent'
 
@@ -416,6 +417,15 @@ export async function createListingCore(input: {
     ...(attributes ? Object.values(JSON.parse(attributes) as Record<string, string>) : []),
   ])
 
+  // Duplicate-listing protection: the same product can't be posted again while a copy of
+  // it is still LIVE (repost-to-bump spam). Re-listing after sold/hidden/deleted is fine,
+  // and the check is seller-scoped so nobody is blocked by other sellers' items. The
+  // candidate searchText uses the exact recipe of the create below. detail = the existing
+  // listing's id so clients can link "edit / bump it instead". Fail-open inside the guard.
+  const searchText = buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug, model])
+  const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price })
+  if (dup) throw new PublishBlockedError('duplicate_listing', dup.id)
+
   const listing = await db.listing.create({
     data: {
       title,
@@ -436,7 +446,7 @@ export async function createListingCore(input: {
       lng,
       condition: conditionText,
       images: JSON.stringify(images),
-      searchText: buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug, model]),
+      searchText, // built above (same recipe the duplicate guard compared against)
       categoryId: category.id,
       subcategorySlug,
       listingType,

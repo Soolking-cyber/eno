@@ -7,7 +7,7 @@ import { fold } from './fold'
 // and bulk import so every path enforces the same rules. Returned codes map to clear
 // messages in the post wizard.
 
-export type PublishBlockCode = 'account_restricted' | 'photo_required' | 'banned_words' | 'contact_in_text'
+export type PublishBlockCode = 'account_restricted' | 'photo_required' | 'banned_words' | 'contact_in_text' | 'duplicate_listing'
 
 export class PublishBlockedError extends Error {
   code: PublishBlockCode
