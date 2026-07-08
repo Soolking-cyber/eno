@@ -9,7 +9,7 @@ import { PRELAUNCH } from '@/lib/site-legal'
 export function PrelaunchNotice() {
   if (!PRELAUNCH) return null
   return (
-    <div role="status" className="bg-amber-50 px-3 py-1.5 text-center text-[11px] leading-snug text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+    <div id="prelaunch-banner" role="status" className="bg-amber-50 px-3 py-1.5 text-center text-[11px] leading-snug text-amber-900 dark:bg-amber-950 dark:text-amber-200">
       <span className="font-semibold">Website đang xây dựng và chạy thử nghiệm — chưa chính thức hoạt động.</span>{' '}
       <span className="opacity-80">This website is under construction and in test operation — not yet officially launched.</span>
     </div>

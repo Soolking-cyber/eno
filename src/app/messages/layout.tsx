@@ -32,7 +32,7 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
     // zero gap and the header stays pinned. iOS overlays (doesn't resize) the keyboard, so
     // this JS-driven pin is the only thing that tracks it. Desktop never engages (no kb).
     <div
-      className="chat-shell flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] flex-col overflow-hidden bg-background lg:h-[100dvh]"
+      className="chat-shell flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden bg-background lg:h-[calc(100dvh-var(--banner-h,0px))]"
     >
       <Header />
       {/* Same max-width + gutter as the header navbar so the two-pane edges line up
