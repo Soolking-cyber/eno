@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, Tag, Send, MessageCircle, X } from 'lucide-react'
+import { Tag, Send, X } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -101,38 +101,46 @@ export function ContactComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canOffer, user, loading])
 
+  // Chat is the SellerCard's "Chat now" (it fires eno:chat-now → send() above), so
+  // this composer carries NO second chat button — only the offer flow + a safety line.
+  const safetyLine = (
+    <p className="text-center text-xs text-muted-foreground">
+      {tr('Request their number or Zalo once they reply.', 'Yêu cầu số điện thoại hoặc Zalo sau khi họ trả lời.')}
+    </p>
+  )
+
+  // Fixed-price listing: nothing to offer → just the reminder under the seller's Chat now.
+  if (!canOffer) return safetyLine
+
   if (!loading && !user) {
     return (
-      <Button variant="cta" size="none" onClick={() => openSignIn({ listingTitle, listingImage, sellerName })} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 cursor-pointer">
-        <Lock className="h-4 w-4" /> {tr('Sign in to contact seller', 'Đăng nhập để liên hệ người bán')}
-      </Button>
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => openSignIn({ listingTitle, listingImage, sellerName })}
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-tint cursor-pointer"
+        >
+          <Tag className="h-4 w-4" /> {tr('Sign in to make an offer', 'Đăng nhập để trả giá')}
+        </button>
+        {safetyLine}
+      </div>
     )
   }
 
   return (
     <div className="space-y-2">
-      {/* Primary: one tap sends "Hi! Is this still available?" and opens the thread. */}
-      <Button
-        variant="cta"
-        size="none"
-        onClick={chatNow}
-        className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 cursor-pointer"
-      >
-        <MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Nhắn ngay')}
-      </Button>
-
-      {/* Quick offer, tucked under Chat now — slide the discount and send, no typing. */}
-      {canOffer && !offering && (
+      {/* Make an offer — secondary to the SellerCard's "Chat now"; opens the slider. */}
+      {!offering && (
         <button
           type="button"
           onClick={() => setOffering(true)}
-          className="mx-auto flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-muted cursor-pointer"
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-tint cursor-pointer"
         >
-          <Tag className="h-3.5 w-3.5" /> {tr('Make an offer', 'Trả giá')}
+          <Tag className="h-4 w-4" /> {tr('Make an offer', 'Trả giá')}
         </button>
       )}
 
-      {canOffer && offering && (
+      {offering && (
         <div className="rounded-2xl bg-accent p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-body">{tr('Your offer', 'Giá đề nghị')}</span>
@@ -163,9 +171,7 @@ export function ContactComposer({
         </div>
       )}
 
-      <p className="text-center text-xs text-muted-foreground">
-        {tr('Request their number or Zalo once they reply.', 'Yêu cầu số điện thoại hoặc Zalo sau khi họ trả lời.')}
-      </p>
+      {safetyLine}
     </div>
   )
 }
