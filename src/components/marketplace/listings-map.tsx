@@ -3,8 +3,10 @@
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { useEffect, useRef, useState } from 'react'
-import { X, Heart } from 'lucide-react'
+import { Heart } from 'lucide-react'
 import { TrustScore } from './trust-score'
+import { MapTravel } from './map-travel'
+import type { LatLng } from '@/lib/travel'
 import type { SerializedListingCard } from '@/lib/types'
 import { formatPrice } from '@/lib/types'
 import { formatMoneyFull, compactPrice, moneyLocale, type MoneyLocale } from '@/lib/vnd'
@@ -105,6 +107,21 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   // flips it below the pin when there isn't room near the top edge.
   const [cardPos, setCardPos] = useState<{ x: number; y: number; above: boolean } | null>(null)
   const cardIdRef = useRef<string | null>(null)
+
+  // Viewer location for the popup's travel estimate. Reuse the "search near you"
+  // location when it's already set (no re-prompt); otherwise the popup's button asks.
+  const [geoLoc, setGeoLoc] = useState<LatLng | null>(null)
+  const [locState, setLocState] = useState<'idle' | 'loading' | 'denied'>('idle')
+  const userLoc: LatLng | null = geoLoc ?? (nearby ? { lat: nearby.lat, lng: nearby.lng } : null)
+  const requestLoc = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) { setLocState('denied'); return }
+    setLocState('loading')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setGeoLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocState('idle') },
+      () => setLocState('denied'),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 },
+    )
+  }
   // Mirror `listings` into a ref so the map/marker event handlers (captured once in
   // effects) read the current set without stale closures. Synced in an effect, not
   // during render (the handlers only fire on user interaction, well after commit).
@@ -120,7 +137,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     const mapH = el?.clientHeight ?? 500
     const compact = mapH < 360
     const w = Math.round(Math.min(compact ? 248 : 300, mapW - 24))
-    const h = compact ? 78 : Math.round(w + 92) // square image (= w tall) + the p-3 content block (~88); keep in sync with the card render so the flip + recenter math is right
+    const h = compact ? 96 : Math.round(w + 118) // square image (= w tall) + content block (~92) + travel row (~26); keep in sync with the card render so the flip + recenter math is right
     return { w, h, compact }
   }
   const placeCardFor = (l: SerializedListingCard) => {
@@ -356,15 +373,15 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-bold text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></span>
                     <span className="block text-xs font-bold text-accent-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</span>
+                    <span className="mt-0.5 block"><MapTravel to={getListingCoordinates(card)} userLoc={userLoc} state={locState} onRequest={requestLoc} compact /></span>
                   </span>
                 </button>
                 <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
-                <button onClick={(e) => { e.stopPropagation(); closeCard() }} aria-label={tr('Close', 'Đóng')} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground">
-                  <X className="h-4 w-4" />
-                </button>
               </div>
             ) : (
               <>
+                {/* Favorite only — no ✕. Desktop closes on hover-out; mobile closes on
+                    a tap outside the card (map background → closeCard). */}
                 <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
                   <button
                     onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
@@ -373,13 +390,6 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   >
                     <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
                   </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); closeCard() }}
-                    aria-label={tr('Close', 'Đóng')}
-                    className="flex h-8 w-8 items-center justify-center text-white transition-transform hover:scale-110 active:scale-90 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
                 </div>
                 <button onClick={() => onOpenListing(card)} className="block w-full text-left cursor-pointer">
                   <div className="relative aspect-square w-full bg-tint">
@@ -387,7 +397,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                       <Image src={card.images[0]} alt="" fill sizes="280px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
                     )}
                   </div>
-                  <div className="p-3">
+                  <div className="p-3 pb-1.5">
                     <div className="flex items-start justify-between gap-2">
                       <p className="truncate text-sm font-bold text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></p>
                       <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
@@ -396,6 +406,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                     <p className="mt-1 text-sm font-bold text-accent-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</p>
                   </div>
                 </button>
+                {/* Travel estimate — separate tap target, below the open-listing button. */}
+                <div className="px-3 pb-3">
+                  <MapTravel to={getListingCoordinates(card)} userLoc={userLoc} state={locState} onRequest={requestLoc} />
+                </div>
               </>
             )}
           </div>
