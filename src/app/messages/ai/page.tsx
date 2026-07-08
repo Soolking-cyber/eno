@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { ListingCard } from '@/components/marketplace/listing-card'
 import { haptic } from '@/lib/haptics'
+import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import type { SerializedListingCard } from '@/lib/types'
 import { fmtTime } from '@/lib/dates'
 
@@ -30,6 +31,7 @@ export default function AiThreadPage() {
   const [loading, setLoading] = useState(false)
   const listRef = useRef<HTMLDivElement>(null) // scroll only THIS, never the document (scrollIntoView can scroll <body> → header off)
   const footerRef = useRef<HTMLDivElement>(null) // composer; lifts to position:fixed above the keyboard (globals.css .chat-footer)
+  const { open: kbOpen } = useVirtualKeyboard() // coalesced store → re-renders only on open/close, safe
 
   const greeting: Msg = {
     role: 'assistant',
@@ -53,12 +55,19 @@ export default function AiThreadPage() {
     if (messages.length) { try { localStorage.setItem(STORE_KEY, JSON.stringify(messages.slice(-30))) } catch { /* quota */ } }
   }, [messages])
 
-  // Keep the latest message in view by scrolling the LIST ONLY (setting its scrollTop) —
-  // never scrollIntoView, which on iOS can scroll <body> and shove the header off-screen.
+  // Keep the latest message pinned above the composer by scrolling the LIST ONLY (its own
+  // scrollTop) — never scrollIntoView, which on iOS can scroll <body> and shove the header
+  // off-screen. Re-run when the keyboard opens: the list shrinks, so tall result cards must
+  // re-anchor to the bottom instead of stranding at the top (short chats bottom-anchor via
+  // the mt-auto wrapper). rAF lets the keyboard-open resize settle before we measure.
   useEffect(() => {
     const el = listRef.current
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [messages.length, loading])
+    if (!el) return
+    const toBottom = () => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    toBottom()
+    const r = requestAnimationFrame(toBottom)
+    return () => cancelAnimationFrame(r)
+  }, [messages.length, loading, kbOpen])
 
   // Publish the composer's live height into --footer-h so the message list reserves exactly
   // that much bottom padding once the footer lifts to position:fixed (keyboard up) — the last

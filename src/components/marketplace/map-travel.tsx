@@ -65,7 +65,7 @@ export function MapTravel({
     }
     const { dist, time } = formatTravel(est, l)
     return (
-      <span className={`inline-flex items-center gap-1.5 ${compact ? 'text-[11px]' : 'text-xs'} text-muted-foreground`}>
+      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${compact ? 'text-[11px]' : 'text-xs'} text-muted-foreground`}>
         <Navigation className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
         <span className="font-bold text-foreground tabular-nums">~{time}</span>
         <span className="text-ink-4">·</span>

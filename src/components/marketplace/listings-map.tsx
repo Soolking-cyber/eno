@@ -136,7 +136,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     const mapW = el?.clientWidth ?? 360
     const mapH = el?.clientHeight ?? 500
     const compact = mapH < 360
-    const w = Math.round(Math.min(compact ? 248 : 300, mapW - 24))
+    // Compact is a horizontal card (thumb + title/price/travel + trust + Maps FAB) — it needs
+    // real width so the "~19 min · 7.1 km from you" line sits on ONE row instead of wrapping.
+    const w = Math.round(Math.min(compact ? 320 : 300, mapW - 24))
     const h = compact ? 96 : Math.round(w + 118) // square image (= w tall) + content block (~92) + travel row (~26); keep in sync with the card render so the flip + recenter math is right
     return { w, h, compact }
   }
