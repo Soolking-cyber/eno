@@ -9,7 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
+import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw, CornerDownLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -612,6 +612,7 @@ export default function ThreadPage() {
                   value={offerInput}
                   onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 12); setOfferInput(d ? new Intl.NumberFormat('en-US').format(Number(d)) : '') }}
                   inputMode="numeric"
+                  enterKeyHint="send"
                   autoFocus
                   placeholder={tr('Offer amount (VND)', 'Số tiền đề nghị (VND)')}
                   onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
@@ -634,20 +635,42 @@ export default function ThreadPage() {
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
                 rows={1}
+                enterKeyHint="send"
                 placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
                 className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
               />
             )}
 
-            <button
-              onClick={() => (showOffer ? submitOffer() : send())}
-              disabled={showOffer ? (sliderOffer === null && !offerInput) : !text.trim()}
-              aria-label={showOffer ? tr('Send offer', 'Gửi đề nghị') : tr('Send', 'Gửi')}
-              title={showOffer ? tr('Send offer', 'Gửi đề nghị') : tr('Send', 'Gửi')}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+            {showOffer ? (
+              /* Offer modes keep a real Send — the price slider has no text field, so
+                 there's no Return key to send it. preventDefault on pointer/mouse-down
+                 holds focus so tapping never blurs the field: on mobile that blur
+                 dismisses the keyboard, the viewport resizes, and the button shifts out
+                 from under the finger before the tap lands — which is why taps were lost. */
+              <button
+                onClick={submitOffer}
+                onMouseDown={(e) => e.preventDefault()}
+                disabled={sliderOffer === null && !offerInput}
+                aria-label={tr('Send offer', 'Gửi đề nghị')}
+                title={tr('Send offer', 'Gửi đề nghị')}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            ) : (
+              /* Text mode: no tap-Send button. On mobile it was unreliable — tapping it
+                 blurs the field, the keyboard closes, the viewport resizes and the
+                 button moves before the tap registers. The Return key sends flawlessly
+                 (enterKeyHint="send" labels it "Send"), so we show a quiet ↵ hint in the
+                 same slot: muted when empty, brand-blue once there's a message to send. */
+              <div
+                title={tr('Press Enter to send', 'Nhấn Enter để gửi')}
+                aria-hidden
+                className={`flex h-10 w-10 shrink-0 items-center justify-center self-center transition-colors ${text.trim() ? 'text-accent-foreground' : 'text-ink-4'}`}
+              >
+                <CornerDownLeft className="h-[18px] w-[18px]" strokeWidth={2.25} />
+              </div>
+            )}
           </div>
         </div>
       )}

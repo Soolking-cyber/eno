@@ -146,11 +146,16 @@ export default function AiThreadPage() {
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             rows={1}
+            enterKeyHint="send"
             placeholder={tr('Ask for anything…', 'Hỏi bất cứ điều gì…')}
             className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
           <button
             onClick={() => send()}
+            /* Hold composer focus on tap so the mobile keyboard doesn't dismiss →
+               resize the viewport → move the button out from under the finger before
+               the click lands (the tap was being lost). Return also sends (enterKeyHint). */
+            onMouseDown={(e) => e.preventDefault()}
             disabled={!text.trim() || loading}
             aria-label={tr('Send', 'Gửi')}
             title={tr('Send', 'Gửi')}
