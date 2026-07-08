@@ -595,14 +595,17 @@ summary:focus-visible {
    MICROINTERACTIONS — premium but subtle (transform/opacity only; reduced-motion safe)
    ============================================================ */
 
-/* .press — tactile press for buttons/tappables. The trick is ASYMMETRIC timing: the
-   press-down is near-instant, the release SPRINGS back. 0.96 reads as "pressed", not the
-   toy-ish 0.90. Add to a button; safe on top of existing active:scale (this wins). */
+/* .press — tactile press for buttons/tappables. ASYMMETRIC timing: press-down is
+   near-instant, release SPRINGS back. 0.96 reads "pressed", not the toy-ish 0.90. The
+   base transition also lists colour/opacity/shadow so a button's existing hover:bg-*
+   still animates (a bare `transition: transform` would clobber Tailwind's transition-*). */
 .press {
-  transition: transform 260ms var(--ease-spring-snappy);
+  transition: transform 220ms var(--ease-spring-snappy),
+              background-color 150ms linear, color 150ms linear,
+              opacity 150ms linear, box-shadow 150ms linear;
   touch-action: manipulation; /* also removes the legacy 300ms tap delay */
 }
-.press:active { transform: scale(0.96); transition-duration: 40ms; }
+.press:active { transform: scale(0.96); transition: transform 40ms var(--ease-spring-snappy); }
 
 /* Chat bubbles rise + fade in as they arrive (own + incoming). Subtle, one-shot. */
 @keyframes bubble-in {

@@ -125,7 +125,7 @@ export function SellerCard({
             <button
               type="button"
               onClick={onChat}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+              className="press flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
             >
               <MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}
             </button>
