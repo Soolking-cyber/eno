@@ -17,6 +17,7 @@ const CLOSED: KB = { open: false, height: null }
 let current: KB = CLOSED
 const subscribers = new Set<(s: KB) => void>()
 let wired = false
+let settleTimer: ReturnType<typeof setTimeout> | null = null
 
 function recompute() {
   const vv = window.visualViewport
@@ -29,11 +30,22 @@ function recompute() {
   subscribers.forEach((notify) => notify(current))
 }
 
+// COALESCE the resize burst. iOS fires a `resize` on every frame of the keyboard's
+// slide animation (vv.height changes continuously), so reacting to each one re-renders
+// the chat shell every frame — that ancestor reflow makes iOS ABORT the keyboard, so it
+// never actually appears (focus stays, nav returns). Waiting for the viewport to STOP
+// moving (~120ms after the last event) means we re-render exactly once, after the
+// keyboard is already fully up, where a single height change is harmless.
+function onViewportChange() {
+  if (settleTimer) clearTimeout(settleTimer)
+  settleTimer = setTimeout(recompute, 120)
+}
+
 function ensureWired() {
   if (wired || typeof window === 'undefined' || !window.visualViewport) return
   wired = true
-  window.visualViewport.addEventListener('resize', recompute)
-  recompute()
+  window.visualViewport.addEventListener('resize', onViewportChange)
+  recompute() // initial state — immediate, no keyboard animation in flight
 }
 
 /** `open` = keyboard up; `height` = visible viewport height while open (for sizing a

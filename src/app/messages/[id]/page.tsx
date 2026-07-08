@@ -346,10 +346,15 @@ export default function ThreadPage() {
     // turned two taps into garbage ("Can meet in Let me think about it"). Last tap
     // wins; anything half-typed is superseded deliberately by the tap.
     setText(t)
-    requestAnimationFrame(() => {
-      const el = composerRef.current
-      if (el) { el.focus(); el.setSelectionRange(t.length, t.length) }
-    })
+    // Focus SYNCHRONOUSLY inside the tap gesture — iOS only opens the keyboard for
+    // focus in the same call stack as the user's touch. Deferring it to rAF (as before)
+    // focuses the field but leaves the keyboard closed. Selection can wait a frame for
+    // the value to render.
+    const el = composerRef.current
+    if (el) {
+      el.focus()
+      requestAnimationFrame(() => { const e2 = composerRef.current; if (e2) e2.setSelectionRange(t.length, t.length) })
+    }
   }
 
   // Seller-only "Let me think about it" chip appears while the buyer's latest
