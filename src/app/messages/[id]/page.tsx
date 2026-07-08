@@ -632,7 +632,7 @@ export default function ThreadPage() {
                   autoFocus
                   placeholder={tr('Offer amount (VND)', 'Số tiền đề nghị (VND)')}
                   onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
-                  className="w-full rounded-2xl border border-brand px-3.5 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-brand/20"
+                  className="w-full rounded-2xl border border-brand px-3.5 py-2.5 pr-16 text-base outline-none focus:ring-2 focus:ring-brand/20 lg:text-sm"
                 />
                 {/* +000 chip, inside the input's right corner (×1,000 shortcut) */}
                 <button

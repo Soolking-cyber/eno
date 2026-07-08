@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { ensureKeyboardWired } from '@/hooks/use-virtual-keyboard'
+import { isIOS } from '@/lib/in-app-browser'
 
 /**
  * Mounted once at the app root. Two jobs, both zero-render:
@@ -15,6 +16,18 @@ import { ensureKeyboardWired } from '@/hooks/use-virtual-keyboard'
 export function KeyboardViewportSync() {
   useEffect(() => {
     ensureKeyboardWired()
+
+    // iOS ONLY: clamp the viewport scale so focusing a field never auto-zooms the page
+    // (iOS zooms any input rendered under 16px). Safari deliberately IGNORES
+    // maximum-scale for user pinch gestures (accessibility zoom keeps working) — it only
+    // suppresses the focus auto-zoom. Not applied on Android, where maximum-scale would
+    // genuinely disable pinch zoom.
+    if (isIOS()) {
+      const meta = document.querySelector('meta[name="viewport"]')
+      if (meta && !/maximum-scale/.test(meta.getAttribute('content') || '')) {
+        meta.setAttribute('content', `${meta.getAttribute('content')}, maximum-scale=1`)
+      }
+    }
 
     const root = document.documentElement
     const banner = document.getElementById('prelaunch-banner')
