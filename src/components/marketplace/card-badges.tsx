@@ -8,17 +8,18 @@ import type { SerializedListingCard } from '@/lib/types'
 
 // THE one card-badge system, reused on every card surface so the top-left signals
 // read identically app-wide (no more copy-pasted colours drifting per surface).
-// Palette is deliberately restrained + conventional — ONE saturated hue per meaning,
-// nothing off-brand, and brand blue stays reserved for price + trust so the chips
-// never compete with the card's real anchor:
-//   Urgent → amber (act now)   ·   Drop → red (discount)   ·   New → neutral (fresh)
+// Palette is deliberately restrained (eno keeps NO bazaar noise): DROP is the single
+// coloured chip — red, the universal discount cue — while Urgent + New are quiet slate
+// so brand blue stays reserved for price + trust and nothing off-brand competes with
+// the card's anchor. Urgent reads as the stronger signal via a SOLID slate + the ⚡:
+//   Urgent → solid slate (act now)  ·  Drop → red (discount)  ·  New → quiet slate (fresh)
 const NEW_MS = 48 * 60 * 60 * 1000
 
 type BadgeKind = 'urgent' | 'drop' | 'new'
 type BadgeVariant = 'overlay' | 'inline'
 
 const TONE: Record<BadgeKind, string> = {
-  urgent: 'bg-amber-500 text-amber-950', // dark text on bright amber = high contrast, both themes
+  urgent: 'bg-foreground text-background', // solid slate — quietly stronger than the /85 "New"
   drop: 'bg-red-600 text-white tabular-nums',
   new: 'bg-foreground/85 text-background backdrop-blur-[2px]',
 }
