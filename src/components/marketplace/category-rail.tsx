@@ -20,6 +20,9 @@ export function CategoryRail({
   subcategoryCounts,
   onCategory,
   onSubcategory,
+  intents,
+  activeType,
+  onIntent,
 }: {
   categories: SerializedCategory[]
   activeCategory: string
@@ -27,6 +30,12 @@ export function CategoryRail({
   subcategoryCounts: Record<string, number>
   onCategory: (slug: string) => void
   onSubcategory: (slug: string) => void
+  // Intent shortcuts (Free / Wanted) — appended after the categories so the results
+  // rail matches the home grid, which shows these tiles alongside the categories.
+  // They filter the listingType axis (not the category), highlighting when active.
+  intents?: { type: string; name: string; nameVi: string; icon: string }[]
+  activeType?: string
+  onIntent?: (type: string) => void
 }) {
   const { lang, tr } = useLanguage()
   const railRef = useRef<HTMLDivElement>(null)
@@ -129,6 +138,26 @@ export function CategoryRail({
           </Fragment>
         )
       })}
+
+      {/* Free / Wanted intent tiles — mirror the home grid so no shortcut goes missing
+          in the results view. Separated from the categories by a hairline so it reads as
+          a distinct "intent" group; each toggles the listingType filter. */}
+      {intents && intents.length > 0 && (
+        <>
+          <span className="mt-1 h-11 w-px shrink-0 self-start bg-border" aria-hidden />
+          {intents.map((s) => {
+            const active = activeType === s.type
+            return (
+              <button key={s.type} data-intent={s.type} onClick={() => onIntent?.(s.type)} className={tileCls}>
+                <span className="flex h-11 items-center justify-center">
+                  <CategoryIcon name={s.icon} className={iconCls(active)} />
+                </span>
+                <span className={nameCls(active)}><Tr text={lang === 'vi' ? s.nameVi : s.name} /></span>
+              </button>
+            )
+          })}
+        </>
+      )}
     </div>
   )
 }

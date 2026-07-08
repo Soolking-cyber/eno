@@ -1850,6 +1850,11 @@ export function ListingsExplorer({
               subcategoryCounts={subcategoryCounts}
               onCategory={handleCategorySelect}
               onSubcategory={setActiveSubcategory}
+              // Free / Wanted shortcuts — same tiles the home grid shows, so nothing's
+              // missing when you switch to results. Toggle the listingType filter.
+              intents={INTENT_SHORTCUTS}
+              activeType={listingType}
+              onIntent={(type) => setListingType(listingType === type ? 'all' : type)}
             />
 
             {/* Brand rail — brands present in this category + subcategory (logo +
