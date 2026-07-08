@@ -116,7 +116,9 @@ export function ReminderSettings() {
             onClick={toggleDigest}
             className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors cursor-pointer ${digest ? 'bg-primary' : 'bg-muted'}`}
           >
-            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${digest ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+            {/* Positioned with `left` (not translate-x): a transform-positioned thumb can
+                render mispositioned inside the Settings CSS multi-column layout. */}
+            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] ${digest ? 'left-[22px]' : 'left-0.5'}`} />
           </button>
         </div>
       )}
