@@ -349,44 +349,16 @@
    on the <html> element; the fallbacks keep a sane full-height shell before first paint.
    `.kb-open` never fires on desktop (no VisualViewport keyboard) so desktop is untouched.
    ============================================================ */
-/* Pin the shell to the visual viewport for the WHOLE time a chat thread is open
-   (html.chat-locked, set once on route enter — NOT gated on the keyboard threshold).
-   height = the live visible height, translated by the iOS scroll offset; --vvh/--vvt
-   update every frame and are full-height/0 with no keyboard, so the shell is just a
-   full-screen overlay then (covering the tab nav — a native chat takeover). Gating on the
-   STABLE thread class instead of the flappy `innerHeight - vv.height > 120` boolean is
-   what kills the "jitters up and down crazy": that threshold wobbles across 120px during
-   momentum scroll (esp. standalone PWA, where innerHeight also shrinks), flipping the
-   shell fixed↔flow every frame. Mobile/tablet only — desktop keeps its two-pane. */
-@media (max-width: 1023.98px) {
-  html.chat-locked .chat-shell {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 50;
-    height: var(--vvh, 100dvh);
-    transform: translateY(var(--vvt, 0px));
-    will-change: transform;
-  }
-}
-/* On NON-thread pages (e.g. focusing the feed search), hide the fixed bottom-nav + its
-   spacer while the keyboard is up — iOS otherwise lifts a fixed bottom bar ABOVE the
-   keyboard. In a thread the full-screen shell already covers them, so this is belt-only. */
+/* Hide the fixed bottom-nav + its spacer while the on-screen keyboard is up (iOS
+   otherwise lifts a fixed bottom bar ABOVE the keyboard, wedging it against the composer).
+   The --vvh/--vvt vars + a flush-to-keyboard chat shell are being researched separately;
+   for now the messages layout sizes itself to the visible viewport (known-good). */
 html.kb-open .mobile-nav {
   transform: translateY(100%);
   opacity: 0;
   pointer-events: none;
 }
 html.kb-open .bottom-nav-spacer { display: none; }
-
-/* Lock the document while a thread is open so nothing scrolls behind the pinned shell:
-   the message list scrolls INTERNALLY, the visual viewport never pans, so --vvt stays
-   put during scroll → no translate jitter. */
-html.chat-locked, html.chat-locked body {
-  overflow: hidden;
-  overscroll-behavior: none;
-}
 
 /* ============================================================
    SCROLLBARS — hidden EVERYWHERE (scrolling still works). User preference:

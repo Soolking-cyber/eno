@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { Header } from '@/components/marketplace/header'
 import { ConversationList } from '@/components/marketplace/conversation-list'
+import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { cn } from '@/lib/utils'
 
 // Desktop messenger shell: a persistent two-pane layout (conversation list left,
@@ -14,25 +14,15 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
   const pathname = usePathname()
   const inThread = /^\/messages\/.+/.test(pathname || '') // viewing a specific conversation
 
-  // Lock the document while a thread is open so nothing scrolls behind the pinned shell
-  // (and iOS has nothing to scroll on focus → the composer stays flush). CSS in
-  // globals.css does the work; we just toggle the class. Removed on leave/unmount.
-  useEffect(() => {
-    const root = document.documentElement
-    if (inThread) root.classList.add('chat-locked')
-    else root.classList.remove('chat-locked')
-    return () => root.classList.remove('chat-locked')
-  }, [inThread])
+  // KNOWN-GOOD: size the shell to the visible viewport height while the keyboard is up
+  // (iOS overlays the keyboard without shrinking dvh). Composer stays the bottom flex row.
+  // (A flush-to-keyboard rework is being researched separately; this is the stable base.)
+  const { height: kbHeight } = useVirtualKeyboard()
 
   return (
-    // The chat shell. Normally sized to the viewport minus the bottom nav (mobile) or
-    // full height (desktop). While the on-screen keyboard is up, `html.kb-open .chat-shell`
-    // (globals.css) pins this as a fixed overlay EXACTLY over the visual viewport — height
-    // var(--vvh), translateY(var(--vvt)) — so the composer sits flush on the keyboard with
-    // zero gap and the header stays pinned. iOS overlays (doesn't resize) the keyboard, so
-    // this JS-driven pin is the only thing that tracks it. Desktop never engages (no kb).
     <div
-      className="chat-shell flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden bg-background lg:h-[calc(100dvh-var(--banner-h,0px))]"
+      style={kbHeight ? { height: kbHeight } : undefined}
+      className="flex h-[calc(100dvh-4rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden bg-background lg:h-[calc(100dvh-var(--banner-h,0px))]"
     >
       <Header />
       {/* Same max-width + gutter as the header navbar so the two-pane edges line up
