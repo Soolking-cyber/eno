@@ -375,7 +375,7 @@ export default async function ListingPage({ params }: Props) {
             desktop column keeps its own copy, hidden <lg there / ≥lg here. */}
         <div className="order-3 mt-4 mb-4 space-y-1 lg:hidden">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="block text-2xl font-bold text-foreground tracking-tight" />
+            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="block text-2xl font-bold text-accent-foreground tracking-tight" />
             {/* Server-computed drop anchor (30-day-min reference) — never a seller-entered "was". */}
             {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
               <>
@@ -476,7 +476,7 @@ export default async function ListingPage({ params }: Props) {
             <div className="lg:sticky lg:top-24 space-y-5 lg:border-l lg:border-border/70 lg:pl-10">
               {/* Price + social proof — desktop copy (the mobile copy sits under the title) */}
               <div className="hidden flex-wrap items-baseline gap-2 lg:flex">
-                <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-foreground tracking-tight" />
+                <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-accent-foreground tracking-tight" />
                 {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
                   <>
                     <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-base text-ink-4 line-through" />

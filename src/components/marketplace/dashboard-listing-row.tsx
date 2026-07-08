@@ -192,7 +192,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         </button>
         <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
           <p className="line-clamp-2 text-sm font-semibold text-foreground">{title}</p>
-          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-accent-foreground" />
           {meta}
           {nudge}
           <div className="mt-auto pt-2">{actions}</div>
@@ -217,7 +217,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           <p className="truncate text-sm font-semibold text-foreground">{title}</p>
           <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold', statusChip.cls)}>{statusChip.label}</span>
         </div>
-        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-foreground" />
+        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-accent-foreground" />
         <div className="mt-0.5">{meta}</div>
         {nudge}
         <div className="mt-2">{actions}</div>

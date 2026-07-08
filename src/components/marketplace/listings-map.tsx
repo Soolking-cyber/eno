@@ -355,7 +355,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-bold text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></span>
-                    <span className="block text-xs font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</span>
+                    <span className="block text-xs font-bold text-accent-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</span>
                   </span>
                 </button>
                 <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
@@ -393,7 +393,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                       <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
-                    <p className="mt-1 text-sm font-bold text-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</p>
+                    <p className="mt-1 text-sm font-bold text-accent-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</p>
                   </div>
                 </button>
               </>
