@@ -351,6 +351,11 @@ model Listing {
   // 'sold'/'hidden' are pulled from the public feed but kept in the seller's
   // dashboard. Public feed requires verified=true AND status='active'.
   status             String    @default("active")
+  // Denormalized market-price position vs this item's brand+model+segment band, refreshed
+  // nightly by /api/cron/price-stats: 'low' (below P25 → "Good price" card badge) | 'typical'
+  // | 'high' | null (no reliable band). Approximate hint on cards; the PDP shows the exact
+  // live band (getPriceBand). Added via raw ALTER (additive, no FK) — see image-hash-index.mjs.
+  marketPosition     String?
   availabilityConfirmedAt DateTime?            // last seller "still available" confirmation (reminder targeting)
   postedAt           DateTime  @default(now()) // also the feed-recency key; "confirm availability" bumps it
   views              Int       @default(0)

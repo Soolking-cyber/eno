@@ -7,6 +7,10 @@ import { db } from '@/lib/db'
 // can show the buyer where the asking price stands.
 
 export const PRICE_STAT_MIN_SAMPLE = 5
+// A band whose top is more than this × its bottom is too noisy to be an actionable benchmark
+// (e.g. a seed group that mixes new + used + all years → 7tr–40tr). Suppress it. Kept in sync
+// with the cron's marketPosition update so a card is never badged off a uselessly-wide band.
+export const PRICE_STAT_MAX_SPREAD = 3
 
 export type PriceBand = { n: number; p25: number; median: number; p75: number }
 
@@ -36,6 +40,8 @@ export async function getPriceBand(input: {
     `)
     const b = rows[0]
     if (!b || Number(b.n) < PRICE_STAT_MIN_SAMPLE) return null
+    // Too-wide band → not an actionable benchmark (a "range" of 7tr–40tr tells the buyer nothing).
+    if (Number(b.p75) > Number(b.p25) * PRICE_STAT_MAX_SPREAD) return null
     return { n: Number(b.n), p25: Number(b.p25), median: Number(b.median), p75: Number(b.p75) }
   } catch {
     return null

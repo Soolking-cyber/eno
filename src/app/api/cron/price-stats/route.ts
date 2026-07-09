@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
-import { PRICE_STAT_MIN_SAMPLE } from '@/lib/price-stat'
+import { PRICE_STAT_MIN_SAMPLE, PRICE_STAT_MAX_SPREAD } from '@/lib/price-stat'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -53,5 +53,24 @@ export async function GET(req: NextRequest) {
     DELETE FROM "PriceStat" WHERE "updatedAt" < now() - interval '36 hours'
   `)
 
-  return NextResponse.json({ ok: true, segments: upserted, pruned: removed })
+  // Denormalize each active listing's position vs its band onto Listing.marketPosition so the
+  // feed can badge "Good price" without a per-render PriceStat join. Clear first (a listing whose
+  // band vanished or whose price moved out of 'low' must lose its badge), then set from the bands
+  // that pass the min-spread guard — never badge off a uselessly-wide "range". Segment expression
+  // MUST match listingSegment() / the upsert above.
+  await db.$executeRaw(Prisma.sql`
+    UPDATE "Listing" SET "marketPosition" = NULL
+    WHERE status = 'active' AND "marketPosition" IS NOT NULL
+  `)
+  const positioned = await db.$executeRaw(Prisma.sql`
+    UPDATE "Listing" l SET "marketPosition" =
+      CASE WHEN l.price < ps.p25 THEN 'low' WHEN l.price > ps.p75 THEN 'high' ELSE 'typical' END
+    FROM "PriceStat" ps
+    WHERE l.status = 'active' AND l.price > 0
+      AND l."brandSlug" = ps."brandSlug" AND l.model = ps.model
+      AND ps.segment = COALESCE(l.condition, 'any') || CASE WHEN l.year IS NOT NULL THEN ':' || ((l.year / 2) * 2)::text ELSE '' END
+      AND ps.p75 <= ps.p25 * ${PRICE_STAT_MAX_SPREAD}
+  `)
+
+  return NextResponse.json({ ok: true, segments: upserted, pruned: removed, positioned })
 }

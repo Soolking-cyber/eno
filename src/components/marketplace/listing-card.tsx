@@ -428,6 +428,13 @@ function ListingCardImpl({
           {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
             <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" compact className="truncate text-[11px] text-ink-4 line-through" />
           )}
+          {/* Below the market band (< P25) → a quiet "Good price" cue tied to the price.
+              Deal-positive only; kept off the photo so it never crowds urgent/drop badges. */}
+          {listing.goodPrice && (
+            <span className="shrink-0 self-center rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-bold text-success">
+              {tr('Good price', 'Giá tốt')}
+            </span>
+          )}
         </span>
 
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">

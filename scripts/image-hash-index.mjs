@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS "PriceStat" (
   PRIMARY KEY ("brandSlug", model, segment)
 );
 CREATE INDEX IF NOT EXISTS "PriceStat_lookup_idx" ON "PriceStat" ("brandSlug", model);
+
+-- Denormalized market-price position on Listing (nightly by /api/cron/price-stats). Additive,
+-- no FK → safe outside the profile_auth_fk push flow; mirrored in schema.prisma as marketPosition.
+ALTER TABLE "Listing" ADD COLUMN IF NOT EXISTS "marketPosition" TEXT;
 `
 
 try {
