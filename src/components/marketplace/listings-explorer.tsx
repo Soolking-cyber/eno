@@ -34,6 +34,7 @@ import { RecentlyViewedRail } from './recently-viewed-rail'
 import { BusinessRail } from './business-rail'
 import { DISTRICTS } from './listings-explorer.constants'
 import { type Nearby, type Geo } from './area-filter'
+import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
@@ -225,8 +226,9 @@ export function ListingsExplorer({
   const [debouncedQuery, setDebouncedQuery] = useState(query)
 
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [recentSearches, setRecentSearches] = useState<string[]>([])
-  const [recentLocations, setRecentLocations] = useState<{ province: Geo; ward: Geo | null }[]>([])
+  // Recent searches + areas (localStorage), extracted. saveSearchToHistory is consumed by the
+  // feed-sync / landing-search / visual-search paths below (all after this line).
+  const { recentSearches, recentLocations, setRecentSearches, setRecentLocations, saveSearchToHistory } = useSearchHistory(activeProvince, activeWard)
   const [landingQuery, setLandingQuery] = useState('')
   // Below-the-fold curated rows render only AFTER first paint, so the landing
   // hydrates ~12 cards instead of ~84 — the ~70 extra cards were saturating the
@@ -293,31 +295,6 @@ export function ListingsExplorer({
     }
   }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, priceRange])
 
-  // Load search + location history from localStorage on mount
-  useEffect(() => {
-    try {
-      const h = localStorage.getItem('eno:recent_searches')
-      if (h) setRecentSearches(JSON.parse(h))
-    } catch (_) {}
-    try {
-      const l = localStorage.getItem('eno:recent_locations')
-      if (l) setRecentLocations(JSON.parse(l))
-    } catch (_) {}
-  }, [])
-
-  // Remember the user's applied areas (province/ward) for quick re-select.
-  useEffect(() => {
-    if (!activeProvince) return
-    const entry = { province: activeProvince, ward: activeWard }
-    setRecentLocations((prev) => {
-      const key = (e: typeof entry) => `${e.province.code}:${e.ward?.code ?? ''}`
-      const next = [entry, ...prev.filter((e) => key(e) !== key(entry))].slice(0, 6)
-      try { localStorage.setItem('eno:recent_locations', JSON.stringify(next)) } catch (_) {}
-      return next
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProvince?.code, activeWard?.code])
-
   // Listen to open-mobile-filters event from Header
   useEffect(() => {
     const handleOpenFilters = () => setIsMobileFilterOpen(true)
@@ -329,20 +306,6 @@ export function ListingsExplorer({
   // committed query, not again on every pagination/sort/filter refetch of the same term.
   const lastTrackedSearch = useRef<string | null>(null)
 
-  // Helper to persist search terms
-  const saveSearchToHistory = useCallback((searchTerm: string) => {
-    const trimmed = searchTerm.trim()
-    if (!trimmed || trimmed.length < 2) return
-    // Corrupt/legacy storage must never throw inside the data-sync effect.
-    let list: string[] = []
-    try {
-      const parsed = JSON.parse(localStorage.getItem('eno:recent_searches') || '[]')
-      if (Array.isArray(parsed)) list = parsed.filter((x): x is string => typeof x === 'string')
-    } catch { /* reset on corrupt */ }
-    list = [trimmed, ...list.filter((item) => item !== trimmed)].slice(0, 5)
-    try { localStorage.setItem('eno:recent_searches', JSON.stringify(list)) } catch {}
-    setRecentSearches(list)
-  }, [])
 
 
   // Match active categories for quick suggestion links in Landing Page
@@ -476,25 +439,8 @@ export function ListingsExplorer({
     window.dispatchEvent(new CustomEvent('eno:hero', { detail: { present: isLandingMode } }))
   }, [isLandingMode])
 
-  // Global keyboard listener to focus search bar on '/'
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === '/' &&
-        document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA'
-      ) {
-        e.preventDefault()
-        const input = document.getElementById('listings-search-input') as HTMLInputElement | null
-        if (input) {
-          input.focus()
-          setShowSuggestions(true)
-        }
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  // '/' and ⌘/Ctrl+K focus the search input (extracted).
+  useSearchShortcuts(setShowSuggestions)
 
   const handleCategorySelect = (slug: string) => {
     setLooseMatch(false)
@@ -1149,45 +1095,11 @@ export function ListingsExplorer({
     document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
-  // Save the current filter set → the buyer gets alerted (in-app + push) on new matches.
-  const savingSearch = useRef(false)
-  const saveSearch = useCallback(async () => {
-    if (savingSearch.current) return // block double-tap → duplicate rows → duplicate cron alerts
-    savingSearch.current = true
-    const [mn, mx] = priceRange !== 'all' ? priceRange.split('-') : ['', '']
-    const params = {
-      category: activeCategory !== 'all' ? activeCategory : undefined,
-      subcategory: activeSubcategory !== 'all' ? activeSubcategory : undefined,
-      brand: activeBrand !== 'all' ? activeBrand : undefined,
-      model: activeBrand !== 'all' && activeModel !== 'all' ? activeModel : undefined,
-      listingType: listingType !== 'all' ? listingType : undefined,
-      q: debouncedQuery.trim() || undefined,
-      district: activeDistrict !== 'all' ? activeDistrict : undefined,
-      condition: conditionFilter !== 'all' ? conditionFilter : undefined,
-      priceMin: mn ? Number(mn) : undefined,
-      priceMax: mx ? Number(mx) : undefined,
-      attrs: Object.keys(customFilters).length ? customFilters : undefined,
-    }
-    try {
-      const res = await fetch('/api/saved-searches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ params }) })
-      if (res.status === 401) { openSignIn(); return }
-      if (res.status === 409) { toast.error(tr("You've reached the saved-search limit", 'Bạn đã đạt giới hạn tìm kiếm đã lưu')); return }
-      if (!res.ok) throw new Error()
-      toast.success(tr("Saved — we'll alert you on new matches", 'Đã lưu — sẽ báo khi có tin mới phù hợp'))
-    } catch { toast.error(tr('Could not save search', 'Không thể lưu tìm kiếm')) }
-    finally { savingSearch.current = false }
-  }, [activeCategory, activeSubcategory, activeBrand, activeModel, listingType, debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters, tr, openSignIn])
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        document.getElementById('listings-search-input')?.focus()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  // Save the current filter set → the buyer gets alerted (in-app + push) on new matches. (extracted)
+  const saveSearch = useSaveSearch({
+    activeCategory, activeSubcategory, activeBrand, activeModel, listingType,
+    debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters,
+  })
 
   if (isLandingMode) {
     // Never open an empty dropdown: with a typed query it's the typeahead; when empty
