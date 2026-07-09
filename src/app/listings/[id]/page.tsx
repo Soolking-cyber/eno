@@ -39,7 +39,6 @@ import { sellerMetrics, topSellerReviews, sameSellerListings } from '@/lib/selle
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
-import { ListingContactBar } from '@/components/marketplace/listing-contact-bar'
 import { TrackView } from '@/components/marketplace/track-view'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SaveListingButton } from '@/components/marketplace/save-listing-button'
@@ -333,7 +332,7 @@ export default async function ListingPage({ params }: Props) {
 
       <Header />
 
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:pb-12">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-12">
         {/* Header block — ONE set of DOM nodes, two visual orders. DOM order
             (breadcrumb → title → caution → price → gallery → highlights) IS the
             ≥lg layout and keeps the single H1 early for SEO; <lg, flex `order-*`
@@ -603,18 +602,6 @@ export default async function ListingPage({ params }: Props) {
 
         {/* The buyer's own recently-viewed trail (excludes this listing). */}
         <RecentlyViewedRail excludeId={listing.id} />
-
-        {/* Sticky mobile CTA bar (<lg): segmented Chat / primary action always one
-            thumb away — main reserves matching bottom padding so nothing hides
-            behind it. */}
-        <ListingContactBar
-          price={listing.price}
-          currency={listing.currency}
-          negotiable={listing.negotiable}
-          listingTitle={displayTitle}
-          listingImage={listing.images[0] ?? null}
-          sellerName={listing.seller.name}
-        />
       </main>
 
       <Footer />
