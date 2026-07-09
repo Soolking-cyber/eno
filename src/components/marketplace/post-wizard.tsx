@@ -720,8 +720,34 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   <input type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
                 </label>
               )}
+
+              {/* Optional video — its own square in the SAME grid, so it's exactly a photo-tile
+                  size. col-start-1 forces it onto its own row on mobile (under the photos);
+                  col-start-auto lets it sit inline (beside) from sm up. */}
+              <div className="col-start-1 aspect-square sm:col-start-auto">
+                {video ? (
+                  <div className="group relative h-full w-full overflow-hidden rounded-xl bg-black">
+                    <video src={video.url} muted loop autoPlay playsInline preload="metadata" className="h-full w-full object-cover" />
+                    <span className="pointer-events-none absolute left-1.5 top-1.5 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-[2px]">
+                      <Video className="h-3 w-3" /> {t('Video', 'Video')}
+                    </span>
+                    <button type="button" aria-label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
+                    {videoBusy ? <Loader2 className="h-6 w-6 animate-spin" /> : <Video className="h-6 w-6" />}
+                    <span className="text-[10px] font-semibold">{videoBusy ? t('Đang kiểm tra…', 'Checking…') : t('Thêm video', 'Add video')}</span>
+                    <span className="text-[9px] leading-tight text-ink-4">{t('tùy chọn · 60 giây', 'optional · 60s')}</span>
+                    <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
+                  </label>
+                )}
+              </div>
             </div>
             {err.photo && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{t('Thêm ít nhất 1 ảnh', 'Add at least one photo')}</p>}
+            {/* Media hint covers the video square in the grid above. */}
+            <p className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.', 'First photo is your cover. A video (optional) autoplays on hover and in the Video feed.')}</p>
             {aiEnabled && photos.length > 0 && (
               <button
                 type="button"
@@ -733,30 +759,6 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {t('Tự điền từ ảnh', 'Autofill from photo')}
               </button>
             )}
-
-            {/* Optional video (≤60s) — grouped with photos as the listing's media. */}
-            <div className="mt-5 border-t border-line pt-4">
-              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                <Video className="h-4 w-4 text-muted-foreground" />
-                {t('Video', 'Video')}
-                <span className="text-xs font-normal text-ink-4">· {t('không bắt buộc, tối đa 60 giây', 'optional, up to 60s')}</span>
-              </div>
-              {video ? (
-                <div className="relative w-full max-w-xs overflow-hidden rounded-xl bg-black">
-                  <video src={video.url} muted playsInline controls preload="metadata" className="aspect-video w-full object-contain" />
-                  <button type="button" aria-label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white cursor-pointer tap-44">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <label className="flex w-full max-w-xs cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm font-semibold text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
-                  {videoBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Video className="h-5 w-5" />}
-                  {videoBusy ? t('Đang kiểm tra…', 'Checking…') : t('Thêm video', 'Add a video')}
-                  <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
-                </label>
-              )}
-              <p className="mt-1.5 text-xs text-ink-4">{t('Video tự phát khi rê chuột lên tin và trong mục Video.', 'Autoplays on hover and in the Video feed — a great way to show your item.')}</p>
-            </div>
           </Section>
 
           {/* Category & type */}
