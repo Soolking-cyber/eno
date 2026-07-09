@@ -206,7 +206,9 @@ function VideoFeedItem({
           muted
           preload={active ? 'auto' : 'none'}
           onClick={togglePlay}
-          className="h-full w-full object-contain"
+          // Fill the vertical frame, cropping to fit (a true portrait clip fills with no loss;
+          // a wider clip crops its edges, keeping the centre) instead of letterboxing with bars.
+          className="h-full w-full object-cover"
         />
       )}
 

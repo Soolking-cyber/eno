@@ -25,7 +25,10 @@ export function ListingVideoPlayer({ src, poster, title }: { src: string; poster
         <Video className="h-4 w-4 text-muted-foreground" />
         <Tr text="Video" />
       </div>
-      <div className="overflow-hidden rounded-2xl bg-black">
+      {/* Vertical frame (like the product photos), filled by cropping to fit — a portrait clip
+          fills with no loss; a wider one crops its edges, keeping the centre. Fullscreen (native
+          controls) still shows the whole clip at its true aspect, so nothing is lost for real. */}
+      <div className="relative mx-auto aspect-[4/5] w-full max-w-sm overflow-hidden rounded-2xl bg-black">
         <video
           ref={ref}
           src={src}
@@ -36,7 +39,7 @@ export function ListingVideoPlayer({ src, poster, title }: { src: string; poster
           playsInline
           preload="metadata"
           aria-label={title}
-          className="max-h-[75vh] w-full object-contain"
+          className="absolute inset-0 h-full w-full object-cover"
         />
       </div>
     </div>
