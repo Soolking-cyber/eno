@@ -18,6 +18,7 @@ import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 import { assertPublishable, assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
+import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { priceChangeEffects } from '@/lib/price-drop'
 import { activateUrgentGate, urgentQuotaFree, URGENT } from '@/lib/urgent'
 
@@ -320,6 +321,11 @@ export async function updateListingCore(
   if (data.images !== undefined || data.title !== undefined || data.description !== undefined) {
     after(() => moderateListingById(listingId))
   }
+  // Re-index + re-check image provenance when the photos changed (edited to reuse another
+  // seller's photos).
+  if (data.images !== undefined) {
+    after(() => indexAndCheckProvenance(listingId))
+  }
 
   return { ok: true }
 }
@@ -477,6 +483,9 @@ export async function createListingCore(input: {
   // flushes (the listing is already live — instant-publish stays instant). Trust-gated to
   // the risky population inside; a high-confidence prohibited hit auto-hides + flags + notifies.
   after(() => moderateListingById(listing.id))
+  // Cross-app image provenance: index this listing's photo hashes + check them against the
+  // whole platform; reusing another seller's photos (stolen-listing scam) auto-hides + flags.
+  after(() => indexAndCheckProvenance(listing.id))
 
   // Pre-translate every user-authored text field into ALL supported languages so the
   // listing renders from cache in any visitor's language. Runs after the response flushes.

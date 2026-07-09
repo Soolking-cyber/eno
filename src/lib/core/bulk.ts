@@ -10,6 +10,7 @@ import { isListingImageUrl } from '@/lib/listing-image'
 import { safeFetch } from '@/lib/ssrf'
 import { reindexListing } from '@/lib/listing-index'
 import { moderateListingById } from '@/lib/ai-moderation'
+import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { storeListingImage, IMG_MAX_BYTES } from '@/lib/core/media'
 import { browseRankScore } from '@/lib/ranking'
 
@@ -145,7 +146,10 @@ export async function bulkImportCore(
     const ids = results.filter((r) => r.id).map((r) => r.id as string)
     const CONCURRENCY = 4
     for (let i = 0; i < ids.length; i += CONCURRENCY) {
-      await Promise.all(ids.slice(i, i + CONCURRENCY).map((id) => moderateListingById(id)))
+      await Promise.all(ids.slice(i, i + CONCURRENCY).map(async (id) => {
+        await moderateListingById(id)          // AI prohibited-content (trust-gated inside)
+        await indexAndCheckProvenance(id)       // cross-app image provenance (indexed, cheap)
+      }))
     }
   })
 

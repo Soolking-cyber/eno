@@ -58,6 +58,14 @@ export function hashFromUrl(url: string): string | null {
   return m ? m[1].toLowerCase() : null
 }
 
+/** 16-hex dHash → the 64-char "0/1" string Postgres casts to bit(64) (`$1::bit(64)`), used to
+ *  store/query the pgvector Hamming index for cross-app image dedup. */
+export function hexToBits(hex: string): string {
+  let bits = ''
+  for (const c of hex) bits += (parseInt(c, 16) || 0).toString(2).padStart(4, '0')
+  return bits.slice(0, 64).padEnd(64, '0')
+}
+
 /** How many of A's images are a near-duplicate of some image of B (Hamming ≤ threshold),
  *  plus min(#hashed A, #hashed B). Both take the listings' stored image-URL arrays; images
  *  without an embedded hash (older uploads) are skipped. Threshold 10 ≈ "same photo,
