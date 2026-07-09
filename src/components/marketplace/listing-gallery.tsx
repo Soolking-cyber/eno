@@ -166,7 +166,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
             <div className={cn('grid gap-2', restGrid)}>
               {rest.map((img, i) => (
                 <button key={i} onClick={() => openAt(i + 1)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-                  <Image src={img} alt={`${title} — photo ${i + 2}`} fill sizes="25vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                  <Image src={img} alt={`${title} — photo ${i + 2}`} fill sizes="25vw" quality={70} unoptimized={isMockImageUrl(img) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
                   <span className="img-watermark" aria-hidden />
                 </button>
               ))}
@@ -242,7 +242,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
               className={cn('relative h-full w-full transition-transform duration-200 motion-reduce:transition-none', zoom && 'cursor-grab')}
               style={zoom ? { transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${ZOOM})` } : undefined}
             >
-              <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-contain" />
+              <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} unoptimized={isMockImageUrl(images[idx]) || undefined} className="object-contain" />
               <span className="img-watermark" aria-hidden />
             </div>
           </div>
