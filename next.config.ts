@@ -37,12 +37,6 @@ const nextConfig: NextConfig = {
         hostname: "xihiryllwmjoouipkyhw.supabase.co",
         pathname: "/storage/v1/object/public/listings/**",
       },
-      // MOCK DATA ONLY — stock photos for the seed catalog used in testing.
-      // picsum is the current source (reliable); loremflickr is kept allow-listed
-      // only so older mock rows don't break the build before a reseed. Remove BOTH
-      // (and reseed without mock listings) before launch.
-      { protocol: "https", hostname: "picsum.photos" },
-      { protocol: "https", hostname: "loremflickr.com" },
     ],
   },
   typescript: {
@@ -73,7 +67,7 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline' https://unpkg.com",
       // *.googleusercontent.com = Google account avatars (OAuth sign-in) — without it the
       // CSP blocks them and they render as a broken-image icon in the navbar/profile.
-      "img-src 'self' data: blob: https://*.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://picsum.photos https://*.picsum.photos https://loremflickr.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com",
       // <video> sources for listing videos: Supabase public bucket + blob: (the wizard's
       // client-side preview object URL). Without this, default-src 'self' blocks playback.
       "media-src 'self' blob: https://*.supabase.co",
