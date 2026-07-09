@@ -5,11 +5,6 @@ import {
   Search,
   Inbox,
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  Grid,
-  List,
   MapPin,
   Phone,
   X,
@@ -35,6 +30,7 @@ import { BusinessRail } from './business-rail'
 import { DISTRICTS } from './listings-explorer.constants'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
+import { ViewToggles, SortStrip } from './explorer-toolbar'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
@@ -1626,101 +1622,9 @@ export function ListingsExplorer({
 
   // List / Grid / Map view toggles — one source for the desktop sort row AND the
   // mobile results-count row (where the collapsed sort/view row's controls live).
-  const renderViewToggles = () => (
-    <>
-      <button
-        onClick={() => setViewMode('compact')}
-        aria-label={tr('List view', 'Danh sách')}
-        aria-pressed={viewMode === 'compact'}
-        title={tr('List view', 'Danh sách')}
-        className={cn(
-          'rounded-lg p-2 transition-colors cursor-pointer',
-          viewMode === 'compact' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
-        )}
-      >
-        <List className="h-3.5 w-3.5" />
-      </button>
-      <button
-        onClick={() => setViewMode('grid')}
-        aria-label={tr('Grid view', 'Lưới')}
-        aria-pressed={viewMode === 'grid'}
-        title={tr('Grid view', 'Lưới')}
-        className={cn(
-          'rounded-lg p-2 transition-colors cursor-pointer',
-          viewMode === 'grid' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
-        )}
-      >
-        <Grid className="h-3.5 w-3.5" />
-      </button>
-      <button
-        onClick={() => setViewMode('map')}
-        aria-label={tr('Map view', 'Bản đồ')}
-        aria-pressed={viewMode === 'map'}
-        title={tr('Map view', 'Xem Bản đồ')}
-        className={cn(
-          'rounded-lg p-2 transition-colors cursor-pointer',
-          viewMode === 'map' ? 'text-accent-foreground' : 'text-body hover:bg-muted',
-        )}
-      >
-        <Map className="h-3.5 w-3.5" />
-      </button>
-    </>
-  )
-
-  // One-row sort strip (Shopee's learned pattern: Liên quan | Mới nhất | Được quan
-  // tâm | Giá) — one-tap tabs replacing the results-mode sort dropdown on ALL sizes.
-  // Same underline-tab system as the dashboard/admin tabs. The price tab carries its
-  // direction arrow: first tap = ascending, re-tap flips.
-  const priceSortActive = sort === 'price-low' || sort === 'price-high'
+  // Sort tabs + view toggles are presentational (see ./explorer-toolbar). pickSort keeps the
+  // filter transition here since it owns setSort + the useTransition.
   const pickSort = (val: SortKey) => startFilterTransition(() => setSort(val))
-  const sortTab = (selected: boolean) =>
-    cn(
-      '-mb-px flex shrink-0 items-center gap-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
-      selected ? 'border-brand text-accent-foreground' : 'border-transparent text-body hover:text-foreground',
-    )
-  const renderSortStrip = () => (
-    <div
-      className={cn(
-        // Sticky below the header's slot; when the header auto-hides on scroll-down
-        // the offset follows it to the viewport edge. Swapping `top` (vs transform)
-        // is a no-op while the strip is still in normal flow, so it never jolts the
-        // layout above — it only glides once actually stuck.
-        'sticky z-30 border-b border-border bg-background/95 backdrop-blur transition-[top] duration-[250ms] ease-out motion-reduce:transition-none',
-        headerHidden ? 'top-0' : 'top-[calc(env(safe-area-inset-top)+4rem)]',
-        // Edge bleed coupled to the page gutter (max-w-7xl px-3 sm:px-6 lg:px-8) so
-        // the strip meets the Header's content edges at every size.
-        '-mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8',
-      )}
-    >
-      <div className="scrollbar-none flex flex-nowrap items-center gap-1 overflow-x-auto">
-        <button type="button" onClick={() => pickSort('newest')} aria-pressed={sort === 'newest'} className={sortTab(sort === 'newest')}>
-          {tr('Relevance', 'Liên quan')}
-        </button>
-        <button type="button" onClick={() => pickSort('recent')} aria-pressed={sort === 'recent'} className={sortTab(sort === 'recent')}>
-          {tr('Newest', 'Mới nhất')}
-        </button>
-        <button type="button" onClick={() => pickSort('popular')} aria-pressed={sort === 'popular'} className={sortTab(sort === 'popular')}>
-          {tr('Most contacted', 'Được quan tâm')}
-        </button>
-        <button
-          type="button"
-          onClick={() => pickSort(sort === 'price-low' ? 'price-high' : 'price-low')}
-          aria-pressed={priceSortActive}
-          aria-label={tr('Sort by price', 'Sắp xếp theo giá')}
-          className={sortTab(priceSortActive)}
-        >
-          {tr('Price', 'Giá')}
-          {sort === 'price-low' ? (
-            <ArrowUp className="h-3.5 w-3.5" />
-          ) : sort === 'price-high' ? (
-            <ArrowDown className="h-3.5 w-3.5" />
-          ) : (
-            <ArrowUpDown className="h-3.5 w-3.5 text-ink-4" />
-          )}
-        </button>
-      </div>
-    </div>
-  )
 
   // Distinct from the empty state: a failed fetch (DB down, 500) must NOT read as
   // "no listings" — show an error + retry so the marketplace never looks empty.
@@ -1814,7 +1718,7 @@ export function ListingsExplorer({
               {/* View toggles — pinned top-right (ml-auto keeps them right even
                   when there are no chips / no save box on the left). */}
               <div className="flex items-center gap-2.5 lg:ml-auto lg:shrink-0">
-                {renderViewToggles()}
+                <ViewToggles viewMode={viewMode} onViewMode={setViewMode} />
               </div>
             </div>
 
@@ -1823,7 +1727,7 @@ export function ListingsExplorer({
             {renderSaveBox(false, 'lg:hidden')}
 
             {/* One-row sort strip — sticks under the header while the results scroll. */}
-            {renderSortStrip()}
+            <SortStrip sort={sort} onPickSort={pickSort} headerHidden={headerHidden} />
 
             {/* Results metadata count — also the feed's h2 (keeps headings sequential).
                 On mobile the view toggles live here (the sort/view row is collapsed). */}
@@ -1833,7 +1737,7 @@ export function ListingsExplorer({
                 <strong className="text-foreground">{nearby ? shownListings.length : totalCount}</strong>{' '}
                 {tr('listings', 'tin đăng')}
               </h2>
-              <div className="flex items-center gap-1 lg:hidden">{renderViewToggles()}</div>
+              <div className="flex items-center gap-1 lg:hidden"><ViewToggles viewMode={viewMode} onViewMode={setViewMode} /></div>
             </div>
 
             {/* LISTINGS CONTAINER */}
