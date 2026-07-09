@@ -1,15 +1,15 @@
 'use client'
 
-import { List, Grid, Map, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { List, Grid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
 // Presentational toolbar pieces extracted from ListingsExplorer. Pure: they read a value +
 // call a passed handler, own no state.
 export type SortKey = 'newest' | 'recent' | 'price-low' | 'price-high' | 'popular'
-export type ViewMode = 'compact' | 'grid' | 'map'
+export type ViewMode = 'compact' | 'grid' | 'map' | 'video'
 
-/** List / Grid / Map view-mode toggle icons. */
+/** List / Grid / Map / Video view-mode toggle icons. */
 export function ViewToggles({ viewMode, onViewMode }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void }) {
   const { tr } = useLanguage()
   const tab = (mode: ViewMode) =>
@@ -24,6 +24,9 @@ export function ViewToggles({ viewMode, onViewMode }: { viewMode: ViewMode; onVi
       </button>
       <button onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} title={tr('Map view', 'Xem Bản đồ')} className={tab('map')}>
         <Map className="h-3.5 w-3.5" />
+      </button>
+      <button onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} title={tr('Video view', 'Xem Video')} className={tab('video')}>
+        <Play className="h-3.5 w-3.5" />
       </button>
     </>
   )

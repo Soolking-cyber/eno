@@ -211,6 +211,10 @@ export async function GET(req: NextRequest) {
     if (filter.gte !== undefined || filter.lte !== undefined) andFilters.push({ [col]: filter })
   }
 
+  // Video feed (4th view): only listings that carry a clip. Pushed into andFilters so it
+  // threads through both the keyword and semantic ranking paths (both build from andFilters).
+  if (searchParams.get('hasVideo') === '1') andFilters.push({ video: { not: null } })
+
   const where: Prisma.ListingWhereInput = andFilters.length > 0 ? { AND: andFilters } : {}
 
   // Histogram mode: return just the matching prices (VND) for the active filters.

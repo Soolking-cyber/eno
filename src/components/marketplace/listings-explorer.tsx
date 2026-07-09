@@ -101,6 +101,16 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
     </div>
   )
 })
+// The TikTok-style Video view is heavy (video refs + IntersectionObserver) and only used on
+// demand — lazy-load it just like the map so it never ships in the default bundle.
+const VideoFeed = dynamic(() => import('./listings-video-feed').then((m) => m.VideoFeed), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[60dvh] items-center justify-center">
+      <Spinner size="md" className="border-border border-t-brand" />
+    </div>
+  ),
+})
 
 // Display a brand slug ("louis-vuitton") as a label ("Louis Vuitton") without a
 // catalogue round-trip. Brands recognized by simple-icons keep their canonical name.
@@ -112,7 +122,7 @@ function prettyBrand(slug: string): string {
 // the API's default case AND its semantic-search gate both key on it), shown as
 // "Liên quan". TRUE recency is the separate 'recent' value.
 type SortKey = 'newest' | 'recent' | 'price-low' | 'price-high' | 'popular'
-type ViewMode = 'compact' | 'grid' | 'map'
+type ViewMode = 'compact' | 'grid' | 'map' | 'video'
 
 type Props = {
   categories: SerializedCategory[]
@@ -158,7 +168,7 @@ export function ListingsExplorer({
     const v = new URLSearchParams(window.location.search).get('view')
     // Also open the results view — landing + viewMode alone left the footer's
     // "Map" link on the landing hero, which read as a dead link.
-    if (v === 'map' || v === 'grid' || v === 'compact') { setViewMode(v); setShowExplorer(true) }
+    if (v === 'map' || v === 'grid' || v === 'compact' || v === 'video') { setViewMode(v); setShowExplorer(true) }
   }, [])
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
@@ -627,6 +637,40 @@ export function ListingsExplorer({
   }
 
   // Fetch listings dynamically from API on parameter/page modifications using React Query SWR cache
+  // The current filters as URL query params, WITHOUT paging — the single source of truth for
+  // both the grid query below and the Video feed (which appends hasVideo + its own paging).
+  const baseParamsString = useMemo(() => {
+    const params = new URLSearchParams()
+    if (activeBrand !== 'all') {
+      params.set('brand', activeBrand)
+      if (activeModel !== 'all') {
+        params.set('model', activeModel)
+        if (activeCategory !== 'all') params.set('category', activeCategory)
+      } else if (activeCategory !== 'all') {
+        params.set('priorityCategory', activeCategory)
+      }
+    } else {
+      if (activeCategory !== 'all') params.set('category', activeCategory)
+      if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
+    }
+    if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
+    if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
+    if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
+    if (conditionFilter !== 'all') params.set('condition', conditionFilter)
+    if (listingType !== 'all') params.set('type', listingType)
+    if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
+    if (looseMatch && debouncedQuery.trim()) params.set('match', 'any')
+    params.set('sort', sort)
+    params.set('verified', verifiedOnly ? 'true' : 'all')
+    if (priceRange !== 'all') {
+      const [mn, mx] = priceRange.split('-')
+      if (mn) params.set('priceMin', mn)
+      if (mx) params.set('priceMax', mx)
+    }
+    applyFilterParams(params, customFilters, activeCategory, activeSubcategory)
+    return params.toString()
+  }, [activeBrand, activeModel, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters])
+
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isError: queryError, refetch: refetchListings } = useQuery({
     queryKey: [
       'listings',
@@ -651,40 +695,9 @@ export function ListingsExplorer({
       },
     ],
     queryFn: async () => {
-      const params = new URLSearchParams()
-      if (activeBrand !== 'all') {
-        params.set('brand', activeBrand)
-        if (activeModel !== 'all') {
-          // A MODEL is specific → keep it scoped to the browsed category, not global.
-          params.set('model', activeModel)
-          if (activeCategory !== 'all') params.set('category', activeCategory)
-        } else if (activeCategory !== 'all') {
-          // A BRAND alone spans ALL categories; the browsed category just ranks first.
-          params.set('priorityCategory', activeCategory)
-        }
-      } else {
-        if (activeCategory !== 'all') params.set('category', activeCategory)
-        if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
-      }
+      // Structural filters come from the shared memo; only paging is per-query here.
       // "Near you" ignores area filters and pulls a broad set to distance-filter client-side.
-      if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
-      if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
-      if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
-      if (conditionFilter !== 'all') params.set('condition', conditionFilter)
-      if (listingType !== 'all') params.set('type', listingType)
-      if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim())
-      if (looseMatch && debouncedQuery.trim()) params.set('match', 'any')
-      params.set('sort', sort)
-      params.set('verified', verifiedOnly ? 'true' : 'all')
-      if (priceRange !== 'all') {
-        const [mn, mx] = priceRange.split('-')
-        if (mn) params.set('priceMin', mn)
-        if (mx) params.set('priceMax', mx)
-      }
-
-      // Serialize custom attribute + range filters.
-      applyFilterParams(params, customFilters, activeCategory, activeSubcategory)
-
+      const params = new URLSearchParams(baseParamsString)
       const limit = nearby ? 100 : 12
       const offset = (page - 1) * limit
       params.set('limit', String(limit))
@@ -1741,8 +1754,15 @@ export function ListingsExplorer({
               <div className="flex items-center gap-1 lg:hidden"><ViewToggles viewMode={viewMode} onViewMode={setViewMode} /></div>
             </div>
 
+            {/* Video view (4th mode): its own vertical clip feed with a self-contained
+                data fetch (hasVideo=1) + loading/empty states — replaces the grid/list/map
+                results area entirely, so the blocks below are skipped in this mode. */}
+            {viewMode === 'video' && (
+              <VideoFeed baseParams={baseParamsString} onOpen={handleOpen} onPrefetch={prefetchListing} />
+            )}
+
             {/* LISTINGS CONTAINER */}
-            {isLoading && listings.length === 0 && (
+            {viewMode !== 'video' && isLoading && listings.length === 0 && (
               viewMode === 'grid' ? (
                 <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -1765,9 +1785,9 @@ export function ListingsExplorer({
               )
             )}
 
-            {!isLoading && shownListings.length === 0 && (queryError ? renderErrorState() : renderEmptyState())}
+            {viewMode !== 'video' && !isLoading && shownListings.length === 0 && (queryError ? renderErrorState() : renderEmptyState())}
 
-            {shownListings.length > 0 && (
+            {viewMode !== 'video' && shownListings.length > 0 && (
               <div className={cn(isLoading && 'opacity-60 pointer-events-none transition-opacity')}>
                 <div
                   key={`${viewMode}|${activeCategory}|${activeSubcategory}|${activeDistrict}|${sort}|${verifiedOnly}|${conditionFilter}`}
