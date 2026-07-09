@@ -385,16 +385,22 @@ export function Header() {
             </Link>
           )}
 
-          {/* Desktop only (lg+): mobile/tablet get the bottom-nav "+" Post button instead, so
-              this would be redundant there (and crowds the header on a phone). */}
-          <Button asChild variant="cta" size="none">
-            <Link
-              href={user ? '/dashboard?tab=post' : '/post'}
-              className="hidden gap-1.5 px-4 py-2 text-sm font-semibold lg:flex cursor-pointer"
-            >
-              {t('header.postBtn')}
-            </Link>
-          </Button>
+          {/* Desktop only: mobile/tablet get the bottom-nav "+" Post button instead. Hide via a
+              WRAPPER, not on the button — `<Button asChild>` (Radix Slot) concatenates the
+              Button's base `inline-flex` onto the child WITHOUT tailwind-merge, so any display
+              utility on the button itself (hidden / mobile:hidden) loses to `inline-flex`. The
+              wrapper has no competing display, so mobile:hidden reliably hides it; pc:contents
+              keeps the button a direct flex child on desktop (zero layout change). */}
+          <div className="mobile:hidden pc:contents">
+            <Button asChild variant="cta" size="none">
+              <Link
+                href={user ? '/dashboard?tab=post' : '/post'}
+                className="gap-1.5 px-4 py-2 text-sm font-semibold inline-flex cursor-pointer"
+              >
+                {t('header.postBtn')}
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
 
