@@ -74,6 +74,9 @@ const nextConfig: NextConfig = {
       // *.googleusercontent.com = Google account avatars (OAuth sign-in) — without it the
       // CSP blocks them and they render as a broken-image icon in the navbar/profile.
       "img-src 'self' data: blob: https://*.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://picsum.photos https://*.picsum.photos https://loremflickr.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com",
+      // <video> sources for listing videos: Supabase public bucket + blob: (the wizard's
+      // client-side preview object URL). Without this, default-src 'self' blocks playback.
+      "media-src 'self' blob: https://*.supabase.co",
       "font-src 'self' data:",
       // capig.stape.id + *.run.app = the Meta Pixel's CAPI Gateway (Stape) it POSTs
       // browser events to when NEXT_PUBLIC_META_PIXEL_ID is set with a gateway configured

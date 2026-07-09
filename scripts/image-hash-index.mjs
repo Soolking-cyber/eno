@@ -44,6 +44,8 @@ CREATE INDEX IF NOT EXISTS "PriceStat_lookup_idx" ON "PriceStat" ("brandSlug", m
 -- Denormalized market-price position on Listing (nightly by /api/cron/price-stats). Additive,
 -- no FK → safe outside the profile_auth_fk push flow; mirrored in schema.prisma as marketPosition.
 ALTER TABLE "Listing" ADD COLUMN IF NOT EXISTS "marketPosition" TEXT;
+-- Optional single listing video (≤60s, public URL in the listing-videos bucket). Additive, no FK.
+ALTER TABLE "Listing" ADD COLUMN IF NOT EXISTS "video" TEXT;
 `
 
 try {

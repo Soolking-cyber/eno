@@ -38,6 +38,10 @@ export type SerializedListingCard = {
   lat: number | null
   lng: number | null
   images: string[]
+  // Optional listing video (public URL). Autoplays muted on card hover + powers the Video feed.
+  // Optional so full-listing surfaces (PDP shelves, storefront) that render SerializedListing
+  // as a card still satisfy the type; they populate it from SerializedListing.video below.
+  video?: string | null
   brandSlug: string | null
   model: string | null
   // Below the market band for its brand+model+segment (< P25) → "Good price" card chip.
@@ -91,6 +95,9 @@ export type SerializedListing = {
   lng: number | null
   condition: string | null
   images: string[]
+  // Optional listing video (public URL) — shown on the detail page + carried so full-listing
+  // surfaces (PDP shelves, storefront, saved) render it as a card video too.
+  video: string | null
   categoryId: string
   subcategorySlug: string | null
   brandSlug: string | null

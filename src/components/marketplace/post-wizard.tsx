@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock, Sparkles, Loader2, LocateFixed, Zap } from 'lucide-react'
+import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock, Sparkles, Loader2, LocateFixed, Zap, Video } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
@@ -72,6 +72,7 @@ export type ListingEditData = {
   lat: number | null
   lng: number | null
   images: string[]
+  video: string | null
 }
 
 // Seed the range-facet state (keyed by facet key) from the listing's dedicated columns.
@@ -241,6 +242,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // In edit mode, existing images seed as URL-only entries (no File); new uploads add a
   // File. Submit uploads only the File ones and keeps the URL ones (preserving order).
   const [photos, setPhotos] = useState<{ url: string; file?: File }[]>(() => edit?.images?.map((url) => ({ url })) ?? [])
+  // Optional single video: url-only in edit mode (already hosted); a new pick carries a File
+  // + a blob: preview URL. ≤60s (duration-gated client-side) — autoplays on hover + in the feed.
+  const [video, setVideo] = useState<{ url: string; file?: File } | null>(() => (edit?.video ? { url: edit.video } : null))
+  const [videoBusy, setVideoBusy] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
@@ -453,6 +458,37 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     }
   }
 
+  // Optional listing clip. Validate type + size + DURATION (≤60s, read from metadata) on the
+  // client so the seller gets an instant, specific rejection; the server/bucket re-check bytes+type.
+  const VIDEO_MAX_MB = 50
+  const addVideo = async (files: FileList | null) => {
+    const f = files?.[0]
+    if (!f) return
+    if (!/^video\/(mp4|webm|quicktime)$/.test(f.type)) { toast.error(t('Chỉ nhận video MP4, WebM hoặc MOV.', 'Only MP4, WebM or MOV videos.')); return }
+    if (f.size > VIDEO_MAX_MB * 1024 * 1024) { toast.error(t(`Video quá lớn (tối đa ${VIDEO_MAX_MB}MB).`, `Video is too large (${VIDEO_MAX_MB}MB max).`)); return }
+    setVideoBusy(true)
+    const url = URL.createObjectURL(f)
+    try {
+      const dur = await new Promise<number>((resolve) => {
+        const v = document.createElement('video')
+        v.preload = 'metadata'
+        v.onloadedmetadata = () => resolve(v.duration)
+        v.onerror = () => resolve(NaN)
+        v.src = url
+      })
+      // 61s tolerance for rounding; Infinity/NaN = unreadable metadata → reject (can't verify ≤60s).
+      if (!Number.isFinite(dur) || dur > 61) {
+        URL.revokeObjectURL(url)
+        toast.error(t('Video phải dài tối đa 60 giây.', 'Video must be 60 seconds or less.'))
+        return
+      }
+      setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return { url, file: f } })
+    } finally {
+      setVideoBusy(false)
+    }
+  }
+  const removeVideo = () => setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return null })
+
   const submit = async () => {
     if (submittingRef.current || submitting) return
     // Missing required fields → don't silently no-op: flag them all in red and jump
@@ -489,6 +525,18 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       let ui = 0
       const imageUrls = photos.map((p) => (p.file ? uploaded[ui++] : p.url))
 
+      // Upload a newly-picked clip; keep an already-hosted one (edit). null clears it (removed).
+      let videoUrl: string | null = null
+      if (video?.file) {
+        const fd = new FormData()
+        fd.append('file', video.file)
+        const vr = await fetch('/api/upload/video', { method: 'POST', body: fd })
+        videoUrl = vr.ok ? (((await vr.json()) as { url?: string }).url ?? null) : null
+        if (!videoUrl) throw new Error('video')
+      } else if (video && !video.url.startsWith('blob:')) {
+        videoUrl = video.url
+      }
+
       const payload = {
         categorySlug,
         subcategorySlug: subcategorySlug || null,
@@ -514,6 +562,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         brand: showBrand ? brand.trim() || null : null,
         model: showBrand ? model.trim() || null : null,
         images: imageUrls,
+        video: videoUrl,
         contactName: contactName.trim(),
         contactPhone: contactPhone.trim(),
       }
@@ -547,6 +596,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       setError(
         msg === 'upload'
           ? t('Không tải được ảnh, vui lòng thử lại.', 'Could not upload your photos — please try again.')
+          : msg === 'video'
+          ? t('Không tải được video, vui lòng thử lại.', 'Could not upload your video — please try again.')
           : msg === 'no_phone_in_listing' || msg === 'contact_in_text'
           ? t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post.")
           : msg === 'banned_words'
@@ -682,6 +733,30 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {t('Tự điền từ ảnh', 'Autofill from photo')}
               </button>
             )}
+
+            {/* Optional video (≤60s) — grouped with photos as the listing's media. */}
+            <div className="mt-5 border-t border-line pt-4">
+              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                <Video className="h-4 w-4 text-muted-foreground" />
+                {t('Video', 'Video')}
+                <span className="text-xs font-normal text-ink-4">· {t('không bắt buộc, tối đa 60 giây', 'optional, up to 60s')}</span>
+              </div>
+              {video ? (
+                <div className="relative w-full max-w-xs overflow-hidden rounded-xl bg-black">
+                  <video src={video.url} muted playsInline controls preload="metadata" className="aspect-video w-full object-contain" />
+                  <button type="button" aria-label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white cursor-pointer tap-44">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex w-full max-w-xs cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm font-semibold text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
+                  {videoBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Video className="h-5 w-5" />}
+                  {videoBusy ? t('Đang kiểm tra…', 'Checking…') : t('Thêm video', 'Add a video')}
+                  <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
+                </label>
+              )}
+              <p className="mt-1.5 text-xs text-ink-4">{t('Video tự phát khi rê chuột lên tin và trong mục Video.', 'Autoplays on hover and in the Video feed — a great way to show your item.')}</p>
+            </div>
           </Section>
 
           {/* Category & type */}

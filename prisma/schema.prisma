@@ -311,6 +311,9 @@ model Listing {
   lng                Float?
   condition          String?
   images             String
+  // Optional single listing video (≤60s) — public URL in the `listing-videos` bucket. Autoplays
+  // muted on card hover + powers the TikTok-style Video view. Additive raw column (no FK).
+  video              String?
   categoryId         String
   category           Category  @relation(fields: [categoryId], references: [id])
   // Subcategory is an explicit slug from the canonical taxonomy (src/lib/taxonomy.ts),

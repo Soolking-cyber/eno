@@ -1,6 +1,6 @@
 import 'server-only'
 import sharp from 'sharp'
-import { getSupabaseAdmin, LISTINGS_BUCKET, EVIDENCE_BUCKET } from '@/lib/supabase-admin'
+import { getSupabaseAdmin, LISTINGS_BUCKET, EVIDENCE_BUCKET, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { dHash } from '@/lib/image-hash'
 
 // Listing-image media core. Single place that turns raw image bytes into a stored,
@@ -100,6 +100,36 @@ export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string
     return null
   }
   return admin.storage.from(LISTINGS_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
+// ── Listing video ──────────────────────────────────────────────────────────────────
+// A single optional clip per listing (≤60s, enforced client-side on duration + here on
+// bytes/type). Stored RAW — no server transcode (that needs ffmpeg we don't run); the
+// bucket's own MIME allowlist + size limit are a second gate. content-type → extension.
+export const VIDEO_ALLOWED = new Map<string, string>([
+  ['video/mp4', 'mp4'],
+  ['video/webm', 'webm'],
+  ['video/quicktime', 'mov'],
+])
+export const VIDEO_MAX_BYTES = 50 * 1024 * 1024 // 50MB — a decent-quality 60s clip; matches the bucket limit
+
+/**
+ * Store a raw listing video in the public `listing-videos` bucket and return its public
+ * URL, or null on failure (never throws). The caller MUST validate content-type against
+ * VIDEO_ALLOWED and size against VIDEO_MAX_BYTES first; `contentType` here must be a key
+ * of VIDEO_ALLOWED. No processing/transcoding — bytes are stored as-is.
+ */
+export async function storeListingVideo(buf: Buffer, contentType: string): Promise<string | null> {
+  const ext = VIDEO_ALLOWED.get(contentType)
+  if (!ext || buf.length === 0 || buf.length > VIDEO_MAX_BYTES) return null
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const admin = getSupabaseAdmin()
+  const { error } = await admin.storage.from(LISTING_VIDEOS_BUCKET).upload(path, buf, { contentType, upsert: false })
+  if (error) {
+    console.error('[media] store video', error.message)
+    return null
+  }
+  return admin.storage.from(LISTING_VIDEOS_BUCKET).getPublicUrl(path).data.publicUrl
 }
 
 // Evidence keeps more detail than a listing hero: receipts/chat screenshots must stay

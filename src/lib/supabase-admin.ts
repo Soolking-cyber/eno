@@ -6,6 +6,10 @@ export const LISTINGS_BUCKET = 'listings'
 // names/account numbers). Never public-URL'd: access is via short-lived signed URLs
 // minted inside party/admin-gated routes only. Created by scripts/setup-storage.mjs.
 export const EVIDENCE_BUCKET = 'evidence'
+// PUBLIC bucket for optional listing videos (≤60s). Separate from `listings` because
+// videos need a much larger size limit and a video MIME allowlist. Provisioned by
+// scripts/setup-storage.mjs. Served via public URL for <video> playback.
+export const LISTING_VIDEOS_BUCKET = 'listing-videos'
 
 let _admin: SupabaseClient | null = null
 

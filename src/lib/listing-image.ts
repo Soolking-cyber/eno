@@ -9,6 +9,15 @@ export function isListingImageUrl(url: unknown): url is string {
   return typeof url === 'string' && PREFIX !== null && url.startsWith(PREFIX)
 }
 
+// Same host-pinned guard for a listing's optional video — our project's public
+// `listing-videos` bucket only, so a stored video URL can't point at an
+// attacker-controlled bucket that bypassed the upload route's validation.
+const VIDEO_PREFIX = HOST ? `${HOST}/storage/v1/object/public/listing-videos/` : null
+
+export function isListingVideoUrl(url: unknown): url is string {
+  return typeof url === 'string' && VIDEO_PREFIX !== null && url.startsWith(VIDEO_PREFIX)
+}
+
 // MOCK images (picsum/loremflickr) are already sized + served from a CDN — running
 // them through Vercel's optimizer just burns Image Transformation quota for test
 // data. Render them `unoptimized` so they cost zero transformations. No-op for real

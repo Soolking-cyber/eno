@@ -8,7 +8,7 @@ import { canBump } from '@/lib/stale'
 import { containsPhoneNumber } from '@/lib/phone'
 import { buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
-import { isListingImageUrl } from '@/lib/listing-image'
+import { isListingImageUrl, isListingVideoUrl } from '@/lib/listing-image'
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
 import { rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory } from '@/lib/taxonomy'
 import { syndicateListing } from '@/lib/syndicate'
@@ -165,6 +165,11 @@ export async function updateListingCore(
   if (Array.isArray(body.images)) {
     const images = (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     data.images = JSON.stringify(images)
+  }
+  // Optional single video: a valid first-party URL sets it; explicit null/'' clears it
+  // (seller removed the clip). Anything else (a foreign URL) is ignored, not persisted.
+  if (body.video !== undefined) {
+    data.video = isListingVideoUrl(body.video) ? body.video : null
   }
 
   // Subcategory — must belong to the listing's (unchanged) category.
@@ -353,6 +358,8 @@ export async function createListingCore(input: {
   const images: string[] = Array.isArray(body.images)
     ? (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     : []
+  // Optional single listing video — a valid first-party URL only, else dropped.
+  const video: string | null = isListingVideoUrl(body.video) ? body.video : null
   const district = body.district ? String(body.district).trim().slice(0, 80) : null
   const city = body.city ? String(body.city).trim().slice(0, 80) : 'Ho Chi Minh City'
   const location = body.location ? String(body.location).trim().slice(0, 120) : (district || city)
@@ -461,6 +468,7 @@ export async function createListingCore(input: {
       lng,
       condition: conditionText,
       images: JSON.stringify(images),
+      video,
       searchText, // built above (same recipe the duplicate guard compared against)
       categoryId: category.id,
       subcategorySlug,

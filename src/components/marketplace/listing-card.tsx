@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, memo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag } from 'lucide-react'
+import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
@@ -60,6 +60,8 @@ function ListingCardImpl({
   const displayLocation = useTr(listing.location)
   const { isFavorite, toggle, savedDelta } = useFavorites()
   const favorited = isFavorite(listing.id)
+  // Base savedCount (real, server-side) + this session's own toggle, floored at 0.
+  const savedTotal = Math.max(0, listing.savedCount + savedDelta(listing.id))
   // One-shot heart-burst: set ONLY when the user saves (not on unsave, and not
   // when favorites hydrate from storage on load). Cleared when the CSS animation
   // ends so a later save replays it.
@@ -83,6 +85,10 @@ function ListingCardImpl({
   // onLocate for an in-page focus; everywhere else (PDP related/recently-viewed,
   // AI results) we deep-link to the home map focused on this listing via ?focus=.
   const locate = onLocate ?? ((l: SerializedListingCard) => router.push(`/?focus=${l.id}`))
+  // Hover-autoplay: the listing's video mounts + plays (muted, looping) over the cover only
+  // while the pointer is on the card. Mounted on demand so non-hovered cards cost nothing;
+  // mobile (no hover) never triggers it — the video badge + the Video feed cover that case.
+  const [hoverVideo, setHoverVideo] = useState(false)
   const [idx, setIdx] = useState(0)
   // Only the first image is in the DOM until the user engages the carousel
   // (hover/touch) — cuts initial DOM nodes + image bytes on the homepage grid.
@@ -139,8 +145,8 @@ function ListingCardImpl({
       <div
         data-protected
         className="relative aspect-[10/11] w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
-        onMouseEnter={() => { if (images.length > 1) setExpanded(true) }}
-        onMouseLeave={() => setQuickOffer(null)}
+        onMouseEnter={() => { if (images.length > 1) setExpanded(true); if (listing.video) setHoverVideo(true) }}
+        onMouseLeave={() => { setQuickOffer(null); setHoverVideo(false) }}
         onTouchStart={(e) => { if (images.length > 1) setExpanded(true); touchStartX.current = e.touches[0].clientX }}
         onTouchEnd={(e) => {
           if (touchStartX.current == null || images.length < 2) return
@@ -194,6 +200,22 @@ function ListingCardImpl({
           </div>
         )}
 
+        {/* Hover video: plays over the cover (muted, looping). pointer-events-none so the
+            card still handles hover + click; poster = cover so there's no black flash while
+            it buffers. preload=none + mount-on-hover → zero cost until the pointer arrives. */}
+        {listing.video && hoverVideo && (
+          <video
+            src={listing.video}
+            poster={images[0]}
+            muted
+            loop
+            autoPlay
+            playsInline
+            preload="none"
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+
         {/* Legibility scrims — faint top+bottom gradients so the white heart / locate
             pin / dots survive pale photos (sky, sand). Theme-neutral by design: they
             sit ON the photo, so black works in both light and dark. */}
@@ -215,18 +237,23 @@ function ListingCardImpl({
             back on mouse-out. (Touch has no hover, so mobile/tablet always show them.) */}
         <CardBadges listing={listing} className="absolute left-2 top-2 z-10 transition-opacity duration-200 pc:group-hover:opacity-0" />
 
-        {/* Social proof — "N saved" (5a #5): urgency without dark patterns. Only
-            shows once the count is meaningful (≥3); bottom-left, clear of
-            the dots (center) and locate pin (right). */}
-        {Math.max(0, listing.savedCount + savedDelta(listing.id)) >= 3 && (
-          <span
-            title={tr('people saved this', 'người đã lưu tin này')}
-            className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1 rounded-full bg-foreground/70 px-2 py-0.5 text-[10px] font-bold text-background backdrop-blur-[2px]"
-          >
-            {/* base savedCount now persists server-side (real saves), and savedDelta adds
-                this session's own toggle so it moves the moment the heart is tapped —
-                without double-counting once base reloads with the save. */}
-            <Heart className="h-2.5 w-2.5 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(Math.max(0, listing.savedCount + savedDelta(listing.id)))}
+        {/* Bottom-left status chips — a video indicator (so mobile, which has no hover,
+            still knows there's a clip) + social proof "N saved" (≥3). One row so they never
+            overlap; clear of the dots (center) and the action column (right). */}
+        {(listing.video || savedTotal >= 3) && (
+          <span className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1.5">
+            {listing.video && (
+              <span title={tr('Has a video', 'Có video')} className="flex h-5 items-center rounded-full bg-foreground/70 px-1.5 text-background backdrop-blur-[2px]">
+                <Play className="h-2.5 w-2.5 fill-current" />
+              </span>
+            )}
+            {/* base savedCount persists server-side (real saves); savedDelta adds this
+                session's own toggle so it moves the moment the heart is tapped. */}
+            {savedTotal >= 3 && (
+              <span title={tr('people saved this', 'người đã lưu tin này')} className="flex h-5 items-center gap-1 rounded-full bg-foreground/70 px-2 text-[10px] font-bold text-background backdrop-blur-[2px]">
+                <Heart className="h-2.5 w-2.5 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(savedTotal)}
+              </span>
+            )}
           </span>
         )}
 

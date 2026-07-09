@@ -29,7 +29,7 @@ export default async function EditListingPage({ params }: Props) {
       categoryId: true, subcategorySlug: true, listingType: true, condition: true,
       brandSlug: true, model: true, attributes: true,
       year: true, mileageKm: true, engineL: true, engineCc: true,
-      district: true, city: true, lat: true, lng: true, images: true,
+      district: true, city: true, lat: true, lng: true, images: true, video: true,
       category: { select: { slug: true } },
     },
   })
@@ -69,6 +69,7 @@ export default async function EditListingPage({ params }: Props) {
     lat: listing.lat,
     lng: listing.lng,
     images: safeParse<string[]>(listing.images, []),
+    video: listing.video,
   }
 
   return (
