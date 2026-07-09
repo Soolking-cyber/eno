@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { ListingCard } from '@/components/marketplace/listing-card'
@@ -35,17 +36,15 @@ export default function SavedPage() {
 
         {loading && savedError ? (
           // Fetch failed with no cache — an error must NOT read as endless loading.
-          // Mirrors the explorer's renderErrorState (AlertTriangle + retry).
-          <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center">
-            <AlertTriangle className="h-10 w-10 text-muted-foreground" />
-            <p className="text-sm font-semibold text-body">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
-            <Button variant="cta" size="none"
-              onClick={retrySaved}
-              className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
-            >
-              {tr('Try again', 'Thử lại')}
-            </Button>
-          </div>
+          <EmptyState
+            icon={AlertTriangle}
+            title={tr("Couldn't load listings.", 'Không tải được tin đăng.')}
+            action={
+              <Button variant="cta" size="none" onClick={retrySaved} className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer">
+                {tr('Try again', 'Thử lại')}
+              </Button>
+            }
+          />
         ) : loading ? (
           // Reserve the REAL grid height while loading: one placeholder per saved item
           // (count is known from the device-local favorites set, which loads before the

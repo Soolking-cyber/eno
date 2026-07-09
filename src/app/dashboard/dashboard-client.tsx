@@ -39,6 +39,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
+import { EmptyState } from '@/components/ui/empty-state'
 import type { SerializedListing } from '@/lib/types'
 
 const KEY = 'eno-dashboard'
@@ -453,17 +454,17 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
           )}
           {!d && fetchFailed ? (
             // Failed fetch with no cache — show error + retry instead of an
-            // empty-looking dashboard (mirrors the explorer's error state).
-            <div className="mt-4 flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center">
-              <AlertTriangle className="h-10 w-10 text-muted-foreground" />
-              <p className="text-sm font-semibold text-body">{tr("Couldn't load your dashboard.", 'Không tải được trang quản lý.')}</p>
-              <Button variant="cta" size="none"
-                onClick={refresh}
-                className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
-              >
-                {tr('Try again', 'Thử lại')}
-              </Button>
-            </div>
+            // empty-looking dashboard.
+            <EmptyState
+              className="mt-4"
+              icon={AlertTriangle}
+              title={tr("Couldn't load your dashboard.", 'Không tải được trang quản lý.')}
+              action={
+                <Button variant="cta" size="none" onClick={refresh} className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer">
+                  {tr('Try again', 'Thử lại')}
+                </Button>
+              }
+            />
           ) : !d ? (
             <div className="mt-4 space-y-2.5">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[92px] rounded-2xl shimmer" />)}</div>
           ) : d.listings.length === 0 ? (
