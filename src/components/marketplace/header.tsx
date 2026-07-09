@@ -385,10 +385,12 @@ export function Header() {
             </Link>
           )}
 
+          {/* Desktop only (lg+): mobile/tablet get the bottom-nav "+" Post button instead, so
+              this would be redundant there (and crowds the header on a phone). */}
           <Button asChild variant="cta" size="none">
             <Link
               href={user ? '/dashboard?tab=post' : '/post'}
-              className="hidden gap-1.5 px-4 py-2 text-sm font-semibold sm:flex cursor-pointer"
+              className="hidden gap-1.5 px-4 py-2 text-sm font-semibold lg:flex cursor-pointer"
             >
               {t('header.postBtn')}
             </Link>
