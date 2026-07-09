@@ -2,15 +2,55 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { X, ChevronLeft, ChevronRight, Images } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Tr } from '@/context/language-context'
+import { Tr, useLanguage } from '@/context/language-context'
 import { isMockImageUrl } from '@/lib/listing-image'
 
 type Props = {
   images: string[]
   title: string
+  /** Optional listing video — becomes the FIRST gallery slide (poster = first photo,
+   *  autoplays muted once loaded); the buyer swipes past it to the photos. */
+  video?: string | null
   showAllLabel?: string
+}
+
+/** The video slide inside the gallery: the first photo is the poster (instant preview), then
+ *  it autoplays muted + loops once it's the visible slide (IntersectionObserver → pause when
+ *  swiped away, so only the on-screen clip streams). A small mute toggle restores sound since
+ *  the standalone player (with controls) is gone. Fills the frame (object-cover) like a photo. */
+function GalleryVideo({ src, poster, className }: { src: string; poster?: string; className?: string }) {
+  const { tr } = useLanguage()
+  const ref = useRef<HTMLVideoElement>(null)
+  const [muted, setMuted] = useState(true)
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting && e.intersectionRatio >= 0.5) v.play().catch(() => {}); else v.pause() },
+      { threshold: [0.5] },
+    )
+    obs.observe(v)
+    return () => obs.disconnect()
+  }, [])
+  useEffect(() => { if (ref.current) ref.current.muted = muted }, [muted])
+  return (
+    <div className={cn('relative h-full w-full overflow-hidden bg-black', className)}>
+      <video ref={ref} src={src} poster={poster} muted loop autoPlay playsInline preload="metadata" className="h-full w-full object-cover" />
+      <span className="pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-bold text-white backdrop-blur-[2px]">
+        <Play className="h-3 w-3 fill-current" /> {tr('Video', 'Video')}
+      </span>
+      <button
+        type="button"
+        aria-label={muted ? tr('Unmute', 'Bật tiếng') : tr('Mute', 'Tắt tiếng')}
+        onClick={(e) => { e.stopPropagation(); setMuted((m) => !m) }}
+        className="absolute bottom-2 left-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-[2px] transition-transform active:scale-90 cursor-pointer tap-44"
+      >
+        {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+      </button>
+    </div>
+  )
 }
 
 // Lightbox double-tap zoom factor. Transform-only (compositor) — no library.
@@ -50,7 +90,9 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager, hover }: {
 /** Photo gallery: full-width swipe carousel on mobile (buyers judge condition
  *  from photos — 45%-wide mosaic tiles were too small on a phone), Airbnb-style
  *  mosaic ≥md, and a full-screen lightbox with swipe nav + double-tap zoom. */
-export function ListingGallery({ images, title, showAllLabel = 'Show all photos' }: Props) {
+export function ListingGallery({ images, title, video, showAllLabel = 'Show all photos' }: Props) {
+  const hasVideo = !!video && images.length > 0
+  const mediaCount = images.length + (hasVideo ? 1 : 0)
   const [open, setOpen] = useState(false)
   const [idx, setIdx] = useState(0)
   const [slide, setSlide] = useState(0) // mobile carousel position (for the n/N chip)
@@ -96,7 +138,9 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
     return <div className="h-[300px] w-full rounded-2xl bg-tint" />
   }
 
-  const rest = images.slice(1, 5)
+  // Desktop mosaic: the hero is the video (if any), so the side grid shows the photos NOT in
+  // the hero — all photos when the video is the hero, else photos[1..4] as before.
+  const rest = (hasVideo ? images : images.slice(1)).slice(0, 4)
   const restGrid =
     rest.length >= 3 ? 'grid-cols-2 grid-rows-2' : rest.length === 2 ? 'grid-rows-2' : 'grid-rows-1'
 
@@ -121,7 +165,7 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
 
   return (
     <>
-      {images.length === 1 ? (
+      {images.length === 1 && !hasVideo ? (
         <button onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer">
           <div data-protected className="relative aspect-[4/3] w-full overflow-hidden bg-tint">
             <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority hover />
@@ -141,16 +185,22 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
                 setSlide(Math.round(el.scrollLeft / el.clientWidth))
               }}
             >
+              {/* Video is slide 0 — poster = the first photo, autoplays once it's on-screen. */}
+              {hasVideo && (
+                <div className="relative aspect-[4/3] w-full shrink-0 snap-center overflow-hidden rounded-2xl">
+                  <GalleryVideo src={video!} poster={images[0]} />
+                </div>
+              )}
               {images.map((img, i) => (
                 <button key={i} onClick={() => openAt(i)} className="relative aspect-[4/3] w-full shrink-0 snap-center overflow-hidden bg-tint cursor-pointer">
-                  <BlurFillImage img={img} alt={`${title} — photo ${i + 1}`} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0} />
+                  <BlurFillImage img={img} alt={`${title} — photo ${i + 1}`} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0 && !hasVideo} />
                 </button>
               ))}
             </div>
             {/* black/60 not /50: white text on the translucent chip must hold 4.5:1
                 even over a white photo (axe computes ~5.7:1 at 60%). */}
             <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white">
-              {slide + 1} / {images.length}
+              {slide + 1} / {mediaCount}
             </span>
           </div>
 
@@ -160,16 +210,24 @@ export function ListingGallery({ images, title, showAllLabel = 'Show all photos'
                 here preloaded a second copy of the hero on phones, competing with the
                 mobile carousel's real LCP image. A visible eager image still fetches
                 at high priority on desktop. */}
-            <button onClick={() => openAt(0)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-              <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 50vw, 40vw" mock={isMockImageUrl(images[0])} eager hover />
-            </button>
+            {/* Hero = the video (autoplaying) when present, else the first photo. */}
+            {hasVideo ? (
+              <GalleryVideo src={video!} poster={images[0]} className="rounded-none" />
+            ) : (
+              <button onClick={() => openAt(0)} className="group relative h-full w-full overflow-hidden cursor-pointer">
+                <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 50vw, 40vw" mock={isMockImageUrl(images[0])} eager hover />
+              </button>
+            )}
             <div className={cn('grid gap-2', restGrid)}>
-              {rest.map((img, i) => (
-                <button key={i} onClick={() => openAt(i + 1)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-                  <Image src={img} alt={`${title} — photo ${i + 2}`} fill sizes="25vw" quality={70} unoptimized={isMockImageUrl(img) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                  <span className="img-watermark" aria-hidden />
-                </button>
-              ))}
+              {rest.map((img, i) => {
+                const imgIdx = hasVideo ? i : i + 1 // rest excludes the hero photo when there's no video
+                return (
+                  <button key={i} onClick={() => openAt(imgIdx)} className="group relative h-full w-full overflow-hidden cursor-pointer">
+                    <Image src={img} alt={`${title} — photo ${imgIdx + 1}`} fill sizes="25vw" quality={70} unoptimized={isMockImageUrl(img) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                    <span className="img-watermark" aria-hidden />
+                  </button>
+                )
+              })}
             </div>
             <button
               onClick={() => openAt(0)}

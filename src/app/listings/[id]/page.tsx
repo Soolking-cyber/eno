@@ -7,7 +7,6 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
-import { ListingVideoPlayer } from '@/components/marketplace/listing-video-player'
 import { Footer } from '@/components/marketplace/footer'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { CountValue, SavedCount } from '@/components/marketplace/rating-value'
@@ -429,9 +428,7 @@ export default async function ListingPage({ params }: Props) {
 
         {/* Gallery mosaic */}
         <div className="relative order-2 lg:order-none">
-          <ListingGallery images={listing.images} title={displayTitle} showAllLabel="View all photos" />
-          {/* The listing's video (if any) — right under the photos, with full controls. */}
-          {listing.video && <ListingVideoPlayer src={listing.video} poster={listing.images[0]} title={displayTitle} />}
+          <ListingGallery images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
           {/* Mobile/tablet: share + save overlay the media header (Shopee pattern) —
               the title-row pair above is desktop-only. Absolutely positioned (zero
               layout cost, no CLS) at top-right, clear of the carousel's n/N counter
