@@ -5,7 +5,7 @@ import { MessageCircle, Store, Building2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { RatingValue, CountValue } from '@/components/marketplace/rating-value'
-import { getInitials } from '@/lib/utils'
+import { Avatar } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import type { SellerMetrics } from '@/lib/seller-metrics'
 
@@ -52,7 +52,6 @@ export function SellerCard({
   className,
 }: SellerCardProps) {
   const { tr } = useLanguage()
-  const initials = getInitials(seller.name)
   const { responseBucket, memberSinceYear, reviewCount, rating, trustScore } = metrics
 
   // Metrics strip leaves — build only the ones that exist, join with middots.
@@ -78,17 +77,7 @@ export function SellerCard({
   return (
     <div className={cn('flex flex-col gap-3', className)}>
       <div className="flex items-center gap-3">
-        {seller.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={seller.avatarUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
-        ) : (
-          <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold text-white"
-            style={{ backgroundColor: seller.avatarColor || '#0a66c2' }}
-          >
-            {initials}
-          </span>
-        )}
+        <Avatar name={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {/* On the storefront this IS the page's main heading (the listing title owns

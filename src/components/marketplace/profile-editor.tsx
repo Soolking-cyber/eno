@@ -5,7 +5,7 @@ import { Loader2, Check, Plus } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { compressImageFile } from '@/lib/normalize-image'
-import { getInitials } from '@/lib/utils'
+import { Avatar } from '@/components/ui/avatar'
 
 type Profile = { displayName: string | null; avatarUrl: string | null; avatarColor: string; phone: string | null }
 
@@ -66,17 +66,11 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
 
   // Borderless house input — slate tint fill (no border) + brand focus ring.
   const field = 'w-full rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20 placeholder:text-ink-4'
-  const initials = getInitials(name)
 
   return (
     <div>
       <label className="group relative inline-block cursor-pointer" title={tr('Change photo', 'Đổi ảnh')}>
-        {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarUrl} alt="" className="h-20 w-20 rounded-full object-cover" />
-        ) : (
-          <span className="flex h-20 w-20 items-center justify-center rounded-full text-xl font-bold text-white" style={{ backgroundColor: profile.avatarColor || '#0a66c2' }}>{initials}</span>
-        )}
+        <Avatar name={name} url={avatarUrl} color={profile.avatarColor} size="xl" />
         <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white shadow-sm ring-2 ring-background transition-transform group-hover:scale-105">
           {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-4 w-4" />}
         </span>

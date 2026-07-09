@@ -19,6 +19,7 @@ import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/chat-composer'
+import { Avatar } from '@/components/ui/avatar'
 import { fmtTime, dayKey } from '@/lib/dates'
 
 type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
@@ -397,9 +398,7 @@ export default function ThreadPage() {
           {/* Thread header (back arrow only on mobile — the list is always shown on desktop) */}
           <div className="flex items-center gap-3 bg-card px-4 py-3">
             <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" /></Link>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
-              {thread?.counterpart.name.slice(0, 2).toUpperCase()}
-            </span>
+            <Avatar name={thread?.counterpart.name} url={thread?.counterpart.avatarUrl} color={thread?.counterpart.avatarColor} size="sm" />
             <div className="min-w-0 flex-1">
               {thread?.counterpart.sellerId ? (
                 <Link href={`/sellers/${thread.counterpart.sellerId}`} className="block truncate text-sm font-bold text-foreground hover:underline">{thread.counterpart.name}</Link>

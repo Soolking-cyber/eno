@@ -38,6 +38,7 @@ import { fold } from '@/lib/fold'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { Avatar } from '@/components/ui/avatar'
 import type { SerializedListing } from '@/lib/types'
 
 const KEY = 'eno-dashboard'
@@ -226,14 +227,12 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
         {/* Identity header — avatar · name · email · trust, with post + sign out */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            {d?.profile.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={d.profile.avatarUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
-            ) : (
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold text-white" style={{ backgroundColor: d?.profile.avatarColor || '#0a66c2' }}>
-                {(d?.profile.businessName || d?.profile.displayName || d?.profile.email || '?').slice(0, 2).toUpperCase()}
-              </span>
-            )}
+            <Avatar
+              name={d?.profile.businessName || d?.profile.displayName || d?.profile.email}
+              url={d?.profile.avatarUrl}
+              color={d?.profile.avatarColor}
+              size="lg"
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="truncate text-lg font-bold text-foreground">{d?.profile.businessName || d?.profile.displayName || tr('Your account', 'Tài khoản của bạn')}</h1>

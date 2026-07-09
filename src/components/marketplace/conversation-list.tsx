@@ -10,6 +10,7 @@ import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Search, Trash2, X, Sparkles } from 'lucide-react'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
+import { Avatar } from '@/components/ui/avatar'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
 // Borderless conversation list — the left pane of the desktop two-pane messenger
@@ -102,11 +103,7 @@ export function ConversationList() {
                   <span aria-hidden className="absolute inset-y-2 left-0 w-1 rounded-full bg-accent-foreground" />
                 )}
                 <Link href={`/messages/${c.id}`} scroll={false} className="flex min-w-0 flex-1 items-center gap-3 p-2.5">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-bold text-white">
-                    {c.counterpart.avatarUrl
-                      ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={c.counterpart.avatarUrl} alt="" className="h-11 w-11 rounded-full object-cover" />
-                      : c.counterpart.name.slice(0, 2).toUpperCase()}
-                  </span>
+                  <Avatar name={c.counterpart.name} url={c.counterpart.avatarUrl} size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-bold text-foreground">{c.counterpart.name}</span>
