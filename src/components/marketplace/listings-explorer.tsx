@@ -106,8 +106,8 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
 const VideoFeed = dynamic(() => import('./listings-video-feed').then((m) => m.VideoFeed), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[60dvh] items-center justify-center">
-      <Spinner size="md" className="border-border border-t-brand" />
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black">
+      <Spinner size="md" className="border-white/30 border-t-white" />
     </div>
   ),
 })
@@ -162,6 +162,12 @@ export function ListingsExplorer({
   const [activeModel, setActiveModel] = useState('all') // model display string, or 'all'
   const [openMobileDistrictDropdown, setOpenMobileDistrictDropdown] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('compact')
+  // The full-screen Video view remembers the view to fall back to on close (so exiting the
+  // takeover lands the user back where they were, not always on the grid).
+  const prevViewRef = useRef<ViewMode>('grid')
+  const changeView = useCallback((m: ViewMode) => {
+    setViewMode((cur) => { if (m === 'video' && cur !== 'video') prevViewRef.current = cur; return m })
+  }, [])
   // Honor ?view=map|grid|compact (e.g. the footer "Map" link opens the map view).
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1732,7 +1738,7 @@ export function ListingsExplorer({
               {/* View toggles — pinned top-right (ml-auto keeps them right even
                   when there are no chips / no save box on the left). */}
               <div className="flex items-center gap-2.5 lg:ml-auto lg:shrink-0">
-                <ViewToggles viewMode={viewMode} onViewMode={setViewMode} />
+                <ViewToggles viewMode={viewMode} onViewMode={changeView} />
               </div>
             </div>
 
@@ -1751,14 +1757,14 @@ export function ListingsExplorer({
                 <strong className="text-foreground">{nearby ? shownListings.length : totalCount}</strong>{' '}
                 {tr('listings', 'tin đăng')}
               </h2>
-              <div className="flex items-center gap-1 lg:hidden"><ViewToggles viewMode={viewMode} onViewMode={setViewMode} /></div>
+              <div className="flex items-center gap-1 lg:hidden"><ViewToggles viewMode={viewMode} onViewMode={changeView} /></div>
             </div>
 
             {/* Video view (4th mode): its own vertical clip feed with a self-contained
                 data fetch (hasVideo=1) + loading/empty states — replaces the grid/list/map
                 results area entirely, so the blocks below are skipped in this mode. */}
             {viewMode === 'video' && (
-              <VideoFeed baseParams={baseParamsString} onOpen={handleOpen} onPrefetch={prefetchListing} />
+              <VideoFeed baseParams={baseParamsString} onOpen={handleOpen} onPrefetch={prefetchListing} onClose={() => setViewMode(prevViewRef.current)} />
             )}
 
             {/* LISTINGS CONTAINER */}
