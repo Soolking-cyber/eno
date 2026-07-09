@@ -31,6 +31,7 @@ import { DISTRICTS } from './listings-explorer.constants'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
 import { ViewToggles, SortStrip } from './explorer-toolbar'
+import { Spinner } from '@/components/ui/spinner'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { trackSearch } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
@@ -93,7 +94,7 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
   ssr: false,
   loading: () => (
     <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none animate-pulse">
-      <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+      <Spinner size="md" />
       <span className="text-[10px] font-bold text-body uppercase tracking-wider">
         <Tr text="Loading map…" />
       </span>
@@ -1439,7 +1440,7 @@ export function ListingsExplorer({
                   )}
                   {queryFetching && hasMore && (
                     <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-brand" aria-hidden="true" />
+                      <Spinner size="sm" className="border-border border-t-brand" />
                       {tr('Loading more…', 'Đang tải thêm…')}
                     </div>
                   )}
@@ -1815,7 +1816,7 @@ export function ListingsExplorer({
                         <div ref={mapSentinelRef} className="select-none py-2">
                           {queryFetching && hasMore && (
                             <div className="flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
-                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-brand" aria-hidden="true" />
+                              <Spinner size="sm" className="border-border border-t-brand" />
                               {tr('Loading more…', 'Đang tải thêm…')}
                             </div>
                           )}
@@ -1875,7 +1876,7 @@ export function ListingsExplorer({
                   <div ref={loadMoreRef} className="mt-6 select-none">
                     {queryFetching && hasMore && (
                       <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">
-                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-brand" aria-hidden="true" />
+                        <Spinner size="sm" className="border-border border-t-brand" />
                         {tr('Loading more…', 'Đang tải thêm…')}
                       </div>
                     )}

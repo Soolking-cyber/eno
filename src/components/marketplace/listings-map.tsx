@@ -18,6 +18,7 @@ import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
 import type { Nearby } from './area-filter'
 import { cn } from '@/lib/utils'
+import { Spinner } from '@/components/ui/spinner'
 
 // Compact price for map labels (Airbnb-style price pins). VND uses the shared
 // compactPrice, which follows the viewer's language — "850K" / "51M" / "1.2B"
@@ -343,7 +344,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     <div className="w-full h-full relative isolate bg-tint">
       {!ready && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted z-20 select-none">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+          <Spinner size="md" />
           <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
             {tr('Loading map…', 'Đang tải bản đồ...')}
           </span>
