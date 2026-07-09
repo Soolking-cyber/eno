@@ -84,9 +84,11 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
               <p className="mt-2 text-sm leading-relaxed text-body">
                 {tr('Find answers about buying, selling and your account — or contact us for more help.', 'Tìm câu trả lời về mua, bán và tài khoản — hoặc liên hệ để được hỗ trợ thêm.')}
               </p>
-              <Link href="/help" onClick={onClose} className="mt-4 flex w-full items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
-                {tr('Visit Help Center', 'Đến Trung tâm trợ giúp')}
-              </Link>
+              <Button asChild variant="cta" size="none">
+                <Link href="/help" onClick={onClose} className="mt-4 w-full px-5 py-3">
+                  {tr('Visit Help Center', 'Đến Trung tâm trợ giúp')}
+                </Link>
+              </Button>
             </section>
 
             <section>

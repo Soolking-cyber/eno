@@ -5,6 +5,7 @@ import { AlertTriangle, ShieldAlert, Loader2, Scale, ChevronRight } from 'lucide
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 // Dashboard enforcement banner (trust Phase 2). Renders at the top of the Listings
 // tab when the account isn't in good standing, or when an open report awaits the
@@ -150,13 +151,14 @@ function AppealPanel({ action, onChanged }: { action: NonNullable<EnforcementInf
         className="mt-2 w-full resize-none rounded-xl bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-ink-4 focus:ring-2 focus:ring-brand/20"
       />
       <div className="mt-1.5 flex items-center gap-2">
-        <button
+        <Button
+          variant="cta" size="none"
           onClick={send}
           disabled={busy || text.trim().length < 5}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
+          className="gap-1.5 px-4 py-1.5 text-xs disabled:opacity-40 cursor-pointer"
         >
           {busy && <Loader2 className="h-3 w-3 animate-spin" />} {tr('Submit appeal', 'Gửi khiếu nại')}
-        </button>
+        </Button>
         <button onClick={() => setOpen(false)} className="rounded-xl px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted cursor-pointer">{tr('Cancel', 'Hủy')}</button>
       </div>
     </div>

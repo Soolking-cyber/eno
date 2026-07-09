@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Tr } from '@/context/language-context'
 import { HelpFeedback } from '@/components/marketplace/help-feedback'
+import { Button } from '@/components/ui/button'
 import { Rocket, BadgeCheck, ShieldCheck, Mail, ChevronRight } from 'lucide-react'
 
 // The Help Center body — shared by the standalone /help page AND the dashboard "Help"
@@ -150,9 +151,11 @@ export function HelpCenter() {
           <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
           <p className="text-sm text-body"><Tr text="Our team replies within one business day." /></p>
         </div>
-        <a href="mailto:support@eno.vn" className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
-          <Mail className="h-4 w-4" /> support@eno.vn
-        </a>
+        <Button asChild variant="cta" size="none">
+          <a href="mailto:support@eno.vn" className="shrink-0 px-5 py-2.5">
+            <Mail className="h-4 w-4" /> support@eno.vn
+          </a>
+        </Button>
       </div>
 
       <p className="mt-6 text-sm text-body">

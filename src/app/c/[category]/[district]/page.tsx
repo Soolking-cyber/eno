@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
+import { Button } from '@/components/ui/button'
 import { Tr } from '@/context/language-context'
 
 export const revalidate = 604800 // 7d — long-tail SEO combo (category×district = many pages); client fetches live, so weekly regen is plenty + far fewer ISR writes
@@ -111,9 +112,11 @@ export default async function CategoryDistrictPage({ params }: Props) {
           <Link href={`/c/${cat.slug}`} className="inline-block rounded-xl border border-line-strong px-5 py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted">
             ← <Tr text="All" /> <Tr text={cat.name} />
           </Link>
-          <Link href={`/?category=${cat.slug}`} className="inline-block rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
-            <Tr text="Refine in full search" /> →
-          </Link>
+          <Button asChild variant="cta" size="none">
+            <Link href={`/?category=${cat.slug}`} className="px-5 py-2.5">
+              <Tr text="Refine in full search" /> →
+            </Link>
+          </Button>
         </div>
       </main>
       <Footer />

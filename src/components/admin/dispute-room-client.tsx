@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Clock, Loader2, Scale, Shield, Sparkles } from 'lucide-react'
 import type { TargetInfo } from '@/lib/admin-reports'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 // Admin dispute room: shared thread + mediation composer + AI analysis + decision
 // bar. Decisions call the SAME /api/admin/moderate actions as the triage queue —
@@ -303,13 +304,15 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           className="w-full resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30"
         />
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button
+          <Button
+            variant="cta"
+            size="none"
             onClick={sendMessage}
             disabled={busy !== null || !message.trim()}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
+            className="gap-1.5 px-4 py-2 text-xs disabled:opacity-40 cursor-pointer"
           >
             {busy === 'dispute-message' && <Loader2 className="h-3 w-3 animate-spin" />} Send to both parties
-          </button>
+          </Button>
           {open && (
             <button
               onClick={() => act('extend-window')}

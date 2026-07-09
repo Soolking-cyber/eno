@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 
 /**
  * Contextual signup sheet (5a #10) — appears ONCE, on a guest's first "save" tap:
@@ -39,13 +40,15 @@ export function SaveSignupSheet() {
           {tr('Sign up free to keep your saved items, chat with sellers and get price-drop alerts.', 'Đăng ký miễn phí để giữ tin đã lưu, nhắn tin với người bán và nhận báo giá giảm.')}
         </p>
         <div className="mt-4 space-y-2">
-          <button
+          <Button
+            variant="cta"
+            size="none"
             type="button"
             onClick={() => { setOpen(false); openSignIn() }}
-            className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-white transition-all hover:bg-brand-dark active:scale-[0.98] cursor-pointer"
+            className="w-full py-3 active:scale-[0.98] cursor-pointer"
           >
             {tr('Continue with Google', 'Tiếp tục với Google')}
-          </button>
+          </Button>
           <button
             type="button"
             onClick={() => { setOpen(false); openSignIn() }}

@@ -67,12 +67,11 @@ export default function SavedPage() {
                 'Nhấn vào biểu tượng trái tim trên tin đăng để lưu lại xem sau.',
               )}
             </p>
-            <Link
-              href="/"
-              className="mt-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark"
-            >
-              {tr('Browse listings', 'Khám phá tin đăng')}
-            </Link>
+            <Button asChild variant="cta" size="none">
+              <Link href="/" className="mt-2 px-5 py-2.5">
+                {tr('Browse listings', 'Khám phá tin đăng')}
+              </Link>
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

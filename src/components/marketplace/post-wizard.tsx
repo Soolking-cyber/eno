@@ -631,9 +631,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         </p>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
           {createdId && (
-            <a href={`/listings/${createdId}`} className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
-              {t('Xem tin của bạn', 'View your listing')}
-            </a>
+            <Button asChild variant="cta" size="none">
+              <a href={`/listings/${createdId}`} className="px-6 py-2.5">
+                {t('Xem tin của bạn', 'View your listing')}
+              </a>
+            </Button>
           )}
           {createdId && (
             <ShareButton

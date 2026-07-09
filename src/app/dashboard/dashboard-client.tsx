@@ -422,13 +422,14 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
                   >
                     {allSelected ? tr('Clear', 'Bỏ chọn') : tr('Select all', 'Chọn tất cả')}
                   </button>
-                  <button
+                  <Button
+                    variant="cta" size="none"
                     onClick={() => setBulkOpen(true)}
                     disabled={selectedItems.length === 0}
-                    className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
+                    className="gap-1 rounded-lg px-3 py-1.5 text-xs disabled:opacity-40 cursor-pointer"
                   >
                     <TrendingDown className="h-3.5 w-3.5" /> {tr('Discount', 'Giảm giá')}{selectedItems.length > 0 ? ` (${selectedItems.length})` : ''}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )
@@ -471,12 +472,13 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             <div className="mt-3 py-12 text-center">
               <Mascot name="wave" className="mx-auto h-48 w-48" />
               <p className="mt-3 text-sm text-muted-foreground">{tr('No listings yet — post your first one.', 'Chưa có tin nào — đăng tin đầu tiên.')}</p>
-              <button
+              <Button
+                variant="cta" size="none"
                 onClick={() => { setTab('post'); router.replace('/dashboard?tab=post', { scroll: false }) }}
-                className="mt-4 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+                className="mt-4 px-6 py-2.5 cursor-pointer"
               >
                 {tr('Post your first listing', 'Đăng tin đầu tiên')}
-              </button>
+              </Button>
             </div>
           ) : shownListings.length === 0 ? (
             <p className="mt-6 text-center text-sm text-muted-foreground">

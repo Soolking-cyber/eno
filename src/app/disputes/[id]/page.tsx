@@ -11,6 +11,7 @@ import { compressImageFile } from '@/lib/normalize-image'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 // The dispute case room (Binance-P2P style): one shared timeline where the reporter,
@@ -383,16 +384,17 @@ export default function DisputeRoomPage() {
                     </label>
                   )}
                   <div className="ml-auto flex items-center gap-2">
-                    <button
+                    <Button
+                      variant="cta" size="none"
                       onClick={send}
                       disabled={sending || (text.trim().length === 0 && files.length === 0)}
                       className={cn(
-                        'flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-brand-dark active:scale-[0.98] cursor-pointer',
+                        'px-5 py-2.5 active:scale-[0.98] cursor-pointer',
                         (sending || (text.trim().length === 0 && files.length === 0)) && 'opacity-40 cursor-default',
                       )}
                     >
                       {sending && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send', 'Gửi')}
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 {error && <p role="alert" className="mt-2 text-xs font-semibold text-destructive">{error}</p>}

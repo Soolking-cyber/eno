@@ -5,6 +5,7 @@ import { slugify } from '@/lib/slug'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
@@ -117,9 +118,11 @@ export default async function CategoryPage({ params }: Props) {
         </div>
 
         <div className="mt-8">
-          <Link href={`/?category=${cat.slug}`} className="inline-block rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
-            <Tr text="Refine in full search" /> →
-          </Link>
+          <Button asChild variant="cta" size="none">
+            <Link href={`/?category=${cat.slug}`} className="px-5 py-2.5">
+              <Tr text="Refine in full search" /> →
+            </Link>
+          </Button>
         </div>
 
         <div className="mt-12 pt-6">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { haptic } from '@/lib/haptics'
@@ -147,12 +148,14 @@ export function MarkSoldPrompt({ listingId, listingTitle }: { listingId: string;
         {tr('Deal! Mark "{title}" as sold?', 'Chốt đơn! Đánh dấu "{title}" là đã bán?').replace('{title}', listingTitle)}
       </p>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
-        <button
+        <Button
+          variant="cta"
+          size="none"
           onClick={markSold}
-          className="rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+          className="rounded-full px-3 py-1.5 text-xs cursor-pointer"
         >
           {tr('Mark as sold', 'Đánh dấu đã bán')}
-        </button>
+        </Button>
         <button
           onClick={() => setState('dismissed')}
           className="rounded-full px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted cursor-pointer"

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
+import { Button } from '@/components/ui/button'
 import { Search, MessageCircle, Tag, MapPin, Plus, BadgeCheck, Bell, Heart, Globe, ShieldCheck, ChevronRight } from 'lucide-react'
 
 export const metadata: Metadata = {
@@ -88,9 +89,11 @@ export default function GuidePage() {
 
       <ContentSection>
         <div className="flex flex-wrap gap-2.5">
-          <Link href="/post" className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
-            <Plus className="h-4 w-4" /> <Tr text="Post a listing" />
-          </Link>
+          <Button asChild variant="cta" size="none">
+            <Link href="/post" className="px-5 py-2.5">
+              <Plus className="h-4 w-4" /> <Tr text="Post a listing" />
+            </Link>
+          </Button>
           <Link href="/" className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted hover:text-accent-foreground">
             <Search className="h-4 w-4" /> <Tr text="Browse listings" />
           </Link>

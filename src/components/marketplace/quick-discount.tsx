@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TrendingDown, Loader2, Sparkles } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { EnoSlider } from './eno-slider'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, parseVnd, groupVnd, dropPercent, moneyLocale } from '@/lib/vnd'
@@ -188,14 +189,16 @@ export function QuickDiscount({
               </p>
             )}
 
-            <button
+            <Button
+              variant="cta"
+              size="none"
               type="button"
               onClick={apply}
               disabled={!valid || saving}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer"
+              className="w-full py-2.5 disabled:opacity-40 cursor-pointer"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Apply discount', 'Áp dụng')}
-            </button>
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

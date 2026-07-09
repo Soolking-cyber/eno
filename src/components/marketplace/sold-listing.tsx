@@ -6,6 +6,7 @@ import { Mascot } from './mascot'
 import { SameSellerShelf } from './same-seller-shelf'
 import { Tr } from '@/context/language-context'
 import type { SerializedListing, SerializedListingCard } from '@/lib/types'
+import { Button } from '@/components/ui/button'
 
 /**
  * Dedicated "this item has been sold" page — shown at a sold listing's own URL
@@ -64,12 +65,14 @@ export function SoldListing({
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-            <Link
-              href={sellerHref}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark"
-            >
-              <Store className="h-4 w-4" /> <Tr text="More from this seller" />
-            </Link>
+            <Button asChild variant="cta" size="none">
+              <Link
+                href={sellerHref}
+                className="px-4 py-2.5"
+              >
+                <Store className="h-4 w-4" /> <Tr text="More from this seller" />
+              </Link>
+            </Button>
             <Link
               href={categoryHref}
               className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted"

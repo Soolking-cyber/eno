@@ -128,13 +128,15 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
                 {t('You can add evidence and follow progress. The eno.vn team will review and decide.', 'Bạn có thể bổ sung bằng chứng và theo dõi tiến trình. Đội ngũ eno.vn sẽ xem xét và quyết định.')}
               </p>
               {caseId ? (
-                <Link
-                  href={`/disputes/${caseId}`}
-                  onClick={() => { setOpen(false); reset() }}
-                  className="mt-4 inline-block w-full rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
-                >
-                  {t('Add evidence & follow progress', 'Bổ sung bằng chứng & theo dõi')}
-                </Link>
+                <Button asChild variant="cta" size="none">
+                  <Link
+                    href={`/disputes/${caseId}`}
+                    onClick={() => { setOpen(false); reset() }}
+                    className="mt-4 w-full px-6 py-2.5 cursor-pointer"
+                  >
+                    {t('Add evidence & follow progress', 'Bổ sung bằng chứng & theo dõi')}
+                  </Link>
+                </Button>
               ) : null}
               <button
                 type="button"

@@ -3,6 +3,7 @@
 import { Heart, MessageCircle, Bell } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 
 /**
  * In-grid signup capture (5a #7) — one card slotted into the guest feed at the point
@@ -23,13 +24,15 @@ export function CaptureCard() {
         <li className="flex items-center gap-2"><Bell className="h-3.5 w-3.5 shrink-0 text-accent-foreground" /> {tr('Price-drop & search alerts', 'Báo giá giảm & tin mới')}</li>
       </ul>
       <div className="mt-auto pt-3">
-        <button
+        <Button
           type="button"
+          variant="cta"
+          size="none"
           onClick={() => openSignIn()}
-          className="w-full rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-all hover:bg-brand-dark active:scale-[0.98] cursor-pointer"
+          className="w-full py-2.5 active:scale-[0.98] cursor-pointer"
         >
           {tr('Continue with Google', 'Tiếp tục với Google')}
-        </button>
+        </Button>
         <button
           type="button"
           onClick={() => openSignIn()}

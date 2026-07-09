@@ -7,6 +7,7 @@ import { PercentPicker, tidyPrice, BADGE_HINT_PCT } from './quick-discount'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 
 type Item = { id: string; price: number; currency: string }
 
@@ -102,14 +103,16 @@ export function BulkDiscount({
             )}
           </div>
 
-          <button
+          <Button
             type="button"
+            variant="cta"
+            size="none"
             onClick={apply}
             disabled={saving || n === 0}
-            className={cn('flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-40 cursor-pointer')}
+            className={cn('w-full py-2.5 disabled:opacity-40 cursor-pointer')}
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Apply discount', 'Áp dụng')}
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

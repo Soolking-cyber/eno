@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { Mail, Check } from 'lucide-react'
 
 // Public, token-scoped email-preference page (no login). The visible footer link in the
@@ -64,13 +65,15 @@ function UnsubscribeInner() {
           <>
             <h1 className="mt-4 text-xl font-bold text-foreground">Unsubscribe from the weekly digest?</h1>
             <p className="mt-2 text-sm text-muted-foreground">Stop receiving the weekly "top products & moving sales" email from eno.vn.</p>
-            <button
+            <Button
+              variant="cta"
+              size="none"
               onClick={() => set(false)}
               disabled={state === 'saving' || !token}
-              className="mt-5 w-full rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-50 cursor-pointer"
+              className="mt-5 w-full py-2.5 cursor-pointer"
             >
               {state === 'saving' ? 'Saving…' : 'Unsubscribe'}
-            </button>
+            </Button>
           </>
         )}
 

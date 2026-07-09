@@ -115,7 +115,7 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
               </ul>
             )}
             <div className="mt-4 flex gap-2">
-              <Link href="/dashboard" className="rounded-xl bg-primary px-5 py-2 text-sm font-bold text-white hover:bg-brand-dark transition-colors">{tr('Go to dashboard', 'Tới bảng điều khiển')}</Link>
+              <Button asChild variant="cta" size="none"><Link href="/dashboard" className="px-5 py-2">{tr('Go to dashboard', 'Tới bảng điều khiển')}</Link></Button>
               <button onClick={() => { setResult(null); setFileName('') }} className="rounded-xl border border-line-strong bg-card px-5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer">{tr('Upload more', 'Tải thêm')}</button>
             </div>
           </div>

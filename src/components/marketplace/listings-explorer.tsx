@@ -1635,9 +1635,9 @@ export function ListingsExplorer({
       return (
         <div className={cn('flex items-center gap-2 rounded-2xl bg-brand-50 px-2.5 py-2', className)}>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{chipBtns}</div>
-          <button onClick={saveSearch} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-brand-dark active:scale-95 cursor-pointer">
+          <Button onClick={saveSearch} variant="cta" size="none" className="shrink-0 gap-1.5 px-3.5 py-1.5 text-xs shadow-sm active:scale-95 cursor-pointer">
             <Bookmark className="h-3.5 w-3.5" /> {tr('Save search', 'Lưu tìm kiếm')}
-          </button>
+          </Button>
         </div>
       )
     }

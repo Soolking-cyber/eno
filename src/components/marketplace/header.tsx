@@ -10,6 +10,7 @@ import { useChat } from '@/context/chat-context'
 import { useFavorites } from '@/context/favorites-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { AccountMenu } from './account-menu'
 import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
@@ -383,12 +384,14 @@ export function Header() {
             </Link>
           )}
 
-          <Link
-            href={user ? '/dashboard?tab=post' : '/post'}
-            className="hidden items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-brand-dark sm:flex cursor-pointer"
-          >
-            {t('header.postBtn')}
-          </Link>
+          <Button asChild variant="cta" size="none">
+            <Link
+              href={user ? '/dashboard?tab=post' : '/post'}
+              className="hidden gap-1.5 px-4 py-2 text-sm font-semibold sm:flex cursor-pointer"
+            >
+              {t('header.postBtn')}
+            </Link>
+          </Button>
         </div>
       </div>
 

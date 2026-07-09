@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
 import Image from 'next/image'
@@ -353,13 +354,15 @@ function ListingCardImpl({
                 className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
               />
             </span>
-            <button
+            <Button
+              variant="cta"
+              size="none"
               type="button"
               onClick={() => quickGo({ offerAmount: Math.round(listing.price * (1 - quickOffer / 100)) })}
-              className="w-full whitespace-nowrap rounded-lg bg-primary px-2 py-1.5 text-[11px] font-bold tabular-nums text-white transition-colors hover:bg-brand-dark cursor-pointer"
+              className="w-full whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] tabular-nums cursor-pointer"
             >
               {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency, moneyLocale(lang))} →
-            </button>
+            </Button>
           </span>
         )}
 

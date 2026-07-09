@@ -4,6 +4,7 @@ import { isMockImageUrl } from '@/lib/listing-image'
 import { ArrowRight, BadgeCheck, MapPin } from 'lucide-react'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { Button } from '@/components/ui/button'
 import { localizeListingTitles } from '@/lib/translate'
 import { Header } from './header'
 import { Footer } from './footer'
@@ -63,12 +64,14 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
         <h1 className="h-display text-foreground">{content.h1}</h1>
         <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-body">{content.intro}</p>
-        <Link
-          href={`/c/${content.categorySlug}`}
-          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
-        >
-          {content.cta} <ArrowRight className="h-4 w-4" />
-        </Link>
+        <Button asChild variant="cta" size="none">
+          <Link
+            href={`/c/${content.categorySlug}`}
+            className="mt-6 gap-1.5 px-5 py-2.5 text-sm font-semibold"
+          >
+            {content.cta} <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Button>
 
         {/* Real verified listings (crawlable internal links) */}
         {listings.length > 0 && (

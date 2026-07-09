@@ -6,6 +6,7 @@ import { KeyRound, Plus, Copy, Check, Trash2, Loader2, ShieldAlert, BookOpen, We
 import { useLanguage } from '@/context/language-context'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 // Dashboard "Developers" tab (business-tier). Mint / list / revoke partner API keys via
 // /api/keys. The full secret is shown ONCE at creation; afterwards only the prefix.
@@ -102,9 +103,9 @@ export function DevelopersPanel() {
               <p className="mt-0.5 text-xs text-body">{tr("This is the only time the full key is shown. Store it somewhere safe.", 'Đây là lần duy nhất hiển thị khóa đầy đủ. Hãy lưu lại nơi an toàn.')}</p>
               <div className="mt-2 flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate rounded-lg bg-card px-3 py-2 font-mono text-xs text-foreground">{secret}</code>
-                <button onClick={copySecret} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-brand-dark">
+                <Button variant="cta" size="none" onClick={copySecret} className="shrink-0 gap-1.5 rounded-lg px-3 py-2 text-xs">
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -134,15 +135,15 @@ export function DevelopersPanel() {
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={() => { setShowForm(false); setName(''); setScopes([...DEFAULT_SCOPES]) }} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Cancel', 'Hủy')}</button>
-            <button onClick={create} disabled={busy || scopes.length === 0} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-50">
+            <Button variant="cta" size="none" onClick={create} disabled={busy || scopes.length === 0} className="flex-1 py-2.5">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {tr('Create key', 'Tạo khóa')}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
+        <Button variant="cta" size="none" onClick={() => setShowForm(true)} className="px-4 py-2.5">
           <Plus className="h-4 w-4" /> {tr('New API key', 'Khóa API mới')}
-        </button>
+        </Button>
       )}
 
       {/* List */}
@@ -280,9 +281,9 @@ function WebhooksSection() {
               <p className="mt-0.5 text-xs text-body">{tr('This is the only time it is shown. Use it to verify the signature on every delivery.', 'Đây là lần duy nhất hiển thị. Dùng nó để xác minh chữ ký trên mỗi lần gửi.')}</p>
               <div className="mt-2 flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate rounded-lg bg-card px-3 py-2 font-mono text-xs text-foreground">{secret}</code>
-                <button onClick={copySecret} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-brand-dark">
+                <Button variant="cta" size="none" onClick={copySecret} className="shrink-0 gap-1.5 rounded-lg px-3 py-2 text-xs">
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -313,15 +314,15 @@ function WebhooksSection() {
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={() => { setShowForm(false); setUrl(''); setEvents([]) }} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Cancel', 'Hủy')}</button>
-            <button onClick={create} disabled={busy || !url.trim()} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-50">
+            <Button variant="cta" size="none" onClick={create} disabled={busy || !url.trim()} className="flex-1 py-2.5">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {tr('Add webhook', 'Thêm webhook')}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark">
+        <Button variant="cta" size="none" onClick={() => setShowForm(true)} className="px-4 py-2.5">
           <Plus className="h-4 w-4" /> {tr('Add webhook', 'Thêm webhook')}
-        </button>
+        </Button>
       )}
 
       {/* List */}

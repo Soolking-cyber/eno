@@ -16,6 +16,7 @@ import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vn
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { stashQuickCompose } from '@/lib/quick-contact'
+import { Button } from '@/components/ui/button'
 
 type Props = {
   listing: SerializedListingCard
@@ -121,13 +122,15 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               aria-label={tr('Discount', 'Mức giảm')}
               className="w-28 accent-[var(--brand)] cursor-pointer"
             />
-            <button
+            <Button
               type="button"
+              variant="cta"
+              size="none"
               onClick={() => quickGo({ offerAmount: Math.round(l.price * (1 - offer / 100)) })}
-              className="shrink-0 rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+              className="shrink-0 rounded-full px-3 py-1 text-[11px] cursor-pointer"
             >
               {formatMoneyFull(Math.round(l.price * (1 - offer / 100)), l.currency, moneyLocale(lang))} →
-            </button>
+            </Button>
           </span>
         )}
         {l.price > 0 && l.negotiable !== false && (
