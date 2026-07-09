@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X, TrendingDown } from 'lucide-react'
 import { useNotifications } from '@/context/notifications-context'
+import { IconButton } from '@/components/ui/icon-button'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
 import { timeAgo } from '@/lib/types'
@@ -45,10 +46,11 @@ export function NotificationBell() {
 
   return (
     <div ref={ref} className="relative">
-      <button
+      <IconButton
+        size="lg"
         onClick={toggle}
         aria-label={tr('Notifications', 'Thông báo')}
-        className="relative flex h-10 w-10 items-center justify-center rounded-full text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-44"
+        className="text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90"
       >
         {/* 28px everywhere — matches the bottom-nav icons on mobile and the
             Saved/Messages action icons on desktop (one consistent nav scale). */}
@@ -58,7 +60,7 @@ export function NotificationBell() {
             {unread > 9 ? '9+' : unread}
           </span>
         )}
-      </button>
+      </IconButton>
 
       {open && (
         <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.5rem)] z-50 overflow-hidden rounded-2xl bg-card shadow-pop animate-in fade-in duration-150 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-2rem)]">

@@ -11,6 +11,7 @@ import { useFavorites } from '@/context/favorites-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { AccountMenu } from './account-menu'
 import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
@@ -253,14 +254,14 @@ export function Header() {
               />
               {/* Clear — appears once there's text, left of the location picker. */}
               {searchVal && (
-                <button
-                  type="button"
+                <IconButton
+                  size="sm"
                   onClick={() => { setSearchVal(''); submitSearch('') }}
                   aria-label={tr('Clear search', 'Xóa tìm kiếm')}
-                  className="mr-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground tap-44 relative"
+                  className="mr-0.5 text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <X className="h-5 w-5" />
-                </button>
+                </IconButton>
               )}
               {/* AI shopping concierge — pressable: press to enter AI mode (filled), press
                   again for normal search. Sits left of the camera in every search bar. */}

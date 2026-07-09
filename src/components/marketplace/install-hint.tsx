@@ -6,6 +6,7 @@ import { X, Share } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { isIOS, googleOauthBlocked } from '@/lib/in-app-browser'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 
 /**
  * "Add to Home Screen" education — the last unlit PWA step.
@@ -119,14 +120,15 @@ export function InstallHint() {
             {tr('Install', 'Cài đặt')}
           </Button>
         )}
-        <button
+        <IconButton
+          size="sm"
           type="button"
           aria-label={tr('Dismiss', 'Đóng')}
           onClick={dismiss}
-          className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted cursor-pointer tap-44"
+          className="text-ink-4 transition-colors hover:bg-muted"
         >
           <X className="h-4 w-4" />
-        </button>
+        </IconButton>
       </div>
     </div>
   )

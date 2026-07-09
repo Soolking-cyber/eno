@@ -6,6 +6,7 @@ import { X, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 
 type View = 'menu' | { kind: 'feedback' | 'technical' }
 
@@ -71,9 +72,9 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
           ) : (
             <span className="text-base font-bold text-foreground">{tr('Help', 'Trợ giúp')}</span>
           )}
-          <button type="button" onClick={onClose} aria-label={tr('Close', 'Đóng')} className="flex h-8 w-8 items-center justify-center rounded-full text-body transition-colors hover:bg-muted cursor-pointer relative tap-44">
+          <IconButton size="sm" onClick={onClose} aria-label={tr('Close', 'Đóng')} className="text-body transition-colors hover:bg-muted">
             <X className="h-5 w-5" />
-          </button>
+          </IconButton>
         </div>
 
         {/* Menu */}
