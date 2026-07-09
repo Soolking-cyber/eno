@@ -1,0 +1,57 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
+import { db } from '@/lib/db'
+import { Prisma } from '@/generated/prisma/client'
+import { PRICE_STAT_MIN_SAMPLE } from '@/lib/price-stat'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
+function bearerOk(header: string | null, secret: string): boolean {
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : ''
+  const a = Buffer.from(token)
+  const b = Buffer.from(secret)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+// Market-price benchmarks (Vercel Cron → vercel.json). Guarded by CRON_SECRET. Recomputes the
+// robust percentile band (P25 / median / P75) for every brand+model+segment that has at least
+// MIN_SAMPLE active listings, in ONE aggregate upsert. Segment = condition, plus a 2-year band
+// when the listing has a `year` (vehicles) — so "Honda Wave (used, 2018–2019)" is its own row.
+// P-percentiles (not mean) shrug off scam/typo outliers. Stale segments (dropped below the
+// sample floor) are pruned so the PDP never shows an out-of-date band.
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET
+  if (!secret || !bearerOk(req.headers.get('authorization'), secret)) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 401 })
+  }
+
+  const upserted = await db.$executeRaw(Prisma.sql`
+    INSERT INTO "PriceStat" ("brandSlug", model, segment, n, p25, median, p75, "updatedAt")
+    SELECT
+      "brandSlug",
+      model,
+      COALESCE(condition, 'any') || CASE WHEN year IS NOT NULL THEN ':' || ((year / 2) * 2)::text ELSE '' END AS segment,
+      count(*)::int,
+      round(percentile_cont(0.25) WITHIN GROUP (ORDER BY price))::int,
+      round(percentile_cont(0.5)  WITHIN GROUP (ORDER BY price))::int,
+      round(percentile_cont(0.75) WITHIN GROUP (ORDER BY price))::int,
+      now()
+    FROM "Listing"
+    WHERE status = 'active' AND verified = true
+      AND "brandSlug" IS NOT NULL AND model IS NOT NULL
+      AND currency = '₫' AND price > 0
+    GROUP BY "brandSlug", model, segment
+    HAVING count(*) >= ${PRICE_STAT_MIN_SAMPLE}
+    ON CONFLICT ("brandSlug", model, segment)
+      DO UPDATE SET n = EXCLUDED.n, p25 = EXCLUDED.p25, median = EXCLUDED.median,
+                    p75 = EXCLUDED.p75, "updatedAt" = now()
+  `)
+  // Prune segments that weren't refreshed this run (fell below the sample floor / went stale).
+  const removed = await db.$executeRaw(Prisma.sql`
+    DELETE FROM "PriceStat" WHERE "updatedAt" < now() - interval '36 hours'
+  `)
+
+  return NextResponse.json({ ok: true, segments: upserted, pruned: removed })
+}

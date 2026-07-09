@@ -45,6 +45,8 @@ import { SaveListingButton } from '@/components/marketplace/save-listing-button'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { currencyCode } from '@/lib/analytics'
 import { getEnforcement } from '@/lib/enforcement'
+import { getPriceBand } from '@/lib/price-stat'
+import { MarketPrice } from '@/components/marketplace/market-price'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -178,7 +180,7 @@ export default async function ListingPage({ params }: Props) {
   // and the seller's 90d conversation count — the honest denominator behind the
   // responsiveness bucket (Seller.responseRate defaults to 100 and lies without it).
   const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000
-  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90] = await Promise.all([
+  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90, priceBand] = await Promise.all([
     cachedTranslations([listing.title, listing.description, listing.location]),
     listing.brandSlug
       ? db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true, logoPath: true } })
@@ -189,6 +191,8 @@ export default async function ListingPage({ params }: Props) {
     db.conversation.count({
       where: { sellerId: listing.sellerId, createdAt: { gte: new Date(Date.now() - NINETY_DAYS_MS) } },
     }),
+    // Market-price band for this brand+model+segment (null when there aren't enough comparables).
+    getPriceBand({ brandSlug: listing.brandSlug, model: listing.model, condition: listing.condition, year: listing.year }),
   ])
   // Honest, decomposed seller display bundle (raw responseRate never leaves here —
   // only the suppressed/bucketed label rides into the client SellerCard).
@@ -420,6 +424,7 @@ export default async function ListingPage({ params }: Props) {
             )}
           </div>
           {showProof && <p className="flex items-center gap-2 text-xs text-muted-foreground">{socialProof}</p>}
+          {priceBand && <div className="pt-2"><MarketPrice price={listing.price} band={priceBand} /></div>}
         </div>
 
         {/* Gallery mosaic */}
@@ -522,6 +527,7 @@ export default async function ListingPage({ params }: Props) {
               {showProof && (
                 <p className="-mt-2.5 hidden items-center gap-2 text-xs text-muted-foreground lg:flex">{socialProof}</p>
               )}
+              {priceBand && <div className="hidden lg:block"><MarketPrice price={listing.price} band={priceBand} /></div>}
 
               {/* Seller identity + honest trust metrics (shared SellerCard). "Chat now"
                   scrolls to the composer below; "View shop" opens the storefront.

@@ -26,6 +26,20 @@ CREATE TABLE IF NOT EXISTS "ListingImageHash" (
 CREATE INDEX IF NOT EXISTS "ListingImageHash_listingId_idx" ON "ListingImageHash" ("listingId");
 CREATE INDEX IF NOT EXISTS "ListingImageHash_sellerId_idx" ON "ListingImageHash" ("sellerId");
 CREATE INDEX IF NOT EXISTS "ListingImageHash_hash_hnsw" ON "ListingImageHash" USING hnsw (hash bit_hamming_ops);
+
+-- Market-price benchmark table (write side: /api/cron/price-stats; read side: lib/price-stat.ts).
+CREATE TABLE IF NOT EXISTS "PriceStat" (
+  "brandSlug" TEXT NOT NULL,
+  model       TEXT NOT NULL,
+  segment     TEXT NOT NULL,
+  n           INT  NOT NULL,
+  p25         INT  NOT NULL,
+  median      INT  NOT NULL,
+  p75         INT  NOT NULL,
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY ("brandSlug", model, segment)
+);
+CREATE INDEX IF NOT EXISTS "PriceStat_lookup_idx" ON "PriceStat" ("brandSlug", model);
 `
 
 try {
