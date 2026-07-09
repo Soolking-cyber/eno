@@ -25,7 +25,7 @@ import { RecentlyViewedRail } from '@/components/marketplace/recently-viewed-rai
 import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
 import { Price } from '@/components/marketplace/price'
 import { Tr } from '@/context/language-context'
-import { LocalizedTitle, LocalizedText, PostedAgo } from '@/components/marketplace/listing-content'
+import { LocalizedTitle, LocalizedText, ListingDescription, PostedAgo } from '@/components/marketplace/listing-content'
 import { cachedTranslations } from '@/lib/translate'
 import { cn } from '@/lib/utils'
 import { PdpSellerCard } from '@/components/marketplace/pdp-seller-card'
@@ -470,7 +470,7 @@ export default async function ListingPage({ params }: Props) {
             <ProtectionsRow />
             <div className="space-y-2">
               <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
-              <p className="whitespace-pre-line text-[15px] leading-relaxed text-body"><LocalizedText text={listing.description} i18n={i18n[listing.description]} /></p>
+              <ListingDescription text={listing.description} i18n={i18n[listing.description]} className="space-y-3 text-[15px] leading-relaxed text-body" />
             </div>
 
             {(attrs.length > 0 || numericSpecs.length > 0) && (
