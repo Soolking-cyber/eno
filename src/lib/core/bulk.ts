@@ -9,6 +9,7 @@ import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { safeFetch } from '@/lib/ssrf'
 import { reindexListing } from '@/lib/listing-index'
+import { moderateListingById } from '@/lib/ai-moderation'
 import { storeListingImage, IMG_MAX_BYTES } from '@/lib/core/media'
 import { browseRankScore } from '@/lib/ranking'
 
@@ -136,6 +137,17 @@ export async function bulkImportCore(
 
   if (warm.length) after(() => warmTranslations(warm.filter(Boolean)))
   after(() => { for (const r of results) if (r.id) reindexListing(r.id) }) // index the live imports for AI search
+  // Tier-2 illegal-content moderation on the bulk/sync path too (closes the highest-volume
+  // ingestion gap). Trust-gated inside; limited concurrency so a 200-row import doesn't spike
+  // the Gemini vision quota. Best-effort within the after() window; the inline word-scan +
+  // reports still cover the tail of a very large import. Fail-open per listing.
+  after(async () => {
+    const ids = results.filter((r) => r.id).map((r) => r.id as string)
+    const CONCURRENCY = 4
+    for (let i = 0; i < ids.length; i += CONCURRENCY) {
+      await Promise.all(ids.slice(i, i + CONCURRENCY).map((id) => moderateListingById(id)))
+    }
+  })
 
   const created = results.filter((r) => r.id).length
   return { created, failed: results.length - created, results, imageBudgetReached }

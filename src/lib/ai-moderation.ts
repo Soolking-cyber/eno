@@ -114,28 +114,45 @@ Listing description: ${JSON.stringify(input.description).slice(0, 2000)}`
 // is never auto-hidden; anything softer is left to the word-scan + user reports.
 const HOLD_CONFIDENCE = 0.85
 
-/** Post-publish moderation: gate on trust, classify, and on a high-confidence prohibited hit
- *  HIDE the listing + file an admin report + notify the seller. Called via after() — runs off
- *  the response path. Fully self-contained + fail-open (any error is logged, never rethrown). */
-export async function moderateAfterPublish(listing: {
-  id: string
-  title: string
-  description: string
-  images: string[]
-  sellerId: string
-}, seller: { trustTier: string }): Promise<void> {
+/** Listing.images is a JSON string of URLs; parse defensively (never throw). */
+function parseImages(json: string | null): string[] {
+  if (!json) return []
   try {
-    if (!shouldAiModerate(seller)) return
-    const result = await moderateListing({ title: listing.title, description: listing.description, imageUrls: listing.images })
+    const v = JSON.parse(json)
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+/** Post-publish moderation by id: re-reads the CURRENT listing (so it re-scans edits, not
+ *  just the original), gates on trust, classifies, and on a high-confidence prohibited hit
+ *  HIDES the listing + files an admin report + notifies the seller. Called via after() from
+ *  EVERY publish path (create, edit, bulk/sync) so there's no ingestion gap. Runs off the
+ *  response path; fully self-contained + fail-open (any error logged, never rethrown). */
+export async function moderateListingById(listingId: string): Promise<void> {
+  try {
+    const l = await db.listing.findUnique({
+      where: { id: listingId },
+      select: {
+        id: true, title: true, description: true, images: true, status: true,
+        seller: { select: { trustTier: true, ownerId: true } },
+      },
+    })
+    // Skip if it's gone or already not-live (deleted / hidden between publish and this run).
+    if (!l || l.status !== 'active' || !l.seller) return
+    if (!shouldAiModerate({ trustTier: l.seller.trustTier })) return
+
+    const result = await moderateListing({ title: l.title, description: l.description, imageUrls: parseImages(l.images) })
     if (!result || !result.prohibited || result.confidence < HOLD_CONFIDENCE) return
 
     // 1. Remove from the public feed (feed requires verified=true AND status='active').
-    await db.listing.update({ where: { id: listing.id }, data: { status: 'hidden', verified: false } })
+    await db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false } })
     // 2. Surface to the admin moderation queue as a system report (no reporter). Admin
     //    confirming it is what moves trust — the AI never penalises directly.
     await db.report.create({
       data: {
-        listingId: listing.id,
+        listingId: l.id,
         reason: 'prohibited',
         detail: `AI moderation: ${result.category || 'prohibited'} — ${result.reason}`,
         status: 'open',
@@ -143,20 +160,19 @@ export async function moderateAfterPublish(listing: {
       },
     })
     // 3. Tell the seller (one-way system notification), linking the held listing.
-    const owner = await db.seller.findUnique({ where: { id: listing.sellerId }, select: { ownerId: true } })
-    if (owner?.ownerId) {
+    if (l.seller.ownerId) {
       await db.notification.create({
         data: {
-          recipientId: owner.ownerId,
+          recipientId: l.seller.ownerId,
           type: 'system',
           title: 'Listing held for review',
           body: 'Your listing was hidden pending a safety review because it may show a prohibited item. If this is a mistake, our team will restore it.',
-          url: `/listings/${listing.id}`,
+          url: `/listings/${l.id}`,
         },
       })
     }
-    console.warn(`[ai-moderation] auto-held ${listing.id} (${result.category}, ${result.confidence.toFixed(2)})`)
+    console.warn(`[ai-moderation] auto-held ${l.id} (${result.category}, ${result.confidence.toFixed(2)})`)
   } catch (e) {
-    console.error('[ai-moderation] moderateAfterPublish failed', e)
+    console.error('[ai-moderation] moderateListingById failed', e)
   }
 }
