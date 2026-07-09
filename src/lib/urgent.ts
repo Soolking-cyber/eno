@@ -24,11 +24,6 @@ export const URGENT = {
   MAX_ACTIVE_PER_SELLER: 2,   // concurrently-urgent listings per seller
 } as const
 
-/** Read-time check — a listing is urgent while urgentUntil is in the future. */
-export function urgentActive(urgentUntil: Date | null | undefined): boolean {
-  return !!urgentUntil && urgentUntil.getTime() > Date.now()
-}
-
 /** Seller quota: how many of their listings hold a live urgent window. Deliberately
  *  NOT filtered by status — an unexpired window holds a slot even while the listing is
  *  hidden/sold, else hide→activate-a-third→unhide would mint unlimited concurrent

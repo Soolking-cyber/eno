@@ -2,6 +2,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { fold } from './fold'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { CATEGORY_BY_SLUG, LISTING_TYPE_LABEL, type ListingType } from './taxonomy'
+import { groupVnd, moneyLocale } from './vnd'
 
 // The serialized shape of a saved search — the subset of explorer filters we
 // persist + match on. Stored as JSON in SavedSearch.params.
@@ -117,7 +118,12 @@ export function describeParams(p: SavedSearchParams, lang: 'en' | 'vi' = 'en'): 
     if (d) parts.push(lang === 'vi' ? d.name : d.nameEn)
   }
   if (typeof p.priceMin === 'number' || typeof p.priceMax === 'number') {
-    parts.push(`${p.priceMin ? p.priceMin.toLocaleString('en-US') : '0'}–${p.priceMax ? p.priceMax.toLocaleString('en-US') : '∞'}₫`)
+    // Locale-aware grouping (vi = "12.000.000", en = "12,000,000") + the right VND
+    // label — a vi user must not see en-US comma grouping / a bare ₫ symbol.
+    const loc = moneyLocale(lang)
+    const lo = p.priceMin ? groupVnd(String(p.priceMin), loc) : '0'
+    const hi = p.priceMax ? groupVnd(String(p.priceMax), loc) : '∞'
+    parts.push(`${lo}–${hi} ${loc === 'vi' ? 'đ' : 'VND'}`)
   }
   return parts.length ? parts.join(' · ') : (lang === 'vi' ? 'Tất cả tin đăng' : 'All listings')
 }

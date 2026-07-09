@@ -109,9 +109,9 @@ export async function sendWhatsAppOtp(phone: string, otp: string): Promise<Chann
 }
 
 // ── SpeedSMS "Verify" shared brandname (works pre-business-license) ─────────
+// sendSpeedSmsOtp already gates on SPEEDSMS_TOKEN internally, so no separate
+// *Configured() guard is needed (unlike the telegram/whatsapp/zns channels).
 const SPEEDSMS_TOKEN = process.env.SPEEDSMS_TOKEN
-
-export const speedSmsConfigured = () => !!SPEEDSMS_TOKEN
 
 const SMS_BODY = (otp: string) => `Ma OTP ENO cua ban la ${otp}. Hieu luc 5 phut. Khong chia se ma nay voi bat ky ai.`
 
