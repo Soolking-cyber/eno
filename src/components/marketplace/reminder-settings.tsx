@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Bell, BellOff, Loader2, Mail } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Switch } from '@/components/ui/switch'
 
 const VAPID = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
 
@@ -108,18 +109,13 @@ export function ReminderSettings() {
             <p className="flex items-center gap-2 text-sm font-bold text-foreground"><Mail className="h-4 w-4 shrink-0" />{tr('Weekly digest email', 'Email tổng hợp hằng tuần')}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{tr('Once a week: top products and the latest price drops. No spam.', 'Mỗi tuần một lần: sản phẩm nổi bật và các đợt giảm giá mới nhất. Không spam.')}</p>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={digest}
-            aria-label={tr('Weekly digest email', 'Email tổng hợp hằng tuần')}
-            onClick={toggleDigest}
-            className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors cursor-pointer ${digest ? 'bg-primary' : 'bg-muted'}`}
-          >
-            {/* Positioned with `left` (not translate-x): a transform-positioned thumb can
-                render mispositioned inside the Settings CSS multi-column layout. */}
-            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left] ${digest ? 'left-[22px]' : 'left-0.5'}`} />
-          </button>
+          <Switch
+            checked={!!digest}
+            onChange={() => toggleDigest()}
+            label={tr('Weekly digest email', 'Email tổng hợp hằng tuần')}
+            size="md"
+            className="mt-0.5"
+          />
         </div>
       )}
     </div>

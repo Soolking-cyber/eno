@@ -7,6 +7,7 @@ import { CategoryIcon } from './category-icons'
 import { DISTRICTS } from './listings-explorer.constants'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
+import { Switch } from '@/components/ui/switch'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import type { SerializedCategory } from '@/lib/types'
 
@@ -326,21 +327,12 @@ export function ExplorerFilters({
         <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
           {tr('Verified Only', 'Chỉ tin đã xác thực')}
         </span>
-        <button
-          type="button"
-          onClick={() => setVerifiedOnly(!verifiedOnly)}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-            verifiedOnly ? 'bg-primary' : 'bg-input'
-          )}
-        >
-          <span
-            className={cn(
-              'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-card shadow-md ring-0 transition duration-200 ease-in-out',
-              verifiedOnly ? 'translate-x-4' : 'translate-x-0'
-            )}
-          />
-        </button>
+        <Switch
+          checked={verifiedOnly}
+          onChange={(v) => setVerifiedOnly(v)}
+          label={tr('Verified Only', 'Chỉ tin đã xác thực')}
+          size="sm"
+        />
       </div>
 
       {/* District Filter */}
