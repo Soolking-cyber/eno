@@ -27,13 +27,13 @@ export function MarketPrice({ price, band }: { price: number; band: Band }) {
   const markerLeft = at(price)
 
   return (
-    <div className="rounded-2xl bg-tint p-3.5">
+    <div>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold text-muted-foreground">{tr('Market price', 'Giá thị trường')}</span>
         <span
           className={cn(
-            'rounded-full px-2 py-0.5 text-[11px] font-bold',
-            pos === 'low' ? 'bg-success/15 text-success' : pos === 'high' ? 'bg-warning/15 text-warning' : 'bg-muted text-body',
+            'text-[11px] font-bold',
+            pos === 'low' ? 'text-success' : pos === 'high' ? 'text-warning' : 'text-muted-foreground',
           )}
         >
           {label}
