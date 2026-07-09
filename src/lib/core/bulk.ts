@@ -97,6 +97,7 @@ export async function bulkImportCore(
           title,
           searchText: buildSearchText([title, description, district, cat.name, cat.nameVi]),
           price,
+          images: [], // bulk re-hosts images AFTER this check → no hashes yet; text signal only
         })
         if (dup) { results.push({ row: rowNo, error: `Duplicate of your live listing "${dup.title}" — edit or bump that one instead` }); continue }
       }

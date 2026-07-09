@@ -1,6 +1,7 @@
 import 'server-only'
 import sharp from 'sharp'
 import { getSupabaseAdmin, LISTINGS_BUCKET, EVIDENCE_BUCKET } from '@/lib/supabase-admin'
+import { dHash } from '@/lib/image-hash'
 
 // Listing-image media core. Single place that turns raw image bytes into a stored,
 // first-party WebP asset — shared by /api/upload (post wizard), the bulk importer's
@@ -57,6 +58,10 @@ export function watermarkSvg(w: number): Buffer {
  */
 export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string; watermark?: boolean } = {}): Promise<string | null> {
   let out: Buffer
+  // Perceptual hash for duplicate detection — computed from the normalized (pre-watermark,
+  // pre-WebP) intermediate so a re-upload of the same source hashes identically, and embedded
+  // in the filename so it rides in the stored URL (no DB column). Best-effort; null on failure.
+  let hash: string | null = null
   try {
     // Pass 1 — normalize to a lossless intermediate so the watermark composite
     // doesn't double-lossy-encode (PNG → final WebP = single quality loss).
@@ -70,6 +75,7 @@ export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string
       .flatten({ background: '#ffffff' })
       .png()
       .toBuffer({ resolveWithObject: true })
+    hash = await dHash(data) // from the normalized source, before watermark/WebP
     if (opts.watermark !== false) {
       // ~28% of the width (prominent for web-address memorability — user ask
       // 2026-07-07), clamped; anchored bottom-right with ~2.5% padding.
@@ -86,7 +92,7 @@ export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string
   } catch {
     return null
   }
-  const path = `${opts.pathPrefix ?? ''}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`
+  const path = `${opts.pathPrefix ?? ''}${Date.now()}-${Math.random().toString(36).slice(2, 8)}${hash ? `-h${hash}` : ''}.webp`
   const admin = getSupabaseAdmin()
   const { error } = await admin.storage.from(LISTINGS_BUCKET).upload(path, out, { contentType: 'image/webp', upsert: false })
   if (error) {

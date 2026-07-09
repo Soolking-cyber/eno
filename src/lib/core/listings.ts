@@ -423,7 +423,7 @@ export async function createListingCore(input: {
   // candidate searchText uses the exact recipe of the create below. detail = the existing
   // listing's id so clients can link "edit / bump it instead". Fail-open inside the guard.
   const searchText = buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug, model])
-  const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price })
+  const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price, images })
   if (dup) throw new PublishBlockedError('duplicate_listing', dup.id)
 
   const listing = await db.listing.create({

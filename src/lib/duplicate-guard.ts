@@ -2,6 +2,7 @@ import 'server-only'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from './db'
 import { fold } from './fold'
+import { isImageRepost } from './image-hash'
 
 // Duplicate-listing protection: stop a seller re-posting the SAME product while a copy
 // of it is still live (the repost-to-bump spam pattern — the legit path is the dashboard
@@ -35,6 +36,17 @@ function priceDelta(a: number, b: number): number {
   return Math.abs(a - b) / Math.max(a, b, 1)
 }
 
+/** Listing.images is a JSON string of URLs; parse defensively (never throw). */
+function parseImages(json: string | null): string[] {
+  if (!json) return []
+  try {
+    const v = JSON.parse(json)
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
 /** Token-set Jaccard over accent-folded title words ("clean cats da nang" vs
  *  "clean dogs da nang" → 3/5 = 0.6; a verbatim repost → 1). */
 function titleJaccard(a: string, b: string): number {
@@ -53,16 +65,20 @@ export async function findDuplicateListing(input: {
   /** Candidate searchText built with the SAME buildSearchText recipe the create uses. */
   searchText: string
   price: number
+  /** The new listing's stored image URLs — their embedded dHashes drive the IMAGE signal
+   *  (catches a repost that reuses the same photos but reworded the title/price). */
+  images: string[]
   excludeId?: string
 }): Promise<DuplicateMatch | null> {
-  const { sellerId, categoryId, title, searchText, price, excludeId } = input
+  const { sellerId, categoryId, title, searchText, price, images, excludeId } = input
   try {
     // One seller-scoped scan (sellerId is indexed; a seller holds at most a few hundred
-    // active rows) computing the pg_trgm similarity against the stored searchText.
+    // active rows) computing the pg_trgm similarity against the stored searchText; `images`
+    // (JSON string of URLs) rides along for the perceptual-hash comparison.
     const rows = await db.$queryRaw<
-      { id: string; title: string; price: number; categoryId: string; score: number }[]
+      { id: string; title: string; price: number; categoryId: string; images: string | null; score: number }[]
     >(Prisma.sql`
-      SELECT id, title, price, "categoryId", similarity("searchText", ${searchText}) AS score
+      SELECT id, title, price, "categoryId", images, similarity("searchText", ${searchText}) AS score
       FROM "Listing"
       WHERE "sellerId" = ${sellerId} AND status = 'active'
         ${excludeId ? Prisma.sql`AND id <> ${excludeId}` : Prisma.empty}
@@ -74,6 +90,15 @@ export async function findDuplicateListing(input: {
       const score = Number(r.score) || 0
       const dPrice = priceDelta(price, Number(r.price) || 0)
       const tj = titleJaccard(title, r.title)
+      // 3. IMAGE signal — MOST of the same photos reused in the same category is a repost
+      //    regardless of how the title/price were reworded (you don't have the same set of
+      //    shots for two different products). Majority rule (see isImageRepost) so a shop's
+      //    shared banner/logo image never trips it. Price/title-independent, so it catches
+      //    the case the text signals miss; an image repost can score low on text, so this
+      //    scans all 25 candidates, not just the top text match.
+      if (r.categoryId === categoryId && images.length > 0 && isImageRepost(images, parseImages(r.images))) {
+        return { id: r.id, title: r.title }
+      }
       if (tj >= TITLE_SAME && r.categoryId === categoryId && dPrice <= PRICE_TITLE) {
         return { id: r.id, title: r.title }
       }
