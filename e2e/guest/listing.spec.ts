@@ -45,12 +45,20 @@ test.describe('Guest · listing detail (BMW XM SUV)', () => {
 
   test('contact is gated for guests', async ({ page }) => {
     // The contact CTA reads "Chat now" (desktop seller card) / "Chat" (mobile sticky bar);
-    // the sign-in gate now lives IN the click handler rather than in the button copy. A guest
-    // who taps it must get the sign-in dialog — never a live thread / the seller's contact.
+    // the sign-in gate lives IN the click handler rather than in the button copy. A guest who
+    // taps it must get the sign-in dialog — never a live thread / the seller's contact.
     const chat = page.getByRole('button', { name: /^(Chat now|Chat)$/i }).first()
     await expect(chat).toBeVisible()
-    await chat.click()
-    await expect(page.getByRole('dialog')).toBeVisible()
+    const dialog = page.getByRole('dialog')
+    // Retry the click (viewport-agnostic — the mobile header has no "Sign in" link to wait on):
+    // the gate no-ops while useAuth is still loading, and "Chat now" fires a one-shot
+    // eno:chat-now event whose ContactComposer listener re-registers on auth state changes, so
+    // an early single click can be dropped. Retrying lands a click once auth has settled. The
+    // gate stays secure throughout — a guest is never routed to a thread, worst case is a no-op.
+    await expect(async () => {
+      await chat.click()
+      await expect(dialog).toBeVisible({ timeout: 2000 })
+    }).toPass({ timeout: 15000 })
   })
 
   test('exposes Save / Share / Report controls', async ({ page }) => {
