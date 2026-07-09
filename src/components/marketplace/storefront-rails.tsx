@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { ListingCard } from './listing-card'
+import { Shelf, RAIL_CARD_W } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListingCard } from '@/lib/types'
 
@@ -46,18 +47,12 @@ function Rail({
   onOpen: (id: string) => void
 }) {
   return (
-    <section>
-      <h2 className="mb-2.5 text-base font-bold text-foreground">{title}</h2>
-      <div className="flex gap-2 overflow-x-auto scrollbar-none snap-x sm:gap-4">
-        {listings.map((l) => (
-          <div
-            key={l.id}
-            className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]"
-          >
-            <ListingCard listing={l} onOpen={(x) => onOpen(x.id)} />
-          </div>
-        ))}
-      </div>
-    </section>
+    <Shelf title={title}>
+      {listings.map((l) => (
+        <div key={l.id} className={RAIL_CARD_W}>
+          <ListingCard listing={l} onOpen={(x) => onOpen(x.id)} />
+        </div>
+      ))}
+    </Shelf>
   )
 }

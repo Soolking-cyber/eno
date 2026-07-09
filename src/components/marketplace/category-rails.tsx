@@ -6,14 +6,13 @@ import { ChevronRight } from 'lucide-react'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
+import { RAIL_CARD_W, RAIL_SCROLLER } from './shelf'
 import { useLanguage, Tr } from '@/context/language-context'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 
 const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district', 'province', 'ward', 'condition', 'priceMin', 'priceMax']
 
 type Rail = { slug: string; listings: SerializedListingCard[] }
-
-const CARD_W = 'w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]'
 
 /** One category rail. The cards (and therefore their images) only mount once the rail
  *  scrolls near the viewport — with up to ~10 rails on the home page, mounting every
@@ -52,10 +51,10 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
         </button>
       </div>
       {/* Cards pixel-match the feed grid (gap-2 / sm:gap-4; one card == one grid column) + snap. */}
-      <div ref={rowRef} className="flex gap-2 overflow-x-auto scrollbar-none snap-x sm:gap-4">
+      <div ref={rowRef} className={RAIL_SCROLLER}>
         {show
           ? listings.map((l) => (
-              <div key={l.id} className={CARD_W}>
+              <div key={l.id} className={RAIL_CARD_W}>
                 <ListingCard
                   listing={l}
                   onOpen={(x) => router.push(`/listings/${x.id}`)}
@@ -65,7 +64,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
             ))
           : // Same-size skeletons hold the row height until it mounts (no images, no shift).
             Array.from({ length: Math.min(listings.length, 4) }).map((_, i) => (
-              <ListingCardSkeleton key={i} className={CARD_W} />
+              <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
             ))}
       </div>
     </section>

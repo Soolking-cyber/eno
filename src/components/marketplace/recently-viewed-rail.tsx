@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { History } from 'lucide-react'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
+import { Shelf, RAIL_CARD_W } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { personalizationAllowed } from '@/lib/consent'
 import { getViewedListingIds } from '@/lib/reco-signals'
@@ -35,25 +36,18 @@ export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
   if (listings.length < 2) return null
 
   return (
-    <section className="mb-7">
-      <div className="mb-2.5 flex items-center gap-2">
-        <History className="h-4 w-4 text-accent-foreground" />
-        <h2 className="text-base font-bold text-foreground">{tr('Recently viewed', 'Đã xem gần đây')}</h2>
-      </div>
-      {/* Same card size/gaps as the feed grid (cols-2 / -3 / -4) so it reads as one family. */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-none snap-x sm:gap-4">
-        {listings.map((l) => (
-          <div key={l.id} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]">
-            <ListingCard
-              listing={l}
-              onOpen={(x) => router.push(`/listings/${x.id}`)}
-              // Locate→map only makes sense on the home explorer (it listens for the
-              // event); the PDP usage passes excludeId, so skip it there.
-              onLocate={excludeId ? undefined : () => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
-            />
-          </div>
-        ))}
-      </div>
-    </section>
+    <Shelf icon={History} title={tr('Recently viewed', 'Đã xem gần đây')} sectionClassName="mb-7">
+      {listings.map((l) => (
+        <div key={l.id} className={RAIL_CARD_W}>
+          <ListingCard
+            listing={l}
+            onOpen={(x) => router.push(`/listings/${x.id}`)}
+            // Locate→map only makes sense on the home explorer (it listens for the
+            // event); the PDP usage passes excludeId, so skip it there.
+            onLocate={excludeId ? undefined : () => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
+          />
+        </div>
+      ))}
+    </Shelf>
   )
 }

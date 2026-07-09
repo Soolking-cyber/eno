@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListingCard } from './listing-card'
+import { Shelf, RAIL_CARD_W } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListingCard } from '@/lib/types'
 
@@ -30,17 +31,12 @@ export function RelatedListings({ listingId, categorySlug }: { listingId: string
   if (items.length === 0) return null
 
   return (
-    <section className="mt-12">
-      <h2 className="mb-2.5 text-base font-bold text-foreground">{tr('More like this', 'Tin tương tự')}</h2>
-      {/* Same card size/gaps as the feed grid (cols-2 / -3 / -4) so it matches the
-          other rails. */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-none snap-x sm:gap-4">
-        {items.map((l) => (
-          <div key={l.id} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]">
-            <ListingCard listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} />
-          </div>
-        ))}
-      </div>
-    </section>
+    <Shelf title={tr('More like this', 'Tin tương tự')} sectionClassName="mt-12">
+      {items.map((l) => (
+        <div key={l.id} className={RAIL_CARD_W}>
+          <ListingCard listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} />
+        </div>
+      ))}
+    </Shelf>
   )
 }

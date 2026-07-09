@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Sparkles, TrendingUp } from 'lucide-react'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
+import { Shelf, RAIL_CARD_W } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { personalizationAllowed } from '@/lib/consent'
 import { getRecoSignals, getInboundQuery } from '@/lib/reco-signals'
@@ -71,32 +72,26 @@ export function ForYouRail() {
   if (listings !== null && listings.length === 0) return null // nothing to recommend → hide
 
   return (
-    <section className="mb-7">
-      <div className="mb-2.5 flex items-center gap-2">
-        {personalized ? <Sparkles className="h-4 w-4 text-accent-foreground" /> : <TrendingUp className="h-4 w-4 text-accent-foreground" />}
-        <h2 className="text-base font-bold text-foreground">{personalized ? tr('For you', 'Dành cho bạn') : tr('Trending now', 'Đang thịnh hành')}</h2>
-      </div>
-      {/* Cards are PIXEL-IDENTICAL to the feed grid below: same gaps (gap-2 / sm:gap-4)
-          and each card == one grid column width (cols-2 / -3 / -4), so a card width
-          exactly equals (100% − N·gap) / cols. No edge-bleed (the parent landing
-          <section> is overflow-hidden and would clip it). Default sizes too. */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-none snap-x sm:gap-4">
-        {listings === null
-          ? Array.from({ length: 6 }).map((_, i) => (
-              // Same shape as the feed skeleton (4:3 image + title/price/location lines)
-              // so it matches the real card size — not a tall block.
-              <ListingCardSkeleton key={i} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]" />
-            ))
-          : listings.map((l) => (
-              <div key={l.id} className="w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]">
-                <ListingCard
-                  listing={l}
-                  onOpen={(x) => router.push(`/listings/${x.id}`)}
-                  onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
-                />
-              </div>
-            ))}
-      </div>
-    </section>
+    // Cards are PIXEL-IDENTICAL to the feed grid below (RAIL_CARD_W == one grid column) so
+    // the rail reads as one family with the grid.
+    <Shelf
+      icon={personalized ? Sparkles : TrendingUp}
+      title={personalized ? tr('For you', 'Dành cho bạn') : tr('Trending now', 'Đang thịnh hành')}
+      sectionClassName="mb-7"
+    >
+      {listings === null
+        ? Array.from({ length: 6 }).map((_, i) => (
+            <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
+          ))
+        : listings.map((l) => (
+            <div key={l.id} className={RAIL_CARD_W}>
+              <ListingCard
+                listing={l}
+                onOpen={(x) => router.push(`/listings/${x.id}`)}
+                onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
+              />
+            </div>
+          ))}
+    </Shelf>
   )
 }
