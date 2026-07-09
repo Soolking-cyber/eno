@@ -47,6 +47,7 @@ export type ModCase = {
 const REASON_LABEL: Record<string, string> = {
   scam: 'Scam', counterfeit: 'Counterfeit', sold: 'Already sold', 'wrong-info': 'Wrong info',
   duplicate: 'Duplicate', offensive: 'Offensive / harassment', other: 'Other',
+  prohibited: 'Prohibited item (AI)', // auto-filed by AI content-safety; listing already hidden
 }
 const PENALTY: Record<string, number> = { minor: -3, moderate: -10, severe: -25 }
 const SEVERITIES = ['minor', 'moderate', 'severe'] as const

@@ -17,6 +17,7 @@ import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 import { assertPublishable, assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
+import { moderateAfterPublish } from '@/lib/ai-moderation'
 import { priceChangeEffects } from '@/lib/price-drop'
 import { activateUrgentGate, urgentQuotaFree, URGENT } from '@/lib/urgent'
 
@@ -463,6 +464,11 @@ export async function createListingCore(input: {
     },
   })
   if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch(() => {}) })
+
+  // Tier-2 illegal-content moderation: an AI vision+text pass runs AFTER the response
+  // flushes (the listing is already live — instant-publish stays instant). Trust-gated to
+  // the risky population inside; a high-confidence prohibited hit auto-hides + flags + notifies.
+  after(() => moderateAfterPublish({ id: listing.id, title, description, images, sellerId: seller.id }, { trustTier: seller.trustTier }))
 
   // Pre-translate every user-authored text field into ALL supported languages so the
   // listing renders from cache in any visitor's language. Runs after the response flushes.
