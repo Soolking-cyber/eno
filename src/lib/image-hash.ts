@@ -80,10 +80,11 @@ export function imageOverlap(urlsA: string[], urlsB: string[], threshold = 10): 
   return { count, minHashed: Math.min(ha.length, hb.length) }
 }
 
-/** The repost rule: at least 2 shared photos AND at least half of the smaller photo set. A
- *  true repost reuses most/all shots (passes); a shared banner (1 of N) or a couple of common
- *  branded cards (below half) do not. */
+/** The repost rule: at least 2 shared photos AND a STRICT majority (> half) of the smaller
+ *  photo set. A true repost reuses most/all shots (passes); a shared banner (1 of N), or a
+ *  couple of common branded/size/warranty cards that land at exactly half (e.g. 2 of 4), do
+ *  NOT — strict-majority avoids the even-N "exactly 50%" false positive. */
 export function isImageRepost(urlsA: string[], urlsB: string[], threshold = 10): boolean {
   const { count, minHashed } = imageOverlap(urlsA, urlsB, threshold)
-  return count >= 2 && count >= Math.ceil(0.5 * minHashed)
+  return count >= 2 && count > minHashed / 2
 }

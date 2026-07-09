@@ -1,6 +1,7 @@
 import 'server-only'
 import sharp from 'sharp'
 import { Type } from '@google/genai'
+import { Prisma } from '@/generated/prisma/client'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { db } from '@/lib/db'
 
@@ -146,22 +147,24 @@ export async function moderateListingById(listingId: string): Promise<void> {
     const result = await moderateListing({ title: l.title, description: l.description, imageUrls: parseImages(l.images) })
     if (!result || !result.prohibited || result.confidence < HOLD_CONFIDENCE) return
 
-    // 1. Remove from the public feed (feed requires verified=true AND status='active').
-    await db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false } })
-    // 2. Surface to the admin moderation queue as a system report (no reporter). Admin
-    //    confirming it is what moves trust — the AI never penalises directly.
-    await db.report.create({
-      data: {
-        listingId: l.id,
-        reason: 'prohibited',
-        detail: `AI moderation: ${result.category || 'prohibited'} — ${result.reason}`,
-        status: 'open',
-        internalNote: `Auto-hidden by AI content-safety (confidence ${result.confidence.toFixed(2)}). Confirm to penalise, or dismiss + un-hide if a false positive.`,
-      },
-    })
-    // 3. Tell the seller (one-way system notification), linking the held listing.
+    // Hide + admin report + seller notice, ATOMICALLY — a $transaction so we never leave a
+    // listing hidden without an audit card / seller notice if one write fails (it rolls back
+    // and stays live, fail-open). Feed requires verified=true AND status='active'. The admin
+    // confirming the report is what moves trust — the AI never penalises directly.
+    const writes: Prisma.PrismaPromise<unknown>[] = [
+      db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false } }),
+      db.report.create({
+        data: {
+          listingId: l.id,
+          reason: 'prohibited',
+          detail: `AI moderation: ${result.category || 'prohibited'} — ${result.reason}`,
+          status: 'open',
+          internalNote: `Auto-hidden by AI content-safety (confidence ${result.confidence.toFixed(2)}). Confirm to penalise, or dismiss + un-hide if a false positive.`,
+        },
+      }),
+    ]
     if (l.seller.ownerId) {
-      await db.notification.create({
+      writes.push(db.notification.create({
         data: {
           recipientId: l.seller.ownerId,
           type: 'system',
@@ -169,8 +172,9 @@ export async function moderateListingById(listingId: string): Promise<void> {
           body: 'Your listing was hidden pending a safety review because it may show a prohibited item. If this is a mistake, our team will restore it.',
           url: `/listings/${l.id}`,
         },
-      })
+      }))
     }
+    await db.$transaction(writes)
     console.warn(`[ai-moderation] auto-held ${l.id} (${result.category}, ${result.confidence.toFixed(2)})`)
   } catch (e) {
     console.error('[ai-moderation] moderateListingById failed', e)

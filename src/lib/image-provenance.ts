@@ -73,24 +73,28 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
       INSERT INTO "ListingImageHash" ("listingId", "sellerId", hash) VALUES ${Prisma.join(values)}
     `)
 
-    // 3. ENFORCE — a single other-seller listing matched a MAJORITY of my photos (≥2 and ≥50%)
-    //    ⇒ this listing reuses that seller's photos. Auto-hide + admin report + notify.
+    // 3. ENFORCE — a single other-seller listing matched a STRICT MAJORITY of my photos (≥2
+    //    and > half) ⇒ this listing reuses that seller's photos. Hide + admin report + notify,
+    //    ATOMICALLY (a $transaction so we never leave a listing hidden without an audit card /
+    //    seller notice if a write fails — the hide rolls back and it stays live, fail-open).
     let best = 0
     let originalId = ''
     for (const [id, c] of matchCount) if (c > best) { best = c; originalId = id }
-    if (best >= 2 && best >= Math.ceil(0.5 * hexes.length)) {
-      await db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false } })
-      await db.report.create({
-        data: {
-          listingId: l.id,
-          reason: 'stolen_photos',
-          detail: `Cross-app image match: reuses ${best}/${hexes.length} photos from another seller's listing ${originalId} (possible stolen listing).`,
-          status: 'open',
-          internalNote: `Auto-hidden by cross-app image provenance. Confirm if the photos were stolen, or dismiss + un-hide if this seller legitimately owns/reuses them (reseller/stock).`,
-        },
-      })
+    if (best >= 2 && best > hexes.length / 2) {
+      const writes: Prisma.PrismaPromise<unknown>[] = [
+        db.listing.update({ where: { id: l.id }, data: { status: 'hidden', verified: false } }),
+        db.report.create({
+          data: {
+            listingId: l.id,
+            reason: 'stolen_photos',
+            detail: `Cross-app image match: reuses ${best}/${hexes.length} photos from another seller's listing ${originalId} (possible stolen listing).`,
+            status: 'open',
+            internalNote: `Auto-hidden by cross-app image provenance. Confirm if the photos were stolen, or dismiss + un-hide if this seller legitimately owns/reuses them (reseller/stock).`,
+          },
+        }),
+      ]
       if (l.seller?.ownerId) {
-        await db.notification.create({
+        writes.push(db.notification.create({
           data: {
             recipientId: l.seller.ownerId,
             type: 'system',
@@ -98,8 +102,9 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
             body: "Your listing was hidden pending review because its photos match another seller's listing. If these are your own photos, our team will restore it.",
             url: `/listings/${l.id}`,
           },
-        })
+        }))
       }
+      await db.$transaction(writes)
       console.warn(`[image-provenance] auto-held ${l.id} (reused ${best}/${hexes.length} from ${originalId})`)
     }
   } catch (e) {
