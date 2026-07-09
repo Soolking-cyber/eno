@@ -115,6 +115,9 @@ function ListingCardImpl({
 
   const last = images.length - 1
   const goTo = (n: number) => setIdx(Math.max(0, Math.min(last, n)))
+  // A live price-drop already signals "cheap" — don't also stack the below-market chip
+  // (redundant, and it crowds the price row on a narrow card).
+  const hasDrop = listing.prevPrice != null && !!dropPercent(listing.prevPrice, listing.price)
 
   return (
     <div
@@ -425,12 +428,13 @@ function ListingCardImpl({
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-base font-bold text-accent-foreground" />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, only
               present while the drop badge is live. */}
-          {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
-            <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" compact className="truncate text-[11px] text-ink-4 line-through" />
+          {hasDrop && (
+            <Price price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" compact className="truncate text-[11px] text-ink-4 line-through" />
           )}
           {/* Below the market band (< P25) → a quiet "Good price" cue tied to the price.
-              Deal-positive only; kept off the photo so it never crowds urgent/drop badges. */}
-          {listing.goodPrice && (
+              Deal-positive only; kept off the photo so it never crowds urgent/drop badges,
+              and yields to a live price-drop so the two cheapness signals never stack. */}
+          {listing.goodPrice && !hasDrop && (
             <span className="shrink-0 self-center rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-bold text-success">
               {tr('Good price', 'Giá tốt')}
             </span>
