@@ -9,7 +9,8 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, Send, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
+import { ChevronLeft, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
+import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -515,9 +516,7 @@ export default function ThreadPage() {
                     )}
                   </div>
                 ) : (
-                  <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.failed ? 'border border-destructive/30 bg-destructive/10 text-destructive' : m.mine ? 'bg-primary text-white' : 'bg-card text-foreground'} ${m.pending ? 'opacity-70' : ''}`}>
-                    {m.body}
-                  </div>
+                  <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-[78%]">{m.body}</MessageBubble>
                 )}
                   {m.mine && m.failed ? (
                     <button onClick={() => retry(m)} className="mt-0.5 flex items-center gap-1 px-1 text-[10px] font-semibold text-destructive hover:underline cursor-pointer">
@@ -665,32 +664,24 @@ export default function ThreadPage() {
                  holds focus so tapping never blurs the field: on mobile that blur
                  dismisses the keyboard, the viewport resizes, and the button shifts out
                  from under the finger before the tap lands — which is why taps were lost. */
-              <button
+              <ChatSendButton
                 onClick={submitOffer}
-                onMouseDown={(e) => e.preventDefault()}
                 disabled={sliderOffer === null && !offerInput}
                 aria-label={tr('Send offer', 'Gửi đề nghị')}
                 title={tr('Send offer', 'Gửi đề nghị')}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
-              >
-                <Send className="h-4 w-4" />
-              </button>
+              />
             ) : (
               /* Text mode: a real tap-Send button (the Zalo/FB pattern users expect).
                  onMouseDown preventDefault HOLDS the composer's focus so the tap never
                  blurs the field → dismisses the keyboard → shifts the button out from
                  under the finger (the earlier reason tap-Send was unreliable). Return
                  still sends too (enterKeyHint="send"). */
-              <button
+              <ChatSendButton
                 onClick={() => send()}
-                onMouseDown={(e) => e.preventDefault()}
                 disabled={!text.trim()}
                 aria-label={tr('Send', 'Gửi')}
                 title={tr('Send', 'Gửi')}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
-              >
-                <Send className="h-4 w-4" />
-              </button>
+              />
             )}
           </div>
           </div>

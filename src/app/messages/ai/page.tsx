@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Send, Sparkles, Loader2 } from 'lucide-react'
+import { ChevronLeft, Sparkles, Loader2 } from 'lucide-react'
+import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { ImageSearchButton } from '@/components/marketplace/image-search-button'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -141,9 +142,7 @@ export default function AiThreadPage() {
         <div className="mt-auto space-y-3">
         {messages.map((m, i) => (
           <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} ${i === messages.length - 1 ? 'bubble-in' : ''}`}>
-            <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'bg-primary text-white' : 'bg-card text-foreground'}`}>
-              {m.content}
-            </div>
+            <MessageBubble mine={m.role === 'user'} className="max-w-[85%]">{m.content}</MessageBubble>
             {m.listings && m.listings.length > 0 && (
               <div className="mt-2 grid w-full grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
                 {m.listings.map((l) => (
@@ -191,19 +190,12 @@ export default function AiThreadPage() {
             placeholder={tr('Ask for anything…', 'Hỏi bất cứ điều gì…')}
             className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 lg:text-sm"
           />
-          <button
+          <ChatSendButton
             onClick={() => send()}
-            /* Hold composer focus on tap so the mobile keyboard doesn't dismiss →
-               resize the viewport → move the button out from under the finger before
-               the click lands (the tap was being lost). Return also sends (enterKeyHint). */
-            onMouseDown={(e) => e.preventDefault()}
             disabled={!text.trim() || loading}
             aria-label={tr('Send', 'Gửi')}
             title={tr('Send', 'Gửi')}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 relative tap-44"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+          />
         </div>
       ) : (
         <div className="chat-composer bg-card px-4 pt-3 pb-3">
