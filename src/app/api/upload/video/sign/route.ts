@@ -4,12 +4,8 @@ import { rateLimit } from '@/lib/ratelimit'
 import { getEnforcement, blocksPosting } from '@/lib/enforcement'
 import { getSupabaseAdmin, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { VIDEO_ALLOWED, VIDEO_MAX_BYTES } from '@/lib/core/media'
-import { cfStreamConfigured, createStreamDirectUpload } from '@/lib/cf-stream'
 
 export const runtime = 'nodejs'
-
-// CF Stream direction gate: a little headroom over the 60s product cap for rounding.
-const STREAM_MAX_DURATION = 65
 
 // Mint a signed DIRECT-upload URL for a listing video. The bytes go browser→Supabase —
 // they cannot pass through a Vercel function (bodies over ~4.5MB are rejected with
@@ -41,16 +37,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'too_large' }, { status: 413 })
     }
 
-    // Cloudflare Stream path (when configured): return a one-time direct-upload URL. The browser
-    // POSTs the file to upload.videodelivery.net (not us), CF transcodes to adaptive HLS (also
-    // fixing HEVC-plays-black), and /complete polls the uid to ready. Falls through to the
-    // Supabase direct-upload below when Stream env is absent — so this is a no-op until set.
-    if (cfStreamConfigured()) {
-      const up = await createStreamDirectUpload(STREAM_MAX_DURATION, profileId)
-      if (!up) return NextResponse.json({ error: 'sign_failed' }, { status: 502 })
-      return NextResponse.json({ mode: 'stream', uid: up.uid, uploadURL: up.uploadURL })
-    }
-
     const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
     const admin = getSupabaseAdmin()
     const { data, error } = await admin.storage.from(LISTING_VIDEOS_BUCKET).createSignedUploadUrl(path)
@@ -58,7 +44,7 @@ export async function POST(req: NextRequest) {
       console.error('[POST /api/upload/video/sign]', error?.message)
       return NextResponse.json({ error: 'sign_failed' }, { status: 500 })
     }
-    return NextResponse.json({ mode: 'supabase', path: data.path, token: data.token })
+    return NextResponse.json({ path: data.path, token: data.token })
   } catch (e) {
     console.error('[POST /api/upload/video/sign]', e)
     return NextResponse.json({ error: 'sign_failed' }, { status: 500 })

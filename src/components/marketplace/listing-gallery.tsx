@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils'
 import { Tr, useLanguage } from '@/context/language-context'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { autoplayAllowed } from '@/lib/autoplay'
-import { useHlsVideo } from '@/hooks/use-hls-video'
 
 type Props = {
   images: string[]
@@ -41,7 +40,6 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
   // snatched away the instant the first frame decodes. `revealed` is one-way (pausing
   // later keeps the frozen frame, not the cover).
   const [revealed, setRevealed] = useState(false)
-  const [visible, setVisible] = useState(false) // this slide is on-screen (IO)
   const visibleAt = useRef<number | null>(null)
   const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
@@ -52,15 +50,13 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
     const obs = new IntersectionObserver(
       (entries) => {
         const e = entries[entries.length - 1] // queued entries: only the last reflects reality
-        const onScreen = e.isIntersecting && e.intersectionRatio >= 0.5
-        setVisible(onScreen)
-        if (onScreen) {
+        if (e.isIntersecting && e.intersectionRatio >= 0.5) {
           visibleAt.current ??= Date.now()
-          // `engaged` gates BUFFERING (source attach) — flip it only for autoplay-eligible
-          // viewers; Save-Data/2g/reduced-motion users don't load video bytes until THEY tap.
-          // Re-entering view also clears a prior manual pause (auto-resume on swipe-back —
-          // matches the pre-Stream behavior where the IO branch force-played the visible slide).
-          if (canAuto) { setEngaged(true); setPaused(false) }
+          // preload flips only for autoplay-eligible viewers — Save-Data/2g/reduced-motion
+          // users must not buffer video bytes until THEY tap play (togglePlay sets engaged).
+          if (canAuto) { setEngaged(true); v.play().catch(() => {}); setPaused(false) }
+        } else {
+          v.pause()
         }
       },
       { threshold: [0.5] },
@@ -74,28 +70,26 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
     const since = Date.now() - (visibleAt.current ?? Date.now())
     revealTimer.current = setTimeout(() => { revealTimer.current = null; setRevealed(true) }, Math.max(0, 700 - since))
   }
-  // Declarative play intent (the hook attaches HLS async, so imperative play() would race the
-  // source). Play when engaged (allowed to buffer) AND on-screen AND not user-paused.
-  const playing = engaged && visible && !paused
   const togglePlay = () => {
+    const v = ref.current
+    if (!v) return
     setNeedsTap(false)
     setEngaged(true) // an explicit tap is consent to buffer, even for gated viewers
-    setVisible(true)
-    setPaused(playing) // playing now → pause; paused/stopped → play
+    if (v.paused) { v.play().catch(() => {}); setPaused(false) }
+    else { v.pause(); setPaused(true) }
   }
-  // Attach the source only once engaged (preserves the Save-Data buffer gate); hls.js for a
-  // Stream .m3u8, plain src for a Supabase MP4, native HLS on Safari.
-  useHlsVideo(ref, engaged ? src : null, playing)
   const showPlayGlyph = needsTap || paused
   return (
     <div className={cn('relative h-full w-full overflow-hidden bg-black', className)}>
       <video
         ref={ref}
-        // No src / poster attrs: useHlsVideo attaches the source (a Stream clip needs hls.js),
-        // and the cover overlay below owns the pre-reveal frame.
+        src={src}
+        // No poster attr: the cover overlay below owns the pre-reveal frame — a poster
+        // would be a second fetch of the same photo at a different optimizer URL.
         muted
         loop
         playsInline
+        preload={engaged ? 'auto' : 'none'}
         onClick={togglePlay}
         onPlaying={onPlaying}
         className="h-full w-full cursor-pointer object-cover"

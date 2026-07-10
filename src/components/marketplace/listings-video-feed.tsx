@@ -15,7 +15,6 @@ import { Price } from './price'
 import { Spinner } from '@/components/ui/spinner'
 import { stashQuickCompose } from '@/lib/quick-contact'
 import { optimizedImageUrl } from '@/lib/listing-image'
-import { useHlsVideo } from '@/hooks/use-hls-video'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -254,26 +253,23 @@ function VideoFeedItem({
   const videoRef = useRef<HTMLVideoElement>(null)
   const [paused, setPaused] = useState(false)
 
-  // A tap toggles pause; entering/leaving the active slot resets that intent. Leaving ALSO
-  // rewinds to frame 0 (native MP4 keeps its src + mid-clip position when deactivated — hls.js
-  // re-attaches from the manifest start, but the Supabase MP4 path doesn't), so re-activating
-  // always restarts the clip instead of resuming mid-way (matches the pre-Stream behavior).
+  // Play only the active clip; pause + rewind the rest (one streams at a time).
   useEffect(() => {
-    if (active) { setPaused(false); return }
     const v = videoRef.current
-    if (v) { try { v.currentTime = 0 } catch { /* not seekable yet */ } }
+    if (!v) return
+    if (active) { setPaused(false); v.play().catch(() => {}) }
+    else { v.pause(); try { v.currentTime = 0 } catch { /* not seekable yet */ } }
   }, [active])
-
-  // Source attach + play/pause via the hook (a Stream clip needs hls.js, attached async — so a
-  // bare v.play() would race the source). Attach ONLY while active: neighbours keep just their
-  // poster and never spin up a decoder/HLS instance (one streams at a time). Re-activating
-  // re-attaches from the manifest start, so no explicit rewind is needed.
-  useHlsVideo(videoRef, active ? listing.video : null, active && !paused)
 
   // Set muted imperatively — React's `muted` prop doesn't reliably reflect to the DOM.
   useEffect(() => { if (videoRef.current) videoRef.current.muted = muted }, [muted, active])
 
-  const togglePlay = () => setPaused((p) => !p)
+  const togglePlay = () => {
+    const v = videoRef.current
+    if (!v) return
+    if (v.paused) { v.play().catch(() => {}); setPaused(false) }
+    else { v.pause(); setPaused(true) }
+  }
 
   const chat = () => {
     if (!user) { if (!authLoading) openSignIn({ listingTitle: title, listingImage: listing.images[0] ?? null }); return }
@@ -295,11 +291,12 @@ function VideoFeedItem({
         {listing.video && (
           <video
             ref={videoRef}
-            // src attached by useHlsVideo (Stream clips need hls.js, not a plain src attr).
+            src={listing.video}
             poster={listing.images[0] ? optimizedImageUrl(listing.images[0]) : undefined}
             loop
             playsInline
             muted
+            preload={active ? 'auto' : 'none'}
             onClick={togglePlay}
             className="h-full w-full object-cover"
           />
