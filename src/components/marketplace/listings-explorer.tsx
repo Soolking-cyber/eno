@@ -756,6 +756,23 @@ export function ListingsExplorer({
     initialDataUpdatedAt: seedFetchedAt,
   })
 
+  // First-render adoption of a diverged cache (setState-during-render — React's derived-state
+  // pattern; re-renders synchronously BEFORE paint). On back-nav to the home explorer the
+  // query cache usually holds FRESHER rows than the ISR seed (the honest initialDataUpdatedAt
+  // above makes background revalidation the norm), but `listings` state re-initializes from
+  // the seed and the sync effect below only swaps AFTER paint → one visible frame of stale
+  // rows reshuffling. Adopt the cache synchronously instead. First visit is a no-op: the
+  // cache is empty, so useQuery adopts initialData and `listingsData.listings` IS the
+  // initialListings reference.
+  const adoptedCacheRef = useRef(false)
+  if (
+    !adoptedCacheRef.current && listingsData && page === 1 &&
+    listings === initialListings && listingsData.listings !== initialListings
+  ) {
+    adoptedCacheRef.current = true
+    setListings(listingsData.listings)
+  }
+
   // Does the catalog have ANY video listings? Gates the ▷ Video view toggle — with zero
   // videos the takeover is a guaranteed dead end, so the tab stays hidden until at least
   // one exists. Site-wide (not filter-scoped) + long staleTime: one cheap query per session.
