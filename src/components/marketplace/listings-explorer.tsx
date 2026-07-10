@@ -168,13 +168,31 @@ export function ListingsExplorer({
   const changeView = useCallback((m: ViewMode) => {
     setViewMode((cur) => { if (m === 'video' && cur !== 'video') prevViewRef.current = cur; return m })
   }, [])
-  // Honor ?view=map|grid|compact (e.g. the footer "Map" link opens the map view).
+  // Clip to restore when the Video feed re-opens after a back-nav from a listing.
+  const [videoReturn, setVideoReturn] = useState<{ id: string; params: string } | null>(null)
+  // Honor ?view=map|grid|compact|video (e.g. the footer "Map" link opens the map view), and
+  // restore the Video feed after a back-nav from a listing that was opened from inside it.
+  // The eno:video-return stash is consumed on EVERY mount (never left to linger), but only ACTED
+  // on when this mount is the feed's own history entry coming back: the entry's state still
+  // carries the takeover flag pushed when the feed opened (it survives router.push + Back). A
+  // FORWARD nav to this page (logo tap, breadcrumb) mints a fresh entry without the flag, so an
+  // intentional "go home" is never hijacked into the fullscreen takeover.
   useEffect(() => {
     if (typeof window === 'undefined') return
+    let ret: { path?: string; id?: string; params?: string; ts?: number } | null = null
+    try {
+      const raw = sessionStorage.getItem('eno:video-return')
+      if (raw) { sessionStorage.removeItem('eno:video-return'); ret = JSON.parse(raw) }
+    } catch { /* ignore */ }
+    const returning =
+      !!ret && typeof ret.id === 'string' && ret.path === window.location.pathname &&
+      Date.now() - (ret.ts ?? 0) <= 30 * 60 * 1000 && window.history.state?.takeover === 'video'
+    if (returning) setVideoReturn({ id: ret!.id!, params: typeof ret!.params === 'string' ? ret!.params : '' })
     const v = new URLSearchParams(window.location.search).get('view')
     // Also open the results view — landing + viewMode alone left the footer's
     // "Map" link on the landing hero, which read as a dead link.
     if (v === 'map' || v === 'grid' || v === 'compact' || v === 'video') { setViewMode(v); setShowExplorer(true) }
+    else if (returning) { setViewMode('video'); setShowExplorer(true) }
   }, [])
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
@@ -1778,7 +1796,7 @@ export function ListingsExplorer({
                 data fetch (hasVideo=1) + loading/empty states — replaces the grid/list/map
                 results area entirely, so the blocks below are skipped in this mode. */}
             {viewMode === 'video' && (
-              <VideoFeed baseParams={baseParamsString} onOpen={handleOpen} onPrefetch={prefetchListing} onClose={() => setViewMode(prevViewRef.current)} />
+              <VideoFeed baseParams={baseParamsString} onOpen={handleOpen} onPrefetch={prefetchListing} onClose={() => { setViewMode(prevViewRef.current); setVideoReturn(null) }} restoreTo={videoReturn} />
             )}
 
             {/* LISTINGS CONTAINER */}

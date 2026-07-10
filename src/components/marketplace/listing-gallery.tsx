@@ -169,7 +169,10 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
 
   // While the lightbox is open, freeze the page behind it: lock body scroll + kill overscroll
   // so swipes (up/down/left/right) on the photo never move the background. Restore on close.
-  // Escape closes; ←/→ navigate (the touch handlers below cover swipe nav on mobile).
+  // Escape closes; ←/→ navigate (the touch handlers below cover swipe nav on mobile). A synthetic
+  // history entry makes the Android system back button (and browser Back) close the lightbox
+  // rather than leaving the listing; the cleanup pops it back if the lightbox was closed some
+  // other way (✕/backdrop/Escape), keeping the history stack balanced.
   useEffect(() => {
     if (!open) return
     const body = document.body
@@ -177,16 +180,21 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
     const prevOverscroll = body.style.overscrollBehavior
     body.style.overflow = 'hidden'
     body.style.overscrollBehavior = 'none'
+    window.history.pushState({ lightbox: true }, '')
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
       else if (e.key === 'ArrowLeft') setIdx((n) => Math.max(0, n - 1))
       else if (e.key === 'ArrowRight') setIdx((n) => Math.min(last, n + 1))
     }
+    const onPop = () => setOpen(false)
     window.addEventListener('keydown', onKey)
+    window.addEventListener('popstate', onPop)
     return () => {
       body.style.overflow = prevOverflow
       body.style.overscrollBehavior = prevOverscroll
       window.removeEventListener('keydown', onKey)
+      window.removeEventListener('popstate', onPop)
+      if (window.history.state?.lightbox) window.history.back()
     }
   }, [open, last])
 

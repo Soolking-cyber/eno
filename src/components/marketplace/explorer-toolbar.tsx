@@ -14,22 +14,25 @@ export type ViewMode = 'compact' | 'grid' | 'map' | 'video'
  *  the tab until at least one video listing exists (deep links via ?view=video still work). */
 export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showVideo?: boolean }) {
   const { tr } = useLanguage()
+  // p-2.5 + 18px icon ≈ a 38px tap target (was ~30px: p-2 + 14px icon, below the comfortable
+  // minimum). tap-44 can't be used here — four toggles sit a `gap-1` apart, so 44px hit areas
+  // would overlap and steal each other's taps (same failure the video-feed rail hit).
   const tab = (mode: ViewMode) =>
-    cn('rounded-lg p-2 transition-colors cursor-pointer', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
+    cn('rounded-lg p-2.5 transition-colors cursor-pointer', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
   return (
     <>
       <button onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} title={tr('List view', 'Danh sách')} className={tab('compact')}>
-        <List className="h-3.5 w-3.5" />
+        <List className="h-[18px] w-[18px]" />
       </button>
       <button onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} title={tr('Grid view', 'Lưới')} className={tab('grid')}>
-        <Grid className="h-3.5 w-3.5" />
+        <Grid className="h-[18px] w-[18px]" />
       </button>
       <button onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} title={tr('Map view', 'Xem Bản đồ')} className={tab('map')}>
-        <Map className="h-3.5 w-3.5" />
+        <Map className="h-[18px] w-[18px]" />
       </button>
       {showVideo && (
         <button onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} title={tr('Video view', 'Xem Video')} className={tab('video')}>
-          <Play className="h-3.5 w-3.5" />
+          <Play className="h-[18px] w-[18px]" />
         </button>
       )}
     </>

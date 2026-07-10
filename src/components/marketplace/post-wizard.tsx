@@ -434,7 +434,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       next.splice(to, 0, m)
       return next
     })
-  const { bind: bindPhoto } = usePointerReorder(movePhoto)
+  const { bind: bindPhoto, dragging: draggingPhoto } = usePointerReorder(movePhoto)
   const addPhotos = async (files: FileList | null) => {
     if (!files) return
     // Accept images incl. HEIC/HEIF (which lack an image/* type on some browsers).
@@ -739,7 +739,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 <div
                   key={i}
                   {...bindPhoto(i)}
-                  className="group relative aspect-square cursor-move touch-none select-none overflow-hidden rounded-xl bg-tint"
+                  className={cn(
+                    'group relative aspect-square cursor-move select-none overflow-hidden rounded-xl bg-tint transition-[transform,box-shadow]',
+                    // Lifted (mid-drag) affordance: the grabbed tile rises above the grid.
+                    draggingPhoto === i && 'z-10 scale-105 shadow-xl ring-2 ring-brand/50',
+                  )}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={p.url} alt="" draggable={false} className="pointer-events-none h-full w-full object-cover" />

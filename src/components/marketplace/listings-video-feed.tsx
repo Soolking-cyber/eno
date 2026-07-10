@@ -27,17 +27,29 @@ export function VideoFeed({
   onOpen,
   onPrefetch,
   onClose,
+  restoreTo = null,
 }: {
   baseParams: string
   onOpen: (l: SerializedListingCard) => void
   onPrefetch?: (id: string) => void
   onClose: () => void
+  // When re-opened after a back-nav from a listing (eno:video-return), restore to the clip the
+  // buyer left off on instead of snapping back to the top. By ID, not index: the feed's ordering
+  // can drift between leave and return (new listings, rank changes) — an index would silently
+  // land on the wrong clip. `params` is the baseParams the stash was written under: filters
+  // hydrate from the URL asynchronously (150ms query debounce), so the first fetch here can be
+  // the UNFILTERED list — the restore waits until baseParams matches before acting.
+  restoreTo?: { id: string; params: string } | null
 }) {
   const { tr } = useLanguage()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [activeIdx, setActiveIdx] = useState(0)
   // Muted by default (browsers block unmuted autoplay); a session toggle the user controls.
   const [muted, setMuted] = useState(true)
+  // onClose is an inline arrow in the parent (fresh identity every render); hold it in a ref so
+  // the history/keyboard effect below can run once on mount without re-pushing history entries.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['video-feed', baseParams],
@@ -53,14 +65,30 @@ export function VideoFeed({
   })
   const items = data?.listings ?? []
 
-  // Lock the page behind the takeover; Escape closes it.
+  // Lock the page behind the takeover; Escape closes it. Push a synthetic history entry so the
+  // Android system back button (and browser Back) CLOSES the feed instead of leaving the results
+  // page — mirrored symmetrically on close (history.back() consumes the entry we pushed). Runs
+  // once on mount (deps []) via the onCloseRef above so parent re-renders don't churn history.
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // Reuse an existing takeover entry instead of stacking a new one: after a back-nav from a
+    // listing opened inside the feed, the restored history entry ALREADY carries the flag —
+    // pushing again would accumulate one dead Back-press per open-listing round trip.
+    if (window.history.state?.takeover !== 'video') window.history.pushState({ takeover: 'video' }, '')
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
+    const onPop = () => { onCloseRef.current() }
     window.addEventListener('keydown', onKey)
-    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey) }
-  }, [onClose])
+    window.addEventListener('popstate', onPop)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('popstate', onPop)
+      // Closed via ✕/Escape (not Back): our entry is still current, so pop it to keep the back
+      // stack balanced. If Back closed it, the entry is already gone and history.state won't match.
+      if (window.history.state?.takeover === 'video') window.history.back()
+    }
+  }, [])
 
   // The most-visible clip becomes active (plays); the rest pause. Re-observe when items load
   // AND whenever the window moves — windowing swaps placeholder↔real DOM nodes around
@@ -80,6 +108,30 @@ export function VideoFeed({
     return () => obs.disconnect()
   }, [items.length, activeIdx])
 
+  // Restore to the clip the buyer left off on (back-nav from a listing). Waits until the loaded
+  // items are the RIGHT dataset (baseParams matches the stash) and the clip still exists; the
+  // placeholder div at its index always exists (windowing renders one per item), so scroll to it
+  // and the observer promotes it to the active real <video>. Not consumed until it succeeds — if
+  // the listing is gone (sold/deleted) the feed just opens at the top.
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (restoredRef.current || !restoreTo || restoreTo.params !== baseParams) return
+    const idx = items.findIndex((l) => l.id === restoreTo.id)
+    if (idx < 0) return
+    restoredRef.current = true
+    if (idx > 0) scrollRef.current?.querySelector<HTMLElement>(`[data-idx="${idx}"]`)?.scrollIntoView()
+  }, [items, restoreTo, baseParams])
+
+  // Opening a listing from the feed: stash where we are so a Back returns to this exact clip
+  // (mirrors the eno:feed-snap grid restore). Path-scoped + timestamped; consumed once by the
+  // explorer on remount.
+  const openListing = useCallback((l: SerializedListingCard) => {
+    try {
+      sessionStorage.setItem('eno:video-return', JSON.stringify({ path: window.location.pathname, id: l.id, params: baseParams, ts: Date.now() }))
+    } catch { /* ignore quota */ }
+    onOpen(l)
+  }, [onOpen, baseParams])
+
   // Desktop up/down arrows → snap to the neighbouring clip.
   const go = (dir: -1 | 1) => {
     const els = scrollRef.current?.querySelectorAll<HTMLElement>('[data-idx]')
@@ -93,7 +145,10 @@ export function VideoFeed({
           type="button"
           onClick={onClose}
           aria-label={tr('Close', 'Đóng')}
-          className="fixed left-4 top-4 z-[70] flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur transition-transform hover:scale-105 active:scale-90 cursor-pointer"
+          // Safe-area top: under viewport-fit:cover the notch/status bar would otherwise clip it.
+          // tap-44 lifts the 40×40 glyph to a 44px hit target (the button is `fixed` = positioned,
+          // so the ::before hit area anchors correctly without a `relative`).
+          className="fixed left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[70] flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur transition-transform hover:scale-105 active:scale-90 cursor-pointer tap-44"
         >
           <X className="h-5 w-5" />
         </button>
@@ -137,7 +192,7 @@ export function VideoFeed({
               active={i === activeIdx}
               muted={muted}
               onToggleMute={() => setMuted((m) => !m)}
-              onOpen={onOpen}
+              onOpen={openListing}
               onPrefetch={onPrefetch}
             />
           ) : (
@@ -258,8 +313,9 @@ function VideoFeedItem({
         {/* Legibility gradient. */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
-        {/* Info overlay — bottom-left, minimal. Tapping title / View opens the listing. */}
-        <div className="absolute inset-x-0 bottom-0 z-10 p-5 pr-16 text-white sm:pr-6">
+        {/* Info overlay — bottom-left, minimal. Tapping title / View opens the listing. pb tracks
+            the safe-area inset so the CTA clears the home indicator under viewport-fit:cover. */}
+        <div className="absolute inset-x-0 bottom-0 z-10 p-5 pr-16 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] text-white sm:pr-6">
           <button type="button" onClick={() => onOpen(listing)} onMouseEnter={() => onPrefetch?.(listing.id)} className="block max-w-md text-left">
             <h3 className="line-clamp-2 text-base font-semibold leading-snug drop-shadow sm:text-lg">{title}</h3>
           </button>
@@ -281,7 +337,7 @@ function VideoFeedItem({
 
         {/* Action rail — overlays the clip's bottom-right on mobile; sits BESIDE the clip (on the
             black) on desktop. */}
-        <div className="absolute bottom-6 right-2.5 z-10 flex flex-col items-center gap-5 text-white sm:bottom-10 sm:left-full sm:right-auto sm:ml-5">
+        <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] right-2.5 z-10 flex flex-col items-center gap-5 text-white sm:bottom-10 sm:left-full sm:right-auto sm:ml-5">
           <RailButton label={favorited ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')} onClick={() => toggle(listing.id)}>
             <Heart className={cn('h-8 w-8 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]', favorited ? 'fill-brand text-brand' : 'text-white')} />
           </RailButton>
