@@ -29,9 +29,14 @@ const nextConfig: NextConfig = {
     // tier + trimmed widths = fewer optimizer variants and smaller payloads.
     minimumCacheTTL: 2592000,
     qualities: [60, 70],
-    // Trimmed widths → fewer optimizer variants per image (each width×quality is a
-    // billed transformation). Keeps mobile-first sizes for VN; drops 750/1920.
-    deviceSizes: [360, 640, 1080],
+    // Widths tuned to the ACTUAL render sizes, not generic breakpoints (each width×quality
+    // is a billed transformation, so every rung must earn its place). 420 is the key one:
+    // the 2-col mobile card renders 181px CSS → a DPR2 phone needs 362px, but with only
+    // [360,640] the srcset skipped straight to 640 (360 is a hair too small) — a measured
+    // ~18KB/card over-serve (PSI "Improve image delivery"). 420 covers cards up to ~210px
+    // CSS at DPR2 with no visible quality loss; DPR3 flagships still correctly get 640
+    // (they need 543). 1080 stays for the PDP hero. 750/1920 remain dropped.
+    deviceSizes: [360, 420, 640, 1080],
     imageSizes: [64, 128, 256],
     remotePatterns: [
       {

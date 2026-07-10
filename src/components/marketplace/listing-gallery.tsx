@@ -393,6 +393,24 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               style={zoom ? { transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${ZOOM})` } : undefined}
             >
               <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} unoptimized={isMockImageUrl(images[idx]) || undefined} className="object-contain" />
+              {/* Max-quality detail layer: on an explicit zoom (double-tap/-click) load the
+                  ≤1600px stored master via `unoptimized` (the raw stored WebP, higher-res than
+                  the ≤1080 fit variant that CSS-scale(2.5) would just upscale into blur). It
+                  overlays the optimized image (which stays underneath, so there's never a blank
+                  frame while the sharper bytes arrive). Only fetched when the buyer actually
+                  zooms — the fit view stays lean. onError hides it so a failed fetch can't paint
+                  a broken glyph over the good base. */}
+              {zoom && (
+                <Image
+                  src={images[idx]}
+                  alt=""
+                  fill
+                  unoptimized
+                  aria-hidden
+                  className="object-contain"
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                />
+              )}
               <span className="img-watermark" aria-hidden />
             </div>
           </div>
