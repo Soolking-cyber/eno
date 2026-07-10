@@ -1,6 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["sin1"],
+  "functions": {
+    "src/app/api/upload/video/transcode/route.ts": {
+      "memory": 2048,
+      "maxDuration": 300
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/daily-reminders",

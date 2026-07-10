@@ -18,6 +18,16 @@ const nextConfig: NextConfig = {
     // are bundled (lucide-react is imported across ~68 files) — trims first-party JS.
     optimizePackageImports: ["lucide-react"],
   },
+  // ffmpeg-static must NOT be bundled: its exported binary path is `path.join(__dirname,
+  // 'ffmpeg')`, so if Next bundles it into the route chunk, __dirname resolves to the compiled
+  // chunk dir (wrong) and spawn ENOENTs → every transcode fails on Vercel (works in `next dev`
+  // where __dirname is the real node_modules — so it can ship green and be broken in prod).
+  // Externalizing keeps __dirname = node_modules/ffmpeg-static; outputFileTracingIncludes then
+  // guarantees the ~80MB binary is actually placed in that one route's Lambda.
+  serverExternalPackages: ["ffmpeg-static"],
+  outputFileTracingIncludes: {
+    "/api/upload/video/transcode": ["./node_modules/ffmpeg-static/ffmpeg"],
+  },
   // Pin the workspace root so Turbopack doesn't pick up a stray lockfile higher
   // up the tree (e.g. ~/package-lock.json) as the project root.
   turbopack: {

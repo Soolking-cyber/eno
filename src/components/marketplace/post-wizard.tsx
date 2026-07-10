@@ -245,7 +245,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [photos, setPhotos] = useState<{ url: string; file?: File }[]>(() => edit?.images?.map((url) => ({ url })) ?? [])
   // Optional single video: url-only in edit mode (already hosted); a new pick carries a File
   // + a blob: preview URL. ≤60s (duration-gated client-side) — autoplays on hover + in the feed.
-  const [video, setVideo] = useState<{ url: string; file?: File } | null>(() => (edit?.video ? { url: edit.video } : null))
+  const [video, setVideo] = useState<{ url: string; file?: File; hevc?: boolean } | null>(() => (edit?.video ? { url: edit.video } : null))
   const [videoBusy, setVideoBusy] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [contactName, setContactName] = useState('')
@@ -500,12 +500,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         toast.error(t('Video phải dài tối đa 60 giây.', 'Video must be 60 seconds or less.'))
         return
       }
-      if (await hasHevcTrack(f).catch(() => false)) {
-        URL.revokeObjectURL(url)
-        toast.error(t('Video dùng định dạng HEVC — nhiều điện thoại không xem được. Hãy xuất lại dạng MP4 (H.264): trên iPhone bật Cài đặt → Camera → Định dạng → Tương thích nhất.', "This video uses HEVC, which many phones can't play. Export it as MP4 (H.264) — on iPhone: Settings → Camera → Formats → Most Compatible."))
-        return
-      }
-      setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return { url, file: f } })
+      // HEVC is no longer rejected: the server transcodes it to H.264 at publish (fixing the
+      // Android-black-video problem). Record the fourcc probe so submit can fail CLOSED if that
+      // transcode doesn't succeed (rather than ship a raw HEVC clip that plays black).
+      const hevc = await hasHevcTrack(f).catch(() => false)
+      setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return { url, file: f, hevc } })
     } finally {
       setVideoBusy(false)
     }
@@ -549,10 +548,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       const imageUrls = photos.map((p) => (p.file ? uploaded[ui++] : p.url))
 
       // Upload a newly-picked clip; keep an already-hosted one (edit). null clears it (removed).
-      // DIRECT browser→storage: a Vercel function can't proxy the bytes (bodies over ~4.5MB
-      // are rejected before the route runs; real clips are 10–50MB). Three steps: mint a
-      // signed upload URL (auth + enforcement + type/size gates), PUT the file straight to
-      // Supabase, then /complete verifies the landed object's magic bytes and returns the URL.
+      // DIRECT browser→storage: a Vercel function can't proxy the bytes (bodies over ~4.5MB are
+      // rejected before the route runs; real clips are 10–50MB). Four steps: mint a signed upload
+      // URL (auth + enforcement + type/size gates), PUT the file straight to Supabase, /complete
+      // verifies the landed object's magic bytes, then /transcode re-encodes it to a lean H.264
+      // MP4 (fixes HEVC-plays-black on Android + cuts egress) and returns the compressed URL.
       let videoUrl: string | null = null
       if (video?.file) {
         const sig = await fetch('/api/upload/video/sign', {
@@ -571,7 +571,18 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path }),
         })
-        videoUrl = done.ok ? (((await done.json()) as { url?: string }).url ?? null) : null
+        if (!done.ok) throw new Error('video')
+
+        // Transcode. For H.264 this falls open to the raw clip on any hiccup ({fallback}); for
+        // HEVC it fails closed (422) — a raw HEVC clip plays black on most Android buyers, so
+        // we surface a retry rather than publish a broken video.
+        const xc = await fetch('/api/upload/video/transcode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path, hevc: video.hevc === true }),
+        })
+        if (xc.status === 422) throw new Error('video_hevc')
+        videoUrl = xc.ok ? (((await xc.json()) as { url?: string }).url ?? null) : null
         if (!videoUrl) throw new Error('video')
       } else if (video && !video.url.startsWith('blob:')) {
         videoUrl = video.url
@@ -638,6 +649,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? t('Không tải được ảnh, vui lòng thử lại.', 'Could not upload your photos — please try again.')
           : msg === 'video'
           ? t('Không tải được video, vui lòng thử lại.', 'Could not upload your video — please try again.')
+          : msg === 'video_hevc'
+          ? t('Không xử lý được video HEVC này. Hãy xuất lại dạng MP4 (H.264): trên iPhone bật Cài đặt → Camera → Định dạng → Tương thích nhất.', "Couldn't process this HEVC video. Export it as MP4 (H.264) — on iPhone: Settings → Camera → Formats → Most Compatible.")
           : msg === 'no_phone_in_listing' || msg === 'contact_in_text'
           ? t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post.")
           : msg === 'banned_words'
