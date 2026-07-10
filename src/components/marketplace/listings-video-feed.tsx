@@ -14,6 +14,7 @@ import { useLocalized } from './listing-content'
 import { Price } from './price'
 import { Spinner } from '@/components/ui/spinner'
 import { stashQuickCompose } from '@/lib/quick-contact'
+import { optimizedImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -61,7 +62,9 @@ export function VideoFeed({
     return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey) }
   }, [onClose])
 
-  // The most-visible clip becomes active (plays); the rest pause. Re-observe when items load.
+  // The most-visible clip becomes active (plays); the rest pause. Re-observe when items load
+  // AND whenever the window moves — windowing swaps placeholder↔real DOM nodes around
+  // activeIdx, and the observer must track the CURRENT elements, not the replaced ones.
   useEffect(() => {
     const root = scrollRef.current
     if (!root || items.length === 0) return
@@ -75,7 +78,7 @@ export function VideoFeed({
     )
     root.querySelectorAll('[data-idx]').forEach((el) => obs.observe(el))
     return () => obs.disconnect()
-  }, [items.length])
+  }, [items.length, activeIdx])
 
   // Desktop up/down arrows → snap to the neighbouring clip.
   const go = (dir: -1 | 1) => {
@@ -121,18 +124,26 @@ export function VideoFeed({
   return shell(
     <>
       <div ref={scrollRef} className="h-full w-full snap-y snap-mandatory overflow-y-auto overscroll-contain scrollbar-none">
-        {items.map((l, i) => (
-          <VideoFeedItem
-            key={l.id}
-            listing={l}
-            index={i}
-            active={i === activeIdx}
-            muted={muted}
-            onToggleMute={() => setMuted((m) => !m)}
-            onOpen={onOpen}
-            onPrefetch={onPrefetch}
-          />
-        ))}
+        {items.map((l, i) =>
+          // WINDOWING: materialize only the active clip ± 1 neighbor. Mounting all 30 items
+          // spun up 30 <video> pipelines and eagerly fetched 30 posters (~10MB on Slow-4G)
+          // the moment the feed opened. Placeholders keep identical snap geometry and carry
+          // data-idx so the IntersectionObserver still advances activeIdx while scrolling.
+          Math.abs(i - activeIdx) <= 1 ? (
+            <VideoFeedItem
+              key={l.id}
+              listing={l}
+              index={i}
+              active={i === activeIdx}
+              muted={muted}
+              onToggleMute={() => setMuted((m) => !m)}
+              onOpen={onOpen}
+              onPrefetch={onPrefetch}
+            />
+          ) : (
+            <div key={l.id} data-idx={i} className="h-full w-full snap-start snap-always" />
+          ),
+        )}
       </div>
 
       {/* Desktop prev/next arrows (far right, like TikTok web). */}
@@ -226,7 +237,7 @@ function VideoFeedItem({
           <video
             ref={videoRef}
             src={listing.video}
-            poster={listing.images[0]}
+            poster={listing.images[0] ? optimizedImageUrl(listing.images[0]) : undefined}
             loop
             playsInline
             muted

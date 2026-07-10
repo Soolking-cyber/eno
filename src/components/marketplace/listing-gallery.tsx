@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tr, useLanguage } from '@/context/language-context'
-import { isMockImageUrl } from '@/lib/listing-image'
+import { isMockImageUrl, optimizedImageUrl } from '@/lib/listing-image'
 
 type Props = {
   images: string[]
@@ -16,36 +16,90 @@ type Props = {
   showAllLabel?: string
 }
 
-/** The video slide inside the gallery: the first photo is the poster (instant preview), then
- *  it autoplays muted + loops once it's the visible slide (IntersectionObserver → pause when
- *  swiped away, so only the on-screen clip streams). A small mute toggle restores sound since
- *  the standalone player (with controls) is gone. Fills the frame (object-cover) like a photo. */
+/** Autoplay is a cost + accessibility decision, not a given: skip it for reduced-motion
+ *  users and metered/slow connections (Save-Data, 2g) — they get the poster + a play button. */
+function autoplayAllowed(): boolean {
+  if (typeof window === 'undefined') return false
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false
+  type NetInfo = { saveData?: boolean; effectiveType?: string }
+  const conn = (navigator as Navigator & { connection?: NetInfo }).connection
+  if (conn?.saveData) return false
+  if (conn?.effectiveType === 'slow-2g' || conn?.effectiveType === '2g') return false
+  return true
+}
+
+/** The video slide inside the gallery: the first photo is the poster (instant preview,
+ *  optimizer-sized — the raw storage URL is ~20× the bytes and becomes the LCP). Autoplays
+ *  muted + loops once it's the visible slide (IntersectionObserver → pauses when swiped
+ *  away), EXCEPT under reduced-motion/Save-Data/2g where it waits for a tap. Tap toggles
+ *  play/pause (TikTok-conditioned reflex); a mute toggle restores sound. `preload` starts
+ *  "none" and flips on first visibility — the mobile carousel and desktop mosaic BOTH mount
+ *  (CSS-hidden per breakpoint), and this keeps the hidden twin from fetching anything. */
 function GalleryVideo({ src, poster, className }: { src: string; poster?: string; className?: string }) {
   const { tr } = useLanguage()
   const ref = useRef<HTMLVideoElement>(null)
   const [muted, setMuted] = useState(true)
+  const [engaged, setEngaged] = useState(false) // visible at least once → allow preload
+  const [paused, setPaused] = useState(false)
+  const [needsTap, setNeedsTap] = useState(false)
   useEffect(() => {
     const v = ref.current
     if (!v) return
+    const canAuto = autoplayAllowed()
+    if (!canAuto) setNeedsTap(true)
     const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting && e.intersectionRatio >= 0.5) v.play().catch(() => {}); else v.pause() },
+      ([e]) => {
+        if (e.isIntersecting && e.intersectionRatio >= 0.5) {
+          // preload flips only for autoplay-eligible viewers — Save-Data/2g/reduced-motion
+          // users must not buffer video bytes until THEY tap play (togglePlay sets engaged).
+          if (canAuto) { setEngaged(true); v.play().catch(() => {}); setPaused(false) }
+        } else {
+          v.pause()
+        }
+      },
       { threshold: [0.5] },
     )
     obs.observe(v)
     return () => obs.disconnect()
   }, [])
   useEffect(() => { if (ref.current) ref.current.muted = muted }, [muted])
+  const togglePlay = () => {
+    const v = ref.current
+    if (!v) return
+    setNeedsTap(false)
+    setEngaged(true) // an explicit tap is consent to buffer, even for gated viewers
+    if (v.paused) { v.play().catch(() => {}); setPaused(false) }
+    else { v.pause(); setPaused(true) }
+  }
+  const showPlayGlyph = needsTap || paused
   return (
     <div className={cn('relative h-full w-full overflow-hidden bg-black', className)}>
-      <video ref={ref} src={src} poster={poster} muted loop autoPlay playsInline preload="metadata" className="h-full w-full object-cover" />
+      <video
+        ref={ref}
+        src={src}
+        poster={poster ? optimizedImageUrl(poster) : undefined}
+        muted
+        loop
+        playsInline
+        preload={engaged ? 'auto' : 'none'}
+        onClick={togglePlay}
+        className="h-full w-full cursor-pointer object-cover"
+      />
       <span className="pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-bold text-white backdrop-blur-[2px]">
         <Play className="h-3 w-3 fill-current" /> {tr('Video', 'Video')}
       </span>
+      {showPlayGlyph && (
+        <button type="button" onClick={togglePlay} aria-label={tr('Play video', 'Phát video')} className="absolute inset-0 z-10 flex items-center justify-center cursor-pointer">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-[2px]">
+            <Play className="h-7 w-7 fill-current" />
+          </span>
+        </button>
+      )}
       <button
         type="button"
         aria-label={muted ? tr('Unmute', 'Bật tiếng') : tr('Mute', 'Tắt tiếng')}
         onClick={(e) => { e.stopPropagation(); setMuted((m) => !m) }}
-        className="absolute bottom-2 left-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-[2px] transition-transform active:scale-90 cursor-pointer tap-44"
+        className="absolute bottom-2 left-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-[2px] transition-transform active:scale-90 cursor-pointer tap-44"
       >
         {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </button>

@@ -11,7 +11,7 @@ import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
-import { isMockImageUrl } from '@/lib/listing-image'
+import { isMockImageUrl, optimizedImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
@@ -206,7 +206,7 @@ function ListingCardImpl({
         {listing.video && hoverVideo && (
           <video
             src={listing.video}
-            poster={images[0]}
+            poster={images[0] ? optimizedImageUrl(images[0], 360) : undefined}
             muted
             loop
             autoPlay

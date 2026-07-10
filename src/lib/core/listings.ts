@@ -8,7 +8,21 @@ import { canBump } from '@/lib/stale'
 import { containsPhoneNumber } from '@/lib/phone'
 import { buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
-import { isListingImageUrl, isListingVideoUrl } from '@/lib/listing-image'
+import { isListingImageUrl } from '@/lib/listing-image'
+import { isCanonicalVideoUrl, removeListingVideoByUrl } from '@/lib/core/media'
+
+/** Evict a listing video's storage object ONLY when no listing references it anymore.
+ *  URLs are client-suppliable (the wizard round-trips them), so URL↔listing is not 1:1 —
+ *  an unconditional delete would let a throwaway listing pointed at someone else's public
+ *  video URL destroy that seller's clip. Best-effort inside after(); GC is the backstop. */
+async function removeVideoIfOrphaned(url: string): Promise<void> {
+  try {
+    const stillReferenced = await db.listing.count({ where: { video: url } })
+    if (stillReferenced === 0) await removeListingVideoByUrl(url)
+  } catch (e) {
+    console.error('[listings] video eviction check', e)
+  }
+}
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
 import { rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory } from '@/lib/taxonomy'
 import { syndicateListing } from '@/lib/syndicate'
@@ -95,7 +109,7 @@ export async function updateListingCore(
   const current = await db.listing.findUnique({
     where: { id: listingId },
     select: {
-      title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true,
+      title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true, video: true,
       // Price-drop pipeline + urgent gate inputs
       price: true, createdAt: true, sellerId: true, previousPrice: true, priceDropAt: true, lowestNotifiedPrice: true, priceDropNotifiedAt: true, urgentUntil: true,
       seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
@@ -166,10 +180,16 @@ export async function updateListingCore(
     const images = (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     data.images = JSON.stringify(images)
   }
-  // Optional single video: a valid first-party URL sets it; explicit null/'' clears it
-  // (seller removed the clip). Anything else (a foreign URL) is ignored, not persisted.
+  // Optional single video: a CANONICAL first-party URL (our bucket + a minted object name)
+  // sets it; explicit null/'' clears it (seller removed the clip). Anything else — foreign
+  // hosts, arbitrary bucket paths, malformed suffixes — is ignored, not persisted. The old
+  // object's eviction is registered ONLY after the DB write commits (below): after() runs
+  // even when the response is an error, so queueing it here would delete a live clip on a
+  // rejected edit (banned word, failed transaction).
+  let evictOldVideo: string | null = null
   if (body.video !== undefined) {
-    data.video = isListingVideoUrl(body.video) ? body.video : null
+    data.video = isCanonicalVideoUrl(body.video) ? body.video : null
+    if (current.video && current.video !== data.video) evictOldVideo = current.video
   }
 
   // Subcategory — must belong to the listing's (unchanged) category.
@@ -307,6 +327,11 @@ export async function updateListingCore(
     await db.listing.update({ where: { id: listingId }, data })
   }
   if (dropNotify) after(dropNotify) // buyer fan-out never delays the response
+  // The replaced/removed clip is only NOW (post-commit) safe to evict — and only if no other
+  // listing still references the same object (URLs are client-suppliable, so URL↔listing is
+  // NOT 1:1; without the refcount, pointing a throwaway listing at a victim's public video
+  // URL and clearing it would delete the victim's clip). GC cron remains the backstop.
+  if (evictOldVideo) after(() => removeVideoIfOrphaned(evictOldVideo!))
   if (brandChange) after(() => Promise.all([
     brandChange!.from ? bumpBrandCount(brandChange!.from, -1) : Promise.resolve(),
     brandChange!.to ? bumpBrandCount(brandChange!.to, 1) : Promise.resolve(),
@@ -358,8 +383,9 @@ export async function createListingCore(input: {
   const images: string[] = Array.isArray(body.images)
     ? (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     : []
-  // Optional single listing video — a valid first-party URL only, else dropped.
-  const video: string | null = isListingVideoUrl(body.video) ? body.video : null
+  // Optional single listing video — a CANONICAL first-party URL only (our bucket + a minted
+  // object name; foreign hosts/paths/garbage suffixes dropped).
+  const video: string | null = isCanonicalVideoUrl(body.video) ? body.video : null
   const district = body.district ? String(body.district).trim().slice(0, 80) : null
   const city = body.city ? String(body.city).trim().slice(0, 80) : 'Ho Chi Minh City'
   const location = body.location ? String(body.location).trim().slice(0, 120) : (district || city)
@@ -537,9 +563,10 @@ export async function createListingCore(input: {
 /** Delete an OWNED listing (cascades reports/conversations); decrements its brand
  *  count, purges the cached page, and drops it from AI search. */
 export async function deleteListingCore(listingId: string): Promise<{ ok: true }> {
-  const gone = await db.listing.findUnique({ where: { id: listingId }, select: { brandSlug: true, sellerId: true } })
+  const gone = await db.listing.findUnique({ where: { id: listingId }, select: { brandSlug: true, sellerId: true, video: true } })
   await db.listing.delete({ where: { id: listingId } })
   if (gone?.brandSlug) after(() => bumpBrandCount(gone.brandSlug!, -1))
+  if (gone?.video) after(() => removeVideoIfOrphaned(gone.video!)) // don't strand the clip — unless another listing still references it
   revalidatePath(`/listings/${listingId}`)
   after(() => removeFromIndex(listingId)) // drop the deleted listing from AI search
   if (gone?.sellerId) after(() => dispatchListingEvent('listing.deleted', listingId, gone.sellerId!)) // the listing is gone — pass sellerId explicitly

@@ -2,6 +2,7 @@ import 'server-only'
 import sharp from 'sharp'
 import { getSupabaseAdmin, LISTINGS_BUCKET, EVIDENCE_BUCKET, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { dHash } from '@/lib/image-hash'
+import { isListingVideoUrl } from '@/lib/listing-image'
 
 // Listing-image media core. Single place that turns raw image bytes into a stored,
 // first-party WebP asset — shared by /api/upload (post wizard), the bulk importer's
@@ -94,7 +95,10 @@ export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string
   }
   const path = `${opts.pathPrefix ?? ''}${Date.now()}-${Math.random().toString(36).slice(2, 8)}${hash ? `-h${hash}` : ''}.webp`
   const admin = getSupabaseAdmin()
-  const { error } = await admin.storage.from(LISTINGS_BUCKET).upload(path, out, { contentType: 'image/webp', upsert: false })
+  // Objects are uniquely named and never rewritten (upsert:false) → immutable: cache for a
+  // year. Without this Supabase defaults to max-age=3600 and raw-URL consumers (OG scrapes,
+  // video posters) refetch + bill egress every hour.
+  const { error } = await admin.storage.from(LISTINGS_BUCKET).upload(path, out, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' })
   if (error) {
     console.error('[media] store', error.message)
     return null
@@ -103,33 +107,72 @@ export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string
 }
 
 // ── Listing video ──────────────────────────────────────────────────────────────────
-// A single optional clip per listing (≤60s, enforced client-side on duration + here on
-// bytes/type). Stored RAW — no server transcode (that needs ffmpeg we don't run); the
-// bucket's own MIME allowlist + size limit are a second gate. content-type → extension.
+// A single optional clip per listing (≤60s, duration-gated client-side). Uploaded DIRECTLY
+// browser→storage via a signed upload URL — a Vercel function can't proxy the bytes (bodies
+// over ~4.5MB are rejected with FUNCTION_PAYLOAD_TOO_LARGE before the route runs, and a real
+// phone clip is 10–50MB). The server's role: mint the signed URL (auth + enforcement + type/
+// size pre-check in /api/upload/video/sign) and then VERIFY the landed object's magic bytes
+// (/api/upload/video/complete) before handing back a usable URL. Stored raw — no transcode.
 export const VIDEO_ALLOWED = new Map<string, string>([
   ['video/mp4', 'mp4'],
   ['video/webm', 'webm'],
   ['video/quicktime', 'mov'],
 ])
-export const VIDEO_MAX_BYTES = 50 * 1024 * 1024 // 50MB — a decent-quality 60s clip; matches the bucket limit
+export const VIDEO_MAX_BYTES = 50 * 1024 * 1024 // 50MB — matches the bucket's own limit
+
+// Storage object names the sign route mints (and the only shape complete/GC will touch).
+export const VIDEO_PATH_RE = /^\d{10,16}-[a-z0-9]{4,12}\.(mp4|webm|mov)$/
 
 /**
- * Store a raw listing video in the public `listing-videos` bucket and return its public
- * URL, or null on failure (never throws). The caller MUST validate content-type against
- * VIDEO_ALLOWED and size against VIDEO_MAX_BYTES first; `contentType` here must be a key
- * of VIDEO_ALLOWED. No processing/transcoding — bytes are stored as-is.
+ * Does this buffer LOOK like one of the allowed video containers? Checks the real magic
+ * bytes so a blob merely LABELED video/mp4 can't be parked in the public bucket:
+ *  - MP4/MOV: an ISO-BMFF `ftyp` box at offset 4
+ *  - WebM/MKV: the EBML header 0x1A45DFA3 at offset 0
+ * Needs only the first 12 bytes.
  */
-export async function storeListingVideo(buf: Buffer, contentType: string): Promise<string | null> {
-  const ext = VIDEO_ALLOWED.get(contentType)
-  if (!ext || buf.length === 0 || buf.length > VIDEO_MAX_BYTES) return null
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-  const admin = getSupabaseAdmin()
-  const { error } = await admin.storage.from(LISTING_VIDEOS_BUCKET).upload(path, buf, { contentType, upsert: false })
-  if (error) {
-    console.error('[media] store video', error.message)
-    return null
+export function looksLikeVideo(head: Buffer): boolean {
+  if (head.length < 12) return false
+  if (head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) return true // EBML (webm)
+  return head.subarray(4, 8).toString('latin1') === 'ftyp' // ISO-BMFF (mp4/mov)
+}
+
+/** Storage path for a first-party listing-video URL, else null. NEVER throws — a malformed
+ *  percent-sequence in a stored URL must not blow up eviction callbacks or the GC cron
+ *  (decodeURIComponent throws URIError on e.g. a lone '%'). Canonical minted paths contain
+ *  no percent-encoding, so the raw suffix is returned when decoding fails. */
+export function videoPathFromUrl(url: string): string | null {
+  const m = url.match(/\/storage\/v1\/object\/public\/listing-videos\/(.+)$/)
+  if (!m) return null
+  try {
+    return decodeURIComponent(m[1])
+  } catch {
+    return m[1]
   }
-  return admin.storage.from(LISTING_VIDEOS_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
+/** The ONLY video URL shape a listing may persist: OUR project's bucket (host-pinned via
+ *  isListingVideoUrl) + an exactly-canonical minted object name (VIDEO_PATH_RE). Stricter
+ *  than isListingVideoUrl (prefix-only) on purpose — it stops (a) foreign/garbage suffixes
+ *  (a lone '%' used to be storable and killed the GC cron's decode) and (b) re-pointing at
+ *  arbitrary bucket paths. Cross-listing reuse of a canonical URL is handled at eviction
+ *  time (refcount), not here. */
+export function isCanonicalVideoUrl(url: unknown): url is string {
+  if (!isListingVideoUrl(url)) return false
+  const m = url.match(/\/listing-videos\/([^/]+)$/)
+  return !!m && VIDEO_PATH_RE.test(m[1])
+}
+
+/** Best-effort delete of a listing video's storage object (replace/remove/listing-delete).
+ *  Never throws — the nightly GC cron is the backstop for anything missed. */
+export async function removeListingVideoByUrl(url: string | null | undefined): Promise<void> {
+  if (!url) return
+  const path = videoPathFromUrl(url)
+  if (!path) return
+  try {
+    await getSupabaseAdmin().storage.from(LISTING_VIDEOS_BUCKET).remove([path])
+  } catch (e) {
+    console.error('[media] remove video', e)
+  }
 }
 
 // Evidence keeps more detail than a listing hero: receipts/chat screenshots must stay

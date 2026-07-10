@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock, Sparkles, Loader2, LocateFixed, Zap, Video } from 'lucide-react'
+import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
@@ -458,9 +459,26 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     }
   }
 
-  // Optional listing clip. Validate type + size + DURATION (≤60s, read from metadata) on the
-  // client so the seller gets an instant, specific rejection; the server/bucket re-check bytes+type.
+  // Optional listing clip. Validate type + size + DURATION (≤60s, read from metadata) + CODEC
+  // on the client so the seller gets an instant, specific rejection; the server re-checks
+  // magic bytes and the bucket re-checks type/size at upload.
   const VIDEO_MAX_MB = 50
+  // HEVC (H.265) detector: iPhones capture .mov/.mp4 in High-Efficiency HEVC by default, which
+  // mid-range Android Chrome (the majority buyer here) often can't decode — the clip would play
+  // as a black box for most of the audience and the seller would never know. The `hvc1`/`hev1`
+  // codec fourcc lives in the moov box, which sits at the START (faststart) or END of the file —
+  // scan both edges. H.264 (`avc1`) passes. Heuristic by design: a false negative just means the
+  // clip uploads as-is; the sniff costs two 2MB slices, no full read.
+  const hasHevcTrack = async (f: File): Promise<boolean> => {
+    const EDGE = 2 * 1024 * 1024
+    const edges = f.size <= 2 * EDGE ? [f] : [f.slice(0, EDGE), f.slice(f.size - EDGE)]
+    const dec = new TextDecoder('latin1')
+    for (const part of edges) {
+      const text = dec.decode(await part.arrayBuffer())
+      if (text.includes('hvc1') || text.includes('hev1')) return true
+    }
+    return false
+  }
   const addVideo = async (files: FileList | null) => {
     const f = files?.[0]
     if (!f) return
@@ -480,6 +498,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       if (!Number.isFinite(dur) || dur > 61) {
         URL.revokeObjectURL(url)
         toast.error(t('Video phải dài tối đa 60 giây.', 'Video must be 60 seconds or less.'))
+        return
+      }
+      if (await hasHevcTrack(f).catch(() => false)) {
+        URL.revokeObjectURL(url)
+        toast.error(t('Video dùng định dạng HEVC — nhiều điện thoại không xem được. Hãy xuất lại dạng MP4 (H.264): trên iPhone bật Cài đặt → Camera → Định dạng → Tương thích nhất.', "This video uses HEVC, which many phones can't play. Export it as MP4 (H.264) — on iPhone: Settings → Camera → Formats → Most Compatible."))
         return
       }
       setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return { url, file: f } })
@@ -526,12 +549,29 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       const imageUrls = photos.map((p) => (p.file ? uploaded[ui++] : p.url))
 
       // Upload a newly-picked clip; keep an already-hosted one (edit). null clears it (removed).
+      // DIRECT browser→storage: a Vercel function can't proxy the bytes (bodies over ~4.5MB
+      // are rejected before the route runs; real clips are 10–50MB). Three steps: mint a
+      // signed upload URL (auth + enforcement + type/size gates), PUT the file straight to
+      // Supabase, then /complete verifies the landed object's magic bytes and returns the URL.
       let videoUrl: string | null = null
       if (video?.file) {
-        const fd = new FormData()
-        fd.append('file', video.file)
-        const vr = await fetch('/api/upload/video', { method: 'POST', body: fd })
-        videoUrl = vr.ok ? (((await vr.json()) as { url?: string }).url ?? null) : null
+        const sig = await fetch('/api/upload/video/sign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: video.file.type, size: video.file.size }),
+        })
+        if (!sig.ok) throw new Error('video')
+        const { path, token } = (await sig.json()) as { path: string; token: string }
+        const { error: upErr } = await createSupabaseBrowser()
+          .storage.from('listing-videos')
+          .uploadToSignedUrl(path, token, video.file, { contentType: video.file.type, cacheControl: '31536000' })
+        if (upErr) throw new Error('video')
+        const done = await fetch('/api/upload/video/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path }),
+        })
+        videoUrl = done.ok ? (((await done.json()) as { url?: string }).url ?? null) : null
         if (!videoUrl) throw new Error('video')
       } else if (video && !video.url.startsWith('blob:')) {
         videoUrl = video.url
