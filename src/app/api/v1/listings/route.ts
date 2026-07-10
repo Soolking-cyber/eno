@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
       if (e instanceof PublishBlockedError) {
         const message = e.code === 'account_restricted' ? 'Shop is restricted (low trust) — cannot publish until its score recovers.'
           : e.code === 'photo_required' ? 'At least one image is required.'
+          : e.code === 'photos_min' ? 'At least 3 images from different angles are required (the same photo repeated counts as one).'
           : e.code === 'banned_words' ? 'The title or description contains a disallowed word.'
           : e.code === 'duplicate_listing' ? 'Duplicate of a live listing on this shop (see detail for its id) — update or bump the existing listing instead of re-posting it.'
           : 'Remove phone numbers, contact info or addresses from the title/description.'

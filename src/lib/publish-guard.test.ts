@@ -71,9 +71,11 @@ describe('containsContactInfo — off-platform bypass', () => {
 })
 
 describe('assertPublishable — gate priority & happy path', () => {
-  const ok = { trustTier: 'standard', images: ['a.webp'], texts: ['Like new iPhone 15, great condition'] }
+  // 3 DISTINCT angles required. These URLs carry no embedded dHash (…-h<hex>.), so each counts
+  // as a distinct angle (fail-open), which is what a clean 3-photo listing looks like to the gate.
+  const ok = { trustTier: 'standard', images: ['a.webp', 'b.webp', 'c.webp'], texts: ['Like new iPhone 15, great condition'] }
 
-  it('passes a clean listing from a non-restricted account with a photo', () => {
+  it('passes a clean listing from a non-restricted account with 3 photos', () => {
     expect(blockCodeOf(() => assertPublishable(ok))).toBeNull()
   })
 
@@ -83,6 +85,16 @@ describe('assertPublishable — gate priority & happy path', () => {
 
   it('requires at least one photo (before content checks)', () => {
     expect(blockCodeOf(() => assertPublishable({ ...ok, images: [], texts: ['bán heroin'] }))).toBe('photo_required')
+  })
+
+  it('requires at least 3 photos (fewer → photos_min, before content checks)', () => {
+    expect(blockCodeOf(() => assertPublishable({ ...ok, images: ['a.webp', 'b.webp'], texts: ['bán heroin'] }))).toBe('photos_min')
+  })
+
+  it('treats the SAME photo repeated as one angle (photos_min)', () => {
+    // Identical embedded dHash → one cluster → 1 distinct angle → below the bar of 3.
+    const dup = 'x-habcdef0123456789.webp'
+    expect(blockCodeOf(() => assertPublishable({ ...ok, images: [dup, dup, dup] }))).toBe('photos_min')
   })
 
   it('blocks a phone number in text', () => {

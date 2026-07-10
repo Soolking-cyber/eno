@@ -1,5 +1,11 @@
 import { containsPhoneNumber } from './phone'
 import { fold } from './fold'
+import { countDistinctAngles } from './image-hash-url'
+
+// Every listing must show the item from at least this many DIFFERENT angles (distinct photos,
+// not the same shot repeated). Buyers can't inspect condition from one photo; it's also a cheap
+// low-effort/scam filter. Enforced server-side via the perceptual hash baked into each image URL.
+export const MIN_IMAGE_ANGLES = 3
 
 // The single publish gate. Listings go LIVE instantly — there is NO held-for-review queue.
 // Instead a post is REJECTED up-front so the seller can fix it (or, for a Restricted
@@ -7,7 +13,7 @@ import { fold } from './fold'
 // and bulk import so every path enforces the same rules. Returned codes map to clear
 // messages in the post wizard.
 
-export type PublishBlockCode = 'account_restricted' | 'photo_required' | 'banned_words' | 'contact_in_text' | 'duplicate_listing'
+export type PublishBlockCode = 'account_restricted' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'duplicate_listing'
 
 export class PublishBlockedError extends Error {
   code: PublishBlockCode
@@ -125,8 +131,17 @@ export function containsContactInfo(text: string | null | undefined): boolean {
  */
 export function assertPublishable(input: { trustTier?: string; images: unknown[]; texts: (string | null | undefined)[] }) {
   if (input.trustTier === 'restricted') throw new PublishBlockedError('account_restricted')
-  if (input.images.length < 1) throw new PublishBlockedError('photo_required')
+  assertEnoughAngles(input.images)
   assertCleanTexts(input.texts)
+}
+
+/** ≥1 photo (photo_required) AND ≥MIN_IMAGE_ANGLES DISTINCT angles (photos_min) — the same
+ *  photo uploaded N times still counts as one angle. Shared by CREATE and EDIT so an edit can't
+ *  drop a live listing below the bar. Images are the listing's stored URLs (their dHash is in
+ *  the URL); older/unhashed images fail open (counted as distinct). */
+export function assertEnoughAngles(images: unknown[]) {
+  if (images.length < 1) throw new PublishBlockedError('photo_required')
+  if (countDistinctAngles(images as string[]) < MIN_IMAGE_ANGLES) throw new PublishBlockedError('photos_min')
 }
 
 /** The content screens alone (phone / contact / banned words) — shared by CREATE

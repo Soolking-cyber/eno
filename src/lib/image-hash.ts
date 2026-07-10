@@ -1,5 +1,11 @@
 import 'server-only'
 import sharp from 'sharp'
+import { hashFromUrl, hammingHex } from '@/lib/image-hash-url'
+
+// Re-export the isomorphic URL/hash helpers so existing server importers of this module keep
+// working; the pure (no-sharp) versions live in image-hash-url.ts so client code (the publish
+// guard, imported by the post wizard) can use them without pulling sharp / server-only.
+export { hashFromUrl, hammingHex, hexToBits, countDistinctAngles, SAME_ANGLE_THRESHOLD } from '@/lib/image-hash-url'
 
 // Perceptual image hashing for duplicate detection (the IMAGE signal that complements the
 // text/title/price signal in duplicate-guard). dHash ("difference hash"): shrink to 9×8
@@ -33,37 +39,6 @@ export async function dHash(buf: Buffer): Promise<string | null> {
   } catch {
     return null
   }
-}
-
-/** Hamming distance (0–64) between two 16-hex dHashes. 0 = identical image; a re-encode /
- *  resize is typically ≤ ~8; genuinely different photos are ~25+. Returns 64 on bad input. */
-export function hammingHex(a: string, b: string): number {
-  if (a.length !== b.length) return 64
-  let d = 0
-  for (let i = 0; i < a.length; i++) {
-    let x = parseInt(a[i], 16) ^ parseInt(b[i], 16)
-    if (Number.isNaN(x)) return 64
-    while (x) { d += x & 1; x >>= 1 }
-  }
-  return d
-}
-
-// The dHash is embedded in the stored filename (`…-h<16hex>.webp`) by storeListingImage, so
-// it travels inside the image URL already saved on the listing — no schema/DB column needed.
-const HASH_IN_URL = /-h([0-9a-f]{16})\./i
-
-/** Extract the embedded dHash from a stored image URL, or null (older images have none). */
-export function hashFromUrl(url: string): string | null {
-  const m = HASH_IN_URL.exec(url)
-  return m ? m[1].toLowerCase() : null
-}
-
-/** 16-hex dHash → the 64-char "0/1" string Postgres casts to bit(64) (`$1::bit(64)`), used to
- *  store/query the pgvector Hamming index for cross-app image dedup. */
-export function hexToBits(hex: string): string {
-  let bits = ''
-  for (const c of hex) bits += (parseInt(c, 16) || 0).toString(2).padStart(4, '0')
-  return bits.slice(0, 64).padEnd(64, '0')
 }
 
 /** How many of A's images are a near-duplicate of some image of B (Hamming ≤ threshold),

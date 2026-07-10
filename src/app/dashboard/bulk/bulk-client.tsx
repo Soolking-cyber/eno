@@ -40,6 +40,7 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
     else if (title.length < 3) err = tr('Title too short', 'Tiêu đề quá ngắn')
     else if (!Number.isFinite(priceNum) || priceNum < 0) err = tr('Invalid price', 'Giá không hợp lệ')
     else if (containsPhoneNumber(title) || containsPhoneNumber(r.description || '')) err = tr('Phone number not allowed', 'Không được ghi số điện thoại')
+    else if (String(r.image_urls || '').split(/[|,\n]/).map((u) => u.trim()).filter(Boolean).length < 3) err = tr('Needs at least 3 photo URLs (different angles)', 'Cần ít nhất 3 URL ảnh (các góc khác nhau)')
     return { ...r, price: String(priceNum || ''), _row: i + 1, _error: err }
   }
 
@@ -60,7 +61,7 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
   }
 
   const downloadTemplate = () => {
-    const example = 'electronics,iPhone 13 128GB,Like new with box and charger,9500000,District 1,used-like-new,https://example.com/photo1.jpg|https://example.com/photo2.jpg'
+    const example = 'electronics,iPhone 13 128GB,Like new with box and charger,9500000,District 1,used-like-new,https://example.com/photo1.jpg|https://example.com/photo2.jpg|https://example.com/photo3.jpg'
     const legend = '# Valid category_slug values: ' + categories.map((c) => c.slug).join(', ')
     const csv = `${COLUMNS.join(',')}\n${example}\n${legend}`
     const blob = new Blob([csv], { type: 'text/csv' })

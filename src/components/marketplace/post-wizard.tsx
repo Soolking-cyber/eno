@@ -380,7 +380,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
   // Required-field checklist (drives the Publish button + the "what's left" hint).
   const checks = [
-    { key: 'photo', ok: photos.length >= 1, label: t('Thêm ảnh', 'Add a photo') },
+    { key: 'photo', ok: photos.length >= 3, label: t('Thêm 3 ảnh', 'Add 3 photos') },
     { key: 'category', ok: !!categorySlug, label: t('Chọn danh mục', 'Pick a category') },
     { key: 'title', ok: title.trim().length >= 3, label: t('Nhập tiêu đề', 'Add a title') },
     { key: 'price', ok: price.trim().length > 0, label: t('Nhập giá', 'Set a price') },
@@ -404,7 +404,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // field flags clear the instant a field is filled, so the red recedes as they go.
   const [attempted, setAttempted] = useState(false)
   const err = {
-    photo: attempted && photos.length < 1,
+    photo: attempted && photos.length < 3,
     category: attempted && !categorySlug,
     title: (touched.title || attempted) && title.trim().length < 3,
     price: (touched.price || attempted) && price.trim().length === 0,
@@ -663,6 +663,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? t('Bạn đã có tin đang hiển thị cho sản phẩm này. Vào Tin đăng để chỉnh sửa hoặc xác nhận còn hàng thay vì đăng lại.', "You already have a live listing for this item. Open My Listings to edit it or confirm it's still available instead of posting it again.")
           : msg === 'photo_required'
           ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
+          : msg === 'photos_min'
+          ? t('Cần ít nhất 3 ảnh từ các góc khác nhau (không phải cùng một ảnh lặp lại).', 'You need at least 3 photos from different angles (not the same photo repeated).')
           : msg === 'account_restricted'
           ? t('Tài khoản của bạn đang bị hạn chế do điểm uy tín thấp. Bạn có thể đăng lại khi điểm uy tín phục hồi.', "Your account is restricted due to a low trust score. You can post again once your trust score recovers.")
           : msg === 'account_held'
@@ -741,7 +743,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         {/* ── FORM ── */}
         <div className="min-w-0 space-y-10">
           {/* Photos */}
-          <Section id="pw-photo" title={t('Ảnh', 'Photos')} hint={t('Tối đa 6 ảnh. Ảnh đầu là ảnh bìa. Tin có ảnh được xem nhiều hơn hẳn.', 'Up to 6. The first is your cover. Listings with photos get far more views.')}>
+          <Section id="pw-photo" title={t('Ảnh', 'Photos')} hint={t('Tối thiểu 3 ảnh từ các góc khác nhau, tối đa 6. Ảnh đầu là ảnh bìa. Tin nhiều ảnh được xem nhiều hơn hẳn.', 'At least 3 photos from different angles, up to 6. The first is your cover. Listings with more photos get far more views.')}>
             <div
               onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
@@ -802,7 +804,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 )}
               </div>
             </div>
-            {err.photo && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{t('Thêm ít nhất 1 ảnh', 'Add at least one photo')}</p>}
+            {err.photo && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
             {/* Media hint covers the video square in the grid above. */}
             <p className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.', 'First photo is your cover. A video (optional) autoplays on hover and in the Video feed.')}</p>
             {aiEnabled && photos.length > 0 && (

@@ -2,7 +2,8 @@ import 'server-only'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { containsPhoneNumber } from '@/lib/phone'
-import { containsContactInfo, findBannedWord } from '@/lib/publish-guard'
+import { containsContactInfo, findBannedWord, MIN_IMAGE_ANGLES } from '@/lib/publish-guard'
+import { countDistinctAngles } from '@/lib/image-hash-url'
 import { buildSearchText, fold } from '@/lib/fold'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { warmTranslations } from '@/lib/translate'
@@ -116,7 +117,11 @@ export async function bulkImportCore(
         if (h) hosted.push(h)
       }
 
-      if (hosted.length < 1) { results.push({ row: rowNo, error: 'Needs at least one photo' }); continue }
+      // Same bar as the wizard/API: ≥3 DIFFERENT angles (re-hosted images carry their dHash in
+      // the URL, so the same photo repeated counts once).
+      if (countDistinctAngles(hosted) < MIN_IMAGE_ANGLES) {
+        results.push({ row: rowNo, error: `Needs at least ${MIN_IMAGE_ANGLES} photos from different angles` }); continue
+      }
       const listing = await db.listing.create({
         data: {
           title, description, price, priceUnit: 'VND', currency: '₫', negotiable: true,

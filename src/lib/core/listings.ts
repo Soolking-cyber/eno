@@ -29,7 +29,7 @@ import { syndicateListing } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
-import { assertPublishable, assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
+import { assertPublishable, assertCleanTexts, assertEnoughAngles, PublishBlockedError } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
@@ -178,6 +178,17 @@ export async function updateListingCore(
   }
   if (Array.isArray(body.images)) {
     const images = (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
+    // An edit must still meet the ≥3-distinct-angles bar (a seller can't quietly strip a live
+    // listing down to one shot). Runs whenever the payload includes `images` — the post wizard
+    // always resends the current photo set on every edit, so a price-only edit re-validates the
+    // (unchanged, already-compliant) photos too. Steady-state listings all pass (same create
+    // gate); only pre-rule sub-3 data (wiped pre-launch) would be blocked from editing.
+    try {
+      assertEnoughAngles(images)
+    } catch (e) {
+      if (e instanceof PublishBlockedError) return { ok: false, code: 400, error: e.code }
+      throw e
+    }
     data.images = JSON.stringify(images)
   }
   // Optional single video: a CANONICAL first-party URL (our bucket + a minted object name)
@@ -267,7 +278,8 @@ export async function updateListingCore(
     ])
   } catch (e) {
     if (e instanceof PublishBlockedError) {
-      return { ok: false, code: 400, error: e.code === 'banned_words' ? 'banned_words' : 'no_phone_in_listing' }
+      // Pass the code through (the wizard maps banned_words / contact_in_text / photos_min etc).
+      return { ok: false, code: 400, error: e.code }
     }
     throw e
   }
