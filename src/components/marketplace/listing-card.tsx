@@ -11,7 +11,8 @@ import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
-import { isMockImageUrl, optimizedImageUrl } from '@/lib/listing-image'
+import { isMockImageUrl } from '@/lib/listing-image'
+import { CardVideo } from './card-video'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
@@ -85,9 +86,9 @@ function ListingCardImpl({
   // onLocate for an in-page focus; everywhere else (PDP related/recently-viewed,
   // AI results) we deep-link to the home map focused on this listing via ?focus=.
   const locate = onLocate ?? ((l: SerializedListingCard) => router.push(`/?focus=${l.id}`))
-  // Hover-autoplay: the listing's video mounts + plays (muted, looping) over the cover only
-  // while the pointer is on the card. Mounted on demand so non-hovered cards cost nothing;
-  // mobile (no hover) never triggers it — the video badge + the Video feed cover that case.
+  // Video-on-card: <CardVideo> autoplays the clip (muted, looping, cover-first fade-in) once
+  // the card settles in the viewport — mobile finally sees video without hover. The hover
+  // flag just makes desktop start INSTANTLY instead of waiting for the settle beat.
   const [hoverVideo, setHoverVideo] = useState(false)
   const [idx, setIdx] = useState(0)
   // Only the first image is in the DOM until the user engages the carousel
@@ -200,21 +201,11 @@ function ListingCardImpl({
           </div>
         )}
 
-        {/* Hover video: plays over the cover (muted, looping). pointer-events-none so the
-            card still handles hover + click; poster = cover so there's no black flash while
-            it buffers. preload=none + mount-on-hover → zero cost until the pointer arrives. */}
-        {listing.video && hoverVideo && (
-          <video
-            src={listing.video}
-            poster={images[0] ? optimizedImageUrl(images[0], 360) : undefined}
-            muted
-            loop
-            autoPlay
-            playsInline
-            preload="none"
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-          />
-        )}
+        {/* Video: autoplays over the cover once the card settles in view (see CardVideo —
+            IO-gated, cover-beat fade-in, page-wide concurrency cap, Save-Data respected).
+            pointer-events-none inside, so the card still handles hover + click. Swiping the
+            photo carousel suspends it — the clip belongs to the cover slide. */}
+        {listing.video && <CardVideo src={listing.video} hover={hoverVideo} suspend={idx !== 0} />}
 
         {/* Legibility scrims — faint top+bottom gradients so the white heart / locate
             pin / dots survive pale photos (sky, sand). Theme-neutral by design: they

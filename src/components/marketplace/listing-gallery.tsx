@@ -5,7 +5,8 @@ import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tr, useLanguage } from '@/context/language-context'
-import { isMockImageUrl, optimizedImageUrl } from '@/lib/listing-image'
+import { isMockImageUrl } from '@/lib/listing-image'
+import { autoplayAllowed } from '@/lib/autoplay'
 
 type Props = {
   images: string[]
@@ -17,16 +18,8 @@ type Props = {
 }
 
 /** Autoplay is a cost + accessibility decision, not a given: skip it for reduced-motion
- *  users and metered/slow connections (Save-Data, 2g) — they get the poster + a play button. */
-function autoplayAllowed(): boolean {
-  if (typeof window === 'undefined') return false
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false
-  type NetInfo = { saveData?: boolean; effectiveType?: string }
-  const conn = (navigator as Navigator & { connection?: NetInfo }).connection
-  if (conn?.saveData) return false
-  if (conn?.effectiveType === 'slow-2g' || conn?.effectiveType === '2g') return false
-  return true
-}
+ *  users and metered/slow connections (Save-Data, 2g) — they get the poster + a play button.
+ *  (Shared gate: src/lib/autoplay.ts — the card autoplay uses the same heuristics.) */
 
 /** The video slide inside the gallery: the first photo is the poster (instant preview,
  *  optimizer-sized — the raw storage URL is ~20× the bytes and becomes the LCP). Autoplays
@@ -42,14 +35,23 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
   const [engaged, setEngaged] = useState(false) // visible at least once → allow preload
   const [paused, setPaused] = useState(false)
   const [needsTap, setNeedsTap] = useState(false)
+  // Deliberate cover beat: the first photo holds the frame for ≥700ms after the slide
+  // becomes visible, THEN the playing video crossfades in — instead of the poster being
+  // snatched away the instant the first frame decodes. `revealed` is one-way (pausing
+  // later keeps the frozen frame, not the cover).
+  const [revealed, setRevealed] = useState(false)
+  const visibleAt = useRef<number | null>(null)
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     const v = ref.current
     if (!v) return
     const canAuto = autoplayAllowed()
     if (!canAuto) setNeedsTap(true)
     const obs = new IntersectionObserver(
-      ([e]) => {
+      (entries) => {
+        const e = entries[entries.length - 1] // queued entries: only the last reflects reality
         if (e.isIntersecting && e.intersectionRatio >= 0.5) {
+          visibleAt.current ??= Date.now()
           // preload flips only for autoplay-eligible viewers — Save-Data/2g/reduced-motion
           // users must not buffer video bytes until THEY tap play (togglePlay sets engaged).
           if (canAuto) { setEngaged(true); v.play().catch(() => {}); setPaused(false) }
@@ -60,9 +62,14 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
       { threshold: [0.5] },
     )
     obs.observe(v)
-    return () => obs.disconnect()
+    return () => { obs.disconnect(); if (revealTimer.current) clearTimeout(revealTimer.current) }
   }, [])
   useEffect(() => { if (ref.current) ref.current.muted = muted }, [muted])
+  const onPlaying = () => {
+    if (revealed || revealTimer.current) return
+    const since = Date.now() - (visibleAt.current ?? Date.now())
+    revealTimer.current = setTimeout(() => { revealTimer.current = null; setRevealed(true) }, Math.max(0, 700 - since))
+  }
   const togglePlay = () => {
     const v = ref.current
     if (!v) return
@@ -77,15 +84,36 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
       <video
         ref={ref}
         src={src}
-        poster={poster ? optimizedImageUrl(poster) : undefined}
+        // No poster attr: the cover overlay below owns the pre-reveal frame — a poster
+        // would be a second fetch of the same photo at a different optimizer URL.
         muted
         loop
         playsInline
         preload={engaged ? 'auto' : 'none'}
         onClick={togglePlay}
+        onPlaying={onPlaying}
         className="h-full w-full cursor-pointer object-cover"
       />
-      <span className="pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-bold text-white backdrop-blur-[2px]">
+      {/* Cover overlay — the crisp first photo, fading out when the video reveals. Above the
+          video, below the chips/controls; pointer-events-none so taps still hit the video.
+          EAGER, not lazy: on a mobile video PDP this overlay IS the visible hero (the LCP) —
+          lazy would defer it until after hydration. Not `priority` either: both CSS-hidden
+          breakpoint twins mount it, and eager on identical URLs dedupes to one fetch while
+          priority would emit competing preloads (same reasoning as the mosaic slides). */}
+      {poster && (
+        <div
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute inset-0 z-[5] transition-opacity duration-500',
+            revealed ? 'opacity-0' : 'opacity-100',
+          )}
+        >
+          <Image src={poster} alt="" fill sizes="(max-width:768px) 100vw, 60vw" quality={60} loading="eager" className="object-cover" unoptimized={isMockImageUrl(poster)} />
+        </div>
+      )}
+      {/* z-10: the cover overlay is z-[5] and would otherwise paint over this z-auto chip
+          (permanently, for needsTap viewers whose cover never reveals). */}
+      <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-bold text-white backdrop-blur-[2px]">
         <Play className="h-3 w-3 fill-current" /> {tr('Video', 'Video')}
       </span>
       {showPlayGlyph && (
