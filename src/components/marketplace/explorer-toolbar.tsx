@@ -9,8 +9,10 @@ import { cn } from '@/lib/utils'
 export type SortKey = 'newest' | 'recent' | 'price-low' | 'price-high' | 'popular'
 export type ViewMode = 'compact' | 'grid' | 'map' | 'video'
 
-/** List / Grid / Map / Video view-mode toggle icons. */
-export function ViewToggles({ viewMode, onViewMode }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void }) {
+/** List / Grid / Map / Video view-mode toggle icons. `showVideo` gates the ▷ tab — with a
+ *  catalog that has zero videos the Video view is a guaranteed dead end, so the parent hides
+ *  the tab until at least one video listing exists (deep links via ?view=video still work). */
+export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showVideo?: boolean }) {
   const { tr } = useLanguage()
   const tab = (mode: ViewMode) =>
     cn('rounded-lg p-2 transition-colors cursor-pointer', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
@@ -25,9 +27,11 @@ export function ViewToggles({ viewMode, onViewMode }: { viewMode: ViewMode; onVi
       <button onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} title={tr('Map view', 'Xem Bản đồ')} className={tab('map')}>
         <Map className="h-3.5 w-3.5" />
       </button>
-      <button onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} title={tr('Video view', 'Xem Video')} className={tab('video')}>
-        <Play className="h-3.5 w-3.5" />
-      </button>
+      {showVideo && (
+        <button onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} title={tr('Video view', 'Xem Video')} className={tab('video')}>
+          <Play className="h-3.5 w-3.5" />
+        </button>
+      )}
     </>
   )
 }

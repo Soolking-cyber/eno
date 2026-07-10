@@ -470,9 +470,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   // Guest posting is allowed (resolve-by-phone), and each create can fan out paid
-  // translation + social syndication → IP throttle to cap floods.
+  // translation + social syndication → throttle to cap floods. Same posture as the upload
+  // routes: signed-in sellers fail OPEN (accountable account — don't block posting on a
+  // Redis blip); anonymous fails CLOSED (a blip must not silently uncap guest creation of
+  // public, cost-fanning content).
   const ip = clientIp(req)
-  const rl = await rateLimit('listing-create', ip, 15, '1 h')
+  const posterId = await getCurrentProfileId()
+  const rl = posterId
+    ? await rateLimit('listing-create-user', posterId, 15, '1 h')
+    : await rateLimit('listing-create', ip, 15, '1 h', { strict: true })
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   try {
     const body = await req.json()

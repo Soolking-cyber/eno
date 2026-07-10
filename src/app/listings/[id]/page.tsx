@@ -486,7 +486,9 @@ export default async function ListingPage({ params }: Props) {
                   {attrs.map(([k, v]) => (
                     <div key={k} className="flex items-start justify-between gap-4 py-2.5">
                       <dt className="capitalize text-muted-foreground"><Tr text={k.replace(/([A-Z])/g, ' $1')} /></dt>
-                      <dd className="font-medium text-foreground text-right"><Tr text={String(v)} /></dd>
+                      {/* Attribute values are stored lowercase ("automatic", "petrol") — capitalize
+                          like the keys so the row reads finished next to Year/Mileage/Engine. */}
+                      <dd className="font-medium capitalize text-foreground text-right"><Tr text={String(v)} /></dd>
                     </div>
                   ))}
                 </dl>

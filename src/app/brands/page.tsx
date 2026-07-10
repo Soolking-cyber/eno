@@ -64,7 +64,7 @@ export default async function BrandsPage() {
                 <BrandLogo name={b.name} iconPath={b.iconPath} size={44} className="transition-transform group-hover:scale-105" />
                 <span className="line-clamp-1 text-sm font-semibold text-foreground">{b.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {b.listingCount} <Tr text="listings" />
+                  {b.listingCount} {b.listingCount === 1 ? <Tr text="listing" /> : <Tr text="listings" />}
                 </span>
               </Link>
             ))}

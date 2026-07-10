@@ -730,6 +730,20 @@ export function ListingsExplorer({
     initialDataUpdatedAt: seedFetchedAt,
   })
 
+  // Does the catalog have ANY video listings? Gates the ▷ Video view toggle — with zero
+  // videos the takeover is a guaranteed dead end, so the tab stays hidden until at least
+  // one exists. Site-wide (not filter-scoped) + long staleTime: one cheap query per session.
+  const { data: videoAvail } = useQuery({
+    queryKey: ['video-availability'],
+    queryFn: async () => {
+      const res = await fetch('/api/listings?hasVideo=1&limit=1')
+      if (!res.ok) return { total: 0 }
+      return res.json() as Promise<{ total: number }>
+    },
+    staleTime: 5 * 60_000,
+  })
+  const showVideoView = (videoAvail?.total ?? 0) > 0
+
   // Filter signature (no price/sort/pagination) for the price-histogram fetch, so
   // the slider's distribution reflects every OTHER active filter.
   const histogramQuery = useMemo(() => {
@@ -1738,7 +1752,7 @@ export function ListingsExplorer({
               {/* View toggles — pinned top-right (ml-auto keeps them right even
                   when there are no chips / no save box on the left). */}
               <div className="flex items-center gap-2.5 lg:ml-auto lg:shrink-0">
-                <ViewToggles viewMode={viewMode} onViewMode={changeView} />
+                <ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} />
               </div>
             </div>
 
@@ -1757,7 +1771,7 @@ export function ListingsExplorer({
                 <strong className="text-foreground">{nearby ? shownListings.length : totalCount}</strong>{' '}
                 {tr('listings', 'tin đăng')}
               </h2>
-              <div className="flex items-center gap-1 lg:hidden"><ViewToggles viewMode={viewMode} onViewMode={changeView} /></div>
+              <div className="flex items-center gap-1 lg:hidden"><ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} /></div>
             </div>
 
             {/* Video view (4th mode): its own vertical clip feed with a self-contained

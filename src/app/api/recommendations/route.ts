@@ -44,6 +44,20 @@ export async function GET(req: NextRequest) {
 
   const personalized = or.length > 0
   const where: Prisma.ListingWhereInput = personalized ? { AND: [base, { OR: or }] } : base
+
+  // Thin-catalog guard: the non-personalized ("Trending now") rail is just the top of the
+  // same pool the feed below already shows. When the whole active catalog is smaller than
+  // ~2 feed pages, the rail mirrors the grid card-for-card — repetition makes a thin
+  // catalog look thinner. Return [] (rails self-hide on empty); self-reverses as supply grows.
+  if (!personalized) {
+    const pool = await db.listing.count({ where: base })
+    if (pool < 24) {
+      return NextResponse.json(
+        { listings: [], personalized },
+        { headers: { 'Cache-Control': 'private, max-age=30' } },
+      )
+    }
+  }
   // Balanced rankScore blend for both modes — same hierarchy as the rest of the app:
   // trusted-and-fresh sellers lead, then popularity (views). (Personalization/trending only
   // changes the WHERE, not the ranking — a low-trust listing never tops the rail.)

@@ -1,6 +1,7 @@
 import 'server-only'
 import { getRedis } from '@/lib/ratelimit'
 import { fold } from '@/lib/fold'
+import { db } from '@/lib/db'
 
 // Trending-search infrastructure backed by Upstash Redis sorted sets, one per
 // UTC day (`trending:{yyyymmdd}`). `logSearch` bumps a query's daily counter;
@@ -95,10 +96,30 @@ export async function getTrending(limit = 6): Promise<string[]> {
         totals.set(member, (totals.get(member) ?? 0) + score)
       }
     }
-    const items = [...totals.entries()]
+    const candidates = [...totals.entries()]
       .filter(([, c]) => c >= MIN_COUNT)
       .sort((a, b) => b[1] - a[1])
       .map(([member]) => member)
+      .slice(0, limit * 3) // over-fetch: the live-hit filter below may drop some
+
+    // Only surface terms that actually RETURN RESULTS right now. A trending chip is the
+    // first tap we suggest — if it lands on the empty state it burns trust AND re-logs
+    // itself on tap (a self-reinforcing dead end). Members are already folded, so mirror
+    // the search API's token-AND against the folded searchText blob. Cheap: runs at most
+    // once per CACHE_TTL_MS per instance, and the route is CDN-cached ~5 min.
+    const hits = await Promise.all(
+      candidates.map(async (term) => {
+        try {
+          const tokens = term.split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
+          const clauses = (tokens.length ? tokens : [term]).map((t) => ({ searchText: { contains: t } }))
+          const n = await db.listing.count({ where: { AND: [{ verified: true }, { status: 'active' }, ...clauses] } })
+          return n > 0
+        } catch {
+          return true // DB blip → keep the term rather than blanking the whole row
+        }
+      }),
+    )
+    const items = candidates.filter((_, i) => hits[i])
     cache = { at: Date.now(), items }
     return items.slice(0, limit)
   } catch {

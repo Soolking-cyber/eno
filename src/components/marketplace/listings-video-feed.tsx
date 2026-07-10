@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Heart, MessageCircle, Share2, Volume2, VolumeX, Play, Film, X, ChevronUp, ChevronDown } from 'lucide-react'
@@ -101,13 +102,18 @@ export function VideoFeed({
   if (isLoading) return shell(<div className="flex h-full items-center justify-center"><Spinner size="md" className="border-white/30 border-t-white" /></div>)
 
   if (isError || items.length === 0) {
+    // Supply-side empty state: "try another filter" was a lie on a catalog with zero videos —
+    // convert the visitor into the first video poster instead.
     return shell(
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-white/90">
         <Film className="h-10 w-10 text-white/50" />
         <p className="text-sm font-semibold">{tr('No videos here yet', 'Chưa có video nào')}</p>
         <p className="max-w-xs text-xs text-white/60">
-          {tr('No listings in this search have a video yet. Try another category or filter.', 'Chưa có tin nào trong tìm kiếm này có video. Thử danh mục hoặc bộ lọc khác.')}
+          {tr('Listings with a short clip stand out — add one to yours.', 'Tin có video ngắn nổi bật hơn hẳn — hãy thêm video vào tin của bạn.')}
         </p>
+        <Link href="/post" className="mt-3 inline-flex items-center rounded-full bg-white px-5 py-2 text-sm font-bold text-black transition-transform active:scale-95">
+          {tr('Post a listing with video', 'Đăng tin kèm video')}
+        </Link>
       </div>,
     )
   }
@@ -290,7 +296,10 @@ function RailButton({ label, onClick, children }: { label: string; onClick: () =
       aria-label={label}
       title={label}
       onClick={(e) => { e.stopPropagation(); onClick() }}
-      className="flex flex-col items-center gap-1 transition-transform hover:scale-110 active:scale-90 cursor-pointer tap-44"
+      // `relative` is REQUIRED with tap-44: its absolute ::before hit-area anchors to the
+      // nearest positioned ancestor — without this it anchored to the rail container, all four
+      // buttons' hit-areas stacked over each other, and every tap landed on the last one (Mute).
+      className="relative flex flex-col items-center gap-1 transition-transform hover:scale-110 active:scale-90 cursor-pointer tap-44"
     >
       {children}
     </button>

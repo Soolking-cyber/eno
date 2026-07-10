@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   // Node globals (`__dirname`), crashing it (MIDDLEWARE_INVOCATION_FAILED). Vercel
   // handles output natively, so disable standalone there.
   output: process.env.VERCEL ? undefined : "standalone",
+  // Don't advertise the framework (`x-powered-by: Next.js`) on every response.
+  poweredByHeader: false,
   // Inline CSS into the HTML <head> instead of a render-blocking <link>. On
   // Slow-4G mobile the stylesheet round-trip was the #1 render blocker (~570ms
   // in PSI); inlining removes that request so first paint isn't gated on it.

@@ -192,6 +192,7 @@ export const VI_OVERRIDES: Record<string, string> = {
   "No fakes, no bait prices, no wasted trips": "Không tin ảo, không giá mồi, không mất công đi xem",
   "No offers — ask & buy directly": "Không nhận trả giá",
   "No listings found.": "Không tìm thấy tin đăng nào.",
+  "No listings here yet — be the first to post one.": "Chưa có tin đăng nào ở đây — hãy là người đầu tiên đăng tin.",
   "No listings found. Try adjusting your filters or search query.": "Không tìm thấy tin đăng nào. Hãy thử điều chỉnh bộ lọc hoặc từ khóa tìm kiếm.",
   "No listings match these filters.": "Không có tin đăng nào khớp với bộ lọc này.",
   "No live listings yet — post one to get started.": "Chưa có tin đăng nào — hãy đăng tin để bắt đầu.",

@@ -92,8 +92,9 @@ export default async function CategoryPage({ params }: Props) {
 
         <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-body">
-          <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on eno.vn comes from a seller with a public trust score, and bad listings get reported — fewer fakes, fewer bait prices." />{' '}
-          {total} {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." />
+          <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on eno.vn comes from a seller with a public trust score, and bad listings get reported — fewer fakes, fewer bait prices." />
+          {/* "0 listings available." read broken on empty categories — only count when there ARE listings. */}
+          {total > 0 && <> {total} {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." /></>}
         </p>
 
         {districts.length > 0 && (
@@ -111,9 +112,18 @@ export default async function CategoryPage({ params }: Props) {
           {listings.length > 0 ? (
             <SellerListings listings={listings} sortable />
           ) : (
-            <p className="rounded-2xl border border-dashed border-line-strong py-12 text-center text-sm text-muted-foreground">
-              <Tr text="No verified" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="yet — check back soon." />
-            </p>
+            /* Supply-side zero state: the visitor most likely to land on an empty category is
+               someone with that item to SELL — convert them instead of dead-ending. */
+            <div className="rounded-2xl border border-dashed border-line-strong px-6 py-12 text-center">
+              <p className="text-sm text-muted-foreground">
+                <Tr text="No listings here yet — be the first to post one." />
+              </p>
+              <Button asChild variant="cta" size="none" className="mt-4">
+                <Link href="/post" className="px-5 py-2.5">
+                  <Tr text="Post a listing" />
+                </Link>
+              </Button>
+            </div>
           )}
         </div>
 
