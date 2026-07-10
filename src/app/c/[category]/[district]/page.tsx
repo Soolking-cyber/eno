@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { db } from '@/lib/db'
-import { serializeListing } from '@/lib/serialize'
+import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { slugify } from '@/lib/slug'
 import { notFound } from 'next/navigation'
@@ -35,7 +35,10 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   if (!cat) return null
   const raw = await db.listing.findMany({
     where: { categoryId: cat.id, verified: true, status: 'active', NOT: { district: null } },
-    include: { category: true, seller: true },
+    // Card projection: the page renders <ListingCard> slots only, and the JS-side district
+    // slug filter just needs `district` (included in the select). The full row × take 600
+    // dragged descriptions/searchText/whole-Seller through Postgres for nothing.
+    select: LISTING_CARD_SELECT,
     orderBy: [{ rankScore: 'desc' }, { id: 'desc' }], // balanced blend — consistent with the feed
     take: 600,
   })
@@ -62,7 +65,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
   const data = await load(category, district)
   if (!data) notFound()
   const { cat, matched, districtName } = data
-  const listings = await localizeListingTitles(matched.map(serializeListing))
+  const listings = await localizeListingTitles(matched.map(serializeListingCard))
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
   const jsonLd = {

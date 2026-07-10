@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { serializeListing } from '@/lib/serialize'
+import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { slugify } from '@/lib/slug'
 import { notFound } from 'next/navigation'
@@ -49,14 +49,16 @@ export default async function CategoryPage({ params }: Props) {
     db.listing.count({ where }),
     db.listing.findMany({
       where,
-      include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+      // Card projection: this page only renders <ListingCard> slots — the full row
+      // (description, attributes, searchText, whole Seller) tripled the ISR payload.
+      select: LISTING_CARD_SELECT,
       orderBy: [{ rankScore: 'desc' }, { id: 'desc' }], // balanced blend — matches /api/listings so the explorer doesn't reshuffle on hydrate
       take: PAGE_SIZE,
     }),
     db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),
     db.listing.findMany({ where: { ...where, district: { not: null } }, select: { district: true }, distinct: ['district'], take: 80 }),
   ])
-  const listings = await localizeListingTitles(raw.map(serializeListing))
+  const listings = await localizeListingTitles(raw.map(serializeListingCard))
   const districts = [...new Set(districtRows.map((r) => r.district).filter((d): d is string => !!d))]
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 

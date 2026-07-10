@@ -60,6 +60,9 @@ export default async function Home() {
           categories={categories}
           initialListings={listings}
           initialTotal={total}
+          // Baked at ISR regeneration time — tells the client explorer the seed's TRUE age
+          // so a 6h-old snapshot revalidates in the background instead of posing as fresh.
+          initialFetchedAt={Date.now()}
         />
       </main>
       <Footer />

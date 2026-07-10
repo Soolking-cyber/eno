@@ -128,6 +128,11 @@ type Props = {
   categories: SerializedCategory[]
   initialListings: SerializedListingCard[]
   initialTotal?: number
+  // Server render timestamp of initialListings (Date.now() in the RSC). The homepage is 6h-ISR:
+  // stamping the seed with CLIENT Date.now() marked hours-old snapshot data as fresh (within the
+  // 30s staleTime), so React Query never revalidated it. With the true age, a stale snapshot
+  // still paints instantly but refetches in the background.
+  initialFetchedAt?: number
   listingsRef?: React.RefObject<HTMLDivElement | null>
 }
 
@@ -137,6 +142,7 @@ export function ListingsExplorer({
   categories,
   initialListings,
   initialTotal,
+  initialFetchedAt,
   listingsRef,
 }: Props) {
   const { lang, t, tr } = useLanguage()
@@ -207,12 +213,14 @@ export function ListingsExplorer({
   const headerHidden = useHideOnScroll()
 
   const [listings, setListings] = useState<SerializedListingCard[]>(initialListings)
-  // Freshness anchor for the SSR seed, captured at CLIENT mount (not baked on the
-  // server). The homepage is ISR (6h), so a server `Date.now()` would be stale by up
-  // to 6h → React Query would treat the seed as stale and refetch /api/listings on
-  // every load, defeating the seed. The user just received this HTML, so it's "fresh
-  // as of now" for the 30s staleTime window.
-  const [seedFetchedAt] = useState(() => Date.now())
+  // Freshness anchor for the SSR seed: the SERVER render timestamp baked into the ISR
+  // HTML (initialFetchedAt). The homepage snapshot can be up to 6h old — stamping it
+  // with client Date.now() (the previous behavior) told React Query hours-old rows were
+  // fresh, so sold/new listings never revalidated. With the true age the seed still
+  // paints instantly (initialData always renders); it just ALSO refetches in the
+  // background when the snapshot is older than the 30s staleTime — one cheap
+  // /api/listings call in exchange for a feed that's actually current.
+  const [seedFetchedAt] = useState(() => initialFetchedAt ?? Date.now())
   // When "search near you" is on, distance-FILTER the fetched set client-side, but keep
   // the TRUST-first ranking the API already applied (higher-trust sellers first), with
   // distance only as a tiebreaker. So "near you" narrows by radius without throwing away

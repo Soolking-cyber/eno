@@ -7,20 +7,25 @@ import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { Shelf, RAIL_CARD_W } from './shelf'
 import { useLanguage } from '@/context/language-context'
+import { useNearViewport } from '@/hooks/use-near-viewport'
 import { personalizationAllowed } from '@/lib/consent'
 import { getViewedListingIds } from '@/lib/reco-signals'
 
 /** "Recently viewed" — the buyer's own trail of opened listings (device-local),
  *  so they can jump back to the exact item without re-searching. Consent-gated
  *  (same bar as the For-You rail); hidden until there are at least two to show.
+ *  IO-gated: the fetch waits until the shelf is ~a viewport away, so on the PDP
+ *  (deep below the fold) it never competes with the gallery LCP image — and on
+ *  surfaces where it sits near the top it still fires immediately.
  *  Card size/gaps match the other home rails + feed grid (cols-2 / -3 / -4). */
 export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
   const router = useRouter()
   const { tr } = useLanguage()
   const [listings, setListings] = useState<SerializedListingCard[]>([])
+  const { ref, near } = useNearViewport<HTMLDivElement>()
 
   useEffect(() => {
-    if (!personalizationAllowed()) return
+    if (!near || !personalizationAllowed()) return
     let ids = getViewedListingIds()
     if (excludeId) ids = ids.filter((id) => id !== excludeId)
     ids = ids.slice(0, 12)
@@ -31,9 +36,15 @@ export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
       .then((d) => { if (!off && d?.listings) setListings(d.listings) })
       .catch(() => { /* ignore */ })
     return () => { off = true }
-  }, [excludeId])
+  }, [near, excludeId])
 
-  if (listings.length < 2) return null
+  // Sentinel: the observer needs a node in the layout before there is data. It must be
+  // OUT OF FLOW (absolute, zero-size): the home landing mounts this rail inside a space-y
+  // container, where even a zero-height in-flow div earns a full spacing unit — doubling
+  // the section gap whenever the rail self-hides. Absolute keeps its static position (IO
+  // still fires; zero-area targets intersect at threshold 0) with no layout contribution.
+  // NOT `hidden`/display:none — those never intersect and would silently kill the rail.
+  if (listings.length < 2) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
 
   return (
     <Shelf icon={History} title={tr('Recently viewed', 'Đã xem gần đây')} sectionClassName="mb-7">
