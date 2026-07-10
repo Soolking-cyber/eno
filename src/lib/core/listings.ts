@@ -340,8 +340,14 @@ export async function updateListingCore(
   after(() => reindexListing(listingId)) // refresh the AI-search document with the edited fields
   after(() => dispatchListingEvent('listing.updated', listingId)) // notify the shop's partner webhooks
 
-  // Re-warm translations for any changed user text (after the response flushes).
-  const warm = [data.title as string, data.description as string, data.location as string].filter(Boolean)
+  // Re-warm translations for CHANGED user text only (after the response flushes). The
+  // wizard round-trips every field, so an edit that only touched the price used to re-bill
+  // the full title+description fan-out for text that was byte-identical.
+  const warm = [
+    data.title !== undefined && data.title !== current.title ? (data.title as string) : null,
+    data.description !== undefined && data.description !== current.description ? (data.description as string) : null,
+    data.location !== undefined && data.location !== current.location ? (data.location as string) : null,
+  ].filter((t): t is string => !!t)
   if (warm.length) after(() => warmTranslations(warm))
 
   // Re-run illegal-content moderation when images OR text changed — closes the clean-publish-
@@ -521,8 +527,10 @@ export async function createListingCore(input: {
   // whole platform; reusing another seller's photos (stolen-listing scam) auto-hides + flags.
   after(() => indexAndCheckProvenance(listing.id))
 
-  // Pre-translate every user-authored text field into ALL supported languages so the
-  // listing renders from cache in any visitor's language. Runs after the response flushes.
+  // Pre-translate every user-authored text field into the TOP visitor languages (the
+  // eager set in lib/translate.ts) so the listing renders from cache where it matters
+  // most; the nightly warm-translations cron completes the long-tail languages. Runs
+  // after the response flushes.
   const attrValues: string[] = (() => {
     try {
       const a = listing.attributes ? JSON.parse(listing.attributes) : {}

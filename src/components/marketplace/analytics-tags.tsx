@@ -20,9 +20,12 @@ import { hasAdConsent } from '@/lib/consent'
 // lib/analytics.ts guard window.gtag.
 //   NEXT_PUBLIC_GA_ID e.g. G-XXXXXXXXXX (env overrides the public default below)
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-CKTZK62B0X'
-// Meta Pixel (ad-network retargeting) — OFF unless an id is configured AND the visitor
-// granted personalization consent ('Allow'). Keeps the heavy pixel off by default.
-const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID
+// Meta tracking is SERVER-SIDE ONLY (Conversions API via after() — lib/meta-capi.ts), per
+// the standing "browser pixel OFF" decision. The pixel bootstrap was removed 2026-07-10:
+// the env id was baked into the prod bundle so it WAS loading for consenting users —
+// double-fire risk vs CAPI, ~233KiB of vendor JS, and its facebook.com/tr form-POST
+// fallback tripped the CSP form-action on every page. Restore from git if Meta ads ever
+// need on-site retargeting signals.
 
 export function AnalyticsTags() {
   const [ready, setReady] = useState(false)
@@ -69,13 +72,6 @@ export function AnalyticsTags() {
             {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA_ID}');`}
           </Script>
         </>
-      )}
-      {/* Meta Pixel — only with personalization consent + a configured id. Enables the
-          (otherwise dormant) Meta retargeting events in lib/analytics.ts. */}
-      {adConsent && META_PIXEL_ID && (
-        <Script id="fb-pixel" strategy="lazyOnload">
-          {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${META_PIXEL_ID}');fbq('track','PageView');`}
-        </Script>
       )}
     </>
   )

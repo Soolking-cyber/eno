@@ -48,13 +48,14 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: false,
-  // Baseline security headers on every response. CSP is now ENFORCING — promoted from
-  // Report-Only after a 6-dimension audit confirmed every browser-loaded external
-  // origin is in the allowlist (Supabase REST+realtime wss, CARTO tiles, unpkg/Leaflet,
-  // GA/GTM, Meta Pixel, Cloudflare Insights, Vercel Insights, mock image hosts) with
-  // ZERO breaking gaps; 'unsafe-inline'/'unsafe-eval' keep Next's inline scripts/styles
-  // and the GA/Pixel bootstrap working. report-to + report-uri stay wired to the
-  // /api/csp-report collector so any future violation is still logged, not just blocked.
+  // Baseline security headers on every response. CSP is ENFORCING and was TIGHTENED
+  // 2026-07-10: Supabase pinned to the exact project host (not *.supabase.co — connect-src
+  // is the post-XSS exfiltration brake), Leaflet self-hosted (unpkg dropped), browser Meta
+  // Pixel removed (facebook.net/stape/run.app dropped). Remaining external origins: pinned
+  // Supabase REST+realtime wss, CARTO tiles, GA/GTM, Cloudflare Insights+Turnstile, Vercel
+  // Insights. 'unsafe-inline'/'unsafe-eval' keep Next's inline scripts/styles and the GA
+  // bootstrap working. report-to + report-uri stay wired to the /api/csp-report collector
+  // so any future violation is still logged, not just blocked.
   async headers() {
     const csp = [
       "default-src 'self'",
@@ -62,25 +63,24 @@ const nextConfig: NextConfig = {
       "object-src 'none'",
       "frame-ancestors 'self'",
       "form-action 'self'",
-      // Next.js needs inline + eval without a nonce setup; GTM/Meta/Leaflet scripts.
-      // va.vercel-scripts.com: @vercel/analytics + speed-insights SDK (proxied same-
+      // Next.js needs inline + eval without a nonce setup; GTM/Turnstile scripts. Leaflet is
+      // SELF-HOSTED (public/vendor/leaflet) and the browser Meta Pixel is REMOVED (server-side
+      // CAPI only) — so unpkg.com and the facebook.net/stape/run.app hosts are gone from every
+      // directive. va.vercel-scripts.com: @vercel/analytics + speed-insights SDK (proxied same-
       // origin in prod, but the external host loads on preview/debug deployments).
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://unpkg.com https://static.cloudflareinsights.com https://va.vercel-scripts.com https://challenges.cloudflare.com",
-      "style-src 'self' 'unsafe-inline' https://unpkg.com",
-      // *.googleusercontent.com = Google account avatars (OAuth sign-in) — without it the
-      // CSP blocks them and they render as a broken-image icon in the navbar/profile.
-      "img-src 'self' data: blob: https://*.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com",
-      // <video> sources for listing videos: Supabase public bucket + blob: (the wizard's
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://static.cloudflareinsights.com https://va.vercel-scripts.com https://challenges.cloudflare.com",
+      "style-src 'self' 'unsafe-inline'",
+      // Supabase is PINNED to our exact project host (not *.supabase.co): connect-src is the
+      // main post-XSS exfiltration brake, and a wildcard would let stolen data POST to any
+      // attacker-owned Supabase project. *.googleusercontent.com = Google account avatars
+      // (OAuth sign-in) — without it they render as a broken-image icon.
+      "img-src 'self' data: blob: https://xihiryllwmjoouipkyhw.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com",
+      // <video> sources for listing videos: our public bucket + blob: (the wizard's
       // client-side preview object URL). Without this, default-src 'self' blocks playback.
-      "media-src 'self' blob: https://*.supabase.co",
+      "media-src 'self' blob: https://xihiryllwmjoouipkyhw.supabase.co",
       "font-src 'self' data:",
-      // capig.stape.id + *.run.app = the Meta Pixel's CAPI Gateway (Stape) it POSTs
-      // browser events to when NEXT_PUBLIC_META_PIXEL_ID is set with a gateway configured
-      // in Events Manager. Without these the pixel spams the console with connect-src
-      // violations. (To drop these entirely, unset NEXT_PUBLIC_META_PIXEL_ID — the
-      // browser pixel is off by default; server-side CAPI via after() is unaffected.)
-      "connect-src 'self' https://unpkg.com https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net https://www.facebook.com https://cloudflareinsights.com https://static.cloudflareinsights.com https://capig.stape.id https://*.run.app",
-      "frame-src 'self' https://www.facebook.com https://td.doubleclick.net https://challenges.cloudflare.com",
+      "connect-src 'self' https://xihiryllwmjoouipkyhw.supabase.co wss://xihiryllwmjoouipkyhw.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
+      "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com",
       "worker-src 'self' blob:",
       "manifest-src 'self'",
       // Where violations are sent: report-to (modern, paired with the Reporting-Endpoints

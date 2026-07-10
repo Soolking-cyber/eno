@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
   // Login required + strict 10/h per account (shared AI gate) so the concierge — which
   // draws the paid Vertex/Gemini credit — can't be drained by anonymous bots. The
   // global daily Vertex/Gemini budget breakers below are the second line of defence.
-  const gate = await aiGuard('concierge')
+  const gate = await aiGuard('concierge', undefined, { skipGlobal: true }) // concierge has its own daily breakers with graceful heuristic degrade
   if (!gate.ok) return gate.res
 
   let body: { messages?: Msg[]; lang?: string }

@@ -1,7 +1,29 @@
 import { NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { translateBatch, uncachedStats, LANGS, type Lang } from '@/lib/translate'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimit, getRedis } from '@/lib/ratelimit'
+
+// Global daily ceiling on BILLABLE characters through this public endpoint. The per-request
+// (30k chars) and per-IP guards bound ONE caller; this bounds ALL of them together — worst
+// case ≈ $20/day at Google's $20/M chars instead of unbounded. Organic misses are tiny
+// (listing text is pre-warmed at post time; the UI dictionary is fully cached), and the
+// nightly warm-translations cron doesn't go through this route at all.
+const DAILY_CHAR_BUDGET = 1_000_000
+
+/** Charge `chars` against today's global budget. True = proceed. Fail-CLOSED without Redis —
+ *  consistent with the strict per-IP limiter below: no accounting means no paid calls. */
+async function chargeCharBudget(chars: number): Promise<boolean> {
+  const redis = getRedis()
+  if (!redis) return false
+  try {
+    const key = `translate:chars:${new Date().toISOString().slice(0, 10)}`
+    const total = await redis.incrby(key, chars)
+    await redis.expire(key, 2 * 24 * 60 * 60)
+    return total <= DAILY_CHAR_BUDGET
+  } catch {
+    return false
+  }
+}
 
 export async function POST(req: Request) {
   // Public + triggers PAID translation on a cache miss → cross-request IP throttle
@@ -39,8 +61,15 @@ export async function POST(req: Request) {
     // dictionary, repeat views) cost $0 and ALWAYS serve, even when Redis is down, so
     // the translated UI never breaks on a limiter outage.
     if (newCount > 0) {
-      const rl = await rateLimit('translate', ip, 60, '1 m', { strict: true })
+      // 6 billable requests/min/IP (was 60 — at 30k chars each that allowed ~$36/min from a
+      // single IP). Real users trigger at most a couple of misses per page; cache hits below
+      // stay unlimited so the translated UI never throttles.
+      const rl = await rateLimit('translate', ip, 6, '1 m', { strict: true })
       if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+      // Global daily spend ceiling across ALL IPs.
+      if (!(await chargeCharBudget(newChars))) {
+        return NextResponse.json({ error: 'budget_exhausted' }, { status: 429 })
+      }
     }
 
     const translations = await translateBatch(list, target as Lang)

@@ -109,8 +109,9 @@ export default function RootLayout({
           }}
         />
         {/* Warm up TCP/TLS to the image origin so above-the-fold listing photos
-            start downloading sooner. (Map origins — unpkg/cartocdn — are
-            preconnected lazily by the map itself, which only mounts on demand.) */}
+            start downloading sooner. (The map tile origin — cartocdn — is
+            preconnected lazily by the map itself, which only mounts on demand;
+            Leaflet is self-hosted first-party.) */}
         <link rel="preconnect" href="https://xihiryllwmjoouipkyhw.supabase.co" crossOrigin="" />
         {/* NB: the hero-wordmark preload (/logo.svg) lives on the HOME page only —
             it's the landing LCP element there and unused elsewhere (preloading it

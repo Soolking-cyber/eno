@@ -28,14 +28,28 @@ export async function GET(req: Request) {
   }
 
   const targets = LANGS.filter((l): l is Lang => l !== 'en')
-  const hashes = UI_STRINGS.map(sha1)
+  // The corpus to heal = the harvested UI dictionary + LISTING TEXT (title/description/
+  // location of recent active listings). The listing sweep is what backfills the languages
+  // the create/edit eager-warm no longer covers (warmTranslations warms only the top
+  // visitor languages since 2026-07-10) — without it, km/ms/th/fr/hi listing text would
+  // only ever fill through the throttled lazy /api/translate path. Recent window + row cap
+  // keep the sweep bounded on a big catalog; older listings age out of relevance anyway.
+  const recent = await db.listing.findMany({
+    where: { status: 'active', verified: true, postedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+    select: { title: true, description: true, location: true },
+    orderBy: { postedAt: 'desc' },
+    take: 400,
+  })
+  const listingTexts = Array.from(new Set(recent.flatMap((l) => [l.title, l.description, l.location]).filter((t): t is string => !!t && t.trim().length > 0)))
+  const corpus = Array.from(new Set([...UI_STRINGS, ...listingTexts]))
+  const hashes = corpus.map(sha1)
   const report: Record<string, { missing: number; healed: number }> = {}
 
   for (const lang of targets) {
     const have = new Set(
       (await db.translation.findMany({ where: { target: lang, hash: { in: hashes } }, select: { hash: true } })).map((r) => r.hash),
     )
-    const missing = UI_STRINGS.filter((s, i) => !have.has(hashes[i]))
+    const missing = corpus.filter((s, i) => !have.has(hashes[i]))
     let healed = 0
     if (missing.length > 0) {
       // translateBatch writes rows to the DB itself; a hard provider failure maps

@@ -237,19 +237,22 @@ export async function uncachedStats(texts: string[], target: Lang): Promise<{ co
   return { count, chars }
 }
 
-// Non-source target languages, translated sequentially in warmTranslations to
-// respect the F0 ~33k-chars/minute throttle (a single upload is tiny, but back-
-// to-back uploads shouldn't burst). 'en' is the source; 'vi' is usually authored.
-const WARM_LANGS: Lang[] = LANGS.filter((l) => l !== 'en')
+// EAGER warm set = the TOP visitor languages only (vi is the home market; zh/ko/ja/ru are
+// the biggest inbound markets per the GSO arrival data the language list is built from).
+// Warming all 10 non-EN languages on every create/edit billed ~10k chars/listing (~$0.20
+// at Google's $20/M) with most of it never read. The long tail (km/ms/th/fr/hi) fills via
+// the nightly warm-translations cron (which sweeps ALL languages for missing rows) or
+// lazily on first view through /api/translate. Sequential to respect provider throttles.
+const EAGER_WARM_LANGS: Lang[] = (['vi', 'zh-Hans', 'ko', 'ja', 'ru'] as Lang[]).filter((l) => LANGS.includes(l))
 
 /**
  * Warm the translation cache for freshly authored content (listing title,
- * description, attribute values, location) into EVERY supported language, so the
- * public read path is always a pure cache hit in the visitor's language. Best-
- * effort and non-blocking — call from a Next.js `after()` so it never delays the
- * response. Languages run sequentially to stay under the F0 rate limit.
+ * description, attribute values, location) into the TOP visitor languages, so the
+ * public read path is a pure cache hit where it matters most — the nightly cron
+ * completes the long tail. Best-effort and non-blocking — call from a Next.js
+ * `after()` so it never delays the response.
  */
-export async function warmTranslations(texts: string[], langs: Lang[] = WARM_LANGS): Promise<void> {
+export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_WARM_LANGS): Promise<void> {
   const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
   if (clean.length === 0 || (!GOOGLE_KEY && !AZURE_KEY)) return
   for (const l of langs) {

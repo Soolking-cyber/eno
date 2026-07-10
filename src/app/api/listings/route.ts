@@ -30,11 +30,17 @@ const subCountCache = new Map<string, { at: number; data: { slug: string; count:
 // Vertex ranked-ID cache (keyed by the exact Vertex args: q + category + price band).
 // Pagination MUST use one ranked set across pages — re-querying Vertex per page can
 // return a slightly different order (rows duplicated on one page, skipped on the next)
-// AND spends the credit on every page. Cache the ranked list for 60s: a search session
-// pages through a stable set at the cost of one Vertex call per (query, filter band).
-const RANK_TTL = 60_000
+// AND spends the credit on every page. 15 min TTL: search result order for a given query
+// doesn't need sub-minute freshness, and every cache miss is REAL MONEY once the Vertex
+// credit exhausts (~$1.50/1k queries) — this is a paid-API cache, not a UX cache.
+const RANK_TTL = 15 * 60_000
 const RANK_CACHE_MAX = 200
 const rankCache = new Map<string, { at: number; ids: string[] }>()
+// Global daily ceiling on ACTUAL Vertex calls (cache hits are free and don't count).
+// This is the public, anonymous browse path — without a hard ceiling, post-credit spend
+// is unbounded (bots/scrapers included). When the budget is spent (or Redis is down —
+// strict, fail-closed), search falls back to the keyword path: degraded ranking, $0.
+const VERTEX_DAILY_BUDGET = 5000
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams
@@ -279,7 +285,10 @@ export async function GET(req: NextRequest) {
   // or slow — so this is a pure ranking upgrade with no regression risk.
   let semanticListings: any[] | null = null
   let semanticTotal = 0
-  if (q && !looseMatch && !featuredOnly && sort === 'newest' && vertexConfigured()) {
+  // Vertex only for queries of ≥3 chars (q is already trimmed at parse) — instant search
+  // debounces at 150ms, so 1-2 char prefixes ("h", "ho") fire constantly, cost a paid call
+  // each, and rank poorly anyway; short VN terms ("xe", "tv") still get the keyword path.
+  if (q && q.length >= 3 && !looseMatch && !featuredOnly && sort === 'newest' && vertexConfigured()) {
     const minP = Number.isNaN(priceMin) ? null : priceMin
     const maxP = Number.isNaN(priceMax) ? null : priceMax
     const catArg = category && category !== 'all' ? category : null
@@ -297,13 +306,19 @@ export async function GET(req: NextRequest) {
       // given query is fixed for RANK_TTL instead of depending on Vertex warmth/timing.
       ids = hit.ids
     } else {
-      ids = await Promise.race([
-        vertexSearchListingIds(q, { categorySlug: catArg, minPriceVnd: minP, maxPriceVnd: maxP, take: 120 }).catch(() => null),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)), // never hang a search on Vertex
-      ])
-      // Cache the decision EITHER WAY — a ranking or a miss ([]) — so it's stable for the window.
-      if (rankCache.size >= RANK_CACHE_MAX) rankCache.delete(rankCache.keys().next().value!) // evict oldest (insertion order)
-      rankCache.set(rankKey, { at: Date.now(), ids: ids && ids.length ? ids : [] })
+      // Charge the GLOBAL daily budget only for actual Vertex calls (cache hits are free).
+      // Budget spent or Redis down (strict) → keyword fallback, uncached, so ranking
+      // recovers the moment the window resets — never a user-facing error.
+      const budget = await rateLimit('listings-vertex', 'global', VERTEX_DAILY_BUDGET, '1 d', { strict: true })
+      if (budget.success) {
+        ids = await Promise.race([
+          vertexSearchListingIds(q, { categorySlug: catArg, minPriceVnd: minP, maxPriceVnd: maxP, take: 120 }).catch(() => null),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)), // never hang a search on Vertex
+        ])
+        // Cache the decision EITHER WAY — a ranking or a miss ([]) — so it's stable for the window.
+        if (rankCache.size >= RANK_CACHE_MAX) rankCache.delete(rankCache.keys().next().value!) // evict oldest (insertion order)
+        rankCache.set(rankKey, { at: Date.now(), ids: ids && ids.length ? ids : [] })
+      }
     }
     if (ids && ids.length) {
       const structural = andFilters.filter((f) => f !== pgTextFilter)

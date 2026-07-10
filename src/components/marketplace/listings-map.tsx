@@ -46,17 +46,21 @@ type Props = {
   areaKey?: string
 }
 
-const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+// SELF-HOSTED (public/vendor/leaflet, byte-verified against the npm 1.9.4 tarball) — was
+// unpkg.com, which meant any unpkg compromise = arbitrary JS on eno.vn with full session
+// access (script-src had to allowlist the whole CDN; no SRI on a dynamic <script>). First-
+// party also removes a DNS+TLS round-trip before the map can render.
+const LEAFLET_JS = '/vendor/leaflet/leaflet.js'
+const LEAFLET_CSS = '/vendor/leaflet/leaflet.css'
 
 function loadLeaflet(cb: () => void) {
   if (typeof window === 'undefined') return
   const w = window as unknown as { L?: unknown }
   if (w.L) { cb(); return }
   if (!document.getElementById('leaflet-css')) {
-    // Warm the map origins now that the map is actually loading (these used to be
-    // global preconnects but wasted early-connection slots on the homepage).
-    for (const href of ['https://unpkg.com', 'https://basemaps.cartocdn.com']) {
+    // Warm the tile origin now that the map is actually loading (used to be a global
+    // preconnect but wasted an early-connection slot on the homepage).
+    for (const href of ['https://basemaps.cartocdn.com']) {
       const pc = document.createElement('link')
       pc.rel = 'preconnect'; pc.href = href; pc.crossOrigin = ''
       document.head.appendChild(pc)
