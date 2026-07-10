@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Lock, Sparkles, Loader2, LocateFixed, Zap, Video } from 'lucide-react'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
+import { streamConfigured } from '@/lib/stream-url'
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
@@ -29,6 +30,29 @@ import { PublishButton, Section, Field, Chips, Preview } from './post-wizard-par
 
 const TITLE_MAX = 140
 const DESC_MAX = 5000
+
+// Poll /api/upload/video/complete for a Cloudflare Stream uid until CF finishes transcoding
+// (a ≤60s clip is usually ready in 10–40s). Returns the canonical HLS URL, or null on
+// encode failure / timeout (~2 min ceiling so a stuck encode can't hang the publish forever).
+async function pollStreamReady(uid: string): Promise<string | null> {
+  const deadline = Date.now() + 120_000
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch('/api/upload/video/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid }),
+      })
+      if (res.status === 422) return null // encode_failed
+      if (res.ok) {
+        const j = (await res.json()) as { url?: string; pending?: boolean }
+        if (j.url) return j.url
+      }
+    } catch { /* transient network blip — the clip is already on CF; keep polling */ }
+    await new Promise((r) => setTimeout(r, 2500))
+  }
+  return null
+}
 
 // Rentable items live in a sale category (Vehicles/Property) OR the dedicated Rentals
 // category. Choosing "For rent" moves a sale item into Rentals (and back), mapping the
@@ -500,7 +524,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         toast.error(t('Video phải dài tối đa 60 giây.', 'Video must be 60 seconds or less.'))
         return
       }
-      if (await hasHevcTrack(f).catch(() => false)) {
+      // HEVC plays black on most Android buyers — BUT Cloudflare Stream transcodes everything to
+      // adaptive H.264/AV1, so when Stream is on we accept HEVC and let CF fix it. Only the raw
+      // Supabase path (Stream off) needs the client-side rejection. streamConfigured() reads the
+      // public subdomain; the server ALSO needs CF_ACCOUNT_ID + CF_STREAM_API_TOKEN to actually
+      // route to Stream — so set all three env vars ATOMICALLY (subdomain-only would skip this
+      // guard while the server still stored raw HEVC to Supabase).
+      if (!streamConfigured() && (await hasHevcTrack(f).catch(() => false))) {
         URL.revokeObjectURL(url)
         toast.error(t('Video dùng định dạng HEVC — nhiều điện thoại không xem được. Hãy xuất lại dạng MP4 (H.264): trên iPhone bật Cài đặt → Camera → Định dạng → Tương thích nhất.', "This video uses HEVC, which many phones can't play. Export it as MP4 (H.264) — on iPhone: Settings → Camera → Formats → Most Compatible."))
         return
@@ -561,18 +591,34 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           body: JSON.stringify({ type: video.file.type, size: video.file.size }),
         })
         if (!sig.ok) throw new Error('video')
-        const { path, token } = (await sig.json()) as { path: string; token: string }
-        const { error: upErr } = await createSupabaseBrowser()
-          .storage.from('listing-videos')
-          .uploadToSignedUrl(path, token, video.file, { contentType: video.file.type, cacheControl: '31536000' })
-        if (upErr) throw new Error('video')
-        const done = await fetch('/api/upload/video/complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path }),
-        })
-        videoUrl = done.ok ? (((await done.json()) as { url?: string }).url ?? null) : null
-        if (!videoUrl) throw new Error('video')
+        const s = (await sig.json()) as { mode?: string; uid?: string; uploadURL?: string; path?: string; token?: string }
+
+        if (s.mode === 'stream' && s.uid && s.uploadURL) {
+          // Cloudflare Stream: POST the file straight to CF's one-time URL (browser→CF, never
+          // through us), then poll /complete until CF finishes transcoding to adaptive HLS.
+          const form = new FormData()
+          form.append('file', video.file)
+          const up = await fetch(s.uploadURL, { method: 'POST', body: form })
+          if (!up.ok) throw new Error('video')
+          videoUrl = await pollStreamReady(s.uid)
+          if (!videoUrl) throw new Error('video')
+        } else if (s.mode === 'supabase' && s.path && s.token) {
+          // Supabase direct upload (Stream off): PUT to the signed URL, then /complete verifies
+          // the landed object's magic bytes and returns the public URL.
+          const { error: upErr } = await createSupabaseBrowser()
+            .storage.from('listing-videos')
+            .uploadToSignedUrl(s.path, s.token, video.file, { contentType: video.file.type, cacheControl: '31536000' })
+          if (upErr) throw new Error('video')
+          const done = await fetch('/api/upload/video/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: s.path }),
+          })
+          videoUrl = done.ok ? (((await done.json()) as { url?: string }).url ?? null) : null
+          if (!videoUrl) throw new Error('video')
+        } else {
+          throw new Error('video')
+        }
       } else if (video && !video.url.startsWith('blob:')) {
         videoUrl = video.url
       }

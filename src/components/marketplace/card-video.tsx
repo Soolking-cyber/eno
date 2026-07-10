@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { autoplayAllowed } from '@/lib/autoplay'
+import { useHlsVideo } from '@/hooks/use-hls-video'
 import { cn } from '@/lib/utils'
 
 // ── Inline card autoplay ─────────────────────────────────────────────────────────
@@ -45,6 +46,9 @@ export function CardVideo({ src, hover, suspend = false }: {
   suspend?: boolean
 }) {
   const boxRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  // Attach the source only while the clip is actually mounted+playing — so hls.js is lazy-loaded
+  // the first time a Stream card plays, never for idle/offscreen cards. Plain MP4s just get src.
   const idRef = useRef<string>('')
   if (!idRef.current) idRef.current = `${src}#${Math.random().toString(36).slice(2, 8)}`
   const inViewRef = useRef(false)
@@ -141,14 +145,19 @@ export function CardVideo({ src, hover, suspend = false }: {
     revealTimer.current = setTimeout(() => { revealTimer.current = null; setShown(true) }, wait)
   }
 
+  // Source attachment (HLS via hls.js / native, or plain MP4) — only while the clip is mounted.
+  // playing=active so hls.js starts reliably (the autoPlay attribute alone isn't dependable over
+  // an MSE source); for a native MP4 this is a harmless no-op alongside the autoPlay attribute.
+  useHlsVideo(videoRef, active ? src : null, active)
+
   return (
     <div ref={boxRef} className="pointer-events-none absolute inset-0" aria-hidden="true">
       {active && (
         <video
           // React can omit the `muted` attribute on freshly created elements — set it
-          // imperatively too, or mobile browsers refuse the autoplay.
-          ref={(v) => { if (v) v.muted = true }}
-          src={src}
+          // imperatively too, or mobile browsers refuse the autoplay. src is set by useHlsVideo
+          // (a Stream clip needs hls.js, not a plain src attribute).
+          ref={(v) => { videoRef.current = v; if (v) v.muted = true }}
           muted
           loop
           autoPlay

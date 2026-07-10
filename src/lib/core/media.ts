@@ -3,6 +3,8 @@ import sharp from 'sharp'
 import { getSupabaseAdmin, LISTINGS_BUCKET, EVIDENCE_BUCKET, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { dHash } from '@/lib/image-hash'
 import { isListingVideoUrl } from '@/lib/listing-image'
+import { isStreamVideoUrl, streamUidFromUrl } from '@/lib/stream-url'
+import { deleteStreamVideo } from '@/lib/cf-stream'
 
 // Listing-image media core. Single place that turns raw image bytes into a stored,
 // first-party WebP asset — shared by /api/upload (post wizard), the bulk importer's
@@ -157,15 +159,24 @@ export function videoPathFromUrl(url: string): string | null {
  *  arbitrary bucket paths. Cross-listing reuse of a canonical URL is handled at eviction
  *  time (refcount), not here. */
 export function isCanonicalVideoUrl(url: unknown): url is string {
+  // Cloudflare Stream HLS (host-pinned to our customer subdomain + 32-hex uid shape). When
+  // Stream is unconfigured this is always false, so only the Supabase path below can validate.
+  if (isStreamVideoUrl(url)) return true
   if (!isListingVideoUrl(url)) return false
   const m = url.match(/\/listing-videos\/([^/]+)$/)
   return !!m && VIDEO_PATH_RE.test(m[1])
 }
 
-/** Best-effort delete of a listing video's storage object (replace/remove/listing-delete).
- *  Never throws — the nightly GC cron is the backstop for anything missed. */
+/** Best-effort delete of a listing video (replace/remove/listing-delete). Routes to the right
+ *  backend by URL shape: Cloudflare Stream → delete the asset by uid; Supabase → remove the
+ *  bucket object. Never throws — the nightly GC cron is the backstop for anything missed. */
 export async function removeListingVideoByUrl(url: string | null | undefined): Promise<void> {
   if (!url) return
+  if (isStreamVideoUrl(url)) {
+    const uid = streamUidFromUrl(url)
+    if (uid) await deleteStreamVideo(uid)
+    return
+  }
   const path = videoPathFromUrl(url)
   if (!path) return
   try {
