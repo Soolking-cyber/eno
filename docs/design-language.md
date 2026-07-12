@@ -41,7 +41,7 @@ Four tiers. Pick by element role, not by taste.
 |---|---|
 | `rounded-full` | circles, pills, chips, badges, avatars, icon buttons |
 | `rounded-2xl` | cards, panels, dialogs, popovers, menus, images ≥ ~96px |
-| `rounded-xl` | buttons, inputs, selects, textareas, medium controls |
+| `rounded-xl` | buttons, inputs, selects, textareas, medium controls, listing-card media (the shipped `<ListingCard>` image container) |
 | `rounded-lg` | small thumbnails/media ≤ ~64px, tiny nested boxes, and compact controls ≤ ~28px tall in dense surfaces (admin tables, menu items) |
 
 **Banned:** bare `rounded`, `rounded-sm`, `rounded-md` (map: tiny element →
