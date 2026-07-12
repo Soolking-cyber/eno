@@ -42,7 +42,7 @@ const RULES = [
   },
   {
     name: 'off-tier radius (use rounded-lg/xl/2xl/full — docs/design-language.md §2)',
-    re: /(?<![-\w])rounded(?:-[trbl])?(?:-(?:sm|md))?(?![-\w])/g,
+    re: /(?<![-\w])rounded(?:-[trbl])?(?:-(?:xs|sm|md))?(?![-\w])/g,
   },
   {
     name: 'raw hex color (use tokens — docs/design-language.md §3)',

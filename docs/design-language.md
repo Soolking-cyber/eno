@@ -94,9 +94,25 @@ component is a defect.
 | Empty states | `<EmptyState>` (mascot + title + hint + action) |
 | Horizontal shelf | `<Shelf>` (marketplace) |
 | Loading | `<Skeleton>` / `<Spinner>` |
-| Modal | `ui/dialog` (Radix) |
+| Modal | `ui/dialog` (Radix); destructive confirms → `ui/alert-dialog` |
+| Menus | `ui/dropdown-menu` (never a hand-rolled absolute-positioned div) |
+| Floating panels | `ui/popover`, `ui/tooltip` |
+| Side panels / mobile filters | `ui/sheet` (side) / `ui/drawer` (bottom, vaul) |
+| Select (desktop/admin) | `ui/select` — native `<select>` stays fine on mobile consumer surfaces |
+| Tabs | `ui/tabs` — the explorer's 4-tab sort pills stay bespoke |
+| Tables (dashboard/admin) | `ui/table` + TanStack `@tanstack/react-table` (data-table pattern); mobile gets stacked cards or an `overflow-x-auto` container |
+| Content panel | `ui/card` (rounded-2xl surface tier) |
+| Callouts | `ui/alert` |
+| Command palette | `ui/command` (cmdk) |
+| App-shell navigation | `ui/sidebar` block (tokens mapped to the ENO palette by reference — dark mode follows automatically) |
+| Charts | `ui/chart` (recharts) — read the dataviz guidance before adding any |
 | Listing display | `<ListingCard>` (marketplace) — never a bespoke card |
 | Seller identity | `<SellerCard>` (marketplace) |
+
+shadcn components arrive with `rounded-md`/`rounded-sm`/`rounded-xs` stock
+classes — restyle to the tiers above on arrival (design-lint enforces): floating
+content panels → `2xl`, input-like triggers/controls → `xl`, menu items and
+compact sidebar controls → `lg`.
 
 ## 6. Motion
 

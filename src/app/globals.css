@@ -72,6 +72,14 @@
   --color-line-strong: var(--line-strong); /* slate-300 stronger borders/inputs */
   --color-verified: var(--verified);
   --color-pending: var(--pending);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
 }
 
 :root {
@@ -186,7 +194,17 @@
   --text-small:   0.8125rem; /* 13px */
   --text-caption: 0.75rem;   /* 12px — meta / eyebrow (was 11px, a touch small) */
   /* Spacing rhythm uses an 8pt grid: 4 · 8 · 12 · 16 · 24 · 32 · 48 */
-
+  /* Sidebar (shadcn sidebar block) — mapped onto the ENO palette by REFERENCE,
+     so the .dark overrides of the underlying tokens flip the sidebar too (no
+     separate dark literals needed). Active/hover = the brand-50 tint pattern. */
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--brand-50);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 
 }
 
@@ -258,8 +276,9 @@
   --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);
   --shadow-card: 0 6px 20px rgba(0, 0, 0, 0.5);
   --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.6);
-
-
+  /* Sidebar tokens intentionally NOT overridden here — the :root definitions
+     reference theme vars (--background/--brand/--brand-50/…) that this .dark
+     block already flips, so the sidebar follows the theme automatically. */
 }
 
 @layer base {
@@ -655,8 +674,6 @@ summary:focus-visible {
   ::view-transition-new(*) { animation: none !important; }
 }
 
-
-
 /* ============================================================
    APP SLIDERS — one shared look everywhere (price histogram, search
    radius, make-an-offer discount): a white thumb with a brand-blue
@@ -766,7 +783,6 @@ summary:focus-visible {
     font-size: 16px !important;
   }
 }
-
 
 /* ── Trust badge fills — the EARNED tiers get vivid, glossy gradient chips ──────
    (Trusted = electric blue, Exceptional = true yellow gold, Elite = royal violet).
