@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
+import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
@@ -36,6 +36,8 @@ const buttonVariants = cva(
         sm: "h-8 rounded-xl gap-1.5 px-3 has-[>svg]:px-2.5",
         lg: "h-10 rounded-xl px-6 has-[>svg]:px-4",
         icon: "size-9",
+        "icon-sm": "size-7",
+        "icon-xs": "size-6",
         // Impose no height/padding — the caller's className fully controls sizing.
         // Used when migrating hand-rolled buttons so their exact look is preserved.
         none: "",
@@ -58,10 +60,21 @@ function Button({
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
   }) {
-  const Comp = asChild ? Slot : "button"
-
+  // Base UI has no Slot; `asChild` maps onto the primitive's render prop so the
+  // 19 existing <Button asChild><Link/></Button> call sites keep working verbatim.
+  if (asChild) {
+    const { children, ...rest } = props as { children?: React.ReactNode }
+    return (
+      <ButtonPrimitive
+        data-slot="button"
+        render={children as React.ReactElement<Record<string, unknown>>}
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...rest}
+      />
+    )
+  }
   return (
-    <Comp
+    <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}

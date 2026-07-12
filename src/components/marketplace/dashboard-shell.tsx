@@ -89,8 +89,7 @@ export function DashboardShell({
           <SidebarMenu>
             <SidebarMenuItem>
               {/* Brand row — doubles as "back to the marketplace". */}
-              <SidebarMenuButton asChild size="lg" tooltip={tr('Back to eno.vn', 'Về eno.vn')}>
-                <Link href="/">
+              <SidebarMenuButton render={<Link href="/" />} size="lg" tooltip={tr('Back to eno.vn', 'Về eno.vn')}>
                   <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
                     <Image src="/logo-mark.svg" alt="eno" width={32} height={32} unoptimized />
                   </span>
@@ -100,7 +99,6 @@ export function DashboardShell({
                       <ArrowLeft className="h-3 w-3" /> {tr('Marketplace', 'Chợ')}
                     </span>
                   </span>
-                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -121,39 +119,31 @@ export function DashboardShell({
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip={tr('Messages', 'Tin nhắn')}>
-                    <Link href="/messages">
-                      <MessageSquareText />
-                      <span>{tr('Messages', 'Tin nhắn')}</span>
-                    </Link>
+                  <SidebarMenuButton render={<Link href="/messages" />} tooltip={tr('Messages', 'Tin nhắn')}>
+                    <MessageSquareText />
+                    <span>{tr('Messages', 'Tin nhắn')}</span>
                   </SidebarMenuButton>
                   {unread > 0 && <SidebarMenuBadge className="rounded-full bg-destructive px-1.5 text-3xs font-bold text-white">{unread}</SidebarMenuBadge>}
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip={tr('Availability review', 'Xác nhận còn hàng')}>
-                    <Link href="/dashboard/availability">
-                      <CalendarCheck />
-                      <span>{tr('Availability review', 'Xác nhận còn hàng')}</span>
-                    </Link>
+                  <SidebarMenuButton render={<Link href="/dashboard/availability" />} tooltip={tr('Availability review', 'Xác nhận còn hàng')}>
+                    <CalendarCheck />
+                    <span>{tr('Availability review', 'Xác nhận còn hàng')}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 {isBusiness && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip={tr('Bulk upload', 'Tải hàng loạt')}>
-                      <Link href="/dashboard/bulk">
-                        <Upload />
-                        <span>{tr('Bulk upload', 'Tải hàng loạt')}</span>
-                      </Link>
+                    <SidebarMenuButton render={<Link href="/dashboard/bulk" />} tooltip={tr('Bulk upload', 'Tải hàng loạt')}>
+                      <Upload />
+                      <span>{tr('Bulk upload', 'Tải hàng loạt')}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
                 {seller && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip={tr('View storefront', 'Xem gian hàng')}>
-                      <a href={seller.handle ? `/${seller.handle}` : `/sellers/${seller.id}`}>
-                        <Store />
-                        <span>{tr('View storefront', 'Xem gian hàng')}</span>
-                      </a>
+                    <SidebarMenuButton render={<a href={seller.handle ? `/${seller.handle}` : `/sellers/${seller.id}`} />} tooltip={tr('View storefront', 'Xem gian hàng')}>
+                      <Store />
+                      <span>{tr('View storefront', 'Xem gian hàng')}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
@@ -189,8 +179,8 @@ export function DashboardShell({
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem className="hidden sm:block">
-                <BreadcrumbLink asChild>
-                  <button onClick={() => onTab('listings')} className="cursor-pointer">{tr('Dashboard', 'Quản lý')}</button>
+                <BreadcrumbLink render={<button onClick={() => onTab('listings')} className="cursor-pointer" />}>
+                  {tr('Dashboard', 'Quản lý')}
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator className="hidden sm:block" />

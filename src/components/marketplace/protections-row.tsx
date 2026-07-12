@@ -66,11 +66,12 @@ export function ProtectionsRow() {
 
   return (
     <Dialog>
-      <DialogTrigger asChild>
+      <DialogTrigger render={
         <button
           type="button"
           className="flex w-full items-center gap-2.5 rounded-xl border border-border bg-tint px-3.5 py-2.5 text-left transition-colors hover:bg-accent cursor-pointer"
-        >
+        />
+      }>
           <ShieldCheck className="h-5 w-5 shrink-0 text-accent-foreground" aria-hidden />
           <span className="min-w-0 flex-1 text-xs leading-snug text-body">
             <span className="font-bold text-foreground">{tr('ENO protects you', 'ENO bảo vệ bạn')}</span>
@@ -78,7 +79,6 @@ export function ProtectionsRow() {
             {tr('disputes handled in 72h · listings screened', 'tranh chấp xử lý trong 72 giờ · tin đã kiểm duyệt')}
           </span>
           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        </button>
       </DialogTrigger>
 
       <DialogContent
@@ -112,14 +112,14 @@ export function ProtectionsRow() {
         </ul>
 
         <div className="mt-2 border-t border-border px-5 py-4">
-          <DialogClose asChild>
+          <DialogClose render={
             <Link
               href="/safety"
               className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand px-5 py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-accent"
-            >
+            />
+          }>
               {tr('Read our safety guide', 'Xem hướng dẫn an toàn')}
               <ChevronRight className="h-4 w-4" aria-hidden />
-            </Link>
           </DialogClose>
         </div>
       </DialogContent>

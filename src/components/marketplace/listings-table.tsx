@@ -253,10 +253,8 @@ function ActionsCell({ listing, onChanged, onState }: { listing: SerializedListi
         />
       )}
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button aria-label={tr('More actions', 'Thao tác khác')} className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-4 transition-colors hover:bg-muted hover:text-foreground">
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
+        <DropdownMenuTrigger render={<button aria-label={tr('More actions', 'Thao tác khác')} className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-4 transition-colors hover:bg-muted hover:text-foreground" />}>
+          <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {status === 'active' ? (
