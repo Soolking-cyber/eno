@@ -13,7 +13,7 @@ import {
   SidebarSeparator, SidebarTrigger, useSidebar,
 } from '@/components/ui/sidebar'
 import {
-  Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage,
+  Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
 import { Separator } from '@/components/ui/separator'
@@ -185,7 +185,9 @@ export function DashboardShell({
               </BreadcrumbItem>
               <BreadcrumbSeparator className="hidden sm:block" />
               <BreadcrumbItem>
-                <BreadcrumbPage className="font-semibold">{active?.label}</BreadcrumbPage>
+                {/* The active tab is the page's h1 (the removed identity header
+                    used to carry it; the shell keeps exactly one per page). */}
+                <h1 aria-current="page" className="text-sm font-semibold text-foreground">{active?.label}</h1>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
