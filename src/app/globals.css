@@ -67,9 +67,9 @@
   --color-ink-4: var(--ink-4);
   /* Sweep helpers — light values match the literals they replace (zero light
      regression); dark values are the dark-mode counterparts. */
-  --color-body: var(--body);             /* slate-600 secondary body text */
-  --color-tint: var(--tint);             /* slate-100 tint surfaces / chips */
-  --color-line-strong: var(--line-strong); /* slate-300 stronger borders/inputs */
+  --color-body: var(--body);             /* neutral-600 secondary body text */
+  --color-tint: var(--tint);             /* neutral-100 tint surfaces / chips */
+  --color-line-strong: var(--line-strong); /* neutral-300 stronger borders/inputs */
   --color-verified: var(--verified);
   --color-pending: var(--pending);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -91,7 +91,7 @@
   /* ============================================================
      PALETTE (minimal, proven — 60/30/10)
      60% canvas    : #ffffff
-     30% neutrals  : slate ramp — ink #1a202c · body #475569 · muted #64748b · faint #94a3b8 · line #e2e8f0 · tint #f1f5f9
+     30% neutrals  : TRUE-NEUTRAL ramp (luma-style, de-blued 2026-07-13) — ink #171717 · body #525252 · muted #737373 · faint #a3a3a3 · line #e5e5e5 · tint #f5f5f5
      10% accent    : ONE brand blue #0a66c2 (hover #004182 · tint #e8f1fb · deep #034078) — all actions, links, active, verified
      semantic only : amber #f59e0b (caution) · red #ef4444 (destructive)
      Category colours all resolve to the single blue; product photos provide the colour.
@@ -111,38 +111,38 @@
   /* Surfaces — soft neutral canvas so white surfaces (cards, header, popovers)
      gain subtle Airbnb-style depth without reintroducing borders/boxes. */
   --background: #fafafa;
-  --foreground: #1a202c;
+  --foreground: #171717;
   --card: #ffffff;
-  --card-foreground: #1a202c;
+  --card-foreground: #171717;
   --popover: #ffffff;
-  --popover-foreground: #1a202c;
+  --popover-foreground: #171717;
 
   /* shadcn primary maps to brand blue */
   --primary: #0a66c2;
   --primary-foreground: #ffffff;
-  --secondary: #e2e8f0;
-  --secondary-foreground: #1a202c;
+  --secondary: #e5e5e5;
+  --secondary-foreground: #171717;
   --muted: #f5f5f5;
-  --muted-foreground: #64748b;
+  --muted-foreground: #737373;
   --accent: #e8f1fb;
   --accent-foreground: #0a66c2;
   /* red-600, not red-500 (#ef4444): as TEXT on white #ef4444 is only 3.6:1 (fails
      WCAG AA); #dc2626 clears 4.5:1 for the form-error / destructive labels, and
      white-on-#dc2626 still passes for the solid delete buttons. */
   --destructive: #dc2626;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
   --ring: #0a66c2;
 
   /* Ink scale */
-  --ink: #1a202c;
-  --ink-2: #2d3748;
-  --ink-3: #64748b;
-  --ink-4: #586173;        /* slate-gray ~5.6:1 on tint / 6:1 on white — AA for placeholder/meta/chevrons/small icons on BOTH white and bg-tint (was #6b7280 gray-500, 4.1:1 on tint → failed AA on the tinted search pill) */
-  --body: #475569;        /* slate-600 */
-  --tint: #f1f5f9;        /* slate-100 */
-  --line-strong: #cbd5e1; /* slate-300 */
-  --skeleton: #eef1f5;             /* loading placeholder base */
+  --ink: #171717;
+  --ink-2: #262626;
+  --ink-3: #737373;
+  --ink-4: #616161;        /* neutral-gray ~5.6:1 on tint / 6:1 on white — AA for placeholder/meta/chevrons/small icons on BOTH white and bg-tint (was #6b7280 gray-500, 4.1:1 on tint → failed AA on the tinted search pill) */
+  --body: #525252;        /* neutral-600 */
+  --tint: #f5f5f5;        /* neutral-100 */
+  --line-strong: #d4d4d4; /* neutral-300 */
+  --skeleton: #f0f0f0;             /* loading placeholder base */
   --skeleton-sheen: rgba(255, 255, 255, 0.6); /* sweep highlight */
   /* Trust-score tiers — the CANONICAL ladder (matches /trust and the tier design
      decision): red = restricted, NEUTRAL slate = building/standard (where every new
@@ -153,7 +153,7 @@
      white): all ≥4.9:1 on the tint. Dark pairs are unaffected (light-fg tint over a
      dark canvas raises contrast instead). */
   --trust-restricted: #b91c1c; /* red-700    ~4.9:1 — bad (vivid crimson) */
-  --trust-standard:   #475569; /* slate-600  ~7.6:1 — building (neutral, not punitive) */
+  --trust-standard:   #525252; /* neutral-600  ~7.6:1 — building (neutral, not punitive) */
   --trust-trusted:    #1d4ed8; /* blue-700   ~6.4:1 — Trusted (electric brand blue) */
   --trust-exceptional:#a16207; /* yellow-700 ~5.0:1 — Exceptional TEXT contexts (true gold family; the shiny badge fill is .trust-fill-exceptional) */
   --trust-elite:      #6d28d9; /* violet-700 ~6.1:1 — Elite (top, 160+) */
@@ -226,38 +226,38 @@
   --brand-50: #17314d;     /* dark blue tint (was #e8f1fb) */
   --brand-100: #214161;
 
-  --background: #1a1e26;   /* soft slate canvas (lighter than near-black) */
-  --foreground: #eef1f6;
-  --card: #232834;         /* elevated surface, sits clearly above the canvas */
-  --card-foreground: #eef1f6;
-  --popover: #282e3b;
-  --popover-foreground: #eef1f6;
+  --background: #1b1b1b;   /* soft neutral canvas (lighter than near-black) */
+  --foreground: #f0f0f0;
+  --card: #242424;         /* elevated surface, sits clearly above the canvas */
+  --card-foreground: #f0f0f0;
+  --popover: #2a2a2a;
+  --popover-foreground: #f0f0f0;
 
   --primary: #0a66c2;      /* primary button keeps brand blue + white text */
   --primary-foreground: #ffffff;
-  --secondary: #2f3643;
-  --secondary-foreground: #eef1f6;
-  --muted: #262c37;
-  --muted-foreground: #b4bdca; /* ~7:1 on card — readable secondary text */
+  --secondary: #303030;
+  --secondary-foreground: #f0f0f0;
+  --muted: #262626;
+  --muted-foreground: #b8b8b8; /* ~7:1 on card — readable secondary text */
   --accent: #17314d;       /* blue tint surface */
   --accent-foreground: #74b3f2;
   --destructive: #f0616b;
-  --border: #353c4a;       /* more visible separators on the lighter canvas */
-  --input: #3a4150;
+  --border: #363636;       /* more visible separators on the lighter canvas */
+  --input: #3b3b3b;
   --ring: #4f97ee;
 
   /* Ink ramp inverted (light → dark text), brightened for contrast */
-  --ink: #eef1f6;
-  --ink-2: #d2d9e3;
-  --ink-3: #b4bdca;
-  --ink-4: #9aa5b7;        /* ~5.9:1 on canvas / AA on the dark bg-tint too (was #8995a6, ~4.4:1 on dark tint) */
-  --body: #c6cdd9;         /* ~8.8:1 on card — comfortable body text */
-  --tint: #262c37;
-  --line-strong: #3f4757;
+  --ink: #f0f0f0;
+  --ink-2: #d6d6d6;
+  --ink-3: #b8b8b8;
+  --ink-4: #a0a0a0;        /* ~5.9:1 on canvas / AA on the dark bg-tint too (was #8995a6, ~4.4:1 on dark tint) */
+  --body: #cccccc;         /* ~8.8:1 on card — comfortable body text */
+  --tint: #262626;
+  --line-strong: #414141;
   /* Trust-score tiers — DARK theme: lightened so the number passes AA on dark cards.
      Same intuition: red=bad, yellow=warning, green=good, emerald=great, purple=royal. */
   --trust-restricted: #f87171; /* red-400     — bad */
-  --trust-standard:   #94a3b8; /* slate-400   — building (neutral) */
+  --trust-standard:   #a3a3a3; /* slate-400   — building (neutral) */
   --trust-trusted:    #60a5fa; /* blue-400    — Trusted (electric on dark) */
   --trust-exceptional:#facc15; /* yellow-400  — Exceptional (true gold, vivid on dark) */
   --trust-elite:      #a78bfa; /* violet-400  — Elite */
@@ -266,7 +266,7 @@
   --success: #4ade80; /* green-400 */
   --warning: #fbbf24; /* amber-400 */
   --info:    #60a5fa; /* blue-400  */
-  --skeleton: #262c37;
+  --skeleton: #262626;
   --skeleton-sheen: rgba(255, 255, 255, 0.06);
 
   --verified: #74b3f2;

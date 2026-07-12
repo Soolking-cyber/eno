@@ -42,7 +42,7 @@ export const viewport: Viewport = {
   colorScheme: "light dark",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#1a1e26" },
+    { media: "(prefers-color-scheme: dark)", color: "#1b1b1b" },
   ],
   viewportFit: "cover",
   // Android/Chromium: shrink the LAYOUT viewport when the keyboard opens so 100dvh +

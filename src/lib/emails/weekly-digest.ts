@@ -7,7 +7,7 @@ import type { DigestItem } from '@/lib/digest'
 
 const BLUE = '#0A66C2'
 const BLUE_DARK = '#004182'
-const INK = '#1a202c'
+const INK = '#171717'
 const MUTED = '#6b7280'
 const BORDER = '#e5e7eb'
 const CANVAS = '#f5f6f8'

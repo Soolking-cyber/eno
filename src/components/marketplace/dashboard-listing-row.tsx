@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
@@ -8,9 +7,9 @@ import { Price } from './price'
 import { ShareButton } from './share-button'
 import { QuickDiscount } from './quick-discount'
 import { ListingSparkline, type SparkPoint } from './listing-sparkline'
+import { useListingActions } from './use-listing-actions'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
 
 // One row in the seller dashboard's listings table. Lifecycle actions are
 // OPTIMISTIC: the row's status/availability flips INSTANTLY (local override), the
@@ -19,53 +18,12 @@ import { toast } from 'sonner'
 export function DashboardListingRow({ listing, onChanged, variant = 'row', series, selectable = false, selected = false, onSelectToggle }: { listing: SerializedListing; onChanged: () => void; variant?: 'row' | 'grid'; series?: SparkPoint[]; selectable?: boolean; selected?: boolean; onSelectToggle?: () => void }) {
   const { lang, tr } = useLanguage()
   const router = useRouter()
-  const [gone, setGone] = useState(false)
-  // Local optimistic status override (null = use the prop / server value).
-  const [optStatus, setOptStatus] = useState<string | null>(null)
+  // Optimistic lifecycle actions — shared with the desktop data-table so both
+  // surfaces behave identically (instant flip, undo-delete, rollback on failure).
+  const { gone, status, setStatus, del } = useListingActions(listing, onChanged)
 
   const title = lang === 'vi' ? (listing.titleVi || listing.title) : listing.title
   const img = listing.images[0] || null
-  const status = optStatus ?? listing.status
-
-  // Fire-and-reconcile: apply the optimistic change, then send. On failure, roll
-  // back the local override and pull fresh server state.
-  const act = (
-    optimistic: () => void,
-    rollback: () => void,
-    url: string,
-    method: 'POST' | 'DELETE',
-    body?: unknown,
-  ) => {
-    optimistic()
-    fetch(url, { method, ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) })
-      .then((res) => { if (!res.ok) throw new Error('failed'); onChanged() })
-      .catch(() => { rollback(); onChanged() })
-  }
-
-  const setStatus = (s: 'sold' | 'active') => act(
-    () => setOptStatus(s),
-    () => setOptStatus(null),
-    `/api/listings/${listing.id}/status`, 'POST', { status: s },
-  )
-  // Delete the Gmail way: hide the row instantly, hold the DELETE for the toast's
-  // lifetime, and only commit if "Undo" wasn't tapped. No blocking confirm() dialog.
-  const del = () => {
-    setGone(true)
-    let undone = false
-    const commit = setTimeout(() => {
-      if (undone) return
-      fetch(`/api/listings/${listing.id}`, { method: 'DELETE' })
-        .then((res) => { if (!res.ok) throw new Error('failed'); onChanged() })
-        .catch(() => { setGone(false); toast.error(tr('Could not delete — listing restored.', 'Không xóa được — đã khôi phục tin.')); onChanged() })
-    }, 5000)
-    toast(tr('Listing deleted', 'Đã xóa tin'), {
-      duration: 5000,
-      action: {
-        label: tr('Undo', 'Hoàn tác'),
-        onClick: () => { undone = true; clearTimeout(commit); setGone(false) },
-      },
-    })
-  }
 
   if (gone) return null
 

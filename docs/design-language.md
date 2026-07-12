@@ -6,7 +6,7 @@ below — a violation fails the build. When a rule here conflicts with older cod
 this document wins.
 
 Identity in one line: **flat single-canvas marketplace — one brand blue
-(#0a66c2), slate neutrals, #fafafa canvas, generous radii, spring motion.**
+(#0a66c2), true-neutral grays, #fafafa canvas, generous radii, spring motion.**
 
 ---
 
@@ -31,7 +31,7 @@ was meta), 15→`base`.
 The `:root` vars `--text-display/title/section/body/small/caption` are the
 **prose scale** for long-form content pages (guide/terms/privacy). They are
 consumed by CSS rules in `globals.css` only — never as utilities in markup
-(`text-body` in markup is the *color* utility, slate-600).
+(`text-body` in markup is the *color* utility, neutral-600).
 
 ## 2. Radius
 
@@ -51,7 +51,7 @@ follow the same tiers.
 ## 3. Color
 
 Tokens only — never raw hex in `className` or `style`. The palette is 60/30/10:
-white/`#fafafa` canvas, slate neutrals, ONE brand blue.
+white/`#fafafa` canvas, true-neutral grays, ONE brand blue.
 
 - Brand: `brand`, `brand-dark` (hover), `brand-light`, `brand-50`, `brand-100`,
   `brand-deep(er)` (fixed dark marketing panels)
@@ -59,8 +59,8 @@ white/`#fafafa` canvas, slate neutrals, ONE brand blue.
   `background`, `foreground`, `border`, `input`, `ring`, `destructive`,
   `success`, `warning`, `info`
 - Neutral ramp: `ink` (headings) · `ink-2` · `ink-3` · `ink-4`
-  (placeholder/meta — AA on tint) · `body` (slate-600 secondary text) ·
-  `tint` (slate-100 surfaces/chips) · `line-strong` (slate-300 borders)
+  (placeholder/meta — AA on tint) · `body` (neutral-600 secondary text) ·
+  `tint` (neutral-100 surfaces/chips) · `line-strong` (neutral-300 borders)
 - Trust ladder: `verified`, `pending` + the tier colors on `/trust`
 
 Every token has a `.dark` counterpart — using tokens is what keeps dark mode

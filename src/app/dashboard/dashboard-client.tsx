@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { AlertTriangle, Eye, MessageSquareText, Tag, Clock, Upload, List, LayoutGrid, Store, Search, X, CheckSquare, TrendingDown } from 'lucide-react'
+import { AlertTriangle, Eye, MessageSquareText, Tag, Clock, Upload, List, LayoutGrid, Search, X, CheckSquare, TrendingDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { Mascot } from '@/components/marketplace/mascot'
@@ -14,12 +14,12 @@ import dynamic from 'next/dynamic'
 const DevelopersPanel = dynamic(() => import('@/components/marketplace/developers-panel').then((m) => m.DevelopersPanel), { ssr: false })
 const DisputesPanel = dynamic(() => import('@/components/marketplace/disputes-panel').then((m) => m.DisputesPanel), { ssr: false })
 import { Header } from '@/components/marketplace/header'
-import { Footer } from '@/components/marketplace/footer'
-import { SignInPrompt, SignOutButton } from '@/components/marketplace/account-actions'
+import { SignInPrompt } from '@/components/marketplace/account-actions'
+import { DashboardShell, type DashTab } from '@/components/marketplace/dashboard-shell'
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
+import { ListingsTable } from '@/components/marketplace/listings-table'
 import { BulkDiscount } from '@/components/marketplace/bulk-discount'
 import type { SparkPoint } from '@/components/marketplace/listing-sparkline'
-import { TrustScore } from '@/components/marketplace/trust-score'
 import { TrustProgress, type TrustProgressData } from '@/components/marketplace/trust-progress'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
 import { ProfileEditor } from '@/components/marketplace/profile-editor'
@@ -38,7 +38,6 @@ import { fold } from '@/lib/fold'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
-import { Avatar } from '@/components/ui/avatar'
 import { EmptyState } from '@/components/ui/empty-state'
 import type { SerializedListing } from '@/lib/types'
 
@@ -70,7 +69,7 @@ type Dashboard = {
 // Module-level so it isn't re-created (and its subtree remounted) every render.
 function StatCard({ icon, value, label, href, accent }: { icon: React.ReactNode; value: React.ReactNode; label: string; href?: string; accent?: boolean }) {
   const inner = (
-    <div className={`flex items-center gap-3 rounded-2xl p-4 ${href ? 'cursor-pointer transition-colors hover:bg-muted' : ''}`}>
+    <div className={`flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm ${href ? 'cursor-pointer transition-colors hover:bg-muted' : ''}`}>
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-tint text-accent-foreground">{icon}</span>
       <div className="leading-tight">
         <div className={`text-lg font-bold ${accent ? 'text-accent-foreground' : 'text-foreground'}`}>{value}</div>
@@ -108,7 +107,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   // A failed /api/dashboard on a first-time load (no localStorage cache) must not
   // read as an empty dashboard — surfaced below as an error + retry.
   const [fetchFailed, setFetchFailed] = useState(false)
-  const [tab, setTab] = useState<'post' | 'listings' | 'account' | 'help' | 'dev' | 'disputes'>('listings')
+  const [tab, setTab] = useState<DashTab>('listings')
   // Listings layout: line (rows) vs grid (cards). Persisted per device.
   const [listView, setListView] = useState<'list' | 'grid'>('list')
   useEffect(() => { try { const v = localStorage.getItem('eno-dash-view'); if (v === 'grid' || v === 'list') setListView(v) } catch {} }, [])
@@ -222,71 +221,26 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
   const exitSelect = () => { setSelectMode(false); setSelected(new Set()) }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Header />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-6 sm:px-6 lg:px-8">
-        {/* Identity header — avatar · name · email · trust, with post + sign out */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <Avatar
-              name={d?.profile.businessName || d?.profile.displayName || d?.profile.email}
-              url={d?.profile.avatarUrl}
-              color={d?.profile.avatarColor}
-              size="lg"
-            />
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="truncate text-lg font-bold text-foreground">{d?.profile.businessName || d?.profile.displayName || tr('Your account', 'Tài khoản của bạn')}</h1>
-                {d && <TrustScore score={d.profile.trustScore} size="md" showLabel href="/trust" />}
-              </div>
-              {d?.profile.email && <p className="truncate text-sm text-muted-foreground">{d.profile.email}</p>}
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {d?.seller && (
-              <>
-                <a
-                  href={d.seller.handle ? `/${d.seller.handle}` : `/sellers/${d.seller.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted"
-                >
-                  <Store className="h-4 w-4" /> {tr('View storefront', 'Xem gian hàng')}
-                </a>
-                <ShareButton
-                  url={`${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/${d.seller.handle ?? `sellers/${d.seller.id}`}`}
-                  title={d.profile.businessName || d.seller.name}
-                />
-              </>
-            )}
-            <SignOutButton />
-          </div>
-        </div>
-
-        {/* Tabs — Post · Listings · Settings · Disputes · [Developers] · Help. All
-            render inline under the tab (no redirect). Developers (API keys) is
-            business-tier only. */}
-        <div className="mt-5 flex flex-wrap items-center gap-1">
-          {([
-            'post', 'listings', 'account', 'disputes',
-            ...(isBusiness ? ['dev' as const] : []),
-            'help',
-          ] as const).map((tb) => (
-            <button
-              key={tb}
-              onClick={() => { setTab(tb); router.replace(`/dashboard?tab=${tb}`, { scroll: false }) }}
-              className={cn(
-                '-mb-px flex items-center gap-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
-                tab === tb ? 'border-brand text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {tb === 'post' ? tr('Post', 'Đăng tin')
-                : tb === 'listings' ? tr('Listings', 'Tin đăng')
-                : tb === 'account' ? tr('Settings', 'Cài đặt')
-                : tb === 'disputes' ? tr('Disputes', 'Khiếu nại')
-                : tb === 'dev' ? tr('Developers', 'Lập trình')
-                : tr('Help', 'Trợ giúp')}
-            </button>
-          ))}
-        </div>
+    <DashboardShell
+      tab={tab}
+      onTab={(tb) => { setTab(tb); router.replace(`/dashboard?tab=${tb}`, { scroll: false }) }}
+      isBusiness={isBusiness}
+      unread={s?.unreadMessages ?? 0}
+      profile={d ? {
+        name: d.profile.businessName || d.profile.displayName,
+        email: d.profile.email,
+        avatarUrl: d.profile.avatarUrl,
+        avatarColor: d.profile.avatarColor,
+        trustScore: d.profile.trustScore,
+      } : null}
+      seller={d?.seller ? { handle: d.seller.handle, id: d.seller.id } : null}
+      actions={d?.seller ? (
+        <ShareButton
+          url={`${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/${d.seller.handle ?? `sellers/${d.seller.id}`}`}
+          title={d.profile.businessName || d.seller.name}
+        />
+      ) : undefined}
+    >
 
         {tab === 'help' && (
           <div className="mt-6 pb-12">
@@ -377,16 +331,20 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             <div className="flex items-center gap-2">
               {/* Bulk-discount: enter selection mode (only meaningful when there's a
                   live, priced listing to discount). */}
+              {/* On desktop list view the data-table has its own row checkboxes,
+                  so the mobile/grid select-mode entry hides there. */}
               {d && discountable.length > 0 && (
-                selectMode ? (
-                  <button onClick={exitSelect} className="rounded-lg px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
-                    {tr('Cancel', 'Hủy')}
-                  </button>
-                ) : (
-                  <button onClick={() => setSelectMode(true)} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
-                    <CheckSquare className="h-3.5 w-3.5" /> {tr('Select', 'Chọn')}
-                  </button>
-                )
+                <span className={cn(listView === 'list' && 'lg:hidden')}>
+                  {selectMode ? (
+                    <button onClick={exitSelect} className="rounded-lg px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
+                      {tr('Cancel', 'Hủy')}
+                    </button>
+                  ) : (
+                    <button onClick={() => setSelectMode(true)} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
+                      <CheckSquare className="h-3.5 w-3.5" /> {tr('Select', 'Chọn')}
+                    </button>
+                  )}
+                </span>
               )}
               {/* Line ↔ grid view toggle (mirrors the explorer's). */}
               {d && d.listings.length > 0 && (
@@ -411,7 +369,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
           {selectMode && d && (() => {
             const allSelected = discountable.length > 0 && discountable.every((l) => selected.has(l.id))
             return (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-accent px-3 py-2">
+              <div className={cn('mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-accent px-3 py-2', listView === 'list' && 'lg:hidden')}>
                 <span className="text-xs font-semibold text-accent-foreground">
                   {tr(`${selectedItems.length} selected`, `Đã chọn ${selectedItems.length}`)}
                 </span>
@@ -484,8 +442,8 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             <p className="mt-6 text-center text-sm text-muted-foreground">
               {tr('No listings match', 'Không có tin nào khớp')} “{listQ.trim()}”.
             </p>
-          ) : (
-            <div className={cn('mt-3', listView === 'grid' ? 'grid grid-cols-2 gap-2.5 lg:grid-cols-3' : 'space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-2.5 lg:space-y-0')}>
+          ) : listView === 'grid' ? (
+            <div className="mt-3 grid grid-cols-2 gap-2.5 lg:grid-cols-3">
               {shownListings.map((l) => {
                 const canSelect = selectMode && l.status === 'active' && l.price > 0
                 return (
@@ -493,7 +451,7 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
                     key={l.id}
                     listing={l}
                     onChanged={refresh}
-                    variant={listView === 'grid' ? 'grid' : 'row'}
+                    variant="grid"
                     series={spark ? spark[l.id] ?? [] : undefined}
                     selectable={canSelect}
                     selected={selected.has(l.id)}
@@ -502,6 +460,31 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
                 )
               })}
             </div>
+          ) : (
+            <>
+              {/* Desktop list view = the data-table (sortable columns, row
+                  selection feeding bulk discount). Mobile keeps the stacked rows
+                  with the proven select-mode. */}
+              <div className="mt-3 hidden lg:block">
+                <ListingsTable listings={shownListings} onChanged={refresh} spark={spark} />
+              </div>
+              <div className="mt-3 space-y-2.5 lg:hidden">
+                {shownListings.map((l) => {
+                  const canSelect = selectMode && l.status === 'active' && l.price > 0
+                  return (
+                    <DashboardListingRow
+                      key={l.id}
+                      listing={l}
+                      onChanged={refresh}
+                      series={spark ? spark[l.id] ?? [] : undefined}
+                      selectable={canSelect}
+                      selected={selected.has(l.id)}
+                      onSelectToggle={() => toggleSelect(l.id)}
+                    />
+                  )
+                })}
+              </div>
+            </>
           )}
         </section>
 
@@ -577,16 +560,14 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
             <ReminderSettings />
           </SettingsCard>
 
-          {/* Preferences — language + appearance. Mobile only: on desktop (sm+) these
-              live in the header account dropdown, so they'd be redundant here. */}
-          <div className="sm:hidden">
-            <SettingsCard
-              title={tr('Preferences', 'Tùy chọn')}
-              description={tr('Language and appearance.', 'Ngôn ngữ và giao diện.')}
-            >
-              <PreferencesInline />
-            </SettingsCard>
-          </div>
+          {/* Preferences — language + appearance. All sizes: the dashboard shell
+              has no marketplace header, so this is the only place to switch them. */}
+          <SettingsCard
+            title={tr('Preferences', 'Tùy chọn')}
+            description={tr('Language and appearance.', 'Ngôn ngữ và giao diện.')}
+          >
+            <PreferencesInline />
+          </SettingsCard>
 
           {/* Danger zone — self-service account deletion (PDPL deletion right) */}
           <SettingsCard
@@ -598,8 +579,6 @@ export function DashboardClient({ categories }: { categories: SerializedCategory
           </SettingsCard>
         </div>
       )}
-      </main>
-      <Footer />
-    </div>
+    </DashboardShell>
   )
 }
