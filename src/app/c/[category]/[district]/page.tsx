@@ -102,7 +102,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
         </nav>
 
         <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in" /> <Tr text={districtName} /></h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-body">
+        <p className="mt-2 max-w-2xl text-base leading-relaxed text-body">
           {listings.length} <Tr text={cat.name.toLowerCase()} /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="in" /> <Tr text={districtName} />,{' '}
           <Tr text="each from a seller with a public trust score — fewer fakes, fewer bait prices." />
         </p>

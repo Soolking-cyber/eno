@@ -56,7 +56,7 @@ export function NotificationBell() {
             Saved/Messages action icons on desktop (one consistent nav scale). */}
         <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} />
         {user && unread > 0 && (
-          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white animate-in zoom-in duration-200">
+          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-3xs font-bold text-white animate-in zoom-in duration-200">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -133,7 +133,7 @@ export function NotificationBell() {
                             {!n.read && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-foreground" />}
                             <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : <Tr text={n.title} />}</span>
                           </span>
-                          <span className="shrink-0 text-[10px] text-ink-4">{timeAgo(n.createdAt, lang === 'vi' ? 'vi' : 'en')}</span>
+                          <span className="shrink-0 text-3xs text-ink-4">{timeAgo(n.createdAt, lang === 'vi' ? 'vi' : 'en')}</span>
                         </div>
                         {n.body && <p className={cn('text-xs', n.type === 'system' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}><Tr text={n.body} /></p>}
                       </div>

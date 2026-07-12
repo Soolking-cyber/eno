@@ -54,7 +54,7 @@ export default function PendingComposePage() {
           id,
           me: user?.id ?? '',
           listing: { id: d.listingId, title: d.listingTitle, image: d.listingImage },
-          counterpart: { name: '', avatarColor: '#0a66c2', avatarUrl: null },
+          counterpart: { name: '', avatarColor: 'var(--brand)', avatarUrl: null },
           messages: message ? [{ id: message.id, mine: true, body: message.body, createdAt: message.createdAt, kind: message.kind, offerAmount: message.offerAmount, offerStatus: message.offerStatus }] : [],
         })
         if (created) trackContactSeller({ id: d.listingId, title: d.listingTitle, price: d.trackPrice ?? undefined, currency: currencyCode(d.currency) })
@@ -68,7 +68,7 @@ export default function PendingComposePage() {
     <div className="flex h-full w-full flex-col">
       <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
         <div className="h-9 w-9 shrink-0 rounded-full shimmer" />
-        <div className="h-4 w-32 rounded shimmer" />
+        <div className="h-4 w-32 rounded-lg shimmer" />
       </div>
       <div className="flex-1 space-y-2 px-4 py-4">
         {[['end', 'w-44'], ['start', 'w-32']].map(([side, w], i) => (

@@ -212,7 +212,7 @@ export function SignInForm({ className }: { className?: string }) {
         {oauthBlocked && <ExternalLink className="h-3.5 w-3.5 text-ink-4" />}
       </button>
       {oauthBlocked && (
-        <p className="rounded-xl bg-tint px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="rounded-xl bg-tint px-3 py-2 text-2xs leading-relaxed text-muted-foreground">
           {iosHint
             ? t('Tap ••• at the top, choose “Open in Safari/Browser”, then sign in with Google. Or just use Phone/Email below — they work right here.', 'Chạm ••• ở trên rồi chọn “Mở trong Safari”, sau đó đăng nhập với Google. Hoặc dùng SĐT/email bên dưới — vẫn hoạt động ngay tại đây.')
             : t('Google sign-in needs your real browser. Phone or email below work right here.', 'Google chỉ hoạt động trong trình duyệt thật. Dùng SĐT hoặc email bên dưới — vẫn hoạt động ngay tại đây.')}
@@ -259,7 +259,7 @@ export function SignInForm({ className }: { className?: string }) {
           {/* Point at the ONE inbox the hook actually delivered to — shown only
               once /api/auth/otp-channel confirms it, never a guess. */}
           {sentChannel && (
-            <p className="-mt-1.5 text-center text-[11px] text-ink-4">
+            <p className="-mt-1.5 text-center text-2xs text-ink-4">
               {sentChannel === 'sms'
                 ? t('Sent by SMS — check your messages.', 'Đã gửi qua SMS — kiểm tra tin nhắn của bạn.')
                 : `${t('Sent to your', 'Đã gửi tới')} ${sentChannel === 'telegram' ? 'Telegram' : sentChannel === 'whatsapp' ? 'WhatsApp' : 'Zalo'}.`}
@@ -287,7 +287,7 @@ export function SignInForm({ className }: { className?: string }) {
       {error && <p role="alert" className="text-center text-xs font-semibold text-red-600">{error}</p>}
       {/* Invisible Turnstile — renders a visible challenge only if one is required. */}
       <Turnstile />
-      <p className="pt-1 text-center text-[11px] text-ink-4">
+      <p className="pt-1 text-center text-2xs text-ink-4">
         {t('By continuing you confirm you are 18 or older and agree to our', 'Tiếp tục nghĩa là bạn xác nhận đủ 18 tuổi và đồng ý với')}{' '}
         <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Terms', 'Điều khoản')}</a>
         {' '}{t('and', 'và')}{' '}

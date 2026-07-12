@@ -17,8 +17,8 @@ function Toggle({ title, desc, value, onChange, locked = false }: { title: strin
       className={cn('flex w-full items-start gap-2.5 rounded-lg p-1.5 text-left transition-colors', locked ? 'opacity-70' : 'hover:bg-muted cursor-pointer')}
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-semibold text-foreground">{title}</span>
-        <span className="mt-0.5 block text-[11px] leading-snug text-ink-4">{desc}</span>
+        <span className="block text-sm font-semibold text-foreground">{title}</span>
+        <span className="mt-0.5 block text-2xs leading-snug text-ink-4">{desc}</span>
       </span>
       <span className={cn('mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors', value ? 'bg-primary' : 'bg-line-strong')}>
         <span className={cn('h-4 w-4 rounded-full bg-white shadow-sm transition-transform', value && 'translate-x-4')} />
@@ -75,8 +75,8 @@ export function CookieConsent() {
         <div className="min-w-0 flex-1 pr-0.5">
           {view === 'ask' ? (
             <>
-              <h2 className="text-[15px] font-bold leading-tight text-foreground sm:text-base">{tr('Want results made for you?', 'Muốn kết quả dành riêng cho bạn?')}</h2>
-              <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
+              <h2 className="text-base font-bold leading-tight text-foreground">{tr('Want results made for you?', 'Muốn kết quả dành riêng cho bạn?')}</h2>
+              <p className="mt-1 text-sm leading-snug text-muted-foreground">
                 {tr(
                   'Allow cookies and we’ll put the most relevant products first — and keep you signed in. ',
                   'Cho phép cookie để chúng tôi đưa sản phẩm phù hợp nhất lên đầu — và giữ bạn đăng nhập. ',
@@ -91,7 +91,7 @@ export function CookieConsent() {
             </>
           ) : (
             <>
-              <h2 className="text-[15px] font-bold leading-tight text-foreground sm:text-base">{tr('Your choices', 'Lựa chọn của bạn')}</h2>
+              <h2 className="text-base font-bold leading-tight text-foreground">{tr('Your choices', 'Lựa chọn của bạn')}</h2>
               <div className="mt-1.5 -ml-1.5 space-y-0">
                 <Toggle locked value title={tr('Essential', 'Cần thiết')} desc={tr('Sign-in & speed. Always on.', 'Đăng nhập & tốc độ. Luôn bật.')} />
                 <Toggle value={perso} onChange={setPerso} title={tr('Personalized', 'Cá nhân hoá')} desc={tr('Rank the most relevant items first from your activity.', 'Xếp hạng mục phù hợp nhất theo hoạt động của bạn.')} />

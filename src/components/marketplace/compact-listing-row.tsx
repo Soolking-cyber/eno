@@ -97,7 +97,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {/* Demand proof (≥3 contact reveals) — desktop only: the one-line meta row
               can't spare the width on mobile. */}
           {l.contactCount >= 3 && (
-            <span className="hidden shrink-0 text-[11px] text-muted-foreground tabular-nums sm:inline">
+            <span className="hidden shrink-0 text-2xs text-muted-foreground tabular-nums sm:inline">
               {tr(`${formatCount(l.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(l.contactCount, moneyLocale(lang))}`)}
             </span>
           )}
@@ -113,7 +113,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             onClick={(e) => e.stopPropagation()}
             className="flex min-w-0 items-center gap-2 py-1 pr-1 animate-in slide-in-from-right-2 fade-in duration-150"
           >
-            <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{offer}%</span>
+            <span className="shrink-0 text-2xs font-bold tabular-nums text-foreground">−{offer}%</span>
             <input
               type="range"
               min={5} max={50} step={5}
@@ -127,7 +127,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               variant="cta"
               size="none"
               onClick={() => quickGo({ offerAmount: Math.round(l.price * (1 - offer / 100)) })}
-              className="shrink-0 rounded-full px-3 py-1 text-[11px] cursor-pointer"
+              className="shrink-0 rounded-full px-3 py-1 text-2xs cursor-pointer"
             >
               {formatMoneyFull(Math.round(l.price * (1 - offer / 100)), l.currency, moneyLocale(lang))} →
             </Button>

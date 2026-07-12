@@ -172,7 +172,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
       {/* ── Party panels ── */}
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-ink-4">Reporter</p>
+          <p className="text-3xs font-bold uppercase tracking-wide text-ink-4">Reporter</p>
           {data.reporter ? (
             <p className="mt-1 text-sm text-foreground">
               <span className="font-bold">{data.reporter.name}</span>
@@ -184,11 +184,11 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           ) : <p className="mt-1 text-sm text-muted-foreground">Unknown / removed account</p>}
         </div>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-ink-4">Respondent</p>
+          <p className="text-3xs font-bold uppercase tracking-wide text-ink-4">Respondent</p>
           {data.target ? (
             <p className="mt-1 text-sm text-foreground">
               <span className="font-bold">{data.target.name}</span>
-              {data.target.isGuest && <span className="ml-1.5 rounded-full bg-tint px-2 py-0.5 text-[10px] font-bold text-ink-4">unreachable — no account</span>}
+              {data.target.isGuest && <span className="ml-1.5 rounded-full bg-tint px-2 py-0.5 text-3xs font-bold text-ink-4">unreachable — no account</span>}
               <br />
               <span className="text-xs text-muted-foreground">
                 {data.target.trustScore != null ? `trust ${data.target.trustScore} (${data.target.trustTier})` : 'no trust record'}
@@ -215,15 +215,15 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           <div className="rounded-2xl bg-tint/50 p-4">
             <div className="flex flex-wrap items-center gap-2">
               <Sparkles className="h-4 w-4 text-ink-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wide text-ink-4">AI suggestion — you decide</span>
-              <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold',
+              <span className="text-3xs font-bold uppercase tracking-wide text-ink-4">AI suggestion — you decide</span>
+              <span className={cn('rounded-full px-2 py-0.5 text-3xs font-bold',
                 ai.outcome === 'confirm' ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
                 : ai.outcome === 'abusive' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                 : 'bg-tint text-body')}>
                 {ai.outcome === 'confirm' ? 'Confirm report' : ai.outcome === 'abusive' ? 'Abusive reporter' : 'Dismiss report'}{ai.severity ? ` · ${ai.severity}` : ''}
               </span>
-              <span className="text-[10px] text-ink-4">{Math.round(ai.confidence * 100)}% confidence{ai.analyzedAt ? ` · ${new Date(ai.analyzedAt).toLocaleString('en-GB')}` : ''}{ai.cached ? ' · cached' : ''}</span>
-              <button onClick={() => runAi(true)} disabled={aiBusy} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-60 cursor-pointer">
+              <span className="text-3xs text-ink-4">{Math.round(ai.confidence * 100)}% confidence{ai.analyzedAt ? ` · ${new Date(ai.analyzedAt).toLocaleString('en-GB')}` : ''}{ai.cached ? ' · cached' : ''}</span>
+              <button onClick={() => runAi(true)} disabled={aiBusy} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-3xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-60 cursor-pointer">
                 {aiBusy && <Loader2 className="h-3 w-3 animate-spin" />} Re-analyze
               </button>
             </div>
@@ -236,7 +236,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
               <div className="mt-2 space-y-1">
                 {ai.keyEvidence.map((e, i) => (
                   <p key={i} className="text-xs text-muted-foreground">
-                    <span className="mr-1 rounded bg-tint px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-ink-4">{e.source.replace('_', ' ')}</span>
+                    <span className="mr-1 rounded-lg bg-tint px-1 py-0.5 text-3xs font-bold uppercase tracking-wide text-ink-4">{e.source.replace('_', ' ')}</span>
                     “{e.quote}”
                   </p>
                 ))}
@@ -248,7 +248,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
             {ai.missing.length > 0 && (
               <p className="mt-1 text-xs text-muted-foreground"><span className="font-bold text-ink-4">Missing:</span> {ai.missing.join(' · ')} — ask for it below or extend the window.</p>
             )}
-            <p className="mt-2 text-[10px] italic text-ink-4">AI can misread context — verify quotes in the thread before deciding.</p>
+            <p className="mt-2 text-3xs italic text-ink-4">AI can misread context — verify quotes in the thread before deciding.</p>
           </div>
         )}
       </div>
@@ -264,7 +264,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
                 <span className="inline-block rounded-full bg-tint px-3 py-1 text-xs font-semibold text-body">
                   {item.kind === 'decision' ? `Decision: ${data.withdrawn ? 'withdrawn' : data.status}${item.body ? ` — ${item.body}` : ''}` : item.body}
                 </span>
-                <p className="mt-0.5 text-[10px] text-ink-4">{new Date(item.at).toLocaleString('en-GB')}</p>
+                <p className="mt-0.5 text-3xs text-ink-4">{new Date(item.at).toLocaleString('en-GB')}</p>
               </div>
             )
           }
@@ -274,7 +274,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           return (
             <div key={item.id} className={cn('flex flex-col', fromReporter ? 'items-start' : isAdmin ? 'items-center' : 'items-end')}>
               <div className={cn('max-w-[85%] rounded-2xl px-3.5 py-2.5', isAdmin ? 'bg-accent' : fromReporter ? 'bg-tint' : 'bg-primary/10')}>
-                {isAdmin && <p className="mb-1 flex items-center gap-1 text-[11px] font-bold text-accent-foreground"><Shield className="h-3 w-3" /> eno.vn</p>}
+                {isAdmin && <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><Shield className="h-3 w-3" /> eno.vn</p>}
                 {item.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{item.body}</p>}
                 {item.images.length > 0 && (
                   <div className={cn('flex flex-wrap gap-2', item.body && 'mt-2')}>
@@ -287,7 +287,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
                   </div>
                 )}
               </div>
-              <span className="mt-0.5 px-1 text-[10px] text-ink-4">{who} · {new Date(item.at).toLocaleString('en-GB')}</span>
+              <span className="mt-0.5 px-1 text-3xs text-ink-4">{who} · {new Date(item.at).toLocaleString('en-GB')}</span>
             </div>
           )
         })}
@@ -328,7 +328,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
       {/* ── Decision bar ── */}
       {open && (
         <div className="mt-8 rounded-2xl bg-tint/50 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-ink-4">Decide the case</p>
+          <p className="text-3xs font-bold uppercase tracking-wide text-ink-4">Decide the case</p>
           <textarea
             value={decisionNote}
             onChange={(e) => setDecisionNote(e.target.value)}
@@ -371,7 +371,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
               {busy === 'abusive-report' ? 'Working…' : 'Abusive report'}
             </button>
           </div>
-          <p className="mt-2 text-[11px] text-ink-4">
+          <p className="mt-2 text-2xs text-ink-4">
             Confirm docks the respondent&apos;s trust by the severity weight and pulls the listing · Dismiss closes with no action · Abusive penalizes the reporter. Both parties are notified either way.
           </p>
         </div>
@@ -379,7 +379,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
 
       {/* ── Internal note (staff-only) ── */}
       <div className="mt-6">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-ink-4">Internal note (never shown to users)</p>
+        <p className="text-3xs font-bold uppercase tracking-wide text-ink-4">Internal note (never shown to users)</p>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}

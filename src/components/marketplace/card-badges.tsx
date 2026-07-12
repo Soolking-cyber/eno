@@ -40,7 +40,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        variant === 'overlay' ? 'rounded-full px-2 py-0.5 text-[10px] font-bold shadow-sm' : 'rounded-full px-1.5 py-px text-[10px] font-bold',
+        variant === 'overlay' ? 'rounded-full px-2 py-0.5 text-3xs font-bold shadow-sm' : 'rounded-full px-1.5 py-px text-3xs font-bold',
         TONE[kind],
         kind === 'urgent' && 'inline-flex items-center gap-0.5',
         className,

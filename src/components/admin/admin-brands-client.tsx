@@ -150,8 +150,8 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="truncate text-sm font-bold text-foreground">{name}</span>
-            {!brand.curatedAt && <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-accent-foreground">new</span>}
-            {brand.status === 'hidden' && <span className="rounded-full bg-tint px-1.5 text-[10px] font-bold text-ink-4">hidden</span>}
+            {!brand.curatedAt && <span className="rounded-full bg-primary/10 px-1.5 text-3xs font-bold text-accent-foreground">new</span>}
+            {brand.status === 'hidden' && <span className="rounded-full bg-tint px-1.5 text-3xs font-bold text-ink-4">hidden</span>}
           </span>
           <span className="block truncate text-xs text-muted-foreground">{brand.slug} · {brand.listingCount} listings</span>
         </span>
@@ -165,7 +165,7 @@ function BrandRow({ brand, brands, open, onToggle, onSaved }: { brand: Brand; br
               {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} AI suggest logo &amp; name
             </button>
             {aiNote && <span className="text-xs text-muted-foreground">{aiNote}</span>}
-            <span className="text-[11px] text-ink-4">— review, then Save to approve.</span>
+            <span className="text-2xs text-ink-4">— review, then Save to approve.</span>
           </div>
           <Field label="Display name"><input value={name} onChange={(e) => setName(e.target.value)} className={INPUT} /></Field>
           <Field label="Status">
@@ -210,7 +210,7 @@ const INPUT = 'w-full rounded-xl bg-tint px-3 py-2 text-sm text-foreground outli
 function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
   return (
     <div className={cn('space-y-1', full && 'sm:col-span-2')}>
-      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</label>
+      <label className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">{label}</label>
       {children}
     </div>
   )

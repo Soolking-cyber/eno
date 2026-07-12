@@ -71,16 +71,16 @@ export default async function AdminDisputesPage() {
             <span className="text-sm font-bold capitalize text-foreground">{r.reason}</span>
             {r.status === 'open' ? (
               stage === 'evidence'
-                ? <span className="rounded-full bg-tint px-2 py-0.5 text-[10px] font-bold text-accent-foreground">evidence{left ? ` · ${left} left` : ''}</span>
-                : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">awaiting decision</span>
+                ? <span className="rounded-full bg-tint px-2 py-0.5 text-3xs font-bold text-accent-foreground">evidence{left ? ` · ${left} left` : ''}</span>
+                : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">awaiting decision</span>
             ) : (
-              <span className={cn('rounded-full bg-tint px-2 py-0.5 text-[10px] font-bold capitalize',
+              <span className={cn('rounded-full bg-tint px-2 py-0.5 text-3xs font-bold capitalize',
                 r.status === 'confirmed' ? 'text-success' : r.status === 'abusive' ? 'text-destructive' : 'text-ink-4')}>
                 {r.resolvedBy === 'withdrawn-by-reporter' ? 'withdrawn' : r.status}
               </span>
             )}
-            {r.appealedAt && r.status === 'open' && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">appeal</span>}
-            {target?.isGuest && <span className="rounded-full bg-tint px-2 py-0.5 text-[10px] font-bold text-ink-4">respondent unreachable</span>}
+            {r.appealedAt && r.status === 'open' && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">appeal</span>}
+            {target?.isGuest && <span className="rounded-full bg-tint px-2 py-0.5 text-3xs font-bold text-ink-4">respondent unreachable</span>}
           </div>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {reporter ? `by ${reporter.name} (trust ${reporter.trustScore}${reporter.strikes ? `, ${reporter.strikes} strikes` : ''})` : 'by unknown'}
@@ -91,7 +91,7 @@ export default async function AdminDisputesPage() {
         </div>
         <div className="shrink-0 text-right">
           <p className="text-xs font-semibold text-body">{r._count.messages} msg</p>
-          <p className="text-[10px] text-ink-4">{(r.lastMessageAt ?? r.createdAt).toLocaleDateString('en-GB')}</p>
+          <p className="text-3xs text-ink-4">{(r.lastMessageAt ?? r.createdAt).toLocaleDateString('en-GB')}</p>
         </div>
       </Link>
     )

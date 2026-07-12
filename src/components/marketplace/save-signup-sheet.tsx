@@ -64,7 +64,7 @@ export function SaveSignupSheet() {
             {tr('Not now', 'Để sau')}
           </button>
         </div>
-        <p className="mt-2 text-center text-[10px] text-ink-4">{tr('Free forever · no spam · 10 seconds', 'Miễn phí · không spam · 10 giây')}</p>
+        <p className="mt-2 text-center text-3xs text-ink-4">{tr('Free forever · no spam · 10 seconds', 'Miễn phí · không spam · 10 giây')}</p>
       </div>
     </div>
   )

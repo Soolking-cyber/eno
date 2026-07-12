@@ -95,7 +95,7 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
   loading: () => (
     <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none animate-pulse">
       <Spinner size="md" />
-      <span className="text-[10px] font-bold text-body uppercase tracking-wider">
+      <span className="text-3xs font-bold text-body uppercase tracking-wider">
         <Tr text="Loading map…" />
       </span>
     </div>
@@ -1310,7 +1310,7 @@ export function ListingsExplorer({
                               <span className="eyebrow flex items-center gap-1 text-body"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }}
-                                className="text-[11px] font-semibold text-body hover:text-red-500 cursor-pointer"
+                                className="text-2xs font-semibold text-body hover:text-red-500 cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
                               </button>
@@ -1335,7 +1335,7 @@ export function ListingsExplorer({
                               <span className="eyebrow flex items-center gap-1 text-body"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }}
-                                className="text-[11px] font-semibold text-body hover:text-red-500 cursor-pointer"
+                                className="text-2xs font-semibold text-body hover:text-red-500 cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
                               </button>
@@ -1397,7 +1397,7 @@ export function ListingsExplorer({
             <div className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-x-auto scrollbar-none snap-x px-3">
               {categories.map((cat) => {
                 const cc = CATEGORY_COLOR_CLASSES[cat.color] ?? CATEGORY_COLOR_CLASSES.brand
-                const hex = cc.text.match(/#[0-9a-fA-F]{6}/)?.[0] ?? '#0a66c2'
+                const hex = cc.text.match(/#[0-9a-fA-F]{6}/)?.[0] ?? 'var(--brand)'
                 return (
                   <button
                     key={cat.id}
@@ -1415,7 +1415,7 @@ export function ListingsExplorer({
                     {/* Social proof cuts both ways: a small count reads as a dead
                         category, so show it only once it's actually impressive. */}
                     {(cat.verifiedCount || 0) >= 20 && (
-                      <span className="text-[11px] sm:text-xs text-body select-none font-semibold">
+                      <span className="text-2xs sm:text-xs text-body select-none font-semibold">
                         {cat.verifiedCount} {tr('listings', 'tin')}
                       </span>
                     )}
@@ -1436,7 +1436,7 @@ export function ListingsExplorer({
                   <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
                     <Tr text={lang === 'vi' ? s.nameVi : s.name} />
                   </span>
-                  <span className="text-[11px] sm:text-xs text-body select-none font-semibold">
+                  <span className="text-2xs sm:text-xs text-body select-none font-semibold">
                     {s.type === 'free' ? tr('Giveaways', 'Miễn phí') : tr('In search of', 'Cần tìm')}
                   </span>
                 </button>
@@ -1632,7 +1632,7 @@ export function ListingsExplorer({
         <div className="flex flex-wrap items-center gap-1.5">{chipBtns}</div>
         <button onClick={saveSearch} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-card py-2 text-sm font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer">
           <Bookmark className="h-4 w-4" /> {tr('Save this search', 'Lưu tìm kiếm này')}
-          <span className="text-[11px] font-normal text-muted-foreground">{tr('— alerts on new matches', '— báo khi có tin mới')}</span>
+          <span className="text-2xs font-normal text-muted-foreground">{tr('— alerts on new matches', '— báo khi có tin mới')}</span>
         </button>
       </div>
     )
@@ -1838,10 +1838,10 @@ export function ListingsExplorer({
                     <div key={i} className="flex items-center gap-3 p-2">
                       <div className="h-16 w-20 shrink-0 rounded-lg shimmer" />
                       <div className="flex-1 space-y-2">
-                        <div className="h-3.5 w-1/2 rounded shimmer" />
-                        <div className="h-3 w-1/3 rounded shimmer" />
+                        <div className="h-3.5 w-1/2 rounded-lg shimmer" />
+                        <div className="h-3 w-1/3 rounded-lg shimmer" />
                       </div>
-                      <div className="h-8 w-24 rounded shimmer mr-2" />
+                      <div className="h-8 w-24 rounded-lg shimmer mr-2" />
                     </div>
                   ))}
                 </div>

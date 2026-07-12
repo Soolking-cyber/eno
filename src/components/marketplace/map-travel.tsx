@@ -61,11 +61,11 @@ export function MapTravel({
   if (userLoc) {
     const est = estimateTravel(userLoc, to)
     if (!est) {
-      return <span className="text-[11px] text-ink-4">{tr('Too far to estimate', 'Quá xa để ước tính')}</span>
+      return <span className="text-2xs text-ink-4">{tr('Too far to estimate', 'Quá xa để ước tính')}</span>
     }
     const { dist, time } = formatTravel(est, l)
     return (
-      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${compact ? 'text-[11px]' : 'text-xs'} text-muted-foreground`}>
+      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${compact ? 'text-2xs' : 'text-xs'} text-muted-foreground`}>
         <Navigation className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
         <span className="font-bold text-foreground tabular-nums">~{time}</span>
         <span className="text-ink-4">·</span>
@@ -75,14 +75,14 @@ export function MapTravel({
   }
 
   if (state === 'denied') {
-    return <span className="text-[11px] text-ink-4">{tr('Enable location for travel time', 'Bật vị trí để xem thời gian đi')}</span>
+    return <span className="text-2xs text-ink-4">{tr('Enable location for travel time', 'Bật vị trí để xem thời gian đi')}</span>
   }
 
   return (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onRequest() }}
-      className={`inline-flex items-center gap-1.5 rounded-full ${compact ? 'text-[11px]' : 'text-xs'} font-semibold text-accent-foreground transition-colors hover:underline cursor-pointer`}
+      className={`inline-flex items-center gap-1.5 rounded-full ${compact ? 'text-2xs' : 'text-xs'} font-semibold text-accent-foreground transition-colors hover:underline cursor-pointer`}
     >
       {state === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Navigation className="h-3.5 w-3.5" />}
       {tr('Travel time from me', 'Thời gian từ chỗ tôi')}

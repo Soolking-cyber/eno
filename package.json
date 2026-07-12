@@ -15,9 +15,9 @@
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
     "postinstall": "prisma generate",
-    "build": "prisma generate && next build && { [ -d .next/standalone ] && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ || true; }",
+    "build": "node scripts/design-lint.mjs && prisma generate && next build && { [ -d .next/standalone ] && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ || true; }",
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
-    "lint": "eslint .",
+    "lint": "eslint . && node scripts/design-lint.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "node scripts/smoke.mjs",

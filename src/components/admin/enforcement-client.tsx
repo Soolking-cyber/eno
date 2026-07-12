@@ -69,12 +69,12 @@ const fmtAge = (iso: string) => {
 }
 
 function StateChip({ state }: { state: string }) {
-  return <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold capitalize', STATE_CLS[state] ?? 'bg-tint text-ink-4')}>{state.replace('_', ' ')}</span>
+  return <span className={cn('rounded-full px-2 py-0.5 text-3xs font-bold capitalize', STATE_CLS[state] ?? 'bg-tint text-ink-4')}>{state.replace('_', ' ')}</span>
 }
 
 function WhoLine({ a }: { a: QueueAction }) {
   return (
-    <p className="truncate text-[11px] text-muted-foreground">
+    <p className="truncate text-2xs text-muted-foreground">
       <span className="font-semibold text-foreground">{a.profile?.displayName || a.profile?.email || a.profileId.slice(0, 8)}</span>
       {a.profile?.email && a.profile.displayName ? ` · ${a.profile.email}` : ''}
       {a.profile ? <span className="text-ink-4"> · trust {a.profile.trustScore}{a.profile.trustTier !== 'standard' ? ` · ${a.profile.trustTier}` : ''}</span> : null}
@@ -84,7 +84,7 @@ function WhoLine({ a }: { a: QueueAction }) {
 
 function ActionMeta({ a }: { a: QueueAction }) {
   return (
-    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-muted-foreground">
       <span>{REASON_LABEL[a.reason] ?? a.reason}</span>
       <span className="text-ink-4">· by {a.decidedBy}</span>
       <span className="text-ink-4">· {fmtAge(a.createdAt)} ago</span>
@@ -148,16 +148,16 @@ export function EnforcementClient() {
             {queue.appeals.map((a) => (
               <div key={a.id} className="rounded-2xl border border-border border-l-[3px] border-l-amber-400 bg-card p-4 shadow-pop">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Appeal</span>
+                  <span className="rounded-lg bg-amber-500 px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wide text-white">Appeal</span>
                   <StateChip state={a.state} />
-                  <span className="ml-auto text-[11px] text-ink-4">appealed {a.appealedAt ? fmtAge(a.appealedAt) : '?'} ago</span>
+                  <span className="ml-auto text-2xs text-ink-4">appealed {a.appealedAt ? fmtAge(a.appealedAt) : '?'} ago</span>
                 </div>
                 <div className="mt-1.5"><WhoLine a={a} /><ActionMeta a={a} /></div>
                 {a.appealText && <p className="mt-2 rounded-lg bg-tint/40 p-2 text-xs text-foreground">“{a.appealText}”</p>}
-                {a.adminNote && <p className="mt-1 text-[11px] italic text-muted-foreground">Note to seller: {a.adminNote}</p>}
+                {a.adminNote && <p className="mt-1 text-2xs italic text-muted-foreground">Note to seller: {a.adminNote}</p>}
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                  <button onClick={() => act({ action: 'overturn', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-md bg-foreground px-3 py-1 text-[11px] font-bold text-background hover:opacity-90 disabled:opacity-40 cursor-pointer">Overturn (restore seller)</button>
-                  <button onClick={() => act({ action: 'uphold_appeal', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Uphold (decision stands)</button>
+                  <button onClick={() => act({ action: 'overturn', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-lg bg-foreground px-3 py-1 text-2xs font-bold text-background hover:opacity-90 disabled:opacity-40 cursor-pointer">Overturn (restore seller)</button>
+                  <button onClick={() => act({ action: 'uphold_appeal', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-lg border border-line-strong px-2.5 py-1 text-2xs font-semibold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Uphold (decision stands)</button>
                   {busyId === a.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
                 </div>
               </div>
@@ -175,12 +175,12 @@ export function EnforcementClient() {
             {queue.buyerWaiting.map((r) => (
               <div key={r.id} className="rounded-2xl border border-border border-l-[3px] border-l-red-500 bg-card p-3.5 shadow-pop">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700"><Clock className="h-3 w-3" /> waiting {Math.floor(r.waitingHours / 24) > 0 ? `${Math.floor(r.waitingHours / 24)}d` : `${r.waitingHours}h`}</span>
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-red-100 px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wide text-red-700"><Clock className="h-3 w-3" /> waiting {Math.floor(r.waitingHours / 24) > 0 ? `${Math.floor(r.waitingHours / 24)}d` : `${r.waitingHours}h`}</span>
                   <span className="text-sm font-bold capitalize text-foreground">{r.reason}</span>
-                  <span className="ml-auto text-[11px] text-ink-4">{shortDate(r.createdAt)}</span>
+                  <span className="ml-auto text-2xs text-ink-4">{shortDate(r.createdAt)}</span>
                 </div>
                 {r.detail && <p className="mt-1.5 text-xs text-foreground">“{r.detail}”</p>}
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs">
                   {r.conversationId && <a href={`/admin/conversation/${r.conversationId}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline"><MessageSquare className="h-3 w-3" /> View conversation</a>}
                   {r.listingId && <a href={`/listings/${r.listingId}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline"><ExternalLink className="h-3 w-3" /> Listing</a>}
                   {r.targetSellerId && <a href={`/sellers/${r.targetSellerId}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline"><ExternalLink className="h-3 w-3" /> Storefront</a>}
@@ -189,7 +189,7 @@ export function EnforcementClient() {
                     <button
                       onClick={() => act({ action: 'set-state', profileId: r.targetProfileId, state: 'suspended', note: `Unanswered report ${r.id} (buyer waiting)` }, r.id)}
                       disabled={busyId === r.id}
-                      className="ml-auto rounded-md border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"
+                      className="ml-auto rounded-lg border border-red-200 px-2.5 py-1 text-2xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"
                     >
                       Suspend account
                     </button>
@@ -215,9 +215,9 @@ export function EnforcementClient() {
                 <Flag className="h-4 w-4 shrink-0 text-sky-500" />
                 <StateChip state={a.state} />
                 <div className="min-w-0 flex-1"><WhoLine a={a} /><ActionMeta a={a} /></div>
-                <button onClick={() => act({ action: 'dismiss_flag', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss</button>
-                <button onClick={() => act({ action: 'set-state', profileId: a.profileId, state: 'held', flagId: a.id, note: `Review flag ${a.reason}` }, a.id)} disabled={busyId === a.id} className="rounded-md border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-40 cursor-pointer">Hold</button>
-                <button onClick={() => act({ action: 'set-state', profileId: a.profileId, state: 'suspended', flagId: a.id, note: `Review flag ${a.reason}` }, a.id)} disabled={busyId === a.id} className="rounded-md border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer">Suspend</button>
+                <button onClick={() => act({ action: 'dismiss_flag', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-lg border border-line-strong px-2.5 py-1 text-2xs font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss</button>
+                <button onClick={() => act({ action: 'set-state', profileId: a.profileId, state: 'held', flagId: a.id, note: `Review flag ${a.reason}` }, a.id)} disabled={busyId === a.id} className="rounded-lg border border-amber-300 px-2.5 py-1 text-2xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-40 cursor-pointer">Hold</button>
+                <button onClick={() => act({ action: 'set-state', profileId: a.profileId, state: 'suspended', flagId: a.id, note: `Review flag ${a.reason}` }, a.id)} disabled={busyId === a.id} className="rounded-lg border border-red-200 px-2.5 py-1 text-2xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer">Suspend</button>
                 {busyId === a.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
               </div>
             ))}
@@ -236,7 +236,7 @@ export function EnforcementClient() {
                 <Gavel className="h-4 w-4 shrink-0 text-ink-4" />
                 <StateChip state={a.state} />
                 <div className="min-w-0 flex-1"><WhoLine a={a} /><ActionMeta a={a} /></div>
-                <button onClick={() => act({ action: 'lift', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Lift</button>
+                <button onClick={() => act({ action: 'lift', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-lg border border-line-strong px-2.5 py-1 text-2xs font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Lift</button>
                 {busyId === a.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
               </div>
             ))}

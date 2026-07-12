@@ -10,7 +10,7 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
   loading: () => (
     <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none animate-pulse">
       <Spinner size="md" />
-      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+      <span className="text-3xs font-bold text-slate-700 uppercase tracking-wider">
         <Tr text="Loading map…" />
       </span>
     </div>

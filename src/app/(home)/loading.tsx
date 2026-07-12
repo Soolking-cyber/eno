@@ -56,7 +56,7 @@ export default function HomeLoading() {
             {Array.from({ length: 2 }).map((_, row) => (
               <section key={row} className="mb-7">
                 <div className="mb-2.5 flex items-center gap-2">
-                  <Skeleton className="h-4 w-4 rounded" />
+                  <Skeleton className="h-4 w-4 rounded-lg" />
                   <Skeleton className="h-5 w-36" />
                 </div>
                 <div className="flex gap-2 overflow-hidden snap-x sm:gap-4">

@@ -143,7 +143,7 @@ export function BrandRail({
                     return (
                       <button key={m.model} onClick={() => onPickModel(mActive ? 'all' : m.model)} className={modelChip(mActive)}>
                         {m.model}
-                        <span className="ml-1 text-[10px] font-semibold text-ink-4">{m.count}</span>
+                        <span className="ml-1 text-3xs font-semibold text-ink-4">{m.count}</span>
                       </button>
                     )
                   })}
@@ -158,7 +158,7 @@ export function BrandRail({
                             className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >
                             <span className="truncate">{m.model}</span>
-                            <span className="shrink-0 text-[10px] font-semibold text-ink-4">{m.count}</span>
+                            <span className="shrink-0 text-3xs font-semibold text-ink-4">{m.count}</span>
                           </button>
                         )
                       })}

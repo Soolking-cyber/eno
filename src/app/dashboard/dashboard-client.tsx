@@ -74,7 +74,7 @@ function StatCard({ icon, value, label, href, accent }: { icon: React.ReactNode;
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-tint text-accent-foreground">{icon}</span>
       <div className="leading-tight">
         <div className={`text-lg font-bold ${accent ? 'text-accent-foreground' : 'text-foreground'}`}>{value}</div>
-        <div className="text-[11px] text-muted-foreground">{label}</div>
+        <div className="text-2xs text-muted-foreground">{label}</div>
       </div>
     </div>
   )
@@ -90,7 +90,7 @@ function SettingsCard({ title, description, tone = 'default', className, childre
   return (
     <section className={className}>
       <h2 className={cn('h-section', tone === 'danger' ? 'text-red-600' : 'text-foreground')}>{title}</h2>
-      {description && <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
+      {description && <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>}
       <div className="mt-4">{children}</div>
     </section>
   )

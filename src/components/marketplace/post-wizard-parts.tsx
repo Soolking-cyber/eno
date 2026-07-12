@@ -64,7 +64,7 @@ export function Field({ label, counter, hint, error, children }: { label: string
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <label className="text-sm font-semibold text-foreground">{label}</label>
-        {counter && <span className="text-[11px] text-ink-4">{counter}</span>}
+        {counter && <span className="text-2xs text-ink-4">{counter}</span>}
       </div>
       {children}
       {error ? <p role="alert" className="text-xs font-semibold text-red-600">{error}</p> : hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}

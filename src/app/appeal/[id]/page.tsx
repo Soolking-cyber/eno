@@ -92,7 +92,7 @@ export default function AppealPage() {
               {files.length < 6 && (
                 <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 hover:bg-muted">
                   <ImagePlus className="h-5 w-5" />
-                  <span className="text-[10px] font-semibold">{t('Add', 'Thêm')}</span>
+                  <span className="text-3xs font-semibold">{t('Add', 'Thêm')}</span>
                   <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
                 </label>
               )}

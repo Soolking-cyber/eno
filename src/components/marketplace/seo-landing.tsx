@@ -63,7 +63,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         {/* Hero */}
         <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
         <h1 className="h-display text-foreground">{content.h1}</h1>
-        <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-body">{content.intro}</p>
+        <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{content.intro}</p>
         <Button asChild variant="cta" size="none">
           <Link
             href={`/c/${content.categorySlug}`}
@@ -118,7 +118,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
           {content.sections.map((s, i) => (
             <section key={i}>
               <h2 className="h-section text-foreground mb-2">{s.title}</h2>
-              <p className="text-[15px] leading-relaxed text-body">{s.body}</p>
+              <p className="text-base leading-relaxed text-body">{s.body}</p>
             </section>
           ))}
         </div>

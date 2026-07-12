@@ -84,9 +84,9 @@ export function DevelopersPanel() {
         <h2 className="h-section text-foreground">{tr('API keys', 'Khóa API')}</h2>
         <p className="mt-1 text-sm leading-relaxed text-body">
           {tr('Manage your storefront programmatically. Authenticate requests with', 'Quản lý gian hàng bằng lập trình. Xác thực bằng')}{' '}
-          <code className="rounded bg-muted px-1 py-0.5 text-[12px] font-semibold text-foreground">Authorization: Bearer &lt;key&gt;</code>{' '}
+          <code className="rounded-lg bg-muted px-1 py-0.5 text-xs font-semibold text-foreground">Authorization: Bearer &lt;key&gt;</code>{' '}
           {tr('against the base URL', 'với base URL')}{' '}
-          <code className="rounded bg-muted px-1 py-0.5 text-[12px] font-semibold text-foreground">https://eno.vn/api/v1</code>.
+          <code className="rounded-lg bg-muted px-1 py-0.5 text-xs font-semibold text-foreground">https://eno.vn/api/v1</code>.
         </p>
         <Link href="/developers" className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-accent-foreground hover:underline">
           <BookOpen className="h-4 w-4" /> {tr('Read the API docs', 'Xem tài liệu API')} →
@@ -162,9 +162,9 @@ export function DevelopersPanel() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span className="truncate text-sm font-bold text-foreground">{k.name || tr('Untitled key', 'Khóa chưa đặt tên')}</span>
-                  <code className="font-mono text-[11px] text-muted-foreground">{k.prefix}…</code>
+                  <code className="font-mono text-2xs text-muted-foreground">{k.prefix}…</code>
                 </div>
-                <p className="mt-0.5 text-[11px] text-ink-4">
+                <p className="mt-0.5 text-2xs text-ink-4">
                   {k.scopes.split(/\s+/).join(' · ')} · {tr('created', 'tạo')} {fmtDate(k.createdAt)}
                   {k.lastUsedAt ? ` · ${tr('last used', 'dùng gần nhất')} ${fmtDate(k.lastUsedAt)}` : ` · ${tr('never used', 'chưa dùng')}`}
                 </p>
@@ -267,7 +267,7 @@ function WebhooksSection() {
         <p className="mt-1 text-sm leading-relaxed text-body">
           {tr('Get a signed POST to your server the moment a listing changes. Verify each delivery with the',
               'Nhận POST đã ký tới máy chủ của bạn ngay khi tin đăng thay đổi. Xác minh mỗi lần gửi bằng header')}{' '}
-          <code className="rounded bg-muted px-1 py-0.5 text-[12px] font-semibold text-foreground">webhook-signature</code> {tr('header.', '.')}
+          <code className="rounded-lg bg-muted px-1 py-0.5 text-xs font-semibold text-foreground">webhook-signature</code> {tr('header.', '.')}
         </p>
       </div>
 
@@ -301,7 +301,7 @@ function WebhooksSection() {
           </div>
           <div>
             <span className="text-xs font-bold text-foreground">{tr('Events', 'Sự kiện')}</span>
-            <p className="text-[11px] text-ink-4">{tr('None selected = all events.', 'Không chọn = tất cả sự kiện.')}</p>
+            <p className="text-2xs text-ink-4">{tr('None selected = all events.', 'Không chọn = tất cả sự kiện.')}</p>
             <div className="mt-1.5 flex flex-wrap gap-2">
               {WEBHOOK_EVENTS.map((e) => (
                 <button key={e} onClick={() => toggleEvent(e)}
@@ -340,14 +340,14 @@ function WebhooksSection() {
               <Webhook className={cn('h-5 w-5 shrink-0', h.enabled ? 'text-accent-foreground' : 'text-ink-4')} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span className="truncate font-mono text-[13px] font-bold text-foreground">{h.url}</span>
-                  {!h.enabled && <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-4">{tr('Paused', 'Tạm dừng')}</span>}
+                  <span className="truncate font-mono text-sm font-bold text-foreground">{h.url}</span>
+                  {!h.enabled && <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-bold uppercase tracking-wide text-ink-4">{tr('Paused', 'Tạm dừng')}</span>}
                 </div>
-                <p className="mt-0.5 text-[11px] text-ink-4">
+                <p className="mt-0.5 text-2xs text-ink-4">
                   {h.events.includes('*') ? tr('all events', 'tất cả sự kiện') : h.events.join(' · ')}
                 </p>
                 {h.failureCount > 0 && (
-                  <p className="mt-0.5 flex items-center gap-1 text-[11px] text-red-500">
+                  <p className="mt-0.5 flex items-center gap-1 text-2xs text-red-500">
                     <AlertTriangle className="h-3 w-3 shrink-0" /> {tr('Recent failures:', 'Lỗi gần đây:')} {h.failureCount}
                   </p>
                 )}
@@ -415,8 +415,8 @@ function McpSection() {
               {copied === 'cfg' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied === 'cfg' ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
             </button>
           </div>
-          <pre className="mt-1 overflow-x-auto rounded-lg bg-muted px-3 py-2.5 font-mono text-[11px] leading-relaxed text-foreground">{config}</pre>
-          <p className="mt-1.5 text-[11px] text-ink-4">{tr('Replace eno_live_… with an API key from above (it lives in the client config, never sent to the model).', 'Thay eno_live_… bằng một khóa API ở trên (khóa nằm trong cấu hình ứng dụng, không bao giờ gửi tới mô hình).')}</p>
+          <pre className="mt-1 overflow-x-auto rounded-lg bg-muted px-3 py-2.5 font-mono text-2xs leading-relaxed text-foreground">{config}</pre>
+          <p className="mt-1.5 text-2xs text-ink-4">{tr('Replace eno_live_… with an API key from above (it lives in the client config, never sent to the model).', 'Thay eno_live_… bằng một khóa API ở trên (khóa nằm trong cấu hình ứng dụng, không bao giờ gửi tới mô hình).')}</p>
         </div>
       </div>
 

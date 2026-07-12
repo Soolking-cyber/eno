@@ -243,12 +243,12 @@ export default function DisputeRoomPage() {
                   {i > 0 && <span className={cn('mx-1.5 h-px flex-1', i <= stageIndex ? 'bg-brand' : 'bg-line-strong')} />}
                   <span className="flex flex-col items-center gap-1">
                     <span className={cn(
-                      'flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold',
+                      'flex h-5 w-5 items-center justify-center rounded-full text-3xs font-bold',
                       i < stageIndex ? 'bg-primary text-white' : i === stageIndex ? 'bg-primary text-white' : 'bg-tint text-ink-4',
                     )}>
                       {i < stageIndex ? <Check className="h-3 w-3" /> : i + 1}
                     </span>
-                    <span className={cn('text-[10px] font-semibold', i <= stageIndex ? 'text-foreground' : 'text-ink-4')}>{t(s.en, s.vi)}</span>
+                    <span className={cn('text-3xs font-semibold', i <= stageIndex ? 'text-foreground' : 'text-ink-4')}>{t(s.en, s.vi)}</span>
                   </span>
                 </li>
               ))}
@@ -315,7 +315,7 @@ export default function DisputeRoomPage() {
                       <span className="inline-block rounded-full bg-tint px-3 py-1 text-xs font-semibold text-body">
                         {item.kind === 'decision' ? (decisionCopy(data).text + (item.body ? ` — ${item.body}` : '')) : item.body}
                       </span>
-                      <p className="mt-0.5 text-[10px] text-ink-4">{new Date(item.at).toLocaleString()}</p>
+                      <p className="mt-0.5 text-3xs text-ink-4">{new Date(item.at).toLocaleString()}</p>
                     </div>
                   )
                 }
@@ -328,7 +328,7 @@ export default function DisputeRoomPage() {
                       item.role === 'admin' ? 'bg-accent' : mine ? 'bg-primary/10' : 'bg-tint',
                     )}>
                       {item.role === 'admin' && (
-                        <p className="mb-1 flex items-center gap-1 text-[11px] font-bold text-accent-foreground"><Shield className="h-3 w-3" /> eno.vn</p>
+                        <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><Shield className="h-3 w-3" /> eno.vn</p>
                       )}
                       {item.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{item.body}</p>}
                       {item.images.length > 0 && (
@@ -343,7 +343,7 @@ export default function DisputeRoomPage() {
                         </div>
                       )}
                     </div>
-                    <span className="mt-0.5 px-1 text-[10px] text-ink-4">{who} · {new Date(item.at).toLocaleString()}</span>
+                    <span className="mt-0.5 px-1 text-3xs text-ink-4">{who} · {new Date(item.at).toLocaleString()}</span>
                   </div>
                 )
               })}
@@ -379,7 +379,7 @@ export default function DisputeRoomPage() {
                   {files.length < 6 && (
                     <label className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl text-ink-4 transition-colors hover:bg-muted">
                       <ImagePlus className="h-5 w-5" />
-                      <span className="text-[10px] font-semibold">{t('Evidence', 'Bằng chứng')}</span>
+                      <span className="text-3xs font-semibold">{t('Evidence', 'Bằng chứng')}</span>
                       <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
                     </label>
                   )}

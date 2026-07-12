@@ -93,7 +93,7 @@ export default async function CategoryPage({ params }: Props) {
         </nav>
 
         <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-body">
+        <p className="mt-2 max-w-2xl text-base leading-relaxed text-body">
           <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on eno.vn comes from a seller with a public trust score, and bad listings get reported — fewer fakes, fewer bait prices." />
           {/* "0 listings available." read broken on empty categories — only count when there ARE listings. */}
           {total > 0 && <> {total} {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." /></>}

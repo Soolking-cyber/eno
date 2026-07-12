@@ -36,7 +36,7 @@ function SignInPageInner() {
         <Link href="/" className="relative text-2xl font-black tracking-tight">eno.vn</Link>
         <div className="relative">
           <h1 className="text-4xl font-black leading-tight">{tr('e-commerce with no drama', 'Mua bán không drama.')}</h1>
-          <p className="mt-3 max-w-sm text-[15px] text-blue-100">
+          <p className="mt-3 max-w-sm text-base text-blue-100">
             {tr("Vietnam's trusted marketplace for the international community.", 'Chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
           </p>
           <ul className="mt-8 space-y-3 text-sm text-blue-50">
@@ -63,7 +63,7 @@ function SignInPageInner() {
           </Link>
           {/* Operator identity — the split layout has no Footer, and Đ.36 wants the
               operator identifiable on every public page. Compact single block. */}
-          <p className="mt-6 text-[10px] leading-relaxed text-ink-4">
+          <p className="mt-6 text-3xs leading-relaxed text-ink-4">
             {COMPANY.name} · {COMPANY.address} · {tr('Business reg. no.', 'GCN ĐKDN số')}: {COMPANY.erc} · {COMPANY.email}
           </p>
         </div>

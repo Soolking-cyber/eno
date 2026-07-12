@@ -133,12 +133,12 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
         <div>
           <label htmlFor="biz-rep" className="mb-1 block text-xs font-semibold text-body">{tr('Your name (representative)', 'Tên người đại diện')}</label>
           <input id="biz-rep" autoComplete="name" value={rep} onChange={(e) => setRep(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} className={field} />
-          <p className="mt-1 text-[11px] text-ink-4">{tr('The person on this account — buyers see the business name, not this.', 'Người dùng tài khoản này — người mua thấy tên doanh nghiệp, không phải tên này.')}</p>
+          <p className="mt-1 text-2xs text-ink-4">{tr('The person on this account — buyers see the business name, not this.', 'Người dùng tài khoản này — người mua thấy tên doanh nghiệp, không phải tên này.')}</p>
         </div>
         <div>
           <div className="mb-1 flex items-center justify-between gap-2">
             <label htmlFor="biz-location" className="block text-xs font-semibold text-body">{tr('Location', 'Khu vực')}</label>
-            <button type="button" onClick={useMyLocation} disabled={locating} className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent-foreground hover:underline disabled:opacity-50 cursor-pointer">
+            <button type="button" onClick={useMyLocation} disabled={locating} className="inline-flex items-center gap-1 text-2xs font-semibold text-accent-foreground hover:underline disabled:opacity-50 cursor-pointer">
               {locating ? <Loader2 className="h-3 w-3 animate-spin" /> : <LocateFixed className="h-3 w-3" />} {tr('Use my location', 'Dùng vị trí của tôi')}
             </button>
           </div>
@@ -147,7 +147,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
         <div>
           <label htmlFor="biz-phone" className="mb-1 block text-xs font-semibold text-body">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</label>
           <input id="biz-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" className={field} />
-          <p className="mt-1 text-[11px] text-ink-4">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</p>
+          <p className="mt-1 text-2xs text-ink-4">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</p>
         </div>
       </div>
       <div className="mt-3">
@@ -160,7 +160,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
           to authorities/buyers on request only — never on the public storefront. */}
       <div className="mt-6">
         <h3 className="text-sm font-bold text-foreground">{tr('Legal information', 'Thông tin pháp lý')}</h3>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-ink-4">
+        <p className="mt-0.5 text-2xs leading-relaxed text-ink-4">
           {tr('Required of sellers by Vietnamese e-commerce law. Kept private — provided only to authorities, or to a buyer on lawful request. Never shown on your storefront.', 'Pháp luật TMĐT Việt Nam yêu cầu người bán cung cấp. Được bảo mật — chỉ cung cấp cho cơ quan chức năng hoặc người mua theo yêu cầu hợp pháp. Không hiển thị trên gian hàng.')}
         </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">

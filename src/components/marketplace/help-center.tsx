@@ -114,7 +114,7 @@ export function HelpCenter() {
             <div className="mt-3 space-y-5">
               {section.items.map(([q, a]) => (
                 <div key={q}>
-                  <h3 className="text-[15px] font-bold text-foreground"><Tr text={q} /></h3>
+                  <h3 className="text-base font-bold text-foreground"><Tr text={q} /></h3>
                   <p className="mt-1.5 text-sm leading-relaxed text-body"><Tr text={a} /></p>
                 </div>
               ))}

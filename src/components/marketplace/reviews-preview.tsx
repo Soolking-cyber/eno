@@ -47,7 +47,7 @@ export function ReviewsPreview({
               <div className="flex items-center gap-1.5">
                 <span className="truncate text-sm font-semibold text-foreground">{r.author}</span>
                 {r.verified && (
-                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-tint px-1.5 py-0.5 text-[11px] font-medium text-accent-foreground">
+                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-tint px-1.5 py-0.5 text-2xs font-medium text-accent-foreground">
                     <BadgeCheck className="h-3 w-3" aria-hidden />
                     {tr('Verified buyer', 'Đã mua')}
                   </span>

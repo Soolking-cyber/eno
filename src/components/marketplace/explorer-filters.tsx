@@ -69,7 +69,7 @@ export function ExplorerFilters({
         <>
           {/* Transmission */}
           <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
               {tr('Transmission', 'Hộp số')}
             </label>
             <CustomSelect
@@ -87,7 +87,7 @@ export function ExplorerFilters({
 
           {/* Engine Capacity */}
           <div className="space-y-1.5 pt-1">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
               {tr('Engine Size', 'Phân khối')}
             </label>
             <CustomSelect
@@ -111,7 +111,7 @@ export function ExplorerFilters({
         <>
           {/* Bedrooms */}
           <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
               {tr('Bedrooms', 'Số phòng ngủ')}
             </label>
             <CustomSelect
@@ -131,7 +131,7 @@ export function ExplorerFilters({
 
           {/* Furnishing */}
           <div className="space-y-1.5 pt-1">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
               {tr('Furnishing', 'Nội thất')}
             </label>
             <CustomSelect
@@ -155,7 +155,7 @@ export function ExplorerFilters({
         <>
           {/* Material */}
           <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
               {tr('Material', 'Chất liệu')}
             </label>
             <CustomSelect
@@ -179,7 +179,7 @@ export function ExplorerFilters({
         <>
           {/* Brand */}
           <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
               {tr('Brand', 'Thương hiệu')}
             </label>
             <CustomSelect
@@ -197,7 +197,7 @@ export function ExplorerFilters({
 
           {/* Warranty */}
           <div className="space-y-1.5 pt-1">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
               {tr('Warranty', 'Bảo hành')}
             </label>
             <CustomSelect
@@ -220,7 +220,7 @@ export function ExplorerFilters({
         <>
           {/* English level */}
           <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
               {tr('English Requirement', 'Tiếng Anh')}
             </label>
             <CustomSelect
@@ -246,7 +246,7 @@ export function ExplorerFilters({
       {/* Categories Selection for Mobile Drawer */}
       {isMobile && (
         <div className="space-y-1.5">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+          <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
             {tr('Category', 'Danh mục')}
           </label>
           <div className="grid grid-cols-2 gap-1.5">
@@ -259,7 +259,7 @@ export function ExplorerFilters({
                   : 'text-body hover:bg-muted'
               )}
             >
-              <span className="text-[11px]">{tr('All', 'Tất cả')}</span>
+              <span className="text-2xs">{tr('All', 'Tất cả')}</span>
             </button>
             {categories.map((cat) => {
               const isActive = activeCategory === cat.slug
@@ -275,7 +275,7 @@ export function ExplorerFilters({
                    )}
                 >
                   <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-accent-foreground' : 'text-body')} />
-                  <span className="text-[10px] truncate"><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
+                  <span className="text-3xs truncate"><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
                 </button>
               )
             })}
@@ -286,7 +286,7 @@ export function ExplorerFilters({
       {/* Subcategories Selection for Mobile Drawer */}
       {isMobile && activeCategory !== 'all' && SUBCATEGORIES[activeCategory] && (
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-75">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+          <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
             {tr('Subcategory', 'Danh mục con')}
           </label>
           <div className="flex flex-wrap gap-1.5">
@@ -324,7 +324,7 @@ export function ExplorerFilters({
       )}
       {/* Verified Filter Switch */}
       <div className="flex items-center justify-between py-2.5 bg-card/50 border border-border/60 rounded-xl px-3 shadow-xs select-none">
-        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+        <span className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
           {tr('Verified Only', 'Chỉ tin đã xác thực')}
         </span>
         <Switch
@@ -337,7 +337,7 @@ export function ExplorerFilters({
 
       {/* District Filter */}
       <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+        <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
           {tr('District / Commune', 'Quận / Huyện')}
         </label>
         <CustomSelect
@@ -351,7 +351,7 @@ export function ExplorerFilters({
 
       {/* Condition Filter */}
       <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{t('filter.condition')}</label>
+        <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">{t('filter.condition')}</label>
         <div className="flex flex-col gap-1">
           {[
             { slug: 'all', name: tr('All Conditions', 'Tất cả tình trạng') },

@@ -156,7 +156,7 @@ export function ContactComposer({
             aria-label={tr('Discount', 'Mức giảm')}
             className="mt-2"
           />
-          <div className="flex justify-between text-[10px] font-medium text-ink-4">
+          <div className="flex justify-between text-3xs font-medium text-ink-4">
             <span>{tr('Asking', 'Giá rao')}: {formatMoneyFull(price!, currency, locale)}</span>
             <span>−{MAX_DISCOUNT}%</span>
           </div>

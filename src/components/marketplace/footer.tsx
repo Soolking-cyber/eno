@@ -72,7 +72,7 @@ export function Footer() {
         {/* Legal identity of the operator — Decree 52/2013 Đ.36/Đ.29 requires the
             company name, address, ERC and contacts displayed on the site. Values
             come from src/lib/site-legal.ts (placeholders until the ERC is issued). */}
-        <div className="mt-10 space-y-1 pt-5 text-[11px] leading-relaxed text-body">
+        <div className="mt-10 space-y-1 pt-5 text-2xs leading-relaxed text-body">
           <p className="font-semibold text-muted-foreground">{COMPANY.name}</p>
           <p>{tr('Head office', 'Trụ sở')}: {COMPANY.address}</p>
           <p>{tr('Business registration no.', 'GCN ĐKDN số')}: {COMPANY.erc} · {tr('issued', 'cấp')}: {COMPANY.ercIssued}</p>

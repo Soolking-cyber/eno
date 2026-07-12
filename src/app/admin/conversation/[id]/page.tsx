@@ -69,7 +69,7 @@ export default async function AdminConversationPage({ params }: Props) {
                   <span className="text-accent-foreground">{sellerName}</span>
                 )}
               </h1>
-              <span className="rounded-full bg-tint px-2 py-0.5 text-[11px] font-semibold text-ink-4">read-only</span>
+              <span className="rounded-full bg-tint px-2 py-0.5 text-2xs font-semibold text-ink-4">read-only</span>
             </div>
             {convo.listing && (
               <a href={`/listings/${convo.listing.id}`} target="_blank" rel="noreferrer" className="text-xs text-accent-foreground hover:underline">
@@ -102,7 +102,7 @@ export default async function AdminConversationPage({ params }: Props) {
                         m.body
                       )}
                     </div>
-                    <span className="mt-0.5 px-1 text-[10px] text-ink-4">{who} · {fmt(m.createdAt)}</span>
+                    <span className="mt-0.5 px-1 text-3xs text-ink-4">{who} · {fmt(m.createdAt)}</span>
                   </div>
                 )
               })}

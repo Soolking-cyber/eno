@@ -148,7 +148,7 @@ export async function SellerStorefront({ id }: { id: string }) {
             listing/contact surface. throttled = caution; held/suspended = stronger. */}
         {caution && (
           <p
-            className={`mt-5 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold ${
+            className={`mt-5 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
               caution === 'throttled' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive'
             }`}
           >
@@ -179,7 +179,7 @@ export async function SellerStorefront({ id }: { id: string }) {
                     <span className="text-sm font-semibold text-foreground">{r.author}</span>
                     {/* Earned badge: only reviews with real conversation provenance. */}
                     {r.verified && (
-                      <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Verified buyer" /></span>
+                      <span className="ml-auto inline-flex items-center gap-1 text-2xs font-semibold text-success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Verified buyer" /></span>
                     )}
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-body"><Tr text={r.text} /></p>

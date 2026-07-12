@@ -99,7 +99,7 @@ export default function PrivacyPage() {
         <ContentSection key={i} id={`s${i}`} title={title as string}>
           <div className="space-y-2">
             {(paras as string[]).map((p, j) => (
-              <p key={j} className="text-[15px] leading-relaxed text-body"><Tr text={p} /></p>
+              <p key={j} className="text-base leading-relaxed text-body"><Tr text={p} /></p>
             ))}
           </div>
         </ContentSection>

@@ -40,7 +40,7 @@ export function KbDebug() {
 
   if (!on) return null
   return (
-    <pre className="pointer-events-none fixed left-1 top-14 z-[9999] max-w-[95vw] whitespace-pre-wrap rounded-lg bg-black/80 p-2 text-[10px] leading-tight text-green-300">
+    <pre className="pointer-events-none fixed left-1 top-14 z-[9999] max-w-[95vw] whitespace-pre-wrap rounded-lg bg-black/80 p-2 text-3xs leading-tight text-green-300">
       {s}
     </pre>
   )

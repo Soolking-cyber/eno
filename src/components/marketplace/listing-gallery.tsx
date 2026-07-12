@@ -113,7 +113,7 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
       )}
       {/* z-10: the cover overlay is z-[5] and would otherwise paint over this z-auto chip
           (permanently, for needsTap viewers whose cover never reveals). */}
-      <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-bold text-white backdrop-blur-[2px]">
+      <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-2xs font-bold text-white backdrop-blur-[2px]">
         <Play className="h-3 w-3 fill-current" /> {tr('Video', 'Video')}
       </span>
       {showPlayGlyph && (
@@ -291,7 +291,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             </div>
             {/* black/60 not /50: white text on the translucent chip must hold 4.5:1
                 even over a white photo (axe computes ~5.7:1 at 60%). */}
-            <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white">
+            <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-2xs font-semibold text-white">
               {slide + 1} / {mediaCount}
             </span>
           </div>

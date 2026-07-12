@@ -290,7 +290,7 @@ export function AreaFilter({
                     <span className="font-bold text-foreground">{radiusKm} km</span>
                   </div>
                   <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
-                  <div className="flex justify-between text-[10px] text-ink-4"><span>1 km</span><span>20 km</span></div>
+                  <div className="flex justify-between text-3xs text-ink-4"><span>1 km</span><span>20 km</span></div>
                 </div>
                 <button
                   onClick={locate}

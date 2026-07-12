@@ -67,13 +67,13 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
   const stageChip = (c: DisputeCaseRow) => {
     if (c.stage === 'evidence') {
       const left = timeLeft(c.evidenceUntil)
-      return <span className="rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-accent-foreground">{t('Evidence', 'Bằng chứng')}{left ? ` · ${left}` : ''}</span>
+      return <span className="rounded-full bg-tint px-2 py-0.5 text-2xs font-bold text-accent-foreground">{t('Evidence', 'Bằng chứng')}{left ? ` · ${left}` : ''}</span>
     }
-    if (c.stage === 'review') return <span className="rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-warning">{t('Under review', 'Đang xem xét')}</span>
-    if (c.withdrawn) return <span className="rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-ink-4">{t('Withdrawn', 'Đã rút lại')}</span>
-    if (c.status === 'confirmed') return <span className="rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-success">{t('Resolved — upheld', 'Đã xử lý — xác nhận')}</span>
-    if (c.status === 'abusive') return <span className="rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-destructive">{t('Closed — inaccurate report', 'Đã đóng — báo cáo sai')}</span>
-    return <span className="rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-ink-4">{t('Closed — no violation', 'Đã đóng — không vi phạm')}</span>
+    if (c.stage === 'review') return <span className="rounded-full bg-tint px-2 py-0.5 text-2xs font-bold text-warning">{t('Under review', 'Đang xem xét')}</span>
+    if (c.withdrawn) return <span className="rounded-full bg-tint px-2 py-0.5 text-2xs font-bold text-ink-4">{t('Withdrawn', 'Đã rút lại')}</span>
+    if (c.status === 'confirmed') return <span className="rounded-full bg-tint px-2 py-0.5 text-2xs font-bold text-success">{t('Resolved — upheld', 'Đã xử lý — xác nhận')}</span>
+    if (c.status === 'abusive') return <span className="rounded-full bg-tint px-2 py-0.5 text-2xs font-bold text-destructive">{t('Closed — inaccurate report', 'Đã đóng — báo cáo sai')}</span>
+    return <span className="rounded-full bg-tint px-2 py-0.5 text-2xs font-bold text-ink-4">{t('Closed — no violation', 'Đã đóng — không vi phạm')}</span>
   }
 
   return (
@@ -122,7 +122,7 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold', c.role === 'reporter' ? 'bg-accent text-accent-foreground' : 'bg-tint text-body')}>
+                      <span className={cn('rounded-full px-2 py-0.5 text-3xs font-bold', c.role === 'reporter' ? 'bg-accent text-accent-foreground' : 'bg-tint text-body')}>
                         {c.role === 'reporter' ? t('You reported', 'Bạn báo cáo') : t('About you', 'Về bạn')}
                       </span>
                       {stageChip(c)}

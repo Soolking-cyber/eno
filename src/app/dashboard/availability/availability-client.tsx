@@ -113,7 +113,7 @@ export function AvailabilityClient() {
                   <p className={cn('truncate text-sm font-semibold', sold ? 'text-muted-foreground line-through' : 'text-foreground')}>{l.titleVi || l.title}</p>
                   <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="text-sm font-bold text-accent-foreground" />
                 </div>
-                <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors', sold ? 'bg-primary text-white' : 'bg-tint text-ink-4')}>
+                <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-colors', sold ? 'bg-primary text-white' : 'bg-tint text-ink-4')}>
                   {sold ? <Check className="h-4 w-4" /> : ''}
                 </span>
               </button>

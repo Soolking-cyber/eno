@@ -737,7 +737,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         </a>
       )}
       {!embedded && <h1 className="mt-3 h-display text-foreground">{t('Tạo tin đăng', 'Create a listing')}</h1>}
-      <p className={cn('text-[15px] text-body', !embedded && 'mt-1')}>{t('Điền các mục bên dưới — bản xem trước cập nhật ngay.', 'Fill in the sections below — your preview updates live.')}</p>
+      <p className={cn('text-base text-body', !embedded && 'mt-1')}>{t('Điền các mục bên dưới — bản xem trước cập nhật ngay.', 'Fill in the sections below — your preview updates live.')}</p>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_19rem]">
         {/* ── FORM ── */}
@@ -763,9 +763,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={p.url} alt="" draggable={false} className="pointer-events-none h-full w-full object-cover" />
                   {i === 0 ? (
-                    <span className="absolute left-1.5 top-1.5 rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-bold text-white">{t('Bìa', 'Cover')}</span>
+                    <span className="absolute left-1.5 top-1.5 rounded-lg bg-primary px-1.5 py-0.5 text-3xs font-bold text-white">{t('Bìa', 'Cover')}</span>
                   ) : (
-                    <button type="button" onClick={() => movePhoto(i, 0)} className="absolute bottom-1 left-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer">{t('Đặt làm bìa', 'Make cover')}</button>
+                    <button type="button" onClick={() => movePhoto(i, 0)} className="absolute bottom-1 left-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-3xs font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer">{t('Đặt làm bìa', 'Make cover')}</button>
                   )}
                   <button aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44">
                     <X className="h-4 w-4" />
@@ -775,7 +775,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               {photos.length < 6 && (
                 <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
                   {converting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}
-                  <span className="text-[10px] font-semibold">{converting ? t('Đang xử lý…', 'Processing…') : t('Thêm ảnh', 'Add')}</span>
+                  <span className="text-3xs font-semibold">{converting ? t('Đang xử lý…', 'Processing…') : t('Thêm ảnh', 'Add')}</span>
                   <input type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
                 </label>
               )}
@@ -787,7 +787,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {video ? (
                   <div className="group relative h-full w-full overflow-hidden rounded-xl bg-black">
                     <video src={video.url} muted loop autoPlay playsInline preload="metadata" className="h-full w-full object-cover" />
-                    <span className="pointer-events-none absolute left-1.5 top-1.5 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-[2px]">
+                    <span className="pointer-events-none absolute left-1.5 top-1.5 flex items-center gap-1 rounded-lg bg-black/60 px-1.5 py-0.5 text-3xs font-bold text-white backdrop-blur-[2px]">
                       <Video className="h-3 w-3" /> {t('Video', 'Video')}
                     </span>
                     <button type="button" aria-label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44">
@@ -797,8 +797,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 ) : (
                   <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
                     {videoBusy ? <Loader2 className="h-6 w-6 animate-spin" /> : <Video className="h-6 w-6" />}
-                    <span className="text-[10px] font-semibold">{videoBusy ? t('Đang kiểm tra…', 'Checking…') : t('Thêm video', 'Add video')}</span>
-                    <span className="text-[9px] leading-tight text-ink-4">{t('tùy chọn · 60 giây', 'optional · 60s')}</span>
+                    <span className="text-3xs font-semibold">{videoBusy ? t('Đang kiểm tra…', 'Checking…') : t('Thêm video', 'Add video')}</span>
+                    <span className="text-3xs leading-tight text-ink-4">{t('tùy chọn · 60 giây', 'optional · 60s')}</span>
                     <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
                   </label>
                 )}
@@ -923,7 +923,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     onClick={polishDescription}
                     disabled={!!aiBusy || description.trim().length < 3}
                     title={t('Viết lại chuyên nghiệp bằng AI', 'Rewrite professionally with AI')}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-2xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
                   >
                     {aiBusy === 'desc' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                     {t('Chỉnh bằng AI', 'Polish with AI')}
@@ -1051,7 +1051,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               it isn't re-typed per post). Missing name/phone → add it in Settings. */}
           <Section id="pw-contact" title={t('Liên hệ', 'Contact')} hint={t('Số của bạn được giữ kín — người mua nhắn tin trong ứng dụng, chỉ hiện số sau khi bạn trả lời.', 'Your number stays private — buyers message you in-app; it’s revealed only after you reply.')}>
             {!meLoaded ? (
-              <div className="h-5 w-56 rounded shimmer" />
+              <div className="h-5 w-56 rounded-lg shimmer" />
             ) : isGuest ? (
               // Draft-first guests: contact comes from the account they'll sign in
               // with at Publish — no fields to type here.
@@ -1120,7 +1120,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         <aside className="hidden lg:block">
           <div className="sticky top-24 space-y-4">
             <div className="space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-ink-4">{t('Xem trước', 'Live preview')}</span>
+              <span className="text-2xs font-bold uppercase tracking-wider text-ink-4">{t('Xem trước', 'Live preview')}</span>
               <Preview cover={photos[0]?.url} title={title} price={price} priceUnit={priceUnit} area={areaLabel} categoryIcon={cat?.icon} t={t} />
             </div>
             <PublishButton {...publishButtonProps} />
@@ -1136,7 +1136,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 ))}
               </ul>
             )}
-            <p className="flex items-start gap-1.5 pt-1 text-[11px] leading-relaxed text-ink-4">
+            <p className="flex items-start gap-1.5 pt-1 text-2xs leading-relaxed text-ink-4">
               <Lock className="mt-0.5 h-3 w-3 shrink-0" />
               {t('Tin hiển thị ngay. Số của bạn được giữ kín.', 'Goes live instantly. Your number stays private.')}
             </p>
@@ -1152,7 +1152,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         <div className="mx-auto max-w-7xl space-y-2">
           {/* What's still missing — mobile parity with the desktop checklist */}
           {missing.length > 0 && (
-            <p className="truncate text-[11px] font-semibold text-ink-4">
+            <p className="truncate text-2xs font-semibold text-ink-4">
               {t('Còn thiếu', 'Still needed')}: {missing.map((c) => c.label).join(' · ')}
             </p>
           )}

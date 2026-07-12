@@ -32,7 +32,7 @@ export function MarketPrice({ price, band }: { price: number; band: Band }) {
         <span className="text-xs font-semibold text-muted-foreground">{tr('Market price', 'Giá thị trường')}</span>
         <span
           className={cn(
-            'text-[11px] font-bold',
+            'text-2xs font-bold',
             pos === 'low' ? 'text-success' : pos === 'high' ? 'text-warning' : 'text-muted-foreground',
           )}
         >
@@ -55,7 +55,7 @@ export function MarketPrice({ price, band }: { price: number; band: Band }) {
           style={{ left: `${markerLeft}%` }}
         />
       </div>
-      <p className="mt-2 text-[11px] text-ink-4">{tr(`Based on ${band.n} similar listings`, `Dựa trên ${band.n} tin tương tự`)}</p>
+      <p className="mt-2 text-2xs text-ink-4">{tr(`Based on ${band.n} similar listings`, `Dựa trên ${band.n} tin tương tự`)}</p>
     </div>
   )
 }

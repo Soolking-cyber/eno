@@ -100,17 +100,17 @@ export function InstallHint() {
       <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-t-2xl bg-card p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 lg:rounded-2xl">
         <Image src="/icon-192.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl" />
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-bold leading-tight text-foreground">
+          <p className="text-sm font-bold leading-tight text-foreground">
             {tr('Add eno.vn to your Home Screen', 'Thêm eno.vn vào Màn hình chính')}
           </p>
           {mode === 'ios' ? (
-            <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground">
+            <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
               {tr('Tap', 'Nhấn')}{' '}
               <Share aria-label="Share" className="inline h-3.5 w-3.5 align-[-2px] text-accent-foreground" />{' '}
               {tr('then “Add to Home Screen”', 'rồi chọn “Thêm vào MH chính”')}
             </p>
           ) : (
-            <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground">
+            <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
               {tr('One tap — opens like an app, no store needed', 'Một chạm — mở như ứng dụng, không cần cửa hàng')}
             </p>
           )}

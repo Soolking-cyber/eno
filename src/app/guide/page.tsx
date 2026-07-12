@@ -79,7 +79,7 @@ export default function GuidePage() {
               <div key={title} id={id} className="scroll-mt-24 flex gap-3.5">
                 <span className="mt-0.5 shrink-0 text-accent-foreground"><Icon className="h-5 w-5" /></span>
                 <div className="min-w-0">
-                  <h3 className="text-[15px] font-bold text-foreground"><Tr text={title} /></h3>
+                  <h3 className="text-base font-bold text-foreground"><Tr text={title} /></h3>
                   <p className="mt-1 text-sm leading-relaxed text-body"><Tr text={body} /></p>
                 </div>
               </div>

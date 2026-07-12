@@ -17,7 +17,7 @@ export default function CategoryLoading() {
         {/* h-display title */}
         <Skeleton className="h-9 w-72 max-w-full" />
 
-        {/* Intro paragraph (text-[15px] leading-relaxed, max-w-2xl, ~2 lines) */}
+        {/* Intro paragraph (text-base leading-relaxed, max-w-2xl, ~2 lines) */}
         <div className="mt-2 max-w-2xl space-y-1.5">
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-2/3" />

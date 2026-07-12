@@ -443,7 +443,7 @@ export default function ThreadPage() {
                   {tr('Request number / Zalo', 'Lấy số / Zalo')}
                 </button>
               ) : (
-                <p className="flex items-center gap-1.5 text-[11px] text-body">
+                <p className="flex items-center gap-1.5 text-2xs text-body">
                   <Phone className="h-3.5 w-3.5 shrink-0 text-ink-4" />
                   {tr("You can request the seller's number or Zalo once they reply.", 'Bạn có thể xin số hoặc Zalo sau khi người bán trả lời.')}
                 </p>
@@ -465,7 +465,7 @@ export default function ThreadPage() {
               <Fragment key={m.id}>
                 {showDay && (
                   <div className="flex justify-center py-1.5">
-                    <span className="rounded-full bg-tint px-3 py-0.5 text-[10px] font-semibold text-ink-4">{dayText}</span>
+                    <span className="rounded-full bg-tint px-3 py-0.5 text-3xs font-semibold text-ink-4">{dayText}</span>
                   </div>
                 )}
                 {/* Only the NEWEST bubble animates in (each new send/receive), so the
@@ -476,10 +476,10 @@ export default function ThreadPage() {
                     {/* Offer line is DERIVED from the structured offerAmount (tr'd + money
                         format) — never from the stored body. Legacy messages still carry a
                         baked "💰 Offered …₫" body: skip it (rendering it too would double up). */}
-                    <div className="text-[11px] font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
+                    <div className="text-2xs font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
                     <div className="mt-0.5 text-base font-bold text-foreground">{tr('Offered', 'Đã trả giá')} {formatMoneyFull(m.offerAmount || 0, '₫', locale)}</div>
                     {askPct != null && (
-                      <div className="text-[11px] font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({formatMoneyFull(thread!.listing.price!, '₫', locale)})</div>
+                      <div className="text-2xs font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({formatMoneyFull(thread!.listing.price!, '₫', locale)})</div>
                     )}
                     {m.body && !m.body.startsWith('💰') && (
                       <div className="mt-1 text-sm leading-relaxed text-foreground">{m.body}</div>
@@ -519,13 +519,13 @@ export default function ThreadPage() {
                   <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-[78%]">{m.body}</MessageBubble>
                 )}
                   {m.mine && m.failed ? (
-                    <button onClick={() => retry(m)} className="mt-0.5 flex items-center gap-1 px-1 text-[10px] font-semibold text-destructive hover:underline cursor-pointer">
+                    <button onClick={() => retry(m)} className="mt-0.5 flex items-center gap-1 px-1 text-3xs font-semibold text-destructive hover:underline cursor-pointer">
                       <RotateCcw className="h-2.5 w-2.5" /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
                     </button>
                   ) : m.mine && m.pending ? (
-                    <span className="mt-0.5 flex items-center gap-1 px-1 text-[10px] text-ink-4"><Loader2 className="h-2.5 w-2.5 animate-spin" /> {tr('Sending…', 'Đang gửi…')}</span>
+                    <span className="mt-0.5 flex items-center gap-1 px-1 text-3xs text-ink-4"><Loader2 className="h-2.5 w-2.5 animate-spin" /> {tr('Sending…', 'Đang gửi…')}</span>
                   ) : (
-                    <span className="mt-0.5 px-1 text-[10px] text-ink-4">{fmtTime(m.createdAt)}</span>
+                    <span className="mt-0.5 px-1 text-3xs text-ink-4">{fmtTime(m.createdAt)}</span>
                   )}
                 </div>
               </Fragment>

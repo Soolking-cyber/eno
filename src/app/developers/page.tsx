@@ -12,7 +12,7 @@ const BASE = 'https://eno.vn/api/v1'
 
 function Code({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-xl bg-foreground/[0.04] p-3.5 text-[12.5px] leading-relaxed text-foreground ring-1 ring-border">
+    <pre className="overflow-x-auto rounded-xl bg-foreground/[0.04] p-3.5 text-xs leading-relaxed text-foreground ring-1 ring-border">
       <code className="font-mono">{children}</code>
     </pre>
   )
@@ -22,7 +22,7 @@ function Endpoint({ method, path, desc, children }: { method: string; path: stri
   return (
     <section className="border-t border-border pt-6">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-md bg-accent px-2 py-0.5 font-mono text-[11px] font-bold text-accent-foreground">{method}</span>
+        <span className="rounded-lg bg-accent px-2 py-0.5 font-mono text-2xs font-bold text-accent-foreground">{method}</span>
         <code className="font-mono text-sm font-semibold text-foreground">{path}</code>
       </div>
       <p className="mt-2 text-sm leading-relaxed text-body">{desc}</p>
@@ -65,7 +65,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
             Your key stays in the client&apos;s connection settings — it is <strong className="text-foreground">never passed as a tool argument, so it never reaches the model</strong>.
             Tools are scoped exactly like the REST API (a read-only key exposes only the read tools). Available tools:
           </p>
-          <p className="mt-2 text-[13px] leading-relaxed text-body font-mono">
+          <p className="mt-2 text-sm leading-relaxed text-body font-mono">
             get_shop · update_shop · list_listings · get_listing · create_listing · update_listing · set_listing_status ·
             delete_listing · bulk_create_listings · sync_catalogue · analytics_summary · analytics_listings · list_webhooks ·
             register_webhook · delete_webhook
@@ -80,10 +80,10 @@ Authorization: Bearer eno_live_…`}</Code></div>
           </p>
           <div className="mt-3"><Code>{`Authorization: Bearer eno_live_…`}</Code></div>
           <p className="mt-3 text-sm leading-relaxed text-body">
-            Keys are scoped: <code className="rounded bg-muted px-1 text-[12px] font-semibold">listings:read</code>,{' '}
-            <code className="rounded bg-muted px-1 text-[12px] font-semibold">analytics:read</code>,{' '}
-            <code className="rounded bg-muted px-1 text-[12px] font-semibold">listings:write</code>,{' '}
-            <code className="rounded bg-muted px-1 text-[12px] font-semibold">media:write</code> (write is opt-in when you mint
+            Keys are scoped: <code className="rounded-lg bg-muted px-1 text-xs font-semibold">listings:read</code>,{' '}
+            <code className="rounded-lg bg-muted px-1 text-xs font-semibold">analytics:read</code>,{' '}
+            <code className="rounded-lg bg-muted px-1 text-xs font-semibold">listings:write</code>,{' '}
+            <code className="rounded-lg bg-muted px-1 text-xs font-semibold">media:write</code> (write is opt-in when you mint
             the key). Every key acts for one shop; requests only ever see that shop&apos;s own data. Revoke a key anytime — it
             takes effect immediately.
           </p>
@@ -91,9 +91,9 @@ Authorization: Bearer eno_live_…`}</Code></div>
           <h3 className="mt-6 text-xs font-bold uppercase tracking-wide text-ink-4">OAuth 2.0 (optional) — short-lived tokens</h3>
           <p className="mt-2 text-sm leading-relaxed text-body">
             Prefer not to put the long-lived key on every request? Exchange it for a 1-hour bearer token via the
-            client-credentials grant — <code className="rounded bg-muted px-1 text-[12px] font-semibold">client_id</code> is the
-            key&apos;s prefix, <code className="rounded bg-muted px-1 text-[12px] font-semibold">client_secret</code> is the full key.
-            Optionally pass <code className="rounded bg-muted px-1 text-[12px]">scope</code> to narrow the token (it can never
+            client-credentials grant — <code className="rounded-lg bg-muted px-1 text-xs font-semibold">client_id</code> is the
+            key&apos;s prefix, <code className="rounded-lg bg-muted px-1 text-xs font-semibold">client_secret</code> is the full key.
+            Optionally pass <code className="rounded-lg bg-muted px-1 text-xs">scope</code> to narrow the token (it can never
             exceed the key&apos;s scopes). The returned token works anywhere the key does, including the MCP server.
           </p>
           <div className="mt-3"><Code>{`curl -X POST ${BASE}/oauth/token \\
@@ -107,10 +107,10 @@ Authorization: Bearer eno_live_…`}</Code></div>
         <section className="mt-8">
           <h2 className="h-section text-foreground">Conventions</h2>
           <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-body">
-            <li>• <strong className="text-foreground">Rate limit:</strong> 600 requests/min per key. Responses carry <code className="rounded bg-muted px-1 text-[12px]">X-RateLimit-Limit</code> / <code className="rounded bg-muted px-1 text-[12px]">X-RateLimit-Remaining</code> and an <code className="rounded bg-muted px-1 text-[12px]">X-Request-Id</code>.</li>
-            <li>• <strong className="text-foreground">Pagination:</strong> list endpoints are keyset-paged — pass <code className="rounded bg-muted px-1 text-[12px]">?limit=</code> (≤100) and <code className="rounded bg-muted px-1 text-[12px]">?cursor=</code>; follow <code className="rounded bg-muted px-1 text-[12px]">next_cursor</code> until it&apos;s <code className="rounded bg-muted px-1 text-[12px]">null</code>.</li>
-            <li>• <strong className="text-foreground">Errors:</strong> <code className="rounded bg-muted px-1 text-[12px]">{`{ "error": { "code", "message" } }`}</code> — e.g. <code className="rounded bg-muted px-1 text-[12px]">401 unauthorized</code>, <code className="rounded bg-muted px-1 text-[12px]">403 insufficient_scope</code>, <code className="rounded bg-muted px-1 text-[12px]">404 not_found</code>, <code className="rounded bg-muted px-1 text-[12px]">422 invalid_input</code>, <code className="rounded bg-muted px-1 text-[12px]">429 rate_limited</code>.</li>
-            <li>• <strong className="text-foreground">Idempotency:</strong> on a create, send <code className="rounded bg-muted px-1 text-[12px]">Idempotency-Key: &lt;unique-id&gt;</code> — a retry replays the first result instead of creating twice.</li>
+            <li>• <strong className="text-foreground">Rate limit:</strong> 600 requests/min per key. Responses carry <code className="rounded-lg bg-muted px-1 text-xs">X-RateLimit-Limit</code> / <code className="rounded-lg bg-muted px-1 text-xs">X-RateLimit-Remaining</code> and an <code className="rounded-lg bg-muted px-1 text-xs">X-Request-Id</code>.</li>
+            <li>• <strong className="text-foreground">Pagination:</strong> list endpoints are keyset-paged — pass <code className="rounded-lg bg-muted px-1 text-xs">?limit=</code> (≤100) and <code className="rounded-lg bg-muted px-1 text-xs">?cursor=</code>; follow <code className="rounded-lg bg-muted px-1 text-xs">next_cursor</code> until it&apos;s <code className="rounded-lg bg-muted px-1 text-xs">null</code>.</li>
+            <li>• <strong className="text-foreground">Errors:</strong> <code className="rounded-lg bg-muted px-1 text-xs">{`{ "error": { "code", "message" } }`}</code> — e.g. <code className="rounded-lg bg-muted px-1 text-xs">401 unauthorized</code>, <code className="rounded-lg bg-muted px-1 text-xs">403 insufficient_scope</code>, <code className="rounded-lg bg-muted px-1 text-xs">404 not_found</code>, <code className="rounded-lg bg-muted px-1 text-xs">422 invalid_input</code>, <code className="rounded-lg bg-muted px-1 text-xs">429 rate_limited</code>.</li>
+            <li>• <strong className="text-foreground">Idempotency:</strong> on a create, send <code className="rounded-lg bg-muted px-1 text-xs">Idempotency-Key: &lt;unique-id&gt;</code> — a retry replays the first result instead of creating twice.</li>
           </ul>
         </section>
 
@@ -248,10 +248,10 @@ Authorization: Bearer eno_live_…`}</Code></div>
             <p className="text-sm leading-relaxed text-body">
               <strong className="text-foreground">Verifying webhooks.</strong> Deliveries follow the{' '}
               <a href="https://www.standardwebhooks.com" className="font-semibold text-accent-foreground hover:underline">Standard Webhooks</a>{' '}
-              spec, so any off-the-shelf verifier works. Each POST carries <code className="rounded bg-muted px-1 text-[12px]">webhook-id</code>,{' '}
-              <code className="rounded bg-muted px-1 text-[12px]">webhook-timestamp</code> and{' '}
-              <code className="rounded bg-muted px-1 text-[12px]">webhook-signature</code> (<code className="rounded bg-muted px-1 text-[12px]">v1,&lt;base64&gt;</code>) — an
-              HMAC-SHA256 of <code className="rounded bg-muted px-1 text-[12px]">{`${'${id}.${timestamp}.${body}'}`}</code> keyed by your <code className="rounded bg-muted px-1 text-[12px]">whsec_</code> secret. Reject anything that doesn&apos;t verify.
+              spec, so any off-the-shelf verifier works. Each POST carries <code className="rounded-lg bg-muted px-1 text-xs">webhook-id</code>,{' '}
+              <code className="rounded-lg bg-muted px-1 text-xs">webhook-timestamp</code> and{' '}
+              <code className="rounded-lg bg-muted px-1 text-xs">webhook-signature</code> (<code className="rounded-lg bg-muted px-1 text-xs">v1,&lt;base64&gt;</code>) — an
+              HMAC-SHA256 of <code className="rounded-lg bg-muted px-1 text-xs">{`${'${id}.${timestamp}.${body}'}`}</code> keyed by your <code className="rounded-lg bg-muted px-1 text-xs">whsec_</code> secret. Reject anything that doesn&apos;t verify.
             </p>
             <div className="mt-3"><Code>{`{ "id": "msg_…", "type": "listing.updated",
   "created_at": "2026-06-29T…Z",

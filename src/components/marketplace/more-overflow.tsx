@@ -63,7 +63,7 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
         )}
       >
         {label || tr('More', 'Thêm')}
-        <span className="text-[11px] font-bold text-ink-4">+{count}</span>
+        <span className="text-2xs font-bold text-ink-4">+{count}</span>
         <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
       {open && pos && createPortal(

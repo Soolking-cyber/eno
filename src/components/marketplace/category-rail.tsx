@@ -110,7 +110,7 @@ export function CategoryRail({
                       <button key={sub.slug} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={subChip(subActive)}>
                         <CategoryIcon name={sub.icon} className="mr-1 inline h-3.5 w-3.5 shrink-0 align-[-2px]" />
                         <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
-                        {count != null && <span className="ml-1 text-[10px] font-semibold text-ink-4">{count}</span>}
+                        {count != null && <span className="ml-1 text-3xs font-semibold text-ink-4">{count}</span>}
                       </button>
                     )
                   })}
@@ -126,7 +126,7 @@ export function CategoryRail({
                             className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >
                             <span className="flex min-w-0 items-center gap-2"><CategoryIcon name={sub.icon} className="h-4 w-4 shrink-0 text-ink-4" /><span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span></span>
-                            {count != null && <span className="shrink-0 text-[10px] font-semibold text-ink-4">{count}</span>}
+                            {count != null && <span className="shrink-0 text-3xs font-semibold text-ink-4">{count}</span>}
                           </button>
                         )
                       })}

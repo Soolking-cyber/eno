@@ -349,7 +349,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       {!ready && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted z-20 select-none">
           <Spinner size="md" />
-          <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+          <span className="text-3xs font-bold text-slate-700 uppercase tracking-wider">
             {tr('Loading map…', 'Đang tải bản đồ...')}
           </span>
         </div>

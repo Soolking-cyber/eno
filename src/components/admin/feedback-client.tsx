@@ -74,7 +74,7 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
                 <div className="flex items-start justify-between gap-3">
                   <span
                     className={
-                      'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ' +
+                      'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-2xs font-bold ' +
                       (technical ? 'bg-warning/15 text-warning' : 'bg-brand-50 text-brand')
                     }
                   >

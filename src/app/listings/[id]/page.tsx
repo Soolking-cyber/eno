@@ -383,7 +383,7 @@ export default async function ListingPage({ params }: Props) {
           <p
             className={cn(
               // self-start: as a flex child it would otherwise stretch full-width.
-              'order-5 mb-4 inline-flex items-center gap-2 self-start rounded-xl px-3 py-2 text-[13px] font-semibold lg:order-none',
+              'order-5 mb-4 inline-flex items-center gap-2 self-start rounded-xl px-3 py-2 text-sm font-semibold lg:order-none',
               sellerCaution === 'throttled' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive',
             )}
           >
@@ -405,19 +405,19 @@ export default async function ListingPage({ params }: Props) {
             {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
               <>
                 <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-sm text-ink-4 line-through" />
-                <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">
+                <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-2xs font-bold tabular-nums text-white">
                   {dropPercent(listing.prevPrice, listing.price)}
                 </span>
                 <DropCountdown expiresAt={listing.dropExpiresAt} />
               </>
             )}
             {listing.urgent && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-orange-700 px-2.5 py-1 text-[11px] font-bold text-white">
+              <span className="inline-flex items-center gap-1 rounded-full bg-orange-700 px-2.5 py-1 text-2xs font-bold text-white">
                 <Zap className="h-3 w-3 fill-current" /><Tr text="Urgent sale" />
               </span>
             )}
             {!listing.negotiable && (
-              <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-[11px] font-bold text-body">
+              <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-2xs font-bold text-body">
                 <Tag className="mr-1 h-3 w-3" /><Tr text="Fixed price" />
               </span>
             )}
@@ -470,7 +470,7 @@ export default async function ListingPage({ params }: Props) {
             <ProtectionsRow />
             <div className="space-y-2">
               <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
-              <ListingDescription text={listing.description} i18n={i18n[listing.description]} className="space-y-3 text-[15px] leading-relaxed text-body" />
+              <ListingDescription text={listing.description} i18n={i18n[listing.description]} className="space-y-3 text-base leading-relaxed text-body" />
             </div>
 
             {(attrs.length > 0 || numericSpecs.length > 0) && (
@@ -508,19 +508,19 @@ export default async function ListingPage({ params }: Props) {
                 {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
                   <>
                     <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-base text-ink-4 line-through" />
-                    <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">
+                    <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-2xs font-bold tabular-nums text-white">
                       {dropPercent(listing.prevPrice, listing.price)}
                     </span>
                     <DropCountdown expiresAt={listing.dropExpiresAt} />
                   </>
                 )}
                 {listing.urgent && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-orange-700 px-2.5 py-1 text-[11px] font-bold text-white">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-orange-700 px-2.5 py-1 text-2xs font-bold text-white">
                     <Zap className="h-3 w-3 fill-current" /><Tr text="Urgent sale" />
                   </span>
                 )}
                 {!listing.negotiable && (
-                  <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-[11px] font-bold text-body">
+                  <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-2xs font-bold text-body">
                     <Tag className="mr-1 h-3 w-3" /><Tr text="Fixed price" />
                   </span>
                 )}

@@ -241,7 +241,7 @@ function ListingCardImpl({
             {/* base savedCount persists server-side (real saves); savedDelta adds this
                 session's own toggle so it moves the moment the heart is tapped. */}
             {savedTotal >= 3 && (
-              <span title={tr('people saved this', 'người đã lưu tin này')} className="flex h-5 items-center gap-1 rounded-full bg-foreground/70 px-2 text-[10px] font-bold text-background backdrop-blur-[2px]">
+              <span title={tr('people saved this', 'người đã lưu tin này')} className="flex h-5 items-center gap-1 rounded-full bg-foreground/70 px-2 text-3xs font-bold text-background backdrop-blur-[2px]">
                 <Heart className="h-2.5 w-2.5 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(savedTotal)}
               </span>
             )}
@@ -365,7 +365,7 @@ function ListingCardImpl({
             className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150"
           >
             <span className="flex items-center gap-2">
-              <span className="shrink-0 text-[11px] font-bold tabular-nums text-foreground">−{quickOffer}%</span>
+              <span className="shrink-0 text-2xs font-bold tabular-nums text-foreground">−{quickOffer}%</span>
               <input
                 type="range"
                 min={5} max={50} step={5}
@@ -380,7 +380,7 @@ function ListingCardImpl({
               size="none"
               type="button"
               onClick={() => quickGo({ offerAmount: Math.round(listing.price * (1 - quickOffer / 100)) })}
-              className="w-full whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] tabular-nums cursor-pointer"
+              className="w-full whitespace-nowrap rounded-lg px-2 py-1.5 text-2xs tabular-nums cursor-pointer"
             >
               {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency, moneyLocale(lang))} →
             </Button>
@@ -436,7 +436,7 @@ function ListingCardImpl({
         {/* Brand · model — shown when the listing carries them (product categories).
             Neutral on purpose: the price owns the card's single blue accent. */}
         {(listing.brandSlug || listing.model) && (
-          <span className="truncate text-[11px] font-semibold text-muted-foreground">
+          <span className="truncate text-2xs font-semibold text-muted-foreground">
             {[listing.brandSlug ? prettyBrand(listing.brandSlug) : null, listing.model].filter(Boolean).join(' · ')}
           </span>
         )}
@@ -447,13 +447,13 @@ function ListingCardImpl({
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, only
               present while the drop badge is live. */}
           {hasDrop && (
-            <Price price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" compact className="truncate text-[11px] text-ink-4 line-through" />
+            <Price price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" compact className="truncate text-2xs text-ink-4 line-through" />
           )}
           {/* Below the market band (< P25) → a quiet "Good price" cue tied to the price.
               Deal-positive only; kept off the photo so it never crowds urgent/drop badges,
               and yields to a live price-drop so the two cheapness signals never stack. */}
           {listing.goodPrice && !hasDrop && (
-            <span className="shrink-0 self-center rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-bold text-success">
+            <span className="shrink-0 self-center rounded-full bg-success/15 px-1.5 py-0.5 text-3xs font-bold text-success">
               {tr('Good price', 'Giá tốt')}
             </span>
           )}
@@ -465,7 +465,7 @@ function ListingCardImpl({
             {/* Demand proof — distinct contact reveals. Only once meaningful (≥3);
                 shares this row, so presence never changes the card height. */}
             {listing.contactCount >= 3 && (
-              <span className="text-[11px] text-muted-foreground tabular-nums">
+              <span className="text-2xs text-muted-foreground tabular-nums">
                 {tr(`${formatCount(listing.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(listing.contactCount, moneyLocale(lang))}`)}
               </span>
             )}
@@ -476,7 +476,7 @@ function ListingCardImpl({
         </div>
 
         {listing.seller.isBusiness && (
-          <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-muted-foreground">
+          <span className="mt-0.5 inline-flex items-center gap-1 text-3xs font-bold text-muted-foreground">
             <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
           </span>
         )}

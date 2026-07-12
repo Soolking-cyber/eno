@@ -93,7 +93,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       aria-checked={selected}
       aria-label={tr('Select listing', 'Chọn tin')}
       className={cn(
-        'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors cursor-pointer',
+        'flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border-2 transition-colors cursor-pointer',
         selected ? 'border-brand bg-primary text-white' : 'border-line-strong bg-card hover:border-brand',
       )}
     >
@@ -103,7 +103,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   // Shared between the row + square-card layouts.
   const meta = (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-2xs text-muted-foreground">
       <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{listing.views}</span>
       <span className="inline-flex items-center gap-1"><MessageSquareText className="h-3 w-3" />{listing.contactCount} {tr('leads', 'liên hệ')}</span>
       {listing.savedCount > 0 && (
@@ -188,7 +188,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
             <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
           )}
           {selectable && <span className="absolute right-2 top-2">{checkbox}</span>}
-          <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
+          <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-3xs font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
         </button>
         <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
           <p className="line-clamp-2 text-sm font-semibold text-foreground">{title}</p>
@@ -215,7 +215,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <p className="truncate text-sm font-semibold text-foreground">{title}</p>
-          <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold', statusChip.cls)}>{statusChip.label}</span>
+          <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-3xs font-bold', statusChip.cls)}>{statusChip.label}</span>
         </div>
         <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-accent-foreground" />
         <div className="mt-0.5">{meta}</div>

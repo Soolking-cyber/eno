@@ -68,7 +68,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return <>{text}</>
 }
 
-const sectionLabelCls = 'block px-2 text-[10px] font-bold uppercase tracking-wider text-ink-4'
+const sectionLabelCls = 'block px-2 text-3xs font-bold uppercase tracking-wider text-ink-4'
 
 /** Instant-match results rendered inside a search bar's dropdown surface. Shared
  *  by the header + hero search so they're identical on mobile and desktop. */

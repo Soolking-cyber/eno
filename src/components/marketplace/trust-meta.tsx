@@ -25,7 +25,7 @@ export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBuck
   void trustTier // tier is encoded by TrustScore's color; kept for caller symmetry
 
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] leading-none text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs leading-none text-muted-foreground">
       {isNew ? (
         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 font-semibold text-body">
           <UserPlus className="h-3 w-3" aria-hidden />

@@ -173,11 +173,11 @@ export function QuickDiscount({
                   {formatMoneyFull(newPrice, listing.currency, locale)} <span className="text-destructive">{pctLabel}</span>
                 </p>
                 {willEarnBadge ? (
-                  <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-accent-foreground">
+                  <p className="mt-1 inline-flex items-center gap-1 text-2xs font-semibold text-accent-foreground">
                     <Sparkles className="h-3 w-3" /> {tr('Buyers see a discount badge on this', 'Người mua sẽ thấy nhãn giảm giá')}
                   </p>
                 ) : (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-2xs text-muted-foreground">
                     {tr('Cut ≥20% to show buyers a discount badge', 'Giảm ≥20% để hiển thị nhãn giảm giá cho người mua')}
                   </p>
                 )}

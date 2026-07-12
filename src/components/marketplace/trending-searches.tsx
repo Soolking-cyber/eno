@@ -23,7 +23,7 @@ export function TrendingSearches({
   const labelCls =
     variant === 'hero'
       ? 'eyebrow flex items-center gap-1 text-body'
-      : 'flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground'
+      : 'flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground'
 
   return (
     <div className="space-y-1.5">

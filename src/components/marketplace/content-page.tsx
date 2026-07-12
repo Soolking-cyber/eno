@@ -32,7 +32,7 @@ export function ContentPage({ eyebrow, title, meta, intro, sections, children }:
         {eyebrow && <p className="eyebrow text-accent-foreground mb-2"><Tr text={eyebrow} /></p>}
         <h1 className="h-display text-foreground"><Tr text={title} /></h1>
         {meta}
-        {intro && <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-body">{intro}</p>}
+        {intro && <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{intro}</p>}
         <div className={cn('mt-10', hasRail && 'lg:grid lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-14')}>
           {hasRail && (
             <nav aria-label="On this page" className="hidden lg:block">

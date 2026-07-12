@@ -93,11 +93,11 @@ export function BulkDiscount({
               −{pct}% · {n} {tr(n === 1 ? 'listing' : 'listings', 'tin')}
             </p>
             {willEarnBadge ? (
-              <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-accent-foreground">
+              <p className="mt-1 inline-flex items-center gap-1 text-2xs font-semibold text-accent-foreground">
                 <Sparkles className="h-3 w-3" /> {tr('Each shows buyers a discount badge', 'Mỗi tin sẽ hiển thị nhãn giảm giá')}
               </p>
             ) : (
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-2xs text-muted-foreground">
                 {tr('Cut ≥20% to show buyers a discount badge', 'Giảm ≥20% để hiển thị nhãn giảm giá')}
               </p>
             )}

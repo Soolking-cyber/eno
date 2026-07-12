@@ -68,7 +68,7 @@ function TierChip({ tier, score }: { tier: string | null; score: number | null }
     : tier === 'trusted' ? 'bg-accent text-accent-foreground'
     : tier === 'exceptional' ? 'bg-amber-100 text-amber-800'
     : 'bg-tint text-ink-4'
-  return <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-bold', cls)}>trust {score}{tier && tier !== 'standard' ? ` · ${tier}` : ''}</span>
+  return <span className={cn('rounded-full px-1.5 py-0.5 text-3xs font-bold', cls)}>trust {score}{tier && tier !== 'standard' ? ` · ${tier}` : ''}</span>
 }
 
 function NoteEditor({ caseId, initial, onSaved }: { caseId: string; initial: string | null; onSaved: () => void }) {
@@ -79,18 +79,18 @@ function NoteEditor({ caseId, initial, onSaved }: { caseId: string; initial: str
   const save = async () => { setSaving(true); try { await post({ action: 'set-note', id: caseId, note: text }); onSaved() } catch { /* noop */ } finally { setSaving(false) } }
   if (!open) {
     return (
-      <button onClick={(e) => { e.stopPropagation(); setOpen(true) }} className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer">
+      <button onClick={(e) => { e.stopPropagation(); setOpen(true) }} className="inline-flex items-center gap-1 text-3xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer">
         <StickyNote className="h-3 w-3" /> {initial ? 'Internal note ✓' : 'Add internal note'}
       </button>
     )
   }
   return (
     <div className="w-full rounded-lg border border-border bg-tint/40 p-2" onClick={(e) => e.stopPropagation()}>
-      <p className="mb-1 text-[10px] font-semibold text-muted-foreground">Internal note (staff-only, never shown to users)</p>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} maxLength={2000} className="w-full resize-none rounded-md border border-line-strong bg-card px-2 py-1.5 text-xs outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+      <p className="mb-1 text-3xs font-semibold text-muted-foreground">Internal note (staff-only, never shown to users)</p>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} maxLength={2000} className="w-full resize-none rounded-xl border border-line-strong bg-card px-2 py-1.5 text-xs outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
       <div className="mt-1.5 flex items-center gap-1.5">
-        <button onClick={save} disabled={saving || !dirty} className="inline-flex items-center gap-1 rounded-md bg-foreground px-2.5 py-1 text-[10px] font-bold text-background hover:opacity-90 disabled:opacity-40 cursor-pointer">{saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null} Save note</button>
-        <button onClick={() => { setText(initial || ''); setOpen(false) }} className="rounded-md px-2 py-1 text-[10px] font-bold text-muted-foreground hover:bg-muted cursor-pointer">Close</button>
+        <button onClick={save} disabled={saving || !dirty} className="inline-flex items-center gap-1 rounded-lg bg-foreground px-2.5 py-1 text-3xs font-bold text-background hover:opacity-90 disabled:opacity-40 cursor-pointer">{saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null} Save note</button>
+        <button onClick={() => { setText(initial || ''); setOpen(false) }} className="rounded-lg px-2 py-1 text-3xs font-bold text-muted-foreground hover:bg-muted cursor-pointer">Close</button>
       </div>
     </div>
   )
@@ -110,7 +110,7 @@ function MacroSender({ recipientId, label, listingId, conversationId }: { recipi
   }
   return (
     <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-      <select value="" disabled={state === 'sending'} onChange={(e) => send(e.target.value)} className="rounded-md border border-line-strong bg-card px-2 py-0.5 text-[10px] font-bold text-foreground cursor-pointer disabled:opacity-50">
+      <select value="" disabled={state === 'sending'} onChange={(e) => send(e.target.value)} className="rounded-lg border border-line-strong bg-card px-2 py-0.5 text-3xs font-bold text-foreground cursor-pointer disabled:opacity-50">
         <option value="">{state === 'sent' ? `Sent to ${label} ✓` : state === 'sending' ? 'Sending…' : `Notify ${label}…`}</option>
         {MOD_MACROS.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
       </select>
@@ -125,7 +125,7 @@ function SeverityMenu({ value, onPick }: { value: string; onPick: (s: string) =>
   const [open, setOpen] = useState(false)
   return (
     <span className="relative inline-block" onClick={(e) => e.stopPropagation()}>
-      <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title="Penalty applied on Confirm" className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2 py-1 text-[11px] font-bold capitalize text-foreground hover:bg-muted cursor-pointer">
+      <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title="Penalty applied on Confirm" className="inline-flex items-center gap-1 rounded-lg border border-line-strong px-2 py-1 text-2xs font-bold capitalize text-foreground hover:bg-muted cursor-pointer">
         {value} {PENALTY[value]} <ChevronDown className="h-3 w-3 text-ink-4" />
       </button>
       {open && (
@@ -133,7 +133,7 @@ function SeverityMenu({ value, onPick }: { value: string; onPick: (s: string) =>
           <div className="fixed inset-0 z-10" aria-hidden onClick={() => setOpen(false)} />
           <div role="menu" className="absolute left-0 z-20 mt-1 w-40 space-y-0.5 rounded-xl border border-border bg-card p-1.5 shadow-pop">
             {SEVERITIES.map((sv) => (
-              <button key={sv} onClick={() => { onPick(sv); setOpen(false) }} className={cn('flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[11px] font-bold capitalize cursor-pointer', sv === value ? 'bg-primary text-white' : 'text-foreground hover:bg-muted')}>
+              <button key={sv} onClick={() => { onPick(sv); setOpen(false) }} className={cn('flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-2xs font-bold capitalize cursor-pointer', sv === value ? 'bg-primary text-white' : 'text-foreground hover:bg-muted')}>
                 {sv} <span className={sv === value ? '' : 'text-ink-4'}>{PENALTY[sv]}</span>
               </button>
             ))}
@@ -148,7 +148,7 @@ function MoreMenu({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   return (
     <span className="relative inline-block" onClick={(e) => e.stopPropagation()}>
-      <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title="More actions" className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted cursor-pointer">
+      <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title="More actions" className="inline-flex items-center gap-1 rounded-lg border border-line-strong px-2 py-1 text-2xs font-semibold text-muted-foreground hover:bg-muted cursor-pointer">
         <MoreHorizontal className="h-3.5 w-3.5" /> More
       </button>
       {open && (
@@ -233,11 +233,11 @@ function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
   if (state === 'idle' || state === 'loading' || state === 'error') {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={run} disabled={state === 'loading'} className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-60 cursor-pointer">
+        <button onClick={run} disabled={state === 'loading'} className="inline-flex items-center gap-1 rounded-lg border border-line-strong px-2.5 py-1 text-2xs font-semibold text-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-60 cursor-pointer">
           {state === 'loading' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
           {state === 'loading' ? 'Reading the evidence…' : 'AI review'}
         </button>
-        {state === 'error' && <span className="text-[11px] font-semibold text-warning">{err}</span>}
+        {state === 'error' && <span className="text-2xs font-semibold text-warning">{err}</span>}
       </div>
     )
   }
@@ -247,9 +247,9 @@ function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
     <div className="rounded-lg border border-border bg-tint/40 p-2.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <Sparkles className="h-3.5 w-3.5 shrink-0 text-ink-4" />
-        <span className="text-[10px] font-bold uppercase tracking-wide text-ink-4">AI suggestion — you decide</span>
-        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold', AI_OUTCOME_STYLE[review.outcome])}>{AI_OUTCOME_LABEL[review.outcome]}{review.severity ? ` · ${review.severity}` : ''}</span>
-        <span className="text-[10px] text-ink-4">{Math.round(review.confidence * 100)}% confidence</span>
+        <span className="text-3xs font-bold uppercase tracking-wide text-ink-4">AI suggestion — you decide</span>
+        <span className={cn('rounded-full px-2 py-0.5 text-3xs font-bold', AI_OUTCOME_STYLE[review.outcome])}>{AI_OUTCOME_LABEL[review.outcome]}{review.severity ? ` · ${review.severity}` : ''}</span>
+        <span className="text-3xs text-ink-4">{Math.round(review.confidence * 100)}% confidence</span>
       </div>
       {review.reasoning.length > 0 && (
         <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-xs text-foreground">
@@ -259,8 +259,8 @@ function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
       {review.keyEvidence.length > 0 && (
         <div className="mt-1.5 space-y-1">
           {review.keyEvidence.map((e, i) => (
-            <p key={i} className="text-[11px] text-muted-foreground">
-              <span className="mr-1 rounded bg-tint px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-ink-4">{e.source.replace('_', ' ')}</span>
+            <p key={i} className="text-2xs text-muted-foreground">
+              <span className="mr-1 rounded-lg bg-tint px-1 py-0.5 text-3xs font-bold uppercase tracking-wide text-ink-4">{e.source.replace('_', ' ')}</span>
               “{e.quote}”
             </p>
           ))}
@@ -268,21 +268,21 @@ function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
       )}
       {review.counterpoints.length > 0 && (
         <div className="mt-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-ink-4">On the other hand</p>
-          <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">
+          <p className="text-3xs font-bold uppercase tracking-wide text-ink-4">On the other hand</p>
+          <ul className="list-disc space-y-0.5 pl-4 text-2xs text-muted-foreground">
             {review.counterpoints.map((r, i) => <li key={i}>{r}</li>)}
           </ul>
         </div>
       )}
-      {review.missing.length > 0 && <p className="mt-1.5 text-[11px] text-muted-foreground"><span className="font-bold text-ink-4">Missing:</span> {review.missing.join(' · ')}</p>}
+      {review.missing.length > 0 && <p className="mt-1.5 text-2xs text-muted-foreground"><span className="font-bold text-ink-4">Missing:</span> {review.missing.join(' · ')}</p>}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <button onClick={() => onUse(review)} className="rounded-md bg-foreground px-2.5 py-1 text-[10px] font-bold text-background hover:opacity-90 cursor-pointer">Use suggestion</button>
-        <button onClick={saveNote} disabled={noteState !== 'idle'} className="inline-flex items-center gap-1 rounded-md border border-line-strong px-2.5 py-1 text-[10px] font-bold text-foreground hover:bg-muted disabled:opacity-60 cursor-pointer">
+        <button onClick={() => onUse(review)} className="rounded-lg bg-foreground px-2.5 py-1 text-3xs font-bold text-background hover:opacity-90 cursor-pointer">Use suggestion</button>
+        <button onClick={saveNote} disabled={noteState !== 'idle'} className="inline-flex items-center gap-1 rounded-lg border border-line-strong px-2.5 py-1 text-3xs font-bold text-foreground hover:bg-muted disabled:opacity-60 cursor-pointer">
           {noteState === 'saving' && <Loader2 className="h-3 w-3 animate-spin" />}
           {noteState === 'saved' ? 'Saved to case notes ✓' : 'Save to case notes'}
         </button>
       </div>
-      <p className="mt-1.5 text-[10px] italic text-ink-4">AI can misread context — verify quotes in the conversation before confirming.</p>
+      <p className="mt-1.5 text-3xs italic text-ink-4">AI can misread context — verify quotes in the conversation before confirming.</p>
     </div>
   )
 }
@@ -321,20 +321,20 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5 cursor-pointer accent-brand" aria-label="Select case" />}
-          {c.appeal && <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Appeal</span>}
-          {c.bucket === 'critical' && !c.appeal && !readOnly && <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">Critical</span>}
-          {c.preScreen && !readOnly && <span className="rounded bg-tint px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-4" title="Filed by a reporter with 2+ false-report strikes — triaged last">Pre-screened</span>}
+          {c.appeal && <span className="rounded-lg bg-amber-500 px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wide text-white">Appeal</span>}
+          {c.bucket === 'critical' && !c.appeal && !readOnly && <span className="rounded-lg bg-red-100 px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wide text-red-700">Critical</span>}
+          {c.preScreen && !readOnly && <span className="rounded-lg bg-tint px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wide text-ink-4" title="Filed by a reporter with 2+ false-report strikes — triaged last">Pre-screened</span>}
           <span className="text-sm font-bold text-foreground">{REASON_LABEL[c.reason] || c.reason}</span>
-          {c.communityCount > 1 && !readOnly && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">{c.communityCount} on this target</span>}
-          <span className="rounded-full bg-tint px-2 py-0.5 text-[10px] font-semibold capitalize text-ink-4">{t.kind}</span>
+          {c.communityCount > 1 && !readOnly && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-bold text-amber-800">{c.communityCount} on this target</span>}
+          <span className="rounded-full bg-tint px-2 py-0.5 text-3xs font-semibold capitalize text-ink-4">{t.kind}</span>
         </div>
-        <span className="shrink-0 text-[11px] text-ink-4">{c.ageDays <= 0 ? 'today' : `${c.ageDays}d ago`}</span>
+        <span className="shrink-0 text-2xs text-ink-4">{c.ageDays <= 0 ? 'today' : `${c.ageDays}d ago`}</span>
       </div>
 
       <div className="mt-2 flex gap-3">
         {isListing && (
           <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-tint">
-            {t.listing!.image ? <Image src={t.listing!.image} alt="" fill sizes="64px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-[10px] text-ink-4">No image</div>}
+            {t.listing!.image ? <Image src={t.listing!.image} alt="" fill sizes="64px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-3xs text-ink-4">No image</div>}
           </div>
         )}
         <div className="min-w-0 flex-1">
@@ -342,12 +342,12 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
             <>
               <a href={`/listings/${t.listing!.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 truncate text-sm font-bold text-foreground hover:text-accent-foreground"><span className="truncate">{t.listing!.title}</span><ExternalLink className="h-3 w-3 shrink-0 opacity-50" /></a>
               <p className="mt-0.5 text-xs font-semibold text-accent-foreground">{formatMoneyFull(t.listing!.price, t.listing!.currency, moneyLocale(lang))}</p>
-              <p className="truncate text-[11px] text-muted-foreground">{t.listing!.category} · {t.listing!.location}</p>
+              <p className="truncate text-2xs text-muted-foreground">{t.listing!.category} · {t.listing!.location}</p>
             </>
           ) : (
             <p className="text-sm font-bold text-foreground">{t.kind === 'chat' ? 'Reported conversation' : 'Reported account'}</p>
           )}
-          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-2xs text-muted-foreground">
             <span>Target:</span>
             {t.sellerId ? <a href={`/sellers/${t.sellerId}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="font-semibold text-foreground hover:underline">{t.name}</a> : <span className="font-semibold text-foreground">{t.name}</span>}
             <TierChip tier={t.trustTier} score={t.trustScore} />
@@ -366,13 +366,13 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
         <div className="mt-2 rounded-lg border border-border bg-tint/40 px-2 py-1.5">
           {c.sellerResponse ? (
             <>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-ink-4">{t.kind === 'listing' ? 'Seller' : 'Reported party'} reply{c.sellerRespondedAt ? ` · ${shortDate(c.sellerRespondedAt)}` : ''}</p>
+              <p className="text-3xs font-bold uppercase tracking-wide text-ink-4">{t.kind === 'listing' ? 'Seller' : 'Reported party'} reply{c.sellerRespondedAt ? ` · ${shortDate(c.sellerRespondedAt)}` : ''}</p>
               <p className="mt-0.5 text-xs text-foreground">“{c.sellerResponse}”</p>
             </>
           ) : c.sellerRespondedAt ? (
-            <p className="text-[11px] font-semibold text-body">{t.kind === 'listing' ? 'Seller' : 'Reported party'} replied in the dispute room · {shortDate(c.sellerRespondedAt)} — open the case to read it.</p>
+            <p className="text-2xs font-semibold text-body">{t.kind === 'listing' ? 'Seller' : 'Reported party'} replied in the dispute room · {shortDate(c.sellerRespondedAt)} — open the case to read it.</p>
           ) : (
-            <p className="text-[11px] italic text-muted-foreground">No reply from the {t.kind === 'listing' ? 'seller' : 'reported party'} yet · asked {askedAgo(c.createdAt)}</p>
+            <p className="text-2xs italic text-muted-foreground">No reply from the {t.kind === 'listing' ? 'seller' : 'reported party'} yet · asked {askedAgo(c.createdAt)}</p>
           )}
         </div>
       )}
@@ -380,12 +380,12 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
       {/* Appeal: the target's explanation + proof, shown prominently. */}
       {c.appeal && (
         <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Appeal · {shortDate(c.appeal.at)}</p>
+          <p className="text-3xs font-bold uppercase tracking-wide text-amber-700">Appeal · {shortDate(c.appeal.at)}</p>
           {c.appeal.note && <p className="mt-0.5 text-xs text-amber-900">{c.appeal.note}</p>}
           {c.appeal.images.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {c.appeal.images.map((src, i) => (
-                <a key={i} href={src} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="relative block h-14 w-14 overflow-hidden rounded-md bg-tint">
+                <a key={i} href={src} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="relative block h-14 w-14 overflow-hidden rounded-lg bg-tint">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={src} alt="proof" className="h-full w-full object-cover" />
                 </a>
@@ -395,7 +395,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
         </div>
       )}
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
         {c.reporter ? (
           <span>By {c.reporter.sellerId ? <a href={`/sellers/${c.reporter.sellerId}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="font-semibold text-foreground hover:underline">{c.reporter.name}</a> : <span className="font-semibold text-foreground">{c.reporter.name}</span>}<span className="text-ink-4"> · trust {c.reporter.trustScore}</span>{c.reporter.strikes > 0 && <span className="font-semibold text-warning"> · {c.reporter.strikes} false-report strike{c.reporter.strikes > 1 ? 's' : ''}</span>}</span>
         ) : <span className="italic">reporter account removed</span>}
@@ -405,7 +405,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
       </div>
 
       {readOnly ? (
-        <div className="mt-2 border-t border-border pt-2 text-[11px] text-muted-foreground">
+        <div className="mt-2 border-t border-border pt-2 text-2xs text-muted-foreground">
           <span className={cn('font-bold', c.resolution?.status === 'confirmed' ? 'text-red-600' : c.resolution?.status === 'abusive' ? 'text-warning' : 'text-foreground')}>{c.resolution?.status}</span>
           {c.resolution?.by ? ` · by ${c.resolution.by}` : ''}{c.resolution?.at ? ` · ${shortDate(c.resolution.at)}` : ''}
           {c.internalNote && <p className="mt-1 italic">Note: {c.internalNote}</p>}
@@ -422,18 +422,18 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
               the detail the old three stacked rows spelled out. */}
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
             <SeverityMenu value={severity} onPick={(sv) => onSeverity(c.id, sv)} />
-            <button ref={(el) => { decisionRefs.current.confirm = el }} onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} title={`Docks the target ${PENALTY[severity]} trust${isListing ? ' and unpublishes the listing' : ''}`} className={cn('rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer', aiFocus === 'confirm' && 'ring-2 ring-brand ring-offset-1')}>Confirm{isListing ? ' & unpublish' : ''}</button>
-            <button ref={(el) => { decisionRefs.current.dismiss = el }} onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} title={c.appeal ? 'Uphold the appeal — no penalty' : 'Keep the listing live — no penalty'} className={cn('rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-40 cursor-pointer', aiFocus === 'dismiss' && 'ring-2 ring-brand ring-offset-1')}>Dismiss</button>
+            <button ref={(el) => { decisionRefs.current.confirm = el }} onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} title={`Docks the target ${PENALTY[severity]} trust${isListing ? ' and unpublishes the listing' : ''}`} className={cn('rounded-lg bg-red-600 px-3 py-1 text-2xs font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer', aiFocus === 'confirm' && 'ring-2 ring-brand ring-offset-1')}>Confirm{isListing ? ' & unpublish' : ''}</button>
+            <button ref={(el) => { decisionRefs.current.dismiss = el }} onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} title={c.appeal ? 'Uphold the appeal — no penalty' : 'Keep the listing live — no penalty'} className={cn('rounded-lg border border-line-strong px-2.5 py-1 text-2xs font-semibold text-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-40 cursor-pointer', aiFocus === 'dismiss' && 'ring-2 ring-brand ring-offset-1')}>Dismiss</button>
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
             <span className="ml-auto inline-flex items-center gap-1.5">
-              <button ref={(el) => { decisionRefs.current.abusive = el }} onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className={cn('rounded-md px-2 py-1 text-[11px] font-semibold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer', aiFocus === 'abusive' && 'ring-2 ring-brand ring-offset-1')} title="False/abusive report — strike the reporter">Abusive</button>
+              <button ref={(el) => { decisionRefs.current.abusive = el }} onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className={cn('rounded-lg px-2 py-1 text-2xs font-semibold text-warning hover:bg-warning/10 disabled:opacity-40 cursor-pointer', aiFocus === 'abusive' && 'ring-2 ring-brand ring-offset-1')} title="False/abusive report — strike the reporter">Abusive</button>
               <NoteEditor caseId={c.id} initial={c.internalNote} onSaved={refresh} />
               <MoreMenu>
-                {isListing && <button onClick={() => onListing('reject', t.listing!.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete listing permanently</button>}
-                {c.communityCount > 1 && <button onClick={() => onDismissTarget(c.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount} on this target</button>}
+                {isListing && <button onClick={() => onListing('reject', t.listing!.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-2xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40 cursor-pointer"><X className="h-3 w-3" /> Delete listing permanently</button>}
+                {c.communityCount > 1 && <button onClick={() => onDismissTarget(c.id)} disabled={busy} className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-2xs font-semibold text-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-40 cursor-pointer"><Users className="h-3 w-3" /> Dismiss all {c.communityCount} on this target</button>}
                 {(isListing || c.communityCount > 1) && (msgTargets.length > 0 || t.isGuest) && <div className="my-1 border-t border-border" />}
                 {msgTargets.map((m) => <div key={m.recipientId} className="px-1 py-0.5"><MacroSender recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} /></div>)}
-                {t.isGuest && <p className="px-2 py-1 text-[10px] italic text-ink-4">Reported party is a guest — can&apos;t be messaged.</p>}
+                {t.isGuest && <p className="px-2 py-1 text-3xs italic text-ink-4">Reported party is a guest — can&apos;t be messaged.</p>}
               </MoreMenu>
             </span>
           </div>
@@ -455,22 +455,22 @@ function CaseRow({ c, active, checked, readOnly, onSelect, onCheck }: {
       <div className="flex items-start gap-2">
         {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="mt-0.5 h-3.5 w-3.5 cursor-pointer accent-brand" aria-label="Select case" />}
         {isListing && (
-          <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-tint">
+          <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-tint">
             {t.listing!.image ? <Image src={t.listing!.image} alt="" fill sizes="36px" className="object-cover" /> : null}
           </div>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            {c.appeal && <span className="rounded bg-amber-500 px-1 py-0.5 text-[9px] font-bold uppercase leading-none text-white">Appeal</span>}
+            {c.appeal && <span className="rounded-lg bg-amber-500 px-1 py-0.5 text-3xs font-bold uppercase leading-none text-white">Appeal</span>}
             {c.bucket === 'critical' && !c.appeal && !readOnly && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
-            <span className="truncate text-[13px] font-bold text-foreground">{REASON_LABEL[c.reason] || c.reason}</span>
+            <span className="truncate text-sm font-bold text-foreground">{REASON_LABEL[c.reason] || c.reason}</span>
           </div>
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+          <p className="mt-0.5 truncate text-2xs text-muted-foreground">
             <span className="capitalize text-ink-4">{t.kind}</span> · {t.name}
             {c.communityCount > 1 && <span className="font-semibold text-amber-700"> · ×{c.communityCount}</span>}
           </p>
         </div>
-        <span className="shrink-0 text-[10px] text-ink-4">{c.ageDays <= 0 ? 'today' : `${c.ageDays}d`}</span>
+        <span className="shrink-0 text-3xs text-ink-4">{c.ageDays <= 0 ? 'today' : `${c.ageDays}d`}</span>
       </div>
     </div>
   )
@@ -575,19 +575,19 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
             {label} ({counts[k]})
           </button>
         ))}
-        {!showResolved && <span className="ml-auto hidden items-center gap-1 text-[10px] text-ink-4 sm:inline-flex"><ChevronDown className="h-3 w-3" /> keys: j/k move · c confirm · d dismiss · a abusive</span>}
+        {!showResolved && <span className="ml-auto hidden items-center gap-1 text-3xs text-ink-4 sm:inline-flex"><ChevronDown className="h-3 w-3" /> keys: j/k move · c confirm · d dismiss · a abusive</span>}
       </div>
 
       {!showResolved && checked.size > 0 && (
         <div className="sticky top-2 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2 shadow-pop">
           <span className="text-xs font-bold text-foreground">{checked.size} selected{targetsOfChecked > 1 ? ` · ${targetsOfChecked} targets` : ''}</span>
-          <button onClick={() => bulk('bulk-dismiss')} disabled={bulkBusy} className="rounded-md border border-line-strong px-2.5 py-1 text-[11px] font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss selected</button>
+          <button onClick={() => bulk('bulk-dismiss')} disabled={bulkBusy} className="rounded-lg border border-line-strong px-2.5 py-1 text-2xs font-bold text-foreground hover:bg-muted disabled:opacity-40 cursor-pointer">Dismiss selected</button>
           <span className="ml-1 flex items-center gap-1">
-            <select value={bulkSev} onChange={(e) => setBulkSev(e.target.value)} className="rounded border border-line-strong bg-card px-1 py-0.5 text-[11px] cursor-pointer">{SEVERITIES.map((s) => <option key={s} value={s}>{s} {PENALTY[s]}</option>)}</select>
-            <button onClick={() => bulk('bulk-confirm')} disabled={bulkBusy} className="rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm selected</button>
+            <select value={bulkSev} onChange={(e) => setBulkSev(e.target.value)} className="rounded-lg border border-line-strong bg-card px-1 py-0.5 text-2xs cursor-pointer">{SEVERITIES.map((s) => <option key={s} value={s}>{s} {PENALTY[s]}</option>)}</select>
+            <button onClick={() => bulk('bulk-confirm')} disabled={bulkBusy} className="rounded-lg bg-red-600 px-2.5 py-1 text-2xs font-bold text-white hover:bg-red-700 disabled:opacity-40 cursor-pointer">Confirm selected</button>
           </span>
           {bulkBusy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-          <button onClick={() => setChecked(new Set())} className="ml-auto rounded-md px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted cursor-pointer">Clear</button>
+          <button onClick={() => setChecked(new Set())} className="ml-auto rounded-lg px-2 py-1 text-2xs font-semibold text-muted-foreground hover:bg-muted cursor-pointer">Clear</button>
         </div>
       )}
 

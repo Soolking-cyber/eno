@@ -88,7 +88,7 @@ function ReportAlert({ report }: { report: EnforcementInfo['openReports'][number
               ? tr('Open the dispute case to add your side', 'Mở hồ sơ khiếu nại để trình bày')
               : tr('Open the dispute case to follow it', 'Mở hồ sơ khiếu nại để theo dõi')} <ChevronRight className="h-4 w-4" />
           </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <p className="mt-0.5 text-2xs text-muted-foreground">
             {windowOpen
               ? tr('You get one statement with photos — add it within 72 hours to keep your standing.', 'Bạn được trình bày một lần kèm ảnh — gửi trong 72 giờ để giữ uy tín.')
               : tr('The response window has closed — the case is with the eno.vn team.', 'Đã hết thời gian phản hồi — hồ sơ đang chờ đội ngũ eno.vn.')}

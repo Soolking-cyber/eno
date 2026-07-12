@@ -142,7 +142,7 @@ export function ShareButton({ url, title, price, currency, className, compact = 
                 <span className="flex h-9 w-9 items-center justify-center rounded-full text-body transition-colors group-hover:bg-muted group-hover:text-accent-foreground">
                   <Icon className="h-[18px] w-[18px]" />
                 </span>
-                <span className="text-[10px] font-medium text-body">{label}</span>
+                <span className="text-3xs font-medium text-body">{label}</span>
               </button>
             ))}
           </div>

@@ -85,7 +85,7 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
         <div>
           <label htmlFor="profile-phone" className="mb-1 block text-xs font-semibold text-body">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</label>
           <input id="profile-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" className={field} />
-          <p className="mt-1 text-[11px] text-ink-4">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ sau khi bạn trả lời — không hiển thị công khai.')}</p>
+          <p className="mt-1 text-2xs text-ink-4">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ sau khi bạn trả lời — không hiển thị công khai.')}</p>
         </div>
       </div>
 

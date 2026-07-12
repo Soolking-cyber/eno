@@ -107,7 +107,7 @@ export function ConversationList() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-bold text-foreground">{c.counterpart.name}</span>
-                      {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">{c.unread}</span>}
+                      {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-3xs font-bold text-white">{c.unread}</span>}
                     </div>
                     <p className="truncate text-xs text-ink-4">{c.listingTitle}</p>
                     {(() => {

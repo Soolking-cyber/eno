@@ -89,7 +89,7 @@ export function SellerCard({
               <span className="truncate text-sm font-bold text-foreground">{seller.name}</span>
             )}
             {seller.isBusiness && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-tint px-1.5 py-0.5 text-[11px] font-semibold text-accent-foreground">
+              <span className="inline-flex items-center gap-1 rounded-full bg-tint px-1.5 py-0.5 text-2xs font-semibold text-accent-foreground">
                 <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
               </span>
             )}

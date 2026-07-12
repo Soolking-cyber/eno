@@ -56,7 +56,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
       <span
         title={title}
         className={cn(
-          'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-bold leading-none tabular-nums',
+          'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-bold leading-none tabular-nums',
           fill,
           className,
         )}

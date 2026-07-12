@@ -145,5 +145,5 @@ function Segmented({ options, value, onChange }: { options: { v: string; label: 
 
 function Badge({ children, tone = 'slate' }: { children: React.ReactNode; tone?: 'slate' | 'green' | 'amber' }) {
   const c = { slate: 'bg-tint text-ink-4', green: 'bg-success/10 text-success', amber: 'bg-warning/10 text-warning' }[tone]
-  return <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-bold capitalize', c)}>{children}</span>
+  return <span className={cn('rounded-full px-1.5 py-0.5 text-3xs font-bold capitalize', c)}>{children}</span>
 }

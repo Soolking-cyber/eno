@@ -214,7 +214,7 @@ export function FacetBar({
             <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
             <span>{tr('Filter', 'Bộ lọc')}</span>
             {activeAdvCount > 0 && (
-              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">{activeAdvCount}</span>
+              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-3xs font-bold text-white">{activeAdvCount}</span>
             )}
             <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', advOpen && 'rotate-180')} />
           </button>
@@ -272,7 +272,7 @@ export function FacetBar({
                   (e.g. Motorbike → bike type / engine cc / origin). */}
               {subcats.length > 0 && (
                 <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0 sm:pt-1.5">{tr('Type', 'Phân loại')}</label>
+                  <label className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0 sm:pt-1.5">{tr('Type', 'Phân loại')}</label>
                   <div className="flex flex-1 flex-wrap gap-1.5">
                     <button type="button" onClick={() => setActiveSubcategory('all')} className={segBtn(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
                     {subcats.map((s) => (
@@ -288,7 +288,7 @@ export function FacetBar({
                 const opts = f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
                 return (
                   <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-                    <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
+                    <label className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
                     {f.kind === 'range' && f.range ? (
                       <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacetValue(f, v)} />
                     ) : f.kind === 'toggle' ? (

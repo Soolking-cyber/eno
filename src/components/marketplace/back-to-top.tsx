@@ -82,7 +82,7 @@ export function BackToTop() {
           onClick={() => setHelpOpen(true)}
           className="relative hidden h-9 w-9 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-90 lg:flex tap-44"
         >
-          <span className="text-[26px] font-bold leading-none [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]">?</span>
+          <span className="text-2xl font-bold leading-none [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]">?</span>
         </button>
       </div>
 
