@@ -94,7 +94,7 @@ component is a defect.
 | Empty states | `<EmptyState>` (mascot + title + hint + action) |
 | Horizontal shelf | `<Shelf>` (marketplace) |
 | Loading | `<Skeleton>` / `<Spinner>` |
-| Modal | `ui/dialog` (Radix); destructive confirms → `ui/alert-dialog` |
+| Modal | `ui/dialog` (Base UI); destructive confirms → `ui/alert-dialog` |
 | Menus | `ui/dropdown-menu` (never a hand-rolled absolute-positioned div) |
 | Floating panels | `ui/popover`, `ui/tooltip` |
 | Side panels / mobile filters | `ui/sheet` (side) / `ui/drawer` (bottom, Base UI Drawer) |
