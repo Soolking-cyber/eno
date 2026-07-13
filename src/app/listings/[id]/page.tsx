@@ -360,7 +360,7 @@ export default async function ListingPage({ params }: Props) {
             {/* ONE segmented meta line (user decision 2026-07-14): brand chip ·
                 location · posted — replaces the stacked rows; Share/Save moved
                 onto the gallery overlay like mobile. */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground lg:hidden">
               {brand && (
                 <>
                   <Link
@@ -417,10 +417,10 @@ export default async function ListingPage({ params }: Props) {
                 <DropCountdown expiresAt={listing.dropExpiresAt} />
               </>
             )}
+            {/* Urgent = bare red bolt at digit height (user-picked 2026-07-14) —
+                matches the list view's icon-only treatment; aria names it. */}
             {listing.urgent && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-orange-700 px-2.5 py-1 text-2xs font-bold text-white">
-                <Zap className="h-3 w-3 fill-current" /><Tr text="Urgent sale" />
-              </span>
+              <Zap aria-label="Urgent sale" className="h-6 w-6 self-center fill-red-600 stroke-none" />
             )}
             {!listing.negotiable && (
               <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-2xs font-bold text-body">
@@ -480,10 +480,33 @@ export default async function ListingPage({ params }: Props) {
               </div>
             </div>
 
+            {/* Meta (brand · location · posted, desktop copy — user-picked
+                2026-07-14: joins the chips below the carousel; mobile keeps it
+                in the title flow, which already reads below the gallery). */}
+            <div className="-mt-4 hidden flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground lg:flex">
+              {brand && (
+                <>
+                  <Link
+                    href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
+                    className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+                  >
+                    <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
+                    {brand.name}
+                  </Link>
+                  <span aria-hidden className="text-line-strong">·</span>
+                </>
+              )}
+              <span className="inline-flex min-w-0 items-center gap-1">
+                <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
+                <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
+              </span>
+              <span aria-hidden className="text-line-strong">·</span>
+              <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
+            </div>
+
             {/* Condition + quick-spec chips — directly below the carousel
-                (user-picked 2026-07-14; was in the title header block). -mt-4
-                tightens against the column's gap-8. */}
-            <div className="-mt-4 flex flex-wrap items-center gap-2">
+                (user-picked 2026-07-14; was in the title header block). */}
+            <div className="-mt-5 flex flex-wrap items-center gap-2">
               {listing.condition && (
                 <span className="inline-flex items-center rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground">
                   <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
@@ -549,9 +572,7 @@ export default async function ListingPage({ params }: Props) {
                   </>
                 )}
                 {listing.urgent && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-orange-700 px-2.5 py-1 text-2xs font-bold text-white">
-                    <Zap className="h-3 w-3 fill-current" /><Tr text="Urgent sale" />
-                  </span>
+                  <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-red-600 stroke-none" />
                 )}
                 {!listing.negotiable && (
                   <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-2xs font-bold text-body">
