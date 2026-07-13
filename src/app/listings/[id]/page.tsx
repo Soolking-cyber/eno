@@ -586,9 +586,6 @@ export default async function ListingPage({ params }: Props) {
               {priceBand && <div className="hidden lg:block"><MarketPrice price={listing.price} band={priceBand} /></div>}
               <Separator className="hidden lg:block" />
 
-              {/* Safety strip — DESKTOP copy, read just before the contact actions. */}
-              <SafetyStrip categorySlug={rawListing.category.slug} className="hidden lg:flex" />
-
               {/* Unified contact + offer (auth-gated; number never in this payload).
                   Type a message or tap "Make an offer", then send → opens the thread.
                   No escrow mention anywhere on the money path — unmet promises cost
@@ -596,6 +593,10 @@ export default async function ListingPage({ params }: Props) {
               <div id="contact" className="scroll-mt-24">
                 <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
               </div>
+
+              {/* Safety strip — DESKTOP copy, below the chat/offer actions
+                  (user-picked 2026-07-14; was above the composer). */}
+              <SafetyStrip categorySlug={rawListing.category.slug} className="hidden lg:flex" />
 
               <Separator />
               {/* Safety + report share one balanced row: the blue "Safe trading tips"
