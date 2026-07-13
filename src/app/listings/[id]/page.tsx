@@ -7,6 +7,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
+import { Card } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 import { Footer } from '@/components/marketplace/footer'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { CountValue, SavedCount } from '@/components/marketplace/rating-value'
@@ -353,28 +355,32 @@ export default async function ListingPage({ params }: Props) {
 
         {/* Title header — on mobile it follows the price block; share/save live
             on the gallery overlay there, so the right-side pair is desktop-only. */}
-        <div className="order-4 mb-4 flex items-start justify-between gap-3 lg:order-none">
+        <div className="order-4 mb-4 lg:order-none">
           <div className="min-w-0 space-y-1.5">
             <h1 className="h-title text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
-            {brand && (
-              <Link
-                href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
-                className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
-              >
-                <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
-                {brand.name}
-              </Link>
-            )}
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4 text-ink-4 shrink-0" />
-              <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
+            {/* ONE segmented meta line (user decision 2026-07-14): brand chip ·
+                location · posted — replaces the stacked rows; Share/Save moved
+                onto the gallery overlay like mobile. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground">
+              {brand && (
+                <>
+                  <Link
+                    href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
+                    className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+                  >
+                    <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
+                    {brand.name}
+                  </Link>
+                  <span aria-hidden className="text-line-strong">·</span>
+                </>
+              )}
+              <span className="inline-flex min-w-0 items-center gap-1">
+                <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
+                <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
+              </span>
               <span aria-hidden className="text-line-strong">·</span>
               <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
             </div>
-          </div>
-          <div className="mt-0.5 hidden shrink-0 items-center gap-2 lg:flex">
-            <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} />
-            <SaveListingButton id={listing.id} />
           </div>
         </div>
 
@@ -477,8 +483,14 @@ export default async function ListingPage({ params }: Props) {
               after the header's price/highlights and immediately before the
               Description; ≥lg it sits under the gallery at the head of the copy. */}
           <div className="lg:col-span-7 flex flex-col gap-8">
-            <div className="hidden md:block">
+            <div className="relative hidden md:block">
               <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
+              {/* Share/Save as icons on the viewport's top-right — same affordance
+                  as mobile; z-10 stays under the lightbox. */}
+              <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+                <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
+                <SaveListingButton id={listing.id} compact className="h-9 w-9 border-0 bg-card/80 backdrop-blur" />
+              </div>
             </div>
             <ProtectionsRow />
             <div className="space-y-2">
@@ -514,7 +526,13 @@ export default async function ListingPage({ params }: Props) {
               the single-canvas page; a subtle left rule separates it on desktop.
               Spans both left rows so the map block below stays beside it ≥lg. */}
           <div className="lg:col-span-5 lg:row-span-2">
-            <div className="lg:sticky lg:top-24 space-y-5 lg:border-l lg:border-border/70 lg:pl-10">
+            <div className="lg:sticky lg:top-24 flex flex-col gap-4 lg:border-l lg:border-border/70 lg:pl-10">
+              {/* BUY BOX (user decision 2026-07-14: standardized Card structure) —
+                  price + market band + safety + composer + footer in ONE card.
+                  order-2 on mobile keeps the tuned seller-first sequence; desktop
+                  leads with the buy box. overflow-visible: the composer's offer
+                  popover must escape the card. */}
+              <Card className="order-2 gap-4 overflow-visible px-4 py-4 lg:order-1">
               {/* Price + social proof — desktop copy (the mobile copy sits under the title) */}
               <div className="hidden flex-wrap items-baseline gap-2 lg:flex">
                 <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-accent-foreground tracking-tight" />
@@ -542,29 +560,7 @@ export default async function ListingPage({ params }: Props) {
                 <p className="-mt-2.5 hidden items-center gap-2 text-xs text-muted-foreground lg:flex">{socialProof}</p>
               )}
               {priceBand && <div className="hidden lg:block"><MarketPrice price={listing.price} band={priceBand} /></div>}
-
-              {/* Seller identity + honest trust metrics (shared SellerCard). "Chat now"
-                  scrolls to the composer below; "View shop" opens the storefront.
-                  Directly beneath: up to two verified-first reviews + the seller avg
-                  (renders nothing when the seller has no reviews yet). */}
-              <div className="space-y-4">
-                <PdpSellerCard
-                  seller={{
-                    id: listing.seller.id,
-                    name: listing.seller.name,
-                    avatarColor: listing.seller.avatarColor,
-                    isBusiness: listing.seller.isBusiness,
-                  }}
-                  metrics={sellerMetricsBundle}
-                  storefrontHref={sellerHref}
-                />
-                <ReviewsPreview
-                  reviews={reviewsPreview.reviews}
-                  total={reviewsPreview.total}
-                  avg={reviewsPreview.avg}
-                  sellerHref={sellerHref}
-                />
-              </div>
+              <Separator className="hidden lg:block" />
 
               {/* Safety strip — DESKTOP copy, read just before the contact actions. */}
               <SafetyStrip categorySlug={rawListing.category.slug} className="hidden lg:flex" />
@@ -577,6 +573,7 @@ export default async function ListingPage({ params }: Props) {
                 <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
               </div>
 
+              <Separator />
               {/* Safety + report share one balanced row: the blue "Safe trading tips"
                   link on the left and its red safety sibling, the Report chip, on the
                   right — reads as a paired footer, not a stranded lone button. */}
@@ -586,6 +583,29 @@ export default async function ListingPage({ params }: Props) {
                 </Link>
                 <ReportButton listingId={listing.id} />
               </div>
+              </Card>
+
+              {/* SELLER CARD — identity + honest trust metrics, reviews beneath
+                  (verified-first snippet; the separator only exists when reviews do). */}
+              <Card className="order-1 gap-4 overflow-visible px-4 py-4 lg:order-2">
+                <PdpSellerCard
+                  seller={{
+                    id: listing.seller.id,
+                    name: listing.seller.name,
+                    avatarColor: listing.seller.avatarColor,
+                    isBusiness: listing.seller.isBusiness,
+                  }}
+                  metrics={sellerMetricsBundle}
+                  storefrontHref={sellerHref}
+                />
+                {reviewsPreview.total > 0 && <Separator />}
+                <ReviewsPreview
+                  reviews={reviewsPreview.reviews}
+                  total={reviewsPreview.total}
+                  avg={reviewsPreview.avg}
+                  sellerHref={sellerHref}
+                />
+              </Card>
             </div>
           </div>
 
