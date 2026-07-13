@@ -84,7 +84,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               stay glyph-sized. */}
           {l.urgent && (
             <Badge kind="urgent" variant="inline" className="shrink-0">
-              <Zap className="h-2.5 w-2.5 fill-current" /> {tr('Urgent', 'Bán gấp')}
+              <Zap className="h-2.5 w-2.5 fill-current" />
+              {/* Icon-only on phones (user decision 2026-07-13): the word crowded
+                  the one-line row into the price. The ⚡ alone still signals
+                  urgency; the word returns at sm: where the row has room. */}
+              <span className="hidden sm:inline">{tr('Urgent', 'Bán gấp')}</span>
             </Badge>
           )}
           {/* The row's single color anchor — brand blue, matching the grid card. */}
