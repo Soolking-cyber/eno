@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useLanguage, useTr } from '@/context/language-context'
 import { timeAgo } from '@/lib/types'
 import { detectContentLang } from '@/lib/detect-lang'
@@ -20,10 +21,48 @@ import { detectContentLang } from '@/lib/detect-lang'
  *  translate. Use when you need the text value (e.g. an alt attribute), not a node. */
 export function useLocalized(text: string, vi?: string | null, i18n?: Record<string, string> | null): string {
   const { lang } = useLanguage()
-  const embedded = lang === 'en' ? text : lang === 'vi' ? (vi || i18n?.vi || null) : (i18n?.[lang] || null)
+  // EN is a translation TARGET too (user decision 2026-07-14): a Vietnamese-authored
+  // description must render in English under the EN UI. Script detection gates it so
+  // English source text never round-trips.
+  const srcLang = detectContentLang(text)
+  const embedded =
+    lang === 'en'
+      ? (srcLang ? (i18n?.en || null) : text)
+      : lang === 'vi'
+        ? (srcLang === 'vi' ? text : vi || i18n?.vi || null)
+        : (i18n?.[lang] || null)
   // useTr is a hook → always called; '' is a no-op, so we skip translation when embedded.
-  const translated = useTr(embedded ? '' : lang === 'vi' ? vi || text : text)
-  return embedded || translated || text
+  const translated = useTr(embedded || lang === 'en' ? '' : lang === 'vi' ? vi || text : text)
+  const mtEn = useMachineEn(!embedded && lang === 'en' ? text : '')
+  return embedded || (lang === 'en' ? mtEn : translated) || text
+}
+
+// One-shot client translate INTO English for cache-miss non-EN content (the embed
+// covers warmed content; this is the same fallback role useTr plays for other
+// languages, which by design never targets EN). Module cache — a text translates
+// once per session.
+const enCache = new Map<string, string>()
+function useMachineEn(text: string): string {
+  const [val, setVal] = useState('')
+  useEffect(() => {
+    if (!text) { setVal(''); return }
+    const hit = enCache.get(text)
+    if (hit) { setVal(hit); return }
+    let off = false
+    fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texts: [text], target: 'en' }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const out = d?.translations?.[0]
+        if (!off && typeof out === 'string' && out) { enCache.set(text, out); setVal(out) }
+      })
+      .catch(() => {})
+    return () => { off = true }
+  }, [text])
+  return val
 }
 
 export function LocalizedText({ text, vi, i18n }: { text: string; vi?: string | null; i18n?: Record<string, string> | null }) {

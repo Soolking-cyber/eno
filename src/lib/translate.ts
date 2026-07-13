@@ -1,6 +1,7 @@
 import 'server-only'
 import crypto from 'crypto'
 import { db } from './db'
+import { detectContentLang } from './detect-lang'
 
 // Supported languages — English source, Vietnamese home market, plus the top
 // inbound-tourist languages to Vietnam (GSO 2025 arrivals). One Chinese option
@@ -257,6 +258,15 @@ export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_WA
   if (clean.length === 0 || (!GOOGLE_KEY && !AZURE_KEY)) return
   for (const l of langs) {
     try { await translateBatch(clean, l) } catch { /* best-effort per language */ }
+  }
+  // Vietnamese-authored (or any non-Latin) content must ALSO warm INTO English —
+  // the EN UI renders source text verbatim otherwise (user report 2026-07-14:
+  // vi description shown raw under the English UI). Gated by script detection so
+  // English source never pays for an EN→EN round trip; runs regardless of the
+  // langs param so the nightly cron gets it too.
+  const nonEn = clean.filter((t) => detectContentLang(t) !== null)
+  if (nonEn.length > 0) {
+    try { await translateBatch(nonEn, 'en') } catch { /* best-effort */ }
   }
 }
 
