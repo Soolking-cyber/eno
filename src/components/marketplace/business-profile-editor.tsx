@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Check, Plus, LocateFixed } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { WardPicker } from './area-filter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -142,7 +143,16 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
               {locating ? <Loader2 className="h-3 w-3 animate-spin" /> : <LocateFixed className="h-3 w-3" />} {tr('Use my location', 'Dùng vị trí của tôi')}
             </button>
           </div>
-          <Input id="biz-location" autoComplete="address-level2" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={120} placeholder={tr('e.g. District 1, HCMC', 'vd. Quận 1, TP.HCM')} />
+          {/* Structured two-tier pick (city → ward, user decision 2026-07-13):
+              writes "Ward, Province" into the free-text field below, which stays
+              editable and keeps legacy values + the geolocate flow working. */}
+          <WardPicker
+            onPick={({ province, ward }) => {
+              const parts = [ward?.name, province?.name].filter(Boolean)
+              if (parts.length) setLocation(parts.join(', '))
+            }}
+          />
+          <Input id="biz-location" autoComplete="address-level2" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={120} placeholder={tr('e.g. Thảo Điền, HCMC', 'vd. Thảo Điền, TP.HCM')} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="biz-phone">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</Label>

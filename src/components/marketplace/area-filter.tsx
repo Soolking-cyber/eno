@@ -242,36 +242,38 @@ export function AreaFilter({
       className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
     >
       <div className="space-y-4">
-        {/* Province / city */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-foreground">{tr('Province / City', 'Tỉnh / Thành phố')}</label>
-          <CustomSelect
-            value={provCode}
-            onChange={(c) => { setProvCode(c); setWardCode('') }}
-            options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
-            placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
-            className={FIELD}
-            activeClassName={FIELD}
-          />
-        </div>
-
-        {/* Ward / commune */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-foreground">{tr('Ward / Commune', 'Phường / Xã')}</label>
-          {loadingWards ? (
-            <DisabledField label={tr('Loading wards…', 'Đang tải phường/xã…')} />
-          ) : wards.length ? (
+        {/* Province/City + Ward side-by-side (user decision 2026-07-13): one row,
+            two dropdowns. Vietnam's 2025 two-tier model has no district level —
+            city → ward IS the full official hierarchy. */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="min-w-0 space-y-1.5">
+            <label className="text-xs font-bold text-foreground">{tr('Province / City', 'Tỉnh / Thành phố')}</label>
             <CustomSelect
-              value={wardCode}
-              onChange={setWardCode}
-              options={wards.map((w) => ({ value: w.code, label: label(w) }))}
-              placeholder={tr('Select Ward/Commune', 'Chọn Phường/Xã')}
+              value={provCode}
+              onChange={(c) => { setProvCode(c); setWardCode('') }}
+              options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
+              placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
               className={FIELD}
               activeClassName={FIELD}
             />
-          ) : (
-            <DisabledField label={tr('Select a province first', 'Hãy chọn tỉnh/thành trước')} />
-          )}
+          </div>
+          <div className="min-w-0 space-y-1.5">
+            <label className="text-xs font-bold text-foreground">{tr('Ward / Commune', 'Phường / Xã')}</label>
+            {loadingWards ? (
+              <DisabledField label={tr('Loading wards…', 'Đang tải phường/xã…')} />
+            ) : wards.length ? (
+              <CustomSelect
+                value={wardCode}
+                onChange={setWardCode}
+                options={wards.map((w) => ({ value: w.code, label: label(w) }))}
+                placeholder={tr('Select Ward/Commune', 'Chọn Phường/Xã')}
+                className={FIELD}
+                activeClassName={FIELD}
+              />
+            ) : (
+              <DisabledField label={tr('Select a province first', 'Hãy chọn tỉnh/thành trước')} />
+            )}
+          </div>
         </div>
 
         {/* Near you / use your location — the action button below is self-explanatory,
@@ -348,5 +350,74 @@ export function AreaFilter({
     </div>
     </>,
     document.body,
+  )
+}
+
+/** Compact inline Province/City + Ward picker — the "one row, two dropdowns"
+ *  location control (user decision 2026-07-13) for FORMS (business profile
+ *  etc.), reusing the same /api/geo two-tier dataset as the filter above.
+ *  Emits the picked pair as display names; the caller owns the string field. */
+export function WardPicker({ onPick, className }: { onPick: (v: { province: Geo | null; ward: Geo | null }) => void; className?: string }) {
+  const { lang, tr } = useLanguage()
+  const [provinces, setProvinces] = useState<Unit[]>([])
+  const [wards, setWards] = useState<Unit[]>([])
+  const [loadingWards, setLoadingWards] = useState(false)
+  const [provCode, setProvCode] = useState('')
+  const [wardCode, setWardCode] = useState('')
+  const label = (u: Unit) => (lang === 'vi' ? u.name : u.nameEn)
+  const toGeo = (u?: Unit): Geo | null => (u ? { code: u.code, name: u.name, nameEn: u.nameEn } : null)
+
+  useEffect(() => {
+    let off = false
+    fetch('/api/geo?type=provinces').then((r) => r.json()).then((d) => { if (!off) setProvinces(d.provinces || []) }).catch(() => {})
+    return () => { off = true }
+  }, [])
+  useEffect(() => {
+    if (!provCode) { setWards([]); return }
+    let off = false
+    setLoadingWards(true)
+    fetch(`/api/geo?type=wards&province=${provCode}`)
+      .then((r) => r.json())
+      .then((d) => { if (!off) setWards(d.wards || []) })
+      .catch(() => {})
+      .finally(() => { if (!off) setLoadingWards(false) })
+    return () => { off = true }
+  }, [provCode])
+
+  return (
+    <div className={cn('grid grid-cols-2 gap-2', className)}>
+      <div className="min-w-0">
+        <CustomSelect
+          value={provCode}
+          onChange={(c) => {
+            setProvCode(c); setWardCode('')
+            onPick({ province: toGeo(provinces.find((p) => p.code === c)), ward: null })
+          }}
+          options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
+          placeholder={tr('Province/City', 'Tỉnh/Thành phố')}
+          className={FIELD}
+          activeClassName={FIELD}
+        />
+      </div>
+      <div className="min-w-0">
+        {loadingWards ? (
+          <DisabledField label={tr('Loading…', 'Đang tải…')} />
+        ) : wards.length ? (
+          <CustomSelect
+            value={wardCode}
+            onChange={(c) => {
+              setWardCode(c)
+              onPick({ province: toGeo(provinces.find((p) => p.code === provCode)), ward: toGeo(wards.find((w) => w.code === c)) })
+            }}
+            options={wards.map((w) => ({ value: w.code, label: label(w) }))}
+            placeholder={tr('Ward/Commune', 'Phường/Xã')}
+            className={FIELD}
+            activeClassName={FIELD}
+          />
+        ) : (
+          <DisabledField label={tr('Ward/Commune', 'Phường/Xã')} />
+        )}
+      </div>
+    </div>
   )
 }

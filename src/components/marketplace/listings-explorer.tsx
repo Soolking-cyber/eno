@@ -53,7 +53,7 @@ import { useTrendingSearches } from '@/hooks/use-trending-searches'
 import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 import { ListingCardSkeleton } from './listing-card-skeleton'
-import { ExplorerFilters } from './explorer-filters'
+import { ExplorerFiltersDrawer } from './explorer-filters'
 import { CompactListingRow } from './compact-listing-row'
 
 // Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
@@ -1439,9 +1439,6 @@ export function ListingsExplorer({
                   <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
                     <Tr text={lang === 'vi' ? s.nameVi : s.name} />
                   </span>
-                  <span className="text-2xs sm:text-xs text-body select-none font-semibold">
-                    {s.type === 'free' ? tr('Giveaways', 'Miễn phí') : tr('In search of', 'Cần tìm')}
-                  </span>
                 </button>
               ))}
             </div>
@@ -2029,52 +2026,24 @@ export function ListingsExplorer({
       </div>
 
       {/* MOBILE BOTTOM SLIDE-UP DRAWER OVERLAY */}
-      {isMobileFilterOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-card rounded-2xl w-full max-w-md p-5 shadow-overlay space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b pb-2.5">
-              <h4 className="text-sm font-extrabold text-foreground">
-                {tr('Search Filters', 'Bộ lọc tìm kiếm')}
-              </h4>
-              <button
-                onClick={() => setIsMobileFilterOpen(false)}
-                className="rounded-full bg-tint p-1.5 text-ink-3 hover:bg-line-strong active:scale-95"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            
-            {/* Scrollable Filters */}
-            <div className="max-h-[50vh] overflow-y-auto pr-1">
-              <ExplorerFilters
-                isMobile
-                categories={categories}
-                activeCategory={activeCategory}
-                handleCategorySelect={handleCategorySelect}
-                activeSubcategory={activeSubcategory}
-                setActiveSubcategory={setActiveSubcategory}
-                verifiedOnly={verifiedOnly}
-                setVerifiedOnly={setVerifiedOnly}
-                activeDistrict={activeDistrict}
-                setActiveDistrict={setActiveDistrict}
-                conditionFilter={conditionFilter}
-                setConditionFilter={setConditionFilter}
-                customFilters={customFilters}
-                setCustomFilters={setCustomFilters}
-              />
-            </div>
-
-            {/* Apply Action Button */}
-            <button
-              onClick={() => setIsMobileFilterOpen(false)}
-              className="w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-white shadow-md active:scale-98 cursor-pointer"
-            >
-              {tr('Apply Filters', 'Áp dụng lọc')} ({totalCount} {tr('listings', 'tin')})
-            </button>
-          </div>
-        </div>
-      )}
+      <ExplorerFiltersDrawer
+        open={isMobileFilterOpen}
+        onOpenChange={setIsMobileFilterOpen}
+        totalCount={totalCount}
+        categories={categories}
+        activeCategory={activeCategory}
+        handleCategorySelect={handleCategorySelect}
+        activeSubcategory={activeSubcategory}
+        setActiveSubcategory={setActiveSubcategory}
+        verifiedOnly={verifiedOnly}
+        setVerifiedOnly={setVerifiedOnly}
+        activeDistrict={activeDistrict}
+        setActiveDistrict={setActiveDistrict}
+        conditionFilter={conditionFilter}
+        setConditionFilter={setConditionFilter}
+        customFilters={customFilters}
+        setCustomFilters={setCustomFilters}
+      />
 
     </section>
   )

@@ -92,7 +92,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             </Badge>
           )}
           {/* The row's single color anchor — brand blue, matching the grid card. */}
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="shrink-0 text-base font-bold text-accent-foreground" />
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" className="shrink-0 text-base font-bold text-accent-foreground" />
           {l.prevPrice != null && dropPercent(l.prevPrice, l.price) && (
             <Badge kind="drop" variant="inline" className="shrink-0">{dropPercent(l.prevPrice, l.price)}</Badge>
           )}
