@@ -7,7 +7,6 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
-import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Footer } from '@/components/marketplace/footer'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
@@ -459,18 +458,6 @@ export default async function ListingPage({ params }: Props) {
             Trust is just the color-coded score number, kept low-key (no second shield).
             Flex margins don't collapse, so <lg the title/caution mb-4 above already
             provides the gap (mt-0); ≥lg it follows the gallery with the original mt-5. */}
-        <div className="order-6 flex flex-wrap items-center gap-2 lg:order-none lg:mt-5">
-          {listing.condition && (
-            <span className="inline-flex items-center rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground">
-              <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
-            </span>
-          )}
-          {numericSpecs.map((s) => (
-            <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground">
-              <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
-            </span>
-          ))}
-        </div>
         </div>
 
         {/* Content + sticky contact. The left column is split into two grid rows
@@ -491,6 +478,22 @@ export default async function ListingPage({ params }: Props) {
                 <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
                 <SaveListingButton id={listing.id} compact className="h-9 w-9 border-0 bg-card/80 backdrop-blur" />
               </div>
+            </div>
+
+            {/* Condition + quick-spec chips — directly below the carousel
+                (user-picked 2026-07-14; was in the title header block). -mt-4
+                tightens against the column's gap-8. */}
+            <div className="-mt-4 flex flex-wrap items-center gap-2">
+              {listing.condition && (
+                <span className="inline-flex items-center rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground">
+                  <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
+                </span>
+              )}
+              {numericSpecs.map((s) => (
+                <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground">
+                  <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
+                </span>
+              ))}
             </div>
             <ProtectionsRow />
             <div className="space-y-2">
@@ -532,7 +535,7 @@ export default async function ListingPage({ params }: Props) {
                   order-2 on mobile keeps the tuned seller-first sequence; desktop
                   leads with the buy box. overflow-visible: the composer's offer
                   popover must escape the card. */}
-              <Card className="order-2 gap-4 overflow-visible px-4 py-4 lg:order-1">
+              <div className="order-3 flex flex-col gap-4 lg:order-1">
               {/* Price + social proof — desktop copy (the mobile copy sits under the title) */}
               <div className="hidden flex-wrap items-baseline gap-2 lg:flex">
                 <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-accent-foreground tracking-tight" />
@@ -583,11 +586,15 @@ export default async function ListingPage({ params }: Props) {
                 </Link>
                 <ReportButton listingId={listing.id} />
               </div>
-              </Card>
+              </div>
 
-              {/* SELLER CARD — identity + honest trust metrics, reviews beneath
+              {/* One quiet line between the two groups — borderless design
+                  (user decision 2026-07-14: no boxes, the flat canon look). */}
+              <Separator className="order-2" />
+
+              {/* SELLER — identity + honest trust metrics, reviews beneath
                   (verified-first snippet; the separator only exists when reviews do). */}
-              <Card className="order-1 gap-4 overflow-visible px-4 py-4 lg:order-2">
+              <div className="order-1 flex flex-col gap-4 lg:order-3">
                 <PdpSellerCard
                   seller={{
                     id: listing.seller.id,
@@ -605,7 +612,7 @@ export default async function ListingPage({ params }: Props) {
                   avg={reviewsPreview.avg}
                   sellerHref={sellerHref}
                 />
-              </Card>
+              </div>
             </div>
           </div>
 
