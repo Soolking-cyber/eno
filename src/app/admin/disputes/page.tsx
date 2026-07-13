@@ -6,7 +6,8 @@ import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { reportContext, targetContext, type RawReport } from '@/lib/admin-reports'
 import { disputeStage } from '@/lib/dispute'
-import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Disputes — eno.vn admin', robots: { index: false, follow: false } }
@@ -63,7 +64,7 @@ export default async function AdminDisputesPage() {
     return (
       <Link
         href={`/admin/disputes/${r.id}`}
-        className="flex items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors hover:bg-muted"
+        className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted"
       >
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tint"><Scale className="h-4 w-4 text-ink-4" /></span>
         <div className="min-w-0 flex-1">
@@ -71,16 +72,18 @@ export default async function AdminDisputesPage() {
             <span className="text-sm font-bold capitalize text-foreground">{r.reason}</span>
             {r.status === 'open' ? (
               stage === 'evidence'
-                ? <span className="rounded-full bg-tint px-2 py-0.5 text-3xs font-bold text-accent-foreground">evidence{left ? ` · ${left} left` : ''}</span>
-                : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">awaiting decision</span>
+                ? <Badge variant="brand">evidence{left ? ` · ${left} left` : ''}</Badge>
+                : <Badge variant="warning">awaiting decision</Badge>
             ) : (
-              <span className={cn('rounded-full bg-tint px-2 py-0.5 text-3xs font-bold capitalize',
-                r.status === 'confirmed' ? 'text-success' : r.status === 'abusive' ? 'text-destructive' : 'text-ink-4')}>
+              <Badge
+                variant={r.status === 'confirmed' ? 'success' : r.status === 'abusive' ? 'destructive' : 'neutral'}
+                className="capitalize"
+              >
                 {r.resolvedBy === 'withdrawn-by-reporter' ? 'withdrawn' : r.status}
-              </span>
+              </Badge>
             )}
-            {r.appealedAt && r.status === 'open' && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">appeal</span>}
-            {target?.isGuest && <span className="rounded-full bg-tint px-2 py-0.5 text-3xs font-bold text-ink-4">respondent unreachable</span>}
+            {r.appealedAt && r.status === 'open' && <Badge variant="warning">appeal</Badge>}
+            {target?.isGuest && <Badge variant="neutral">respondent unreachable</Badge>}
           </div>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {reporter ? `by ${reporter.name} (trust ${reporter.trustScore}${reporter.strikes ? `, ${reporter.strikes} strikes` : ''})` : 'by unknown'}
@@ -97,6 +100,16 @@ export default async function AdminDisputesPage() {
     )
   }
 
+  // Plain render helper, NOT a component — a capitalized component created during
+  // render remounts its subtree every pass (and trips react-hooks/static-components).
+  const renderCaseList = (list: typeof rows) => (
+    <Card className="py-0">
+      <ul className="divide-y divide-border">
+        {list.map((r) => <li key={r.id}><CaseRow r={r} /></li>)}
+      </ul>
+    </Card>
+  )
+
   return (
     <div className="flex flex-1 flex-col bg-background">
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
@@ -109,14 +122,16 @@ export default async function AdminDisputesPage() {
 
         <h2 className="text-sm font-bold uppercase tracking-wide text-ink-4">Open · {open.length}</h2>
         <div className="mt-2">
-          {open.length === 0 && <p className="px-2 py-6 text-sm text-muted-foreground">No open cases. 🎉</p>}
-          {open.map((r) => <CaseRow key={r.id} r={r} />)}
+          {open.length === 0
+            ? <p className="px-2 py-6 text-sm text-muted-foreground">No open cases. 🎉</p>
+            : renderCaseList(open)}
         </div>
 
         <h2 className="mt-10 text-sm font-bold uppercase tracking-wide text-ink-4">Recently resolved</h2>
         <div className="mt-2 opacity-80">
-          {closed.length === 0 && <p className="px-2 py-6 text-sm text-muted-foreground">Nothing resolved yet.</p>}
-          {closed.map((r) => <CaseRow key={r.id} r={r} />)}
+          {closed.length === 0
+            ? <p className="px-2 py-6 text-sm text-muted-foreground">Nothing resolved yet.</p>
+            : renderCaseList(closed)}
         </div>
       </main>
     </div>

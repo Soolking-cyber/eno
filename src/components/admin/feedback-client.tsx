@@ -2,6 +2,10 @@
 
 import { useState } from 'react'
 import { MessageSquareText, Wrench, CheckCircle2, RotateCcw, Mail, ExternalLink } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export type FeedbackItem = {
   id: string
@@ -47,64 +51,65 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
     <div>
       <div className="mb-4 flex items-center gap-1">
         {(['open', 'all'] as const).map((f) => (
-          <button
+          <Button
             key={f}
+            size="sm"
+            variant={filter === f ? 'default' : 'ghost'}
+            className={filter === f ? 'font-semibold' : 'font-semibold text-body'}
             onClick={() => setFilter(f)}
-            className={
-              'rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer ' +
-              (filter === f ? 'bg-primary text-white' : 'text-body hover:bg-muted')
-            }
           >
             {f === 'open' ? `Open (${openCount})` : `All (${items.length})`}
-          </button>
+          </Button>
         ))}
       </div>
 
       {shown.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-line-strong py-14 text-center text-sm text-muted-foreground">
-          {filter === 'open' ? 'No open feedback — all caught up.' : 'No feedback yet.'}
-        </div>
+        <EmptyState
+          icon={MessageSquareText}
+          title={filter === 'open' ? 'No open feedback — all caught up.' : 'No feedback yet.'}
+        />
       ) : (
         <ul className="space-y-3">
           {shown.map((it) => {
             const technical = it.kind === 'technical'
             const resolved = it.status === 'resolved'
             return (
-              <li key={it.id} className={'rounded-2xl bg-card p-4 shadow-xs ' + (resolved ? 'opacity-60' : '')}>
-                <div className="flex items-start justify-between gap-3">
-                  <span
-                    className={
-                      'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-2xs font-bold ' +
-                      (technical ? 'bg-warning/15 text-warning' : 'bg-brand-50 text-brand')
-                    }
-                  >
-                    {technical ? <Wrench className="h-3.5 w-3.5" /> : <MessageSquareText className="h-3.5 w-3.5" />}
-                    {technical ? 'Technical' : 'Feedback'}
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{fmt(it.createdAt)}</span>
-                </div>
+              <li key={it.id}>
+                <Card className={resolved ? 'opacity-60' : undefined}>
+                  <CardContent>
+                    <div className="flex items-start justify-between gap-3">
+                      <Badge variant={technical ? 'warning' : 'brand'} size="md" className="gap-1.5">
+                        {technical ? <Wrench className="h-3.5 w-3.5" /> : <MessageSquareText className="h-3.5 w-3.5" />}
+                        {technical ? 'Technical' : 'Feedback'}
+                      </Badge>
+                      <span className="shrink-0 text-xs text-muted-foreground">{fmt(it.createdAt)}</span>
+                    </div>
 
-                <p className="mt-2.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground">{it.message}</p>
+                    <p className="mt-2.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground">{it.message}</p>
 
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-                  {it.email && (
-                    <a href={`mailto:${it.email}`} className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
-                      <Mail className="h-3.5 w-3.5" /> {it.email}
-                    </a>
-                  )}
-                  {it.url && (
-                    <a href={it.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">
-                      <ExternalLink className="h-3.5 w-3.5" /> {it.url}
-                    </a>
-                  )}
-                  <button
-                    onClick={() => toggle(it)}
-                    disabled={busy === it.id}
-                    className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-50 cursor-pointer"
-                  >
-                    {resolved ? <><RotateCcw className="h-3.5 w-3.5" /> Reopen</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Resolve</>}
-                  </button>
-                </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+                      {it.email && (
+                        <a href={`mailto:${it.email}`} className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
+                          <Mail className="h-3.5 w-3.5" /> {it.email}
+                        </a>
+                      )}
+                      {it.url && (
+                        <a href={it.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">
+                          <ExternalLink className="h-3.5 w-3.5" /> {it.url}
+                        </a>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => toggle(it)}
+                        disabled={busy === it.id}
+                        className="ml-auto gap-1.5 text-xs font-semibold text-foreground"
+                      >
+                        {resolved ? <><RotateCcw className="h-3.5 w-3.5" /> Reopen</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Resolve</>}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </li>
             )
           })}

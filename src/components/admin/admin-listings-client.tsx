@@ -1,9 +1,23 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Search, Trash2, EyeOff, Eye, Star, Check } from 'lucide-react'
+import {
+  ColumnDef, flexRender, getCoreRowModel, getSortedRowModel, SortingState, useReactTable,
+} from '@tanstack/react-table'
+import { ArrowUpDown, Loader2, MoreHorizontal, Search, Trash2, EyeOff, Eye, Star, Check } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { shortDate } from '@/lib/dates'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +45,13 @@ export function AdminListingsClient() {
   const [status, setStatus] = useState('all')
   const [verified, setVerified] = useState('all')
   const [sel, setSel] = useState<Set<string>>(new Set())
+  const [sorting, setSorting] = useState<SortingState>([])
+  // ids awaiting the destructive confirm (alert-dialog replaces window.confirm)
+  const [pendingDelete, setPendingDelete] = useState<string[] | null>(null)
+  // Last non-null value keeps the dialog copy stable while it animates out
+  // (clearing on close would flash "Delete 0 listing(s)?" mid-exit).
+  const lastDelete = useRef<string[]>([])
+  if (pendingDelete) lastDelete.current = pendingDelete
 
   const load = useCallback(() => {
     setLoading(true)
@@ -48,10 +69,15 @@ export function AdminListingsClient() {
   const allSelected = rows.length > 0 && sel.size === rows.length
   const toggleAll = () => setSel(allSelected ? new Set() : new Set(rows.map((r) => r.id)))
 
-  const act = async (action: string) => {
-    const ids = [...sel]
+  // Runs the batch action for `ids` (defaults to the current selection — row-level
+  // menu actions pass a single id). Delete detours through the confirm dialog.
+  const act = async (action: string, ids: string[] = [...sel]) => {
     if (!ids.length) return
-    if (action === 'delete' && !confirm(`Delete ${ids.length} listing(s)? This is permanent.`)) return
+    if (action === 'delete') { setPendingDelete(ids); return }
+    await run(action, ids)
+  }
+
+  const run = async (action: string, ids: string[]) => {
     setBusy(true)
     try {
       const res = await fetch('/api/admin/listings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ids }) })
@@ -64,6 +90,115 @@ export function AdminListingsClient() {
 
   const actionsDisabled = busy || sel.size === 0
 
+  const columns = useMemo<ColumnDef<Row>[]>(() => {
+    const sortBtn = (label: string) => ({ column }: { column: { toggleSorting: (d?: boolean) => void; getIsSorted: () => false | 'asc' | 'desc' } }) => (
+      <button
+        className="inline-flex cursor-pointer items-center gap-1 font-semibold hover:text-foreground"
+        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+      >
+        {label} <ArrowUpDown className="h-3 w-3" />
+      </button>
+    )
+    return [
+      {
+        id: 'select',
+        enableSorting: false,
+        header: () => (
+          <Checkbox
+            checked={allSelected}
+            indeterminate={sel.size > 0 && !allSelected}
+            aria-label="Select all"
+            onChange={toggleAll}
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={sel.has(row.original.id)}
+            aria-label="Select listing"
+            onClick={(e) => e.stopPropagation()}
+            onChange={() => toggle(row.original.id)}
+          />
+        ),
+      },
+      {
+        id: 'item',
+        enableSorting: false,
+        header: () => 'Listing',
+        cell: ({ row }) => {
+          const r = row.original
+          return (
+            <div className="flex min-w-0 items-center gap-3">
+              {r.image ? <img src={r.image} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" loading="lazy" /> : <div className="h-12 w-12 shrink-0 rounded-lg bg-tint" />}
+              <div className="min-w-0">
+                <div className="max-w-[24rem] truncate text-sm font-semibold text-foreground">{r.title}</div>
+                <div className="max-w-[24rem] truncate text-xs text-muted-foreground">{formatMoneyFull(r.price, r.currency, moneyLocale(lang))} · {r.category}</div>
+              </div>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'seller',
+        enableSorting: false,
+        header: () => 'Seller',
+        cell: ({ row }) => <span className="text-sm text-body">{row.original.sellerName}</span>,
+      },
+      {
+        id: 'status',
+        enableSorting: false,
+        header: () => 'Status',
+        cell: ({ row }) => {
+          const r = row.original
+          return (
+            <div className="flex items-center gap-1.5">
+              {r.featured && <Badge variant="neutral">★</Badge>}
+              {!r.verified && <Badge variant="warning" className="capitalize">held</Badge>}
+              <Badge variant={r.status === 'active' ? 'success' : 'neutral'} className="capitalize">{r.status}</Badge>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'created',
+        accessorFn: (r) => new Date(r.createdAt).getTime(),
+        header: sortBtn('Created'),
+        cell: ({ row }) => <span className="text-xs text-muted-foreground">{shortDate(row.original.createdAt)}</span>,
+      },
+      {
+        id: 'actions',
+        enableSorting: false,
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<button aria-label="More actions" className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-4 transition-colors hover:bg-muted hover:text-foreground" />}>
+                <MoreHorizontal className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled={busy} onClick={() => act('activate', [row.original.id])}><Eye /> Activate</DropdownMenuItem>
+                <DropdownMenuItem disabled={busy} onClick={() => act('hide', [row.original.id])}><EyeOff /> Hide</DropdownMenuItem>
+                <DropdownMenuItem disabled={busy} onClick={() => act('feature', [row.original.id])}><Star /> Feature</DropdownMenuItem>
+                <DropdownMenuItem disabled={busy} onClick={() => act('verify', [row.original.id])}><Check /> Release</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" disabled={busy} onClick={() => act('delete', [row.original.id])}><Trash2 /> Delete</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ),
+      },
+    ]
+  }, [lang, sel, allSelected, busy, rows])
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getRowId: (r) => r.id,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-foreground">Listings</h1>
@@ -71,9 +206,9 @@ export function AdminListingsClient() {
 
       {/* Filters */}
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        <div className="flex min-w-[12rem] flex-1 items-center gap-2 rounded-xl bg-tint px-3 py-2">
-          <Search className="h-4 w-4 text-ink-4" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title / location…" className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-ink-4" />
+        <div className="relative min-w-[12rem] flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-ink-4" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title / location…" className="py-2 pl-9 pr-3" />
         </div>
         <Segmented options={STATUS} value={status} onChange={setStatus} />
         <Segmented options={VERIFIED} value={verified} onChange={setVerified} />
@@ -82,7 +217,7 @@ export function AdminListingsClient() {
       {/* Batch action bar */}
       <div className="sticky top-0 z-10 mt-4 flex flex-wrap items-center gap-1 rounded-xl bg-card/95 px-2 py-2 shadow-pop backdrop-blur">
         <label className="flex items-center gap-2 px-2 text-sm font-semibold text-body">
-          <input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-4 w-4 accent-brand" />
+          <Checkbox checked={allSelected} indeterminate={sel.size > 0 && !allSelected} onChange={toggleAll} />
           {sel.size > 0 ? `${sel.size} selected` : 'Select all'}
         </label>
         <span className="mx-1 h-5 w-px bg-border" />
@@ -97,26 +232,64 @@ export function AdminListingsClient() {
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-ink-4" /></div>
       ) : (
-        <div className="mt-2 divide-y divide-border">
-          {rows.map((r) => (
-            <label key={r.id} className={cn('flex cursor-pointer items-center gap-3 py-2.5', sel.has(r.id) && 'bg-tint/60')}>
-              <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} className="h-4 w-4 shrink-0 accent-brand" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {r.image ? <img src={r.image} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" /> : <div className="h-12 w-12 shrink-0 rounded-lg bg-tint" />}
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-foreground">{r.title}</div>
-                <div className="truncate text-xs text-muted-foreground">{formatMoneyFull(r.price, r.currency, moneyLocale(lang))} · {r.category} · {r.sellerName}</div>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                {r.featured && <Badge>★</Badge>}
-                {!r.verified && <Badge tone="amber">held</Badge>}
-                <Badge tone={r.status === 'active' ? 'green' : 'slate'}>{r.status}</Badge>
-              </div>
-            </label>
-          ))}
-          {rows.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">No listings match.</p>}
+        <div className="mt-4 overflow-x-auto rounded-2xl border">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((hg) => (
+                <TableRow key={hg.id}>
+                  {hg.headers.map((h) => (
+                    <TableHead key={h.id} className="whitespace-nowrap text-xs text-muted-foreground">
+                      {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={sel.has(row.original.id) ? 'selected' : undefined}
+                  className="cursor-pointer"
+                  onClick={() => toggle(row.original.id)}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} onClick={cell.column.id === 'actions' || cell.column.id === 'select' ? (e) => e.stopPropagation() : undefined}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={columns.length}>
+                    <p className="py-10 text-center text-sm text-muted-foreground">No listings match.</p>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
       )}
+
+      {/* Destructive confirm — same copy the old window.confirm carried */}
+      <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete listings</AlertDialogTitle>
+            <AlertDialogDescription>{`Delete ${(pendingDelete ?? lastDelete.current).length} listing(s)? This is permanent.`}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => { const ids = pendingDelete; setPendingDelete(null); if (ids?.length) void run('delete', ids) }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -125,14 +298,16 @@ export function AdminListingsClient() {
 // render remounts on every keystroke/selection (the batch bar re-renders constantly).
 function ActionBtn({ onClick, disabled, icon, label, danger }: { onClick: () => void; disabled: boolean; icon: React.ReactNode; label: string; danger?: boolean }) {
   return (
-    <button onClick={onClick} disabled={disabled}
-      className={cn('inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors disabled:opacity-40',
-        danger ? 'text-destructive hover:bg-destructive/10' : 'text-body hover:bg-muted')}>
+    <Button onClick={onClick} disabled={disabled} variant="ghost" size="none"
+      className={cn('gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold disabled:opacity-40',
+        danger ? 'text-destructive hover:bg-destructive/10 hover:text-destructive' : 'text-body hover:bg-muted hover:text-body')}>
       {icon} {label}
-    </button>
+    </Button>
   )
 }
 
+// Interactive filter pills with selected-state logic stay bespoke per the Badge
+// canon — these are buttons, not chips.
 function Segmented({ options, value, onChange }: { options: { v: string; label: string }[]; value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex gap-1 rounded-xl bg-tint p-1">
@@ -141,9 +316,4 @@ function Segmented({ options, value, onChange }: { options: { v: string; label: 
       ))}
     </div>
   )
-}
-
-function Badge({ children, tone = 'slate' }: { children: React.ReactNode; tone?: 'slate' | 'green' | 'amber' }) {
-  const c = { slate: 'bg-tint text-ink-4', green: 'bg-success/10 text-success', amber: 'bg-warning/10 text-warning' }[tone]
-  return <span className={cn('rounded-full px-1.5 py-0.5 text-3xs font-bold capitalize', c)}>{children}</span>
 }
