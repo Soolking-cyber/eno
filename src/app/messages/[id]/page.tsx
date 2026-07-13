@@ -20,6 +20,7 @@ import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/chat-composer'
+import { FirstContactNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
 import { Avatar } from '@/components/ui/avatar'
 import { fmtTime, dayKey } from '@/lib/dates'
 
@@ -381,6 +382,14 @@ export default function ThreadPage() {
   const showReviewPrompt = !!thread && !thread.iAmSeller && !thread.hasReviewed && !!thread.counterpart.sellerId &&
     (thread.listing.status === 'sold' || hasAcceptedOffer)
 
+  // Safety interjections — pure render-time, no fetch/send involvement.
+  // First-contact hint: I haven't spoken yet (or the thread barely started).
+  // Genuine thread STARTS only — an old unanswered thread (buyer wrote 10 messages
+  // weeks ago, seller never replied) is not a 'first chat' and the copy would lie.
+  const showFirstContactNote = !!thread && thread.messages.length <= 3 && !thread.messages.some((m) => m.mine)
+  // Off-platform lure: anchor ONE warning under the first suspicious incoming message.
+  const offPlatformWarnId = thread ? findOffPlatformMessageId(thread.messages) : null
+
   return (
     <div className="flex h-full w-full flex-col bg-background">
       {!loading && !user ? (
@@ -453,6 +462,7 @@ export default function ThreadPage() {
 
           {/* Messages */}
           <div ref={listRef} onScroll={() => { if (newBelow && distanceFromBottom() < 40) setNewBelow(false) }} role="log" aria-live="polite" aria-relevant="additions" className="chat-scroll flex-1 min-h-0 space-y-2 overflow-y-auto overscroll-contain px-4 py-4 scroll-thin">
+            {showFirstContactNote && <FirstContactNote />}
             {thread?.messages.map((m, i, arr) => {
               const prev = arr[i - 1]
               const showDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
@@ -528,6 +538,7 @@ export default function ThreadPage() {
                     <span className="mt-0.5 px-1 text-3xs text-ink-4">{fmtTime(m.createdAt)}</span>
                   )}
                 </div>
+                {m.id === offPlatformWarnId && <OffPlatformWarning />}
               </Fragment>
               )
             })}

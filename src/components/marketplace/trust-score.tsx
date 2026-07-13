@@ -16,6 +16,9 @@ type Props = {
   // When set, the badge itself is the "How trust works" link (standalone surfaces
   // only — never inside another link/card, nested anchors are invalid HTML).
   href?: string
+  // mini only: set false in FIXED-narrow containers (map popups) where the sm+
+  // tier word would squeeze the title — the title tooltip still names the tier.
+  word?: boolean
   className?: string
 }
 
@@ -38,7 +41,7 @@ const SHIELD_GRADIENT: Record<string, { from: string; mid: string; to: string; t
  * Exceptional gold / Elite violet) render as vivid glossy gradient badges; building
  * and restricted stay quiet (tinted text) — shine is earned.
  */
-export function TrustScore({ score, size = 'sm', showLabel = false, variant = 'shield', href, className }: Props) {
+export function TrustScore({ score, size = 'sm', showLabel = false, variant = 'shield', href, word = true, className }: Props) {
   const { lang, tr } = useLanguage()
   const { color, label, labelVi, band } = trustScoreColor(score)
   const fill = trustFillClass(band)
@@ -52,6 +55,13 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   if (variant === 'mini') {
     // Card-facing chip. Earned tiers get the glossy gradient fill (text color baked
     // into the class); building/restricted keep the quiet 10%-tint treatment.
+    // Never number-only (WCAG 1.4.1 + guest comprehension): a short tier word follows
+    // the score. Earned + restricted tiers reuse the canonical names above; "Building"
+    // would read as a deficiency on a public card, so standard gets a friendlier short
+    // form. The word is hidden below sm — the 2-col mobile grid meta row and the
+    // one-line compact row can't spare the width without truncating location/price —
+    // where the title tooltip (and the /trust link on tappable chips) still name the tier.
+    const tierWord = band === 'standard' ? tr('Good standing', 'Uy tín tốt') : tr(label, labelVi)
     return wrap(
       <span
         title={title}
@@ -73,6 +83,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
           />
         </svg>
         {n}
+        {word && <span className="hidden whitespace-nowrap sm:inline">{`· ${tierWord}`}</span>}
       </span>,
     )
   }

@@ -19,7 +19,7 @@ import { trackPostListing } from '@/lib/analytics'
 import { VndInput } from './vnd-input'
 import { AreaFilter, type Geo, type Nearby } from './area-filter'
 import { Mascot } from './mascot'
-import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { moneyLocale, compactPrice } from '@/lib/vnd'
 import { subcategoriesFor, typesFor, facetsFor, rangeFacetsFor, categoryHasBrand, LISTING_TYPES } from '@/lib/taxonomy'
 import { RangeSpecInput } from './range-spec-input'
 import { compressImageFile } from '@/lib/normalize-image'
@@ -329,6 +329,28 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       .then((d) => setBrandOptions((d.brands || []).map((b: { name: string }) => b.name)))
       .catch(() => {})
   }, [categorySlug, brandOptions.length])
+
+  // Market-price guidance for the price step — the same PriceStat band the PDP's
+  // "Market price" module shows (n≥5 + spread suppression live server-side).
+  // Debounced + stale-cancelled; best-effort: any miss/error just hides the box.
+  const [priceBand, setPriceBand] = useState<{ n: number; p25: number; median: number; p75: number } | null>(null)
+  const bandYear = ranges['year'] ?? null
+  useEffect(() => {
+    // rentals price per MONTH — the PriceStat bands are sale prices, so guidance
+    // there would coach sellers against the wrong market. Skip entirely.
+    if (!categoryHasBrand(categorySlug) || categorySlug === 'rentals' || brand.trim().length < 2 || !model.trim()) { setPriceBand(null); return }
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => {
+      const qs = new URLSearchParams({ brand: brand.trim(), model: model.trim() })
+      if (condition) qs.set('condition', condition)
+      if (bandYear != null) qs.set('year', String(bandYear))
+      fetch(`/api/price-guidance?${qs}`, { signal: ctrl.signal })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => setPriceBand(d && d.n >= 5 ? d : null))
+        .catch(() => { if (!ctrl.signal.aborted) setPriceBand(null) })
+    }, 400)
+    return () => { clearTimeout(timer); ctrl.abort() }
+  }, [categorySlug, brand, model, condition, bandYear])
 
   const cat = categories.find((c) => c.slug === categorySlug)
   const subOptions = subcategoriesFor(categorySlug)
@@ -969,6 +991,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
               </div>
               {priceErr && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{priceErr}</p>}
+              {priceBand && Number(price) > 0 && <PriceGuidance price={Number(price)} band={priceBand} />}
               {/* Negotiable vs fixed — a fixed price hides the offer UI so buyers just
                   ask availability and buy directly (seller's convenience). Fixed price
                   also switches off Urgent: urgency promises flexibility. */}
@@ -1172,6 +1195,36 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         onApply={({ province: p, ward: w, nearby: nb }) => { setProvince(p); setWard(w); setNearby(nb) }}
         onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
       />
+    </div>
+  )
+}
+
+// Quiet price-guidance box under the price input — where this ask sits vs the market
+// band (P25–P75 of comparable listings, same data as the PDP's "Market price" module).
+// Amber only when priced ABOVE the band (a nudge, never a blocker); a low ask is the
+// seller's call, so it stays neutral. Renders only when a reliable band exists.
+function PriceGuidance({ price, band }: { price: number; band: { n: number; p25: number; p75: number } }) {
+  const { tr, lang } = useLanguage()
+  const loc = moneyLocale(lang)
+  // compactPrice matches the PDP MarketPrice module — same data, same voice
+  // (and full VND pairs overflow the sentence on 320px screens).
+  const range = `${compactPrice(band.p25, loc)} – ${compactPrice(band.p75, loc)}`
+  const pos = price < band.p25 ? 'low' : price > band.p75 ? 'high' : 'typical'
+  return (
+    <div
+      className={cn(
+        'mt-2 flex max-w-md items-start gap-2 rounded-xl px-3 py-2 text-xs font-medium leading-relaxed',
+        pos === 'high' ? 'bg-warning/10 text-warning' : 'bg-tint text-body',
+      )}
+    >
+      {pos === 'typical' && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />}
+      <span>
+        {pos === 'high'
+          ? tr(`Above the typical ${range} range — fairly-priced listings sell faster`, `Cao hơn mặt bằng ${range} — tin có giá hợp lý thường bán nhanh hơn`)
+          : pos === 'low'
+            ? tr(`Below the typical ${range} range — buyers will see a good deal`, `Thấp hơn mặt bằng ${range} — người mua sẽ thấy đây là mức giá tốt`)
+            : tr(`Similar listings go for ${range} — yours is in range`, `Tin tương tự có giá ${range} — giá của bạn hợp lý`)}
+      </span>
     </div>
   )
 }

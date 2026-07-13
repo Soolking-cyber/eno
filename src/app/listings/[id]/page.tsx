@@ -46,6 +46,7 @@ import { currencyCode } from '@/lib/analytics'
 import { getEnforcement } from '@/lib/enforcement'
 import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
+import { SafetyStrip } from '@/components/marketplace/safety-strip'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -426,6 +427,12 @@ export default async function ListingPage({ params }: Props) {
           {priceBand && <div className="pt-2"><MarketPrice price={listing.price} band={priceBand} /></div>}
         </div>
 
+        {/* Safety strip — MOBILE copy. Shares order-3 with the price block above:
+            equal order falls back to DOM order, so it lands directly under the
+            price and above the title/description without renumbering siblings.
+            (Desktop copy lives in the sticky contact column.) */}
+        <SafetyStrip categorySlug={rawListing.category.slug} className="order-3 mb-4 lg:hidden" />
+
         {/* Gallery mosaic */}
         <div className="relative order-2 lg:order-none">
           <ListingGallery images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
@@ -552,6 +559,9 @@ export default async function ListingPage({ params }: Props) {
                   sellerHref={sellerHref}
                 />
               </div>
+
+              {/* Safety strip — DESKTOP copy, read just before the contact actions. */}
+              <SafetyStrip categorySlug={rawListing.category.slug} className="hidden lg:flex" />
 
               {/* Unified contact + offer (auth-gated; number never in this payload).
                   Type a message or tap "Make an offer", then send → opens the thread.

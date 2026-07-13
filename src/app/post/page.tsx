@@ -20,6 +20,14 @@ export default async function PostPage() {
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+        {/* The wizard is fully client-side — without JS the page is blank. noscript
+            can't run the language hook, so static EN + VI. */}
+        <noscript>
+          <div className="mx-auto mb-6 max-w-xl rounded-xl bg-warning/10 px-4 py-3 text-center text-sm text-foreground">
+            <p className="font-semibold">Posting a listing needs JavaScript enabled.</p>
+            <p>Đăng tin cần bật JavaScript trong trình duyệt.</p>
+          </div>
+        </noscript>
         <PostWizard categories={serialized} />
       </main>
       <Footer />

@@ -42,7 +42,10 @@ import { SUBCATEGORIES } from '@/lib/subcategories'
 import { LISTING_TYPES, INTENT_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor } from '@/lib/taxonomy'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Mascot } from './mascot'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
@@ -1474,12 +1477,48 @@ export function ListingsExplorer({
                 <Button variant="cta" size="none" onClick={() => refetchListings()} className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer">{tr('Try again', 'Thử lại')}</Button>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
-                <Inbox className="h-10 w-10 text-muted-foreground" />
-                <p className="text-sm font-semibold text-body">
-                  {tr('No listings found.', 'Không có tin đăng nào.')}
-                </p>
-              </div>
+              // Zero results is a fork, not a dead end: widen the area (only when an
+              // area filter is narrowing — never true in landing mode by construction,
+              // gated so the block stays correct if landing ever allows area filters),
+              // turn the search into an alert, or flip the intent and post a Wanted.
+              <EmptyState
+                className="bg-card/60"
+                title={
+                  <>
+                    <Mascot name="search" className="mx-auto mb-3 h-32 w-32" />
+                    <span className="block">{tr('No listings found.', 'Không có tin đăng nào.')}</span>
+                  </>
+                }
+                action={
+                  <div className="flex w-full max-w-xs flex-col items-stretch gap-2">
+                    {(nearby !== null || activeWard !== null || activeProvince !== null || activeDistrict !== 'all') && (
+                      <Button
+                        variant="cta"
+                        size="none"
+                        // Same clears as the area chip in getActiveChips — one tap
+                        // instead of hunting for the chip's ✕.
+                        onClick={() => { setNearby(null); setActiveWard(null); setActiveProvince(null); setActiveDistrict('all') }}
+                        className="rounded-xl px-4 py-2.5 text-sm transition-colors cursor-pointer"
+                      >
+                        {tr('Widen the area', 'Mở rộng khu vực tìm kiếm')}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="none"
+                      onClick={saveSearch}
+                      className="rounded-xl px-4 py-2.5 text-sm font-semibold cursor-pointer"
+                    >
+                      {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
+                    </Button>
+                    <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2.5 text-sm font-semibold">
+                      <Link href="/post">
+                        {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
+                      </Link>
+                    </Button>
+                  </div>
+                }
+              />
             )
           ) : (
             <>
@@ -1674,6 +1713,19 @@ export function ListingsExplorer({
               {tr('Clear all filters', 'Xóa tất cả bộ lọc')}
             </Button>
           )}
+          {/* The other two exits of the recovery trio (widening = the chip row above):
+              turn this search into an alert, or flip the intent and post a Wanted. */}
+          <Button variant="outline" size="none"
+            onClick={saveSearch}
+            className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer"
+          >
+            {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
+          </Button>
+          <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2 text-xs font-semibold">
+            <Link href="/post">
+              {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
+            </Link>
+          </Button>
         </div>
 
         {/* A dead end orients nobody — offer a one-tap jump to popular categories. */}
