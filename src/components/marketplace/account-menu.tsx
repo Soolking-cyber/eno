@@ -39,9 +39,9 @@ export function AccountMenu() {
     >
       {me?.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={me.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+        <img src={me.avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
       ) : (
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">{initial}</span>
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">{initial}</span>
       )}
     </button>
   )
