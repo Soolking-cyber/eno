@@ -16,7 +16,7 @@ export type Geo = { code: string; name: string; nameEn: string }
 type Unit = { code: string; name: string; nameEn: string }
 
 // Text-form (monolith): no resting background, emphasis only on hover.
-const FIELD = 'w-full justify-between rounded-xl py-2.5 text-body hover:bg-muted'
+const FIELD = 'w-full justify-between rounded-xl bg-tint px-3.5 py-2.5 text-body hover:bg-muted'
 const HCMC = '79' // Ho Chi Minh City — the live market; default selection
 
 // Normalize a VN admin name for matching: lowercase, strip diacritics, drop the
@@ -38,7 +38,7 @@ function findUnit(list: { code: string; name: string; nameEn: string }[], raw: s
 
 function DisabledField({ label }: { label: string }) {
   return (
-    <div className="flex w-full cursor-not-allowed items-center justify-between rounded-xl px-3.5 py-2.5 text-sm text-ink-4">
+    <div className="flex w-full cursor-not-allowed items-center justify-between rounded-xl bg-tint/60 px-3.5 py-2.5 text-sm text-ink-4">
       <span>{label}</span>
       <ChevronDown className="h-4 w-4 text-slate-300" />
     </div>
@@ -232,14 +232,14 @@ export function AreaFilter({
 
   return createPortal(
     <>
-    <div className="fixed inset-0 z-[99]" aria-hidden onClick={onClose} />
+    <div className="fixed inset-0 z-[99] bg-black/25 animate-in fade-in duration-150" aria-hidden onClick={onClose} />
     <div
       ref={(node) => { panelRef.current = node; trapRef.current = node }}
       role="dialog"
       aria-modal="true"
       aria-label={tr('Choose area', 'Chọn khu vực')}
       style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, visibility: pos.top > 0 ? 'visible' : 'hidden' }}
-      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl bg-popover p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
+      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
     >
       <div className="space-y-4">
         {/* Province/City + Ward side-by-side (user decision 2026-07-13): one row,
