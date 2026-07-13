@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Bell, BellOff, Loader2, Mail } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 
 const VAPID = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
@@ -95,9 +96,9 @@ export function ReminderSettings() {
         ) : pushState === 'denied' ? (
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><BellOff className="h-4 w-4 shrink-0" />{tr('Notifications are blocked. Enable them in your browser settings to get reminders here.', 'Thông báo đang bị chặn. Hãy bật trong cài đặt trình duyệt để nhận nhắc nhở.')}</p>
         ) : (
-          <button onClick={enablePush} disabled={busy} className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer">
+          <Button variant="ghost" size="none" onClick={enablePush} disabled={busy} className="px-4 py-2 font-semibold text-body hover:bg-muted hover:text-body">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />} {tr('Get reminders on this device', 'Nhận nhắc nhở trên thiết bị này')}
-          </button>
+          </Button>
         )}
       </div>
 

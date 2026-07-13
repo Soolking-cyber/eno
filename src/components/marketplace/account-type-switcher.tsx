@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-
-const FIELD = 'w-full max-w-md rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20 placeholder:text-ink-4'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 // Self-serve account-type switch in dashboard Settings — onboarding promises "you
 // can change this later", and this is the "later". POSTs to the existing
@@ -50,39 +50,54 @@ export function AccountTypeSwitcher({ isBusiness, businessName, onSaved }: { isB
       </p>
 
       {!editing ? (
-        <button onClick={() => { setName(businessName || ''); setErr(''); setEditing(true) }} className="text-xs font-bold text-accent-foreground hover:underline cursor-pointer">
+        <Button
+          variant="link"
+          size="none"
+          onClick={() => { setName(businessName || ''); setErr(''); setEditing(true) }}
+          className="text-xs font-bold text-accent-foreground"
+        >
           {isBusiness ? tr('Switch to individual', 'Chuyển sang cá nhân') : tr('Switch to business', 'Chuyển sang doanh nghiệp')}
-        </button>
+        </Button>
       ) : (
-        <div className="space-y-2">
-          {target === 'business' && (
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={120}
-              placeholder={tr('Business name', 'Tên doanh nghiệp')}
-              className={FIELD}
-            />
-          )}
-          <p className="max-w-md text-xs text-body">
-            {target === 'business'
-              ? tr('Switching to business adds a storefront, analytics and bulk upload.', 'Chuyển sang doanh nghiệp sẽ thêm gian hàng, phân tích và đăng hàng loạt.')
-              : tr('Switching to individual hides the business storefront tools.', 'Chuyển sang cá nhân sẽ ẩn các công cụ gian hàng doanh nghiệp.')}
-          </p>
-          {err && <p className="text-xs font-semibold text-destructive">{err}</p>}
+        <div className="space-y-3">
+          <div className="max-w-md space-y-1.5">
+            {target === 'business' && (
+              <>
+                <Label htmlFor="business-name-input">{tr('Business name', 'Tên doanh nghiệp')}</Label>
+                <Input
+                  id="business-name-input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={120}
+                  placeholder={tr('Business name', 'Tên doanh nghiệp')}
+                />
+              </>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {target === 'business'
+                ? tr('Switching to business adds a storefront, analytics and bulk upload.', 'Chuyển sang doanh nghiệp sẽ thêm gian hàng, phân tích và đăng hàng loạt.')
+                : tr('Switching to individual hides the business storefront tools.', 'Chuyển sang cá nhân sẽ ẩn các công cụ gian hàng doanh nghiệp.')}
+            </p>
+            {err && <p role="alert" className="text-xs font-semibold text-destructive">{err}</p>}
+          </div>
           <div className="flex items-center gap-3">
             <Button
               variant="cta"
               size="none"
               onClick={submit}
               disabled={busy || (target === 'business' && name.trim().length < 2)}
-              className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2 text-sm transition-colors disabled:opacity-40 cursor-pointer"
+              className="gap-1.5 px-5 py-2"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Confirm', 'Xác nhận')}
             </Button>
-            <button onClick={() => { setEditing(false); setErr('') }} className="text-sm font-bold text-body hover:text-foreground cursor-pointer">
+            <Button
+              variant="ghost"
+              size="none"
+              onClick={() => { setEditing(false); setErr('') }}
+              className="px-3 py-2 font-bold text-body hover:bg-transparent hover:text-foreground"
+            >
               {tr('Cancel', 'Hủy')}
-            </button>
+            </Button>
           </div>
         </div>
       )}

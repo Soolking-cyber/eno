@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react'
 import { Loader2, Check, Plus, LocateFixed } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { cn, getInitials } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { getInitials } from '@/lib/utils'
 import { compressImageFile } from '@/lib/normalize-image'
 
 type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; phone: string | null; legalName?: string | null; legalAddress?: string | null; idNumber?: string | null; taxCode?: string | null }
@@ -105,9 +108,6 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
     } catch { setError(tr('Could not save. Try again.', 'Không lưu được. Thử lại.')) } finally { setSaving(false) }
   }
 
-  // Borderless house input — a slate tint fill (no border) reads clearly as fillable
-  // while staying flat, with a brand focus ring. Matches the header search + handle field.
-  const field = 'w-full rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20 placeholder:text-ink-4'
   const initials = getInitials(name)
 
   return (
@@ -125,34 +125,34 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
         <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
       </label>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor="biz-name" className="mb-1 block text-xs font-semibold text-body">{tr('Business name', 'Tên doanh nghiệp')}</label>
-          <input id="biz-name" autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} className={field} />
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="biz-name">{tr('Business name', 'Tên doanh nghiệp')}</Label>
+          <Input id="biz-name" autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
         </div>
-        <div>
-          <label htmlFor="biz-rep" className="mb-1 block text-xs font-semibold text-body">{tr('Your name (representative)', 'Tên người đại diện')}</label>
-          <input id="biz-rep" autoComplete="name" value={rep} onChange={(e) => setRep(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} className={field} />
-          <p className="mt-1 text-2xs text-ink-4">{tr('The person on this account — buyers see the business name, not this.', 'Người dùng tài khoản này — người mua thấy tên doanh nghiệp, không phải tên này.')}</p>
+        <div className="space-y-1.5">
+          <Label htmlFor="biz-rep">{tr('Your name (representative)', 'Tên người đại diện')}</Label>
+          <Input id="biz-rep" autoComplete="name" value={rep} onChange={(e) => setRep(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} />
+          <p className="text-xs text-muted-foreground">{tr('The person on this account — buyers see the business name, not this.', 'Người dùng tài khoản này — người mua thấy tên doanh nghiệp, không phải tên này.')}</p>
         </div>
-        <div>
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <label htmlFor="biz-location" className="block text-xs font-semibold text-body">{tr('Location', 'Khu vực')}</label>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="biz-location">{tr('Location', 'Khu vực')}</Label>
             <button type="button" onClick={useMyLocation} disabled={locating} className="inline-flex items-center gap-1 text-2xs font-semibold text-accent-foreground hover:underline disabled:opacity-50 cursor-pointer">
               {locating ? <Loader2 className="h-3 w-3 animate-spin" /> : <LocateFixed className="h-3 w-3" />} {tr('Use my location', 'Dùng vị trí của tôi')}
             </button>
           </div>
-          <input id="biz-location" autoComplete="address-level2" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={120} placeholder={tr('e.g. District 1, HCMC', 'vd. Quận 1, TP.HCM')} className={field} />
+          <Input id="biz-location" autoComplete="address-level2" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={120} placeholder={tr('e.g. District 1, HCMC', 'vd. Quận 1, TP.HCM')} />
         </div>
-        <div>
-          <label htmlFor="biz-phone" className="mb-1 block text-xs font-semibold text-body">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</label>
-          <input id="biz-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" className={field} />
-          <p className="mt-1 text-2xs text-ink-4">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</p>
+        <div className="space-y-1.5">
+          <Label htmlFor="biz-phone">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</Label>
+          <Input id="biz-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" />
+          <p className="text-xs text-muted-foreground">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</p>
         </div>
       </div>
-      <div className="mt-3">
-        <label htmlFor="biz-bio" className="mb-1 block text-xs font-semibold text-body">{tr('About', 'Giới thiệu')}</label>
-        <textarea id="biz-bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={1000} placeholder={tr('Tell buyers about your business…', 'Giới thiệu doanh nghiệp của bạn…')} className={cn(field, 'resize-none')} />
+      <div className="mt-4 space-y-1.5">
+        <Label htmlFor="biz-bio">{tr('About', 'Giới thiệu')}</Label>
+        <Textarea id="biz-bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={1000} placeholder={tr('Tell buyers about your business…', 'Giới thiệu doanh nghiệp của bạn…')} className="resize-none" />
       </div>
 
       {/* Legal information — Đ.29 ND52 + Law 122/2025: platforms must collect the
@@ -160,35 +160,35 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
           to authorities/buyers on request only — never on the public storefront. */}
       <div className="mt-6">
         <h3 className="text-sm font-bold text-foreground">{tr('Legal information', 'Thông tin pháp lý')}</h3>
-        <p className="mt-0.5 text-2xs leading-relaxed text-ink-4">
+        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
           {tr('Required of sellers by Vietnamese e-commerce law. Kept private — provided only to authorities, or to a buyer on lawful request. Never shown on your storefront.', 'Pháp luật TMĐT Việt Nam yêu cầu người bán cung cấp. Được bảo mật — chỉ cung cấp cho cơ quan chức năng hoặc người mua theo yêu cầu hợp pháp. Không hiển thị trên gian hàng.')}
         </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="biz-legal-name" className="mb-1 block text-xs font-semibold text-body">{tr('Registered legal name', 'Tên pháp lý / tên đăng ký')}</label>
-            <input id="biz-legal-name" value={legalName} onChange={(e) => setLegalName(e.target.value)} maxLength={160} placeholder={tr('Company name on the ERC, or your full legal name', 'Tên trên GCN ĐKDN, hoặc họ tên đầy đủ')} className={field} />
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="biz-legal-name">{tr('Registered legal name', 'Tên pháp lý / tên đăng ký')}</Label>
+            <Input id="biz-legal-name" value={legalName} onChange={(e) => setLegalName(e.target.value)} maxLength={160} placeholder={tr('Company name on the ERC, or your full legal name', 'Tên trên GCN ĐKDN, hoặc họ tên đầy đủ')} />
           </div>
-          <div>
-            <label htmlFor="biz-legal-address" className="mb-1 block text-xs font-semibold text-body">{tr('Registered address', 'Địa chỉ đăng ký')}</label>
-            <input id="biz-legal-address" value={legalAddress} onChange={(e) => setLegalAddress(e.target.value)} maxLength={240} placeholder={tr('Head office (business) or residence (individual)', 'Trụ sở (doanh nghiệp) hoặc nơi cư trú (cá nhân)')} className={field} />
+          <div className="space-y-1.5">
+            <Label htmlFor="biz-legal-address">{tr('Registered address', 'Địa chỉ đăng ký')}</Label>
+            <Input id="biz-legal-address" value={legalAddress} onChange={(e) => setLegalAddress(e.target.value)} maxLength={240} placeholder={tr('Head office (business) or residence (individual)', 'Trụ sở (doanh nghiệp) hoặc nơi cư trú (cá nhân)')} />
           </div>
-          <div>
-            <label htmlFor="biz-id-number" className="mb-1 block text-xs font-semibold text-body">{tr('CCCD / business registration no.', 'Số CCCD / GCN ĐKDN')}</label>
-            <input id="biz-id-number" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} inputMode="numeric" maxLength={16} className={field} />
+          <div className="space-y-1.5">
+            <Label htmlFor="biz-id-number">{tr('CCCD / business registration no.', 'Số CCCD / GCN ĐKDN')}</Label>
+            <Input id="biz-id-number" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} inputMode="numeric" maxLength={16} />
           </div>
-          <div>
-            <label htmlFor="biz-tax-code" className="mb-1 block text-xs font-semibold text-body">{tr('Tax code (if any)', 'Mã số thuế (nếu có)')}</label>
-            <input id="biz-tax-code" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} inputMode="numeric" maxLength={14} placeholder="0312345678" className={field} />
+          <div className="space-y-1.5">
+            <Label htmlFor="biz-tax-code">{tr('Tax code (if any)', 'Mã số thuế (nếu có)')}</Label>
+            <Input id="biz-tax-code" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} inputMode="numeric" maxLength={14} placeholder="0312345678" />
           </div>
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-3">
-        <Button variant="cta" size="none" onClick={save} disabled={saving || !dirty || name.trim().length < 2} className="inline-flex items-center gap-2 rounded-xl px-5 py-2 text-sm transition-colors disabled:opacity-40 cursor-pointer">
+      <div className="mt-4 flex items-center gap-3">
+        <Button variant="cta" onClick={save} disabled={saving || !dirty || name.trim().length < 2}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved && !dirty ? <Check className="h-4 w-4" /> : null}
           {saved && !dirty ? tr('Saved', 'Đã lưu') : tr('Save changes', 'Lưu thay đổi')}
         </Button>
-        {error && <span className="text-xs font-semibold text-destructive">{error}</span>}
+        {error && <p role="alert" className="text-xs font-semibold text-destructive">{error}</p>}
       </div>
     </div>
   )

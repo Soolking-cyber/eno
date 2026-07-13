@@ -6,6 +6,7 @@ import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { useLanguage } from '@/context/language-context'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { googleOauthBlocked, openInSystemBrowser } from '@/lib/in-app-browser'
 import { useTurnstile } from './turnstile'
@@ -193,7 +194,7 @@ export function SignInForm({ className }: { className?: string }) {
             {countdown > 0 ? `${t('resend in', 'gửi lại sau')} ${fmtCountdown(countdown)}` : t('resend', 'gửi lại')}
           </button>
         </p>
-        {error && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
+        {error && <p role="alert" className="mt-2 text-xs font-semibold text-destructive">{error}</p>}
         <button onClick={reset} className="mt-3 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
           {t('Use another method', 'Dùng cách khác')}
         </button>
@@ -237,7 +238,7 @@ export function SignInForm({ className }: { className?: string }) {
 
       {tab === 'email' && (
         <div className="space-y-2">
-          <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="w-full rounded-xl bg-tint px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30" />
+          <Input type="email" autoComplete="email" aria-label={tr('Email')} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" />
           <Button variant="cta" size="none" onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send magic link', 'Gửi liên kết đăng nhập')}
           </Button>
@@ -246,7 +247,7 @@ export function SignInForm({ className }: { className?: string }) {
 
       {tab === 'phone' && stage === 'input' && (
         <div className="space-y-2">
-          <input type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" className="w-full rounded-xl bg-tint px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30" />
+          <Input type="tel" autoComplete="tel" aria-label={t('Phone', 'Điện thoại')} value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" />
           <Button variant="cta" size="none" onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send code', 'Gửi mã')}
           </Button>
@@ -284,7 +285,7 @@ export function SignInForm({ className }: { className?: string }) {
         </div>
       )}
 
-      {error && <p role="alert" className="text-center text-xs font-semibold text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-center text-xs font-semibold text-destructive">{error}</p>}
       {/* Invisible Turnstile — renders a visible challenge only if one is required. */}
       <Turnstile />
       <p className="pt-1 text-center text-2xs text-ink-4">

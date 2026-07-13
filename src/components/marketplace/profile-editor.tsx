@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { Loader2, Check, Plus } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { compressImageFile } from '@/lib/normalize-image'
 import { Avatar } from '@/components/ui/avatar'
 
@@ -64,9 +66,6 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
     } catch { setError(tr('Could not save. Try again.', 'Không lưu được. Thử lại.')) } finally { setSaving(false) }
   }
 
-  // Borderless house input — slate tint fill (no border) + brand focus ring.
-  const field = 'w-full rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20 placeholder:text-ink-4'
-
   return (
     <div>
       <label className="group relative inline-block cursor-pointer" title={tr('Change photo', 'Đổi ảnh')}>
@@ -77,24 +76,24 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
         <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f) }} />
       </label>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor="profile-name" className="mb-1 block text-xs font-semibold text-body">{tr('Your name', 'Tên của bạn')}</label>
-          <input id="profile-name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} className={field} />
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="profile-name">{tr('Your name', 'Tên của bạn')}</Label>
+          <Input id="profile-name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} />
         </div>
-        <div>
-          <label htmlFor="profile-phone" className="mb-1 block text-xs font-semibold text-body">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</label>
-          <input id="profile-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" className={field} />
-          <p className="mt-1 text-2xs text-ink-4">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ sau khi bạn trả lời — không hiển thị công khai.')}</p>
+        <div className="space-y-1.5">
+          <Label htmlFor="profile-phone">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</Label>
+          <Input id="profile-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" />
+          <p className="text-xs text-muted-foreground">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ sau khi bạn trả lời — không hiển thị công khai.')}</p>
         </div>
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        <Button variant="cta" size="none" onClick={save} disabled={saving || !dirty || name.trim().length < 2} className="inline-flex items-center gap-2 rounded-xl px-5 py-2 text-sm transition-colors disabled:opacity-40 cursor-pointer">
+        <Button variant="cta" onClick={save} disabled={saving || !dirty || name.trim().length < 2}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved && !dirty ? <Check className="h-4 w-4" /> : null}
           {saved && !dirty ? tr('Saved', 'Đã lưu') : tr('Save changes', 'Lưu thay đổi')}
         </Button>
-        {error && <span className="text-xs font-semibold text-destructive">{error}</span>}
+        {error && <p role="alert" className="text-xs font-semibold text-destructive">{error}</p>}
       </div>
     </div>
   )

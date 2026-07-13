@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
-
-const FIELD = 'w-full max-w-md rounded-xl bg-tint px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20 placeholder:text-ink-4'
 
 // Change-email under account Settings. supabase.auth.updateUser({ email }) sends a
 // confirmation to the new address (the branded "Change Email" template); the email
@@ -48,35 +48,48 @@ export function ChangeEmailForm({ currentEmail }: { currentEmail: string | null 
       {sent ? (
         <p className="text-xs font-semibold text-success">{tr('Check your new inbox and click the link to confirm the change.', 'Kiểm tra hộp thư mới và nhấn liên kết để xác nhận thay đổi.')}</p>
       ) : !editing ? (
-        <button onClick={() => { setEmail(''); setErr(''); setEditing(true) }} className="text-xs font-bold text-accent-foreground hover:underline cursor-pointer">
+        <Button
+          variant="link"
+          size="none"
+          onClick={() => { setEmail(''); setErr(''); setEditing(true) }}
+          className="text-xs font-bold text-accent-foreground"
+        >
           {tr('Change email', 'Đổi email')}
-        </button>
+        </Button>
       ) : (
-        <div className="space-y-2">
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder={tr('New email address', 'Địa chỉ email mới')}
-            className={FIELD}
-          />
-          <p className="max-w-md text-xs text-body">{tr("We'll email a confirmation link to the new address — your email changes once you click it.", 'Chúng tôi sẽ gửi liên kết xác nhận tới địa chỉ mới — email đổi sau khi bạn nhấn vào.')}</p>
-          {err && <p className="text-xs font-semibold text-destructive">{err}</p>}
+        <div className="space-y-3">
+          <div className="max-w-md space-y-1.5">
+            <Label htmlFor="change-email-input">{tr('New email address', 'Địa chỉ email mới')}</Label>
+            <Input
+              id="change-email-input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder={tr('New email address', 'Địa chỉ email mới')}
+            />
+            <p className="text-xs text-muted-foreground">{tr("We'll email a confirmation link to the new address — your email changes once you click it.", 'Chúng tôi sẽ gửi liên kết xác nhận tới địa chỉ mới — email đổi sau khi bạn nhấn vào.')}</p>
+            {err && <p role="alert" className="text-xs font-semibold text-destructive">{err}</p>}
+          </div>
           <div className="flex items-center gap-3">
             <Button
               variant="cta"
               size="none"
               onClick={submit}
               disabled={busy || !email.trim()}
-              className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2 text-sm transition-colors disabled:opacity-40 cursor-pointer"
+              className="gap-1.5 px-5 py-2"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} {tr('Send confirmation', 'Gửi xác nhận')}
             </Button>
-            <button onClick={() => { setEditing(false); setErr('') }} className="text-sm font-bold text-body hover:text-foreground cursor-pointer">
+            <Button
+              variant="ghost"
+              size="none"
+              onClick={() => { setEditing(false); setErr('') }}
+              className="px-3 py-2 font-bold text-body hover:bg-transparent hover:text-foreground"
+            >
               {tr('Cancel', 'Hủy')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
