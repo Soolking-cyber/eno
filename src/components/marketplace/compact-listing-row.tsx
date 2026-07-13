@@ -88,8 +88,8 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               bare black bolt (no chip/outline); the chip + word return at sm:. */}
           {l.urgent && (
             <>
-              <Zap className="h-3.5 w-3.5 shrink-0 fill-current text-foreground sm:hidden" aria-label={tr('Urgent', 'Bán gấp')} />
-              <Badge kind="urgent" variant="inline" className="hidden shrink-0 sm:inline-flex">
+              <Zap className={cn('h-3.5 w-3.5 shrink-0 fill-current text-foreground sm:hidden', offer !== null && 'hidden')} aria-label={tr('Urgent', 'Bán gấp')} />
+              <Badge kind="urgent" variant="inline" className={cn('hidden shrink-0 sm:inline-flex', offer !== null && 'sm:hidden')}>
                 <Zap className="h-2.5 w-2.5 fill-current" />
                 <span>{tr('Urgent', 'Bán gấp')}</span>
               </Badge>
@@ -109,7 +109,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               {tr(`${formatCount(l.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(l.contactCount, moneyLocale(lang))}`)}
             </span>
           )}
-          <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className="shrink-0" />
+          <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('shrink-0', offer !== null && 'hidden')} />
         </div>
       </div>
 
