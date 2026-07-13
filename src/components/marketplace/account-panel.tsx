@@ -1,44 +1,66 @@
 'use client'
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import {
   X, Store, Settings, Scale, CircleHelp, LogOut, LayoutDashboard,
-  MessageSquareText, CalendarCheck, Eye,
+  MessageSquareText, CalendarCheck, Eye, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { TrustScore } from './trust-score'
 import { PreferencesInline } from './preferences-inline'
+import { DashboardListingRow } from './dashboard-listing-row'
 import { cn } from '@/lib/utils'
+import type { SerializedListing } from '@/lib/types'
 
-// Right-side account/dashboard panel (user decision 2026-07-13): the header
-// avatar toggles a panel that slides in right→left and SQUEEZES the marketplace
-// on desktop (margin transition on the app wrapper) instead of opening a
-// dropdown. Mobile gets an overlay sheet (there's no room to squeeze 390px).
-// The panel outlives route changes (it sits outside PageTransitions' subtree
-// swap) but closes on navigation so a tapped link shows its destination.
+// Right-side account/dashboard panel — THE main dashboard surface (user
+// decision 2026-07-13): the header avatar opens it, and its sections (Listings,
+// Settings incl. account + seller settings, Disputes, Help) open INSIDE the
+// panel, sliding in right→left like the panel itself. Desktop squeezes the
+// marketplace (margin transition); mobile is an overlay sheet with the same
+// drill-in navigation. The /dashboard page remains for deep links + heavy
+// flows (posting, bulk, data-table).
 
-const PANEL_W = 400
+const PANEL_W = 440
+
+// Heavy sections load on demand — the panel itself is lazy-mounted, and these
+// keep the first open cheap too.
+const DisputesPanel = dynamic(() => import('./disputes-panel').then((m) => m.DisputesPanel), { ssr: false })
+const HelpCenter = dynamic(() => import('./help-center').then((m) => m.HelpCenter), { ssr: false })
+const BusinessProfileEditor = dynamic(() => import('./business-profile-editor').then((m) => m.BusinessProfileEditor), { ssr: false })
+const ProfileEditor = dynamic(() => import('./profile-editor').then((m) => m.ProfileEditor), { ssr: false })
+const HandleSettings = dynamic(() => import('./handle-settings').then((m) => m.HandleSettings), { ssr: false })
+const ChangeEmailForm = dynamic(() => import('./change-email-form').then((m) => m.ChangeEmailForm), { ssr: false })
+const AccountTypeSwitcher = dynamic(() => import('./account-type-switcher').then((m) => m.AccountTypeSwitcher), { ssr: false })
+const ReminderSettings = dynamic(() => import('./reminder-settings').then((m) => m.ReminderSettings), { ssr: false })
+const DeleteAccount = dynamic(() => import('./delete-account').then((m) => m.DeleteAccount), { ssr: false })
 
 const Ctx = createContext<{ open: boolean; setOpen: (o: boolean) => void }>({ open: false, setOpen: () => {} })
 export const useAccountPanel = () => useContext(Ctx)
 
-type Me = { displayName: string | null; email: string | null; avatarUrl: string | null; avatarColor: string; sellerId: string | null }
-type CachedStats = { unreadMessages: number; staleCount: number; totalViews: number; totalLeads: number } | null
+type PanelView = 'root' | 'listings' | 'settings' | 'disputes' | 'help'
+
+// Light mirror of the /api/dashboard payload (the parts the panel renders).
+type Dash = {
+  tier: 'business' | 'individual'
+  profile: { displayName: string | null; email: string | null; phone: string | null; avatarUrl: string | null; avatarColor: string; businessName: string | null; trustScore: number }
+  seller: { id: string; name: string; handle: string | null; responseRate: number; bio: string | null; location: string | null; phone: string | null; avatarUrl: string | null; legalName?: string | null; legalAddress?: string | null; idNumber?: string | null; taxCode?: string | null } | null
+  stats: { unreadMessages: number; staleCount: number; totalViews: number; totalLeads: number }
+  listings: SerializedListing[]
+}
 
 export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
-  // Lazy-mount: guests and signed-in users who never open the panel pay zero
-  // render cost for it (same principle as the lazy providers).
+  // Lazy-mount: guests and users who never open the panel pay zero render cost.
   const [mounted, setMounted] = useState(false)
   if (open && !mounted) setMounted(true)
 
   return (
     <Ctx.Provider value={{ open, setOpen }}>
       <div
-        className={cn('transition-[margin] duration-300 motion-reduce:transition-none', open && 'lg:mr-[400px]')}
+        className={cn('transition-[margin] duration-300 motion-reduce:transition-none', open && 'lg:mr-[440px]')}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >
         {children}
@@ -52,44 +74,67 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   const { user, signOut } = useAuth()
   const { tr } = useLanguage()
   const pathname = usePathname()
-  const [me, setMe] = useState<Me | null>(null)
-  const [stats, setStats] = useState<CachedStats>(null)
+  const [view, setView] = useState<PanelView>('root')
+  const [dash, setDash] = useState<Dash | null>(null)
   const firstPath = useRef(pathname)
 
-  // Close on navigation — a tapped link should reveal its destination.
-  useEffect(() => {
-    if (pathname !== firstPath.current) { firstPath.current = pathname; onClose() }
-  }, [pathname, onClose])
+  // Cache-first dashboard data (same eno-dashboard cache the page uses), then
+  // revalidate once per open. Sections render instantly on repeat opens.
+  const refresh = useCallback(() => {
+    const uid = user?.id
+    if (!uid) return
+    fetch('/api/dashboard')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d?.dashboard || uid !== user?.id) return
+        setDash(d.dashboard)
+        try { localStorage.setItem('eno-dashboard', JSON.stringify({ userId: uid, dashboard: d.dashboard })) } catch {}
+      })
+      .catch(() => {})
+  }, [user?.id])
 
-  // Esc closes (desktop).
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
-
-  // Identity + stats: instant paint from the cached dashboard (same pattern the
-  // old dropdown used), then revalidate identity from /api/me.
   useEffect(() => {
     if (!user || !open) return
     try {
       const c = JSON.parse(localStorage.getItem('eno-dashboard') || 'null')
-      if (c?.userId === user.id && c.dashboard?.profile) {
-        const p = c.dashboard.profile
-        setMe({ displayName: p.displayName, email: p.email, avatarUrl: p.avatarUrl, avatarColor: p.avatarColor, sellerId: c.dashboard.seller?.id ?? null })
-        if (c.dashboard.stats) {
-          const s = c.dashboard.stats
-          setStats({ unreadMessages: s.unreadMessages ?? 0, staleCount: s.staleCount ?? 0, totalViews: s.totalViews ?? 0, totalLeads: s.totalLeads ?? 0 })
-        }
-      }
+      if (c?.userId === user.id && c.dashboard) setDash(c.dashboard)
     } catch {}
-    fetch('/api/me').then((r) => r.json()).then((d) => { if (d.user) setMe(d.user) }).catch(() => {})
-  }, [user, open])
+    refresh()
+  }, [user, open, refresh])
+
+  // Close on navigation — links that leave the panel should reveal their page.
+  useEffect(() => {
+    if (pathname !== firstPath.current) { firstPath.current = pathname; onClose(); setView('root') }
+  }, [pathname, onClose])
+
+  // Esc pops one level first, then closes — mirrors the drill-in metaphor.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (view !== 'root') setView('root')
+      else onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, view, onClose])
+
+  // Reset to root whenever the panel fully closes.
+  useEffect(() => { if (!open) setView('root') }, [open])
 
   if (!user) return null
   const initial = (user.email || user.phone || '?').charAt(0).toUpperCase()
+  const isBusiness = dash?.tier === 'business'
+  const stats = dash?.stats
   const item = 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer'
+
+  const SECTIONS: { key: Exclude<PanelView, 'root'>; label: string; icon: React.ElementType }[] = [
+    { key: 'listings', label: tr('Listings', 'Tin đăng'), icon: Store },
+    { key: 'settings', label: tr('Settings', 'Cài đặt'), icon: Settings },
+    { key: 'disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
+    { key: 'help', label: tr('Help', 'Trợ giúp'), icon: CircleHelp },
+  ]
+  const active = SECTIONS.find((s) => s.key === view)
 
   return (
     <>
@@ -106,60 +151,137 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         role="dialog"
         aria-label={tr('Account', 'Tài khoản')}
         className={cn(
-          'fixed inset-y-0 right-0 z-50 flex w-[85vw] flex-col border-l border-border bg-card shadow-overlay transition-transform duration-300 motion-reduce:transition-none',
+          'fixed inset-y-0 right-0 z-50 flex w-[92vw] flex-col border-l border-border bg-card shadow-overlay transition-transform duration-300 motion-reduce:transition-none',
           open ? 'translate-x-0' : 'translate-x-full',
         )}
         style={{ maxWidth: PANEL_W, transitionTimingFunction: 'var(--ease-spring)' }}
       >
-        {/* Identity header */}
-        <div className="flex items-center gap-3 border-b border-border px-4 py-4">
-          {me?.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={me.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+        {/* Header: identity at root; back + section title inside a section. */}
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3.5">
+          {view === 'root' ? (
+            <>
+              {dash?.profile.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={dash.profile.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+              ) : (
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{initial}</span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-foreground">{dash?.profile.businessName || dash?.profile.displayName || user.email || user.phone}</p>
+                {dash?.profile.email && <p className="truncate text-xs text-ink-4">{dash.profile.email}</p>}
+              </div>
+            </>
           ) : (
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{initial}</span>
+            <>
+              <button onClick={() => setView('root')} aria-label={tr('Back', 'Quay lại')} className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground tap-44 relative">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <p className="min-w-0 flex-1 truncate text-sm font-bold text-foreground">{active?.label}</p>
+            </>
           )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold text-foreground">{me?.displayName || user.email || user.phone}</p>
-            {me?.email && <p className="truncate text-xs text-ink-4">{me.email}</p>}
-          </div>
           <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground tap-44 relative">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3">
-          {/* Quick stats — cache-first from the dashboard payload; hidden until known. */}
-          {stats && (
-            <div className="mb-3 grid grid-cols-2 gap-2">
-              <StatTile icon={<MessageSquareText className="h-4 w-4" />} value={stats.unreadMessages} label={tr('Unread', 'Chưa đọc')} href="/messages" accent={stats.unreadMessages > 0} />
-              <StatTile icon={<CalendarCheck className="h-4 w-4" />} value={stats.staleCount} label={tr('Need refresh', 'Cần làm mới')} href="/dashboard/availability" accent={stats.staleCount > 0} />
-              <StatTile icon={<Eye className="h-4 w-4" />} value={stats.totalViews} label={tr('Views', 'Lượt xem')} href="/dashboard?tab=listings" />
-              <StatTile icon={<Store className="h-4 w-4" />} value={stats.totalLeads} label={tr('Leads', 'Liên hệ')} href="/dashboard?tab=listings" />
-            </div>
-          )}
+        {/* Sliding layers: root parks left, sections slide in right→left. */}
+        <div className="relative flex-1 overflow-hidden">
+          <div
+            className={cn(
+              'absolute inset-0 overflow-y-auto p-3 transition-transform duration-300 motion-reduce:transition-none',
+              view === 'root' ? 'translate-x-0' : 'pointer-events-none -translate-x-1/4 opacity-50',
+            )}
+            style={{ transitionTimingFunction: 'var(--ease-spring)' }}
+          >
+            {/* Quick stats — Views/Leads drill into Listings; Unread/refresh navigate. */}
+            {stats && (
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                <StatTile icon={<MessageSquareText className="h-4 w-4" />} value={stats.unreadMessages} label={tr('Unread', 'Chưa đọc')} href="/messages" accent={stats.unreadMessages > 0} />
+                <StatTile icon={<CalendarCheck className="h-4 w-4" />} value={stats.staleCount} label={tr('Need refresh', 'Cần làm mới')} href="/dashboard/availability" accent={stats.staleCount > 0} />
+                <StatTile icon={<Eye className="h-4 w-4" />} value={stats.totalViews} label={tr('Views', 'Lượt xem')} onClick={() => setView('listings')} />
+                <StatTile icon={<Store className="h-4 w-4" />} value={stats.totalLeads} label={tr('Leads', 'Liên hệ')} onClick={() => setView('listings')} />
+              </div>
+            )}
 
-          <Link href="/dashboard?tab=listings" className={cn(item, 'bg-accent font-semibold text-accent-foreground hover:bg-brand/15')}>
-            <LayoutDashboard className="h-4 w-4" /> {tr('Open dashboard', 'Mở trang quản lý')}
-          </Link>
-          <div className="mt-1 space-y-0.5">
-            <Link href="/dashboard?tab=listings" className={item}>
-              <Store className="h-4 w-4 text-accent-foreground" /> {tr('Listings', 'Tin đăng')}
+            <div className="space-y-0.5">
+              {SECTIONS.map((s) => (
+                <button key={s.key} onClick={() => setView(s.key)} className={cn(item, 'justify-between')}>
+                  <span className="flex items-center gap-2.5"><s.icon className="h-4 w-4 text-accent-foreground" /> {s.label}</span>
+                  <ChevronRight className="h-4 w-4 text-ink-4" />
+                </button>
+              ))}
+            </div>
+
+            {/* Full page remains for heavy flows (post, bulk, data-table). */}
+            <Link href="/dashboard?tab=listings" className={cn(item, 'mt-2 bg-accent font-semibold text-accent-foreground hover:bg-brand/15')}>
+              <LayoutDashboard className="h-4 w-4" /> {tr('Open full dashboard', 'Mở trang quản lý đầy đủ')}
             </Link>
-            <Link href="/dashboard?tab=account" className={item}>
-              <Settings className="h-4 w-4 text-accent-foreground" /> {tr('Settings', 'Cài đặt')}
-            </Link>
-            <Link href="/disputes" className={item}>
-              <Scale className="h-4 w-4 text-accent-foreground" /> {tr('Disputes', 'Khiếu nại')}
-            </Link>
-            <Link href="/help" className={item}>
-              <CircleHelp className="h-4 w-4 text-accent-foreground" /> {tr('Help', 'Trợ giúp')}
-            </Link>
+            {dash?.seller && (
+              <a href={dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`} className={item}>
+                <Store className="h-4 w-4 text-accent-foreground" /> {tr('View storefront', 'Xem gian hàng')}
+              </a>
+            )}
+
+            {/* Language + theme — device prefs, available at root. */}
+            <div className="mt-2 border-t border-border px-1.5 pb-1 pt-3">
+              <PreferencesInline compact />
+            </div>
           </div>
 
-          {/* Language + theme — same compact control the dropdown carried. */}
-          <div className="mt-2 border-t border-border px-1.5 pb-1 pt-3">
-            <PreferencesInline compact />
+          <div
+            className={cn(
+              'absolute inset-0 overflow-y-auto bg-card transition-transform duration-300 motion-reduce:transition-none',
+              view === 'root' ? 'pointer-events-none translate-x-full' : 'translate-x-0',
+            )}
+            style={{ transitionTimingFunction: 'var(--ease-spring)' }}
+          >
+            {view === 'listings' && (
+              <div className="space-y-2.5 p-3">
+                {!dash ? (
+                  <div className="space-y-2.5">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[92px] rounded-2xl shimmer" />)}</div>
+                ) : dash.listings.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">{tr('No listings yet — post your first one.', 'Chưa có tin nào — đăng tin đầu tiên.')}</p>
+                ) : (
+                  dash.listings.map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />)
+                )}
+              </div>
+            )}
+
+            {view === 'settings' && dash && (
+              <div className="space-y-7 p-4">
+                <section>
+                  <h3 className="text-sm font-bold text-foreground">{isBusiness ? tr('Business profile', 'Hồ sơ doanh nghiệp') : tr('Your profile', 'Hồ sơ của bạn')}</h3>
+                  <div className="mt-3">
+                    {isBusiness && dash.seller
+                      ? <BusinessProfileEditor seller={dash.seller} repName={dash.profile.displayName} onSaved={refresh} />
+                      : <ProfileEditor profile={dash.profile} onSaved={refresh} />}
+                  </div>
+                </section>
+                <section>
+                  <h3 className="text-sm font-bold text-foreground">{tr('Handle', 'Tên định danh')}</h3>
+                  <div className="mt-3"><HandleSettings /></div>
+                </section>
+                <section>
+                  <h3 className="text-sm font-bold text-foreground">{tr('Email', 'Email')}</h3>
+                  <div className="mt-3"><ChangeEmailForm currentEmail={dash.profile.email} /></div>
+                </section>
+                <section>
+                  <h3 className="text-sm font-bold text-foreground">{tr('Account type', 'Loại tài khoản')}</h3>
+                  <div className="mt-3"><AccountTypeSwitcher isBusiness={isBusiness} businessName={dash.profile.businessName} onSaved={refresh} /></div>
+                </section>
+                <section>
+                  <h3 className="text-sm font-bold text-foreground">{tr('Reminders', 'Nhắc nhở')}</h3>
+                  <div className="mt-3"><ReminderSettings /></div>
+                </section>
+                <section>
+                  <h3 className="text-sm font-bold text-red-600">{tr('Danger zone', 'Vùng nguy hiểm')}</h3>
+                  <div className="mt-3"><DeleteAccount /></div>
+                </section>
+              </div>
+            )}
+
+            {view === 'disputes' && <div className="p-3"><DisputesPanel compact /></div>}
+            {view === 'help' && <div className="p-3"><HelpCenter /></div>}
           </div>
         </div>
 
@@ -173,14 +295,18 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   )
 }
 
-function StatTile({ icon, value, label, href, accent }: { icon: React.ReactNode; value: number; label: string; href: string; accent?: boolean }) {
-  return (
-    <Link href={href} className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5 transition-colors hover:bg-muted">
+function StatTile({ icon, value, label, href, onClick, accent }: { icon: React.ReactNode; value: number; label: string; href?: string; onClick?: () => void; accent?: boolean }) {
+  const inner = (
+    <>
       <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tint', accent ? 'text-accent-foreground' : 'text-ink-4')}>{icon}</span>
       <span className="min-w-0 leading-tight">
         <span className={cn('block text-sm font-bold', accent ? 'text-accent-foreground' : 'text-foreground')}>{value}</span>
         <span className="block truncate text-2xs text-muted-foreground">{label}</span>
       </span>
-    </Link>
+    </>
   )
+  const cls = 'flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5 text-left transition-colors hover:bg-muted cursor-pointer'
+  return href
+    ? <Link href={href} className={cls}>{inner}</Link>
+    : <button onClick={onClick} className={cls}>{inner}</button>
 }
