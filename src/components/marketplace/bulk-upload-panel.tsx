@@ -1,11 +1,8 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
-import { ChevronLeft, Upload, Download, FileText, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { Header } from '@/components/marketplace/header'
-import { Footer } from '@/components/marketplace/footer'
+import { Upload, Download, FileText, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { cn } from '@/lib/utils'
@@ -17,11 +14,22 @@ type ParsedRow = Raw & { _row: number; _error: string | null }
 
 const COLUMNS = ['category_slug', 'title', 'description', 'price', 'district', 'condition', 'image_urls']
 
-/** Bulk CSV upload (business tier). Download a template → drop a CSV → see a
- *  validated preview with per-row errors → import only the valid rows. Mirrors
- *  the server re-validation in /api/listings/bulk so the preview matches reality. */
-export function BulkUploadClient({ categories }: { categories: Cat[] }) {
-  const { tr } = useLanguage()
+/** Bulk CSV upload (business tier) — the account-panel section (the panel IS the
+ *  dashboard, so bulk lives inside it too; /dashboard/bulk redirects here).
+ *  Download a template → drop a CSV → validated preview with per-row errors →
+ *  import only the valid rows. Mirrors the server re-validation in
+ *  /api/listings/bulk so the preview matches reality. */
+export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
+  const { tr, lang } = useLanguage()
+  const [categories, setCategories] = useState<Cat[]>([])
+  useEffect(() => {
+    let off = false
+    fetch('/api/categories')
+      .then((r) => r.json())
+      .then((d) => { if (!off && d.categories) setCategories(d.categories.map((c: { slug: string; name: string; nameVi: string }) => ({ slug: c.slug, name: lang === 'vi' ? c.nameVi : c.name }))) })
+      .catch(() => {})
+    return () => { off = true }
+  }, [lang])
   const slugSet = useMemo(() => new Set(categories.map((c) => c.slug)), [categories])
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -91,14 +99,8 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Header />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 py-6 sm:px-6 lg:px-8">
-        <Link href="/dashboard" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors">
-          <ChevronLeft className="h-4 w-4" /> {tr('Dashboard', 'Bảng điều khiển')}
-        </Link>
-        <h1 className="mt-4 h-title text-foreground">{tr('Bulk upload', 'Tải lên hàng loạt')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{tr('Upload many listings at once with a CSV. Download the template, fill it in, then drop it here.', 'Đăng nhiều tin cùng lúc bằng CSV. Tải mẫu, điền vào, rồi thả vào đây.')}</p>
+    <div>
+        <p className="text-sm text-muted-foreground">{tr('Upload many listings at once with a CSV. Download the template, fill it in, then drop it here.', 'Đăng nhiều tin cùng lúc bằng CSV. Tải mẫu, điền vào, rồi thả vào đây.')}</p>
 
         <button onClick={downloadTemplate} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-line-strong bg-card px-4 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
           <Download className="h-4 w-4" /> {tr('Download CSV template', 'Tải mẫu CSV')}
@@ -116,7 +118,9 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
               </ul>
             )}
             <div className="mt-4 flex gap-2">
-              <Button asChild variant="cta" size="none"><Link href="/dashboard" className="px-5 py-2">{tr('Go to dashboard', 'Tới bảng điều khiển')}</Link></Button>
+              {onDone && (
+                <Button variant="cta" size="none" onClick={onDone} className="px-5 py-2 cursor-pointer">{tr('View listings', 'Xem tin đăng')}</Button>
+              )}
               <button onClick={() => { setResult(null); setFileName('') }} className="rounded-xl border border-line-strong bg-card px-5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer">{tr('Upload more', 'Tải thêm')}</button>
             </div>
           </div>
@@ -168,8 +172,6 @@ export function BulkUploadClient({ categories }: { categories: Cat[] }) {
             )}
           </>
         )}
-      </main>
-      <Footer />
     </div>
   )
 }

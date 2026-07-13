@@ -1,15 +1,15 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { cookies } from 'next/headers'
-import { db } from '@/lib/db'
-import { BulkUploadClient } from './bulk-client'
+import { BulkRedirect } from './redirect-client'
 
-// Localize the browser-tab title to the visitor's language.
-export async function generateMetadata(): Promise<Metadata> {
-  const lang = (await cookies()).get('lang')?.value
-  return { title: `${lang === 'vi' ? 'Tải lên hàng loạt' : 'Bulk upload'} | eno.vn`, robots: { index: false, follow: false } }
-}
+export const metadata: Metadata = { title: 'Bulk upload — eno.vn', robots: { index: false } }
 
-export default async function BulkUploadPage() {
-  const cats = await db.category.findMany({ orderBy: { name: 'asc' }, select: { slug: true, name: true } })
-  return <BulkUploadClient categories={cats} />
+/** Bulk upload lives INSIDE the account panel now (the panel is the dashboard,
+ *  user decision 2026-07-14) — this route only lands existing links there. */
+export default function BulkPage() {
+  return (
+    <Suspense>
+      <BulkRedirect />
+    </Suspense>
+  )
 }

@@ -36,8 +36,9 @@ const AccountTypeSwitcher = dynamic(() => import('./account-type-switcher').then
 const ReminderSettings = dynamic(() => import('./reminder-settings').then((m) => m.ReminderSettings), { ssr: false })
 const DeleteAccount = dynamic(() => import('./delete-account').then((m) => m.DeleteAccount), { ssr: false })
 const DevelopersPanel = dynamic(() => import('./developers-panel').then((m) => m.DevelopersPanel), { ssr: false })
+const BulkUploadPanel = dynamic(() => import('./bulk-upload-panel').then((m) => m.BulkUploadPanel), { ssr: false })
 
-export type PanelView = 'root' | 'listings' | 'settings' | 'disputes' | 'dev' | 'help'
+export type PanelView = 'root' | 'listings' | 'settings' | 'disputes' | 'dev' | 'bulk' | 'help'
 
 const Ctx = createContext<{
   open: boolean
@@ -152,7 +153,10 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
     { key: 'listings', label: tr('Listings', 'Tin đăng'), icon: Store },
     { key: 'settings', label: tr('Settings', 'Cài đặt'), icon: Settings },
     { key: 'disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
-    ...(isBusiness ? ([{ key: 'dev' as const, label: tr('Developers', 'Lập trình'), icon: Code2 }]) : []),
+    ...(isBusiness ? ([
+      { key: 'bulk' as const, label: tr('Bulk upload', 'Tải hàng loạt'), icon: Upload },
+      { key: 'dev' as const, label: tr('Developers', 'Lập trình'), icon: Code2 },
+    ]) : []),
     { key: 'help', label: tr('Help', 'Trợ giúp'), icon: CircleHelp },
   ]
   const active = SECTIONS.find((s) => s.key === view)
@@ -241,11 +245,6 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
             <Link href="/post" className={cn(item, 'mt-2 bg-accent font-semibold text-accent-foreground hover:bg-brand/15')}>
               <LayoutDashboard className="h-4 w-4" /> {tr('Post a listing', 'Đăng tin')}
             </Link>
-            {isBusiness && (
-              <Link href="/dashboard/bulk" className={item}>
-                <Upload className="h-4 w-4 text-accent-foreground" /> {tr('Bulk upload', 'Tải hàng loạt')}
-              </Link>
-            )}
             {dash?.seller && (
               <a href={dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`} className={item}>
                 <Store className="h-4 w-4 text-accent-foreground" /> {tr('View storefront', 'Xem gian hàng')}
@@ -312,6 +311,7 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
 
             {view === 'disputes' && <div className="p-3"><DisputesPanel compact /></div>}
             {view === 'dev' && <div className="p-3"><DevelopersPanel /></div>}
+            {view === 'bulk' && <div className="p-4"><BulkUploadPanel onDone={() => setView('listings')} /></div>}
             {view === 'help' && <div className="p-3"><HelpCenter /></div>}
           </div>
         </div>
