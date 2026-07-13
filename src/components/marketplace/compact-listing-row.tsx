@@ -109,7 +109,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               {tr(`${formatCount(l.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(l.contactCount, moneyLocale(lang))}`)}
             </span>
           )}
-          <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('shrink-0', offer !== null && 'hidden')} />
+          <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('ml-auto shrink-0', offer !== null && 'hidden')} />
         </div>
       </div>
 
