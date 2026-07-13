@@ -162,7 +162,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           type="button"
           aria-label={tr('Show on map', 'Xem trên bản đồ')}
           onClick={(e) => { e.stopPropagation(); onLocate(l.id) }}
-          className={cn('h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent', offer === null ? 'flex' : 'hidden')}
+          className={cn('h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent', offer === null ? 'hidden sm:flex' : 'hidden')}
         >
           <MapPin className="h-[18px] w-[18px]" />
         </button>
