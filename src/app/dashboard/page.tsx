@@ -1,22 +1,18 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { cookies } from 'next/headers'
-import { db } from '@/lib/db'
-import type { SerializedCategory } from '@/lib/types'
-import { DashboardClient } from './dashboard-client'
-import { serializeCategoryBasic } from '@/lib/serialize'
+import { DashboardRedirect } from './redirect-client'
 
-// Localize the browser-tab title to the visitor's language (the page is already dynamic).
-export async function generateMetadata(): Promise<Metadata> {
-  const lang = (await cookies()).get('lang')?.value
-  return { title: `${lang === 'vi' ? 'Bảng điều khiển' : 'Dashboard'} | eno.vn`, robots: { index: false, follow: false } }
-}
+export const metadata: Metadata = { title: 'Dashboard — eno.vn', robots: { index: false } }
 
-// Authed + personalized, and the client reads ?tab via useSearchParams → dynamic.
-export const dynamic = 'force-dynamic'
-
-export default async function DashboardPage() {
-  // Categories power the inline "Post a listing" tab (no redirect).
-  const categories = await db.category.findMany({ orderBy: { name: 'asc' } })
-  const serialized: SerializedCategory[] = categories.map(serializeCategoryBasic)
-  return <DashboardClient categories={serialized} />
+/** The page dashboard is retired (user decision 2026-07-14): the right-side
+ *  account panel IS the dashboard, on every screen size. This route survives
+ *  only so every existing link (?tab= deep links, mobile nav, notifications)
+ *  lands in the panel instead — it maps the tab to a panel section, opens it,
+ *  and returns the visitor to wherever they can keep browsing. */
+export default function DashboardPage() {
+  return (
+    <Suspense>
+      <DashboardRedirect />
+    </Suspense>
+  )
 }

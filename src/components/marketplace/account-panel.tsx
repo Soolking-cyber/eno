@@ -24,8 +24,6 @@ import type { SerializedListing } from '@/lib/types'
 // drill-in navigation. The /dashboard page remains for deep links + heavy
 // flows (posting, bulk, data-table).
 
-const PANEL_W = 440
-
 // Heavy sections load on demand — the panel itself is lazy-mounted, and these
 // keep the first open cheap too.
 const DisputesPanel = dynamic(() => import('./disputes-panel').then((m) => m.DisputesPanel), { ssr: false })
@@ -39,10 +37,19 @@ const ReminderSettings = dynamic(() => import('./reminder-settings').then((m) =>
 const DeleteAccount = dynamic(() => import('./delete-account').then((m) => m.DeleteAccount), { ssr: false })
 const DevelopersPanel = dynamic(() => import('./developers-panel').then((m) => m.DevelopersPanel), { ssr: false })
 
-const Ctx = createContext<{ open: boolean; setOpen: (o: boolean) => void }>({ open: false, setOpen: () => {} })
-export const useAccountPanel = () => useContext(Ctx)
+export type PanelView = 'root' | 'listings' | 'settings' | 'disputes' | 'dev' | 'help'
 
-type PanelView = 'root' | 'listings' | 'settings' | 'disputes' | 'dev' | 'help'
+const Ctx = createContext<{
+  open: boolean
+  setOpen: (o: boolean) => void
+  /** Open the panel directly on a section — THE dashboard entry point. */
+  openTo: (v: PanelView) => void
+  /** Open AFTER the next route change lands — for callers that navigate away as
+   *  part of opening (the /dashboard redirect unmounts before it could open,
+   *  and the panel's close-on-navigation guard would kill an early open). */
+  openAfterNav: (v: PanelView) => void
+}>({ open: false, setOpen: () => {}, openTo: () => {}, openAfterNav: () => {} })
+export const useAccountPanel = () => useContext(Ctx)
 
 // Light mirror of the /api/dashboard payload (the parts the panel renders).
 type Dash = {
@@ -54,29 +61,40 @@ type Dash = {
 }
 
 export function AccountPanelShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [view, setView] = useState<PanelView>('root')
   // Lazy-mount: guests and users who never open the panel pay zero render cost.
   const [mounted, setMounted] = useState(false)
   if (open && !mounted) setMounted(true)
+  const openTo = useCallback((v: PanelView) => { setView(v); setOpen(true) }, [])
+
+  // Deferred open: fire once the route change has actually landed (the shell
+  // outlives every page, so this survives the caller unmounting).
+  const pendingRef = useRef<{ v: PanelView; from: string } | null>(null)
+  const openAfterNav = useCallback((v: PanelView) => { pendingRef.current = { v, from: pathname } }, [pathname])
+  useEffect(() => {
+    const p = pendingRef.current
+    if (p && pathname !== p.from) { pendingRef.current = null; setView(p.v); setOpen(true) }
+  }, [pathname])
 
   return (
-    <Ctx.Provider value={{ open, setOpen }}>
+    <Ctx.Provider value={{ open, setOpen, openTo, openAfterNav }}>
       <div
         className={cn('transition-[margin] duration-300 motion-reduce:transition-none', open && 'lg:mr-[440px]')}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >
         {children}
       </div>
-      {mounted && <AccountPanel open={open} onClose={() => setOpen(false)} />}
+      {mounted && <AccountPanel open={open} view={view} setView={setView} onClose={() => setOpen(false)} />}
     </Ctx.Provider>
   )
 }
 
-function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: PanelView; setView: (v: PanelView) => void; onClose: () => void }) {
   const { user, signOut } = useAuth()
   const { tr } = useLanguage()
   const pathname = usePathname()
-  const [view, setView] = useState<PanelView>('root')
   const [dash, setDash] = useState<Dash | null>(null)
   const firstPath = useRef(pathname)
 
@@ -154,10 +172,11 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         role="dialog"
         aria-label={tr('Account', 'Tài khoản')}
         className={cn(
-          'fixed inset-y-0 right-0 z-50 flex w-[92vw] flex-col border-l border-border bg-card shadow-overlay transition-transform duration-300 motion-reduce:transition-none',
-          open ? 'translate-x-0' : 'translate-x-full',
+          // Full screen below lg (the panel IS the dashboard); fixed 440px rail on desktop.
+          'fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border bg-card shadow-overlay transition-transform duration-300 motion-reduce:transition-none lg:w-[440px]',
+          open ? 'translate-x-0' : 'invisible translate-x-full',
         )}
-        style={{ maxWidth: PANEL_W, transitionTimingFunction: 'var(--ease-spring)' }}
+        style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >
         {/* Header: identity at root; back + section title inside a section. */}
         <div className="flex items-center gap-3 border-b border-border px-4 py-3.5">

@@ -405,6 +405,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     { key: 'photo', ok: photos.length >= 3, label: t('Thêm 3 ảnh', 'Add 3 photos') },
     { key: 'category', ok: !!categorySlug, label: t('Chọn danh mục', 'Pick a category') },
     { key: 'title', ok: title.trim().length >= 3, label: t('Nhập tiêu đề', 'Add a title') },
+    // Details are REQUIRED (user decision 2026-07-14): listings without a real
+    // description or specifics read as low-effort/scammy and stall in chat with
+    // "is it new? what year?" — make sellers answer once, up front.
+    { key: 'description', ok: description.trim().length >= 20, label: t('Viết mô tả (ít nhất 20 ký tự)', 'Write a description (at least 20 characters)') },
+    ...(hasCondition ? [{ key: 'condition', ok: !!condition, label: t('Chọn tình trạng', 'Pick the condition') }] : []),
+    ...(attrFacets.some((f) => f.kind !== 'range')
+      ? [{ key: 'details', ok: attrFacets.filter((f) => f.kind !== 'range').every((f) => !!attrs[f.key]), label: t('Điền thông số', 'Fill in the specifics') }]
+      : []),
     { key: 'price', ok: price.trim().length > 0, label: t('Nhập giá', 'Set a price') },
     { key: 'location', ok: hasLocation, label: t('Chọn khu vực', 'Set the area') },
     // Guests (draft-first posting): contact comes from the account AFTER the
@@ -937,7 +945,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 className={cn('w-full max-w-2xl rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4', err.title && 'ring-2 ring-red-500/60')}
               />
             </Field>
-            <Field label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')}>
+            <Field id="pw-description" label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')}>
               {aiEnabled && (
                 <div className="mb-1.5 flex max-w-2xl justify-end">
                   <button
@@ -967,12 +975,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           {categorySlug && (hasCondition || attrFacets.length > 0) && (
             <Section title={t('Thông số', 'Specifics')}>
               {hasCondition && (
-                <Field label={t('Tình trạng', 'Condition')}>
+                <Field id="pw-condition" label={t('Tình trạng', 'Condition')}>
                   <Chips options={[{ value: 'new', label: t('Mới', 'New') }, { value: 'used', label: t('Đã dùng', 'Used') }]} value={condition} onPick={setCondition} />
                 </Field>
               )}
-              {attrFacets.map((f) => (
-                <Field key={f.key} label={tr(f.label, f.labelVi)}>
+              {attrFacets.map((f, fi) => (
+                <Field key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)}>
                   {f.kind === 'range' && f.range ? (
                     <RangeSpecInput range={f.range} value={ranges[f.key] ?? null} onChange={(v) => setRanges((prev) => ({ ...prev, [f.key]: v }))} />
                   ) : (

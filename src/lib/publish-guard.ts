@@ -111,7 +111,11 @@ const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i
 // match is O(n): unbounded `{2,}` + `\s*` made this super-linear and a 5k-char field
 // cost ~350ms, amplified 200× by bulk import (ReDoS/DoS lever, verified 2026-07-06).
 const EMAIL_OBF = /[a-z0-9._%+-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}(?:@|\bat\b)[ \t]{0,4}[)\]]?[ \t]{0,4}[a-z0-9-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}(?:\.|\bdot\b|\bcham\b)[ \t]{0,4}[)\]]?[ \t]{0,4}(?:com|net|org|vn|io|co|info|mail|edu|gov)\b/i
-const LINK = /\b(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]{2,}\.(?:com|net|org|io|me|co|info|shop|store|link|xyz)\b/i
+// Bare-domain TLDs exclude `co`/`me`: both are everyday Vietnamese syllables, and
+// no-diacritic typing with a missing space after a period ("May dep.Co the xem" =
+// "Máy đẹp. Có thể xem") reads as a .co domain — it blocked HONEST posts at the
+// publish moment (user report 2026-07-14). Full URLs (www./http) still catch them.
+const LINK = /\b(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]{2,}\.(?:com|net|org|io|info|shop|store|xyz)\b/i
 const HANDLE = /(?:^|\s)@[a-z0-9._]{3,}/
 const SOCIAL = /\b(?:zalo|whatsapp|telegram|wechat|viber|messenger|facebook|instagram|tiktok)\b\s*[:@#]\s*[\w.+-]{2,}/i
 const HOUSE = /\bsố\s*nhà\s*\d{1,4}\b/iu

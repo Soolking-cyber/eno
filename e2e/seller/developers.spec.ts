@@ -8,8 +8,11 @@ test.describe('developers panel', () => {
   test.skip(!process.env.E2E_AUTHED_BASE, 'requires a preview deploy + seeded business user (E2E_AUTHED_BASE)')
 
   test.beforeEach(async ({ page }) => {
+    // /dashboard?tab=dev redirects home and deep-opens the account panel on the
+    // Developers section (the panel IS the dashboard).
     await page.goto('/dashboard?tab=dev')
     await expect(page).not.toHaveURL(/\/signin/)
+    await expect(page.locator('aside[role="dialog"]')).toBeVisible()
   })
 
   test('renders API keys, Webhooks and MCP sections', async ({ page }) => {

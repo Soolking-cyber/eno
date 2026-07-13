@@ -59,9 +59,9 @@ export function Section({ title, hint, children, id }: { title: string; hint?: s
   )
 }
 
-export function Field({ label, counter, hint, error, children }: { label: string; counter?: string; hint?: string; error?: string; children: React.ReactNode }) {
+export function Field({ id, label, counter, hint, error, children }: { id?: string; label: string; counter?: string; hint?: string; error?: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
+    <div id={id} className="space-y-1.5">
       <div className="flex items-center justify-between">
         <label className="text-sm font-semibold text-foreground">{label}</label>
         {counter && <span className="text-2xs text-ink-4">{counter}</span>}
