@@ -23,6 +23,7 @@ import { ImageShield } from "@/components/marketplace/image-shield";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
+import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { VercelTelemetry } from "@/components/marketplace/vercel-telemetry";
 
 const inter = Inter({
@@ -175,7 +176,9 @@ export default function RootLayout({
                   <FavoritesProvider>
                     <QueryProvider>
                       <PageTransitions>
+                      <AccountPanelShell>
                       {children}
+                      </AccountPanelShell>
                       {/* Reserve room for the fixed mobile bottom-nav. A WHITE
                           spacer (not body padding) so when the nav auto-hides at
                           the page bottom it blends with the footer instead of

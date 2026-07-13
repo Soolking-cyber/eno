@@ -1,104 +1,48 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import Link from 'next/link'
-import { Store, LogOut, Settings, CircleHelp, Scale } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { PreferencesInline } from './preferences-inline'
+import { useAccountPanel } from './account-panel'
 
-type Me = { displayName: string | null; email: string | null; avatarUrl: string | null; avatarColor: string; sellerId: string | null }
+type Me = { avatarUrl: string | null }
 
-/** Header avatar → dropdown menu (no page redirect). */
+/** Header avatar — ICON-ONLY (user decision 2026-07-13, matching the bell to
+ *  its left). Toggles the right-side account/dashboard panel instead of a
+ *  dropdown; the panel itself lives in account-panel.tsx via layout. */
 export function AccountMenu() {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
   const { tr } = useLanguage()
-  const [open, setOpen] = useState(false)
+  const { open, setOpen } = useAccountPanel()
   const [me, setMe] = useState<Me | null>(null)
-  const ref = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const onClick = (e: MouseEvent) => {
-      const t = e.target as Element
-      // Ignore clicks inside the menu itself OR inside any portaled dropdown it
-      // opened (e.g. the language CustomSelect, which renders to <body>) — else the
-      // menu closes before the option's click registers.
-      if (ref.current?.contains(t) || t?.closest?.('[data-portal-menu]')) return
-      setOpen(false)
-    }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [])
-
-  // Instant paint: seed the avatar/name from the cached dashboard profile so the
-  // header isn't blank, then revalidate identity from /api/me in the background.
+  // Instant paint from the cached dashboard profile so the avatar isn't blank.
   useEffect(() => {
     if (!user) { setMe(null); return }
     try {
       const c = JSON.parse(localStorage.getItem('eno-dashboard') || 'null')
-      if (c?.userId === user.id && c.dashboard?.profile) {
-        const p = c.dashboard.profile
-        setMe({ displayName: p.displayName, email: p.email, avatarUrl: p.avatarUrl, avatarColor: p.avatarColor, sellerId: c.dashboard.seller?.id ?? null })
-      }
+      if (c?.userId === user.id && c.dashboard?.profile) setMe({ avatarUrl: c.dashboard.profile.avatarUrl })
     } catch {}
-    fetch('/api/me').then((r) => r.json()).then((d) => { if (d.user) setMe(d.user) }).catch(() => {})
+    fetch('/api/me').then((r) => r.json()).then((d) => { if (d.user) setMe({ avatarUrl: d.user.avatarUrl }) }).catch(() => {})
   }, [user])
 
   if (!user) return null
   const initial = (user.email || user.phone || '?').charAt(0).toUpperCase()
-  const item = 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer'
 
   return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44 relative"
-        aria-label={tr('Account', 'Tài khoản')}
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        {me?.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={me.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
-        ) : (
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">{initial}</span>
-        )}
-        <span className="hidden lg:inline">{tr('Account', 'Tài khoản')}</span>
-      </button>
-
-      {open && (
-        <div role="menu" className="absolute right-0 top-full mt-1.5 z-50 w-56 rounded-2xl bg-card p-1.5 shadow-pop animate-in fade-in duration-150">
-          <div className="px-2.5 pb-2 pt-1">
-            <p className="truncate text-sm font-bold text-foreground">{me?.displayName || user.email || user.phone}</p>
-            {me?.email && <p className="truncate text-xs text-ink-4">{me.email}</p>}
-          </div>
-          <div className="pt-1">
-            <Link href="/dashboard?tab=listings" role="menuitem" onClick={() => setOpen(false)} className={item}>
-              <Store className="h-4 w-4 text-accent-foreground" /> {tr('Listings', 'Tin đăng')}
-            </Link>
-            <Link href="/dashboard?tab=account" role="menuitem" onClick={() => setOpen(false)} className={item}>
-              <Settings className="h-4 w-4 text-accent-foreground" /> {tr('Settings', 'Cài đặt')}
-            </Link>
-            <Link href="/disputes" role="menuitem" onClick={() => setOpen(false)} className={item}>
-              <Scale className="h-4 w-4 text-accent-foreground" /> {tr('Disputes', 'Khiếu nại')}
-            </Link>
-            <Link href="/help" role="menuitem" onClick={() => setOpen(false)} className={item}>
-              <CircleHelp className="h-4 w-4 text-accent-foreground" /> {tr('Help', 'Trợ giúp')}
-            </Link>
-
-            {/* Language + theme — compact one line (language shows its 2-letter code) */}
-            <div className="mt-1 px-1.5 pb-1 pt-2">
-              <PreferencesInline compact />
-            </div>
-
-            <div className="mt-1 pt-1">
-              <button role="menuitem" onClick={() => { setOpen(false); signOut() }} className={`${item} hover:bg-destructive/10 hover:text-destructive`}>
-                <LogOut className="h-4 w-4" /> {tr('Sign out', 'Đăng xuất')}
-              </button>
-            </div>
-          </div>
-        </div>
+    <button
+      onClick={() => setOpen(!open)}
+      className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent cursor-pointer tap-44 relative"
+      aria-label={tr('Account', 'Tài khoản')}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+    >
+      {me?.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={me.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+      ) : (
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">{initial}</span>
       )}
-    </div>
+    </button>
   )
 }
