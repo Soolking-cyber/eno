@@ -1936,8 +1936,10 @@ export function ListingsExplorer({
                           onMouseEnter={() => setHoveredId(l.id)}
                           onMouseLeave={() => setHoveredId(null)}
                           className={cn(
-                            'rounded-xl transition-shadow',
-                            hoveredId === l.id && 'ring-2 ring-inset ring-brand/40',
+                            'rounded-xl',
+                            // Highlight the IMAGE only (user-picked 2026-07-14):
+                            // ringing the whole card incl. the text block read badly.
+                            hoveredId === l.id && '[&_[data-protected]]:ring-2 [&_[data-protected]]:ring-inset [&_[data-protected]]:ring-brand/40',
                           )}
                         >
                           <ListingCard listing={l} onOpen={handleOpen} onLocate={locateListing} />

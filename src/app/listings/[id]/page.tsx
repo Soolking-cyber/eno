@@ -433,9 +433,12 @@ export default async function ListingPage({ params }: Props) {
             (Desktop copy lives in the sticky contact column.) */}
         <SafetyStrip categorySlug={rawListing.category.slug} className="order-3 mb-4 lg:hidden" />
 
-        {/* Gallery mosaic */}
-        <div className="relative order-2 lg:order-none">
-          <ListingGallery images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
+        {/* Gallery — MOBILE mount (deal-first order-2). The desktop mount lives
+            inside the content grid so the info column starts BESIDE it
+            (Shopee layout, user decision 2026-07-14); variant gates stop the
+            hidden twin from fetching images. */}
+        <div className="relative order-2 md:hidden">
+          <ListingGallery variant="mobile" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
           {/* Mobile/tablet: share + save overlay the media header (Shopee pattern) —
               the title-row pair above is desktop-only. Absolutely positioned (zero
               layout cost, no CLS) at top-right, clear of the carousel's n/N counter
@@ -474,6 +477,9 @@ export default async function ListingPage({ params }: Props) {
               after the header's price/highlights and immediately before the
               Description; ≥lg it sits under the gallery at the head of the copy. */}
           <div className="lg:col-span-7 flex flex-col gap-8">
+            <div className="hidden md:block">
+              <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
+            </div>
             <ProtectionsRow />
             <div className="space-y-2">
               <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
@@ -587,6 +593,9 @@ export default async function ListingPage({ params }: Props) {
               so it stacks below the CTA on mobile; ≥lg the grid places it back
               under the description (cols 1–7, row 2). */}
           <div className="lg:col-span-7 flex flex-col gap-8">
+            <div className="hidden md:block">
+              <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
+            </div>
             <div id="location-on-map" className="space-y-2 scroll-mt-20">
               <h2 className="h-section text-foreground"><Tr text="Location" /></h2>
               <div className="h-[260px] rounded-2xl overflow-hidden relative">

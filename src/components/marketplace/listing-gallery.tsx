@@ -4,11 +4,15 @@ import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import { Tr, useLanguage } from '@/context/language-context'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { autoplayAllowed } from '@/lib/autoplay'
 
 type Props = {
+  /** 'mobile'/'desktop' render just that branch (dual-mount pages); 'auto' = both, CSS-split. */
+  variant?: 'auto' | 'mobile' | 'desktop'
+
   images: string[]
   title: string
   /** Optional listing video — becomes the FIRST gallery slide (poster = first photo,
@@ -174,12 +178,13 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager, hover }: {
 /** Photo gallery: full-width swipe carousel on mobile (buyers judge condition
  *  from photos — 45%-wide mosaic tiles were too small on a phone), Airbnb-style
  *  mosaic ≥md, and a full-screen lightbox with swipe nav + double-tap zoom. */
-export function ListingGallery({ images, title, video, showAllLabel = 'Show all photos' }: Props) {
+export function ListingGallery({ images, title, video, showAllLabel = 'Show all photos', variant = 'auto' }: Props) {
   const hasVideo = !!video && images.length > 0
   const mediaCount = images.length + (hasVideo ? 1 : 0)
   const [open, setOpen] = useState(false)
   const [idx, setIdx] = useState(0)
   const [slide, setSlide] = useState(0) // mobile carousel position (for the n/N chip)
+  const [sel, setSel] = useState(0) // desktop viewport selection (video = slot 0 when present)
   const startX = useRef<number | null>(null)
 
   // Double-tap zoom state: null = fit; {tx,ty} = zoomed at ZOOM, panned by (tx,ty).
@@ -230,11 +235,6 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
     return <div className="h-[300px] w-full rounded-2xl bg-tint" />
   }
 
-  // Desktop mosaic: the hero is the video (if any), so the side grid shows the photos NOT in
-  // the hero — all photos when the video is the hero, else photos[1..4] as before.
-  const rest = (hasVideo ? images : images.slice(1)).slice(0, 4)
-  const restGrid =
-    rest.length >= 3 ? 'grid-cols-2 grid-rows-2' : rest.length === 2 ? 'grid-rows-2' : 'grid-rows-1'
 
   // Toggle zoom centered on the tapped/clicked point: with `translate(t) scale(S)`
   // (origin center) a point p from center maps to S·p + t, so keeping the tapped
@@ -265,6 +265,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
         </button>
       ) : (
         <>
+          {variant !== 'desktop' && (<>
           {/* MOBILE: full-width swipeable carousel — each photo gets the whole
               390px, with an n/N counter so buyers know more angles exist
               (truncated galleries hide the condition shots). Scroll-snap only,
@@ -295,39 +296,78 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               {slide + 1} / {mediaCount}
             </span>
           </div>
+          </>)}
 
-          {/* ≥md: Airbnb-style mosaic (1 big + grid) — unchanged. */}
-          <div data-protected className="relative hidden h-[300px] grid-cols-2 gap-2 overflow-hidden rounded-2xl sm:h-[440px] md:grid">
-            {/* eager, NOT priority: both breakpoints mount (CSS-hidden), so priority
-                here preloaded a second copy of the hero on phones, competing with the
-                mobile carousel's real LCP image. A visible eager image still fetches
-                at high priority on desktop. */}
-            {/* Hero = the video (autoplaying) when present, else the first photo. */}
-            {hasVideo ? (
-              <GalleryVideo src={video!} poster={images[0]} className="rounded-none" />
-            ) : (
-              <button onClick={() => openAt(0)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-                <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 50vw, 40vw" mock={isMockImageUrl(images[0])} eager hover />
+          {variant !== 'mobile' && (<>
+          {/* ≥md: Shopee-style — ONE large viewport + a synced thumbnail rail with
+              paging arrows (user decision 2026-07-14; replaces the Airbnb mosaic).
+              `sel` walks the media entries (video first when present); clicking a
+              photo opens the lightbox at that photo. eager (NOT priority): both
+              breakpoints mount CSS-hidden, priority would double-fetch on phones. */}
+          <div data-protected className="hidden md:block">
+            <div className="relative h-[300px] w-full overflow-hidden rounded-2xl bg-tint sm:h-[440px]">
+              {hasVideo && sel === 0 ? (
+                <GalleryVideo src={video!} poster={images[0]} className="rounded-none" />
+              ) : (
+                (() => {
+                  const photoIdx = hasVideo ? sel - 1 : sel
+                  return (
+                    <button onClick={() => openAt(photoIdx)} className="group relative h-full w-full overflow-hidden cursor-pointer">
+                      <BlurFillImage img={images[photoIdx]} alt={`${title} — photo ${photoIdx + 1}`} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[photoIdx])} eager={photoIdx === 0} hover />
+                    </button>
+                  )
+                })()
+              )}
+              <button
+                onClick={() => openAt(hasVideo ? Math.max(0, sel - 1) : sel)}
+                className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
+              >
+                <Images className="h-4 w-4" /> <Tr text={showAllLabel} /> · {images.length}
               </button>
-            )}
-            <div className={cn('grid gap-2', restGrid)}>
-              {rest.map((img, i) => {
-                const imgIdx = hasVideo ? i : i + 1 // rest excludes the hero photo when there's no video
-                return (
-                  <button key={i} onClick={() => openAt(imgIdx)} className="group relative h-full w-full overflow-hidden cursor-pointer">
-                    <Image src={img} alt={`${title} — photo ${imgIdx + 1}`} fill sizes="25vw" quality={70} unoptimized={isMockImageUrl(img) || undefined} className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                    <span className="img-watermark" aria-hidden />
-                  </button>
-                )
-              })}
             </div>
-            <button
-              onClick={() => openAt(0)}
-              className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
-            >
-              <Images className="h-4 w-4" /> <Tr text={showAllLabel} /> · {images.length}
-            </button>
+
+            {/* Thumbnail rail — embla carousel pages the strip when it overflows;
+                the selected thumb carries the brand border. */}
+            <Carousel opts={{ align: 'start', dragFree: true }} className="relative mt-2 px-0.5">
+              <CarouselContent className="-ml-2">
+                {hasVideo && (
+                  <CarouselItem className="basis-auto pl-2">
+                    <button
+                      onClick={() => setSel(0)}
+                      aria-label="Video"
+                      className={cn('relative h-20 w-20 overflow-hidden rounded-lg border-2 transition-colors cursor-pointer', sel === 0 ? 'border-brand' : 'border-transparent hover:border-line-strong')}
+                    >
+                      <Image src={images[0]} alt="" fill sizes="80px" quality={60} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover" />
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/25">
+                        <Play className="h-6 w-6 fill-white text-white" />
+                      </span>
+                    </button>
+                  </CarouselItem>
+                )}
+                {images.map((img, i) => {
+                  const s2 = hasVideo ? i + 1 : i
+                  return (
+                    <CarouselItem key={i} className="basis-auto pl-2">
+                      <button
+                        onClick={() => setSel(s2)}
+                        aria-label={`${title} — photo ${i + 1}`}
+                        className={cn('relative h-20 w-20 overflow-hidden rounded-lg border-2 transition-colors cursor-pointer', sel === s2 ? 'border-brand' : 'border-transparent hover:border-line-strong')}
+                      >
+                        <Image src={img} alt="" fill sizes="80px" quality={60} unoptimized={isMockImageUrl(img) || undefined} className="object-cover" />
+                      </button>
+                    </CarouselItem>
+                  )
+                })}
+              </CarouselContent>
+              {mediaCount > 6 && (
+                <>
+                  <CarouselPrevious className="-left-2 h-8 w-8" />
+                  <CarouselNext className="-right-2 h-8 w-8" />
+                </>
+              )}
+            </Carousel>
           </div>
+          </>)}
         </>
       )}
 
