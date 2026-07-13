@@ -82,22 +82,26 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {/* Same app-wide badges as the grid card (card-badges.tsx), inline form:
               urgent before the price, drop % after — the row is one line, so signals
               stay glyph-sized. */}
-          {l.urgent && (
-            <Badge kind="urgent" variant="inline" className="shrink-0">
-              <Zap className="h-2.5 w-2.5 fill-current" />
-              {/* Icon-only on phones (user decision 2026-07-13): the word crowded
-                  the one-line row into the price. The ⚡ alone still signals
-                  urgency; the word returns at sm: where the row has room. */}
-              <span className="hidden sm:inline">{tr('Urgent', 'Bán gấp')}</span>
-            </Badge>
-          )}
           {/* The row's single color anchor — brand blue, matching the grid card. */}
           <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" className="shrink-0 text-base font-bold text-accent-foreground" />
+          {/* Urgent — RIGHT of the price (user-picked 2026-07-14): phones get the
+              bare black bolt (no chip/outline); the chip + word return at sm:. */}
+          {l.urgent && (
+            <>
+              <Zap className="h-3.5 w-3.5 shrink-0 fill-current text-foreground sm:hidden" aria-label={tr('Urgent', 'Bán gấp')} />
+              <Badge kind="urgent" variant="inline" className="hidden shrink-0 sm:inline-flex">
+                <Zap className="h-2.5 w-2.5 fill-current" />
+                <span>{tr('Urgent', 'Bán gấp')}</span>
+              </Badge>
+            </>
+          )}
           {l.prevPrice != null && dropPercent(l.prevPrice, l.price) && (
             <Badge kind="drop" variant="inline" className="shrink-0">{dropPercent(l.prevPrice, l.price)}</Badge>
           )}
-          <span className="h-3 w-px shrink-0 bg-border" />
-          <span className="truncate"><Tr text={l.district || l.city} /></span>
+          {/* Address text is desktop-only (user-picked: it truncated uselessly on
+              phones — the map-pin action is the mobile location affordance). */}
+          <span className="hidden h-3 w-px shrink-0 bg-border sm:block" />
+          <span className="hidden truncate sm:inline"><Tr text={l.district || l.city} /></span>
           {/* Demand proof (≥3 contact reveals) — desktop only: the one-line meta row
               can't spare the width on mobile. */}
           {l.contactCount >= 3 && (
@@ -162,7 +166,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           type="button"
           aria-label={tr('Show on map', 'Xem trên bản đồ')}
           onClick={(e) => { e.stopPropagation(); onLocate(l.id) }}
-          className={cn('h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent', offer === null ? 'hidden sm:flex' : 'hidden')}
+          className={cn('h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent', offer === null ? 'flex' : 'hidden')}
         >
           <MapPin className="h-[18px] w-[18px]" />
         </button>

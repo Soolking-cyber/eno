@@ -168,7 +168,7 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
         aria-hidden
         onClick={onClose}
         className={cn(
-          'fixed inset-0 z-40 bg-black/40 transition-opacity duration-300 lg:hidden',
+          'fixed inset-x-0 top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 bg-black/40 transition-opacity duration-300 lg:hidden',
           open ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
       />
@@ -177,7 +177,7 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
         aria-label={tr('Account', 'Tài khoản')}
         className={cn(
           // Full screen below lg (the panel IS the dashboard); fixed 440px rail on desktop.
-          'fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border bg-card shadow-overlay transition-transform duration-300 motion-reduce:transition-none lg:w-[440px]',
+          'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] right-0 z-50 flex w-full flex-col border-l border-border bg-card shadow-overlay transition-transform duration-300 motion-reduce:transition-none lg:bottom-0 lg:w-[440px]',
           open ? 'translate-x-0' : 'invisible translate-x-full',
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
