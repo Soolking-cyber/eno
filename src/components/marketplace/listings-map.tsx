@@ -41,6 +41,11 @@ type Props = {
   // "Search near you" centre + radius — when set, the map flies to it and draws the
   // radius circle (the listings are already narrowed to this radius upstream).
   nearby?: Nearby | null
+  // A pin was tapped and its popup card opened — lets the result list scroll
+  // that card into view (hover sync alone must not scroll under the cursor).
+  onPinOpen?: (id: string) => void
+  // Map centre after each pan/zoom — feeds the nearest-first sort of the list.
+  onMove?: (c: { lat: number; lng: number }) => void
   // Province/ward signature — when it changes, the map re-fits to the (now area-
   // filtered) listings even if the top result happens to be unchanged.
   areaKey?: string
@@ -90,7 +95,7 @@ function pinHtml(label: string, active: boolean): string {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, selectedId, onHover, focusId, nearby, areaKey }: Props) {
+export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove }: Props) {
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
   const { format: formatPrice } = useCurrency()
@@ -174,10 +179,13 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     const shift = Math.min(cardDims().h / 2 + 10, el.clientHeight * 0.4)
     map.panTo(map.unproject(L.point(pt.x, pt.y - shift), z), { animate: true, duration: 0.25 })
   }
+  const onMoveRef = useRef(onMove)
+  onMoveRef.current = onMove
+
   const openCard = (l: SerializedListingCard, center = false) => {
     cardIdRef.current = l.id; setCard(l)
     if (center) recenterOnPin(l)
-    placeCardFor(l); onHover?.(l.id)
+    placeCardFor(l); onHover?.(l.id); onPinOpen?.(l.id)
   }
   const closeCard = () => { cardIdRef.current = null; setCard(null); setCardPos(null); onHover?.(null) }
   // Desktop hover UX: keep the card open while the cursor is over the marker OR the
@@ -205,6 +213,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     // Keep +/- in the bottom-right — the info card pops centred ABOVE a tapped pin (upper
     // half of the map), so a top-left control would sit under it. Bottom corner stays clear.
     map.zoomControl.setPosition('bottomright')
+    map.on('moveend', () => { const c = map.getCenter(); onMoveRef.current?.({ lat: c.lat, lng: c.lng }) })
+    queueMicrotask(() => { const c = map.getCenter(); onMoveRef.current?.({ lat: c.lat, lng: c.lng }) })
     // Tile weight: retina (@2x) tiles are ~4× the bytes and TIME OUT on slow mobile networks
     // (the cartocdn ERR_TIMED_OUT spam). Drop to 1× when the connection is slow or Save-Data
     // is on; keep crisp @2x on fast / unknown connections.

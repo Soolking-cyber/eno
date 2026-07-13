@@ -6,11 +6,12 @@ import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import {
   X, Store, Settings, Scale, CircleHelp, LogOut, LayoutDashboard,
-  MessageSquareText, CalendarCheck, Eye, ChevronLeft, ChevronRight,
+  MessageSquareText, CalendarCheck, Eye, ChevronLeft, ChevronRight, Upload, Code2,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { PreferencesInline } from './preferences-inline'
+import { TrustScore } from './trust-score'
 import { DashboardListingRow } from './dashboard-listing-row'
 import { cn } from '@/lib/utils'
 import type { SerializedListing } from '@/lib/types'
@@ -36,11 +37,12 @@ const ChangeEmailForm = dynamic(() => import('./change-email-form').then((m) => 
 const AccountTypeSwitcher = dynamic(() => import('./account-type-switcher').then((m) => m.AccountTypeSwitcher), { ssr: false })
 const ReminderSettings = dynamic(() => import('./reminder-settings').then((m) => m.ReminderSettings), { ssr: false })
 const DeleteAccount = dynamic(() => import('./delete-account').then((m) => m.DeleteAccount), { ssr: false })
+const DevelopersPanel = dynamic(() => import('./developers-panel').then((m) => m.DevelopersPanel), { ssr: false })
 
 const Ctx = createContext<{ open: boolean; setOpen: (o: boolean) => void }>({ open: false, setOpen: () => {} })
 export const useAccountPanel = () => useContext(Ctx)
 
-type PanelView = 'root' | 'listings' | 'settings' | 'disputes' | 'help'
+type PanelView = 'root' | 'listings' | 'settings' | 'disputes' | 'dev' | 'help'
 
 // Light mirror of the /api/dashboard payload (the parts the panel renders).
 type Dash = {
@@ -132,6 +134,7 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
     { key: 'listings', label: tr('Listings', 'Tin đăng'), icon: Store },
     { key: 'settings', label: tr('Settings', 'Cài đặt'), icon: Settings },
     { key: 'disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
+    ...(isBusiness ? ([{ key: 'dev' as const, label: tr('Developers', 'Lập trình'), icon: Code2 }]) : []),
     { key: 'help', label: tr('Help', 'Trợ giúp'), icon: CircleHelp },
   ]
   const active = SECTIONS.find((s) => s.key === view)
@@ -167,7 +170,10 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{initial}</span>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-foreground">{dash?.profile.businessName || dash?.profile.displayName || user.email || user.phone}</p>
+                <span className="flex items-center gap-1.5">
+                  <p className="truncate text-sm font-bold text-foreground">{dash?.profile.businessName || dash?.profile.displayName || user.email || user.phone}</p>
+                  {typeof dash?.profile.trustScore === 'number' && <TrustScore score={dash.profile.trustScore} size="sm" href="/trust" />}
+                </span>
                 {dash?.profile.email && <p className="truncate text-xs text-ink-4">{dash.profile.email}</p>}
               </div>
             </>
@@ -212,10 +218,15 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
               ))}
             </div>
 
-            {/* Full page remains for heavy flows (post, bulk, data-table). */}
-            <Link href="/dashboard?tab=listings" className={cn(item, 'mt-2 bg-accent font-semibold text-accent-foreground hover:bg-brand/15')}>
-              <LayoutDashboard className="h-4 w-4" /> {tr('Open full dashboard', 'Mở trang quản lý đầy đủ')}
+            {/* Heavy flows keep their pages; everything else lives in here. */}
+            <Link href="/post" className={cn(item, 'mt-2 bg-accent font-semibold text-accent-foreground hover:bg-brand/15')}>
+              <LayoutDashboard className="h-4 w-4" /> {tr('Post a listing', 'Đăng tin')}
             </Link>
+            {isBusiness && (
+              <Link href="/dashboard/bulk" className={item}>
+                <Upload className="h-4 w-4 text-accent-foreground" /> {tr('Bulk upload', 'Tải hàng loạt')}
+              </Link>
+            )}
             {dash?.seller && (
               <a href={dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`} className={item}>
                 <Store className="h-4 w-4 text-accent-foreground" /> {tr('View storefront', 'Xem gian hàng')}
@@ -281,6 +292,7 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
             )}
 
             {view === 'disputes' && <div className="p-3"><DisputesPanel compact /></div>}
+            {view === 'dev' && <div className="p-3"><DevelopersPanel /></div>}
             {view === 'help' && <div className="p-3"><HelpCenter /></div>}
           </div>
         </div>

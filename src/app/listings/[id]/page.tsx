@@ -593,9 +593,6 @@ export default async function ListingPage({ params }: Props) {
               so it stacks below the CTA on mobile; ≥lg the grid places it back
               under the description (cols 1–7, row 2). */}
           <div className="lg:col-span-7 flex flex-col gap-8">
-            <div className="hidden md:block">
-              <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
-            </div>
             <div id="location-on-map" className="space-y-2 scroll-mt-20">
               <h2 className="h-section text-foreground"><Tr text="Location" /></h2>
               <div className="h-[260px] rounded-2xl overflow-hidden relative">

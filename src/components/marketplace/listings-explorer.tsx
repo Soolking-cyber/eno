@@ -1064,6 +1064,32 @@ export function ListingsExplorer({
   // root — otherwise a window-level sentinel sits permanently in view (appending
   // rows never moves it) and fires page after page (the "jerky, again and again").
   const mapListRef = useRef<HTMLDivElement | null>(null)
+  // Map viewport centre (moveend) — anchors the nearest-first list sort.
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null)
+  // Map-view list ranking (user decision 2026-07-14): nearest first with the
+  // seller's trust score carrying HALF the weight — a close low-trust listing
+  // shouldn't outrank a slightly-farther Trusted seller. Proximity is normalized
+  // across the visible set; trust against the ladder's practical 160 ceiling.
+  const mapSortedListings = useMemo(() => {
+    const anchor = nearby ? { lat: nearby.lat, lng: nearby.lng } : mapCenter
+    if (!anchor) return shownListings
+    // (plain record — `Map` is shadowed by the lucide icon import in this file)
+    const dists: Record<string, number> = {}
+    for (const l of shownListings) {
+      const c = getListingCoordinates(l)
+      dists[l.id] = c ? haversineKm(anchor, c) : Number.POSITIVE_INFINITY
+    }
+    const finite = Object.values(dists).filter((d) => Number.isFinite(d))
+    const min = Math.min(...finite), max = Math.max(...finite)
+    const span = Math.max(1e-6, max - min)
+    const score = (l: (typeof shownListings)[number]) => {
+      const d = dists[l.id] ?? Number.POSITIVE_INFINITY
+      const prox = Number.isFinite(d) ? 1 - (d - min) / span : 0
+      const trust = Math.min(l.seller?.trustScore ?? 60, 160) / 160
+      return 0.5 * trust + 0.5 * prox
+    }
+    return [...shownListings].sort((a, b) => score(b) - score(a))
+  }, [shownListings, nearby, mapCenter])
   const mapSentinelRef = useRef<HTMLDivElement | null>(null)
   const mapWrapRef = useRef<HTMLDivElement | null>(null)
   const hasMore = !nearby && !reachedEnd && listings.length < totalCount
@@ -1930,9 +1956,10 @@ export function ListingsExplorer({
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                     {/* Left: narrow single-column result list (its own scroll container on desktop) */}
                     <div ref={mapListRef} className="min-w-0 lg:col-span-4 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 grid grid-cols-1 gap-4 scroll-thin order-2 lg:order-1">
-                      {shownListings.map((l) => (
+                      {mapSortedListings.map((l) => (
                         <div
                           key={l.id}
+                          data-lid={l.id}
                           onMouseEnter={() => setHoveredId(l.id)}
                           onMouseLeave={() => setHoveredId(null)}
                           className={cn(
@@ -1974,6 +2001,12 @@ export function ListingsExplorer({
                         lang={lang}
                         selectedId={hoveredId ?? focusId}
                         onHover={setHoveredId}
+                        onPinOpen={(id) => {
+                          // Tapping a pin surfaces its card in the list (user decision
+                          // 2026-07-14) — scroll only on pin taps, never on hover sync.
+                          mapListRef.current?.querySelector(`[data-lid="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                        }}
+                        onMove={setMapCenter}
                         focusId={focusId}
                         nearby={nearby}
                         areaKey={`${activeProvince?.code ?? ''}|${activeWard?.code ?? ''}|${activeDistrict}`}
