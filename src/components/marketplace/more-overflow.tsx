@@ -73,7 +73,7 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
           onMouseLeave={hideSoon}
           onClick={() => setOpen(false)}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
-          className="z-[1100] max-h-[60vh] overflow-y-auto scroll-thin rounded-2xl bg-card p-2 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150"
+          className="z-[1100] max-h-[60vh] overflow-y-auto scroll-thin rounded-2xl bg-popover p-2 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150"
         >
           <div className="flex flex-col gap-0.5">{children}</div>
         </div>,

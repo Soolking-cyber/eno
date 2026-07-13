@@ -370,7 +370,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
             onMouseEnter={cancelClose}
             onMouseLeave={scheduleClose}
             className={cn(
-              'pointer-events-auto relative overflow-hidden rounded-2xl bg-card shadow-pop duration-150 ease-out animate-in fade-in zoom-in-95',
+              'pointer-events-auto relative overflow-hidden rounded-2xl bg-popover shadow-pop duration-150 ease-out animate-in fade-in zoom-in-95',
               cardPos.above ? 'origin-bottom' : 'origin-top',
             )}
             style={{ width: cardDims().w }}

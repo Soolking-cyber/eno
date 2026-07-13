@@ -362,7 +362,7 @@ function ListingCardImpl({
         {quickOffer !== null && (
           <span
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-card/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150"
+            className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-popover/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150"
           >
             <span className="flex items-center gap-2">
               <span className="shrink-0 text-2xs font-bold tabular-nums text-foreground">−{quickOffer}%</span>

@@ -114,7 +114,10 @@
   --foreground: #171717;
   --card: #ffffff;
   --card-foreground: #171717;
-  --popover: #ffffff;
+  /* Floating panels MATCH the canvas (user decision 2026-07-13 — pure-white
+     dropdowns read lighter than the #fafafa app). Dark keeps its lighter
+     elevation values: that's the correct dark-mode depth cue. */
+  --popover: #fafafa;
   --popover-foreground: #171717;
 
   /* shadcn primary maps to brand blue */

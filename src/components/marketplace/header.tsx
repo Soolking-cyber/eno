@@ -223,7 +223,7 @@ export function Header() {
             <div className={cn(
               'relative z-50 flex items-center transition-all duration-200',
               panelOpen
-                ? 'rounded-2xl bg-card shadow-pop sm:rounded-b-none'
+                ? 'rounded-2xl bg-popover shadow-pop sm:rounded-b-none'
                 : 'rounded-2xl border border-transparent bg-tint focus-within:border-ring focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30',
             )}>
               <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" />
@@ -278,7 +278,7 @@ export function Header() {
             {/* Recent searches + recent locations — flush bottom of the same window */}
             {suggestOpen && (
               <>
-                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 space-y-4 rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 space-y-4 rounded-2xl bg-popover p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -333,7 +333,7 @@ export function Header() {
 
             {/* Instant matches — live listings + categories as you type (≥2 chars) */}
             {instantOpen && (
-              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-card p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-popover p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                 <SearchSuggest
                   items={suggestItems}
                   loading={live.loading}

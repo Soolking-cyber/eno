@@ -239,7 +239,7 @@ export function AreaFilter({
       aria-modal="true"
       aria-label={tr('Choose area', 'Chọn khu vực')}
       style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, visibility: pos.top > 0 ? 'visible' : 'hidden' }}
-      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl bg-card p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
+      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl bg-popover p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
     >
       <div className="space-y-4">
         {/* Province/City + Ward side-by-side (user decision 2026-07-13): one row,

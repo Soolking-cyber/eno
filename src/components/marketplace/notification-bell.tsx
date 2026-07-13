@@ -63,7 +63,7 @@ export function NotificationBell() {
       </IconButton>
 
       {open && (
-        <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.5rem)] z-50 overflow-hidden rounded-2xl bg-card shadow-pop animate-in fade-in duration-150 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-2rem)]">
+        <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.5rem)] z-50 overflow-hidden rounded-2xl bg-popover shadow-pop animate-in fade-in duration-150 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-2rem)]">
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <span className="text-sm font-bold text-foreground">{tr('Notifications', 'Thông báo')}</span>
             <div className="flex shrink-0 items-center gap-3">
