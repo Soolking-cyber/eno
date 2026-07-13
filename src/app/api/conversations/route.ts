@@ -61,8 +61,8 @@ export async function POST(req: Request) {
   if (gate) {
     const existing = gate.error === 'account_suspended'
       ? null
-      : await db.conversation.findUnique({
-          where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
+      : await db.conversation.findFirst({
+          where: { sellerId: listing.sellerId, buyerProfileId: profile.id },
           select: { id: true },
         })
     if (!existing) return NextResponse.json(gate, { status: 403 })
@@ -74,6 +74,31 @@ export async function POST(req: Request) {
   // read-then-upsert could report created:true for BOTH racers and double-count
   // the lead). A P2002 means the thread already exists → reuse it, created:false.
   const sellerProfileId = listing.seller.ownerId ?? null
+
+  // One thread per buyer↔seller (user decision 2026-07-14): inquiring about a
+  // DIFFERENT listing from the same seller reuses the existing thread and
+  // retargets its listing context (header card + offer math follow), instead of
+  // opening a parallel chat per product.
+  const existingWithSeller = await db.conversation.findFirst({
+    where: { sellerId: listing.sellerId, buyerProfileId: profile.id },
+    orderBy: { lastMessageAt: 'desc' },
+    select: { id: true, listingId: true },
+  })
+  if (existingWithSeller) {
+    if (existingWithSeller.listingId !== listingId) {
+      await db.conversation.update({ where: { id: existingWithSeller.id }, data: { listingId } })
+    }
+    const conv = { id: existingWithSeller.id, buyerProfileId: profile.id, sellerProfileId, listingId }
+    let message: SerializedMessage | null = null
+    if (isOffer) {
+      message = await insertMessage(conv, profile.id, '', { kind: 'offer', offerAmount })
+      if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
+    } else if (initialMessage) {
+      message = await insertMessage(conv, profile.id, initialMessage)
+    }
+    return NextResponse.json({ id: existingWithSeller.id, created: false, message })
+  }
+
   try {
     const convo = await db.conversation.create({
       data: {
