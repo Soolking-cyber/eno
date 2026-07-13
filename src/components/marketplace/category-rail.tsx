@@ -62,7 +62,7 @@ export function CategoryRail({
     cn('line-clamp-2 text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
 
   const subChip = (active: boolean) =>
-    cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-card/80 hover:text-accent-foreground')
+    cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
   return (
     <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none snap-x py-1">
@@ -101,7 +101,7 @@ export function CategoryRail({
               <div className="flex shrink-0 items-start gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
                 <span className="mt-1 h-12 w-px shrink-0 bg-border" />
                 {/* 3×3 grid (column-fill): All first, 7 most-used in between, More last. */}
-                <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-tint/60 p-1.5">
+                <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
                   <button onClick={() => onSubcategory('all')} className={subChip(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
                   {visibleSubs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug

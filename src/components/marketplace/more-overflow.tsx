@@ -59,7 +59,7 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
         aria-expanded={open}
         className={cn(
           'inline-flex w-full shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1 text-sm font-semibold transition-colors cursor-pointer tap-44 relative',
-          open ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-card/80 hover:text-accent-foreground',
+          open ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground',
         )}
       >
         {label || tr('More', 'Thêm')}
