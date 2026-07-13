@@ -97,7 +97,7 @@ component is a defect.
 | Modal | `ui/dialog` (Radix); destructive confirms → `ui/alert-dialog` |
 | Menus | `ui/dropdown-menu` (never a hand-rolled absolute-positioned div) |
 | Floating panels | `ui/popover`, `ui/tooltip` |
-| Side panels / mobile filters | `ui/sheet` (side) / `ui/drawer` (bottom, vaul) |
+| Side panels / mobile filters | `ui/sheet` (side) / `ui/drawer` (bottom, Base UI Drawer) |
 | Select (desktop/admin) | `ui/select` — native `<select>` stays fine on mobile consumer surfaces |
 | Tabs | `ui/tabs` — the explorer's 4-tab sort pills stay bespoke |
 | Tables (dashboard/admin) | `ui/table` + TanStack `@tanstack/react-table` (data-table pattern); mobile gets stacked cards or an `overflow-x-auto` container |
