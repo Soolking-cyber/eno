@@ -128,6 +128,24 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
     if (pathname !== firstPath.current) { firstPath.current = pathname; onClose(); setView('root') }
   }, [pathname, onClose])
 
+  // While open on MOBILE, freeze the page behind the overlay — without this the
+  // background keeps scrolling under the panel (same body-lock recipe as the
+  // gallery lightbox). Desktop squeezes the page instead, so it stays scrollable.
+  useEffect(() => {
+    if (!open) return
+    const mq = window.matchMedia('(min-width: 64rem)')
+    if (mq.matches) return
+    const body = document.body
+    const prevOverflow = body.style.overflow
+    const prevOverscroll = body.style.overscrollBehavior
+    body.style.overflow = 'hidden'
+    body.style.overscrollBehavior = 'none'
+    return () => {
+      body.style.overflow = prevOverflow
+      body.style.overscrollBehavior = prevOverscroll
+    }
+  }, [open])
+
   // Esc pops one level first, then closes — mirrors the drill-in metaphor.
   useEffect(() => {
     if (!open) return
@@ -177,7 +195,7 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
         aria-label={tr('Account', 'Tài khoản')}
         className={cn(
           // Full screen below lg (the panel IS the dashboard); fixed 440px rail on desktop.
-          'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] right-0 z-50 flex w-full flex-col border-l border-border bg-card shadow-overlay transition-transform duration-300 motion-reduce:transition-none lg:bottom-0 lg:w-[440px]',
+          'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] right-0 z-50 flex w-full flex-col border-l border-border bg-background shadow-overlay transition-transform duration-300 motion-reduce:transition-none lg:bottom-0 lg:w-[440px]',
           open ? 'translate-x-0' : 'invisible translate-x-full',
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
@@ -259,7 +277,7 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
 
           <div
             className={cn(
-              'absolute inset-0 overflow-y-auto bg-card transition-transform duration-300 motion-reduce:transition-none',
+              'absolute inset-0 overflow-y-auto bg-background transition-transform duration-300 motion-reduce:transition-none',
               view === 'root' ? 'pointer-events-none translate-x-full' : 'translate-x-0',
             )}
             style={{ transitionTimingFunction: 'var(--ease-spring)' }}
