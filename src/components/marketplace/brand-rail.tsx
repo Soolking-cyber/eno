@@ -107,7 +107,7 @@ export function BrandRail({
   const nameCls = (active: boolean) =>
     cn('line-clamp-2 text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
   const modelChip = (active: boolean) =>
-    cn('shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-semibold transition-colors cursor-pointer', active ? 'text-accent-foreground' : 'text-body hover:text-accent-foreground')
+    cn('shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-accent text-accent-foreground' : 'text-body hover:text-accent-foreground')
 
   return (
     <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none snap-x py-1">

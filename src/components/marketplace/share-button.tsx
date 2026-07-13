@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useState } from 'react'
 import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
@@ -31,52 +31,6 @@ export function ShareButton({ url, title, price, currency, className, compact = 
   const { lang, tr } = useLanguage()
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
-  const btnRef = useRef<HTMLButtonElement>(null)
-  const popRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => setMounted(true), [])
-
-  // The popover is PORTALED to <body> + fixed-positioned so a tight/overflow-hidden
-  // parent (e.g. a dashboard grid card) can't clip it. Anchor it under the button,
-  // clamped to the viewport (flip above when there's no room below). Position is
-  // computed SYNCHRONOUSLY when opening (toggle below) and the panel only renders
-  // once `pos` exists — so it paints at its anchor on the first frame, never at (0,0)
-  // (which read as a "fly in from the top-left corner").
-  const place = () => {
-    const r = btnRef.current?.getBoundingClientRect()
-    if (!r) return
-    const W = 256, H = 300, M = 12
-    const left = Math.max(M, Math.min(r.right - W, window.innerWidth - W - M))
-    let top = r.bottom + 8
-    if (top + H > window.innerHeight - M) top = Math.max(M, r.top - H - 8)
-    setPos({ top, left })
-  }
-  const toggle = () => { if (open) { setOpen(false) } else { place(); setOpen(true) } }
-
-  // While open, keep it anchored on scroll/resize; on close clear `pos` so a reopen
-  // never flashes the previous position.
-  useEffect(() => {
-    if (!open) { setPos(null); return }
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
-    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
-  }, [open])
-
-  // Close on outside-click / Escape — must allow clicks inside the portaled popover.
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (btnRef.current?.contains(t) || popRef.current?.contains(t)) return
-      setOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
-  }, [open])
 
   // Lead with the price — it's the part people share for. Falls back to the bare
   // title when no price is supplied.
@@ -104,66 +58,66 @@ export function ShareButton({ url, title, price, currency, className, compact = 
   const hasNative = typeof navigator !== 'undefined' && !!navigator.share
 
   return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={toggle}
-        aria-label={tr('Share', 'Chia sẻ')}
-        aria-expanded={open}
-        className={cn(
-          // compact: icon-only circle for overlaying media (mirrors SaveListingButton's
-          // compact mode) — sized/tinted for the gallery's top-right corner.
-          compact
-            ? 'flex h-9 w-9 items-center justify-center rounded-full bg-card/80 backdrop-blur transition-colors cursor-pointer active:scale-95 tap-44 relative'
-            : 'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95 tap-44 relative',
-          open ? (compact ? 'text-accent-foreground' : 'bg-accent text-accent-foreground') : compact ? 'text-body' : 'text-body hover:bg-muted',
-          className,
-        )}
-      >
-        <Share2 className="h-4 w-4" />
-        {!compact && <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>}
-      </button>
-
-      {mounted && open && pos && createPortal(
-        <div ref={popRef} style={{ position: 'fixed', top: pos.top, left: pos.left, width: 256 }} className="z-[1100] rounded-2xl bg-card p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
-          <p className="px-1 pb-2 text-xs font-bold text-foreground">{tr('Share this listing', 'Chia sẻ tin này')}</p>
-          <div className="grid grid-cols-3 gap-1">
-            {channels.map(({ key, label, href, Icon }) => (
-              // Buttons (not <a href="share-url">) so ad/social blockers (EasyList
-              // "Social", Brave, Safari content blockers) can't hide these — they
-              // match on anchor hrefs pointing at share URLs.
-              <button
-                key={key}
-                type="button"
-                onClick={() => { window.open(href, '_blank', 'noopener,noreferrer'); setOpen(false) }}
-                className="group flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted cursor-pointer"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full text-body transition-colors group-hover:bg-muted group-hover:text-accent-foreground">
-                  <Icon className="h-[18px] w-[18px]" />
-                </span>
-                <span className="text-3xs font-medium text-body">{label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-3 pt-2">
-            <button onClick={copy} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted">
-                {copied ? <Check className="h-4 w-4 text-accent-foreground" /> : <Link2 className="h-4 w-4" />}
-              </span>
-              {copied ? tr('Link copied', 'Đã sao chép') : tr('Copy link', 'Sao chép liên kết')}
-            </button>
-            {hasNative && (
-              <button onClick={nativeShare} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></span>
-                {tr('More…', 'Thêm…')}
-              </button>
+    <Popover open={open} onOpenChange={setOpen}>
+      {/* Base UI supplies toggle-on-click + aria-expanded/haspopup on the rendered button. */}
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            aria-label={tr('Share', 'Chia sẻ')}
+            className={cn(
+              // compact: icon-only circle for overlaying media (mirrors SaveListingButton's
+              // compact mode) — sized/tinted for the gallery's top-right corner.
+              compact
+                ? 'flex h-9 w-9 items-center justify-center rounded-full bg-card/80 backdrop-blur transition-colors cursor-pointer active:scale-95 tap-44 relative'
+                : 'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95 tap-44 relative',
+              open ? (compact ? 'text-accent-foreground' : 'bg-accent text-accent-foreground') : compact ? 'text-body' : 'text-body hover:bg-muted',
+              className,
             )}
-          </div>
-        </div>,
-        document.body,
-      )}
-    </>
+          >
+            <Share2 className="h-4 w-4" />
+            {!compact && <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>}
+          </button>
+        }
+      />
+
+      {/* Portaled by the primitive — survives overflow-x-auto table containers un-clipped. */}
+      <PopoverContent align="end" side="bottom" sideOffset={8} className="w-64 gap-0 p-3">
+        <p className="px-1 pb-2 text-xs font-bold text-foreground">{tr('Share this listing', 'Chia sẻ tin này')}</p>
+        <div className="grid grid-cols-3 gap-1">
+          {channels.map(({ key, label, href, Icon }) => (
+            // Buttons (not <a href="share-url">) so ad/social blockers (EasyList
+            // "Social", Brave, Safari content blockers) can't hide these — they
+            // match on anchor hrefs pointing at share URLs.
+            <button
+              key={key}
+              type="button"
+              onClick={() => { window.open(href, '_blank', 'noopener,noreferrer'); setOpen(false) }}
+              className="group flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted cursor-pointer"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-full text-body transition-colors group-hover:bg-muted group-hover:text-accent-foreground">
+                <Icon className="h-[18px] w-[18px]" />
+              </span>
+              <span className="text-3xs font-medium text-body">{label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 pt-2">
+          <button onClick={copy} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted">
+              {copied ? <Check className="h-4 w-4 text-accent-foreground" /> : <Link2 className="h-4 w-4" />}
+            </span>
+            {copied ? tr('Link copied', 'Đã sao chép') : tr('Copy link', 'Sao chép liên kết')}
+          </button>
+          {hasNative && (
+            <button onClick={nativeShare} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></span>
+              {tr('More…', 'Thêm…')}
+            </button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

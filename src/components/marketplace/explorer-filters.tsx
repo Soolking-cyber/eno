@@ -1,13 +1,20 @@
 'use client'
 
 import type { Dispatch, SetStateAction } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, X } from 'lucide-react'
 import { CustomSelect } from './custom-select'
 import { CategoryIcon } from './category-icons'
 import { DISTRICTS } from './listings-explorer.constants'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Switch } from '@/components/ui/switch'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import type { SerializedCategory } from '@/lib/types'
 
@@ -378,5 +385,69 @@ export function ExplorerFilters({
       {/* Category Specific Detailed Filters */}
       {renderCategorySpecificFilters()}
     </div>
+  )
+}
+
+// Mobile bottom drawer around <ExplorerFilters> — the shared ui/drawer shell
+// (scrim + swipe-handle dismiss + rounded-t-2xl) replacing the old hand-rolled
+// overlay. Header copy, the ✕ close, the Apply footer and every filter prop are
+// carried over verbatim; all filter state still lives in the explorer.
+export function ExplorerFiltersDrawer({
+  open,
+  onOpenChange,
+  totalCount,
+  ...filterProps
+}: Omit<Props, 'isMobile'> & {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  totalCount: number
+}) {
+  const { tr } = useLanguage()
+
+  return (
+    <Drawer
+      open={open}
+      onOpenChange={(next, details) => {
+        // The hand-rolled shell never closed on Escape — that key belongs to the
+        // CustomSelect menus (their own document-level listener closes just the
+        // open menu). Letting the drawer react too would collapse menu + drawer
+        // on a single press.
+        if (!next && details.reason === 'escape-key') return
+        onOpenChange(next)
+      }}
+      // Filter taps must never dismiss the drawer — including CustomSelect's
+      // body-portaled menus, which sit OUTSIDE the popup and would otherwise
+      // register as outside-presses. Like the old overlay, it closes only when
+      // told to: swipe-down, the ✕, or Apply.
+      disablePointerDismissal
+      showSwipeHandle
+    >
+      <DrawerContent>
+        <DrawerHeader className="flex-row items-center justify-between border-b border-border/80 pb-2.5">
+          <DrawerTitle>{tr('Search Filters', 'Bộ lọc tìm kiếm')}</DrawerTitle>
+          <button
+            onClick={() => onOpenChange(false)}
+            className="rounded-full bg-tint p-1.5 text-ink-3 hover:bg-line-strong active:scale-95"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </DrawerHeader>
+
+        {/* Scrollable Filters */}
+        <div className="max-h-[50vh] overflow-y-auto p-4">
+          <ExplorerFilters isMobile {...filterProps} />
+        </div>
+
+        {/* Apply Action Button */}
+        <DrawerFooter>
+          <button
+            onClick={() => onOpenChange(false)}
+            className="w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-white shadow-md active:scale-98 cursor-pointer"
+          >
+            {tr('Apply Filters', 'Áp dụng lọc')} ({totalCount} {tr('listings', 'tin')})
+          </button>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   )
 }
