@@ -391,7 +391,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                     <span className="mt-0.5 block"><MapTravel to={getListingCoordinates(card)} userLoc={userLoc} state={locState} onRequest={requestLoc} compact /></span>
                   </span>
                 </button>
-                <TrustScore score={card.seller.trustScore} variant="mini" word={false} className="shrink-0" />
+                <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
                 <MapsDirectionsButton to={getListingCoordinates(card)} className="h-8 w-8 shrink-0" />
               </div>
             ) : (
@@ -416,7 +416,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                   <div className="p-3 pb-1.5">
                     <div className="flex items-start justify-between gap-2">
                       <p className="truncate text-sm font-bold text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></p>
-                      <TrustScore score={card.seller.trustScore} variant="mini" word={false} className="shrink-0" />
+                      <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
                     <p className="mt-1 text-sm font-bold text-accent-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</p>
