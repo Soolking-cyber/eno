@@ -41,7 +41,7 @@ export default defineConfig({
   // Read-only guest flows are safe to parallelise hard; keeps the wall-clock low.
   fullyParallel: true,
   forbidOnly: !!process.env.CI,         // a stray .only must fail CI, never silently narrow it
-  retries: process.env.CI ? 2 : 0,
+  retries: 1, // post-deploy ISR regeneration transiently trips the a11y homepage spec — one retry absorbs it (was CI-only)
   workers: process.env.CI ? 4 : undefined,
   timeout: 30_000,
   expect: { timeout: 10_000 },
