@@ -96,16 +96,13 @@ component is a defect.
 | Loading | `<Skeleton>` / `<Spinner>` |
 | Modal | `ui/dialog` (Base UI); destructive confirms → `ui/alert-dialog` |
 | Menus | `ui/dropdown-menu` (never a hand-rolled absolute-positioned div) |
-| Floating panels | `ui/popover`, `ui/tooltip` |
+| Floating panels | `ui/popover` |
 | Side panels / mobile filters | `ui/sheet` (side) / `ui/drawer` (bottom, Base UI Drawer) |
 | Select (desktop/admin) | `ui/select` — native `<select>` stays fine on mobile consumer surfaces |
-| Tabs | `ui/tabs` — the explorer's 4-tab sort pills stay bespoke |
+| Tabs | `ui/tabs` — every tab strip, including the explorer's 4-tab sort model, the dashboard's listing filters and the sign-in phone/email switch. A strip of `<Button>`s is NOT a tab strip: it reports no `role="tablist"`, no `aria-selected`, and the arrow keys do nothing. |
 | Tables (dashboard/admin) | `ui/table` + TanStack `@tanstack/react-table` (data-table pattern); mobile gets stacked cards or an `overflow-x-auto` container |
 | Content panel | `ui/card` (rounded-2xl surface tier) |
 | Callouts | `ui/alert` |
-| Command palette | `ui/command` (cmdk) |
-| App-shell navigation | `ui/sidebar` block (tokens mapped to the ENO palette by reference — dark mode follows automatically) |
-| Charts | `ui/chart` (recharts) — read the dataviz guidance before adding any |
 | Listing display | `<ListingCard>` (marketplace) — never a bespoke card |
 | Seller identity | `<SellerCard>` (marketplace) |
 
@@ -113,6 +110,15 @@ shadcn components arrive with `rounded-md`/`rounded-sm`/`rounded-xs` stock
 classes — restyle to the tiers above on arrival (design-lint enforces): floating
 content panels → `2xl`, input-like triggers/controls → `xl`, menu items and
 compact sidebar controls → `lg`.
+
+**The table above is the whole layer — there is no shelf of spare parts behind it.**
+`chart` (+`recharts`), `command` (+`cmdk`), `sidebar`, `tooltip`, `collapsible`,
+`pagination`, `scroll-area`, `toggle`, `toggle-group` and `input-group` were deleted on
+2026-07-14: they were shadcn defaults that shipped with the scaffold and that nothing ever
+imported. An unused primitive is not free — it is a decoy. `ui/alert` sat here with ZERO
+importers while ten hand-rolled callouts existed elsewhere in the app, because nobody knew
+to look for it. If you need one of these back, `npx shadcn@latest add <name>` takes
+seconds — but add it *with* its first real call site, never ahead of one.
 
 ## 6. Motion
 

@@ -34,12 +34,25 @@ This re-runs design-lint, `prisma generate`, and `next build`. A build failure t
 Start the standalone server and run the guest suite against it:
 
 ```bash
-npm start &                       # standalone server on :3000
+PORT=3100 npm start &             # :3000 is SQUATTED by another project's next-server
 # wait for it to answer, then:
-E2E_BASE=http://127.0.0.1:3000 npx playwright test --project=guest-desktop --project=guest-mobile
+E2E_BASE=http://localhost:3100 npx playwright test --project=guest-desktop --project=guest-mobile
 ```
 
-Kill the server when done. The suite is 44 tests (desktop + mobile). It's read-only — no auth, no writes. `retries: 1` is configured because post-deploy ISR regeneration transiently trips the a11y homepage spec; a failure that reproduces on the retry is real.
+⚠️ **`E2E_BASE` is not optional, and forgetting it fails OPEN.** `playwright.config.ts:13` defaults
+`GUEST_BASE` to **`https://eno.vn`** — so a bare `npx playwright test` runs the whole suite against
+PRODUCTION and passes, while never once loading the build you are about to ship. It looks exactly
+like a green local gate. (This bit me on 2026-07-14: a suite reported 44/44 "locally" against prod
+while the local build sat untested.) Two ways to be sure you tested the right thing: the run must be
+`E2E_BASE=http://localhost:3100`, and a brand-new test for the feature you just built must FAIL
+against prod and PASS locally. If a new test passes against both, you are not testing what you think.
+
+Port must be 3100, not 3000 — 3000 is occupied by an unrelated `next-server`, so a suite pointed
+there tests a different application entirely.
+
+Kill the server when done. The suite is 48 tests (desktop + mobile). It's read-only — no auth, no
+writes. `retries: 1` is configured because post-deploy ISR regeneration transiently trips the a11y
+homepage spec; a failure that reproduces on the retry is real.
 
 For authed (seller/admin) flows, use `/authed-e2e` instead — it needs a seeded preview deploy and never runs against prod.
 

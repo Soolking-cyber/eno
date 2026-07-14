@@ -14,8 +14,8 @@ Vietnamese expat marketplace. Next.js 16 (App Router) · Tailwind v4 · Prisma 7
 | UI diff → canon drift | `canon-reviewer` | Opus · high |
 | Copy → bilingual contract | `i18n-reviewer` | Opus · high |
 | A bug that already survived one plausible fix | `deep-debugger` | Opus · xhigh |
-| **Second opinion — different lineage** | `fable-reviewer` | **Fable 5 · xhigh** |
-| **Third opinion — non-Anthropic** | `codex-sol` | **GPT-5.6 (`gpt-5.6-sol`) · xhigh, via Codex CLI** |
+| **Second opinion — DEFAULT** | `codex-sol` | **GPT-5.6 (`gpt-5.6-sol`) · xhigh, via Codex CLI** |
+| Second opinion — Anthropic-lineage | `fable-reviewer` | Fable 5 · xhigh — **budget-limited, use sparingly** |
 | Shipping to prod (the whole ritual) | `/ship` | Opus · medium |
 | Seller/admin e2e suite | `/authed-e2e` | Opus · low |
 | Design, architecture, anything genuinely novel | main thread | session model |

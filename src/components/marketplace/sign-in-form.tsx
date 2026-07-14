@@ -7,6 +7,7 @@ import { useLanguage } from '@/context/language-context'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { googleOauthBlocked, openInSystemBrowser } from '@/lib/in-app-browser'
 import { useTurnstile } from './turnstile'
@@ -227,65 +228,90 @@ export function SignInForm({ className }: { className?: string }) {
         <span className="h-px flex-1 bg-border" />
       </div>
 
-      {/* Email / Phone tabs */}
-      <div className="flex rounded-full bg-tint p-1 text-sm font-semibold">
-        {(['phone', 'email'] as const).map((m) => (
-          <Button key={m} variant="bare" size="none" onClick={() => { setTab(m); reset() }} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 text-sm font-semibold transition-colors cursor-pointer', tab === m ? 'bg-card text-accent-foreground shadow-sm' : 'text-muted-foreground')}>
-            {m === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
-            {m === 'email' ? tr('Email') : t('Phone', 'Điện thoại')}
-          </Button>
-        ))}
-      </div>
+      {/* Email / Phone tabs — real tab semantics (role=tablist/tab/tabpanel, aria-selected,
+          roving arrow-key focus) via ui/tabs, CONTROLLED by our own `tab` state: the OTP
+          flow below is driven by that state + `stage`, not by Tabs' internal value.
+          Two rules govern the classes here, and both are load-bearing:
+          1. These className strings hit the PRIMITIVE's own cn(), so tailwind-merge DELETES
+             the conflicting base class outright (inline-flex/w-fit/rounded-lg/p-[3px]/bg-muted
+             on the list; h-[calc(100%-1px)]/border/px-1.5/py-0.5/font-medium/transition-all on
+             the tab). Never pass these via a `render` child — Base UI CONCATENATES a child's
+             className, so `font-semibold` would silently lose to the base `font-medium`.
+          2. The ACTIVE branch must be written as `data-active:*`, not a JS ternary: Base UI
+             emits data-active, and the primitive's `.data-active\:bg-background[data-active]`
+             is specificity (0,2,0) — it would beat a plain `.bg-card` (0,1,0). Same-modifier
+             overrides make tailwind-merge drop the base ones instead of racing them.
+          `group-data-horizontal/tabs:h-auto` drops the list's h-8 (which would squash the
+          40px strip to 32px); `outline-none` + duration-100 + active:scale-[0.97] restore
+          exactly what ui/button's base was giving these buttons before. */}
+      {/* Deliberate behaviour change (2026-07-14), noted so nobody "restores" it: the old strip ran
+          reset() on EVERY click, including a re-tap of the tab you were already on — so brushing
+          "Phone" while an OTP code was half-typed threw you back to the number field and wiped it.
+          onValueChange only fires on an actual change, so a re-tap is now a no-op. "Change number"
+          is still the way back. This is the one place the tabs migration is not pixel/behaviour
+          identical, and it is an improvement. */}
+      <Tabs value={tab} onValueChange={(v) => { setTab(v as 'email' | 'phone'); reset() }} className="gap-3">
+        <TabsList className="flex w-full items-stretch rounded-full bg-tint p-1 text-sm font-semibold group-data-horizontal/tabs:h-auto">
+          {(['phone', 'email'] as const).map((m) => (
+            <TabsTrigger key={m} value={m} className="flex h-auto cursor-pointer rounded-full border-0 px-0 py-1.5 text-sm font-semibold outline-none transition-colors duration-100 active:scale-[0.97] text-muted-foreground hover:text-muted-foreground dark:text-muted-foreground dark:hover:text-muted-foreground data-active:bg-card data-active:text-accent-foreground data-active:shadow-sm dark:data-active:bg-card dark:data-active:text-accent-foreground">
+              {m === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+              {m === 'email' ? tr('Email') : t('Phone', 'Điện thoại')}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      {tab === 'email' && (
-        <div className="space-y-2">
+        <TabsContent value="email" className="space-y-2">
           <Input type="email" autoComplete="email" aria-label={tr('Email')} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" />
           <Button variant="cta" size="none" onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send magic link', 'Gửi liên kết đăng nhập')}
           </Button>
-        </div>
-      )}
+        </TabsContent>
 
-      {tab === 'phone' && stage === 'input' && (
-        <div className="space-y-2">
-          <Input type="tel" autoComplete="tel" aria-label={t('Phone', 'Điện thoại')} value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" />
-          <Button variant="cta" size="none" onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send code', 'Gửi mã')}
-          </Button>
-        </div>
-      )}
-
-      {tab === 'phone' && stage === 'code' && (
-        <div className="space-y-3">
-          <p className="text-center text-xs text-muted-foreground">{t('Enter the 6-digit code sent to', 'Nhập mã 6 số gửi tới')} <strong className="text-foreground">{phone}</strong></p>
-          {/* Point at the ONE inbox the hook actually delivered to — shown only
-              once /api/auth/otp-channel confirms it, never a guess. */}
-          {sentChannel && (
-            <p className="-mt-1.5 text-center text-2xs text-ink-4">
-              {sentChannel === 'sms'
-                ? t('Sent by SMS — check your messages.', 'Đã gửi qua SMS — kiểm tra tin nhắn của bạn.')
-                : `${t('Sent to your', 'Đã gửi tới')} ${sentChannel === 'telegram' ? 'Telegram' : sentChannel === 'whatsapp' ? 'WhatsApp' : 'Zalo'}.`}
-            </p>
+        {/* One phone panel, two stages (input → code) — the panel only mounts while the
+            Phone tab is active, so the old `tab === 'phone' &&` guards are now implicit. */}
+        <TabsContent value="phone">
+          {stage === 'input' && (
+            <div className="space-y-2">
+              <Input type="tel" autoComplete="tel" aria-label={t('Phone', 'Điện thoại')} value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" />
+              <Button variant="cta" size="none" onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send code', 'Gửi mã')}
+              </Button>
+            </div>
           )}
-          <InputOTP maxLength={6} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
-            <InputOTPGroup>
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <InputOTPSlot key={i} index={i} className="h-12 w-12 text-lg font-semibold data-[active=true]:border-brand data-[active=true]:ring-brand/30" />
-              ))}
-            </InputOTPGroup>
-          </InputOTP>
-          <Button variant="cta" size="none" onClick={() => verifyPhone()} disabled={loading || code.length < 6} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
-          </Button>
-          <div className="flex items-center justify-between px-1 text-xs">
-            {/* text-xs on both: the base is text-sm and this row is text-xs. disabled:opacity-100 cancels the base's disabled:opacity-50 (would double-dim with disabled:text-ink-4). */}
-            <Button variant="bare" size="none" onClick={reset} className="text-xs font-semibold text-muted-foreground hover:text-accent-foreground cursor-pointer">{t('Change number', 'Đổi số')}</Button>
-            <Button variant="bare" size="none" onClick={sendPhone} disabled={countdown > 0 || loading} className="text-xs font-semibold text-accent-foreground hover:underline disabled:opacity-100 disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
-              {countdown > 0 ? `${t('Resend in', 'Gửi lại sau')} ${fmtCountdown(countdown)}` : t('Resend code', 'Gửi lại mã')}
-            </Button>
-          </div>
-        </div>
-      )}
+
+          {stage === 'code' && (
+            <div className="space-y-3">
+              <p className="text-center text-xs text-muted-foreground">{t('Enter the 6-digit code sent to', 'Nhập mã 6 số gửi tới')} <strong className="text-foreground">{phone}</strong></p>
+              {/* Point at the ONE inbox the hook actually delivered to — shown only
+                  once /api/auth/otp-channel confirms it, never a guess. */}
+              {sentChannel && (
+                <p className="-mt-1.5 text-center text-2xs text-ink-4">
+                  {sentChannel === 'sms'
+                    ? t('Sent by SMS — check your messages.', 'Đã gửi qua SMS — kiểm tra tin nhắn của bạn.')
+                    : `${t('Sent to your', 'Đã gửi tới')} ${sentChannel === 'telegram' ? 'Telegram' : sentChannel === 'whatsapp' ? 'WhatsApp' : 'Zalo'}.`}
+                </p>
+              )}
+              <InputOTP maxLength={6} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
+                <InputOTPGroup>
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <InputOTPSlot key={i} index={i} className="h-12 w-12 text-lg font-semibold data-[active=true]:border-brand data-[active=true]:ring-brand/30" />
+                  ))}
+                </InputOTPGroup>
+              </InputOTP>
+              <Button variant="cta" size="none" onClick={() => verifyPhone()} disabled={loading || code.length < 6} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
+              </Button>
+              <div className="flex items-center justify-between px-1 text-xs">
+                {/* text-xs on both: the base is text-sm and this row is text-xs. disabled:opacity-100 cancels the base's disabled:opacity-50 (would double-dim with disabled:text-ink-4). */}
+                <Button variant="bare" size="none" onClick={reset} className="text-xs font-semibold text-muted-foreground hover:text-accent-foreground cursor-pointer">{t('Change number', 'Đổi số')}</Button>
+                <Button variant="bare" size="none" onClick={sendPhone} disabled={countdown > 0 || loading} className="text-xs font-semibold text-accent-foreground hover:underline disabled:opacity-100 disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
+                  {countdown > 0 ? `${t('Resend in', 'Gửi lại sau')} ${fmtCountdown(countdown)}` : t('Resend code', 'Gửi lại mã')}
+                </Button>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {error && <p role="alert" className="text-center text-xs font-semibold text-destructive">{error}</p>}
       {/* Invisible Turnstile — renders a visible challenge only if one is required. */}
