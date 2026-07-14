@@ -29,6 +29,15 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:
           "hover:bg-accent hover:text-accent-foreground",
+        // Like `ghost`, minus the hover text-colour change. `ghost`/`outline` both
+        // force hover:text-accent-foreground, so a button whose label is text-body
+        // or text-muted-foreground had to hand-neutralise it with hover:text-body —
+        // easy to forget, and it silently recolours the label on hover when it is.
+        // `soft` gives the muted hover BACKGROUND only and leaves the label colour
+        // entirely to the caller (no hover:text-* at all, so nothing to fight).
+        // Transparent at rest, no border.
+        soft:
+          "hover:bg-muted",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
