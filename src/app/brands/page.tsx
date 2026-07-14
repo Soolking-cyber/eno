@@ -5,6 +5,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { Tr } from '@/context/language-context'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { db } from '@/lib/db'
 import { brandIconPath } from '@/lib/brand-icons'
 
@@ -42,17 +43,20 @@ export default async function BrandsPage() {
         </p>
 
         {items.length === 0 ? (
-          <div className="mt-10 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center text-sm text-muted-foreground">
-            <p><Tr text="No brands yet — they appear as sellers post." /></p>
-            <Button asChild variant="cta" size="none">
-              <Link
-                href="/"
-                className="mt-4 px-5 py-2.5"
-              >
-                <Tr text="Browse all listings" />
-              </Link>
-            </Button>
-          </div>
+          <EmptyState
+            className="mt-10"
+            title={<Tr text="No brands yet — they appear as sellers post." />}
+            action={
+              <Button asChild variant="cta" size="none">
+                <Link
+                  href="/"
+                  className="px-5 py-2.5"
+                >
+                  <Tr text="Browse all listings" />
+                </Link>
+              </Button>
+            }
+          />
         ) : (
           <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {items.map((b) => (

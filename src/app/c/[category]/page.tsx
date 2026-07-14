@@ -6,6 +6,8 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
@@ -86,11 +88,20 @@ export default async function CategoryPage({ params }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
-        <nav className="mb-4 text-sm text-muted-foreground">
-          <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
-          <span className="mx-1.5 text-line-strong">/</span>
-          <span className="font-medium text-foreground"><Tr text={cat.name} /></span>
-        </nav>
+        <Breadcrumb className="mb-4">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
+              <BreadcrumbLink render={<Link href="/" />} className="hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
+            </BreadcrumbItem>
+            {/* Literal "/" separator, and the colour stays pinned to --line-strong: the
+                primitive's default is a chevron in text-muted-foreground. */}
+            <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
+            <BreadcrumbItem>
+              <BreadcrumbPage className="font-medium"><Tr text={cat.name} /></BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
 
         <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
         <p className="mt-2 max-w-2xl text-base leading-relaxed text-body">
@@ -116,16 +127,17 @@ export default async function CategoryPage({ params }: Props) {
           ) : (
             /* Supply-side zero state: the visitor most likely to land on an empty category is
                someone with that item to SELL — convert them instead of dead-ending. */
-            <div className="rounded-2xl border border-dashed border-line-strong px-6 py-12 text-center">
-              <p className="text-sm text-muted-foreground">
-                <Tr text="No listings here yet — be the first to post one." />
-              </p>
-              <Button asChild variant="cta" size="none" className="mt-4">
-                <Link href="/post" className="px-5 py-2.5">
-                  <Tr text="Post a listing" />
-                </Link>
-              </Button>
-            </div>
+            <EmptyState
+              className="py-12"
+              title={<Tr text="No listings here yet — be the first to post one." />}
+              action={
+                <Button asChild variant="cta" size="none">
+                  <Link href="/post" className="px-5 py-2.5">
+                    <Tr text="Post a listing" />
+                  </Link>
+                </Button>
+              }
+            />
           )}
         </div>
 

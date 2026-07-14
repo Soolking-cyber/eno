@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { ModerationClient, type ModCase } from '@/components/admin/moderation-client'
 import { reportContext, targetContext, type RawReport } from '@/lib/admin-reports'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Monitor } from 'lucide-react'
 import type { Metadata } from 'next'
 
@@ -94,11 +95,13 @@ export default async function AdminPage() {
     <div className="flex flex-1 flex-col bg-background">
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         {/* The moderation panel is web/desktop-only. */}
-        <div className="flex flex-col items-center justify-center gap-2 py-24 text-center md:hidden">
-          <Monitor className="h-10 w-10 text-ink-4" />
-          <p className="text-sm font-semibold text-foreground">The moderation panel is available on desktop only.</p>
-          <p className="text-xs text-muted-foreground">Open eno.vn/admin on a larger screen.</p>
-        </div>
+        <EmptyState
+          tone="admin"
+          icon={Monitor}
+          title="The moderation panel is available on desktop only."
+          subtitle="Open eno.vn/admin on a larger screen."
+          className="py-24 md:hidden"
+        />
         <div className="hidden md:block">
           <div className="mb-5">
             <h1 className="h-title text-foreground">Moderation</h1>

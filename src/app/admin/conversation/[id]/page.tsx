@@ -1,5 +1,6 @@
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/ui/empty-state'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { ChevronLeft, Tag } from 'lucide-react'
@@ -55,9 +56,7 @@ export default async function AdminConversationPage({ params }: Props) {
         </Link>
 
         {!convo ? (
-          <div className="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-ink-4">
-            Conversation not found (it may have been deleted).
-          </div>
+          <EmptyState tone="admin" title="Conversation not found (it may have been deleted)." className="py-16" />
         ) : (
           <div className="rounded-2xl bg-card p-4 shadow-pop sm:p-6">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
