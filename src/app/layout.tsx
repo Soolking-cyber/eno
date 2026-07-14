@@ -178,6 +178,12 @@ export default function RootLayout({
                       <PageTransitions>
                       <AccountPanelShell>
                       {children}
+                      {/* Inside the shell so it can READ the panel state (it portals to
+                          <body>, so nesting costs it no positioning): the floating
+                          controls are fixed, which means the shell's lg:mr-[440px] can't
+                          move them — they'd sit on top of the open dashboard rail. They
+                          shift themselves instead. */}
+                      <BackToTop />
                       </AccountPanelShell>
                       {/* Reserve room for the fixed mobile bottom-nav. A WHITE
                           spacer (not body padding) so when the nav auto-hides at
@@ -186,7 +192,6 @@ export default function RootLayout({
                           (the nav hides then) so it doesn't leave a gap under the
                           chat composer. */}
                       <BottomNavSpacer />
-                      <BackToTop />
                       <KeyboardViewportSync />
                       <MobileNav />
                       <CookieConsent />

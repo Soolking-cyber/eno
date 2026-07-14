@@ -106,7 +106,12 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
           </p>
         </div>
       ) : (
-        <ul className="mt-6 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-1">
+        /* One stacked column on EVERY breakpoint (user-picked 2026-07-14). The old
+           lg:grid-cols-2 came from the full-page dashboard; inside the 440px account
+           rail it squeezed each case into ~200px, truncating the title and stranding
+           the chevron. Mobile's plain list is the right shape at this width — so it's
+           now the only shape. */
+        <ul className="mt-6">
           {cases.map((c) => {
             const [en, vi] = REASON_LABELS[c.reason] || REASON_LABELS.other
             return (

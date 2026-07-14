@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { ChevronUp } from 'lucide-react'
 import { HelpPopover } from './help-popover'
+import { useAccountPanel } from './account-panel'
 import { cn } from '@/lib/utils'
 
 /** Floating bottom-right controls, portaled to <body> (no ancestor can offset them),
@@ -14,6 +15,8 @@ export function BackToTop() {
   const [show, setShow] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  // Mounted inside AccountPanelShell (see layout.tsx) purely to read this.
+  const { open: panelOpen } = useAccountPanel()
   // Extra clearance when a page renders a sticky bottom bar (listing contact bar,
   // post-wizard publish bar, availability bar — all marked data-fab-clear): the
   // controls must sit ABOVE the bar, never over its CTA.
@@ -51,11 +54,18 @@ export function BackToTop() {
       <div
         className={cn(
           'fixed z-[60] flex flex-col items-center gap-2.5',
-          'right-4 lg:right-6',
           'bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-6', // clear the mobile bottom-nav
+          // The account panel is a 440px rail on desktop and full-screen below lg.
+          // These controls are FIXED, so the shell's lg:mr-[440px] doesn't move them —
+          // they have to travel themselves, or they float on top of the dashboard
+          // (user-picked 2026-07-14). Same 300ms spring as the panel and the page
+          // margin, so the three move as one. Below lg the panel owns the whole
+          // screen, so they simply stand down.
+          'right-4 transition-[right] duration-300 motion-reduce:transition-none',
+          panelOpen ? 'max-lg:hidden lg:right-[calc(440px+1.5rem)]' : 'lg:right-6',
         )}
         // Inline bottom (beats the classes) only while a bottom bar is on screen.
-        style={lift ? { bottom: lift + 12 } : undefined}
+        style={{ ...(lift ? { bottom: lift + 12 } : {}), transitionTimingFunction: 'var(--ease-spring)' }}
       >
         {/* Back to top — bare glyph, no circle: same treatment as the search-bar
             icons (quiet ink → brand blue on hover) with a subtle drop-shadow so it

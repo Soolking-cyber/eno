@@ -74,12 +74,13 @@ export function DevelopersPanel() {
   const active = (keys ?? []).filter((k) => !k.revokedAt)
 
   return (
-    // Full width, left-aligned to the logo/tabs edge. On desktop it splits into TWO
-    // columns with a divider line between (API keys + Webhooks | MCP) — a long single
-    // column reads sparse at full width. Stacks to one column on mobile.
-    <div className="w-full lg:grid lg:grid-cols-2">
-      {/* Column 1 — API keys + Webhooks */}
-      <div className="space-y-6 lg:pr-8 xl:pr-10">
+    // One column at every width. The two-column split was written for the old
+    // full-page dashboard, where a single column read sparse; this panel now lives
+    // in the 440px account rail, where two columns squeeze each to ~200px. Same
+    // fix (and same reason) as the disputes list. (user-picked 2026-07-14)
+    <div className="w-full">
+      {/* API keys + Webhooks */}
+      <div className="space-y-6">
       <div>
         <h2 className="h-section text-foreground">{tr('API keys', 'Khóa API')}</h2>
         <p className="mt-1 text-sm leading-relaxed text-body">
@@ -187,9 +188,8 @@ export function DevelopersPanel() {
 
       <div className="border-t border-border pt-6"><WebhooksSection /></div>
       </div>
-      {/* Column 2 — MCP server. The vertical divider between the columns on desktop; a
-          plain horizontal divider when stacked on mobile. */}
-      <div className="mt-6 border-t border-border pt-6 lg:mt-0 lg:border-t-0 lg:border-l lg:border-border lg:pt-0 lg:pl-8 xl:pl-10">
+      {/* MCP server — below the keys, separated by a plain rule (one column now). */}
+      <div className="mt-6 border-t border-border pt-6">
         <McpSection />
       </div>
     </div>
