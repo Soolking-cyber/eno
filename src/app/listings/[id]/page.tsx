@@ -480,43 +480,37 @@ export default async function ListingPage({ params }: Props) {
               </div>
             </div>
 
-            {/* Meta (brand · location · posted, desktop copy — user-picked
-                2026-07-14: joins the chips below the carousel; mobile keeps it
-                in the title flow, which already reads below the gallery). */}
-            <div className="-mt-4 hidden flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground lg:flex">
+            {/* ONE line below the carousel (user-picked 2026-07-14), importance-
+                ordered: brand → condition → specs → location → posted; flex-wrap
+                spills to a second row only when the chips outgrow the column.
+                Brand/location/posted are desktop-only (mobile keeps them in the
+                title flow, which already reads below the gallery). */}
+            <div className="-mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground">
               {brand && (
-                <>
-                  <Link
-                    href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
-                    className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
-                  >
-                    <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
-                    {brand.name}
-                  </Link>
-                  <span aria-hidden className="text-line-strong">·</span>
-                </>
+                <Link
+                  href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
+                  className="hidden w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted lg:inline-flex"
+                >
+                  <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
+                  {brand.name}
+                </Link>
               )}
-              <span className="inline-flex min-w-0 items-center gap-1">
-                <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
-                <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
-              </span>
-              <span aria-hidden className="text-line-strong">·</span>
-              <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
-            </div>
-
-            {/* Condition + quick-spec chips — directly below the carousel
-                (user-picked 2026-07-14; was in the title header block). */}
-            <div className="-mt-5 flex flex-wrap items-center gap-2">
               {listing.condition && (
-                <span className="inline-flex items-center rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground">
+                <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground">
                   <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
                 </span>
               )}
               {numericSpecs.map((s) => (
-                <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-tint px-3 py-1.5 text-xs font-semibold text-foreground">
+                <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground">
                   <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
                 </span>
               ))}
+              <span className="hidden min-w-0 items-center gap-1 lg:inline-flex">
+                <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
+                <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
+              </span>
+              <span aria-hidden className="hidden text-line-strong lg:inline">·</span>
+              <span className="hidden shrink-0 lg:inline"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
             </div>
             <ProtectionsRow />
             <div className="space-y-2">
@@ -553,12 +547,10 @@ export default async function ListingPage({ params }: Props) {
               Spans both left rows so the map block below stays beside it ≥lg. */}
           <div className="lg:col-span-5 lg:row-span-2">
             <div className="lg:sticky lg:top-24 flex flex-col gap-4 lg:border-l lg:border-border/70 lg:pl-10">
-              {/* BUY BOX (user decision 2026-07-14: standardized Card structure) —
-                  price + market band + safety + composer + footer in ONE card.
-                  order-2 on mobile keeps the tuned seller-first sequence; desktop
-                  leads with the buy box. overflow-visible: the composer's offer
-                  popover must escape the card. */}
-              <div className="order-3 flex flex-col gap-4 lg:order-1">
+              {/* ONE importance-ordered flow (user decisions 2026-07-14):
+                  price → seller (Chat now / View shop) → offer (open −5%) →
+                  safety strip → reviews → tips|report footer. Same order on
+                  every breakpoint — no order-* juggling. */}
               {/* Price + social proof — desktop copy (the mobile copy sits under the title) */}
               <div className="hidden flex-wrap items-baseline gap-2 lg:flex">
                 <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-accent-foreground tracking-tight" />
@@ -585,54 +577,45 @@ export default async function ListingPage({ params }: Props) {
               )}
               {priceBand && <div className="hidden lg:block"><MarketPrice price={listing.price} band={priceBand} /></div>}
 
+              {/* SELLER identity + Chat now / View shop — directly under the price
+                  (user-picked 2026-07-14: the offer sits BELOW these buttons). */}
+              <PdpSellerCard
+                seller={{
+                  id: listing.seller.id,
+                  name: listing.seller.name,
+                  avatarColor: listing.seller.avatarColor,
+                  isBusiness: listing.seller.isBusiness,
+                }}
+                metrics={sellerMetricsBundle}
+                storefrontHref={sellerHref}
+              />
+
               {/* Unified contact + offer (auth-gated; number never in this payload).
-                  Type a message or tap "Make an offer", then send → opens the thread.
-                  No escrow mention anywhere on the money path — unmet promises cost
-                  trust (user decision 2026-07-05). */}
+                  Opens at −5% by default. No escrow mention anywhere on the money
+                  path — unmet promises cost trust (user decision 2026-07-05). */}
               <div id="contact" className="scroll-mt-24">
                 <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
               </div>
 
-              {/* Safety strip — DESKTOP copy, below the chat/offer actions
-                  (user-picked 2026-07-14; was above the composer). */}
+              {/* Safety strip — DESKTOP copy, above the buyer reviews
+                  (user-picked 2026-07-14). */}
               <SafetyStrip categorySlug={rawListing.category.slug} className="hidden lg:flex" />
 
+              {reviewsPreview.total > 0 && <Separator />}
+              <ReviewsPreview
+                reviews={reviewsPreview.reviews}
+                total={reviewsPreview.total}
+                avg={reviewsPreview.avg}
+                sellerHref={sellerHref}
+              />
+
               <Separator />
-              {/* Safety + report share one balanced row: the blue "Safe trading tips"
-                  link on the left and its red safety sibling, the Report chip, on the
-                  right — reads as a paired footer, not a stranded lone button. */}
+              {/* Safety + report — the balanced footer stays last. */}
               <div className="flex items-center justify-between gap-3">
                 <Link href="/safety" className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:underline">
                   <ShieldCheck className="h-3.5 w-3.5" /> <Tr text="Safe trading tips" />
                 </Link>
                 <ReportButton listingId={listing.id} />
-              </div>
-              </div>
-
-              {/* One quiet line between the two groups — borderless design
-                  (user decision 2026-07-14: no boxes, the flat canon look). */}
-              <Separator className="order-2" />
-
-              {/* SELLER — identity + honest trust metrics, reviews beneath
-                  (verified-first snippet; the separator only exists when reviews do). */}
-              <div className="order-1 flex flex-col gap-4 lg:order-3">
-                <PdpSellerCard
-                  seller={{
-                    id: listing.seller.id,
-                    name: listing.seller.name,
-                    avatarColor: listing.seller.avatarColor,
-                    isBusiness: listing.seller.isBusiness,
-                  }}
-                  metrics={sellerMetricsBundle}
-                  storefrontHref={sellerHref}
-                />
-                {reviewsPreview.total > 0 && <Separator />}
-                <ReviewsPreview
-                  reviews={reviewsPreview.reviews}
-                  total={reviewsPreview.total}
-                  avg={reviewsPreview.avg}
-                  sellerHref={sellerHref}
-                />
               </div>
             </div>
           </div>
