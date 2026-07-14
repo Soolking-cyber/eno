@@ -8,6 +8,7 @@ import { DISTRICTS } from './listings-explorer.constants'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Switch } from '@/components/ui/switch'
+import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import {
   Drawer,
@@ -258,7 +259,9 @@ export function ExplorerFilters({
             {tr('Category', 'Danh mục')}
           </label>
           <div className="grid grid-cols-2 gap-1.5">
-            <button
+            <Button
+              variant="bare"
+              size="none"
               onClick={() => handleCategorySelect('all')}
               className={cn(
                 'flex items-center gap-2 rounded-xl p-2 text-xs font-bold transition-colors cursor-pointer justify-center',
@@ -268,12 +271,14 @@ export function ExplorerFilters({
               )}
             >
               <span className="text-2xs">{tr('All', 'Tất cả')}</span>
-            </button>
+            </Button>
             {categories.map((cat) => {
               const isActive = activeCategory === cat.slug
               return (
-                <button
+                <Button
                    key={cat.id}
+                   variant="bare"
+                   size="none"
                    onClick={() => handleCategorySelect(cat.slug)}
                    className={cn(
                      'flex items-center gap-2 rounded-xl p-2 text-xs font-bold transition-colors cursor-pointer justify-center min-w-0',
@@ -284,7 +289,7 @@ export function ExplorerFilters({
                 >
                   <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-accent-foreground' : 'text-body')} />
                   <span className="text-3xs truncate"><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -298,7 +303,9 @@ export function ExplorerFilters({
             {tr('Subcategory', 'Danh mục con')}
           </label>
           <div className="flex flex-wrap gap-1.5">
-            <button
+            <Button
+              variant="bare"
+              size="none"
               onClick={() => setActiveSubcategory('all')}
               className={cn(
                 'rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
@@ -308,12 +315,14 @@ export function ExplorerFilters({
               )}
             >
               {tr('All', 'Tất cả')}
-            </button>
+            </Button>
             {SUBCATEGORIES[activeCategory].map((sub) => {
               const isSubActive = activeSubcategory === sub.slug
               return (
-                <button
+                <Button
                   key={sub.slug}
+                  variant="bare"
+                  size="none"
                   onClick={() => setActiveSubcategory(sub.slug)}
                   className={cn(
                     'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
@@ -324,7 +333,7 @@ export function ExplorerFilters({
                 >
                   <CategoryIcon name={sub.icon} className="h-3.5 w-3.5 shrink-0" />
                   <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -366,11 +375,13 @@ export function ExplorerFilters({
             { slug: 'new', name: tr('New / Like New', 'Mới / Like new') },
             { slug: 'used', name: tr('Used / Pre-owned', 'Cũ / Đã dùng') },
           ].map((cond) => (
-            <button
+            <Button
               key={cond.slug}
+              variant="bare"
+              size="none"
               onClick={() => setConditionFilter(cond.slug)}
               className={cn(
-                'flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors cursor-pointer',
+                'flex items-center justify-start gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition-colors cursor-pointer',
                 conditionFilter === cond.slug
                   ? 'text-accent-foreground'
                   : 'text-body hover:bg-muted',
@@ -378,7 +389,7 @@ export function ExplorerFilters({
             >
               <ChevronRight className={cn('h-3.5 w-3.5', conditionFilter === cond.slug ? 'text-accent-foreground' : 'text-ink-4')} />
               {cond.name}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -443,12 +454,14 @@ export function ExplorerFiltersDrawer({
 
         {/* Apply Action Button */}
         <DrawerFooter>
-          <button
+          <Button
+            variant="cta"
+            size="none"
             onClick={() => onOpenChange(false)}
-            className="w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-white shadow-md active:scale-98 cursor-pointer"
+            className="w-full rounded-xl py-2.5 text-xs shadow-md active:scale-98 cursor-pointer"
           >
             {tr('Apply Filters', 'Áp dụng lọc')} ({totalCount} {tr('listings', 'tin')})
-          </button>
+          </Button>
         </DrawerFooter>
       </DrawerContent>
     </Drawer>

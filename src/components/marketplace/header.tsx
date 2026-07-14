@@ -284,18 +284,20 @@ export function Header() {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
-                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</button>
+                        <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {recentSearches.map((term, i) => (
-                          <button
+                          <Button
                             key={i}
+                            variant="soft"
+                            size="none"
                             type="button"
                             onClick={() => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
-                            className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
+                            className="whitespace-normal rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:text-accent-foreground cursor-pointer"
                           >
                             {term}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     </div>
@@ -304,19 +306,21 @@ export function Header() {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
-                        <button type="button" onClick={() => { localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</button>
+                        <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {recentLocations.map((loc, i) => (
-                          <button
+                          <Button
                             key={i}
+                            variant="soft"
+                            size="none"
                             type="button"
                             onClick={() => { applyArea({ province: loc.province, ward: loc.ward, nearby: null }); setShowSuggestions(false) }}
-                            className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
+                            className="whitespace-normal gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:text-accent-foreground cursor-pointer"
                           >
                             <MapPin className="h-3.5 w-3.5" />
                             {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     </div>

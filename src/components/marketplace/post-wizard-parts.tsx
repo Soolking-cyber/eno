@@ -76,14 +76,17 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((o) => (
-        <button
+        <Button
+          variant="bare"
+          size="none"
           key={o.value}
           type="button"
+          aria-pressed={value === o.value}
           onClick={() => onPick(o.value)}
           className={cn('rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', value === o.value ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
         >
           {o.label}
-        </button>
+        </Button>
       ))}
     </div>
   )

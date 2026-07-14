@@ -49,20 +49,24 @@ export function SaveSignupSheet() {
           >
             {tr('Continue with Google', 'Tiếp tục với Google')}
           </Button>
-          <button
+          <Button
+            variant="soft"
+            size="none"
             type="button"
             onClick={() => { setOpen(false); openSignIn() }}
-            className="w-full rounded-xl py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted cursor-pointer"
+            className="w-full py-2.5 font-bold text-foreground cursor-pointer"
           >
             {tr('Continue with email or phone', 'Tiếp tục với email hoặc SĐT')}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="bare"
+            size="none"
             type="button"
             onClick={() => setOpen(false)}
-            className="w-full py-1 text-center text-xs font-semibold text-ink-4 transition-colors hover:text-foreground cursor-pointer"
+            className="w-full py-1 text-xs font-semibold text-ink-4 hover:text-foreground cursor-pointer"
           >
             {tr('Not now', 'Để sau')}
-          </button>
+          </Button>
         </div>
         <p className="mt-2 text-center text-3xs text-ink-4">{tr('Free forever · no spam · 10 seconds', 'Miễn phí · không spam · 10 giây')}</p>
       </div>

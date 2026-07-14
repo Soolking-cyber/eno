@@ -9,6 +9,15 @@ import { haptic } from '@/lib/haptics'
 import { timeAgo } from '@/lib/types'
 
 /**
+ * The one chip look, shared by the quick-reply chips and the "Keep it live"
+ * dismiss below. Module scope so both components use the same constant.
+ * Paired with <Button variant="soft" size="none">: `soft` gives the muted hover
+ * background and leaves the label colour (text-body) entirely to this class.
+ */
+const chipCls =
+  'shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted hover:text-foreground cursor-pointer'
+
+/**
  * One-tap quick replies above the chat composer — shared by the full thread page
  * and the docked chat widget so both surfaces behave identically.
  *
@@ -45,9 +54,6 @@ export function QuickReplyChips({
 
   const confirmedFresh =
     !!availabilityConfirmedAt && Date.now() - new Date(availabilityConfirmedAt).getTime() < 7 * 864e5
-
-  const chipCls =
-    'shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted hover:text-foreground cursor-pointer'
 
   // Fire a COMPLETE reply straight away; chips that need words still insert.
   const fire = (text: string) => {
@@ -92,14 +98,20 @@ export function QuickReplyChips({
       <div className="flex gap-1 overflow-x-auto scrollbar-none">
         {isSeller ? (
           sellerChips.map((c) => (
-            <button key={c.label} onClick={() => (c.complete ? fire(c.text) : onInsert(c.text))} className={chipCls}>
+            <Button
+              key={c.label}
+              variant="soft"
+              size="none"
+              onClick={() => (c.complete ? fire(c.text) : onInsert(c.text))}
+              className={chipCls}
+            >
               {c.label}
-            </button>
+            </Button>
           ))
         ) : (
-          <button onClick={askAvailability} className={chipCls}>
+          <Button variant="soft" size="none" onClick={askAvailability} className={chipCls}>
             {tr('Is it still available?', 'Còn hàng không?')}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -156,12 +168,14 @@ export function MarkSoldPrompt({ listingId, listingTitle }: { listingId: string;
         >
           {tr('Mark as sold', 'Đánh dấu đã bán')}
         </Button>
-        <button
+        <Button
+          variant="soft"
+          size="none"
           onClick={() => setState('dismissed')}
-          className="rounded-full px-3 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-muted cursor-pointer"
+          className={chipCls}
         >
           {tr('Keep it live', 'Giữ tin đăng')}
-        </button>
+        </Button>
       </div>
     </div>
   )

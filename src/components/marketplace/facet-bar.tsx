@@ -8,6 +8,7 @@ import { PriceRangeFilter } from './price-range-filter'
 import { RangeFacetControl } from './range-facet-control'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { useLanguage } from '@/context/language-context'
 import { facetsFor, subcategoriesFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
@@ -191,8 +192,12 @@ export function FacetBar({
     listingType !== 'all' || Object.keys(customFilters).length > 0 || !verifiedOnly
 
   // A segmented toggle button (selected = filled blue; same height either way).
+  // Fed to <Button variant="bare" size="none">: `bare` paints nothing, so both
+  // branches below stay fully in charge of the border/background/label colour.
+  // whitespace-normal restores the plain <button> wrapping these labels had (the
+  // Button base is whitespace-nowrap).
   const segBtn = (selected: boolean) =>
-    cn('rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer',
+    cn('rounded-lg border px-3 py-1.5 text-sm font-semibold whitespace-normal transition-colors cursor-pointer',
       selected ? 'border-brand bg-primary text-white' : 'border-line-strong text-body hover:bg-muted')
   // condition maps to the dedicated column; everything else to attr_* customFilters.
   const facetValue = (f: FacetDef) => (f.key === 'condition' ? conditionFilter : customFilters[f.key] || 'all')
@@ -223,7 +228,9 @@ export function FacetBar({
         )}
         {facets}
         {hasActive && (
-          <button
+          <Button
+            variant="bare"
+            size="none"
             onClick={() => {
               setProvince(null)
               setWard(null)
@@ -238,7 +245,7 @@ export function FacetBar({
             className="shrink-0 px-1 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
           >
             {tr('Clear', 'Xóa lọc')}
-          </button>
+          </Button>
         )}
         {trailing}
 
@@ -276,11 +283,11 @@ export function FacetBar({
                 <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
                   <label className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0 sm:pt-1.5">{tr('Type', 'Phân loại')}</label>
                   <div className="flex flex-1 flex-wrap gap-1.5">
-                    <button type="button" onClick={() => setActiveSubcategory('all')} className={segBtn(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
+                    <Button variant="bare" size="none" type="button" onClick={() => setActiveSubcategory('all')} className={segBtn(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</Button>
                     {subcats.map((s) => (
-                      <button key={s.slug} type="button" onClick={() => setActiveSubcategory(activeSubcategory === s.slug ? 'all' : s.slug)} className={segBtn(activeSubcategory === s.slug)}>
+                      <Button key={s.slug} variant="bare" size="none" type="button" onClick={() => setActiveSubcategory(activeSubcategory === s.slug ? 'all' : s.slug)} className={segBtn(activeSubcategory === s.slug)}>
                         {tr(s.name, s.nameVi)}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -296,9 +303,9 @@ export function FacetBar({
                     ) : f.kind === 'toggle' ? (
                       <div className="flex flex-1 flex-wrap gap-1.5">
                         {opts.map((o) => (
-                          <button key={o.value} type="button" onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>
+                          <Button key={o.value} variant="bare" size="none" type="button" onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>
                             {o.label}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     ) : (
@@ -317,12 +324,14 @@ export function FacetBar({
               })}
             </div>
             {activeAdvCount > 0 && (
-              <button
+              <Button
+                variant="bare"
+                size="none"
                 onClick={() => { setConditionFilter('all'); setCustomFilters({}) }}
                 className="mt-3.5 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
               >
                 {tr('Clear all', 'Xóa tất cả')}
-              </button>
+              </Button>
             )}
           </div>
         </>,

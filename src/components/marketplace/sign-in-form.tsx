@@ -229,10 +229,10 @@ export function SignInForm({ className }: { className?: string }) {
       {/* Email / Phone tabs */}
       <div className="flex rounded-full bg-tint p-1 text-sm font-semibold">
         {(['phone', 'email'] as const).map((m) => (
-          <button key={m} onClick={() => { setTab(m); reset() }} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 transition-colors cursor-pointer', tab === m ? 'bg-card text-accent-foreground shadow-sm' : 'text-muted-foreground')}>
+          <Button key={m} variant="bare" size="none" onClick={() => { setTab(m); reset() }} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 text-sm font-semibold transition-colors cursor-pointer', tab === m ? 'bg-card text-accent-foreground shadow-sm' : 'text-muted-foreground')}>
             {m === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
             {m === 'email' ? tr('Email') : t('Phone', 'Điện thoại')}
-          </button>
+          </Button>
         ))}
       </div>
 

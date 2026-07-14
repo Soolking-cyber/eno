@@ -23,11 +23,13 @@ export function SignOutButton() {
   const { signOut } = useAuth()
   const { tr } = useLanguage()
   return (
-    <button
+    <Button
+      variant="bare"
+      size="none"
       onClick={() => signOut()}
-      className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+      className="gap-1.5 text-sm font-semibold text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
     >
       <LogOut className="h-4 w-4" /> {tr('Sign out', 'Đăng xuất')}
-    </button>
+    </Button>
   )
 }

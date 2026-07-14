@@ -1,5 +1,6 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -57,9 +58,11 @@ export function PricePresetChips({
       {shown.map((p) => {
         const on = isOn(p.min, p.max)
         return (
-          <button
+          <Button
             key={p.key}
             type="button"
+            variant="bare"
+            size="none"
             onClick={() => apply(p.min, p.max)}
             className={cn(
               'rounded-full border px-3 py-1 text-xs font-semibold transition-colors cursor-pointer',
@@ -67,7 +70,7 @@ export function PricePresetChips({
             )}
           >
             {label[p.key]}
-          </button>
+          </Button>
         )
       })}
     </div>

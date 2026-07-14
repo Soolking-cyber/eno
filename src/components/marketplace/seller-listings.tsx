@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Search, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
+import { Button } from '@/components/ui/button'
 import { fold } from '@/lib/fold'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
@@ -56,7 +57,10 @@ export function SellerListings({
   const priceSortActive = sort === 'price-low' || sort === 'price-high'
   const sortTab = (selected: boolean) =>
     cn(
-      '-mb-px flex shrink-0 items-center gap-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
+      // rounded-none: ui/button's base is rounded-xl, which would round the ends of
+      // this tab's border-b-2 underline. Everything else (gap-1, font-semibold, the
+      // box) is a className override on the <Button> itself, so cn() merges it.
+      '-mb-px flex shrink-0 items-center gap-1 rounded-none border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
       selected ? 'border-brand text-accent-foreground' : 'border-transparent text-body hover:text-foreground',
     )
   // Same tab visuals as the explorer's results strip (kept in sync deliberately),
@@ -64,16 +68,18 @@ export function SellerListings({
   const sortStrip = (
     <div className="-mx-3 border-b border-border px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <div className="scrollbar-none flex flex-nowrap items-center gap-1 overflow-x-auto">
-        <button type="button" onClick={() => setSort('relevance')} aria-pressed={sort === 'relevance'} className={sortTab(sort === 'relevance')}>
+        <Button variant="bare" size="none" type="button" onClick={() => setSort('relevance')} aria-pressed={sort === 'relevance'} className={sortTab(sort === 'relevance')}>
           {tr('Relevance', 'Liên quan')}
-        </button>
-        <button type="button" onClick={() => setSort('recent')} aria-pressed={sort === 'recent'} className={sortTab(sort === 'recent')}>
+        </Button>
+        <Button variant="bare" size="none" type="button" onClick={() => setSort('recent')} aria-pressed={sort === 'recent'} className={sortTab(sort === 'recent')}>
           {tr('Newest', 'Mới nhất')}
-        </button>
-        <button type="button" onClick={() => setSort('popular')} aria-pressed={sort === 'popular'} className={sortTab(sort === 'popular')}>
+        </Button>
+        <Button variant="bare" size="none" type="button" onClick={() => setSort('popular')} aria-pressed={sort === 'popular'} className={sortTab(sort === 'popular')}>
           {tr('Most contacted', 'Được quan tâm')}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="bare"
+          size="none"
           type="button"
           onClick={() => setSort(sort === 'price-low' ? 'price-high' : 'price-low')}
           aria-pressed={priceSortActive}
@@ -88,7 +94,7 @@ export function SellerListings({
           ) : (
             <ArrowUpDown className="h-3.5 w-3.5 text-ink-4" />
           )}
-        </button>
+        </Button>
       </div>
     </div>
   )

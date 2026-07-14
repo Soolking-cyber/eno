@@ -113,7 +113,7 @@ export function DevelopersPanel() {
               </div>
             </div>
           </div>
-          <button onClick={() => setSecret(null)} className="mt-3 text-xs font-semibold text-ink-4 hover:text-foreground">{tr("I've saved it", 'Đã lưu')}</button>
+          <Button variant="bare" size="none" onClick={() => setSecret(null)} className="mt-3 cursor-pointer text-xs font-semibold text-ink-4 hover:text-foreground">{tr("I've saved it", 'Đã lưu')}</Button>
         </div>
       )}
 
@@ -138,7 +138,7 @@ export function DevelopersPanel() {
             </div>
           </div>
           <div className="flex gap-2 pt-1">
-            <button onClick={() => { setShowForm(false); setName(''); setScopes([...DEFAULT_SCOPES]) }} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Cancel', 'Hủy')}</button>
+            <Button variant="soft" size="none" onClick={() => { setShowForm(false); setName(''); setScopes([...DEFAULT_SCOPES]) }} className="flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold text-body">{tr('Cancel', 'Hủy')}</Button>
             <Button variant="cta" size="none" onClick={create} disabled={busy || scopes.length === 0} className="flex-1 py-2.5">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {tr('Create key', 'Tạo khóa')}
             </Button>
@@ -290,7 +290,7 @@ function WebhooksSection() {
               </div>
             </div>
           </div>
-          <button onClick={() => setSecret(null)} className="mt-3 text-xs font-semibold text-ink-4 hover:text-foreground">{tr("I've saved it", 'Đã lưu')}</button>
+          <Button variant="bare" size="none" onClick={() => setSecret(null)} className="mt-3 cursor-pointer text-xs font-semibold text-ink-4 hover:text-foreground">{tr("I've saved it", 'Đã lưu')}</Button>
         </div>
       )}
 
@@ -316,7 +316,7 @@ function WebhooksSection() {
             </div>
           </div>
           <div className="flex gap-2 pt-1">
-            <button onClick={() => { setShowForm(false); setUrl(''); setEvents([]) }} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{tr('Cancel', 'Hủy')}</button>
+            <Button variant="soft" size="none" onClick={() => { setShowForm(false); setUrl(''); setEvents([]) }} className="flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold text-body">{tr('Cancel', 'Hủy')}</Button>
             <Button variant="cta" size="none" onClick={create} disabled={busy || !url.trim()} className="flex-1 py-2.5">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {tr('Add webhook', 'Thêm webhook')}
             </Button>
@@ -406,17 +406,19 @@ function McpSection() {
           <span className="text-xs font-bold text-foreground">{tr('Endpoint', 'Điểm cuối')}</span>
           <div className="mt-1 flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-lg bg-muted px-3 py-2 font-mono text-xs text-foreground">{MCP_ENDPOINT}</code>
-            <button onClick={() => copy(MCP_ENDPOINT, 'url')} className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-foreground transition-colors hover:bg-muted">
+            {/* soft, not outline: `outline` adds bg-background on top of the card, and its
+                hover:text-accent-foreground would repaint this text-foreground label. */}
+            <Button variant="soft" size="none" onClick={() => copy(MCP_ENDPOINT, 'url')} className="shrink-0 cursor-pointer gap-1.5 rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-foreground">
               {copied === 'url' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied === 'url' ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
-            </button>
+            </Button>
           </div>
         </div>
         <div>
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-foreground">{tr('Client config', 'Cấu hình ứng dụng')}</span>
-            <button onClick={() => copy(config, 'cfg')} className="flex items-center gap-1.5 text-xs font-bold text-accent-foreground hover:underline">
+            <Button variant="bare" size="none" onClick={() => copy(config, 'cfg')} className="cursor-pointer gap-1.5 text-xs font-bold text-accent-foreground hover:underline">
               {copied === 'cfg' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied === 'cfg' ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
-            </button>
+            </Button>
           </div>
           <pre className="mt-1 overflow-x-auto rounded-lg bg-muted px-3 py-2.5 font-mono text-2xs leading-relaxed text-foreground">{config}</pre>
           <p className="mt-1.5 text-2xs text-ink-4">{tr('Replace eno_live_… with an API key from above (it lives in the client config, never sent to the model).', 'Thay eno_live_… bằng một khóa API ở trên (khóa nằm trong cấu hình ứng dụng, không bao giờ gửi tới mô hình).')}</p>

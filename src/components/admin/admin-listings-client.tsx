@@ -312,7 +312,7 @@ function Segmented({ options, value, onChange }: { options: { v: string; label: 
   return (
     <div className="flex gap-1 rounded-xl bg-tint p-1">
       {options.map((o) => (
-        <button key={o.v} onClick={() => onChange(o.v)} className={cn('rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors', value === o.v ? 'bg-primary text-white' : 'text-body hover:bg-muted')}>{o.label}</button>
+        <Button key={o.v} onClick={() => onChange(o.v)} variant="bare" size="none" className={cn('cursor-pointer rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors', value === o.v ? 'bg-primary text-white' : 'text-body hover:bg-muted')}>{o.label}</Button>
       ))}
     </div>
   )

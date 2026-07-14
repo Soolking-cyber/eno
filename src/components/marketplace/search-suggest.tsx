@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { Search, Tag } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 import { Price } from './price'
 import { fold } from '@/lib/fold'
 import { cn } from '@/lib/utils'
@@ -108,16 +109,18 @@ export function SearchSuggest({
       {/* Raw free-text search — ALWAYS the first row; Enter with no arrow-key
           selection executes exactly this. */}
       {hasQueryRow && q.length >= 2 && (
-        <button
+        <Button
+          variant="bare"
+          size="none"
           type="button"
           onMouseDown={pickDown(onSubmitQuery)}
           className={cn(
-            'flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-sm font-semibold text-accent-foreground transition-colors cursor-pointer',
+            'flex w-full items-center justify-start gap-2 whitespace-normal rounded-xl px-2 py-2 text-left text-sm font-semibold text-accent-foreground transition-colors cursor-pointer',
             activeIndex === 0 ? 'bg-muted' : 'hover:bg-muted',
           )}
         >
           <Search className="h-4 w-4 shrink-0" /> {tr('Search for', 'Tìm')} “{q}”
-        </button>
+        </Button>
       )}
 
       {brandItems.length > 0 && (
@@ -125,7 +128,9 @@ export function SearchSuggest({
           <span className={sectionLabelCls}>{tr('Brands', 'Thương hiệu')}</span>
           <div className="flex flex-wrap gap-1.5">
             {brandItems.map((b, i) => (
-              <button
+              <Button
+                variant="bare"
+                size="none"
                 key={b.slug}
                 type="button"
                 onMouseDown={pickDown(() => onPick(b))}
@@ -133,7 +138,7 @@ export function SearchSuggest({
               >
                 <Tag className="h-3.5 w-3.5 shrink-0 text-ink-4" />
                 <Highlight text={b.name} query={q} />
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -144,14 +149,16 @@ export function SearchSuggest({
           <span className={sectionLabelCls}>{tr('Categories', 'Danh mục')}</span>
           <div className="flex flex-wrap gap-1.5">
             {categoryItems.map((c, i) => (
-              <button
+              <Button
+                variant="bare"
+                size="none"
                 key={c.slug}
                 type="button"
                 onMouseDown={pickDown(() => onPick(c))}
                 className={chipCls(activeIndex === categoryStart + i)}
               >
                 <Highlight text={lang === 'vi' ? c.nameVi : c.name} query={q} />
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -164,12 +171,14 @@ export function SearchSuggest({
             const l = it.listing
             const title = lang === 'vi' ? (l.titleVi || l.title) : l.title
             return (
-              <button
+              <Button
+                variant="bare"
+                size="none"
                 key={l.id}
                 type="button"
                 onMouseDown={pickDown(() => onPick(it))}
                 className={cn(
-                  'group flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors cursor-pointer',
+                  'group flex w-full items-center justify-start gap-3 rounded-xl px-2 py-1.5 text-left font-normal transition-colors cursor-pointer',
                   activeIndex === listingStart + i ? 'bg-muted' : 'hover:bg-muted',
                 )}
               >
@@ -185,7 +194,7 @@ export function SearchSuggest({
                     <span className="truncate">· {l.location}</span>
                   </span>
                 </span>
-              </button>
+              </Button>
             )
           })}
         </div>

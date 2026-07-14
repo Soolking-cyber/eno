@@ -1,6 +1,7 @@
 'use client'
 
 import { TrendingUp } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 
 // Shared "Xu hướng tìm kiếm" chip row for the empty-focus search dropdowns. One
@@ -33,14 +34,16 @@ export function TrendingSearches({
       </span>
       <div className="flex flex-wrap gap-1.5">
         {items.map((term, i) => (
-          <button
+          <Button
             key={i}
             type="button"
+            variant="soft"
+            size="none"
             onClick={() => onPick(term)}
-            className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
+            className="whitespace-normal rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:text-accent-foreground cursor-pointer"
           >
             {term}
-          </button>
+          </Button>
         ))}
       </div>
     </div>
