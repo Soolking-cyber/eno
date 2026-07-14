@@ -32,19 +32,50 @@ const WORDMARK_D =
   'M 1377 263 L 1377 151 C 1377 85 1426 35 1490 35 C 1554 35 1602 85 1602 151 L 1602 263 L 1537 263 L 1537 151 C 1537 122 1518 101 1490 101 C 1462 101 1442 122 1442 151 L 1442 263 Z'
 const MARK_W = 1353, MARK_H = 230, MARK_X = 249, MARK_Y = 35
 
-/** Translucent white wordmark over a soft dark offset copy — legible on both bright
- *  skies and dark interiors without wrecking the photo. `w` = target pixel width. */
-export function watermarkSvg(w: number): Buffer {
+/** The "eno.vn" wordmark as ONE flat, crisp pass — no shadow, no outline, no second
+ *  copy (user-picked 2026-07-14).
+ *
+ *  The old mark drew a 30%-black copy offset behind a 55%-white one. At web sizes the
+ *  two never resolved into a single shape: every glyph carried a grey ghost, so the mark
+ *  read as a smudge rather than a signature. The obvious repair — white fill plus a
+ *  hairline dark contour — fails the case that actually matters here, a product shot on
+ *  a white studio background: the fill disappears into the paper and you're left with a
+ *  hollow outline.
+ *
+ *  So the ink is chosen from the photo instead (see pickInk): white on a dark backdrop,
+ *  near-black on a bright one. One solid colour either way, which is what makes it read
+ *  as cleanly engraved.
+ *
+ *  `w` = target glyph-box width. */
+export function watermarkSvg(w: number, ink: { fill: string; opacity: number }): { svg: Buffer; width: number; height: number } {
   const scale = w / MARK_W
-  const h = Math.max(1, Math.round(MARK_H * scale))
-  const off = Math.max(1, Math.round(w * 0.012)) / scale // shadow offset, in glyph units
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
-      `<g transform="scale(${scale}) translate(${-MARK_X},${-MARK_Y})">` +
-      `<path fill="#000" fill-opacity="0.30" fill-rule="evenodd" transform="translate(${off},${off})" d="${WORDMARK_D}"/>` +
-      `<path fill="#fff" fill-opacity="0.55" fill-rule="evenodd" d="${WORDMARK_D}"/>` +
-      `</g></svg>`,
-  )
+  const width = w
+  const height = Math.max(1, Math.round(MARK_H * scale))
+  return {
+    svg: Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
+        `<g transform="scale(${scale}) translate(${-MARK_X},${-MARK_Y})">` +
+        `<path d="${WORDMARK_D}" fill-rule="evenodd" fill="${ink.fill}" fill-opacity="${ink.opacity}"/>` +
+        `</g></svg>`,
+    ),
+    width,
+    height,
+  }
+}
+
+/** Read the patch of photo the mark will sit on and pick an ink that stays legible there
+ *  WITHOUT a shadow. Bright backdrop (white studio cyc, sky, pale wall) → near-black ink;
+ *  anything mid or dark → white. Falls back to white if the probe fails — the old
+ *  behaviour, and the safe one for the average photo. */
+async function pickInk(png: Buffer, region: { left: number; top: number; width: number; height: number }): Promise<{ fill: string; opacity: number }> {
+  const WHITE = { fill: '#ffffff', opacity: 0.85 }
+  try {
+    const { channels } = await sharp(png).extract(region).greyscale().stats()
+    const mean = (channels[0]?.mean ?? 0) / 255
+    return mean > 0.62 ? { fill: '#0a0a0a', opacity: 0.42 } : WHITE
+  } catch {
+    return WHITE
+  }
 }
 
 /**
@@ -79,12 +110,23 @@ export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string
     hash = await dHash(data) // from the normalized source, before watermark/WebP
     if (opts.watermark !== false) {
       // ~28% of the width (prominent for web-address memorability — user ask
-      // 2026-07-07), clamped; anchored bottom-right with ~2.5% padding.
+      // 2026-07-07), clamped; anchored bottom-right.
       const mw = Math.min(580, Math.max(190, Math.round(info.width * 0.28)))
       const mh = Math.round((mw / MARK_W) * MARK_H)
-      const pad = Math.round(info.width * 0.025)
+      // Padding is measured off the SHORT edge (user-picked 2026-07-14: the mark must
+      // never touch a border). Off the width, a tall portrait shot got a hairline gap at
+      // the bottom while a panorama got a canyon; the short edge keeps the inset even.
+      const pad = Math.round(Math.min(info.width, info.height) * 0.03)
+      const left = Math.max(0, info.width - mw - pad)
+      const top = Math.max(0, info.height - mh - pad)
+      const region = {
+        left, top,
+        width: Math.min(mw, info.width - left),
+        height: Math.min(mh, info.height - top),
+      }
+      const mark = watermarkSvg(mw, await pickInk(data, region))
       out = await sharp(data)
-        .composite([{ input: watermarkSvg(mw), left: Math.max(0, info.width - mw - pad), top: Math.max(0, info.height - mh - pad) }])
+        .composite([{ input: mark.svg, left, top }])
         .webp({ quality: WEBP_QUALITY })
         .toBuffer()
     } else {
