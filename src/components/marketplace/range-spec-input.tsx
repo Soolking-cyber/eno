@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { EnoSlider } from '@/components/marketplace/eno-slider'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import type { RangeMeta } from '@/lib/taxonomy'
@@ -52,7 +53,6 @@ export function RangeSpecInput({
   }
 
   const slider = value == null ? range.min : clamp(value)
-  const pct = ((slider - range.min) / Math.max(range.step, range.max - range.min)) * 100
 
   return (
     <div className={cn('space-y-2.5', className)}>
@@ -82,23 +82,15 @@ export function RangeSpecInput({
           </Button>
         )}
       </div>
-      <div className="relative h-5 w-full max-w-sm">
-        <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-muted" />
-        <div
-          className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary"
-          style={{ width: `${value == null ? 0 : pct}%` }}
-        />
-        <input
-          type="range"
-          className="eno-slider"
-          min={range.min}
-          max={range.max}
-          step={range.step}
-          value={slider}
-          onChange={(e) => onChange(round(Number(e.target.value)))}
-          aria-label={range.unit || 'value'}
-        />
-      </div>
+      <EnoSlider
+        className="w-full max-w-sm"
+        min={range.min}
+        max={range.max}
+        step={range.step}
+        value={slider}
+        onChange={(v) => onChange(round(v))}
+        aria-label={range.unit || 'value'}
+      />
     </div>
   )
 }

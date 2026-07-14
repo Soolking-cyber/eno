@@ -9,10 +9,10 @@ import { Mascot } from '@/components/marketplace/mascot'
 import { safeNextPath } from '@/lib/url'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 type Choice = 'individual' | 'business'
-
-const FIELD = 'w-full rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none transition-colors focus:ring-2 focus:ring-ring/30'
 
 /** One-time post-sign-in step: are you an individual or a business? The choice
  *  shapes the rest of the experience (businesses get the CRM dashboard, bulk
@@ -146,23 +146,23 @@ export function OnboardClient() {
           {/* Profile fields revealed once a type is chosen */}
           {choice === 'individual' && (
             <div className="mt-5">
-              <label htmlFor="nm" className="mb-1 block text-xs font-semibold text-body">{t('Your name', 'Tên của bạn')}</label>
-              <input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className={FIELD} />
+              <Label htmlFor="nm" className="mb-1 block text-xs font-semibold text-body">{t('Your name', 'Tên của bạn')}</Label>
+              <Input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className="transition-colors" />
             </div>
           )}
           {choice === 'business' && (
             <div className="mt-5 space-y-3">
               <div>
-                <label htmlFor="biz" className="mb-1 block text-xs font-semibold text-body">{t('Business name', 'Tên doanh nghiệp')}</label>
-                <input id="biz" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder={t('e.g. Saigon Moto Rentals', 'vd. Saigon Moto Rentals')} maxLength={120} className={FIELD} />
+                <Label htmlFor="biz" className="mb-1 block text-xs font-semibold text-body">{t('Business name', 'Tên doanh nghiệp')}</Label>
+                <Input id="biz" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder={t('e.g. Saigon Moto Rentals', 'vd. Saigon Moto Rentals')} maxLength={120} className="transition-colors" />
               </div>
               <div>
-                <label htmlFor="nm" className="mb-1 block text-xs font-semibold text-body">{t('Your name (contact person)', 'Tên người liên hệ')}</label>
-                <input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className={FIELD} />
+                <Label htmlFor="nm" className="mb-1 block text-xs font-semibold text-body">{t('Your name (contact person)', 'Tên người liên hệ')}</Label>
+                <Input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className="transition-colors" />
               </div>
               <div>
-                <label htmlFor="ph" className="mb-1 block text-xs font-semibold text-body">{t('Phone / Zalo', 'Số điện thoại / Zalo')}</label>
-                <input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="0901 234 567" maxLength={20} className={FIELD} />
+                <Label htmlFor="ph" className="mb-1 block text-xs font-semibold text-body">{t('Phone / Zalo', 'Số điện thoại / Zalo')}</Label>
+                <Input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="0901 234 567" maxLength={20} className="transition-colors" />
               </div>
             </div>
           )}

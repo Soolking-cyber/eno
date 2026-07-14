@@ -11,6 +11,8 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Loader2, ImagePlus, CheckCircle2, X, ShieldQuestion } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 
 // Appeal a moderation decision — reached from the "Action taken on your content"
 // notification. The reported party explains + attaches proof; it re-opens their case
@@ -77,10 +79,10 @@ export default function AppealPage() {
             <h1 className="text-lg font-bold text-foreground">{t('Appeal this decision', 'Khiếu nại quyết định này')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t('Tell us why you think this was a mistake and attach proof (screenshots, photos). We’ll re-review your case.', 'Hãy cho chúng tôi biết vì sao bạn cho rằng đây là nhầm lẫn và đính kèm bằng chứng (ảnh chụp màn hình, ảnh). Chúng tôi sẽ xem xét lại.')}</p>
 
-            <label htmlFor="note" className="mt-5 block text-xs font-semibold text-body">{t('Your explanation', 'Giải thích của bạn')}</label>
-            <textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} rows={4} maxLength={2000} placeholder={t('Explain what happened…', 'Giải thích điều đã xảy ra…')} className="mt-1 w-full resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30" />
+            <Label htmlFor="note" className="mt-5 block text-xs font-semibold text-body">{t('Your explanation', 'Giải thích của bạn')}</Label>
+            <Textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} rows={4} maxLength={2000} placeholder={t('Explain what happened…', 'Giải thích điều đã xảy ra…')} className="mt-1 min-h-0 resize-none" />
 
-            <label className="mt-4 block text-xs font-semibold text-body">{t('Proof (optional)', 'Bằng chứng (không bắt buộc)')}</label>
+            <Label className="mt-4 block text-xs font-semibold text-body">{t('Proof (optional)', 'Bằng chứng (không bắt buộc)')}</Label>
             <div className="mt-1 flex flex-wrap gap-2">
               {files.map((f, i) => (
                 <div key={i} className="relative h-20 w-20 overflow-hidden rounded-xl bg-tint">

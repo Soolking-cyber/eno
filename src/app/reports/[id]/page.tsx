@@ -11,6 +11,8 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Loader2, ImagePlus, CheckCircle2, X, MessageSquareWarning } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 
 // Add details to a report YOU filed — reached from the moderation team's "could you
 // share more detail" notification. Mirror of the target-side /appeal/[id] page; the
@@ -85,10 +87,10 @@ export default function ReportSupplementPage() {
             <h1 className="text-lg font-bold text-foreground">{t('Add details to your report', 'Bổ sung chi tiết cho báo cáo')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t('Screenshots or the exact messages help us review faster and get it right. Everything you add goes straight to the case.', 'Ảnh chụp màn hình hoặc tin nhắn cụ thể giúp chúng tôi xử lý nhanh và chính xác hơn. Mọi thông tin bạn thêm sẽ vào thẳng hồ sơ.')}</p>
 
-            <label htmlFor="detail" className="mt-5 block text-xs font-semibold text-body">{t('What happened', 'Điều đã xảy ra')}</label>
-            <textarea id="detail" value={text} onChange={(e) => setText(e.target.value)} rows={4} maxLength={2000} placeholder={t('The more specific, the better…', 'Càng cụ thể càng tốt…')} className="mt-1 w-full resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30" />
+            <Label htmlFor="detail" className="mt-5 block text-xs font-semibold text-body">{t('What happened', 'Điều đã xảy ra')}</Label>
+            <Textarea id="detail" value={text} onChange={(e) => setText(e.target.value)} rows={4} maxLength={2000} placeholder={t('The more specific, the better…', 'Càng cụ thể càng tốt…')} className="mt-1 min-h-0 resize-none" />
 
-            <label className="mt-4 block text-xs font-semibold text-body">{t('Screenshots / photos (optional)', 'Ảnh chụp màn hình / ảnh (không bắt buộc)')}</label>
+            <Label className="mt-4 block text-xs font-semibold text-body">{t('Screenshots / photos (optional)', 'Ảnh chụp màn hình / ảnh (không bắt buộc)')}</Label>
             <div className="mt-1 flex flex-wrap gap-2">
               {files.map((f, i) => (
                 <div key={i} className="relative h-20 w-20 overflow-hidden rounded-xl bg-tint">

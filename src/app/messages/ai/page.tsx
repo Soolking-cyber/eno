@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Sparkles, Loader2 } from 'lucide-react'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { ImageSearchButton } from '@/components/marketplace/image-search-button'
+import { Textarea } from '@/components/ui/textarea'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { ListingCard } from '@/components/marketplace/listing-card'
@@ -181,14 +182,18 @@ export default function AiThreadPage() {
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-body transition-colors hover:bg-muted relative tap-44"
             iconClassName="h-5 w-5"
           />
-          <textarea
+          {/* min-h-0 is load-bearing twice: it keeps the one-line composer from
+              inflating to the primitive's min-h-24, AND keeps the --footer-h
+              ResizeObserver from over-padding the message list with that height. */}
+          <Textarea
+            variant="outline"
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             rows={1}
             enterKeyHint="send"
             placeholder={tr('Ask for anything…', 'Hỏi bất cứ điều gì…')}
-            className="max-h-28 flex-1 resize-none rounded-2xl border border-line-strong px-3.5 py-2.5 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 lg:text-sm"
+            className="min-h-0 max-h-28 flex-1 resize-none rounded-2xl px-3.5 py-2.5 text-base lg:text-sm"
           />
           <ChatSendButton
             onClick={() => send()}

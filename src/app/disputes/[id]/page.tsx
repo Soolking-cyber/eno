@@ -12,6 +12,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 // The dispute case room (Binance-P2P style): one shared timeline where the reporter,
@@ -358,7 +359,7 @@ export default function DisputeRoomPage() {
                   <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" />
                   <span>{t('You can submit your statement once — add all your details and photos before sending. The reviewer decides from what both sides submit.', 'Bạn chỉ gửi được một lần — hãy bổ sung đầy đủ chi tiết và ảnh trước khi gửi. Người xem xét sẽ quyết định dựa trên nội dung cả hai bên gửi.')}</span>
                 </div>
-                <textarea
+                <Textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   rows={3}
@@ -366,7 +367,7 @@ export default function DisputeRoomPage() {
                   placeholder={data.role === 'reporter'
                     ? t('Explain what happened and attach any proof — this is your one statement.', 'Giải thích sự việc và đính kèm bằng chứng — đây là lần trình bày duy nhất của bạn.')
                     : t('Share your side and attach any proof — this is your one statement.', 'Trình bày phía bạn và đính kèm bằng chứng — đây là lần trình bày duy nhất của bạn.')}
-                  className="w-full resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+                  className="min-h-0 resize-none"
                 />
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {files.map((f, i) => (

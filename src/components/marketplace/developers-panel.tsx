@@ -7,6 +7,8 @@ import { useLanguage } from '@/context/language-context'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 // Dashboard "Developers" tab (business-tier). Mint / list / revoke partner API keys via
 // /api/keys. The full secret is shown ONCE at creation; afterwards only the prefix.
@@ -118,9 +120,9 @@ export function DevelopersPanel() {
       {showForm ? (
         <div className="space-y-3 rounded-2xl border border-border p-4">
           <div>
-            <label className="text-xs font-bold text-foreground">{tr('Name', 'Tên')}</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder={tr('e.g. Production server', 'VD: Máy chủ chính')}
-              className="mt-1 w-full rounded-xl border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+            <Label htmlFor="api-key-name" className="text-xs font-bold text-foreground">{tr('Name', 'Tên')}</Label>
+            <Input id="api-key-name" variant="outline" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder={tr('e.g. Production server', 'VD: Máy chủ chính')}
+              className="mt-1 px-3 py-2" />
           </div>
           <div>
             <span className="text-xs font-bold text-foreground">{tr('Scopes', 'Phạm vi')}</span>
@@ -295,9 +297,9 @@ function WebhooksSection() {
       {showForm ? (
         <div className="space-y-3 rounded-2xl border border-border p-4">
           <div>
-            <label className="text-xs font-bold text-foreground">{tr('Endpoint URL', 'URL điểm cuối')}</label>
-            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://api.your-shop.com/eno-webhook" inputMode="url"
-              className="mt-1 w-full rounded-xl border border-line-strong px-3 py-2 font-mono text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+            <Label htmlFor="webhook-url" className="text-xs font-bold text-foreground">{tr('Endpoint URL', 'URL điểm cuối')}</Label>
+            <Input id="webhook-url" variant="outline" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://api.your-shop.com/eno-webhook" inputMode="url"
+              className="mt-1 px-3 py-2 font-mono" />
           </div>
           <div>
             <span className="text-xs font-bold text-foreground">{tr('Events', 'Sự kiện')}</span>
