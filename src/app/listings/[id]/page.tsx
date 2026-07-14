@@ -495,6 +495,35 @@ export default async function ListingPage({ params }: Props) {
                 </>
               )}
             </div>
+            {/* PRICE — desktop copy (user-picked 2026-07-14). It reads directly under
+                the gallery's meta line and above the protections strip; the contact
+                column now opens on the seller + Chat now. The mobile copy still sits
+                under the title, so this whole block is lg-only. The market-price gauge
+                travels with it — it's a benchmark OF this number and is meaningless
+                stranded from it. */}
+            <div className="hidden flex-col gap-2 lg:flex">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-accent-foreground tracking-tight" />
+                {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
+                  <>
+                    <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-base text-ink-4 line-through" />
+                    <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-2xs font-bold tabular-nums text-white">
+                      {dropPercent(listing.prevPrice, listing.price)}
+                    </span>
+                    <DropCountdown expiresAt={listing.dropExpiresAt} />
+                  </>
+                )}
+                {listing.urgent && (
+                  <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-red-600 stroke-none" />
+                )}
+                {!listing.negotiable && (
+                  <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-2xs font-bold text-body">
+                    <Tag className="mr-1 h-3 w-3" /><Tr text="Fixed price" />
+                  </span>
+                )}
+              </div>
+              {priceBand && <MarketPrice price={listing.price} band={priceBand} />}
+            </div>
             <ProtectionsRow />
             <div className="space-y-2">
               <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
@@ -531,31 +560,11 @@ export default async function ListingPage({ params }: Props) {
           <div className="lg:col-span-5 lg:row-span-2">
             <div className="lg:sticky lg:top-24 flex flex-col gap-4 lg:border-l lg:border-border/70 lg:pl-10">
               {/* ONE importance-ordered flow (user decisions 2026-07-14):
-                  price → seller (Chat now / View shop) → offer (open −5%) →
-                  safety strip → reviews → tips|report footer. Same order on
-                  every breakpoint — no order-* juggling. */}
-              {/* Price + social proof — desktop copy (the mobile copy sits under the title) */}
-              <div className="hidden flex-wrap items-baseline gap-2 lg:flex">
-                <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-accent-foreground tracking-tight" />
-                {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
-                  <>
-                    <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-base text-ink-4 line-through" />
-                    <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-2xs font-bold tabular-nums text-white">
-                      {dropPercent(listing.prevPrice, listing.price)}
-                    </span>
-                    <DropCountdown expiresAt={listing.dropExpiresAt} />
-                  </>
-                )}
-                {listing.urgent && (
-                  <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-red-600 stroke-none" />
-                )}
-                {!listing.negotiable && (
-                  <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-2xs font-bold text-body">
-                    <Tag className="mr-1 h-3 w-3" /><Tr text="Fixed price" />
-                  </span>
-                )}
-              </div>
-              {priceBand && <div className="hidden lg:block"><MarketPrice price={listing.price} band={priceBand} /></div>}
+                  seller (Chat now / View shop) → offer (open −5%) → safety strip →
+                  reviews. The desktop PRICE moved out of this column and now reads
+                  under the gallery's meta line, above the protections strip; on mobile
+                  it still sits under the title. Either way it precedes everything here,
+                  so the contact column opens on the person you'd be dealing with. */}
 
               {/* SELLER identity + Chat now / View shop — directly under the price
                   (user-picked 2026-07-14: the offer sits BELOW these buttons). */}

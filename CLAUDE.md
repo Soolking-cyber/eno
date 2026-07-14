@@ -13,8 +13,9 @@ Vietnamese expat marketplace. Next.js 16 (App Router) · Tailwind v4 · Prisma 7
 | "Where is X?", "every call site", "do we already have a helper?" | `scout` | Opus · low |
 | UI diff → canon drift | `canon-reviewer` | Opus · high |
 | Copy → bilingual contract | `i18n-reviewer` | Opus · high |
-| **Independent second opinion / adversarial review** | `fable-reviewer` | **Fable 5 · xhigh** |
 | A bug that already survived one plausible fix | `deep-debugger` | Opus · xhigh |
+| **Second opinion — different lineage** | `fable-reviewer` | **Fable 5 · xhigh** |
+| **Third opinion — non-Anthropic** | `codex-sol` | **GPT-5.6 (`gpt-5.6-sol`) · xhigh, via Codex CLI** |
 | Shipping to prod (the whole ritual) | `/ship` | Opus · medium |
 | Seller/admin e2e suite | `/authed-e2e` | Opus · low |
 | Design, architecture, anything genuinely novel | main thread | session model |
@@ -23,9 +24,9 @@ Three habits that follow:
 
 - **Delegate search to `scout`.** Not to save money — to keep bulk grep output out of the main context. You get the conclusion, not the file dump.
 - **Escalate, don't grind.** A fix that didn't hold goes to `deep-debugger` (Opus, xhigh), not to a second guess at the same altitude.
-- **Break agreement bias with `fable-reviewer`.** It runs on a *different model family*, so it doesn't inherit our blind spots. When the main thread and its reviewers all agree, that's precisely when to ask the dissenter — especially on the money and trust paths (offers, publish gate, contact reveals, conversations). `/codex:review` is the same trick from a third family; use both on anything irreversible.
+- **Three families, not one.** The main thread is Opus, `fable-reviewer` is Fable 5, `codex-sol` is GPT-5.6. They fail differently, which is the whole point: an Opus review of Opus code shares its blind spots. **Anything irreversible or money/trust-adjacent — offers, publish gate, contact reveals, conversations, payments, anything that writes to prod — gets at least one non-Opus reviewer before it ships.** When everyone agrees, that's when to ask the dissenter, not when to relax.
 
-In a `Workflow`, pass `model` and `effort` per `agent()` call. Cross-family verification is the highest-value use of the option: find with one family, refute with another.
+In a `Workflow`, pass `model` and `effort` per `agent()` call. Cross-family verification is the highest-value use of the option: find with one family, refute with another (`model: 'fable'` for the refuter, or shell out to `codex exec -m gpt-5.6-sol` for a third).
 
 ## Non-negotiables
 

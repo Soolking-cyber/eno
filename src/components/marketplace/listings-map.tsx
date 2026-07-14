@@ -182,19 +182,28 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   const onMoveRef = useRef(onMove)
   onMoveRef.current = onMove
 
-  // Hover-capable = desktop. Read live (not memoized) so a hybrid device that
-  // switches input mid-session still gets the right branch.
+  // Both gates are FUNCTIONS, read live at event time — never snapshotted into the
+  // marker closures. The markers effect only re-runs on a listings/filter redraw, so a
+  // captured value would survive a window resize or a mouse being plugged in, leaving
+  // the handlers on the wrong branch until something unrelated forced a rebuild.
   const isHoverable = () =>
     typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  // ⚠️ The two-step is gated on LAYOUT, not on pointer type. What makes scrolling the
+  // feed destructive is *where the feed is*: listings-explorer stacks it BELOW the map
+  // under lg and puts it BESIDE the map at lg+. Below → a scroll drags the page off the
+  // map the user is reading; beside → it costs nothing. Gating on `hover:hover` instead
+  // got this wrong in both directions: a touchscreen laptop took the desktop branch on a
+  // finger tap, and a narrow desktop window took it while the list sat below the map —
+  // i.e. exactly the bug the two-step exists to prevent. (Caught by cross-family review.)
+  const listIsBeside = () =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
 
-  // Touch two-step (user decision 2026-07-14). On mobile the feed sits BELOW the
-  // map, so scrolling it on a pin tap yanks the page off the map the user is
-  // reading. Instead: pin tap only opens the card; the FIRST tap on that card
-  // scrolls the feed to it; the second opens the listing. Desktop is unchanged
-  // (the feed is a side column — scrolling it costs the user nothing).
+  // Touch two-step (user decision 2026-07-14): where the feed is stacked below, a pin
+  // tap only opens the card; the FIRST tap on that card scrolls the feed to it, the
+  // second opens the listing.
   const peekedRef = useRef<string | null>(null)
 
-  const openCard = (l: SerializedListingCard, center = false, scroll = true) => {
+  const openCard = (l: SerializedListingCard, center = false, scroll = listIsBeside()) => {
     if (cardIdRef.current !== l.id) peekedRef.current = null
     cardIdRef.current = l.id; setCard(l)
     if (center) recenterOnPin(l)
@@ -203,11 +212,11 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   }
   // Tap/click on the popup card itself.
   const activateCard = (l: SerializedListingCard) => {
-    // No feed to scroll to (e.g. the listing-detail location map passes no
-    // onPinOpen) → never swallow the first tap.
-    if (!onPinOpen || isHoverable() || peekedRef.current === l.id) { onOpenListing(l); return }
+    // No feed to scroll to (the listing-detail location map passes no onPinOpen), or the
+    // feed is a side column that's already visible → never swallow the first tap.
+    if (!onPinOpen || listIsBeside() || peekedRef.current === l.id) { onOpenListing(l); return }
     peekedRef.current = l.id
-    onPinOpen?.(l.id) // first tap: bring its card into view in the feed below
+    onPinOpen(l.id) // first tap: bring its card into view in the feed below
   }
   const closeCard = () => { cardIdRef.current = null; peekedRef.current = null; setCard(null); setCardPos(null); onHover?.(null) }
   // Desktop hover UX: keep the card open while the cursor is over the marker OR the
@@ -294,7 +303,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     // On hover-capable devices (desktop), HOVER reveals the card so the user can
     // browse pins fast; CLICK centres the pin and opens its card (same as touch) —
     // navigation happens by clicking the card, never straight off the pin.
-    const hoverable = isHoverable()
+    // isHoverable()/listIsBeside() are called INSIDE each handler, never hoisted here:
+    // this effect re-runs only on a listings/filter redraw, so a hoisted value would
+    // outlive a resize or an input-mode change.
 
     const bounds: [number, number][] = []
     listings.forEach((l) => {
@@ -305,13 +316,14 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       marker.on('click', () => {
         // Click = centre the pin + show the card on EVERY input (mobile pattern
         // everywhere, user decision 2026-07-06); the card itself opens the page.
-        // On touch the pin NEVER scrolls the feed — that would drag the page off
-        // the map (see the two-step note above); the card tap does it instead.
-        if (!hoverable && cardIdRef.current === l.id) onOpenListing(l) // touch: 2nd tap on the pin still opens
-        else openCard(l, true, hoverable)
+        // The pin scrolls the feed ONLY when the feed is a side column — stacked
+        // below, that would drag the page off the map (see the two-step note above)
+        // and the card's first tap does it instead.
+        if (!isHoverable() && cardIdRef.current === l.id) onOpenListing(l) // touch: 2nd tap on the pin still opens
+        else openCard(l, true, listIsBeside())
       })
-      marker.on('mouseover', () => { if (hoverable) { cancelClose(); openCard(l) } else { onHover?.(l.id) } })
-      marker.on('mouseout', () => { if (hoverable) { scheduleClose() } else { onHover?.(null) } })
+      marker.on('mouseover', () => { if (isHoverable()) { cancelClose(); openCard(l) } else { onHover?.(l.id) } })
+      marker.on('mouseout', () => { if (isHoverable()) { scheduleClose() } else { onHover?.(null) } })
       markersRef.current.set(l.id, marker)
     })
 
