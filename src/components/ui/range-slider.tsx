@@ -1,31 +1,42 @@
 'use client'
 
-import { type PointerEvent as ReactPointerEvent } from 'react'
+import { Slider as SliderPrimitive } from '@base-ui/react/slider'
 import { cn } from '@/lib/utils'
 
 /** THE dual-thumb range slider primitive — sibling of `<Slider>` (single handle).
- *  Don't re-roll the two-stacked-`<input type="range">` pattern; import this.
+ *  Don't re-roll two stacked `<input type="range">`s; import this.
  *
- *  Lifted verbatim from the two hand-rolled copies (price-range-filter,
- *  range-facet-control), whose contract is subtler than it looks:
+ *  Now a real Base UI `Slider.Root` with TWO `Slider.Thumb` children. Base UI's slider
+ *  is natively multi-thumb (`value: number | readonly number[]`), which deletes the
+ *  entire hand-rolled contract this file used to carry:
  *
- *  1. The two inputs are absolutely stacked over the SAME track and carry
- *     `.eno-range` (globals.css), which sets `pointer-events: none` on the input
- *     and `pointer-events: auto` on the ::-webkit-slider-thumb / ::-moz-range-thumb.
- *     That is what lets BOTH thumbs be grabbable despite overlapping: a press lands
- *     on whichever thumb is under the finger, and passes through the dead input
- *     body otherwise. Remove it and the top input swallows every drag.
- *  2. Because the inputs are pointer-transparent, a bare click on the track would
- *     do nothing — so the track itself handles `onPointerDown` and jumps the NEAREST
- *     thumb. The `tagName === 'INPUT'` guard is load-bearing: without it a press that
- *     started on a THUMB would also be treated as a track click and yank the other
- *     thumb to the cursor.
- *  3. The values may not cross: lo is clamped to <= hi, hi to >= lo, on every path.
+ *  - the `.eno-range` `pointer-events: none` hack that let both overlapping native
+ *    inputs stay grabbable (Base UI's thumbs are separate absolutely-positioned divs —
+ *    they never overlap the whole track, so nothing has to be made pointer-transparent);
+ *  - the `onPointerDown` track-jump with its `tagName === 'INPUT'` guard (`Slider.Control`
+ *    press-to-move-the-nearest-thumb is built in, and it starts a drag from that press);
+ *  - the manual `Math.min(v, hi)` / `Math.max(v, lo)` clamps on every path.
  *
- *  `onChange` fires live during the drag (cheap: local state). `onCommit` fires when
- *  the interaction settles — pointer-up, key-up, or a track jump — and is where the
- *  expensive work belongs (URL writes, refetches), matching what both call sites do
- *  today. Styling mirrors `ui/slider.tsx` so the two read as one family.
+ *  In exchange we get what the hand-roll never had: Home/End/PageUp/PageDown, `largeStep`
+ *  (Shift+Arrow), proper `aria-valuenow`/`aria-valuetext` per thumb, RTL, form/Field
+ *  integration and touch handling.
+ *
+ *  ## The no-crossing guard
+ *  `minStepsBetweenValues={0}` + `thumbCollisionBehavior="none"` reproduce the OLD rule
+ *  exactly: a thumb is clamped to its neighbour and stops there (`lo <= hi`, equality
+ *  ALLOWED, neighbour never dragged along).
+ *   - `0`, not `1`: one step of forced separation would make `lo === hi` unreachable, and
+ *     both call sites permit it (a "2020–2020" year facet is a legitimate filter, and the
+ *     price panel's type-in boxes can land there). Base UI still cannot cross with 0 —
+ *     `getSliderValue()` clamps a thumb between its neighbours on every keyboard/input path.
+ *   - `"none"`, not the default `"push"`: `push` would shove the OTHER thumb along when
+ *     you drag one past it. The old slider clamped instead and left the other value alone.
+ *
+ *  `onChange` fires live during the drag (cheap: local state). `onCommit` fires when the
+ *  interaction settles — pointer-up, key-up, track press — and is where the expensive work
+ *  belongs (URL writes, refetches), which is what both call sites already do.
+ *  Styling mirrors `ui/slider.tsx` (`.eno-thumb` is the div-thumb twin of the
+ *  `::-webkit-slider-thumb` rule `.eno-slider` uses) so the two read as one family.
  */
 export function RangeSlider({
   value, min, max, step = 1, onChange, onCommit, className, 'aria-label': ariaLabel,
@@ -35,54 +46,60 @@ export function RangeSlider({
   max: number
   step?: number
   onChange: (value: [number, number]) => void
-  /** Settle callback: pointer-up / key-up / track jump. */
+  /** Settle callback: pointer-up / key-up / track press. */
   onCommit?: (value: [number, number]) => void
   className?: string
   /** [minLabel, maxLabel] — one per thumb. */
   'aria-label'?: [string, string]
 }) {
-  const [lo, hi] = value
-  // Snap a raw track position the way the call sites do: to a tenth when the step is
-  // fractional (year/engine facets use step 0.1), to a whole number otherwise.
-  const round = (n: number) => (step < 1 ? Math.round(n * 10) / 10 : Math.round(n))
-  const span = Math.max(step, max - min)
-  const pct = (v: number) => ((v - min) / span) * 100
+  // Degenerate bounds: the price panel's histogram can hold a single price, i.e.
+  // dataMin === dataMax. Base UI divides by (max - min) and an infinite percentage
+  // hides the thumb outright; the old code guarded the same case with
+  // `span = Math.max(step, max - min)`. Keep one step of span so the control still renders.
+  const hiBound = max > min ? max : min + step
 
-  const settle = (next: [number, number]) => { onChange(next); onCommit?.(next) }
-
-  // Click anywhere on the track → jump the NEAREST thumb to that point. See (2) above:
-  // the tagName guard hands a press that landed on a thumb back to the native drag.
-  const onTrackDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).tagName === 'INPUT') return
-    const rect = e.currentTarget.getBoundingClientRect()
-    if (!rect.width) return
-    const f = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
-    const v = round(min + f * (max - min))
-    if (v <= lo) settle([v, hi])
-    else if (v >= hi) settle([lo, v])
-    else if (v - lo <= hi - v) settle([v, hi])
-    else settle([lo, v])
-  }
+  // Defensive sanitise: Base UI wants an ASCENDING, in-bounds pair (its indicator spans
+  // values[0]→values[n-1], so a descending pair would paint a negative width). A native
+  // <input type="range"> used to absorb this by clamping its own display. Both call sites
+  // already clamp, so this only ever fires on a malformed URL.
+  const clamp = (n: number) => Math.min(Math.max(n, min), hiBound)
+  const lo = clamp(value[0])
+  const hi = Math.max(lo, clamp(value[1]))
+  const values: [number, number] = [lo, hi]
 
   return (
-    <div className={cn('relative h-5 cursor-pointer', className)} onPointerDown={onTrackDown}>
-      <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-muted" />
-      <div
-        className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary"
-        style={{ left: `${pct(lo)}%`, width: `${Math.max(0, pct(hi) - pct(lo))}%` }}
-      />
-      <input
-        type="range" className="eno-range" aria-label={ariaLabel?.[0]}
-        min={min} max={max} step={step} value={lo}
-        onChange={(e) => onChange([Math.min(round(Number(e.target.value)), hi), hi])}
-        onPointerUp={() => onCommit?.([lo, hi])} onKeyUp={() => onCommit?.([lo, hi])}
-      />
-      <input
-        type="range" className="eno-range" aria-label={ariaLabel?.[1]}
-        min={min} max={max} step={step} value={hi}
-        onChange={(e) => onChange([lo, Math.max(round(Number(e.target.value)), lo)])}
-        onPointerUp={() => onCommit?.([lo, hi])} onKeyUp={() => onCommit?.([lo, hi])}
-      />
-    </div>
+    <SliderPrimitive.Root
+      // Base UI defaults to center alignment, which lets a 20px thumb overhang the rail by
+      // 10px at min/max — and BOTH call sites open with the thumbs at exactly those extremes.
+      // The native inputs this replaced inset their thumbs (edge). Matches ui/slider.
+      thumbAlignment="edge"
+      value={values}
+      min={min}
+      max={hiBound}
+      step={step}
+      minStepsBetweenValues={0}
+      thumbCollisionBehavior="none"
+      // Degenerate range (max <= min — a single-price histogram): hiBound widens the RAIL to
+      // min+step so Base UI has somewhere to draw, but the values that escape must still be
+      // clamped to the real `max`. Without this, a user could drag to min+step and write a
+      // filter bound one step ABOVE the only price that exists — excluding the sole matching
+      // listing. The native inputs this replaced were simply immovable there.
+      onValueChange={(v) => onChange([Math.min(v[0], max), Math.min(v[1], max)])}
+      onValueCommitted={(v) => onCommit?.([Math.min(v[0], max), Math.min(v[1], max)])}
+      className={cn(className)}
+    >
+      {/* Control = the 20px-tall hit area (the old wrapper's `h-5 cursor-pointer`).
+          touch-none is required by Base UI: without it a scroll gesture cancels the
+          pointer capture mid-drag and the thumb is dropped. */}
+      <SliderPrimitive.Control className="relative flex h-5 w-full cursor-pointer touch-none items-center select-none">
+        <SliderPrimitive.Track className="h-1 w-full rounded-full bg-muted">
+          {/* Indicator = the old blue fill div; Base UI positions it between the two
+              thumbs itself (inset-inline-start + width, height: inherit from Track). */}
+          <SliderPrimitive.Indicator className="rounded-full bg-primary" />
+          <SliderPrimitive.Thumb index={0} aria-label={ariaLabel?.[0]} className="eno-thumb" />
+          <SliderPrimitive.Thumb index={1} aria-label={ariaLabel?.[1]} className="eno-thumb" />
+        </SliderPrimitive.Track>
+      </SliderPrimitive.Control>
+    </SliderPrimitive.Root>
   )
 }

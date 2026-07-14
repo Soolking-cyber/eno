@@ -196,6 +196,9 @@
   --shadow-pop: 0 8px 30px rgba(16, 24, 40, 0.08);     /* dropdowns, popovers */
   --shadow-card: 0 6px 20px rgba(16, 24, 40, 0.10);    /* card hover lift */
   --shadow-overlay: 0 16px 48px rgba(16, 24, 40, 0.16); /* dialogs / modals */
+  --shadow-thumb: 0 1px 4px rgba(16, 24, 40, 0.18);    /* slider handle — ported verbatim
+     from the old .eno-slider::-webkit-slider-thumb; intentionally NOT overridden in dark
+     (the native thumb never was), so the handle reads identically in both themes. */
 
   /* Spring easings authored as linear() sampled curves (iOS Safari 17.2+, degrades to
      ease-out on older). Overshoot points >1 give a physical settle. Compositor-only when
@@ -403,6 +406,9 @@
    ============================================================ */
 .shadow-pop { box-shadow: var(--shadow-pop); }
 .shadow-overlay { box-shadow: var(--shadow-overlay); }
+/* The slider handle's lift. Plain CSS (like its siblings above), so it is emitted
+   unconditionally — it does not depend on Tailwind scanning a class name. */
+.shadow-thumb { box-shadow: var(--shadow-thumb); }
 
 /* ============================================================
    VIRTUAL-KEYBOARD PINNING (iOS) — see use-virtual-keyboard.ts
@@ -747,6 +753,31 @@ summary:focus-visible {
 .eno-slider::-webkit-slider-runnable-track { background: transparent; }
 .eno-range::-moz-range-track,
 .eno-slider::-moz-range-track { background: transparent; }
+
+/* .eno-thumb = the SAME thumb, for the Base UI dual-thumb slider (ui/range-slider).
+   Base UI's Slider.Thumb is a real <div> (absolutely positioned on the track), not the
+   ::-webkit-slider-thumb / ::-moz-range-thumb pseudo-element of a native range input —
+   so it needs a real class. Every value below is copied from the pseudo-element rules
+   above: same 1.25rem circle, same --card fill, same 2px --ring border, same shadow.
+   Kept in CSS rather than Tailwind so the shadow's rgba() literal stays out of the
+   design-lint'd .tsx and the two sliders stay visibly one family. */
+.eno-thumb {
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: 9999px;
+  background: var(--card);
+  border: 2px solid var(--ring);
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.18);
+  cursor: pointer;
+}
+/* The focusable element is an <input> INSIDE the thumb and Base UI visually-hides it, so
+   a keyboard user would otherwise get NO focus indicator at all. :focus-visible keeps it
+   keyboard-only — a pointer drag (which also focuses the input) shows nothing, exactly
+   like the native thumbs did. */
+.eno-thumb:has(:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
 
 /* ============================================================
    TOASTS (sonner) — pop in the CENTER of the screen, styled to our

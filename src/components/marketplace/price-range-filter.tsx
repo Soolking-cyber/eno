@@ -198,8 +198,8 @@ export function PriceRangeFilter({
                   })}
                 </div>
 
-                {/* Dual-thumb slider — the .eno-range pointer-events dance and the
-                    nearest-thumb track jump now live in the primitive. */}
+                {/* Dual-thumb slider — Base UI Slider inside the primitive; the
+                    nearest-thumb track press and the no-crossing clamp come for free. */}
                 <RangeSlider
                   className="mt-1"
                   value={[effLo, effHi]}

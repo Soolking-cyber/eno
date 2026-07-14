@@ -66,8 +66,8 @@ export function RangeFacetControl({
 
   return (
     <div className="min-w-0 flex-1">
-      {/* Dual-thumb track — the .eno-range pointer-events contract and the
-          tagName==='INPUT' track-jump guard both live inside the primitive. */}
+      {/* Dual-thumb track — Base UI Slider inside the primitive. Track-press moves the
+          nearest thumb and the thumbs cannot cross; nothing to re-implement here. */}
       <RangeSlider
         value={[lo, hi]} min={min} max={max} step={step}
         aria-label={[tr('Minimum', 'Tối thiểu'), tr('Maximum', 'Tối đa')]}

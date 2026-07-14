@@ -5,7 +5,7 @@ import { useLanguage, LANGUAGES } from '@/context/language-context'
 import { useCurrency } from '@/context/currency-context'
 import { useTheme } from '@/context/theme-context'
 import { CURRENCIES } from '@/lib/currencies'
-import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { CustomSelect } from './custom-select'
 import { cn } from '@/lib/utils'
 
@@ -41,26 +41,25 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         className="text-body hover:bg-muted"
         activeClassName="text-body hover:bg-muted"
       />
-      <Button
-        variant="bare"
-        size="none"
-        type="button"
-        role="switch"
-        aria-checked={isDark}
-        aria-label={tr('Dark mode', 'Chế độ tối')}
+      {/* Real switch semantics (Space/Enter, aria-checked from the primitive, focus ring) with the
+          SAME box as before: a 60×36 track that stays bg-muted in BOTH states — hence the explicit
+          `data-checked:bg-muted`, which tailwind-merges away the primitive's `data-checked:bg-primary`
+          (a bare `bg-muted` would not: different variant, different merge group, so the primary would
+          still win when checked). The thumb travels via `left` (4px → 28px), matching the primitive's
+          left-not-translate rule; 28px is exactly where `translate-x-6` used to land it. */}
+      <Switch
+        checked={isDark}
+        onChange={(next) => setTheme(next ? 'dark' : 'light')}
+        label={tr('Dark mode', 'Chế độ tối')}
         title={isDark ? tr('Dark', 'Tối') : tr('Light', 'Sáng')}
-        onClick={() => setTheme(isDark ? 'light' : 'dark')}
-        className="relative h-9 w-[3.75rem] shrink-0 items-center justify-start rounded-full bg-muted px-1 transition-colors tap-44"
+        className="relative h-9 w-[3.75rem] bg-muted data-checked:bg-muted tap-44"
+        thumbClassName={cn(
+          'h-7 w-7 top-1 left-1 data-checked:left-7 bg-card shadow-sm duration-200 ease-out',
+          isDark ? 'text-accent-foreground' : 'text-warning',
+        )}
       >
-        <span
-          className={cn(
-            'flex h-7 w-7 items-center justify-center rounded-full bg-card shadow-sm transition-transform duration-200 ease-out',
-            isDark ? 'translate-x-6 text-accent-foreground' : 'translate-x-0 text-warning',
-          )}
-        >
-          {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-        </span>
-      </Button>
+        {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+      </Switch>
     </div>
   )
 }

@@ -60,7 +60,7 @@ const RAW_CONTROL_ALLOW = [
 
   // B. Nested interactive content. A <button> may not contain another button/input — the
   //    HTML parser reparents it and hydration breaks.
-  { file: 'src/components/marketplace/dashboard-listing-row.tsx', lines: [156], reason: 'the grid cover HOSTS the select checkbox, so it must stay a raw button/div — a <button> inside a <button> is reparented by the parser' },
+  { file: 'src/components/marketplace/dashboard-listing-row.tsx', lines: [168], reason: 'the grid cover HOSTS the select checkbox (Base UI span + its hidden input), so it must stay a raw button/div — nested interactive content, and a <button> inside a <button> is reparented by the parser' },
 
   // C. No stylesheet exists here.
   { file: 'src/app/global-error.tsx', lines: [20], reason: 'renders its own <html> WITHOUT globals.css — no Tailwind, no tokens, no primitives; inline styles only' },

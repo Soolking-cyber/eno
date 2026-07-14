@@ -11,6 +11,7 @@ import { useListingActions } from './use-listing-actions'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 
 // One row in the seller dashboard's listings table. Lifecycle actions are
@@ -50,24 +51,35 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // In select mode, tapping the thumbnail toggles selection instead of opening.
   const open = () => (selectable ? onSelectToggle?.() : router.push(`/listings/${listing.id}`))
 
-  // Not ui/checkbox: this paints its own 20px box (border-2 + brand fill), which the
-  // primitive would re-paint. ui/button only supplies the behaviour + press feedback.
+  // Real checkbox semantics (role, aria-checked, Space, disabled) instead of a <button>
+  // wearing role="checkbox". ui/checkbox is HEADLESS — it paints the box (Root) and we
+  // hand it the glyph (Indicator), so the 20px border-2 box + brand fill + 14px Check
+  // survive verbatim; only the h-4 w-4 default is overridden (cn() merges it away).
+  //
+  // ⚠️ TWO stopPropagation()s, and both are load-bearing. The row/cover is clickable, so a
+  // select must never also open the listing. Base UI's Root is a <span> and the hidden
+  // <input> is its SIBLING, not its child — and Root's own onClick re-dispatches a
+  // `bubbles: true` click ONTO that input (CheckboxRoot.js). That second click starts
+  // OUTSIDE Root, so Root's stopPropagation cannot see it: it would bubble straight into
+  // the grid cover's onClick and toggle the selection a second time (net: nothing happens).
+  // The display:contents wrapper is the common ancestor of BOTH nodes and stops it. It adds
+  // no box, so layout is untouched. Toggling stays on onChange (the input's change event,
+  // which the click-stop does not affect) — putting it on onClick too would double-fire.
   const checkbox = selectable ? (
-    <Button
-      variant="bare"
-      size="none"
-      type="button"
-      onClick={(e) => { e.stopPropagation(); onSelectToggle?.() }}
-      role="checkbox"
-      aria-checked={selected}
-      aria-label={tr('Select listing', 'Chọn tin')}
-      className={cn(
-        'h-5 w-5 shrink-0 rounded-lg border-2 transition-colors',
-        selected ? 'border-brand bg-primary text-white' : 'border-line-strong bg-card hover:border-brand',
-      )}
-    >
-      {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-    </Button>
+    <span className="contents" onClick={(e) => e.stopPropagation()}>
+      <Checkbox
+        checked={selected}
+        onChange={() => onSelectToggle?.()}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={tr('Select listing', 'Chọn tin')}
+        className={cn(
+          'inline-flex h-5 w-5',
+          selected ? 'border-brand bg-primary text-white' : 'border-line-strong bg-card hover:border-brand',
+        )}
+      >
+        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+      </Checkbox>
+    </span>
   ) : null
 
   // Shared between the row + square-card layouts.
