@@ -63,7 +63,7 @@ export function CookieConsent() {
   const decline = () => { setConsent('essential'); close() }
 
   const primary = 'rounded-lg px-4 py-1.5 text-sm transition-colors active:scale-95 cursor-pointer'
-  const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted active:scale-95 cursor-pointer'
+  const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-body active:scale-95 cursor-pointer'
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -85,8 +85,8 @@ export function CookieConsent() {
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 <Button variant="cta" size="none" onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</Button>
-                <button onClick={decline} className={ghost}>{tr('Decline', 'Từ chối')}</button>
-                <button onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</button>
+                <Button variant="ghost" size="none" onClick={decline} className={ghost}>{tr('Decline', 'Từ chối')}</Button>
+                <Button variant="ghost" size="none" onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</Button>
               </div>
             </>
           ) : (
@@ -99,7 +99,7 @@ export function CookieConsent() {
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 <Button variant="cta" size="none" onClick={save} className={primary}>{tr('Save', 'Lưu')}</Button>
-                <button onClick={decline} className={ghost}>{tr('Decline all', 'Từ chối tất cả')}</button>
+                <Button variant="ghost" size="none" onClick={decline} className={ghost}>{tr('Decline all', 'Từ chối tất cả')}</Button>
               </div>
             </>
           )}

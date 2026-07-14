@@ -8,6 +8,7 @@ import { DISTRICTS } from './listings-explorer.constants'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Switch } from '@/components/ui/switch'
+import { IconButton } from '@/components/ui/icon-button'
 import {
   Drawer,
   DrawerContent,
@@ -425,12 +426,14 @@ export function ExplorerFiltersDrawer({
       <DrawerContent>
         <DrawerHeader className="flex-row items-center justify-between border-b border-border/80 pb-2.5">
           <DrawerTitle>{tr('Search Filters', 'Bộ lọc tìm kiếm')}</DrawerTitle>
-          <button
+          <IconButton
+            size="xs"
             onClick={() => onOpenChange(false)}
-            className="rounded-full bg-tint p-1.5 text-ink-3 hover:bg-line-strong active:scale-95"
+            aria-label={tr('Close', 'Đóng')}
+            className="bg-tint text-ink-3 hover:bg-line-strong active:scale-95"
           >
             <X className="h-4 w-4" />
-          </button>
+          </IconButton>
         </DrawerHeader>
 
         {/* Scrollable Filters */}

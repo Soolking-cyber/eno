@@ -139,13 +139,14 @@ export function NotificationBell() {
                       </div>
                     </Link>
                     {/* Delete — reveals on hover (desktop); always visible on touch */}
-                    <button
+                    <IconButton
+                      size="xs"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(n.id) }}
                       aria-label={tr('Delete notification', 'Xóa thông báo')}
-                      className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-4 opacity-0 transition-opacity hover:bg-accent hover:text-foreground cursor-pointer group-hover:opacity-100 focus:opacity-100 max-sm:opacity-100 tap-44"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-4 opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100 focus:opacity-100 max-sm:opacity-100"
                     >
                       <X className="h-3.5 w-3.5" />
-                    </button>
+                    </IconButton>
                   </div>
                 )
               })

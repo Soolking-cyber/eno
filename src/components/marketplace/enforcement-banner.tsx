@@ -159,7 +159,13 @@ function AppealPanel({ action, onChanged }: { action: NonNullable<EnforcementInf
         >
           {busy && <Loader2 className="h-3 w-3 animate-spin" />} {tr('Submit appeal', 'Gửi khiếu nại')}
         </Button>
-        <button onClick={() => setOpen(false)} className="rounded-xl px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted cursor-pointer">{tr('Cancel', 'Hủy')}</button>
+        <Button
+          variant="ghost" size="none"
+          onClick={() => setOpen(false)}
+          className="rounded-xl px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-pointer"
+        >
+          {tr('Cancel', 'Hủy')}
+        </Button>
       </div>
     </div>
   )

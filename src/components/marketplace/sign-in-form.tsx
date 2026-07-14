@@ -208,10 +208,10 @@ export function SignInForm({ className }: { className?: string }) {
     <div className={cn('space-y-3', className)}>
       {/* OAuth — in an in-app browser / iOS PWA, Google rejects OAuth, so this hands
           off to the real browser (Android: automatic; iOS: shows the manual hint). */}
-      <button onClick={() => oauth('google')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-foreground hover:bg-muted transition-colors cursor-pointer">
+      <Button variant="ghost" size="none" onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
         <GoogleIcon /> {oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
-        {oauthBlocked && <ExternalLink className="h-3.5 w-3.5 text-ink-4" />}
-      </button>
+        {oauthBlocked && <ExternalLink className="size-3.5 text-ink-4" />}
+      </Button>
       {oauthBlocked && (
         <p className="rounded-xl bg-tint px-3 py-2 text-2xs leading-relaxed text-muted-foreground">
           {iosHint

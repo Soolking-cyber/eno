@@ -260,13 +260,13 @@ export function PriceRangeFilter({
               </div>
 
               <div className="mt-4 flex items-center justify-between">
-                <button
+                <Button variant="link" size="none"
                   type="button"
                   onClick={() => { setLo(dataMin); setHi(dataMax); onChange('all') }}
                   className="text-xs font-semibold text-body underline-offset-2 hover:underline cursor-pointer"
                 >
                   {tr('Reset', 'Đặt lại')}
-                </button>
+                </Button>
                 <Button variant="cta" size="none"
                   type="button"
                   onClick={() => setOpen(false)}

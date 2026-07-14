@@ -7,6 +7,7 @@ import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
 import { RangeFacetControl } from './range-facet-control'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
+import { IconButton } from '@/components/ui/icon-button'
 import { useLanguage } from '@/context/language-context'
 import { facetsFor, subcategoriesFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
@@ -263,9 +264,9 @@ export function FacetBar({
             className="z-[1100] max-h-[70vh] overflow-y-auto scroll-thin rounded-2xl bg-popover p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-bold text-foreground">{tr('Filters', 'Bộ lọc')}</span>
-              <button onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="rounded-full p-1 text-ink-4 hover:bg-muted hover:text-foreground tap-44 relative">
+              <IconButton size="xs" onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="h-6 w-6 text-ink-4 hover:bg-muted hover:text-foreground">
                 <X className="h-4 w-4" />
-              </button>
+              </IconButton>
             </div>
             <div className="space-y-3.5">
               {/* Subcategory picker — unlocks the subcategory-specific facets below

@@ -12,6 +12,7 @@ import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
 // Borderless conversation list — the left pane of the desktop two-pane messenger
@@ -130,7 +131,7 @@ export function ConversationList() {
                 </Link>
                 {confirmId === c.id ? (
                   <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
-                    <button onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="rounded-xl bg-red-500 px-3 py-1.5 text-xs font-bold text-white transition-transform active:scale-95">{tr('Delete', 'Xóa')}</button>
+                    <Button variant="destructive" size="none" onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold text-white active:scale-95">{tr('Delete', 'Xóa')}</Button>
                     <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1.5 text-ink-4 hover:text-foreground relative tap-44"><X className="h-4 w-4" /></button>
                   </div>
                 ) : (

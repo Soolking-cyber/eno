@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import type { RangeMeta } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
@@ -70,13 +71,15 @@ export function RangeSpecInput({
           {range.unit && <span className="shrink-0 text-ink-4">{range.unit}</span>}
         </span>
         {value != null && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="none"
             onClick={() => { onChange(null); setText('') }}
-            className="text-xs font-semibold text-ink-4 hover:text-foreground cursor-pointer"
+            className="text-xs font-semibold text-ink-4 hover:bg-transparent hover:text-foreground cursor-pointer"
           >
             {tr('Clear', 'Xóa')}
-          </button>
+          </Button>
         )}
       </div>
       <div className="relative h-5 w-full max-w-sm">

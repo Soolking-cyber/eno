@@ -172,12 +172,12 @@ export function DevelopersPanel() {
               </div>
               {confirmId === k.id ? (
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <button onClick={() => revoke(k.id)} className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700">{tr('Revoke', 'Thu hồi')}</button>
-                  <button onClick={() => setConfirmId(null)} className="rounded-full px-2 py-1.5 text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Cancel', 'Hủy')}</button>
+                  <Button variant="destructive" size="none" onClick={() => revoke(k.id)} className="cursor-pointer rounded-full px-3 py-1.5 text-xs font-bold">{tr('Revoke', 'Thu hồi')}</Button>
+                  <Button variant="ghost" size="none" onClick={() => setConfirmId(null)} className="cursor-pointer rounded-full px-2 py-1.5 text-xs font-semibold text-ink-4 hover:bg-transparent hover:text-foreground">{tr('Cancel', 'Hủy')}</Button>
                 </div>
               ) : (
                 <button onClick={() => setConfirmId(k.id)} aria-label={tr('Revoke', 'Thu hồi')} title={tr('Revoke', 'Thu hồi')}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-red-600">
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-destructive">
                   <Trash2 className="h-4 w-4" />
                 </button>
               )}
@@ -347,15 +347,15 @@ function WebhooksSection() {
                   {h.events.includes('*') ? tr('all events', 'tất cả sự kiện') : h.events.join(' · ')}
                 </p>
                 {h.failureCount > 0 && (
-                  <p className="mt-0.5 flex items-center gap-1 text-2xs text-red-500">
+                  <p className="mt-0.5 flex items-center gap-1 text-2xs text-destructive">
                     <AlertTriangle className="h-3 w-3 shrink-0" /> {tr('Recent failures:', 'Lỗi gần đây:')} {h.failureCount}
                   </p>
                 )}
               </div>
               {confirmId === h.id ? (
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <button onClick={() => remove(h.id)} className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700">{tr('Remove', 'Xóa')}</button>
-                  <button onClick={() => setConfirmId(null)} className="rounded-full px-2 py-1.5 text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Cancel', 'Hủy')}</button>
+                  <Button variant="destructive" size="none" onClick={() => remove(h.id)} className="cursor-pointer rounded-full px-3 py-1.5 text-xs font-bold">{tr('Remove', 'Xóa')}</Button>
+                  <Button variant="ghost" size="none" onClick={() => setConfirmId(null)} className="cursor-pointer rounded-full px-2 py-1.5 text-xs font-semibold text-ink-4 hover:bg-transparent hover:text-foreground">{tr('Cancel', 'Hủy')}</Button>
                 </div>
               ) : (
                 <div className="flex shrink-0 items-center gap-0.5">
@@ -364,7 +364,7 @@ function WebhooksSection() {
                     {h.enabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   </button>
                   <button onClick={() => setConfirmId(h.id)} aria-label={tr('Remove', 'Xóa')} title={tr('Remove', 'Xóa')}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-red-600">
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-destructive">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>

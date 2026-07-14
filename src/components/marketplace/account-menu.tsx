@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Avatar } from '@/components/ui/avatar'
+import { IconButton } from '@/components/ui/icon-button'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useAccountPanel } from './account-panel'
@@ -27,22 +29,17 @@ export function AccountMenu() {
   }, [user])
 
   if (!user) return null
-  const initial = (user.email || user.phone || '?').charAt(0).toUpperCase()
 
   return (
-    <button
+    <IconButton
+      size="md"
       onClick={() => setOpen(!open)}
-      className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-accent cursor-pointer tap-44 relative"
+      className="transition-colors hover:bg-accent"
       aria-label={tr('Account', 'Tài khoản')}
       aria-haspopup="dialog"
       aria-expanded={open}
     >
-      {me?.avatarUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={me.avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
-      ) : (
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">{initial}</span>
-      )}
-    </button>
+      <Avatar url={me?.avatarUrl} name={user.email || user.phone || '?'} size="sm" className="h-7 w-7" />
+    </IconButton>
   )
 }

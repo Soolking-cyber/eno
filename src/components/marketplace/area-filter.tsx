@@ -330,21 +330,23 @@ export function AreaFilter({
               ) : null}
             </div>
           ) : (
-            <button
+            <Button
+              variant="ghost"
+              size="none"
               onClick={locate}
               disabled={locating}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted active:scale-[0.99] disabled:opacity-60"
+              className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted hover:text-accent-foreground active:scale-[0.99] disabled:opacity-60"
             >
               {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
               {tr('Use my current location', 'Dùng vị trí hiện tại')}
-            </button>
+            </Button>
           )}
         </div>
         )}
       </div>
 
       <div className="mt-4 flex gap-3">
-        <button onClick={reset} className="flex-1 rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted">{mode === 'pick' ? tr('Clear', 'Xóa') : tr('Delete filter', 'Xóa lọc')}</button>
+        <Button variant="ghost" size="none" onClick={reset} className="flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted hover:text-body">{mode === 'pick' ? tr('Clear', 'Xóa') : tr('Delete filter', 'Xóa lọc')}</Button>
         <Button variant="cta" size="none" onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-colors"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</Button>
       </div>
     </div>
