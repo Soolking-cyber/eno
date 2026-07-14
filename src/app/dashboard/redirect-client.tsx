@@ -3,7 +3,9 @@
 import { useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAccountPanel, type PanelView } from '@/components/marketplace/account-panel'
+import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/context/auth-context'
+import { useLanguage } from '@/context/language-context'
 
 const TAB_TO_VIEW: Record<string, PanelView> = {
   listings: 'listings',
@@ -21,6 +23,7 @@ export function DashboardRedirect() {
   const searchParams = useSearchParams()
   const { user, loading } = useAuth()
   const { openAfterNav } = useAccountPanel()
+  const { tr } = useLanguage()
   const started = useRef(false)
 
   useEffect(() => {
@@ -34,8 +37,8 @@ export function DashboardRedirect() {
   }, [loading, user, searchParams, openAfterNav, router])
 
   return (
-    <div className="flex min-h-[50vh] items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand border-t-transparent" aria-label="Loading" />
+    <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-label={tr('Loading…', 'Đang tải…')}>
+      <Spinner size="lg" />
     </div>
   )
 }

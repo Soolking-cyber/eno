@@ -8,6 +8,7 @@ import { useCurrency } from '@/context/currency-context'
 import { compactPrice, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { PricePresetChips } from './price-preset-chips'
 
 const BINS = 30
@@ -184,7 +185,7 @@ export function PriceRangeFilter({
           </div>
 
           {!loaded ? (
-            <div className="mt-6 h-24 animate-pulse rounded-xl bg-muted" />
+            <Skeleton className="mt-6 h-24 rounded-xl" />
           ) : prices.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">{tr('No listings match these filters yet.', 'Chưa có tin phù hợp với bộ lọc.')}</p>
           ) : (

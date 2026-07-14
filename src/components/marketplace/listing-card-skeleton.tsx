@@ -1,3 +1,4 @@
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 /** The one loading placeholder for a listing card — photo + title/price/location
@@ -8,9 +9,9 @@ export function ListingCardSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-3', className)}>
       <div className="aspect-[10/11] w-full rounded-xl shimmer skeleton-photo" />
-      <div className="h-4 w-2/3 rounded-lg shimmer" />
-      <div className="h-3 w-1/2 rounded-lg shimmer" />
-      <div className="h-3 w-1/3 rounded-lg shimmer" />
+      <Skeleton className="h-4 w-2/3" />
+      <Skeleton className="h-3 w-1/2" />
+      <Skeleton className="h-3 w-1/3" />
     </div>
   )
 }

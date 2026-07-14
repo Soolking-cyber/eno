@@ -7,6 +7,7 @@ import { useChat } from '@/context/chat-context'
 import { useLanguage } from '@/context/language-context'
 import { trackContactSeller, currencyCode } from '@/lib/analytics'
 import { COMPOSE_KEY } from '@/components/marketplace/contact-composer'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
 type Compose = { listingId: string; body: string; offerAmount?: number | null; listingTitle: string; listingImage: string | null; trackPrice: number | null; currency: string }
@@ -67,13 +68,13 @@ export default function PendingComposePage() {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
-        <div className="h-9 w-9 shrink-0 rounded-full shimmer" />
-        <div className="h-4 w-32 rounded-lg shimmer" />
+        <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+        <Skeleton className="h-4 w-32" />
       </div>
       <div className="flex-1 space-y-2 px-4 py-4">
         {[['end', 'w-44'], ['start', 'w-32']].map(([side, w], i) => (
           <div key={i} className={`flex ${side === 'end' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`h-9 ${w} rounded-2xl shimmer`} />
+            <Skeleton className={`h-9 ${w} rounded-2xl`} />
           </div>
         ))}
       </div>

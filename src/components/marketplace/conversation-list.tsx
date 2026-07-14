@@ -11,6 +11,7 @@ import { Search, Trash2, X, Sparkles } from 'lucide-react'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
+import { Skeleton } from '@/components/ui/skeleton'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
 // Borderless conversation list — the left pane of the desktop two-pane messenger
@@ -81,7 +82,7 @@ export function ConversationList() {
             <div className="mt-4"><SignInPrompt /></div>
           </div>
         ) : convos === null ? (
-          <div className="space-y-1.5 px-1">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 rounded-xl shimmer" />)}</div>
+          <div className="space-y-1.5 px-1">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
         ) : convos.length === 0 ? (
           <div className="px-3 py-12 text-center">
             <Mascot name="chat" className="mx-auto h-40 w-40" />

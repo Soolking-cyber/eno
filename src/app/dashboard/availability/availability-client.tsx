@@ -11,6 +11,7 @@ import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // localStorage marker so the daily review only auto-shows once per day per user.
 export const reviewKey = (uid: string) => `eno-avail:${uid}`
@@ -101,7 +102,7 @@ export function AvailabilityClient() {
 
         <div className="mt-4 space-y-1.5 pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-24">
           {!listings ? (
-            Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 rounded-2xl shimmer" />)
+            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-2xl" />)
           ) : filtered.map((l) => {
             const sold = soldIds.has(l.id)
             return (
