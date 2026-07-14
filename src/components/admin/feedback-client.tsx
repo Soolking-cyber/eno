@@ -105,7 +105,7 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
                         disabled={busy === it.id}
                         className="ml-auto gap-1.5 text-xs font-semibold text-foreground"
                       >
-                        {resolved ? <><RotateCcw className="h-3.5 w-3.5" /> Reopen</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Resolve</>}
+                        {resolved ? <><RotateCcw className="size-4" /> Reopen</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Resolve</>}
                       </Button>
                     </div>
                   </CardContent>

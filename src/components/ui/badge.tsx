@@ -12,12 +12,20 @@ import { cn } from '@/lib/utils'
 //    `render={<Link/>}` or `render={<button/>}` to change the element. A chip that
 //    carries selected-state *logic* is still a <Button>; `interactive` is the
 //    affordance, not a state machine.
-//  · COUNT BUBBLES — `size="count" variant="counter"` is the notification counter.
-//    It is on the destructive TOKEN, so it adapts in dark mode. The 4 bubbles still
-//    hand-rolled on raw `bg-red-500` (header ×2, mobile-nav ×2) are geometrically
-//    identical to it and should migrate; POSITIONING stays on the caller (the
-//    primitive owns no `absolute`). The 2 raw `bg-red-600` pills on the PDP are
-//    wider chips, not bubbles — they want `variant="counter"` at `size="sm"`.
+//  · COUNT BUBBLES — `size="count"` is the 16px bubble; the VARIANT picks its tone.
+//    `variant="counter"` = the ALERT count (destructive token). `variant="counter-brand"`
+//    = the INFORMATIONAL count (primary token) — unread messages, active-filter counts:
+//    a number that is waiting for you, not warning you. Both are on tokens, so both
+//    adapt in dark mode. POSITIONING stays on the caller (the primitive owns no
+//    `absolute`). Wider non-bubble pills (the PDP price-drop chips) are the same
+//    variants at `size="sm"`.
+//    Still hand-rolled and due to migrate:
+//      · facet-bar active-adv count — geometrically IDENTICAL to `counter-brand` +
+//        `size="count"` (h-4 min-w-4 px-1 text-3xs font-bold); a drop-in swap.
+//      · conversation-list unread — same tone, but a 20px bubble (h-5 min-w-5 px-1.5).
+//        It is NOT a size="count" drop-in: pass the geometry on Badge's OWN className
+//        (`className="h-5 min-w-5 px-1.5"`), which goes through cn() and cleanly
+//        replaces h-4/min-w-4/px-1. Do not put it on a `render` child.
 //
 // NOT for: over-image overlays with drop-shadows — they need positioning and a
 // shadow this primitive does not own; keep those bespoke.
@@ -37,7 +45,19 @@ const VARIANTS = {
   // The alert/count TONE. Deliberately not aliased as `count`: a `count` variant that
   // shared a name with the `count` SIZE could be half-applied — variant alone gives a
   // red pill with sm padding, not the 16px bubble. Bubble = variant="counter" + size="count".
+  //
+  // A count bubble has two TONES, and the tone is the whole message:
+  //   counter       — ALERT. Something is wrong / needs you (destructive token).
+  //   counter-brand — INFORMATIONAL. Something is merely waiting (unread messages,
+  //                   active filters). Nothing is wrong; it must not read as red.
+  // Both foregrounds are TOKENS, never a hardcoded white, because the two tokens do
+  // not behave the same across themes: --destructive-foreground FLIPS (white in light,
+  // #1b1b1b in dark, because the dark --destructive is a light red), while
+  // --primary-foreground is #ffffff in BOTH themes (the dark block re-declares --primary
+  // as the same blue on purpose). Writing `text-white` here would be right by accident
+  // for one and wrong for the other; the tokens are right by construction for both.
   counter: 'bg-destructive text-destructive-foreground',
+  'counter-brand': 'bg-primary text-primary-foreground',
 } as const
 
 const SIZES = {

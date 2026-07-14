@@ -311,7 +311,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
             disabled={busy !== null || !message.trim()}
             className="gap-1.5 px-4 py-2 text-xs disabled:opacity-40 cursor-pointer"
           >
-            {busy === 'dispute-message' && <Loader2 className="h-3 w-3 animate-spin" />} Send to both parties
+            {busy === 'dispute-message' && <Loader2 className="size-4 animate-spin" />} Send to both parties
           </Button>
           {open && (
             <button

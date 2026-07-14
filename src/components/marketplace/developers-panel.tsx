@@ -107,7 +107,7 @@ export function DevelopersPanel() {
               <div className="mt-2 flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate rounded-lg bg-card px-3 py-2 font-mono text-xs text-foreground">{secret}</code>
                 <Button variant="cta" size="none" onClick={copySecret} className="shrink-0 gap-1.5 rounded-lg px-3 py-2 text-xs">
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
+                  {copied ? <Check className="size-4" /> : <Copy className="h-3.5 w-3.5" />} {copied ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
                 </Button>
               </div>
             </div>
@@ -284,7 +284,7 @@ function WebhooksSection() {
               <div className="mt-2 flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate rounded-lg bg-card px-3 py-2 font-mono text-xs text-foreground">{secret}</code>
                 <Button variant="cta" size="none" onClick={copySecret} className="shrink-0 gap-1.5 rounded-lg px-3 py-2 text-xs">
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
+                  {copied ? <Check className="size-4" /> : <Copy className="h-3.5 w-3.5" />} {copied ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
                 </Button>
               </div>
             </div>

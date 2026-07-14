@@ -157,7 +157,7 @@ function AppealPanel({ action, onChanged }: { action: NonNullable<EnforcementInf
           disabled={busy || text.trim().length < 5}
           className="gap-1.5 px-4 py-1.5 text-xs disabled:opacity-40 cursor-pointer"
         >
-          {busy && <Loader2 className="h-3 w-3 animate-spin" />} {tr('Submit appeal', 'Gửi khiếu nại')}
+          {busy && <Loader2 className="size-4 animate-spin" />} {tr('Submit appeal', 'Gửi khiếu nại')}
         </Button>
         <Button
           variant="ghost" size="none"
