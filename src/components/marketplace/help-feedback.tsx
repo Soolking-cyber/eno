@@ -11,16 +11,18 @@ import { Textarea } from '@/components/ui/textarea'
 // re-renders — a component created inside render remounts its subtree on every keystroke.
 function Toggle({ label, Icon, active, onSelect }: { label: string; Icon: typeof Wrench; active: boolean; onSelect: () => void }) {
   return (
-    <button
+    <Button
+      variant="bare"
+      size="none"
       type="button"
       onClick={onSelect}
       className={
-        'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer ' +
+        'gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer ' +
         (active ? 'bg-primary text-white' : 'text-body hover:bg-muted')
       }
     >
       <Icon className="h-4 w-4" /> {label}
-    </button>
+    </Button>
   )
 }
 

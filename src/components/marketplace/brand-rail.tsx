@@ -169,14 +169,19 @@ export function BrandRail({
                       {overflowModels.map((m) => {
                         const mActive = activeModel === m.model
                         return (
-                          <button
+                          // All four base-colliding classes ride the BUTTON: w-full (the base is
+                          // inline-flex), justify-between (the base CENTRES), gap-3 (the base gap-2)
+                          // and font-semibold (the base font-medium would inherit into the spans).
+                          <Button
                             key={m.model}
+                            variant="bare"
+                            size="none"
                             onClick={() => onPickModel(mActive ? 'all' : m.model)}
-                            className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
+                            className={cn('w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors active:scale-100', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >
                             <span className="truncate">{m.model}</span>
                             <span className="shrink-0 text-3xs font-semibold text-ink-4">{m.count}</span>
-                          </button>
+                          </Button>
                         )
                       })}
                     </MoreOverflow>

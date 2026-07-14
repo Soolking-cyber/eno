@@ -126,18 +126,27 @@ export function CustomSelect({
           {options.map((opt) => {
             const isActive = opt.value === value
             return (
-              <button
+              // ui/button (variant="bare" size="none") = focus ring + icon rule only; the
+              // row's box/colours stay hand-rolled. Base classes neutralised below:
+              //   · justify-center → justify-between, text-center → text-left, inline-flex → flex
+              //   · gap-2 → gap-6 · rounded-xl → rounded-lg · transition-all → transition-colors
+              //   · active:scale-[0.97] → active:scale-100. These are PORTAL MENU ROWS: they
+              //     live in a fixed-position card anchored to the trigger's rect and never had
+              //     a press-scale. Do not let the base scale back in.
+              <Button
                 key={opt.value}
                 type="button"
+                variant="bare"
+                size="none"
                 onClick={() => { onChange(opt.value); setIsOpen(false) }}
                 className={cn(
-                  'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer hover:bg-muted hover:text-accent-foreground',
+                  'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer active:scale-100 hover:bg-muted hover:text-accent-foreground',
                   isActive ? 'font-semibold text-accent-foreground' : 'font-medium text-body',
                 )}
               >
                 <span className="truncate">{opt.label}</span>
                 {isActive && <Check className="h-4 w-4 shrink-0" />}
-              </button>
+              </Button>
             )
           })}
         </div>

@@ -122,14 +122,16 @@ export function CategoryRail({
                         const subActive = activeSubcategory === sub.slug
                         const count = subcategoryCounts[sub.slug]
                         return (
-                          <button
+                          <Button
                             key={sub.slug}
+                            variant="bare"
+                            size="none"
                             onClick={() => onSubcategory(subActive ? 'all' : sub.slug)}
-                            className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
+                            className={cn('flex w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left font-semibold transition-colors active:scale-100', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >
                             <span className="flex min-w-0 items-center gap-2"><CategoryIcon name={sub.icon} className="h-4 w-4 shrink-0 text-ink-4" /><span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span></span>
                             {count != null && <span className="shrink-0 text-3xs font-semibold text-ink-4">{count}</span>}
-                          </button>
+                          </Button>
                         )
                       })}
                     </MoreOverflow>

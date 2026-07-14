@@ -11,6 +11,7 @@ import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 
 // localStorage marker so the daily review only auto-shows once per day per user.
@@ -96,7 +97,7 @@ export function AvailabilityClient() {
         {total > 6 && (
           <div className="relative mt-5">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-4" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr('Search your listings', 'Tìm tin của bạn')} className="w-full rounded-xl bg-tint py-2.5 pl-10 pr-4 text-sm text-foreground outline-none placeholder:text-ink-4 focus:bg-muted" />
+            <Input variant="filled" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr('Search your listings', 'Tìm tin của bạn')} className="py-2.5 pl-10 pr-4 focus:bg-muted focus:ring-0" />
           </div>
         )}
 
@@ -133,7 +134,7 @@ export function AvailabilityClient() {
         <div data-fab-clear className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card px-3 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-3">
           <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
             {canSkip ? (
-              <button onClick={skip} className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</button>
+              <Button variant="bare" size="none" onClick={skip} className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</Button>
             ) : (
               <span className="max-w-[55%] text-xs text-muted-foreground">{tr('Quick check needed — confirm what’s still available to keep your listings live.', 'Cần xác nhận nhanh — xác nhận món còn hàng để giữ tin của bạn hiển thị.')}</span>
             )}

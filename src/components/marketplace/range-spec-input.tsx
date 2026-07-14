@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { EnoSlider } from '@/components/marketplace/eno-slider'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/context/language-context'
 import type { RangeMeta } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
@@ -58,7 +59,8 @@ export function RangeSpecInput({
     <div className={cn('space-y-2.5', className)}>
       <div className="flex items-center gap-2">
         <span className="flex items-center gap-1.5 rounded-xl bg-tint px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-ring/30">
-          <input
+          <Input
+            variant="unstyled"
             type="text"
             inputMode={decimals > 0 ? 'decimal' : 'numeric'}
             value={text}
@@ -66,7 +68,7 @@ export function RangeSpecInput({
             onChange={(e) => onType(e.target.value)}
             onBlur={onBlur}
             placeholder={tr('Any', 'Bất kỳ')}
-            className="w-20 bg-transparent text-foreground outline-none placeholder:text-ink-4"
+            className="w-20"
           />
           {range.unit && <span className="shrink-0 text-ink-4">{range.unit}</span>}
         </span>

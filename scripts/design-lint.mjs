@@ -67,11 +67,15 @@ const RULES = [
   },
   {
     // A {/* … */} in EXPRESSION position is a syntax error, not a comment — JSX comments
-    // are only valid as CHILDREN. `return (` followed by one, or one inside a ternary
-    // branch, fails the build with a baffling "')' expected". Cheap to catch, and it has
-    // now cost three separate build breaks in one day. Use a plain // comment above.
-    name: 'JSX comment in expression position — only valid as a CHILD; use a // comment above the return',
-    re: /(?:return\s*\(\s*|\?\s*|:\s*)\n?\s*\{\/\*/g,
+    // are only valid as CHILDREN. It fails the build with a baffling "')' expected", and it
+    // has now cost FOUR build breaks. Use a plain // comment above the expression instead.
+    //
+    // The pattern is: an opening `(` — from `return (`, `{cond && (`, `? (`, `: (`, `.map(x => (`
+    // — then a JSX comment, then a JSX element. The first version of this rule only matched
+    // `return (` and sailed straight past `{landingQuery && (`, which is exactly how the next
+    // one shipped. Match the general shape instead: ( … {/* … */} … <
+    name: 'JSX comment in expression position — only valid as a CHILD; use a // comment above it',
+    re: /\(\s*\n\s*\{\/\*[\s\S]*?\*\/\}\s*\n\s*</g,
     raw: true, // must see the comment itself — do not run on the comment-stripped source
   },
 ]

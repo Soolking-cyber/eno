@@ -6,6 +6,7 @@ import { Search, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { fold } from '@/lib/fold'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
@@ -118,11 +119,12 @@ export function SellerListings({
         /* Just a search within this seller's catalog — no category/type filters. */
         <div className="flex items-center gap-2 rounded-xl bg-tint px-3 py-2">
           <Search className="h-4 w-4 shrink-0 text-ink-4" />
-          <input
+          <Input
+            variant="unstyled"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={tr('Search this seller', 'Tìm trong tin của người bán')}
-            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-ink-4"
+            className="min-w-0 flex-1 text-sm"
           />
         </div>
       )}

@@ -1311,15 +1311,19 @@ export function ListingsExplorer({
                   placeholder={tr('Search motorbikes, apartments, moving sales...', 'Tìm xe máy, căn hộ, đồ thanh lý...')}
                   className="min-w-0 flex-1 bg-transparent py-3 pr-3 text-base font-medium text-foreground outline-none placeholder:text-ink-4 placeholder:font-medium"
                 />
+                {/* Button, NOT IconButton: a baked 44px tap target would overrun the
+                    adjacent AI button in this bar. */}
                 {landingQuery && (
-                  <button
+                  <Button
+                    variant="bare"
+                    size="none"
                     type="button"
                     onClick={() => setLandingQuery('')}
                     aria-label={tr('Clear', 'Xóa')}
                     className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
                   >
                     <X className="h-5 w-5" />
-                  </button>
+                  </Button>
                 )}
                 {/* AI concierge — pressable, left of the camera (consistent with the navbar bar). */}
                 <AISearchButton
@@ -1366,22 +1370,26 @@ export function ListingsExplorer({
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                               <span className="eyebrow flex items-center gap-1 text-body"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
-                              <button
+                              <Button
+                                variant="bare"
+                                size="none"
                                 onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }}
                                 className="text-2xs font-semibold text-body hover:text-destructive cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
-                              </button>
+                              </Button>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
                               {recentSearches.map((term, i) => (
-                                <button
+                                <Button
                                   key={i}
+                                  variant="bare"
+                                  size="none"
                                   onClick={() => { setLandingQuery(term); handleLandingSearch(term) }}
-                                  className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
+                                  className="whitespace-normal text-left rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
                                 >
                                   {term}
-                                </button>
+                                </Button>
                               ))}
                             </div>
                           </div>
@@ -1391,23 +1399,27 @@ export function ListingsExplorer({
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                               <span className="eyebrow flex items-center gap-1 text-body"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
-                              <button
+                              <Button
+                                variant="bare"
+                                size="none"
                                 onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }}
                                 className="text-2xs font-semibold text-body hover:text-destructive cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
-                              </button>
+                              </Button>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
                               {recentLocations.map((loc, i) => (
-                                <button
+                                <Button
                                   key={i}
+                                  variant="bare"
+                                  size="none"
                                   onClick={() => applyRecentLocation(loc)}
                                   className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
                                 >
                                   <MapPin className="h-3.5 w-3.5" />
                                   {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
-                                </button>
+                                </Button>
                               ))}
                             </div>
                           </div>
@@ -1428,13 +1440,15 @@ export function ListingsExplorer({
                             <span className="eyebrow flex items-center gap-1 text-body"><TrendingUp className="h-3 w-3" />{tr('Popular', 'Phổ biến')}</span>
                             <div className="flex flex-wrap gap-1.5">
                               {categories.slice(0, 8).map((c) => (
-                                <button
+                                <Button
                                   key={c.slug}
+                                  variant="bare"
+                                  size="none"
                                   onClick={() => { setShowSuggestions(false); handleCategorySelect(c.slug) }}
                                   className="rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-accent-foreground transition-colors cursor-pointer"
                                 >
                                   <Tr text={lang === 'vi' ? c.nameVi : c.name} />
-                                </button>
+                                </Button>
                               ))}
                             </div>
                           </div>
@@ -1597,12 +1611,14 @@ export function ListingsExplorer({
                 <div ref={loadMoreRef} className="mt-6 select-none">
                   {hasMore && !feedUnlocked && !queryFetching && (
                     <div className="flex justify-center border-t border-border pt-6">
-                      <button
+                      <Button
+                        variant="bare"
+                        size="none"
                         onClick={() => { prefetchNextPage(); setPage((p) => p + 1); setFeedUnlocked(true) }}
                         className="rounded-xl border border-line-strong px-6 py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted cursor-pointer"
                       >
                         {tr('Load more', 'Xem thêm')}
-                      </button>
+                      </Button>
                     </div>
                   )}
                   {queryFetching && hasMore && (
@@ -1689,20 +1705,22 @@ export function ListingsExplorer({
     const chipBtns = (
       <>
         {chips.map((c, i) => (
-          <button
+          <Button
             key={i}
+            variant="bare"
+            size="none"
             onClick={c.onClear}
             aria-label={tr('Remove filter', 'Bỏ bộ lọc') + `: ${c.label}`}
-            className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted cursor-pointer"
+            className="whitespace-normal text-left inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted cursor-pointer"
           >
             {c.label}
             <X className="h-3 w-3 text-ink-4" />
-          </button>
+          </Button>
         ))}
         {chips.length > 1 && (
-          <button onClick={clearAllFilters} className="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent transition-colors cursor-pointer">
+          <Button variant="bare" size="none" onClick={clearAllFilters} className="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent transition-colors cursor-pointer">
             {tr('Clear all', 'Xóa tất cả')}
-          </button>
+          </Button>
         )}
       </>
     )
@@ -1721,10 +1739,10 @@ export function ListingsExplorer({
     return (
       <div className={cn('space-y-2.5 rounded-2xl bg-brand-50 p-3', className)}>
         <div className="flex flex-wrap items-center gap-1.5">{chipBtns}</div>
-        <button onClick={saveSearch} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-card py-2 text-sm font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer">
+        <Button variant="bare" size="none" onClick={saveSearch} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-card py-2 text-sm font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer">
           <Bookmark className="h-4 w-4" /> {tr('Save this search', 'Lưu tìm kiếm này')}
           <span className="text-2xs font-normal text-muted-foreground">{tr('— alerts on new matches', '— báo khi có tin mới')}</span>
-        </button>
+        </Button>
       </div>
     )
   }
@@ -1744,14 +1762,16 @@ export function ListingsExplorer({
           <div className="flex flex-wrap items-center justify-center gap-2">
             <span className="text-xs text-ink-4">{tr('Remove:', 'Bỏ bớt:')}</span>
             {chips.map((c, i) => (
-              <button
+              <Button
                 key={i}
+                variant="bare"
+                size="none"
                 onClick={c.onClear}
-                className="inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 whitespace-normal rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
               >
                 {c.label}
                 <X className="h-3 w-3" />
-              </button>
+              </Button>
             ))}
           </div>
         )}
@@ -1786,13 +1806,15 @@ export function ListingsExplorer({
             <span className="text-xs text-ink-4">{tr('Or browse', 'Hoặc xem')}</span>
             <div className="flex flex-wrap items-center justify-center gap-2">
               {categories.slice(0, 4).map((c) => (
-                <button
+                <Button
                   key={c.slug}
+                  variant="bare"
+                  size="none"
                   onClick={() => handleCategorySelect(c.slug)}
                   className="inline-flex items-center rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
                 >
                   <Tr text={lang === 'vi' ? c.nameVi : c.name} />
-                </button>
+                </Button>
               ))}
             </div>
           </div>

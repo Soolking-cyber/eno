@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 
 // Horizontal "shelf" rail primitive — the section header (optional icon + bold title +
 // optional "See all") and the snap scroller that ~8 rails hand-rolled identically.
@@ -43,9 +44,9 @@ export function Shelf({
       {label} <ChevronRight className="h-4 w-4" />
     </Link>
   ) : seeAllOnClick ? (
-    <button type="button" onClick={seeAllOnClick} className={`${seeAllClass} cursor-pointer`}>
+    <Button variant="bare" size="none" className={`${seeAllClass} cursor-pointer`} onClick={seeAllOnClick}>
       {label} <ChevronRight className="h-4 w-4" />
-    </button>
+    </Button>
   ) : null
 
   return (

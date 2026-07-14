@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TrendingDown, Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { EnoSlider } from './eno-slider'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, parseVnd, groupVnd, dropPercent, moneyLocale } from '@/lib/vnd'
@@ -36,9 +37,11 @@ export function PercentPicker({ pct, onPct }: { pct: number; onPct: (p: number) 
       <EnoSlider value={pct} min={1} max={99} step={1} onChange={(v) => onPct(clampPct(v))} aria-label={tr('Discount percent', 'Phần trăm giảm')} />
       <div className="grid grid-cols-3 gap-2">
         {DISCOUNT_PRESETS.map((p) => (
-          <button
+          <Button
             key={p}
             type="button"
+            variant="bare"
+            size="none"
             onClick={() => onPct(p)}
             className={cn(
               'rounded-xl border py-1.5 text-sm font-bold transition-colors cursor-pointer',
@@ -46,7 +49,7 @@ export function PercentPicker({ pct, onPct }: { pct: number; onPct: (p: number) 
             )}
           >
             −{p}%
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -155,12 +158,13 @@ export function QuickDiscount({
             <div>
               <label className="text-xs font-semibold text-muted-foreground">{tr('New price', 'Giá mới')}</label>
               <div className="mt-1 flex items-center gap-2 rounded-xl bg-tint px-3 py-2 focus-within:ring-2 focus-within:ring-brand/20">
-                <input
+                <Input
+                  variant="unstyled"
                   inputMode="numeric"
                   value={amount}
                   onChange={(e) => onAmount(e.target.value)}
                   placeholder="0"
-                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold tabular-nums text-foreground outline-none"
+                  className="min-w-0 flex-1 text-sm font-semibold tabular-nums"
                 />
                 <span className="shrink-0 text-xs font-semibold text-muted-foreground">VND</span>
               </div>

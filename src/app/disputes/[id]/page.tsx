@@ -375,7 +375,15 @@ export default function DisputeRoomPage() {
                     <div key={i} className="relative h-16 w-16 overflow-hidden rounded-xl bg-tint">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={f.url} alt="" className="h-full w-full object-cover" />
-                      <button onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white cursor-pointer"><X className="h-3 w-3" /></button>
+                      {/* NOT IconButton: its xs box is h-7 and it bakes a 44px tap target,
+                          which would spill onto the neighbouring gap-2 thumbnail. */}
+                      <Button
+                        variant="bare" size="none"
+                        onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))}
+                        className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
                     </div>
                   ))}
                   {files.length < 6 && (
@@ -425,13 +433,13 @@ export default function DisputeRoomPage() {
                 {confirmWithdraw ? (
                   <span className="inline-flex items-center gap-2 text-xs font-semibold text-body">
                     {t('Withdraw this case?', 'Rút lại hồ sơ này?')}
-                    <button onClick={withdraw} disabled={withdrawing} className="font-bold text-destructive hover:underline cursor-pointer">{withdrawing ? '…' : t('Yes', 'Có')}</button>
-                    <button onClick={() => setConfirmWithdraw(false)} className="font-bold text-ink-4 hover:underline cursor-pointer">{t('No', 'Không')}</button>
+                    <Button variant="bare" size="none" onClick={withdraw} disabled={withdrawing} className="disabled:opacity-100 text-xs font-bold text-destructive hover:underline cursor-pointer">{withdrawing ? '…' : t('Yes', 'Có')}</Button>
+                    <Button variant="bare" size="none" onClick={() => setConfirmWithdraw(false)} className="text-xs font-bold text-ink-4 hover:underline cursor-pointer">{t('No', 'Không')}</Button>
                   </span>
                 ) : (
-                  <button onClick={() => setConfirmWithdraw(true)} className="rounded-xl px-3 py-2 text-xs font-bold text-ink-4 transition-colors hover:bg-muted cursor-pointer">
+                  <Button variant="soft" size="none" onClick={() => setConfirmWithdraw(true)} className="rounded-xl px-3 py-2 text-xs font-bold text-ink-4 cursor-pointer">
                     {t('Withdraw this case', 'Rút lại hồ sơ')}
-                  </button>
+                  </Button>
                 )}
               </div>
             )}

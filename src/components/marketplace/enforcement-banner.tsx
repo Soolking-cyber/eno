@@ -135,9 +135,13 @@ function AppealPanel({ action, onChanged }: { action: NonNullable<EnforcementInf
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="text-xs font-semibold text-foreground underline-offset-2 hover:underline cursor-pointer">
+      <Button
+        variant="bare" size="none"
+        onClick={() => setOpen(true)}
+        className="whitespace-normal text-left text-xs font-semibold text-foreground underline-offset-2 hover:underline cursor-pointer"
+      >
         {tr('This is a mistake? Appeal the decision.', 'Có nhầm lẫn? Gửi khiếu nại.')}
-      </button>
+      </Button>
     )
   }
   return (

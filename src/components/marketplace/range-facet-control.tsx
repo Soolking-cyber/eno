@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Input } from '@/components/ui/input'
 import { RangeSlider } from '@/components/ui/range-slider'
 import { useLanguage } from '@/context/language-context'
 import type { RangeMeta } from '@/lib/taxonomy'
@@ -75,25 +76,27 @@ export function RangeFacetControl({
       />
       <div className="mt-2 flex items-center gap-2">
         <span className="flex items-center gap-1 rounded-lg bg-tint px-2.5 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring/30">
-          <input
+          <Input
+            variant="unstyled"
             type="text" inputMode={decimals > 0 ? 'decimal' : 'numeric'}
             value={loText} placeholder={tr('Min', 'Tối thiểu')}
             onFocus={() => { loFoc.current = true }}
             onChange={(e) => setLoText(digits(e.target.value))}
             onBlur={blurLo}
-            className="w-16 bg-transparent text-foreground outline-none placeholder:text-ink-4"
+            className="w-16"
           />
           {unit && loText !== '' && <span className="text-ink-4">{unit}</span>}
         </span>
         <span className="text-ink-4">–</span>
         <span className="flex items-center gap-1 rounded-lg bg-tint px-2.5 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring/30">
-          <input
+          <Input
+            variant="unstyled"
             type="text" inputMode={decimals > 0 ? 'decimal' : 'numeric'}
             value={hiText} placeholder={tr('Max', 'Tối đa')}
             onFocus={() => { hiFoc.current = true }}
             onChange={(e) => setHiText(digits(e.target.value))}
             onBlur={blurHi}
-            className="w-16 bg-transparent text-foreground outline-none placeholder:text-ink-4"
+            className="w-16"
           />
           {unit && hiText !== '' && <span className="text-ink-4">{unit}</span>}
         </span>

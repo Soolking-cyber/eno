@@ -8,6 +8,7 @@ import { useCurrency } from '@/context/currency-context'
 import { compactPrice, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RangeSlider } from '@/components/ui/range-slider'
 import { PricePresetChips } from './price-preset-chips'
@@ -218,7 +219,8 @@ export function PriceRangeFilter({
                   <span className="mb-1 block text-2xs font-semibold text-ink-4">{tr('Minimum', 'Tối thiểu')}</span>
                   <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted">
                     {currency === 'VND' && <span className="text-ink-4">₫</span>}
-                    <input
+                    <Input
+                      variant="unstyled"
                       type="text" inputMode="numeric" value={grp(toDisplay(effLo))}
                       onChange={(e) => setLo(Math.min(Math.max(dataMin, fromDisplay(digits(e.target.value))), effHi))}
                       onBlur={() => commit(effLo, effHi)}
@@ -231,7 +233,8 @@ export function PriceRangeFilter({
                   <span className="mb-1 block text-2xs font-semibold text-ink-4">{tr('Maximum', 'Tối đa')}</span>
                   <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted">
                     {currency === 'VND' && <span className="text-ink-4">₫</span>}
-                    <input
+                    <Input
+                      variant="unstyled"
                       type="text" inputMode="numeric" value={grp(toDisplay(effHi))}
                       onChange={(e) => setHi(Math.max(Math.min(dataMax, fromDisplay(digits(e.target.value))), effLo))}
                       onBlur={() => commit(effLo, effHi)}

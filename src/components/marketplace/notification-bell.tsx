@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X, TrendingDown } from 'lucide-react'
 import { useNotifications } from '@/context/notifications-context'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
@@ -69,20 +70,24 @@ export function NotificationBell() {
             <span className="text-sm font-bold text-foreground">{tr('Notifications', 'Thông báo')}</span>
             <div className="flex shrink-0 items-center gap-3">
               {unread > 0 && (
-                <button
+                <Button
+                  variant="bare"
+                  size="none"
                   onClick={() => markAllRead()}
-                  className="whitespace-nowrap text-xs font-semibold text-ink-4 transition-colors hover:text-accent-foreground cursor-pointer"
+                  className="text-xs font-semibold text-ink-4 transition-colors hover:text-accent-foreground cursor-pointer"
                 >
                   {tr('Mark all read', 'Đánh dấu đã đọc')}
-                </button>
+                </Button>
               )}
               {items.length > 0 && (
-                <button
+                <Button
+                  variant="bare"
+                  size="none"
                   onClick={() => { if (confirmClear) { clearAll(); setConfirmClear(false) } else setConfirmClear(true) }}
-                  className={cn('whitespace-nowrap text-xs font-semibold transition-colors cursor-pointer', confirmClear ? 'text-destructive' : 'text-ink-4 hover:text-accent-foreground')}
+                  className={cn('text-xs font-semibold transition-colors cursor-pointer', confirmClear ? 'text-destructive' : 'text-ink-4 hover:text-accent-foreground')}
                 >
                   {confirmClear ? tr('Tap to delete all', 'Nhấn để xóa hết') : tr('Clear all', 'Xóa tất cả')}
-                </button>
+                </Button>
               )}
             </div>
           </div>

@@ -9,6 +9,7 @@ import { CategoryIcon } from './category-icons'
 import { RAIL_CARD_W, RAIL_SCROLLER } from './shelf'
 import { useLanguage, Tr } from '@/context/language-context'
 import { ListingCardSkeleton } from './listing-card-skeleton'
+import { Button } from '@/components/ui/button'
 
 const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district', 'province', 'ward', 'condition', 'priceMin', 'priceMax']
 
@@ -39,16 +40,16 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
     <section>
       <div className="mb-2.5 flex items-center justify-between gap-2">
         {/* span, NOT h2 — a heading can't be a child of <button> (invalid HTML → React #418). */}
-        <button onClick={() => onCategory(cat.slug)} className="group flex items-center gap-2 cursor-pointer">
+        <Button variant="bare" size="none" onClick={() => onCategory(cat.slug)} className="group flex items-center gap-2 cursor-pointer">
           <CategoryIcon name={cat.icon} className="h-4 w-4 text-accent-foreground" />
           <span className="text-base font-bold text-foreground transition-colors group-hover:text-accent-foreground">
             <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
           </span>
-        </button>
-        <button onClick={() => onCategory(cat.slug)} className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
+        </Button>
+        <Button variant="bare" size="none" onClick={() => onCategory(cat.slug)} className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
           {tr('See all', 'Xem tất cả')}
           <ChevronRight className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
       {/* Cards pixel-match the feed grid (gap-2 / sm:gap-4; one card == one grid column) + snap. */}
       <div ref={rowRef} className={RAIL_SCROLLER}>

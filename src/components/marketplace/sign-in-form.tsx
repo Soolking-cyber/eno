@@ -190,14 +190,15 @@ export function SignInForm({ className }: { className?: string }) {
         <p className="text-sm font-semibold text-foreground">{email}</p>
         <p className="mt-3 text-xs text-muted-foreground">
           {t("Didn't get it? Check spam, or", 'Không thấy email? Kiểm tra spam, hoặc')}{' '}
-          <button onClick={sendEmail} disabled={countdown > 0 || loading} className="font-semibold text-accent-foreground hover:underline disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
+          {/* text-xs: the base is text-sm and this button lives in a text-xs <p> — without it the label jumps 12→14px. disabled:opacity-100 cancels the base's disabled:opacity-50 so it doesn't double-dim against disabled:text-ink-4. */}
+          <Button variant="bare" size="none" onClick={sendEmail} disabled={countdown > 0 || loading} className="text-xs font-semibold text-accent-foreground hover:underline disabled:opacity-100 disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
             {countdown > 0 ? `${t('resend in', 'gửi lại sau')} ${fmtCountdown(countdown)}` : t('resend', 'gửi lại')}
-          </button>
+          </Button>
         </p>
         {error && <p role="alert" className="mt-2 text-xs font-semibold text-destructive">{error}</p>}
-        <button onClick={reset} className="mt-3 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
+        <Button variant="bare" size="none" onClick={reset} className="mt-3 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
           {t('Use another method', 'Dùng cách khác')}
-        </button>
+        </Button>
         {/* Kept mounted here too so the email "resend" above can mint a fresh token. */}
         <Turnstile />
       </div>
@@ -277,10 +278,11 @@ export function SignInForm({ className }: { className?: string }) {
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
           </Button>
           <div className="flex items-center justify-between px-1 text-xs">
-            <button onClick={reset} className="font-semibold text-muted-foreground hover:text-accent-foreground cursor-pointer">{t('Change number', 'Đổi số')}</button>
-            <button onClick={sendPhone} disabled={countdown > 0 || loading} className="font-semibold text-accent-foreground hover:underline disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
+            {/* text-xs on both: the base is text-sm and this row is text-xs. disabled:opacity-100 cancels the base's disabled:opacity-50 (would double-dim with disabled:text-ink-4). */}
+            <Button variant="bare" size="none" onClick={reset} className="text-xs font-semibold text-muted-foreground hover:text-accent-foreground cursor-pointer">{t('Change number', 'Đổi số')}</Button>
+            <Button variant="bare" size="none" onClick={sendPhone} disabled={countdown > 0 || loading} className="text-xs font-semibold text-accent-foreground hover:underline disabled:opacity-100 disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
               {countdown > 0 ? `${t('Resend in', 'Gửi lại sau')} ${fmtCountdown(countdown)}` : t('Resend code', 'Gửi lại mã')}
-            </button>
+            </Button>
           </div>
         </div>
       )}

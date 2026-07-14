@@ -1,6 +1,7 @@
 'use client'
 
 import { Facebook, Instagram, Youtube } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { COMPANY } from '@/lib/site-legal'
 
@@ -91,7 +92,7 @@ export function Footer() {
             <a href="/privacy" className="transition-colors hover:text-accent-foreground">{tr('Privacy', 'Quyền riêng tư')}</a>
             <a href="/regulations" className="transition-colors hover:text-accent-foreground">{tr('Regulations', 'Quy chế')}</a>
             {/* Consent withdrawal entry point — reopens the cookie banner (PDPL). */}
-            <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))} className="cursor-pointer transition-colors hover:text-accent-foreground">{tr('Cookie settings', 'Cài đặt cookie')}</button>
+            <Button type="button" variant="bare" size="none" onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))} className="cursor-pointer text-xs font-normal transition-colors hover:text-accent-foreground">{tr('Cookie settings', 'Cài đặt cookie')}</Button>
           </div>
         </div>
       </div>
