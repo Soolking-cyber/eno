@@ -36,11 +36,13 @@ export function ContactComposer({
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // offer amounts follow the viewer's language
   const router = useRouter()
-  // Offer starts OPEN at −5% (user decision 2026-07-14): the slider IS the
-  // negotiation invitation — hiding it behind a button buried the marketplace's
-  // core ritual. ✕ still collapses it back to the button for browsers-only.
+  // Offer starts OPEN (user decision 2026-07-14): the slider IS the negotiation
+  // invitation — hiding it behind a button buried the marketplace's core ritual.
+  // ✕ still collapses it. Default discount scales with the ticket: 5% on ordinary
+  // items, but 1% on ≥1 tỷ đ (cars, apartments) where 5% is tens of millions and
+  // reads as a lowball (user decision 2026-07-14).
   const [offering, setOffering] = useState(true)
-  const [discount, setDiscount] = useState(5) // % off
+  const [discount, setDiscount] = useState(typeof price === 'number' && price >= 1_000_000_000 ? 1 : 5) // % off
 
   // Offers are only possible on a negotiable, priced listing.
   const hasPrice = typeof price === 'number' && price > 0

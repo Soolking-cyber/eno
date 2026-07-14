@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 // #1 marketplace scam, so the warning must be read BEFORE the buyer contacts the
 // seller, not buried in the footer note. Copy is category-aware: vehicles get the
 // papers/chassis check, property & rentals get the visit-before-deposit rule.
-export function SafetyStrip({ categorySlug, className }: { categorySlug: string; className?: string }) {
+export function SafetyStrip({ categorySlug, action, className }: { categorySlug: string; action?: React.ReactNode; className?: string }) {
   const { tr } = useLanguage()
 
   const line =
@@ -31,11 +31,16 @@ export function SafetyStrip({ categorySlug, className }: { categorySlug: string;
   return (
     <div className={cn('flex items-start gap-2.5 rounded-xl bg-warning/10 px-3 py-2.5 text-xs leading-relaxed', className)}>
       <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
-      <div className="min-w-0 space-y-0.5">
+      <div className="min-w-0 flex-1 space-y-0.5">
         <p className="font-medium text-foreground">{line}</p>
-        <Link href="/safety" className="inline-block font-semibold text-accent-foreground hover:underline">
-          {tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}
-        </Link>
+        {/* Guide link left, Report right (user-picked 2026-07-14) — the old
+            standalone tips|report footer was a duplicate of this same link. */}
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/safety" className="inline-block font-semibold text-accent-foreground hover:underline">
+            {tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}
+          </Link>
+          {action}
+        </div>
       </div>
     </div>
   )

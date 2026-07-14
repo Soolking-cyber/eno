@@ -15,7 +15,6 @@ import { brandIconPath } from '@/lib/brand-icons'
 import {
   MapPin,
   AlertTriangle,
-  ShieldCheck,
   Heart,
   Eye,
   Tag,
@@ -576,7 +575,7 @@ export default async function ListingPage({ params }: Props) {
               {/* Safety strip — above the buyer reviews on EVERY breakpoint
                   (user-picked 2026-07-14; replaces the old mobile copy that sat
                   under the price). */}
-              <SafetyStrip categorySlug={rawListing.category.slug} />
+              <SafetyStrip categorySlug={rawListing.category.slug} action={<ReportButton listingId={listing.id} />} />
 
               {reviewsPreview.total > 0 && <Separator />}
               <ReviewsPreview
@@ -586,14 +585,6 @@ export default async function ListingPage({ params }: Props) {
                 sellerHref={sellerHref}
               />
 
-              <Separator />
-              {/* Safety + report — the balanced footer stays last. */}
-              <div className="flex items-center justify-between gap-3">
-                <Link href="/safety" className="flex items-center gap-1.5 text-xs font-semibold text-accent-foreground hover:underline">
-                  <ShieldCheck className="h-3.5 w-3.5" /> <Tr text="Safe trading tips" />
-                </Link>
-                <ReportButton listingId={listing.id} />
-              </div>
             </div>
           </div>
 
