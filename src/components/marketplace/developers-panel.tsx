@@ -7,6 +7,7 @@ import { useLanguage } from '@/context/language-context'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -178,10 +179,10 @@ export function DevelopersPanel() {
                   <Button variant="ghost" size="none" onClick={() => setConfirmId(null)} className="cursor-pointer rounded-full px-2 py-1.5 text-xs font-semibold text-ink-4 hover:bg-transparent hover:text-foreground">{tr('Cancel', 'Hủy')}</Button>
                 </div>
               ) : (
-                <button onClick={() => setConfirmId(k.id)} aria-label={tr('Revoke', 'Thu hồi')} title={tr('Revoke', 'Thu hồi')}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-destructive">
+                <IconButton size="sm" onClick={() => setConfirmId(k.id)} aria-label={tr('Revoke', 'Thu hồi')} title={tr('Revoke', 'Thu hồi')}
+                  className="text-ink-4 transition-colors hover:bg-muted hover:text-destructive">
                   <Trash2 className="h-4 w-4" />
-                </button>
+                </IconButton>
               )}
             </div>
           ))

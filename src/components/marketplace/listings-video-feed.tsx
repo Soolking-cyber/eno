@@ -13,6 +13,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLocalized } from './listing-content'
 import { Price } from './price'
 import { Spinner } from '@/components/ui/spinner'
+import { IconButton } from '@/components/ui/icon-button'
 import { stashQuickCompose } from '@/lib/quick-contact'
 import { optimizedImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
@@ -141,17 +142,18 @@ export function VideoFeed({
   const shell = (children: React.ReactNode) =>
     createPortal(
       <div className="fixed inset-0 z-[60] bg-black">
-        <button
-          type="button"
+        <IconButton
+          size="lg"
           onClick={onClose}
           aria-label={tr('Close', 'Đóng')}
           // Safe-area top: under viewport-fit:cover the notch/status bar would otherwise clip it.
-          // tap-44 lifts the 40×40 glyph to a 44px hit target (the button is `fixed` = positioned,
-          // so the ::before hit area anchors correctly without a `relative`).
-          className="fixed left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[70] flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur transition-transform hover:scale-105 active:scale-90 cursor-pointer tap-44"
+          // The baked tap-44 lifts the 40×40 glyph to a 44px hit target; `fixed` MUST stay here in
+          // className — it's what beats the primitive's baked `relative` (twMerge, last wins) and
+          // positions the ::before hit area correctly.
+          className="fixed left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[70] bg-black/40 text-white backdrop-blur transition-transform hover:scale-105 active:scale-90"
         >
           <X className="h-5 w-5" />
-        </button>
+        </IconButton>
         {children}
       </div>,
       document.body,
@@ -358,17 +360,19 @@ function VideoFeedItem({
 
 function RailButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
+    <IconButton
+      size="sm"
       aria-label={label}
       title={label}
       onClick={(e) => { e.stopPropagation(); onClick() }}
       // `relative` is REQUIRED with tap-44: its absolute ::before hit-area anchors to the
-      // nearest positioned ancestor — without this it anchored to the rail container, all four
-      // buttons' hit-areas stacked over each other, and every tap landed on the last one (Mute).
-      className="relative flex flex-col items-center gap-1 transition-transform hover:scale-110 active:scale-90 cursor-pointer tap-44"
+      // nearest positioned ancestor — without it the hit-area anchored to the rail container, all
+      // four buttons' hit-areas stacked over each other, and every tap landed on the last one
+      // (Mute). IconButton BAKES `relative` (and tap-44), so that fix survives this swap — do not
+      // pass a positioning class here that would override it.
+      className="flex-col gap-1 transition-transform hover:scale-110 active:scale-90"
     >
       {children}
-    </button>
+    </IconButton>
   )
 }

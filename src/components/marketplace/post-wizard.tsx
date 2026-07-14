@@ -10,6 +10,7 @@ import { CategoryIcon } from './category-icons'
 import { ShareButton } from './share-button'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { haptic } from '@/lib/haptics'
@@ -799,9 +800,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   ) : (
                     <button type="button" onClick={() => movePhoto(i, 0)} className="absolute bottom-1 left-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-3xs font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer">{t('Đặt làm bìa', 'Make cover')}</button>
                   )}
-                  <button aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44">
+                  <IconButton size="xs" variant="overlay" aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 h-6 w-6">
                     <X className="h-4 w-4" />
-                  </button>
+                  </IconButton>
                 </div>
               ))}
               {photos.length < 6 && (
@@ -822,9 +823,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     <span className="pointer-events-none absolute left-1.5 top-1.5 flex items-center gap-1 rounded-lg bg-black/60 px-1.5 py-0.5 text-3xs font-bold text-white backdrop-blur-[2px]">
                       <Video className="h-3 w-3" /> {t('Video', 'Video')}
                     </span>
-                    <button type="button" aria-label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44">
+                    <IconButton size="xs" variant="overlay" aria-label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1 top-1 h-6 w-6">
                       <X className="h-4 w-4" />
-                    </button>
+                    </IconButton>
                   </div>
                 ) : (
                   <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
@@ -1071,16 +1072,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 <ChevronDown className="h-4 w-4 shrink-0 text-ink-4" />
               </button>
               {/* Quick "use my current location" */}
-              <button
-                type="button"
+              <IconButton
+                size="lg"
                 onClick={useMyLocation}
                 disabled={locating}
                 aria-label={t('Dùng vị trí hiện tại', 'Use my current location')}
                 title={t('Dùng vị trí hiện tại', 'Use my current location')}
-                className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl bg-tint text-accent-foreground transition-colors hover:bg-muted active:scale-95 disabled:opacity-60 cursor-pointer"
+                className="h-[46px] w-[46px] rounded-xl bg-tint text-accent-foreground transition-colors hover:bg-muted active:scale-95 disabled:opacity-60"
               >
                 {locating ? <Loader2 className="h-5 w-5 animate-spin" /> : <LocateFixed className="h-5 w-5" />}
-              </button>
+              </IconButton>
             </div>
             {err.location && <p role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{t('Chọn khu vực', 'Set the area')}</p>}
           </Section>

@@ -1,6 +1,7 @@
 'use client'
 
 import { Heart } from 'lucide-react'
+import { IconButton } from '@/components/ui/icon-button'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -14,17 +15,17 @@ export function FavoriteHeart({ id, className }: { id: string; className?: strin
   const { tr } = useLanguage()
   const fav = isFavorite(id)
   return (
-    <button
-      type="button"
+    <IconButton
+      size="md"
       onClick={(e) => { e.stopPropagation(); toggle(id) }}
       aria-pressed={fav}
       aria-label={fav ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
-      className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer hover:bg-accent relative tap-44', className)}
+      className={cn('transition-colors hover:bg-accent', className)}
     >
       {/* key remounts on toggle → re-runs the CSS pop (same as the grid card) */}
       <span key={fav ? 'on' : 'off'} className={cn('inline-flex', fav && 'animate-heart-pop')}>
         <Heart className={cn('h-[18px] w-[18px] transition-colors', fav ? 'fill-brand text-accent-foreground' : 'text-foreground')} />
       </span>
-    </button>
+    </IconButton>
   )
 }

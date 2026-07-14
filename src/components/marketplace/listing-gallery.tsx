@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
+import { IconButton } from '@/components/ui/icon-button'
 import { Tr, useLanguage } from '@/context/language-context'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { autoplayAllowed } from '@/lib/autoplay'
@@ -127,14 +128,14 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
           </span>
         </button>
       )}
-      <button
-        type="button"
+      <IconButton
+        size="sm"
         aria-label={muted ? tr('Unmute', 'Bật tiếng') : tr('Mute', 'Tắt tiếng')}
         onClick={(e) => { e.stopPropagation(); setMuted((m) => !m) }}
-        className="absolute bottom-2 left-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-[2px] transition-transform active:scale-90 cursor-pointer tap-44"
+        className="absolute bottom-2 left-2 z-20 bg-black/50 text-white backdrop-blur-[2px] transition-transform active:scale-90"
       >
         {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-      </button>
+      </IconButton>
     </div>
   )
 }
@@ -380,13 +381,15 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
           className="fixed inset-0 z-[100] flex touch-none items-center justify-center overscroll-none bg-black/92 animate-in fade-in duration-150"
           onClick={() => setOpen(false)}
         >
-          <button
+          <IconButton
+            size="lg"
+            variant="overlay"
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))] tap-44"
+            className="absolute right-4 top-4 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
           >
             <X className="h-5 w-5" />
-          </button>
+          </IconButton>
 
           <div
             ref={frameRef}
@@ -456,22 +459,26 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
           </div>
 
           {idx > 0 && !zoom && (
-            <button
+            <IconButton
+              size="lg"
+              variant="overlay"
               onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
               aria-label="Previous"
-              className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
+              className="absolute left-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
             >
               <ChevronLeft className="h-6 w-6" />
-            </button>
+            </IconButton>
           )}
           {idx < last && !zoom && (
-            <button
+            <IconButton
+              size="lg"
+              variant="overlay"
               onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
               aria-label="Next"
-              className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-white cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
+              className="absolute right-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
             >
               <ChevronRight className="h-6 w-6" />
-            </button>
+            </IconButton>
           )}
 
           <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">

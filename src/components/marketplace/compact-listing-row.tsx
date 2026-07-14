@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { stashQuickCompose } from '@/lib/quick-contact'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 
 type Props = {
   listing: SerializedListingCard
@@ -141,16 +142,21 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           </span>
         )}
         {l.price > 0 && l.negotiable !== false ? (
-          <button
-            type="button"
+          // tapTarget={false} on all three: this cluster is 36px-pitch with ZERO gap, so a
+          // baked 44px ::before would overflow into its neighbours and a boundary tap would
+          // fire the WRONG action (chat → offer, map → chat). Under-44px is a real a11y cost;
+          // a mis-fired money-path action is worse. See ui/icon-button's header.
+          <IconButton
+            size="md"
+            tapTarget={false}
             aria-label={tr('Make an offer', 'Trả giá')}
             title={tr('Make an offer', 'Trả giá')}
             aria-pressed={offer !== null}
             onClick={(e) => { e.stopPropagation(); setOffer(offer === null ? 10 : null) }}
-            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent sm:flex"
+            className="hidden text-foreground transition-colors hover:bg-accent sm:flex"
           >
             <Tag className="h-[17px] w-[17px]" />
-          </button>
+          </IconButton>
         ) : (
           // Fixed-price / free listings have no offer button — hold its 36px anyway.
           // Without this the actions cluster shrinks, the flex-1 text column grows by
@@ -159,23 +165,25 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           // forming one vertical column (user-picked 2026-07-14).
           <span aria-hidden className="hidden h-9 w-9 shrink-0 sm:block" />
         )}
-        <button
-          type="button"
+        <IconButton
+          size="md"
+          tapTarget={false}
           aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
           title={tr('Chat with seller', 'Nhắn tin với người bán')}
           onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-          className={cn('h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent', offer === null ? 'flex' : 'hidden')}
+          className={cn('text-foreground transition-colors hover:bg-accent', offer === null ? 'flex' : 'hidden')}
         >
           <MessageCircle className="h-[18px] w-[18px]" />
-        </button>
-        <button
-          type="button"
+        </IconButton>
+        <IconButton
+          size="md"
+          tapTarget={false}
           aria-label={tr('Show on map', 'Xem trên bản đồ')}
           onClick={(e) => { e.stopPropagation(); onLocate(l.id) }}
-          className={cn('h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors cursor-pointer hover:bg-accent', offer === null ? 'flex' : 'hidden')}
+          className={cn('text-foreground transition-colors hover:bg-accent', offer === null ? 'flex' : 'hidden')}
         >
           <MapPin className="h-[18px] w-[18px]" />
-        </button>
+        </IconButton>
         {offer === null && <FavoriteHeart id={l.id} className="-mr-0.5" />}
       </div>
     </div>

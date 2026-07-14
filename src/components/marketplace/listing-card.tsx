@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { IconButton } from '@/components/ui/icon-button'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
 import Image from 'next/image'
@@ -308,46 +309,54 @@ function ListingCardImpl({
           'absolute bottom-2 right-2 top-2 z-10 flex flex-col items-center justify-between transition-all duration-200',
           quickOffer !== null && 'mobile:pointer-events-none mobile:translate-x-8 mobile:opacity-0',
         )}>
-          <button
-            type="button"
+          {/* GHOST, not overlay: the heart's shadow lives on the icon itself at 0.5 alpha
+              (softer than overlay's 0.55 on the box), and its saved/unsaved fill is on the
+              <Heart> child — so the primitive contributes only the shell. */}
+          <IconButton
+            size="sm"
             aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
             aria-pressed={favorited}
             onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listing.id) }}
-            className="relative flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90 cursor-pointer tap-44"
+            className="transition-transform hover:scale-110 active:scale-90"
           >
             {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow —
                 legible on ANY photo; blue fill when saved; heart-pop on save. */}
             <span onAnimationEnd={() => setBurst(false)} className={cn('inline-flex', burst && 'animate-heart-pop')}>
               <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
             </span>
-          </button>
-          <button
-            type="button"
+          </IconButton>
+          {/* Mobile column: white-on-photo glyphs = variant="overlay" exactly. They sit at
+              ~56px pitch down the photo's right edge, so the 44px tap target stays ON. */}
+          <IconButton
+            size="sm"
+            variant="overlay"
             aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
             onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-            className="relative flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
+            className="transition-transform active:scale-90 pc:hidden"
           >
             <MessageCircle className="h-[20px] w-[20px]" />
-          </button>
+          </IconButton>
           {listing.price > 0 && listing.negotiable !== false && (
-            <button
-              type="button"
+            <IconButton
+              size="sm"
+              variant="overlay"
               aria-label={tr('Make an offer', 'Trả giá')}
               aria-pressed={quickOffer !== null}
               onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
-              className="relative flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
+              className="transition-transform active:scale-90 pc:hidden"
             >
               <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
-            </button>
+            </IconButton>
           )}
-          <button
-            type="button"
+          <IconButton
+            size="sm"
+            variant="overlay"
             aria-label={tr('Show on map', 'Xem trên bản đồ')}
             onClick={(e) => { e.stopPropagation(); locate(listing) }}
-            className="relative flex h-8 w-8 items-center justify-center text-white transition-transform active:scale-90 cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))] tap-44 pc:hidden"
+            className="transition-transform active:scale-90 pc:hidden"
           >
             <MapPin className="h-[20px] w-[20px]" />
-          </button>
+          </IconButton>
         </span>
 
         {/* Offer slide — ONE edge-to-edge bar for BOTH mobile + desktop (was a

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Star, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/context/language-context'
 import { haptic } from '@/lib/haptics'
@@ -78,24 +79,25 @@ export function ReviewPrompt({
           <p className="min-w-0 flex-1 text-xs font-medium text-foreground">
             {tr('How was your experience with {seller}?', 'Trải nghiệm của bạn với {seller} thế nào?').replace('{seller}', sellerName)}
           </p>
-          <button
+          <IconButton
+            size="xs"
             onClick={() => setState('dismissed')}
             aria-label={tr('Dismiss', 'Đóng')}
-            className="relative tap-44 shrink-0 rounded-full p-1 text-ink-4 transition-colors hover:text-foreground cursor-pointer"
+            className="h-auto w-auto p-1 text-ink-4 transition-colors hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
-          </button>
+          </IconButton>
         </div>
         <div className="mt-0.5 flex items-center">
           {[1, 2, 3, 4, 5].map((n) => (
-            <button
+            <IconButton
               key={n}
+              size="md"
               onClick={() => setRating(n)}
               aria-label={tr('{n} stars', '{n} sao').replace('{n}', String(n))}
-              className="relative tap-44 flex h-9 w-9 items-center justify-center cursor-pointer"
             >
               <Star className={`h-5 w-5 transition-colors ${n <= rating ? 'fill-warning text-warning' : 'text-ink-4'}`} />
-            </button>
+            </IconButton>
           ))}
         </div>
         {rating > 0 && (

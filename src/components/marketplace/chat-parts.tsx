@@ -1,4 +1,5 @@
 import { Send } from 'lucide-react'
+import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
 
 // Shared chat primitives used by both threads (messages/[id] person-to-person + messages/ai).
@@ -10,17 +11,14 @@ import { cn } from '@/lib/utils'
  *  (Return still sends via enterKeyHint). Spread the rest (onClick/disabled/aria-label/title). */
 export function ChatSendButton({ className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button
-      type="button"
+    <IconButton
+      size="lg"
       onMouseDown={(e) => e.preventDefault()}
       {...props}
-      className={cn(
-        'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-transform active:scale-90 disabled:opacity-40 tap-44',
-        className,
-      )}
+      className={cn('bg-primary text-white transition-transform active:scale-90 disabled:opacity-40', className)}
     >
       <Send className="h-4 w-4" />
-    </button>
+    </IconButton>
   )
 }
 
