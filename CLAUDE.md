@@ -43,7 +43,9 @@ In a `Workflow`, pass `model` and `effort` per `agent()` call. Cross-family veri
 ## Landmine files
 
 These carry invariants recorded in their own comments. Read the comments before editing; a regression here is a P0:
-`listing-card.tsx` · `listing-gallery.tsx` (cover-beat video: eager overlay is the LCP, no `poster` attr) · `listings-explorer.tsx` (pagination sentinel must never be `hidden`; cache adoption is a reference check) · `listings-map.tsx` (popup height-sync; touch two-step) · `messages/[id]/page.tsx` (Enter-first send; `onMouseDown` + `preventDefault`, never `onPointerDown`) · `post-wizard.tsx` · `CardVideo`.
+`listing-card.tsx` · `listing-gallery.tsx` (cover-beat video: eager overlay is the LCP, no `poster` attr) · `listings-explorer.tsx` (pagination sentinel must never be `hidden` — a hidden sentinel is never intersected and pagination dies silently; cache adoption is a reference check) · `listings-map.tsx` (popup height-sync; touch two-step) · `post-wizard.tsx` (the title field's id must stay exactly `pw-title` — `scrollToMissing()` does `getElementById('pw-' + key)`) · `CardVideo`.
+
+`messages/[id]/page.tsx` deserves its own line, because the invariant here is easy to state backwards. **Text mode DOES have a tap-Send button** (the Zalo/FB pattern). The real rule is *why* it's safe: `ChatSendButton` fires on **`onMouseDown` + `preventDefault`, never `onPointerDown`** — that holds the composer's focus, so the tap can't blur the field, dismiss the keyboard, and shift the button out from under the finger. That focus-hold is the invariant; "no tap-Send" was an earlier workaround and is **obsolete** — don't let anyone "restore" it. Enter still sends (`enterKeyHint="send"`), and the Counter button must stay gated by `negotiable !== false` (a counter sends an offer; on a fixed-price listing the server 409s and docks the buyer's trust).
 
 ## Shipping
 

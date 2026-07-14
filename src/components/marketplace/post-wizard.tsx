@@ -10,6 +10,8 @@ import { CategoryIcon } from './category-icons'
 import { ShareButton } from './share-button'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { haptic } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -906,13 +908,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             )}
             {showBrand && (
               <Field label={t('Thương hiệu', 'Brand')} hint={t('Giúp người mua tìm theo hãng. Bỏ trống nếu không có.', 'Helps buyers find you by brand. Leave blank if none.')}>
-                <input
+                <Input
                   value={brand}
                   list="brand-options"
                   maxLength={40}
                   onChange={(e) => setBrand(e.target.value)}
                   placeholder={t('VD: Apple, Samsung, Honda', 'e.g. Apple, Samsung, Honda')}
-                  className="w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                  className="max-w-md"
                 />
                 <datalist id="brand-options">
                   {brandOptions.map((b) => <option key={b} value={b} />)}
@@ -921,12 +923,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             )}
             {showBrand && brand.trim() && (
               <Field label={t('Mẫu / Model', 'Model')} hint={t('VD: iPhone 14 Pro, Sorento. Giúp người mua lọc theo mẫu.', 'e.g. iPhone 14 Pro, Sorento. Lets buyers filter by model.')}>
-                <input
+                <Input
                   value={model}
                   maxLength={60}
                   onChange={(e) => setModel(e.target.value)}
                   placeholder={t('VD: iPhone 14 Pro', 'e.g. iPhone 14 Pro')}
-                  className="w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                  className="max-w-md"
                 />
               </Field>
             )}
@@ -935,14 +937,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           {/* Details */}
           <Section title={t('Chi tiết', 'Details')}>
             <Field label={t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`} error={titleErr}>
-              <input
+              <Input
                 id="pw-title"
                 value={title}
                 maxLength={TITLE_MAX}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={() => touch('title')}
                 placeholder={t('VD: iPhone 14 128GB — pin 92%', 'e.g. iPhone 14 128GB — battery 92%')}
-                className={cn('w-full max-w-2xl rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4', err.title && 'ring-2 ring-red-500/60')}
+                className={cn('max-w-2xl', err.title && 'ring-2 ring-red-500/60')}
               />
             </Field>
             <Field id="pw-description" label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')}>
@@ -960,13 +962,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   </button>
                 </div>
               )}
-              <textarea
+              <Textarea
                 value={description}
                 maxLength={DESC_MAX}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={5}
                 placeholder={t('Mô tả chi tiết…', 'Describe it in detail…')}
-                className="w-full max-w-2xl resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4"
+                className="max-w-2xl resize-none"
               />
             </Field>
           </Section>
@@ -1103,12 +1105,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   <p className="text-sm font-semibold text-foreground">{contactName}</p>
                 ) : (
                   <Field label={t('Tên của bạn', 'Your name')} error={err.contact && contactName.trim().length < 2 ? t('Thêm tên của bạn', 'Add your name') : undefined}>
-                    <input
+                    <Input
                       value={contactName}
                       maxLength={80}
                       onChange={(e) => setContactName(e.target.value)}
                       placeholder={t('Tên hiển thị cho người mua', 'Name buyers will see')}
-                      className={cn('w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4', err.contact && contactName.trim().length < 2 && 'ring-2 ring-red-500/60')}
+                      className={cn('max-w-md', err.contact && contactName.trim().length < 2 && 'ring-2 ring-red-500/60')}
                     />
                   </Field>
                 )}
@@ -1124,13 +1126,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   </div>
                 ) : (
                   <Field label={t('Số điện thoại', 'Phone number')} hint={t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')} error={err.contact && !phoneOk ? t('Thêm số điện thoại hợp lệ', 'Add a valid phone number') : undefined}>
-                    <input
+                    <Input
                       type="tel"
                       inputMode="tel"
                       value={contactPhone}
                       onChange={(e) => setContactPhone(e.target.value)}
                       placeholder="+84…"
-                      className={cn('w-full max-w-md rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30 placeholder:text-ink-4', err.contact && !phoneOk && 'ring-2 ring-red-500/60')}
+                      className={cn('max-w-md', err.contact && !phoneOk && 'ring-2 ring-red-500/60')}
                     />
                     {/* Zalo OTP verification is BUILT but hidden until Zalo is live —
                         no dead "coming soon" buttons on the posting path. */}

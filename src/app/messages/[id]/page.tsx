@@ -15,6 +15,10 @@ import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { IconButton } from '@/components/ui/icon-button'
+import { Input } from '@/components/ui/input'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
@@ -475,7 +479,7 @@ export default function ThreadPage() {
               <Fragment key={m.id}>
                 {showDay && (
                   <div className="flex justify-center py-1.5">
-                    <span className="rounded-full bg-tint px-3 py-0.5 text-3xs font-semibold text-ink-4">{dayText}</span>
+                    <Badge variant="neutral" className="px-3 text-3xs font-semibold">{dayText}</Badge>
                   </div>
                 )}
                 {/* Only the NEWEST bubble animates in (each new send/receive), so the
@@ -507,13 +511,15 @@ export default function ThreadPage() {
                     {!m.mine && m.offerStatus === 'pending' && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         <Button variant="cta" size="none" onClick={() => actOffer(m.id, 'accept')} className="rounded-lg px-3 py-1 text-xs transition-colors cursor-pointer">{tr('Accept', 'Chấp nhận')}</Button>
-                        <button onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted cursor-pointer">{tr('Decline', 'Từ chối')}</button>
+                        {/* hover:text-body is LOAD-BEARING: ghost injects hover:text-accent-foreground,
+                            and text-body is a COLOUR — without the re-assert the label flips colour on hover. */}
+                        <Button variant="ghost" size="none" onClick={() => actOffer(m.id, 'decline')} className="rounded-lg px-3 py-1 text-xs font-bold text-body transition-colors hover:bg-muted hover:text-body cursor-pointer">{tr('Decline', 'Từ chối')}</Button>
                         {/* Countering SENDS a new offer, so hide it on a fixed-price listing
                             (Accept/Decline don't send offers and stay). A stale pending offer
                             can outlive a switch to fixed price — the 409 would otherwise reject
                             the counter and, for a buyer, dock trust for a control we showed. */}
                         {thread?.listing.negotiable !== false && (
-                          <button onClick={() => { setOfferInput(new Intl.NumberFormat('en-US').format(m.offerAmount ?? 0)); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</button>
+                          <Button variant="ghost" size="none" onClick={() => { setOfferInput(new Intl.NumberFormat('en-US').format(m.offerAmount ?? 0)); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</Button>
                         )}
                       </div>
                     )}
@@ -550,7 +556,7 @@ export default function ThreadPage() {
               <div className="space-y-2" aria-hidden>
                 {[['start', 'w-40'], ['end', 'w-28'], ['start', 'w-52'], ['end', 'w-36']].map(([side, w], i) => (
                   <div key={i} className={`flex ${side === 'end' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`h-9 ${w} rounded-2xl shimmer`} />
+                    <Skeleton className={`h-9 ${w} rounded-2xl`} />
                   </div>
                 ))}
               </div>
@@ -559,13 +565,15 @@ export default function ThreadPage() {
             {/* Sticky inside the scroll pane so it floats over the last bubbles. */}
             {newBelow && (
               <div className="sticky bottom-1 z-10 flex justify-center">
-                <button
+                <Button
+                  variant="cta"
+                  size="none"
                   type="button"
                   onClick={() => { scrollBottom(true); setNewBelow(false) }}
-                  className="flex items-center gap-1 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-white shadow-pop transition-transform active:scale-95 cursor-pointer"
+                  className="flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs shadow-pop transition-transform active:scale-95 cursor-pointer"
                 >
                   ↓ {tr('New messages', 'Tin nhắn mới')}
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -608,14 +616,15 @@ export default function ThreadPage() {
                 no offers (buyers just ask availability + buy). Undefined = older cached
                 thread → allow (server still enforces). */}
             {thread?.listing.negotiable !== false && (
-              <button
+              <IconButton
+                size="lg"
                 onClick={toggleOffer}
                 aria-label={tr('Make an offer', 'Gửi đề nghị giá')}
                 title={tr('Make an offer', 'Gửi đề nghị giá')}
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors cursor-pointer relative tap-44 ${showOffer ? 'bg-primary/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
+                className={`transition-colors ${showOffer ? 'bg-primary/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
               >
                 <Tag className="h-[18px] w-[18px]" />
-              </button>
+              </IconButton>
             )}
 
             {showOffer && sliderOffer !== null ? (
@@ -635,7 +644,10 @@ export default function ThreadPage() {
               </div>
             ) : showOffer ? (
               <div className="relative flex-1">
-                <input
+                {/* text-base + lg:text-sm is LOAD-BEARING (iOS zooms the viewport on focus
+                    below 16px); border-brand is the armed/active state. */}
+                <Input
+                  variant="outline"
                   value={offerInput}
                   onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 12); setOfferInput(d ? new Intl.NumberFormat('en-US').format(Number(d)) : '') }}
                   inputMode="numeric"
@@ -643,7 +655,7 @@ export default function ThreadPage() {
                   autoFocus
                   placeholder={tr('Offer amount (VND)', 'Số tiền đề nghị (VND)')}
                   onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
-                  className="w-full rounded-2xl border border-brand px-3.5 py-2.5 pr-16 text-base outline-none focus:ring-2 focus:ring-brand/20 lg:text-sm"
+                  className="rounded-2xl border-brand px-3.5 py-2.5 pr-16 text-base focus:ring-brand/20 lg:text-sm"
                 />
                 {/* +000 chip, inside the input's right corner (×1,000 shortcut) */}
                 <button
