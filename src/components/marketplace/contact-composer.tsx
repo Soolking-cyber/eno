@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tag, Send, X } from 'lucide-react'
+import { Tag, Send } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -13,10 +13,10 @@ const MAX_DISCOUNT = 50 // % off the asking price the slider allows
 export const COMPOSE_KEY = 'eno-compose' // sessionStorage handoff → /messages/pending
 
 /**
- * Unified contact + offer on the listing detail. No typing required: the primary
- * "Chat now" button sends the canned opener ("Hi! Is this still available?")
- * straight through — one tap to a live thread. Hagglers tap "Make an offer" (tucked
- * under Chat now) to drag a discount slider and send a structured offer; still no
+ * Unified contact + offer on the listing detail. No typing required: the SellerCard's
+ * "Chat now" sends the canned opener ("Hi! Is this still available?") straight through
+ * — one tap to a live thread. Below it, on any negotiable listing, the offer slider is
+ * ALWAYS open (no trigger, no ✕): drag a discount, send a structured offer; still no
  * free-text box. On send we REDIRECT INSTANTLY to /messages/pending (no button
  * spinner); that resolver creates the conversation + posts the message/offer in the
  * background and swaps to the real thread. "Redirect first, load in background."
@@ -36,12 +36,12 @@ export function ContactComposer({
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // offer amounts follow the viewer's language
   const router = useRouter()
-  // Offer starts OPEN (user decision 2026-07-14): the slider IS the negotiation
-  // invitation — hiding it behind a button buried the marketplace's core ritual.
-  // ✕ still collapses it. Default discount scales with the ticket: 5% on ordinary
-  // items, but 1% on ≥1 tỷ đ (cars, apartments) where 5% is tens of millions and
-  // reads as a lowball (user decision 2026-07-14).
-  const [offering, setOffering] = useState(true)
+  // The offer is ALWAYS open on a negotiable listing (user decisions 2026-07-14): the
+  // slider IS the negotiation invitation — hiding it behind a button buried the
+  // marketplace's core ritual, and a ✕ to close it just gave the buyer a way to hide
+  // the thing they came for. There is no `offering` state any more. The default
+  // discount scales with the ticket: 5% on ordinary items, 1% on ≥1 tỷ đ (cars,
+  // apartments), where 5% is tens of millions and reads as a lowball.
   const [discount, setDiscount] = useState(typeof price === 'number' && price >= 1_000_000_000 ? 1 : 5) // % off
 
   // Offers are only possible on a negotiable, priced listing.
@@ -77,8 +77,8 @@ export function ContactComposer({
   const sendOffer = () => { if (canOffer) send({ offerAmount: offerPrice }) }
 
   // Deep-link (/listings/id#contact): scroll the composer into view. ?offer=N (a card
-  // quick-offer) opens straight into offer mode at that discount; a plain #contact
-  // just brings Chat now into view — a shared link must NOT auto-fire a message.
+  // quick-offer) pre-sets the slider to that discount; a plain #contact just brings the
+  // composer into view — a shared link must NOT auto-fire a message.
   useEffect(() => {
     if (typeof window === 'undefined' || window.location.hash !== '#contact') return
     const offerParam = Number(new URLSearchParams(window.location.search).get('offer'))
@@ -86,23 +86,19 @@ export function ContactComposer({
     const quickOffer = negotiable && Number.isFinite(offerParam) && offerParam >= 1 && offerParam <= MAX_DISCOUNT ? Math.round(offerParam) : null
     const t = window.setTimeout(() => {
       document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      if (quickOffer != null) { setOffering(true); setDiscount(quickOffer) }
+      if (quickOffer != null) setDiscount(quickOffer)
     }, 150)
     return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Sticky bar / seller-card actions: "Chat now" sends the opener directly (one tap →
-  // live thread); the offer segment opens the slider at its current discount.
+  // The SellerCard's "Chat now" sends the opener directly (one tap → live thread).
+  // (There was an 'eno:open-offer' listener here too; it existed to un-collapse the
+  // offer, nothing dispatches it any more, and the offer no longer collapses.)
   useEffect(() => {
     const onChat = () => chatNow()
-    const onOffer = () => { if (canOffer) setOffering(true) }
     window.addEventListener('eno:chat-now', onChat)
-    window.addEventListener('eno:open-offer', onOffer)
-    return () => {
-      window.removeEventListener('eno:chat-now', onChat)
-      window.removeEventListener('eno:open-offer', onOffer)
-    }
+    return () => window.removeEventListener('eno:chat-now', onChat)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canOffer, user, loading])
 
@@ -134,49 +130,38 @@ export function ContactComposer({
 
   return (
     <div className="space-y-2">
-      {/* Make an offer — secondary to the SellerCard's "Chat now"; opens the slider. */}
-      {!offering && (
-        <button
-          type="button"
-          onClick={() => setOffering(true)}
-          className="press flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-tint cursor-pointer"
-        >
-          <Tag className="h-4 w-4" /> {tr('Make an offer', 'Trả giá')}
-        </button>
-      )}
-
-      {offering && (
-        <div className="rounded-2xl bg-accent p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-body">{tr('Your offer', 'Giá đề nghị')}</span>
-            <button type="button" onClick={() => setOffering(false)} aria-label={tr('Cancel offer', 'Hủy đề nghị')} className="rounded-full p-0.5 text-ink-4 hover:text-foreground cursor-pointer relative tap-44"><X className="h-4 w-4" /></button>
-          </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-accent-foreground tabular-nums">{formatMoneyFull(offerPrice, currency, locale)}</span>
-            {/* text-body, not muted-foreground: the latter is ~3.5:1 on the bg-accent
-                tint → a serious WCAG AA contrast failure (axe caught it on the PDP). */}
-            <span className="text-xs font-semibold text-body">−{discount}%</span>
-          </div>
-          <EnoSlider
-            min={0} max={MAX_DISCOUNT} step={1} value={discount}
-            onChange={setDiscount}
-            aria-label={tr('Discount', 'Mức giảm')}
-            className="mt-2"
-          />
-          <div className="flex justify-between text-3xs font-medium text-ink-4">
-            <span>{tr('Asking', 'Giá rao')}: {formatMoneyFull(price!, currency, locale)}</span>
-            <span>−{MAX_DISCOUNT}%</span>
-          </div>
-          <Button
-            variant="cta"
-            size="none"
-            onClick={sendOffer}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 cursor-pointer"
-          >
-            <Send className="h-4 w-4" /> {tr('Send offer', 'Gửi đề nghị')} · {formatMoneyFull(offerPrice, currency, locale)}
-          </Button>
+      {/* The offer is always open on a negotiable listing (user decisions 2026-07-14:
+          haggling is the norm here, so it opens at a default discount). There's no
+          close ✕ and no "Make an offer" trigger — nothing to close it TO: leaving the
+          slider untouched already costs the buyer nothing, and Chat now sits right
+          above for anyone who doesn't want to haggle. */}
+      <div className="rounded-2xl bg-accent p-3">
+        <span className="text-xs font-semibold text-body">{tr('Your offer', 'Giá đề nghị')}</span>
+        <div className="mt-1 flex items-baseline gap-2">
+          <span className="text-2xl font-bold text-accent-foreground tabular-nums">{formatMoneyFull(offerPrice, currency, locale)}</span>
+          {/* text-body, not muted-foreground: the latter is ~3.5:1 on the bg-accent
+              tint → a serious WCAG AA contrast failure (axe caught it on the PDP). */}
+          <span className="text-xs font-semibold text-body">−{discount}%</span>
         </div>
-      )}
+        <EnoSlider
+          min={0} max={MAX_DISCOUNT} step={1} value={discount}
+          onChange={setDiscount}
+          aria-label={tr('Discount', 'Mức giảm')}
+          className="mt-2"
+        />
+        <div className="flex justify-between text-3xs font-medium text-ink-4">
+          <span>{tr('Asking', 'Giá rao')}: {formatMoneyFull(price!, currency, locale)}</span>
+          <span>−{MAX_DISCOUNT}%</span>
+        </div>
+        <Button
+          variant="cta"
+          size="none"
+          onClick={sendOffer}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 cursor-pointer"
+        >
+          <Send className="h-4 w-4" /> {tr('Send offer', 'Gửi đề nghị')} · {formatMoneyFull(offerPrice, currency, locale)}
+        </Button>
+      </div>
 
       {safetyLine}
     </div>
