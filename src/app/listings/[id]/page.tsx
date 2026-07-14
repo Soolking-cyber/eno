@@ -357,29 +357,7 @@ export default async function ListingPage({ params }: Props) {
         <div className="order-4 mb-4 lg:order-none">
           <div className="min-w-0 space-y-1.5">
             <h1 className="h-title text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
-            {/* ONE segmented meta line (user decision 2026-07-14): brand chip ·
-                location · posted — replaces the stacked rows; Share/Save moved
-                onto the gallery overlay like mobile. */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground lg:hidden">
-              {brand && (
-                <>
-                  <Link
-                    href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
-                    className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
-                  >
-                    <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
-                    {brand.name}
-                  </Link>
-                  <span aria-hidden className="text-line-strong">·</span>
-                </>
-              )}
-              <span className="inline-flex min-w-0 items-center gap-1">
-                <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
-                <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
-              </span>
-              <span aria-hidden className="text-line-strong">·</span>
-              <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
-            </div>
+
           </div>
         </div>
 
@@ -436,8 +414,6 @@ export default async function ListingPage({ params }: Props) {
             equal order falls back to DOM order, so it lands directly under the
             price and above the title/description without renumbering siblings.
             (Desktop copy lives in the sticky contact column.) */}
-        <SafetyStrip categorySlug={rawListing.category.slug} className="order-3 mb-4 lg:hidden" />
-
         {/* Gallery — MOBILE mount (deal-first order-2). The desktop mount lives
             inside the content grid so the info column starts BESIDE it
             (Shopee layout, user decision 2026-07-14); variant gates stop the
@@ -489,7 +465,7 @@ export default async function ListingPage({ params }: Props) {
               {brand && (
                 <Link
                   href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
-                  className="hidden w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted lg:inline-flex"
+                  className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
                 >
                   <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
                   {brand.name}
@@ -505,12 +481,12 @@ export default async function ListingPage({ params }: Props) {
                   <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
                 </span>
               ))}
-              <span className="hidden min-w-0 items-center gap-1 lg:inline-flex">
+              <span className="inline-flex min-w-0 items-center gap-1">
                 <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
                 <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
               </span>
-              <span aria-hidden className="hidden text-line-strong lg:inline">·</span>
-              <span className="hidden shrink-0 lg:inline"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
+              <span aria-hidden className="text-line-strong">·</span>
+              <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
             </div>
             <ProtectionsRow />
             <div className="space-y-2">
@@ -597,9 +573,10 @@ export default async function ListingPage({ params }: Props) {
                 <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
               </div>
 
-              {/* Safety strip — DESKTOP copy, above the buyer reviews
-                  (user-picked 2026-07-14). */}
-              <SafetyStrip categorySlug={rawListing.category.slug} className="hidden lg:flex" />
+              {/* Safety strip — above the buyer reviews on EVERY breakpoint
+                  (user-picked 2026-07-14; replaces the old mobile copy that sat
+                  under the price). */}
+              <SafetyStrip categorySlug={rawListing.category.slug} />
 
               {reviewsPreview.total > 0 && <Separator />}
               <ReviewsPreview
