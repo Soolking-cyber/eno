@@ -9,6 +9,7 @@ import { QuickDiscount } from './quick-discount'
 import { ListingSparkline, type SparkPoint } from './listing-sparkline'
 import { useListingActions } from './use-listing-actions'
 import { useLanguage } from '@/context/language-context'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
 // One row in the seller dashboard's listings table. Lifecycle actions are
@@ -27,14 +28,19 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   if (gone) return null
 
-  const statusChip =
+  // Rendered TWO ways, deliberately. The row variant is a <Badge> (neutral = bg-tint
+  // text-ink-4, so the muted tone is re-pinned via className — the later class wins
+  // through cn()/twMerge; text-3xs overrides Badge's sm text-2xs). The GRID variant is
+  // an over-image overlay with a drop-shadow, which badge.tsx's own header explicitly
+  // disowns — so it stays a bespoke span and carries the raw token pair in `cls`.
+  const statusChip: { label: string; variant: 'warning' | 'brand' | 'neutral'; className: string; cls: string } =
     !listing.verified && status === 'active'
-      ? { label: tr('Held', 'Đang giữ'), cls: 'bg-warning/15 text-warning' }
+      ? { label: tr('Held', 'Đang giữ'), variant: 'warning', className: 'text-3xs', cls: 'bg-warning/15 text-warning' }
       : status === 'sold'
-        ? { label: tr('Sold', 'Đã bán'), cls: 'bg-tint text-muted-foreground' }
+        ? { label: tr('Sold', 'Đã bán'), variant: 'neutral', className: 'text-3xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
         : status === 'hidden'
-          ? { label: tr('Hidden', 'Đã ẩn'), cls: 'bg-tint text-muted-foreground' }
-          : { label: tr('Live', 'Đang hiển thị'), cls: 'bg-accent text-accent-foreground' }
+          ? { label: tr('Hidden', 'Đã ẩn'), variant: 'neutral', className: 'text-3xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
+          : { label: tr('Live', 'Đang hiển thị'), variant: 'brand', className: 'text-3xs', cls: 'bg-accent text-accent-foreground' }
 
   const btn = 'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer'
 
@@ -173,7 +179,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <p className="truncate text-sm font-semibold text-foreground">{title}</p>
-          <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-3xs font-bold', statusChip.cls)}>{statusChip.label}</span>
+          <Badge variant={statusChip.variant} className={statusChip.className}>{statusChip.label}</Badge>
         </div>
         <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-accent-foreground" />
         <div className="mt-0.5">{meta}</div>

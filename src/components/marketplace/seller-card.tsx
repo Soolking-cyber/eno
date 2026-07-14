@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { RatingValue, CountValue } from '@/components/marketplace/rating-value'
 import { Avatar } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { SellerMetrics } from '@/lib/seller-metrics'
 
@@ -89,9 +90,12 @@ export function SellerCard({
               <span className="truncate text-sm font-bold text-foreground">{seller.name}</span>
             )}
             {seller.isBusiness && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-tint px-1.5 py-0.5 text-2xs font-semibold text-accent-foreground">
+              <Badge
+                variant="neutral"
+                className="px-1.5 py-0.5 font-semibold text-accent-foreground"
+              >
                 <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
-              </span>
+              </Badge>
             )}
             <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" />
           </div>

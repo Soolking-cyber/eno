@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
+import { Badge } from '@/components/ui/badge'
 
 export const metadata: Metadata = {
   title: 'API for developers | eno.vn',
@@ -22,7 +23,7 @@ function Endpoint({ method, path, desc, children }: { method: string; path: stri
   return (
     <section className="border-t border-border pt-6">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-lg bg-accent px-2 py-0.5 font-mono text-2xs font-bold text-accent-foreground">{method}</span>
+        <Badge variant="brand" size="sm" className="rounded-lg font-mono">{method}</Badge>
         <code className="font-mono text-sm font-semibold text-foreground">{path}</code>
       </div>
       <p className="mt-2 text-sm leading-relaxed text-body">{desc}</p>

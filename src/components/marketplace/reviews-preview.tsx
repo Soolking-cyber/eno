@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Star, BadgeCheck } from 'lucide-react'
 import { useLanguage, Tr } from '@/context/language-context'
+import { Badge } from '@/components/ui/badge'
 import { getInitials } from '@/lib/utils'
 import { RatingValue } from './rating-value'
 import type { SellerReviewPreview } from '@/lib/seller-metrics'
@@ -47,10 +48,14 @@ export function ReviewsPreview({
               <div className="flex items-center gap-1.5">
                 <span className="truncate text-sm font-semibold text-foreground">{r.author}</span>
                 {r.verified && (
-                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-tint px-1.5 py-0.5 text-2xs font-medium text-accent-foreground">
+                  <Badge
+                    variant="neutral"
+                    size="sm"
+                    className="gap-0.5 px-1.5 font-medium text-accent-foreground"
+                  >
                     <BadgeCheck className="h-3 w-3" aria-hidden />
                     {tr('Verified buyer', 'Đã mua')}
-                  </span>
+                  </Badge>
                 )}
               </div>
               {/* User content — machine-translated into the viewer's language like the

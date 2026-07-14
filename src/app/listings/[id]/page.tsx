@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
 import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 import { Footer } from '@/components/marketplace/footer'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { CountValue, SavedCount } from '@/components/marketplace/rating-value'
@@ -400,9 +401,9 @@ export default async function ListingPage({ params }: Props) {
               <Zap aria-label="Urgent sale" className="h-6 w-6 self-center fill-red-600 stroke-none" />
             )}
             {!listing.negotiable && (
-              <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-2xs font-bold text-body">
-                <Tag className="mr-1 h-3 w-3" /><Tr text="Fixed price" />
-              </span>
+              <Badge size="md" className="text-2xs text-body">
+                <Tag className="h-3 w-3" /><Tr text="Fixed price" />
+              </Badge>
             )}
           </div>
           {priceBand && <div className="pt-2"><MarketPrice price={listing.price} band={priceBand} /></div>}
@@ -470,14 +471,14 @@ export default async function ListingPage({ params }: Props) {
                 </Link>
               )}
               {listing.condition && (
-                <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground">
+                <Badge size="md" className="font-semibold text-foreground">
                   <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
-                </span>
+                </Badge>
               )}
               {numericSpecs.map((s) => (
-                <span key={s.label} className="inline-flex items-center gap-1 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground">
+                <Badge key={s.label} size="md" className="font-semibold text-foreground">
                   <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
-                </span>
+                </Badge>
               ))}
               <span className="inline-flex min-w-0 items-center gap-1">
                 <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
@@ -517,9 +518,9 @@ export default async function ListingPage({ params }: Props) {
                   <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-red-600 stroke-none" />
                 )}
                 {!listing.negotiable && (
-                  <span className="inline-flex items-center rounded-full bg-tint px-2.5 py-1 text-2xs font-bold text-body">
-                    <Tag className="mr-1 h-3 w-3" /><Tr text="Fixed price" />
-                  </span>
+                  <Badge size="md" className="text-2xs text-body">
+                    <Tag className="h-3 w-3" /><Tr text="Fixed price" />
+                  </Badge>
                 )}
               </div>
               {priceBand && <MarketPrice price={listing.price} band={priceBand} />}
