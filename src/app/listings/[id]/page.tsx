@@ -405,7 +405,6 @@ export default async function ListingPage({ params }: Props) {
               </span>
             )}
           </div>
-          {showProof && <p className="flex items-center gap-2 text-xs text-muted-foreground">{socialProof}</p>}
           {priceBand && <div className="pt-2"><MarketPrice price={listing.price} band={priceBand} /></div>}
         </div>
 
@@ -486,6 +485,15 @@ export default async function ListingPage({ params }: Props) {
               </span>
               <span aria-hidden className="text-line-strong">·</span>
               <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
+              {/* Social proof rides the same line (user-picked 2026-07-14) — it's meta
+                  about the listing, so it belongs with brand/condition/location/posted
+                  rather than on a row of its own. This is now its ONLY mount. */}
+              {showProof && (
+                <>
+                  <span aria-hidden className="text-line-strong">·</span>
+                  <span className="flex shrink-0 items-center gap-2 text-xs">{socialProof}</span>
+                </>
+              )}
             </div>
             <ProtectionsRow />
             <div className="space-y-2">
@@ -547,9 +555,6 @@ export default async function ListingPage({ params }: Props) {
                   </span>
                 )}
               </div>
-              {showProof && (
-                <p className="-mt-2.5 hidden items-center gap-2 text-xs text-muted-foreground lg:flex">{socialProof}</p>
-              )}
               {priceBand && <div className="hidden lg:block"><MarketPrice price={listing.price} band={priceBand} /></div>}
 
               {/* SELLER identity + Chat now / View shop — directly under the price
