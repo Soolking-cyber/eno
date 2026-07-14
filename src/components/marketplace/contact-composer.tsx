@@ -153,7 +153,9 @@ export function ContactComposer({
           </div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-accent-foreground tabular-nums">{formatMoneyFull(offerPrice, currency, locale)}</span>
-            <span className="text-xs font-semibold text-muted-foreground">−{discount}%</span>
+            {/* text-body, not muted-foreground: the latter is ~3.5:1 on the bg-accent
+                tint → a serious WCAG AA contrast failure (axe caught it on the PDP). */}
+            <span className="text-xs font-semibold text-body">−{discount}%</span>
           </div>
           <EnoSlider
             min={0} max={MAX_DISCOUNT} step={1} value={discount}
