@@ -260,26 +260,32 @@ function ListingCardImpl({
             opens the centered discount bar (shared with mobile). */}
         <span className="pointer-events-none absolute right-11 top-2 z-10 hidden flex-row-reverse items-center gap-1 pc:flex">
           {quickOffer === null && (
-            /* Bare glyph — same face treatment as the heart/pin (white + drop-shadow). */
-            <button
-              type="button"
+            // Bare glyph — same face treatment as the heart/pin (white + drop-shadow) = variant="overlay".
+            // tapTarget={false} is REQUIRED here: this is a gap-1 row of h-8 glyphs at ~36px pitch, so a
+            // 44px ::before would overlap its neighbour and a boundary tap would fire OFFER, not CHAT.
+            <IconButton
+              size="sm"
+              variant="overlay"
+              tapTarget={false}
               aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
               title={tr('Chat with seller', 'Nhắn tin với người bán')}
               onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-              className="pointer-events-auto flex h-8 w-8 translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
+              className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <MessageCircle className="h-[20px] w-[20px]" />
-            </button>
+            </IconButton>
           )}
           {listing.price > 0 && listing.negotiable !== false && (
-            <button
-              type="button"
+            <IconButton
+              size="sm"
+              variant="overlay"
+              tapTarget={false}
               aria-label={tr('Make an offer', 'Trả giá')}
               title={tr('Make an offer', 'Trả giá')}
               aria-pressed={quickOffer !== null}
               onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
               className={cn(
-                'pointer-events-auto flex h-8 w-8 shrink-0 translate-x-3 items-center justify-center text-white opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]',
+                'pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
                 quickOffer === null && 'delay-75 group-hover:delay-75',
               )}
             >
@@ -287,18 +293,20 @@ function ListingCardImpl({
                   controls open as ONE wide edge-to-edge bar (shared with mobile,
                   below) so the amount never gets cramped on a narrow card. */}
               <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
-            </button>
+            </IconButton>
           )}
           {quickOffer === null && (
-            <button
-              type="button"
+            <IconButton
+              size="sm"
+              variant="overlay"
+              tapTarget={false}
               aria-label={tr('Show on map', 'Xem trên bản đồ')}
               title={tr('Show on map', 'Xem trên bản đồ')}
               onClick={(e) => { e.stopPropagation(); locate(listing) }}
-              className="pointer-events-auto flex h-8 w-8 translate-x-3 items-center justify-center text-white opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 cursor-pointer group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]"
+              className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <MapPin className="h-[20px] w-[20px]" />
-            </button>
+            </IconButton>
           )}
         </span>
 
@@ -401,24 +409,26 @@ function ListingCardImpl({
         {images.length > 1 && (
           <>
             {idx > 0 && (
-              <button
-                type="button"
+              <IconButton
+                size="sm"
+                variant="overlay"
                 aria-label={tr('Previous photo')}
                 onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
-                className="absolute left-1 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 items-center justify-center text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))] tap-44"
+                className="absolute left-1 top-1/2 -translate-y-1/2 z-10 hidden opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
               >
                 <ChevronLeft className="h-6 w-6" />
-              </button>
+              </IconButton>
             )}
             {idx < last && (
-              <button
-                type="button"
+              <IconButton
+                size="sm"
+                variant="overlay"
                 aria-label={tr('Next photo')}
                 onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
-                className="absolute right-1 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 items-center justify-center text-white opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 cursor-pointer [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))] tap-44"
+                className="absolute right-1 top-1/2 -translate-y-1/2 z-10 hidden opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
               >
                 <ChevronRight className="h-6 w-6" />
-              </button>
+              </IconButton>
             )}
             {/* dots */}
             <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1">

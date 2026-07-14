@@ -14,7 +14,14 @@ const buttonVariants = cva(
   // `iconSize` variant below. It must stay reachable from `buttonVariants()`
   // (pagination.tsx styles a bare <a> with it), which is why it is a variant
   // with a `true` default rather than something the component adds.
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-100 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
+  // cursor-pointer is BAKED IN, deliberately. Tailwind v4's preflight sets
+  // `button { cursor: default }`, so a primitive that omits the cursor forces every single
+  // call site to remember `cursor-pointer` — and across this sweep it was forgotten ELEVEN
+  // times, each one an interactive control that silently reads as dead on desktop. A rule
+  // that must be re-stated at every call site is a defect in the primitive, not in the
+  // callers. (`disabled:pointer-events-none` below already suppresses hover on a disabled
+  // button, so this needs no disabled: counterpart.)
+  "cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-100 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
   {
     variants: {
       variant: {

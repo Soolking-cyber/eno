@@ -22,19 +22,19 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMo
     cn('rounded-lg p-2.5 transition-colors cursor-pointer', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
   return (
     <>
-      <button onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} title={tr('List view', 'Danh sách')} className={tab('compact')}>
+      <Button variant="bare" size="none" onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} title={tr('List view', 'Danh sách')} className={tab('compact')}>
         <List className="h-[18px] w-[18px]" />
-      </button>
-      <button onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} title={tr('Grid view', 'Lưới')} className={tab('grid')}>
+      </Button>
+      <Button variant="bare" size="none" onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} title={tr('Grid view', 'Lưới')} className={tab('grid')}>
         <Grid className="h-[18px] w-[18px]" />
-      </button>
-      <button onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} title={tr('Map view', 'Xem Bản đồ')} className={tab('map')}>
+      </Button>
+      <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} title={tr('Map view', 'Xem Bản đồ')} className={tab('map')}>
         <Map className="h-[18px] w-[18px]" />
-      </button>
+      </Button>
       {showVideo && (
-        <button onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} title={tr('Video view', 'Xem Video')} className={tab('video')}>
+        <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} title={tr('Video view', 'Xem Video')} className={tab('video')}>
           <Play className="h-[18px] w-[18px]" />
-        </button>
+        </Button>
       )}
     </>
   )

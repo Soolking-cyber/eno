@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { Label } from '@/components/ui/label'
 
 export type Nearby = { lat: number; lng: number; radiusKm: number }
@@ -295,25 +296,26 @@ export function AreaFilter({
                   <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
                   <div className="flex justify-between text-3xs text-ink-4"><span>1 km</span><span>20 km</span></div>
                 </div>
-                <button
+                <IconButton
+                  size="lg"
                   onClick={locate}
                   disabled={locating}
                   aria-label={tr('Use my current location', 'Dùng vị trí hiện tại')}
                   title={tr('Use my current location', 'Dùng vị trí hiện tại')}
                   className={cn(
-                    'mb-3.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors active:scale-95 disabled:opacity-60',
+                    'mb-3.5 rounded-xl border transition-colors active:scale-95 disabled:opacity-60',
                     loc ? 'border-brand bg-tint text-accent-foreground' : 'border-line-strong text-accent-foreground hover:bg-muted',
                   )}
                 >
                   {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-                </button>
+                </IconButton>
               </div>
               {loc && (
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate text-xs text-body">
                     {resolving ? tr('Finding your address…', 'Đang tìm địa chỉ…') : address || tr('Using your location', 'Dùng vị trí của bạn')}
                   </span>
-                  <button onClick={() => { setLoc(null); setAddress(null) }} className="shrink-0 text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</button>
+                  <Button variant="bare" size="none" onClick={() => { setLoc(null); setAddress(null) }} className="shrink-0 text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</Button>
                 </div>
               )}
             </div>
@@ -322,7 +324,7 @@ export function AreaFilter({
             <div className="mt-3 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-accent-foreground"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
-                <button onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</button>
+                <Button variant="bare" size="none" onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</Button>
               </div>
               {resolving ? (
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> {tr('Finding your address…', 'Đang tìm địa chỉ…')}</p>

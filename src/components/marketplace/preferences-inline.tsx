@@ -5,6 +5,7 @@ import { useLanguage, LANGUAGES } from '@/context/language-context'
 import { useCurrency } from '@/context/currency-context'
 import { useTheme } from '@/context/theme-context'
 import { CURRENCIES } from '@/lib/currencies'
+import { Button } from '@/components/ui/button'
 import { CustomSelect } from './custom-select'
 import { cn } from '@/lib/utils'
 
@@ -40,14 +41,16 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         className="text-body hover:bg-muted"
         activeClassName="text-body hover:bg-muted"
       />
-      <button
+      <Button
+        variant="bare"
+        size="none"
         type="button"
         role="switch"
         aria-checked={isDark}
         aria-label={tr('Dark mode', 'Chế độ tối')}
         title={isDark ? tr('Dark', 'Tối') : tr('Light', 'Sáng')}
         onClick={() => setTheme(isDark ? 'light' : 'dark')}
-        className="relative flex h-9 w-[3.75rem] shrink-0 items-center rounded-full bg-muted px-1 transition-colors cursor-pointer tap-44"
+        className="relative h-9 w-[3.75rem] shrink-0 items-center justify-start rounded-full bg-muted px-1 transition-colors tap-44"
       >
         <span
           className={cn(
@@ -57,7 +60,7 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         >
           {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
         </span>
-      </button>
+      </Button>
     </div>
   )
 }

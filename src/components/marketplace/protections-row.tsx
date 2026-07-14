@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ShieldCheck, BadgeCheck, Gavel, Flag, Wallet, ChevronRight } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogClose,
@@ -67,9 +68,11 @@ export function ProtectionsRow() {
   return (
     <Dialog>
       <DialogTrigger render={
-        <button
+        <Button
           type="button"
-          className="flex w-full items-center gap-2.5 rounded-xl border border-border bg-tint px-3.5 py-2.5 text-left transition-colors hover:bg-accent cursor-pointer"
+          variant="bare"
+          size="none"
+          className="flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border border-border bg-tint px-3.5 py-2.5 text-left font-normal transition-colors hover:bg-accent active:scale-100"
         />
       }>
           <ShieldCheck className="h-5 w-5 shrink-0 text-accent-foreground" aria-hidden />

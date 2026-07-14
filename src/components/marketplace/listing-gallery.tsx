@@ -327,12 +327,14 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                   )
                 })()
               )}
-              <button
+              <Button
+                variant="bare"
+                size="none"
                 onClick={() => openAt(hasVideo ? Math.max(0, sel - 1) : sel)}
-                className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white cursor-pointer [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
+                className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white cursor-pointer active:scale-100 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
               >
                 <Images className="h-4 w-4" /> <Tr text={showAllLabel} /> · {images.length}
-              </button>
+              </Button>
             </div>
 
             {/* Thumbnail rail — embla carousel pages the strip when it overflows;

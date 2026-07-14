@@ -67,8 +67,7 @@ export function ShareButton({ url, title, price, currency, className, compact = 
           // compact: icon-only circle for overlaying media (mirrors SaveListingButton's
           // compact mode) — sized/tinted for the gallery's top-right corner. That shell IS
           // <IconButton size="md">, so use the primitive. The labelled (non-compact) variant
-          // is a padded pill with text, NOT an icon button — IconButton's h-9 w-9 box would
-          // squeeze the label, so it stays a plain button.
+          // is a padded pill with text, so it owns its own box: <Button size="none">.
           compact ? (
             <IconButton
               size="md"
@@ -82,7 +81,9 @@ export function ShareButton({ url, title, price, currency, className, compact = 
               <Share2 className="h-4 w-4" />
             </IconButton>
           ) : (
-            <button
+            <Button
+              variant="bare"
+              size="none"
               type="button"
               aria-label={tr('Share', 'Chia sẻ')}
               className={cn(
@@ -93,7 +94,7 @@ export function ShareButton({ url, title, price, currency, className, compact = 
             >
               <Share2 className="h-4 w-4" />
               <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>
-            </button>
+            </Button>
           )
         }
       />
@@ -106,8 +107,10 @@ export function ShareButton({ url, title, price, currency, className, compact = 
             // Buttons (not <a href="share-url">) so ad/social blockers (EasyList
             // "Social", Brave, Safari content blockers) can't hide these — they
             // match on anchor hrefs pointing at share URLs.
-            <button
+            <Button
               key={key}
+              variant="bare"
+              size="none"
               type="button"
               onClick={() => { window.open(href, '_blank', 'noopener,noreferrer'); setOpen(false) }}
               className="group flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted cursor-pointer"
@@ -116,7 +119,7 @@ export function ShareButton({ url, title, price, currency, className, compact = 
                 <Icon className="h-[18px] w-[18px]" />
               </span>
               <span className="text-3xs font-medium text-body">{label}</span>
-            </button>
+            </Button>
           ))}
         </div>
 

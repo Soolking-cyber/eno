@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Star, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/context/language-context'
@@ -111,13 +112,15 @@ export function ReviewPrompt({
               placeholder={tr('Anything to add? (optional)', 'Bạn muốn chia sẻ thêm? (không bắt buộc)')}
               className="w-auto min-w-0 flex-1 px-3 py-2 text-xs focus:ring-brand/20"
             />
-            <button
+            <Button
+              variant="cta"
+              size="none"
               onClick={submit}
               disabled={state === 'sending'}
-              className="relative tap-44 shrink-0 rounded-full bg-primary px-3 py-2 text-xs font-bold text-white transition-transform active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="relative tap-44 rounded-full px-3 py-2 text-xs font-bold"
             >
               {state === 'sending' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : tr('Submit', 'Gửi đánh giá')}
-            </button>
+            </Button>
           </div>
         )}
       </div>

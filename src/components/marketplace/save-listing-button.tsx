@@ -1,6 +1,7 @@
 'use client'
 
 import { Heart } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -18,36 +19,40 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
 
   if (compact) {
     return (
-      <button
+      <Button
+        variant="bare"
+        size="none"
         type="button"
         onClick={() => toggle(id)}
         aria-pressed={saved}
         aria-label={label}
         className={cn(
-          'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors active:scale-90',
+          'flex h-11 w-11 rounded-full border transition-colors active:scale-90',
           saved ? 'border-brand text-accent-foreground' : 'border-border text-body',
           className,
         )}
       >
         <Heart className={cn('h-5 w-5', saved && 'fill-brand')} />
-      </button>
+      </Button>
     )
   }
 
   return (
-    <button
+    <Button
+      variant="bare"
+      size="none"
       type="button"
       onClick={() => toggle(id)}
       aria-pressed={saved}
       aria-label={label}
       className={cn(
-        'flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95',
+        'flex gap-1.5 rounded-xl border px-3.5 py-2 font-semibold transition-colors active:scale-95',
         saved ? 'border-brand text-accent-foreground' : 'border-border text-body hover:border-brand hover:text-accent-foreground',
         className,
       )}
     >
       <Heart className={cn('h-4 w-4', saved && 'fill-brand')} />
       <span className="hidden sm:inline">{label}</span>
-    </button>
+    </Button>
   )
 }

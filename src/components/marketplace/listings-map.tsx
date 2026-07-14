@@ -20,6 +20,7 @@ import type { Nearby } from './area-filter'
 import { cn } from '@/lib/utils'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 
 // Compact price for map labels (Airbnb-style price pins). VND uses the shared
 // compactPrice, which follows the viewer's language — "850K" / "51M" / "1.2B"
@@ -446,13 +447,15 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                 {/* Favorite only — no ✕. Desktop closes on hover-out; mobile closes on
                     a tap outside the card (map background → closeCard). */}
                 <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
-                  <button
+                  <IconButton
+                    size="sm"
+                    tapTarget={false}
                     onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
                     aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
-                    className="flex h-8 w-8 items-center justify-center transition-transform hover:scale-110 active:scale-90"
+                    className="transition-transform hover:scale-110 active:scale-90"
                   >
                     <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
-                  </button>
+                  </IconButton>
                 </div>
                 <Button variant="bare" size="none" onClick={() => activateCard(card)} className="block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">
                   <div className="relative aspect-square w-full bg-tint">

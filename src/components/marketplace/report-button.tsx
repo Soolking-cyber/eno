@@ -103,16 +103,18 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
           blue "Safe trading tips" link; colour fills in only on hover. font-semibold + red
           keep it findable without a box. text-destructive passes AA on the bg-destructive/10
           hover tint (it carries its own dark value — no dark: twin). */}
-      <button
+      <Button
         type="button"
+        variant="bare"
+        size="none"
         onClick={() => setOpen(true)}
         className={cn(
-          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 cursor-pointer tap-44 relative',
+          'gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 tap-44 relative',
           className,
         )}
       >
         <Flag className="h-3.5 w-3.5" /> {t('Report', 'Báo cáo')}
-      </button>
+      </Button>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
         <DialogContent className="bg-card rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
@@ -140,13 +142,15 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
                   </Link>
                 </Button>
               ) : null}
-              <button
+              <Button
                 type="button"
+                variant="soft"
+                size="none"
                 onClick={() => { setOpen(false); reset() }}
-                className="mt-2 w-full rounded-xl px-6 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted cursor-pointer"
+                className="mt-2 w-full px-6 py-2 font-semibold text-muted-foreground transition-colors"
               >
                 {t('Close', 'Đóng')}
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="mt-4 space-y-3">

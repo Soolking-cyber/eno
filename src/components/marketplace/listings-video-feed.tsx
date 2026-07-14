@@ -206,24 +206,32 @@ export function VideoFeed({
 
       {/* Desktop prev/next arrows (far right, like TikTok web). */}
       <div className="fixed right-6 top-1/2 z-[65] hidden -translate-y-1/2 flex-col gap-3 sm:flex">
-        <button
+        <Button
+          variant="bare"
+          size="none"
           type="button"
           onClick={() => go(-1)}
           disabled={activeIdx === 0}
           aria-label={tr('Previous', 'Trước')}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30 cursor-pointer"
+          // disabled:opacity-30 must stay: it merges OVER the base disabled:opacity-50 (same
+          // twMerge group), keeping the dimmer end-of-list arrows. `flex` + `transition` likewise
+          // override the base inline-flex / transition-all — the h-6 icons beat the base's
+          // :where() size-4 rule on their own.
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30"
         >
           <ChevronUp className="h-6 w-6" />
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="bare"
+          size="none"
           type="button"
           onClick={() => go(1)}
           disabled={activeIdx >= items.length - 1}
           aria-label={tr('Next', 'Sau')}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30 cursor-pointer"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30"
         >
           <ChevronDown className="h-6 w-6" />
-        </button>
+        </Button>
       </div>
     </>,
   )
@@ -346,14 +354,19 @@ function VideoFeedItem({
           {(location || listing.model) && (
             <p className="mt-0.5 truncate text-sm text-white/80 drop-shadow">{[location, listing.model].filter(Boolean).join(' · ')}</p>
           )}
-          <button
+          <Button
+            variant="bare"
+            size="none"
             type="button"
             onClick={() => onOpen(listing)}
             onMouseEnter={() => onPrefetch?.(listing.id)}
+            // font-bold / active:scale-95 / transition-transform sit on the PRIMITIVE (not a
+            // child), so cn() merges them over the base font-medium / active:scale-[0.97] /
+            // transition-all instead of concatenating and losing on stylesheet order.
             className="mt-3 inline-flex items-center rounded-full bg-white px-5 py-2 text-sm font-bold text-black transition-transform active:scale-95"
           >
             {tr('View listing', 'Xem tin')}
-          </button>
+          </Button>
         </div>
 
         {/* Action rail — overlays the clip's bottom-right on mobile; sits BESIDE the clip (on the

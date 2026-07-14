@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { haptic } from '@/lib/haptics'
@@ -86,13 +87,15 @@ export function QuickReplyChips({
           <p className="min-w-0 flex-1 truncate text-xs font-medium text-success">
             ✓ {tr('Seller confirmed this is available {timeAgo}', 'Người bán đã xác nhận còn hàng {timeAgo}').replace('{timeAgo}', timeAgo(availabilityConfirmedAt, lang))}
           </p>
-          <button
+          <IconButton
+            tapTarget={false}
+            size="xs"
             onClick={() => setNote('dismissed')}
             aria-label={tr('Dismiss', 'Đóng')}
-            className="shrink-0 rounded-full p-1 text-ink-4 transition-colors hover:text-foreground cursor-pointer"
+            className="text-ink-4 transition-colors hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
-          </button>
+          </IconButton>
         </div>
       )}
       <div className="flex gap-1 overflow-x-auto scrollbar-none">

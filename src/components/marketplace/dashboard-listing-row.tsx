@@ -10,6 +10,7 @@ import { ListingSparkline, type SparkPoint } from './listing-sparkline'
 import { useListingActions } from './use-listing-actions'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 // One row in the seller dashboard's listings table. Lifecycle actions are
@@ -49,20 +50,24 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // In select mode, tapping the thumbnail toggles selection instead of opening.
   const open = () => (selectable ? onSelectToggle?.() : router.push(`/listings/${listing.id}`))
 
+  // Not ui/checkbox: this paints its own 20px box (border-2 + brand fill), which the
+  // primitive would re-paint. ui/button only supplies the behaviour + press feedback.
   const checkbox = selectable ? (
-    <button
+    <Button
+      variant="bare"
+      size="none"
       type="button"
       onClick={(e) => { e.stopPropagation(); onSelectToggle?.() }}
       role="checkbox"
       aria-checked={selected}
       aria-label={tr('Select listing', 'Chọn tin')}
       className={cn(
-        'flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border-2 transition-colors cursor-pointer',
+        'h-5 w-5 shrink-0 rounded-lg border-2 transition-colors',
         selected ? 'border-brand bg-primary text-white' : 'border-line-strong bg-card hover:border-brand',
       )}
     >
       {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-    </button>
+    </Button>
   ) : null
 
   // Shared between the row + square-card layouts.
@@ -89,13 +94,15 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         ? tr(`${listing.savedCount} people saved this — a small price drop usually sells it`, `${listing.savedCount} người đã lưu tin này — giảm giá một chút thường sẽ bán được`)
         : tr('Lots of views but no contacts yet — a lower price usually fixes this', 'Nhiều lượt xem nhưng chưa có liên hệ — giảm giá thường sẽ bán được')}
       {' · '}
-      <button
+      <Button
+        variant="bare"
+        size="none"
         onClick={() => router.push(`/listings/${listing.id}/edit`)}
         onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)}
-        className="font-semibold underline underline-offset-2 transition-colors hover:text-foreground cursor-pointer"
+        className="text-xs font-semibold underline underline-offset-2 transition-colors hover:text-foreground"
       >
         {tr('Edit price', 'Sửa giá')}
-      </button>
+      </Button>
     </p>
   ) : null
 
@@ -108,20 +115,20 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       )}
       {/* Availability confirmation lives in the daily review popup now — not here. */}
       {status === 'active' ? (
-        <button onClick={() => setStatus('sold')} className={btn}>
+        <Button variant="bare" size="none" onClick={() => setStatus('sold')} className={btn}>
           <CheckCircle2 className="h-3 w-3" /> {tr('Mark sold', 'Đã bán')}
-        </button>
+        </Button>
       ) : (
-        <button onClick={() => setStatus('active')} className={btn}>
+        <Button variant="bare" size="none" onClick={() => setStatus('active')} className={btn}>
           <RotateCcw className="h-3 w-3" /> {tr('Relist', 'Đăng lại')}
-        </button>
+        </Button>
       )}
-      <button onClick={() => router.push(`/listings/${listing.id}/edit`)} onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} className={btn}>
+      <Button variant="bare" size="none" onClick={() => router.push(`/listings/${listing.id}/edit`)} onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} className={btn}>
         <Pencil className="h-3 w-3" /> {tr('Edit', 'Sửa')}
-      </button>
-      <button onClick={open} className={btn}>
+      </Button>
+      <Button variant="bare" size="none" onClick={open} className={btn}>
         <ExternalLink className="h-3 w-3" /> {tr('View', 'Xem')}
-      </button>
+      </Button>
       {/* Quick share — only meaningful for a LIVE listing (a held/sold one has no
           public page). Reuses the curated share popover from the detail page. */}
       {status === 'active' && listing.verified && (
@@ -133,9 +140,9 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           className="gap-1 rounded-lg px-2.5 py-1 text-xs [&_svg]:h-3 [&_svg]:w-3"
         />
       )}
-      <button onClick={del} aria-label={tr('Delete listing', 'Xóa tin')} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 relative tap-44')}>
+      <Button variant="bare" size="none" onClick={del} aria-label={tr('Delete listing', 'Xóa tin')} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 relative tap-44')}>
         <Trash2 className="h-3 w-3" />
-      </button>
+      </Button>
     </div>
   )
 
@@ -169,12 +176,12 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   return (
     <div className={cn('flex gap-3 rounded-2xl p-3 transition-colors', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch}>
       {selectable && <span className="self-center">{checkbox}</span>}
-      <button onClick={open} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-tint cursor-pointer" aria-label={title}>
+      <Button variant="bare" size="none" onClick={open} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-tint active:scale-100" aria-label={title}>
         {img && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
         )}
-      </button>
+      </Button>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">

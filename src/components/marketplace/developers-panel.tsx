@@ -129,11 +129,12 @@ export function DevelopersPanel() {
             <span className="text-xs font-bold text-foreground">{tr('Scopes', 'Phạm vi')}</span>
             <div className="mt-1.5 flex flex-wrap gap-2">
               {ALL_SCOPES.map((s) => (
-                <button key={s} onClick={() => toggleScope(s)}
-                  className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+                // gap-0: the Check carries its own mr-1 — the base gap-2 would double the gutter.
+                <Button key={s} variant="bare" size="none" onClick={() => toggleScope(s)}
+                  className={cn('gap-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
                     scopes.includes(s) ? 'border-brand bg-tint text-accent-foreground' : 'border-line-strong text-muted-foreground hover:bg-muted')}>
                   {scopes.includes(s) && <Check className="mr-1 inline h-3 w-3" />}{s}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -307,11 +308,12 @@ function WebhooksSection() {
             <p className="text-2xs text-ink-4">{tr('None selected = all events.', 'Không chọn = tất cả sự kiện.')}</p>
             <div className="mt-1.5 flex flex-wrap gap-2">
               {WEBHOOK_EVENTS.map((e) => (
-                <button key={e} onClick={() => toggleEvent(e)}
-                  className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+                // gap-0: the Check carries its own mr-1 — the base gap-2 would double the gutter.
+                <Button key={e} variant="bare" size="none" onClick={() => toggleEvent(e)}
+                  className={cn('gap-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
                     events.includes(e) ? 'border-brand bg-tint text-accent-foreground' : 'border-line-strong text-muted-foreground hover:bg-muted')}>
                   {events.includes(e) && <Check className="mr-1 inline h-3 w-3" />}{e}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -362,14 +364,16 @@ function WebhooksSection() {
                 </div>
               ) : (
                 <div className="flex shrink-0 items-center gap-0.5">
-                  <button onClick={() => toggleEnabled(h)} aria-label={h.enabled ? tr('Pause', 'Tạm dừng') : tr('Resume', 'Tiếp tục')} title={h.enabled ? tr('Pause', 'Tạm dừng') : tr('Resume', 'Tiếp tục')}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground">
+                  {/* tapTarget={false}: gap-0.5 cluster — a baked 44px ::before would overlap the
+                      neighbour, so a boundary tap meant for Pause would fire Remove. */}
+                  <IconButton size="sm" tapTarget={false} onClick={() => toggleEnabled(h)} aria-label={h.enabled ? tr('Pause', 'Tạm dừng') : tr('Resume', 'Tiếp tục')} title={h.enabled ? tr('Pause', 'Tạm dừng') : tr('Resume', 'Tiếp tục')}
+                    className="text-ink-4 transition-colors hover:bg-muted hover:text-foreground">
                     {h.enabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  </button>
-                  <button onClick={() => setConfirmId(h.id)} aria-label={tr('Remove', 'Xóa')} title={tr('Remove', 'Xóa')}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-destructive">
+                  </IconButton>
+                  <IconButton size="sm" tapTarget={false} onClick={() => setConfirmId(h.id)} aria-label={tr('Remove', 'Xóa')} title={tr('Remove', 'Xóa')}
+                    className="text-ink-4 transition-colors hover:bg-muted hover:text-destructive">
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </IconButton>
                 </div>
               )}
             </div>

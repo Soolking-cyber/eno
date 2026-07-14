@@ -7,6 +7,7 @@ import { TrustScore } from '@/components/marketplace/trust-score'
 import { RatingValue, CountValue } from '@/components/marketplace/rating-value'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { SellerMetrics } from '@/lib/seller-metrics'
 
@@ -115,13 +116,15 @@ export function SellerCard({
       {(onChat || (variant === 'pdp' && storefrontHref)) && (
         <div className="flex items-center gap-2">
           {onChat && (
-            <button
+            <Button
               type="button"
+              variant="cta"
+              size="none"
               onClick={onChat}
-              className="press flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark cursor-pointer"
+              className="press flex-1 gap-1.5 py-2.5 active:scale-100"
             >
               <MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}
-            </button>
+            </Button>
           )}
           {variant === 'pdp' && storefrontHref && (
             <Link
