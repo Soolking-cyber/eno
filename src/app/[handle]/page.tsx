@@ -6,6 +6,7 @@ import { CalendarDays } from 'lucide-react'
 import { db } from '@/lib/db'
 import { HANDLE_RE } from '@/lib/handle'
 import { Avatar } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerStorefront } from '@/components/marketplace/seller-storefront'
@@ -105,12 +106,11 @@ export default async function HandlePage({ params }: Props) {
           <p className="mt-6 text-sm leading-relaxed text-body">
             <Tr text="This member hasn't opened a shop yet. Browse the marketplace to see what's for sale." />
           </p>
-          <Link
-            href="/"
-            className="mt-4 inline-block rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition-transform active:scale-95"
-          >
-            <Tr text="Explore listings" />
-          </Link>
+          <Button asChild variant="cta" size="none" className="active:scale-95">
+            <Link href="/" className="mt-4 cursor-pointer px-5 py-2.5 text-sm">
+              <Tr text="Explore listings" />
+            </Link>
+          </Button>
         </div>
       </main>
       <Footer />

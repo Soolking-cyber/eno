@@ -392,10 +392,14 @@ export function Header() {
               wrapper has no competing display, so mobile:hidden reliably hides it; pc:contents
               keeps the button a direct flex child on desktop (zero layout change). */}
           <div className="mobile:hidden pc:contents">
-            <Button asChild variant="cta" size="none">
+            {/* gap/weight ride on the BUTTON: asChild composes through Base UI's render
+                prop, which CONCATENATES classNames — only the Button's own className is
+                twMerged. On the child these were decided by stylesheet order instead of
+                intent (base gap-2 beat the child's gap-1.5). */}
+            <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
               <Link
                 href={user ? '/dashboard?tab=post' : '/post'}
-                className="gap-1.5 px-4 py-2 text-sm font-semibold inline-flex cursor-pointer"
+                className="px-4 py-2 text-sm inline-flex cursor-pointer"
               >
                 {t('header.postBtn')}
               </Link>

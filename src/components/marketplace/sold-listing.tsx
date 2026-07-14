@@ -73,18 +73,26 @@ export function SoldListing({
                 <Store className="h-4 w-4" /> <Tr text="More from this seller" />
               </Link>
             </Button>
-            <Link
-              href={categoryHref}
-              className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted"
-            >
-              <Tr text="Browse this category" /> <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <Home className="h-4 w-4" /> <Tr text="Home" />
-            </Link>
+            {/* font-bold / gap-1.5 ride on the BUTTON, not the child: asChild goes through
+                Base UI's render prop, which CONCATENATES classNames — only the Button's own
+                className passes through cn()/twMerge, so a child override loses to the base
+                (font-medium, gap-2) on stylesheet order alone. */}
+            <Button asChild variant="outline" size="none" className="font-bold">
+              <Link
+                href={categoryHref}
+                className="inline-flex items-center rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <Tr text="Browse this category" /> <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="none" className="gap-1.5 font-semibold">
+              <Link
+                href="/"
+                className="inline-flex items-center rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
+              >
+                <Home className="h-4 w-4" /> <Tr text="Home" />
+              </Link>
+            </Button>
           </div>
         </section>
 

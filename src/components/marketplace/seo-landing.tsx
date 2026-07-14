@@ -64,10 +64,13 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
         <h1 className="h-display text-foreground">{content.h1}</h1>
         <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{content.intro}</p>
-        <Button asChild variant="cta" size="none">
+        {/* gap/weight on the BUTTON — see header.tsx: asChild concatenates the child's
+            className instead of twMerging it, so overrides there are settled by
+            stylesheet order rather than by intent. */}
+        <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
           <Link
             href={`/c/${content.categorySlug}`}
-            className="mt-6 gap-1.5 px-5 py-2.5 text-sm font-semibold"
+            className="mt-6 px-5 py-2.5 text-sm"
           >
             {content.cta} <ArrowRight className="h-4 w-4" />
           </Link>

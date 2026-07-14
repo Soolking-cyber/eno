@@ -47,9 +47,14 @@ function UnsubscribeInner() {
           <>
             <h1 className="mt-4 text-xl font-bold text-foreground">You're unsubscribed</h1>
             <p className="mt-2 text-sm text-muted-foreground">You won't get the weekly eno.vn digest anymore. Changed your mind?</p>
-            <button onClick={() => set(true)} className="mt-5 rounded-xl border border-border px-5 py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-tint cursor-pointer">
+            <Button
+              variant="outline"
+              size="none"
+              onClick={() => set(true)}
+              className="mt-5 border-border px-5 py-2.5 font-bold text-accent-foreground hover:bg-tint hover:text-accent-foreground cursor-pointer"
+            >
               Re-subscribe
-            </button>
+            </Button>
           </>
         ) : state === 'resubscribed' ? (
           <>

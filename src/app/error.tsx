@@ -30,9 +30,14 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           <Button variant="cta" size="none" onClick={reset} className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm transition-colors">
             <RotateCw className="h-4 w-4" /> {tr('Try again', 'Thử lại')}
           </Button>
-          <Link href="/" className="inline-flex items-center gap-1.5 rounded-xl border border-line-strong px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
-            <Home className="h-4 w-4" /> {tr('Go home', 'Về trang chủ')}
-          </Link>
+          {/* gap-1.5 + font-semibold ride on the BUTTON: asChild composes via Base UI's
+              render prop, which CONCATENATES classNames — only the Button's own className
+              is twMerged, so on the child they'd lose to the base gap-2 / font-medium. */}
+          <Button asChild variant="ghost" size="none" className="gap-1.5 font-semibold">
+            <Link href="/" className="inline-flex cursor-pointer items-center rounded-xl border border-line-strong px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-muted hover:text-foreground">
+              <Home className="h-4 w-4" /> {tr('Go home', 'Về trang chủ')}
+            </Link>
+          </Button>
         </div>
       </div>
     </div>

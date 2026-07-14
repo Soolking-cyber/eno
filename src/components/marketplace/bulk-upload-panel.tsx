@@ -102,9 +102,9 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
     <div>
         <p className="text-sm text-muted-foreground">{tr('Upload many listings at once with a CSV. Download the template, fill it in, then drop it here.', 'Đăng nhiều tin cùng lúc bằng CSV. Tải mẫu, điền vào, rồi thả vào đây.')}</p>
 
-        <button onClick={downloadTemplate} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-line-strong bg-card px-4 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
+        <Button variant="outline" size="none" onClick={downloadTemplate} className="mt-4 inline-flex items-center gap-2 rounded-xl border-line-strong bg-card px-4 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-body cursor-pointer">
           <Download className="h-4 w-4" /> {tr('Download CSV template', 'Tải mẫu CSV')}
-        </button>
+        </Button>
 
         {/* Result */}
         {result ? (
@@ -121,7 +121,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
               {onDone && (
                 <Button variant="cta" size="none" onClick={onDone} className="px-5 py-2 cursor-pointer">{tr('View listings', 'Xem tin đăng')}</Button>
               )}
-              <button onClick={() => { setResult(null); setFileName('') }} className="rounded-xl border border-line-strong bg-card px-5 py-2 text-sm font-semibold text-body hover:bg-muted transition-colors cursor-pointer">{tr('Upload more', 'Tải thêm')}</button>
+              <Button variant="outline" size="none" onClick={() => { setResult(null); setFileName('') }} className="rounded-xl border-line-strong bg-card px-5 py-2 text-sm font-semibold text-body hover:bg-muted hover:text-body transition-colors cursor-pointer">{tr('Upload more', 'Tải thêm')}</Button>
             </div>
           </div>
         ) : (

@@ -60,12 +60,18 @@ export function DeleteAccount() {
         <p className="text-sm leading-relaxed text-body">
           {tr('Download a copy of all your eno.vn data.', 'Tải xuống bản sao toàn bộ dữ liệu eno.vn của bạn.')}
         </p>
-        <a
-          href="/api/account/export"
-          className="mt-2 inline-block rounded-xl px-4 py-2 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer"
-        >
-          {tr('Export my data', 'Xuất dữ liệu của tôi')}
-        </a>
+        {/* font-bold rides on the BUTTON, not the child: asChild goes through Base UI's
+            render prop, which CONCATENATES classNames — only the Button's own className
+            passes through cn()/twMerge. On the child, font-bold would lose to the base
+            font-medium on stylesheet order alone. */}
+        <Button asChild variant="ghost" size="none" className="font-bold">
+          <a
+            href="/api/account/export"
+            className="mt-2 inline-block rounded-xl px-4 py-2 text-sm text-accent-foreground transition-colors hover:bg-muted hover:text-accent-foreground cursor-pointer"
+          >
+            {tr('Export my data', 'Xuất dữ liệu của tôi')}
+          </a>
+        </Button>
       </div>
       <p className="text-sm leading-relaxed text-body">
         {tr('Permanently delete your account, listings and conversations. This cannot be undone.', 'Xóa vĩnh viễn tài khoản, tin đăng và tin nhắn của bạn. Không thể hoàn tác.')}
