@@ -36,8 +36,11 @@ export function ContactComposer({
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // offer amounts follow the viewer's language
   const router = useRouter()
-  const [offering, setOffering] = useState(false)
-  const [discount, setDiscount] = useState(10) // % off
+  // Offer starts OPEN at −5% (user decision 2026-07-14): the slider IS the
+  // negotiation invitation — hiding it behind a button buried the marketplace's
+  // core ritual. ✕ still collapses it back to the button for browsers-only.
+  const [offering, setOffering] = useState(true)
+  const [discount, setDiscount] = useState(5) // % off
 
   // Offers are only possible on a negotiable, priced listing.
   const hasPrice = typeof price === 'number' && price > 0
