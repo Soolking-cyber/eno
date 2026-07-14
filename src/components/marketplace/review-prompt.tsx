@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Star, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/context/language-context'
 import { haptic } from '@/lib/haptics'
 
@@ -99,13 +100,14 @@ export function ReviewPrompt({
         </div>
         {rating > 0 && (
           <div className="mt-1.5 flex items-center gap-2 duration-200 animate-in fade-in">
-            <input
+            <Input
+              variant="outline"
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
               maxLength={600}
               placeholder={tr('Anything to add? (optional)', 'Bạn muốn chia sẻ thêm? (không bắt buộc)')}
-              className="min-w-0 flex-1 rounded-xl border border-line-strong bg-card px-3 py-2 text-xs outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+              className="w-auto min-w-0 flex-1 px-3 py-2 text-xs focus:ring-brand/20"
             />
             <button
               onClick={submit}

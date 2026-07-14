@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 
 // Dashboard enforcement banner (trust Phase 2). Renders at the top of the Listings
 // tab when the account isn't in good standing, or when an open report awaits the
@@ -142,13 +143,14 @@ function AppealPanel({ action, onChanged }: { action: NonNullable<EnforcementInf
   return (
     <div>
       <p className="text-xs text-muted-foreground">{tr('One appeal per decision — tell us what we got wrong.', 'Mỗi quyết định được khiếu nại một lần — hãy cho chúng tôi biết điều gì chưa đúng.')}</p>
-      <textarea
+      <Textarea
+        size="compact"
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={3}
         maxLength={2000}
         placeholder={tr('Explain what happened…', 'Giải thích sự việc…')}
-        className="mt-2 w-full resize-none rounded-xl bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-ink-4 focus:ring-2 focus:ring-brand/20"
+        className="mt-2 bg-card px-3 py-2 focus:ring-brand/20"
       />
       <div className="mt-1.5 flex items-center gap-2">
         <Button

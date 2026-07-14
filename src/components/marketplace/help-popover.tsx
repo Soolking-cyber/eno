@@ -7,6 +7,8 @@ import { useLanguage } from '@/context/language-context'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 
 type View = 'menu' | { kind: 'feedback' | 'technical' }
 
@@ -138,21 +140,24 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
                     ? tr('Tell us what went wrong and what you were doing.', 'Cho chúng tôi biết lỗi gì và bạn đang làm gì.')
                     : tr('What works well, what could be better?', 'Điều gì tốt, điều gì có thể cải thiện?')}
                 </p>
-                <textarea
+                <Textarea
+                  variant="outline"
+                  size="compact"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   rows={4}
                   autoFocus
                   maxLength={4000}
                   placeholder={tr('Type your message…', 'Nhập tin nhắn của bạn…')}
-                  className="mt-3 w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-brand"
+                  className="mt-3 border-border bg-background px-3.5 py-2.5 transition-colors focus:ring-0"
                 />
-                <input
+                <Input
+                  variant="outline"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={tr('Email (optional, so we can reply)', 'Email (tùy chọn, để chúng tôi trả lời)')}
-                  className="mt-2.5 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-brand"
+                  className="mt-2.5 border-border bg-background px-3.5 py-2.5 transition-colors focus:ring-0"
                 />
                 {state === 'error' && (
                   <p className="mt-2 text-sm font-semibold text-destructive">{tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.')}</p>

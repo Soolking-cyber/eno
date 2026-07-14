@@ -2,6 +2,7 @@
 
 import { UserPlus } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Badge } from '@/components/ui/badge'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import type { ResponseBucket } from '@/lib/seller-metrics'
 
@@ -27,10 +28,10 @@ export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBuck
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs leading-none text-muted-foreground">
       {isNew ? (
-        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 font-semibold text-body">
+        <Badge variant="neutral" size="sm" className="bg-muted px-1.5 font-semibold leading-none text-body">
           <UserPlus className="h-3 w-3" aria-hidden />
           {tr('New user', 'Người dùng mới')}
-        </span>
+        </Badge>
       ) : (
         <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" />
       )}

@@ -11,6 +11,7 @@ import { compressImageFile } from '@/lib/normalize-image'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -313,9 +314,9 @@ export default function DisputeRoomPage() {
                 if (item.kind === 'system' || item.kind === 'decision') {
                   return (
                     <div key={item.id} className="text-center">
-                      <span className="inline-block rounded-full bg-tint px-3 py-1 text-xs font-semibold text-body">
+                      <Badge size="md" className="px-3 py-1 font-semibold text-body whitespace-normal">
                         {item.kind === 'decision' ? (decisionCopy(data).text + (item.body ? ` — ${item.body}` : '')) : item.body}
-                      </span>
+                      </Badge>
                       <p className="mt-0.5 text-3xs text-ink-4">{new Date(item.at).toLocaleString()}</p>
                     </div>
                   )

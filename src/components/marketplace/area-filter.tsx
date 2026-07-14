@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 
 export type Nearby = { lat: number; lng: number; radiusKm: number }
 export type Geo = { code: string; name: string; nameEn: string }
@@ -247,7 +248,7 @@ export function AreaFilter({
             city → ward IS the full official hierarchy. */}
         <div className="grid grid-cols-2 gap-2">
           <div className="min-w-0 space-y-1.5">
-            <label className="text-xs font-bold text-foreground">{tr('Province / City', 'Tỉnh / Thành phố')}</label>
+            <Label className="text-xs font-bold text-foreground leading-normal">{tr('Province / City', 'Tỉnh / Thành phố')}</Label>
             <CustomSelect
               value={provCode}
               onChange={(c) => { setProvCode(c); setWardCode('') }}
@@ -258,7 +259,7 @@ export function AreaFilter({
             />
           </div>
           <div className="min-w-0 space-y-1.5">
-            <label className="text-xs font-bold text-foreground">{tr('Ward / Commune', 'Phường / Xã')}</label>
+            <Label className="text-xs font-bold text-foreground leading-normal">{tr('Ward / Commune', 'Phường / Xã')}</Label>
             {loadingWards ? (
               <DisabledField label={tr('Loading wards…', 'Đang tải phường/xã…')} />
             ) : wards.length ? (

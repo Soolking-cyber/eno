@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { AtSign, Check, Copy, Loader2, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { HANDLE_RE } from '@/lib/handle-format'
 
@@ -89,20 +92,22 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
 
   return (
     <div>
-      <label className="text-xs font-semibold text-muted-foreground">
+      <Label htmlFor={`handle-${target}`} className="block text-xs font-semibold leading-normal text-muted-foreground">
         {label || tr('Public handle', 'Tên định danh công khai')}
-      </label>
+      </Label>
       <div className="mt-1 flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
           <AtSign className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-4" />
-          <input
+          <Input
+            id={`handle-${target}`}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={tr('your_name', 'ten_cua_ban')}
             autoComplete="off"
             autoCapitalize="none"
             spellCheck={false}
-            className="w-full rounded-xl bg-tint py-2.5 pl-9 pr-9 text-sm font-semibold outline-none transition-colors focus:ring-2 focus:ring-brand/20"
+            variant="filled"
+            className="py-2.5 pl-9 pr-9 font-semibold transition-colors focus:ring-brand/20"
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2">
             {state === 'checking' && <Loader2 className="h-4 w-4 animate-spin text-ink-4" />}
@@ -111,28 +116,29 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
           </span>
         </div>
         {dirty ? (
-          <button
+          <Button
             type="button"
+            variant="cta"
+            size="none"
             disabled={state !== 'available' || saving}
             onClick={save}
-            className={cn(
-              'flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-all active:scale-[0.98] cursor-pointer',
-              (state !== 'available' || saving) && 'opacity-40 cursor-default',
-            )}
+            className="shrink-0 gap-1.5 px-4 py-2.5 cursor-pointer active:scale-[0.98] disabled:opacity-40 disabled:cursor-default"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {tr('Save', 'Lưu')}
-          </button>
+          </Button>
         ) : current ? (
-          <button
+          <Button
             type="button"
+            variant="soft"
+            size="none"
             onClick={copy}
-            className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-muted cursor-pointer"
+            className="shrink-0 gap-1.5 px-3 py-2.5 font-semibold text-accent-foreground cursor-pointer"
             aria-label={tr('Copy link', 'Sao chép liên kết')}
           >
             {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
             {copied ? tr('Copied', 'Đã chép') : tr('Copy link', 'Chép liên kết')}
-          </button>
+          </Button>
         ) : null}
       </div>
       <p className={cn('mt-1 h-4 text-xs font-semibold', hint ? hint.cls : 'text-transparent')}>{hint?.text || '—'}</p>

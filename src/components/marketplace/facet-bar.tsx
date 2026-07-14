@@ -7,6 +7,7 @@ import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
 import { RangeFacetControl } from './range-facet-control'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
+import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
 import { useLanguage } from '@/context/language-context'
 import { facetsFor, subcategoriesFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
@@ -215,7 +216,7 @@ export function FacetBar({
             <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
             <span>{tr('Filter', 'Bộ lọc')}</span>
             {activeAdvCount > 0 && (
-              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-3xs font-bold text-white">{activeAdvCount}</span>
+              <Badge variant="counter-brand" size="count" className="ml-0.5">{activeAdvCount}</Badge>
             )}
             <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', advOpen && 'rotate-180')} />
           </button>

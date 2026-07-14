@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X, TrendingDown } from 'lucide-react'
 import { useNotifications } from '@/context/notifications-context'
+import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
@@ -56,9 +57,9 @@ export function NotificationBell() {
             Saved/Messages action icons on desktop (one consistent nav scale). */}
         <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} />
         {user && unread > 0 && (
-          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-3xs font-bold text-white animate-in zoom-in duration-200">
+          <Badge variant="counter" size="count" className="absolute right-1 top-1 animate-in zoom-in duration-200">
             {unread > 9 ? '9+' : unread}
-          </span>
+          </Badge>
         )}
       </IconButton>
 

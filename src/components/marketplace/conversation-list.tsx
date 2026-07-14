@@ -13,6 +13,9 @@ import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { IconButton } from '@/components/ui/icon-button'
+import { Input } from '@/components/ui/input'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
 // Borderless conversation list — the left pane of the desktop two-pane messenger
@@ -52,13 +55,14 @@ export function ConversationList() {
         {/* Search — filled, borderless */}
         <div className="relative lg:mt-3">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-4" />
-          <input
+          <Input
+            variant="filled"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={tr('Search messages', 'Tìm tin nhắn')}
             autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
             aria-label={tr('Search messages', 'Tìm tin nhắn')}
-            className="w-full rounded-xl bg-tint py-2.5 pl-10 pr-4 text-sm text-foreground outline-none transition-colors placeholder:text-ink-4 focus:bg-muted"
+            className="py-2.5 pl-10 pr-4 transition-colors focus:bg-muted focus:ring-0"
           />
         </div>
       </div>
@@ -109,7 +113,7 @@ export function ConversationList() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-bold text-foreground">{c.counterpart.name}</span>
-                      {c.unread > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-3xs font-bold text-white">{c.unread}</span>}
+                      {c.unread > 0 && <Badge variant="counter-brand" size="count" className="h-5 min-w-5 px-1.5">{c.unread}</Badge>}
                     </div>
                     <p className="truncate text-xs text-ink-4">{c.listingTitle}</p>
                     {(() => {
@@ -132,16 +136,17 @@ export function ConversationList() {
                 {confirmId === c.id ? (
                   <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
                     <Button variant="destructive" size="none" onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold text-white active:scale-95">{tr('Delete', 'Xóa')}</Button>
-                    <button onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="rounded-full p-1.5 text-ink-4 hover:text-foreground relative tap-44"><X className="h-4 w-4" /></button>
+                    <IconButton size="xs" onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="text-ink-4 hover:text-foreground"><X className="h-4 w-4" /></IconButton>
                   </div>
                 ) : (
-                  <button
+                  <IconButton
+                    size="sm"
                     onClick={() => setConfirmId(c.id)}
                     aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
-                    className="mr-2 ml-1 shrink-0 rounded-full p-2 text-ink-4 opacity-100 transition hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 relative tap-44"
+                    className="mr-2 ml-1 text-ink-4 opacity-100 transition hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
                   >
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </IconButton>
                 )}
               </div>
             ))}

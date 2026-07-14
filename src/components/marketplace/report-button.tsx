@@ -7,6 +7,7 @@ import { Flag, Loader2, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 type Props = { listingId?: string; sellerId?: string; conversationId?: string; className?: string }
@@ -167,13 +168,15 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
                 ))}
               </div>
 
-              <textarea
+              <Textarea
+                variant="filled"
+                size="compact"
                 value={detail}
                 onChange={(e) => setDetail(e.target.value)}
                 rows={2}
                 maxLength={1000}
                 placeholder={t('Details (optional)', 'Chi tiết (không bắt buộc)')}
-                className="w-full resize-none rounded-xl bg-tint px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                className="px-3 py-2 focus:ring-brand/20"
               />
 
               {error && <p role="alert" className="text-center text-xs font-semibold text-destructive">{error}</p>}

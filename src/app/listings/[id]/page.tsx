@@ -462,13 +462,15 @@ export default async function ListingPage({ params }: Props) {
                 title flow, which already reads below the gallery). */}
             <div className="-mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground">
               {brand && (
-                <Link
-                  href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`}
-                  className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+                <Badge
+                  size="md"
+                  interactive
+                  render={<Link href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`} />}
+                  className="w-fit gap-1.5 font-semibold text-foreground"
                 >
                   <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
                   {brand.name}
-                </Link>
+                </Badge>
               )}
               {listing.condition && (
                 <Badge size="md" className="font-semibold text-foreground">

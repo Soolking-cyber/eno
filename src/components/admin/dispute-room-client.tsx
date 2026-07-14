@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Clock, Loader2, Scale, Shield, Sparkles } from 'lucide-react'
 import type { TargetInfo } from '@/lib/admin-reports'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 
 // Admin dispute room: shared thread + mediation composer + AI analysis + decision
 // bar. Decisions call the SAME /api/admin/moderate actions as the triage queue —
@@ -154,14 +156,14 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
         <h1 className="h-title capitalize text-foreground">{data.reason}</h1>
         {open ? (
           data.stage === 'evidence'
-            ? <span className="rounded-full bg-tint px-2.5 py-1 text-xs font-bold text-accent-foreground"><Clock className="mr-1 inline h-3 w-3" />evidence window{left ? ` · ${left} left` : ''}</span>
-            : <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning">awaiting decision</span>
+            ? <Badge variant="neutral" size="md" className="text-accent-foreground"><Clock className="h-3 w-3" />evidence window{left ? ` · ${left} left` : ''}</Badge>
+            : <Badge variant="warning" size="md" className="bg-warning/10">awaiting decision</Badge>
         ) : (
-          <span className={cn('rounded-full bg-tint px-2.5 py-1 text-xs font-bold capitalize', data.status === 'confirmed' ? 'text-success' : data.status === 'abusive' ? 'text-destructive' : 'text-ink-4')}>
+          <Badge variant="neutral" size="md" className={cn('capitalize', data.status === 'confirmed' ? 'text-success' : data.status === 'abusive' ? 'text-destructive' : 'text-ink-4')}>
             {data.withdrawn ? 'withdrawn by reporter' : `${data.status}${data.resolvedBy && !data.withdrawn ? ` by ${data.resolvedBy}` : ''}`}
-          </span>
+          </Badge>
         )}
-        {data.appealed && open && <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning">appeal</span>}
+        {data.appealed && open && <Badge variant="warning" size="md" className="bg-warning/10">appeal</Badge>}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         Filed {new Date(data.createdAt).toLocaleString('en-GB')}
@@ -188,7 +190,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           {data.target ? (
             <p className="mt-1 text-sm text-foreground">
               <span className="font-bold">{data.target.name}</span>
-              {data.target.isGuest && <span className="ml-1.5 rounded-full bg-tint px-2 py-0.5 text-3xs font-bold text-ink-4">unreachable — no account</span>}
+              {data.target.isGuest && <Badge variant="neutral" size="sm" className="ml-1.5 text-3xs">unreachable — no account</Badge>}
               <br />
               <span className="text-xs text-muted-foreground">
                 {data.target.trustScore != null ? `trust ${data.target.trustScore} (${data.target.trustTier})` : 'no trust record'}
@@ -216,12 +218,15 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
             <div className="flex flex-wrap items-center gap-2">
               <Sparkles className="h-4 w-4 text-ink-4" />
               <span className="text-3xs font-bold uppercase tracking-wide text-ink-4">AI suggestion — you decide</span>
-              <span className={cn('rounded-full px-2 py-0.5 text-3xs font-bold',
-                ai.outcome === 'confirm' ? 'bg-destructive/10 text-destructive'
-                : ai.outcome === 'abusive' ? 'bg-warning/10 text-warning'
-                : 'bg-tint text-body')}>
+              <Badge
+                variant={ai.outcome === 'confirm' ? 'destructive' : ai.outcome === 'abusive' ? 'warning' : 'neutral'}
+                size="sm"
+                className={cn('text-3xs',
+                  ai.outcome === 'abusive' && 'bg-warning/10',
+                  ai.outcome !== 'confirm' && ai.outcome !== 'abusive' && 'text-body')}
+              >
                 {ai.outcome === 'confirm' ? 'Confirm report' : ai.outcome === 'abusive' ? 'Abusive reporter' : 'Dismiss report'}{ai.severity ? ` · ${ai.severity}` : ''}
-              </span>
+              </Badge>
               <span className="text-3xs text-ink-4">{Math.round(ai.confidence * 100)}% confidence{ai.analyzedAt ? ` · ${new Date(ai.analyzedAt).toLocaleString('en-GB')}` : ''}{ai.cached ? ' · cached' : ''}</span>
               <button onClick={() => runAi(true)} disabled={aiBusy} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-3xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-60 cursor-pointer">
                 {aiBusy && <Loader2 className="h-3 w-3 animate-spin" />} Re-analyze
@@ -236,7 +241,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
               <div className="mt-2 space-y-1">
                 {ai.keyEvidence.map((e, i) => (
                   <p key={i} className="text-xs text-muted-foreground">
-                    <span className="mr-1 rounded-lg bg-tint px-1 py-0.5 text-3xs font-bold uppercase tracking-wide text-ink-4">{e.source.replace('_', ' ')}</span>
+                    <Badge variant="neutral" size="sm" className="mr-1 rounded-lg px-1 text-3xs uppercase tracking-wide">{e.source.replace('_', ' ')}</Badge>
                     “{e.quote}”
                   </p>
                 ))}
@@ -261,9 +266,9 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           if (item.kind === 'system' || item.kind === 'decision') {
             return (
               <div key={item.id} className="text-center">
-                <span className="inline-block rounded-full bg-tint px-3 py-1 text-xs font-semibold text-body">
+                <Badge variant="neutral" size="md" className="px-3 font-semibold whitespace-normal text-body">
                   {item.kind === 'decision' ? `Decision: ${data.withdrawn ? 'withdrawn' : data.status}${item.body ? ` — ${item.body}` : ''}` : item.body}
-                </span>
+                </Badge>
                 <p className="mt-0.5 text-3xs text-ink-4">{new Date(item.at).toLocaleString('en-GB')}</p>
               </div>
             )
@@ -295,13 +300,13 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
 
       {/* ── Mediation composer + window control ── */}
       <div className="mt-6">
-        <textarea
+        <Textarea
+          size="compact"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           rows={2}
           maxLength={2000}
           placeholder="Message both parties (visible in the case room, notified to both)…"
-          className="w-full resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30"
         />
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Button
@@ -329,13 +334,14 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
       {open && (
         <div className="mt-8 rounded-2xl bg-tint/50 p-4">
           <p className="text-3xs font-bold uppercase tracking-wide text-ink-4">Decide the case</p>
-          <textarea
+          <Textarea
+            size="compact"
             value={decisionNote}
             onChange={(e) => setDecisionNote(e.target.value)}
             rows={2}
             maxLength={2000}
             placeholder="Outcome note shown to BOTH parties (optional but recommended — say why)…"
-            className="mt-2 w-full resize-none rounded-xl bg-card px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+            className="mt-2 bg-card"
           />
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <div className="relative">
@@ -380,12 +386,13 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
       {/* ── Internal note (staff-only) ── */}
       <div className="mt-6">
         <p className="text-3xs font-bold uppercase tracking-wide text-ink-4">Internal note (never shown to users)</p>
-        <textarea
+        <Textarea
+          size="compact"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
           maxLength={2000}
-          className="mt-1 w-full resize-none rounded-xl bg-tint px-4 py-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/30"
+          className="mt-1"
         />
         <button
           onClick={saveNote}

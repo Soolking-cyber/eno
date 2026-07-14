@@ -5,6 +5,7 @@ import { slugify } from '@/lib/slug'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
@@ -114,9 +115,9 @@ export default async function CategoryPage({ params }: Props) {
           <div className="mt-5 flex flex-wrap gap-2">
             <span className="self-center text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
             {districts.map((d) => (
-              <Link key={d} href={`/c/${cat.slug}/${slugify(d)}`} className="rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground">
+              <Badge key={d} size="md" interactive render={<Link href={`/c/${cat.slug}/${slugify(d)}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
                 <Tr text={d} />
-              </Link>
+              </Badge>
             ))}
           </div>
         )}
@@ -153,9 +154,9 @@ export default async function CategoryPage({ params }: Props) {
           <h2 className="h-section text-foreground mb-3"><Tr text="Other categories" /></h2>
           <div className="flex flex-wrap gap-2">
             {otherCats.map((c) => (
-              <Link key={c.slug} href={`/c/${c.slug}`} className="rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground">
+              <Badge key={c.slug} size="md" interactive render={<Link href={`/c/${c.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
                 <Tr text={c.name} />
-              </Link>
+              </Badge>
             ))}
           </div>
         </div>

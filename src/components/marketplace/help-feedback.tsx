@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { CheckCircle2, MessageSquareText, Wrench } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 
 // Hoisted to module scope so it keeps a stable component identity across the parent's
 // re-renders — a component created inside render remounts its subtree on every keystroke.
@@ -67,20 +69,23 @@ export function HelpFeedback() {
         <Toggle label={tr('Send feedback', 'Gửi phản hồi')} Icon={MessageSquareText} active={kind === 'feedback'} onSelect={() => setKind('feedback')} />
         <Toggle label={tr('Technical problem', 'Lỗi kỹ thuật')} Icon={Wrench} active={kind === 'technical'} onSelect={() => setKind('technical')} />
       </div>
-      <textarea
+      <Textarea
+        variant="outline"
+        size="compact"
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         rows={4}
         maxLength={4000}
         placeholder={kind === 'technical' ? tr('What went wrong, and what were you doing?', 'Lỗi gì, và bạn đang làm gì?') : tr('What works well, what could be better?', 'Điều gì tốt, điều gì có thể cải thiện?')}
-        className="mt-3 w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-brand"
+        className="mt-3 border-border bg-background px-3.5 py-2.5 transition-colors focus:ring-0"
       />
-      <input
+      <Input
+        variant="outline"
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder={tr('Email (optional, so we can reply)', 'Email (tùy chọn, để chúng tôi trả lời)')}
-        className="mt-2.5 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-brand"
+        className="mt-2.5 border-border bg-background px-3.5 py-2.5 transition-colors focus:ring-0"
       />
       {state === 'error' && (
         <p className="mt-2 text-sm font-semibold text-destructive">{tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.')}</p>

@@ -1,6 +1,8 @@
 'use client'
 
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { groupVnd, parseVnd, vndWords, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 
@@ -38,14 +40,17 @@ export function VndInput({
   return (
     <div className={className}>
       <div className="relative">
-        <input
+        <Input
           id={id}
+          variant="filled"
           inputMode="numeric"
           autoFocus={autoFocus}
           value={groupVnd(digits, locale)}
           onChange={(e) => set(e.target.value)}
           placeholder={placeholder ?? '0'}
-          className={cn('w-full rounded-xl bg-tint py-2.5 pl-3.5 pr-14 text-lg font-bold tabular-nums text-foreground outline-none transition-colors focus:ring-2 focus:ring-brand/20', invalid && 'ring-2 ring-destructive/60')}
+          // pr-14 is LOAD-BEARING: it reserves the room for the "VND" suffix span
+          // below — without it the digits run under the suffix.
+          className={cn('py-2.5 pl-3.5 pr-14 text-lg font-bold tabular-nums focus:ring-brand/20', invalid && 'ring-2 ring-destructive/60')}
         />
         <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-4">VND</span>
       </div>
@@ -57,15 +62,15 @@ export function VndInput({
 
       {/* Fast-entry chips */}
       <div className="mt-1.5 flex flex-wrap gap-1.5">
-        <button type="button" onClick={() => mul(1_000)} disabled={!digits} className={chip}>×{groupVnd('1000', locale)}</button>
-        <button type="button" onClick={() => mul(1_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000', locale)}</button>
+        <Button type="button" variant="ghost" size="none" onClick={() => mul(1_000)} disabled={!digits} className={chip}>×{groupVnd('1000', locale)}</Button>
+        <Button type="button" variant="ghost" size="none" onClick={() => mul(1_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000', locale)}</Button>
         {/* tỷ / billion — completes the VN unit ladder (nghìn → triệu → tỷ) so cars,
             property and other big-ticket VND amounts are one tap (type "3" → 3 tỷ). */}
-        <button type="button" onClick={() => mul(1_000_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000000', locale)}</button>
+        <Button type="button" variant="ghost" size="none" onClick={() => mul(1_000_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000000', locale)}</Button>
         {(presets ?? []).map((p) => (
-          <button type="button" key={p.label} onClick={() => set(p.value)} className={chip}>{p.label}</button>
+          <Button type="button" variant="ghost" size="none" key={p.label} onClick={() => set(p.value)} className={chip}>{p.label}</Button>
         ))}
-        {digits ? <button type="button" onClick={() => set('')} className={cn(chip, 'text-ink-4')}>{tr('Clear', 'Xóa')}</button> : null}
+        {digits ? <Button type="button" variant="ghost" size="none" onClick={() => set('')} className={cn(chip, 'text-ink-4')}>{tr('Clear', 'Xóa')}</Button> : null}
       </div>
     </div>
   )
