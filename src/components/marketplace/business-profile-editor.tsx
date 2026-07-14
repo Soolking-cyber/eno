@@ -139,9 +139,9 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="biz-location">{tr('Location', 'Khu vực')}</Label>
-            <button type="button" onClick={useMyLocation} disabled={locating} className="inline-flex items-center gap-1 text-2xs font-semibold text-accent-foreground hover:underline disabled:opacity-50 cursor-pointer">
+            <Button type="button" variant="bare" size="none" onClick={useMyLocation} disabled={locating} className="items-center gap-1 whitespace-normal rounded-none text-2xs font-semibold text-accent-foreground hover:underline cursor-pointer">
               {locating ? <Loader2 className="h-3 w-3 animate-spin" /> : <LocateFixed className="h-3 w-3" />} {tr('Use my location', 'Dùng vị trí của tôi')}
-            </button>
+            </Button>
           </div>
           {/* Structured two-tier pick (city → ward, user decision 2026-07-13):
               writes "Ward, Province" into the free-text field below, which stays

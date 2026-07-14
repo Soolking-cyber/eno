@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { ChevronUp } from 'lucide-react'
 import { HelpPopover } from './help-popover'
 import { useAccountPanel } from './account-panel'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 /** Floating bottom-right controls, portaled to <body> (no ancestor can offset them),
@@ -71,7 +72,9 @@ export function BackToTop() {
             icons (quiet ink → brand blue on hover) with a subtle drop-shadow so it
             stays distinct over card imagery. Fades in once scrolled (slot reserved
             so the ? never shifts); transform/opacity only. */}
-        <button
+        <Button
+          variant="bare"
+          size="none"
           type="button"
           aria-label="Back to top"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
@@ -81,11 +84,13 @@ export function BackToTop() {
           )}
         >
           <ChevronUp className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]" strokeWidth={2.5} />
-        </button>
+        </Button>
 
         {/* Help — bare "?", DESKTOP ONLY (on mobile, Help lives in the profile page
             next to Post/Listings/Settings, so it's not a floating popup there). */}
-        <button
+        <Button
+          variant="bare"
+          size="none"
           type="button"
           aria-label="Help"
           aria-haspopup="dialog"
@@ -93,7 +98,7 @@ export function BackToTop() {
           className="relative hidden h-9 w-9 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-90 lg:flex tap-44"
         >
           <span className="text-2xl font-bold leading-none [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]">?</span>
-        </button>
+        </Button>
       </div>
 
       {helpOpen && <HelpPopover onClose={() => setHelpOpen(false)} />}

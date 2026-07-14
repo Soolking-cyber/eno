@@ -13,6 +13,7 @@ import { shortDate } from '@/lib/dates'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -97,9 +98,9 @@ function NoteEditor({ caseId, initial, onSaved }: { caseId: string; initial: str
   const save = async () => { setSaving(true); try { await post({ action: 'set-note', id: caseId, note: text }); onSaved() } catch { /* noop */ } finally { setSaving(false) } }
   if (!open) {
     return (
-      <button onClick={(e) => { e.stopPropagation(); setOpen(true) }} className="inline-flex items-center gap-1 text-3xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer">
+      <Button variant="bare" size="none" onClick={(e) => { e.stopPropagation(); setOpen(true) }} className="gap-1 whitespace-normal text-3xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer">
         <StickyNote className="h-3 w-3" /> {initial ? 'Internal note ✓' : 'Add internal note'}
-      </button>
+      </Button>
     )
   }
   return (
@@ -336,7 +337,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
     <Card onClick={onSelect} className={cn('cursor-pointer gap-0 border-l-[3px] px-4 shadow-pop transition-shadow', RAIL[c.bucket], selected && !readOnly && 'ring-2 ring-brand/40', readOnly && 'opacity-90')}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5 cursor-pointer accent-brand" aria-label="Select case" />}
+          {!readOnly && onCheck && <Checkbox checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5" aria-label="Select case" />}
           {c.appeal && <Badge variant="warning" size="sm" className="px-1.5 text-3xs uppercase tracking-wide">Appeal</Badge>}
           {c.bucket === 'critical' && !c.appeal && !readOnly && <Badge variant="destructive" size="sm" className="px-1.5 text-3xs uppercase tracking-wide">Critical</Badge>}
           {c.preScreen && !readOnly && <Badge variant="neutral" size="sm" className="px-1.5 text-3xs uppercase tracking-wide" title="Filed by a reporter with 2+ false-report strikes — triaged last">Pre-screened</Badge>}
@@ -469,7 +470,7 @@ function CaseRow({ c, active, checked, readOnly, onSelect, onCheck }: {
   return (
     <div onClick={onSelect} className={cn('cursor-pointer rounded-xl border border-l-[3px] p-2.5 transition-colors', RAIL[c.bucket], active ? 'border-brand/40 bg-tint ring-1 ring-brand/40' : 'border-border bg-card hover:bg-muted/50')}>
       <div className="flex items-start gap-2">
-        {!readOnly && onCheck && <input type="checkbox" checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="mt-0.5 h-3.5 w-3.5 cursor-pointer accent-brand" aria-label="Select case" />}
+        {!readOnly && onCheck && <Checkbox checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="mt-0.5 h-3.5 w-3.5" aria-label="Select case" />}
         {isListing && (
           <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-tint">
             {t.listing!.image ? <Image src={t.listing!.image} alt="" fill sizes="36px" className="object-cover" /> : null}
@@ -589,13 +590,14 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-1.5">
-        {/* Queue filters — segmented control. These stay real <button>s (role=button
-            with "Label (count)" accessible names — the e2e suite selects them). */}
+        {/* Queue filters — segmented control. ui/button renders a native <button>, so
+            these keep role=button with "Label (count)" accessible names — the e2e suite
+            selects them. `bare` because the chip paints its own selected/hover colours. */}
         <div className="inline-flex flex-wrap items-center gap-0.5 rounded-xl bg-tint p-0.5">
           {CHIPS.map(([k, label]) => (
-            <button key={k} onClick={() => { setFilter(k); setSel(0) }} className={cn('rounded-lg px-3 py-1 text-xs font-semibold transition-colors cursor-pointer', filter === k ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-card', k === 'critical' && counts.critical > 0 && filter !== k && 'text-destructive')}>
+            <Button key={k} variant="bare" size="none" onClick={() => { setFilter(k); setSel(0) }} className={cn('rounded-lg px-3 py-1 text-xs font-semibold transition-colors cursor-pointer', filter === k ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-card', k === 'critical' && counts.critical > 0 && filter !== k && 'text-destructive')}>
               {label} ({counts[k]})
-            </button>
+            </Button>
           ))}
         </div>
         {!showResolved && <span className="ml-auto hidden items-center gap-1 text-3xs text-ink-4 sm:inline-flex"><ChevronDown className="h-3 w-3" /> keys: j/k move · c confirm · d dismiss · a abusive</span>}

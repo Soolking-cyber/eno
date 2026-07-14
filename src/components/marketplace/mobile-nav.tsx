@@ -12,6 +12,7 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { useSlideRouter } from './page-transitions'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 // Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay.
@@ -50,11 +51,11 @@ function GatedTab({ href, active, icon, label, gate, onNavigate }: { href: strin
   const { openSignIn } = useAuth()
   if (gate) {
     return (
-      <button type="button" onClick={() => openSignIn()} aria-label={label} className={TAB}>
+      <Button type="button" variant="bare" size="none" onClick={() => openSignIn()} aria-label={label} className={TAB}>
         <span className="flex h-full w-full items-center justify-center text-body transition-colors">
           <span className="relative">{icon}</span>
         </span>
-      </button>
+      </Button>
     )
   }
   // Keep the <Link> (prefetch + a11y) but drive the actual nav through the slide

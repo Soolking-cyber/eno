@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronDown, Clock, Loader2, Scale, Shield, Sparkles } from 'lucide-react'
+import { Check, Clock, Loader2, Scale, Shield, Sparkles } from 'lucide-react'
 import type { TargetInfo } from '@/lib/admin-reports'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
 // Admin dispute room: shared thread + mediation composer + AI analysis + decision
@@ -205,14 +206,16 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
       {/* ── AI analysis ── */}
       <div className="mt-6">
         {!ai ? (
-          <button
+          <Button
+            variant="bare"
+            size="none"
             onClick={() => runAi(false)}
             disabled={aiBusy}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-foreground px-4 py-2 text-xs font-bold text-background transition-opacity hover:opacity-90 disabled:opacity-60 cursor-pointer"
+            className="gap-1.5 bg-foreground px-4 py-2 text-xs font-bold text-background transition-opacity hover:opacity-90 disabled:opacity-60 cursor-pointer"
           >
             {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             {aiBusy ? 'Reading the evidence…' : 'Analyze with AI'}
-          </button>
+          </Button>
         ) : (
           <div className="rounded-2xl bg-tint/50 p-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -228,9 +231,9 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
                 {ai.outcome === 'confirm' ? 'Confirm report' : ai.outcome === 'abusive' ? 'Abusive reporter' : 'Dismiss report'}{ai.severity ? ` · ${ai.severity}` : ''}
               </Badge>
               <span className="text-3xs text-ink-4">{Math.round(ai.confidence * 100)}% confidence{ai.analyzedAt ? ` · ${new Date(ai.analyzedAt).toLocaleString('en-GB')}` : ''}{ai.cached ? ' · cached' : ''}</span>
-              <button onClick={() => runAi(true)} disabled={aiBusy} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-3xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-60 cursor-pointer">
+              <Button variant="soft" size="none" onClick={() => runAi(true)} disabled={aiBusy} className="ml-auto gap-1 rounded-lg px-2 py-1 text-3xs font-bold text-accent-foreground transition-colors disabled:opacity-60 cursor-pointer">
                 {aiBusy && <Loader2 className="h-3 w-3 animate-spin" />} Re-analyze
-              </button>
+              </Button>
             </div>
             {ai.reasoning.length > 0 && (
               <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm text-foreground">
@@ -319,13 +322,15 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
             {busy === 'dispute-message' && <Loader2 className="size-4 animate-spin" />} Send to both parties
           </Button>
           {open && (
-            <button
+            <Button
+              variant="soft"
+              size="none"
               onClick={() => act('extend-window')}
               disabled={busy !== null}
-              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
+              className="gap-1.5 px-3 py-2 text-xs font-bold text-accent-foreground transition-colors disabled:opacity-40 cursor-pointer"
             >
               {busy === 'extend-window' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Clock className="h-3 w-3" />} Extend window +72h
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -344,38 +349,41 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
             className="mt-2 bg-card"
           />
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <select
-                value={severity}
-                onChange={(e) => setSeverity(e.target.value)}
-                className="appearance-none rounded-xl bg-card py-2 pl-3 pr-8 text-xs font-bold text-foreground outline-none cursor-pointer"
-                aria-label="Severity"
-              >
-                {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-4" />
-            </div>
-            <button
+            <Select value={severity} onValueChange={(v) => setSeverity(v as string)}>
+              <SelectTrigger aria-label="Severity" className="h-auto rounded-xl border-0 bg-card py-2 pr-2.5 pl-3 text-xs font-bold text-foreground cursor-pointer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SEVERITIES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="destructive"
+              size="none"
               onClick={() => act('confirm-report', { severity, decisionNote })}
               disabled={busy !== null}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-destructive px-4 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-40 cursor-pointer"
+              className="gap-1.5 px-4 py-2 text-xs font-bold disabled:opacity-40 cursor-pointer"
             >
               {busy === 'confirm-report' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Confirm & penalize
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="bare"
+              size="none"
               onClick={() => act('dismiss-report', { decisionNote })}
               disabled={busy !== null}
-              className="rounded-xl bg-card px-4 py-2 text-xs font-bold text-foreground transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
+              className="bg-card px-4 py-2 text-xs font-bold text-foreground transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
             >
               {busy === 'dismiss-report' ? 'Working…' : 'Dismiss — no violation'}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="soft"
+              size="none"
               onClick={() => act('abusive-report', { decisionNote })}
               disabled={busy !== null}
-              className="rounded-xl px-4 py-2 text-xs font-bold text-warning transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
+              className="px-4 py-2 text-xs font-bold text-warning transition-colors disabled:opacity-40 cursor-pointer"
             >
               {busy === 'abusive-report' ? 'Working…' : 'Abusive report'}
-            </button>
+            </Button>
           </div>
           <p className="mt-2 text-2xs text-ink-4">
             Confirm docks the respondent&apos;s trust by the severity weight and pulls the listing · Dismiss closes with no action · Abusive penalizes the reporter. Both parties are notified either way.
@@ -394,13 +402,15 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           maxLength={2000}
           className="mt-1"
         />
-        <button
+        <Button
+          variant="soft"
+          size="none"
           onClick={saveNote}
           disabled={busy !== null}
-          className="mt-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
+          className="mt-1.5 px-3 py-1.5 text-xs font-bold text-accent-foreground transition-colors disabled:opacity-40 cursor-pointer"
         >
           {noteSaved ? 'Saved ✓' : busy === 'set-note' ? 'Saving…' : 'Save note'}
-        </button>
+        </Button>
       </div>
 
       {err && <p role="alert" className="mt-4 text-sm font-semibold text-destructive">{err}</p>}

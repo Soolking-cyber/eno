@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { AtSign, Check } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 
 /** Compact public-handle chip (storefront header): shows @name, tap to copy the
  *  shareable eno.vn/name URL (no "@" in the link) — the whole point of handles is
@@ -17,14 +18,16 @@ export function HandleChip({ handle }: { handle: string }) {
     } catch {}
   }
   return (
-    <button
+    <Button
+      variant="bare"
+      size="none"
       type="button"
       onClick={copy}
       title={tr('Copy shop link', 'Sao chép liên kết gian hàng')}
-      className="inline-flex items-center gap-1 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent cursor-pointer"
+      className="gap-1 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent cursor-pointer"
     >
       {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <AtSign className="h-3.5 w-3.5" />}
       {copied ? tr('Link copied', 'Đã chép liên kết') : handle}
-    </button>
+    </Button>
   )
 }

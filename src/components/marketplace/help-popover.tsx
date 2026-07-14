@@ -68,9 +68,9 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4">
           {isForm ? (
-            <button type="button" onClick={backToMenu} aria-label={tr('Back', 'Quay lại')} className="flex items-center gap-1.5 text-base font-bold text-foreground cursor-pointer">
+            <Button variant="bare" size="none" type="button" onClick={backToMenu} aria-label={tr('Back', 'Quay lại')} className="flex items-center justify-start gap-1.5 whitespace-normal text-base font-bold text-foreground cursor-pointer">
               <ArrowLeft className="h-5 w-5" /> {tr('Help', 'Trợ giúp')}
-            </button>
+            </Button>
           ) : (
             <span className="text-base font-bold text-foreground">{tr('Help', 'Trợ giúp')}</span>
           )}
@@ -107,12 +107,12 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
             <section>
               <h2 className="text-base font-bold text-foreground">{tr('Let us know', 'Cho chúng tôi biết')}</h2>
               <div className="mt-2.5 space-y-3">
-                <button type="button" onClick={() => openForm('feedback')} className="flex items-center gap-1.5 text-sm font-bold text-accent-foreground hover:underline cursor-pointer">
+                <Button variant="bare" size="none" type="button" onClick={() => openForm('feedback')} className="flex items-center justify-start gap-1.5 whitespace-normal text-sm font-bold text-accent-foreground hover:underline cursor-pointer">
                   {tr('Send feedback', 'Gửi phản hồi')} <ArrowRight className="h-4 w-4" />
-                </button>
-                <button type="button" onClick={() => openForm('technical')} className="flex items-center gap-1.5 text-sm font-bold text-accent-foreground hover:underline cursor-pointer">
+                </Button>
+                <Button variant="bare" size="none" type="button" onClick={() => openForm('technical')} className="flex items-center justify-start gap-1.5 whitespace-normal text-sm font-bold text-accent-foreground hover:underline cursor-pointer">
                   {tr('Report a technical problem', 'Báo lỗi kỹ thuật')} <ArrowRight className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
             </section>
           </div>

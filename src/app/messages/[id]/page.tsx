@@ -452,10 +452,10 @@ export default function ThreadPage() {
                   </a>
                 </>
               ) : thread.messages.some((m) => !m.mine) ? (
-                <button onClick={requestContact} disabled={revealing} className="flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50 cursor-pointer">
+                <Button variant="bare" size="none" onClick={requestContact} disabled={revealing} className="gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted cursor-pointer">
                   {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
                   {tr('Request number / Zalo', 'Lấy số / Zalo')}
-                </button>
+                </Button>
               ) : (
                 <p className="flex items-center gap-1.5 text-2xs text-body">
                   <Phone className="h-3.5 w-3.5 shrink-0 text-ink-4" />
@@ -536,9 +536,9 @@ export default function ThreadPage() {
                   <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-[78%]">{m.body}</MessageBubble>
                 )}
                   {m.mine && m.failed ? (
-                    <button onClick={() => retry(m)} className="mt-0.5 flex items-center gap-1 px-1 text-3xs font-semibold text-destructive hover:underline cursor-pointer">
+                    <Button variant="bare" size="none" onClick={() => retry(m)} className="mt-0.5 gap-1 px-1 text-3xs font-semibold text-destructive hover:underline cursor-pointer">
                       <RotateCcw className="h-2.5 w-2.5" /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
-                    </button>
+                    </Button>
                   ) : m.mine && m.pending ? (
                     <span className="mt-0.5 flex items-center gap-1 px-1 text-3xs text-ink-4"><Loader2 className="h-2.5 w-2.5 animate-spin" /> {tr('Sending…', 'Đang gửi…')}</span>
                   ) : (
@@ -658,14 +658,16 @@ export default function ThreadPage() {
                   className="rounded-2xl border-brand px-3.5 py-2.5 pr-16 text-base focus:ring-brand/20 lg:text-sm"
                 />
                 {/* +000 chip, inside the input's right corner (×1,000 shortcut) */}
-                <button
+                <Button
+                  variant="bare"
+                  size="none"
                   type="button"
                   onClick={addThousand}
                   aria-label={tr('Add three zeros', 'Thêm 000')}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-accent px-2 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-primary/15 cursor-pointer tap-44"
                 >
                   +000
-                </button>
+                </Button>
               </div>
             ) : (
               /* contenteditable, NOT <textarea> — iOS attaches the keyboard accessory

@@ -255,10 +255,10 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
 
             <div className="space-y-0.5">
               {SECTIONS.map((s) => (
-                <button key={s.key} onClick={() => setView(s.key)} className={cn(item, 'justify-between')}>
+                <Button key={s.key} variant="bare" size="none" onClick={() => setView(s.key)} className={cn(item, 'justify-between')}>
                   <span className="flex items-center gap-2.5"><s.icon className="h-4 w-4 text-accent-foreground" /> {s.label}</span>
                   <ChevronRight className="h-4 w-4 text-ink-4" />
-                </button>
+                </Button>
               ))}
             </div>
 

@@ -798,7 +798,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   {i === 0 ? (
                     <span className="absolute left-1.5 top-1.5 rounded-lg bg-primary px-1.5 py-0.5 text-3xs font-bold text-white">{t('Bìa', 'Cover')}</span>
                   ) : (
-                    <button type="button" onClick={() => movePhoto(i, 0)} className="absolute bottom-1 left-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-3xs font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer">{t('Đặt làm bìa', 'Make cover')}</button>
+                    // transition-opacity is load-bearing: it must beat the base
+                    // transition-all, or the tile's drag transform animates.
+                    <Button
+                      type="button"
+                      variant="bare"
+                      size="none"
+                      onClick={() => movePhoto(i, 0)}
+                      className="absolute bottom-1 left-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-3xs font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer"
+                    >
+                      {t('Đặt làm bìa', 'Make cover')}
+                    </Button>
                   )}
                   <IconButton size="xs" variant="overlay" aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 h-6 w-6">
                     <X className="h-4 w-4" />
@@ -841,15 +851,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             {/* Media hint covers the video square in the grid above. */}
             <p className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.', 'First photo is your cover. A video (optional) autoplays on hover and in the Video feed.')}</p>
             {aiEnabled && photos.length > 0 && (
-              <button
+              <Button
                 type="button"
+                variant="bare"
+                size="none"
                 onClick={autofillFromPhoto}
                 disabled={!!aiBusy}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-line-strong px-3 py-1.5 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-50 cursor-pointer"
+                className="mt-3 gap-1.5 rounded-xl border border-line-strong px-3 py-1.5 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-50 cursor-pointer"
               >
                 {aiBusy === 'photo' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 {t('Tự điền từ ảnh', 'Autofill from photo')}
-              </button>
+              </Button>
             )}
           </Section>
 
@@ -859,14 +871,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               <Field label={t('Bán hay cho thuê?', 'For sale or for rent?')}>
                 <div className="inline-flex rounded-xl bg-tint p-1">
                   {(['sell', 'rent'] as const).map((v) => (
-                    <button
+                    <Button
                       key={v}
                       type="button"
+                      variant="bare"
+                      size="none"
                       onClick={() => switchIntent(v)}
                       className={cn('rounded-lg px-4 py-1.5 text-sm font-bold transition-colors cursor-pointer', intent === v ? 'bg-primary text-white' : 'text-body hover:text-foreground')}
                     >
                       {v === 'sell' ? t('Bán', 'For sale') : t('Cho thuê', 'For rent')}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </Field>
@@ -883,14 +897,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               <>
                 <div className={cn('flex flex-wrap gap-2 rounded-xl transition-colors', err.category && 'p-2 -m-2 ring-2 ring-destructive/60')}>
                   {categories.map((c) => (
-                    <button
+                    <Button
                       key={c.id}
+                      type="button"
+                      variant="bare"
+                      size="none"
                       onClick={() => chooseCategory(c.slug)}
-                      className={cn('inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
+                      className={cn('gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
                     >
                       <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')} />
                       {tr(c.name, c.nameVi)}
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 {err.category && <p role="alert" className="text-xs font-semibold text-destructive">{t('Chọn một danh mục', 'Pick a category')}</p>}
@@ -951,16 +968,22 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             <Field id="pw-description" label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')}>
               {aiEnabled && (
                 <div className="mb-1.5 flex max-w-2xl justify-end">
-                  <button
+                  <Button
                     type="button"
+                    variant="bare"
+                    size="none"
                     onClick={polishDescription}
                     disabled={!!aiBusy || description.trim().length < 3}
                     title={t('Viết lại chuyên nghiệp bằng AI', 'Rewrite professionally with AI')}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-2xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
+                    // disabled:pointer-events-auto undoes the base's baked
+                    // disabled:pointer-events-none — this button is disabled until the
+                    // description has 3 chars, and that is exactly when its title=
+                    // tooltip explains why. A disabled <button> still fires no click.
+                    className="gap-1 rounded-lg px-2 py-1 text-2xs font-bold text-accent-foreground transition-colors hover:bg-muted disabled:pointer-events-auto disabled:opacity-40 cursor-pointer"
                   >
                     {aiBusy === 'desc' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                     {t('Chỉnh bằng AI', 'Polish with AI')}
-                  </button>
+                  </Button>
                 </div>
               )}
               <Textarea
@@ -1035,12 +1058,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   destructive token (not warning): white-on-warning is unreadable in dark
                   (--warning is amber-400 there). Distinct from the blue selections. */}
               <div className="mt-3">
-                <button
+                <Button
                   type="button"
+                  variant="bare"
+                  size="none"
                   onClick={() => { const next = !urgent; setUrgent(next); if (next) setNegotiable(true) }}
                   aria-pressed={urgent}
                   className={cn(
-                    'flex items-center gap-2 rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
+                    // Block-level flex row, left-aligned, wrapping: `flex` (base is
+                    // inline-flex), `justify-start` (base centres), and
+                    // `whitespace-normal` (base nowrap inherits into the two-line hint).
+                    'flex justify-start whitespace-normal gap-2 rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
                     // Urgent is NOT an error: it wears the same solid-ink tone the urgent
                     // chip uses on cards (card-badges TONE.urgent), not the destructive red.
                     // Red here would both conflate urgency with failure and fail AA in dark
@@ -1055,7 +1083,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       {t('Nổi bật 7 ngày — cần bán nhanh, sẵn sàng nhận trả giá', 'Highlighted for 7 days — sell fast, open to offers')}
                     </span>
                   </span>
-                </button>
+                </Button>
               </div>
             </div>
           </Section>

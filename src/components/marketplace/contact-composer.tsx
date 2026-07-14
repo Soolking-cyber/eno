@@ -116,13 +116,15 @@ export function ContactComposer({
   if (!loading && !user) {
     return (
       <div className="space-y-2">
-        <button
+        <Button
           type="button"
+          variant="bare"
+          size="none"
           onClick={() => openSignIn({ listingTitle, listingImage, sellerName })}
-          className="press flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-tint cursor-pointer"
+          className="press flex w-full cursor-pointer gap-1.5 py-2.5 font-bold text-accent-foreground hover:bg-tint active:scale-100"
         >
           <Tag className="h-4 w-4" /> {tr('Sign in to make an offer', 'Đăng nhập để trả giá')}
-        </button>
+        </Button>
         {safetyLine}
       </div>
     )

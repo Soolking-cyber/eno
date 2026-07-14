@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Sparkles, Loader2 } from 'lucide-react'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { ImageSearchButton } from '@/components/marketplace/image-search-button'
+import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -204,12 +205,14 @@ export default function AiThreadPage() {
         </div>
       ) : (
         <div className="chat-composer bg-card px-4 pt-3 pb-3">
-          <button
+          <Button
+            variant="cta"
+            size="none"
             onClick={() => openSignIn()}
-            className="w-full rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-white transition-transform active:scale-[0.98] tap-44"
+            className="w-full rounded-2xl px-4 py-3 active:scale-[0.98] tap-44"
           >
             {tr('Sign in to use eno AI', 'Đăng nhập để dùng eno AI')}
-          </button>
+          </Button>
           <p className="mt-2 text-center text-xs text-muted-foreground">
             {tr('AI shopping is free for members.', 'Mua sắm bằng AI miễn phí cho thành viên.')}
           </p>
