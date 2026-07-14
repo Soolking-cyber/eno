@@ -128,7 +128,7 @@ export function QuickDiscount({
         type="button"
         onClick={openDialog}
         className={cn(
-          'inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/40 cursor-pointer',
+          'inline-flex items-center gap-1 rounded-lg border border-warning/30 bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning transition-colors hover:bg-warning/15 cursor-pointer',
           className,
         )}
       >

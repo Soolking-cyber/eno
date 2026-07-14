@@ -15,7 +15,7 @@ export function DropCountdown({ expiresAt }: { expiresAt: string | null }) {
   const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000)
   if (days <= 0) return null
   return (
-    <span className="tabular-nums text-2xs font-semibold text-red-600">
+    <span className="tabular-nums text-2xs font-semibold text-destructive">
       {tr(`· ${days} ${days === 1 ? 'day' : 'days'} left`, `· còn ${days} ngày`)}
     </span>
   )

@@ -39,8 +39,11 @@ export function KbDebug() {
   }, [])
 
   if (!on) return null
+  // Theme the PLATE, not the text: the plate was a fixed bg-black/80 while the text used
+  // a token that flips — so in light mode a dark-green --success landed on near-black
+  // (2.56:1). Inverting both keeps it legible in either theme.
   return (
-    <pre className="pointer-events-none fixed left-1 top-14 z-[9999] max-w-[95vw] whitespace-pre-wrap rounded-lg bg-black/80 p-2 text-3xs leading-tight text-green-300">
+    <pre className="pointer-events-none fixed left-1 top-14 z-[9999] max-w-[95vw] whitespace-pre-wrap rounded-lg bg-foreground/85 p-2 text-3xs leading-tight text-background">
       {s}
     </pre>
   )

@@ -11,6 +11,7 @@ import { useChat } from '@/context/chat-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { useSlideRouter } from './page-transitions'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
 // Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay.
@@ -138,9 +139,9 @@ export function MobileNav() {
             <>
               <Heart className={cn('h-7 w-7', count > 0 && 'fill-brand text-brand')} />
               {count > 0 && (
-                <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-3xs font-bold text-white">
+                <Badge variant="counter" size="count" className="absolute -right-2 -top-1">
                   {count}
-                </span>
+                </Badge>
               )}
             </>
           }
@@ -169,9 +170,9 @@ export function MobileNav() {
           <>
             <MessageSquare className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} />
             {user && unread > 0 && (
-              <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-3xs font-bold text-white">
+              <Badge variant="counter" size="count" className="absolute -right-2 -top-1">
                 {unread > 9 ? '9+' : unread}
-              </span>
+              </Badge>
             )}
           </>
         }

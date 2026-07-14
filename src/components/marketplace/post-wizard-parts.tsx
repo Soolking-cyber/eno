@@ -67,7 +67,7 @@ export function Field({ id, label, counter, hint, error, children }: { id?: stri
         {counter && <span className="text-2xs text-ink-4">{counter}</span>}
       </div>
       {children}
-      {error ? <p role="alert" className="text-xs font-semibold text-red-600">{error}</p> : hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {error ? <p role="alert" className="text-xs font-semibold text-destructive">{error}</p> : hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }

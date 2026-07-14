@@ -389,16 +389,16 @@ export default async function ListingPage({ params }: Props) {
             {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
               <>
                 <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-sm text-ink-4 line-through" />
-                <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-2xs font-bold tabular-nums text-white">
+                <Badge variant="counter" size="sm" className="tabular-nums">
                   {dropPercent(listing.prevPrice, listing.price)}
-                </span>
+                </Badge>
                 <DropCountdown expiresAt={listing.dropExpiresAt} />
               </>
             )}
             {/* Urgent = bare red bolt at digit height (user-picked 2026-07-14) —
                 matches the list view's icon-only treatment; aria names it. */}
             {listing.urgent && (
-              <Zap aria-label="Urgent sale" className="h-6 w-6 self-center fill-red-600 stroke-none" />
+              <Zap aria-label="Urgent sale" className="h-6 w-6 self-center fill-destructive stroke-none" />
             )}
             {!listing.negotiable && (
               <Badge size="md" className="text-2xs text-body">
@@ -508,14 +508,14 @@ export default async function ListingPage({ params }: Props) {
                 {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
                   <>
                     <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-base text-ink-4 line-through" />
-                    <span className="inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-2xs font-bold tabular-nums text-white">
+                    <Badge variant="counter" size="sm" className="tabular-nums">
                       {dropPercent(listing.prevPrice, listing.price)}
-                    </span>
+                    </Badge>
                     <DropCountdown expiresAt={listing.dropExpiresAt} />
                   </>
                 )}
                 {listing.urgent && (
-                  <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-red-600 stroke-none" />
+                  <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-destructive stroke-none" />
                 )}
                 {!listing.negotiable && (
                   <Badge size="md" className="text-2xs text-body">

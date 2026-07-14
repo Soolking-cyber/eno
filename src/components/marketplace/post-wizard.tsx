@@ -780,7 +780,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => { e.preventDefault(); setDragOver(false); addPhotos(e.dataTransfer.files) }}
-              className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'ring-2 ring-brand/40', err.photo && 'p-2 -m-2 ring-2 ring-red-500/60')}
+              className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'ring-2 ring-brand/40', err.photo && 'p-2 -m-2 ring-2 ring-destructive/60')}
             >
               {photos.map((p, i) => (
                 <div
@@ -836,7 +836,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 )}
               </div>
             </div>
-            {err.photo && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
+            {err.photo && <p role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
             {/* Media hint covers the video square in the grid above. */}
             <p className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.', 'First photo is your cover. A video (optional) autoplays on hover and in the Video feed.')}</p>
             {aiEnabled && photos.length > 0 && (
@@ -880,7 +880,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               </div>
             ) : (
               <>
-                <div className={cn('flex flex-wrap gap-2 rounded-xl transition-colors', err.category && 'p-2 -m-2 ring-2 ring-red-500/60')}>
+                <div className={cn('flex flex-wrap gap-2 rounded-xl transition-colors', err.category && 'p-2 -m-2 ring-2 ring-destructive/60')}>
                   {categories.map((c) => (
                     <button
                       key={c.id}
@@ -892,7 +892,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     </button>
                   ))}
                 </div>
-                {err.category && <p role="alert" className="text-xs font-semibold text-red-600">{t('Chọn một danh mục', 'Pick a category')}</p>}
+                {err.category && <p role="alert" className="text-xs font-semibold text-destructive">{t('Chọn một danh mục', 'Pick a category')}</p>}
               </>
             )}
 
@@ -944,7 +944,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={() => touch('title')}
                 placeholder={t('VD: iPhone 14 128GB — pin 92%', 'e.g. iPhone 14 128GB — battery 92%')}
-                className={cn('max-w-2xl', err.title && 'ring-2 ring-red-500/60')}
+                className={cn('max-w-2xl', err.title && 'ring-2 ring-destructive/60')}
               />
             </Field>
             <Field id="pw-description" label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')}>
@@ -1000,7 +1000,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 <div className="flex-1"><VndInput id="pw-price-input" value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} invalid={err.price} /></div>
                 {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
               </div>
-              {priceErr && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{priceErr}</p>}
+              {priceErr && <p role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{priceErr}</p>}
               {priceBand && Number(price) > 0 && <PriceGuidance price={Number(price)} band={priceBand} />}
               {/* Negotiable vs fixed — a fixed price hides the offer UI so buyers just
                   ask availability and buy directly (seller's convenience). Fixed price
@@ -1026,8 +1026,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 ))}
               </div>
               {/* Urgent sale ("Bán gấp") — free, 7 days, auto-expires. Selecting it
-                  force-enables offers (the server enforces the same coupling). Orange
-                  = its badge color on cards, distinct from the blue selections. */}
+                  force-enables offers (the server enforces the same coupling). Uses the
+                  destructive token (not warning): white-on-warning is unreadable in dark
+                  (--warning is amber-400 there). Distinct from the blue selections. */}
               <div className="mt-3">
                 <button
                   type="button"
@@ -1035,7 +1036,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   aria-pressed={urgent}
                   className={cn(
                     'flex items-center gap-2 rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
-                    urgent ? 'bg-orange-700 text-white' : 'bg-tint text-body hover:bg-muted',
+                    // Urgent is NOT an error: it wears the same solid-ink tone the urgent
+                    // chip uses on cards (card-badges TONE.urgent), not the destructive red.
+                    // Red here would both conflate urgency with failure and fail AA in dark
+                    // (white on the light dark-mode red is 3.17:1).
+                    urgent ? 'bg-foreground text-background' : 'bg-tint text-body hover:bg-muted',
                   )}
                 >
                   <Zap className={cn('h-4 w-4 shrink-0', urgent && 'fill-current')} />
@@ -1057,7 +1062,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 type="button"
                 ref={areaBtnRef}
                 onClick={() => setAreaOpen((o) => !o)}
-                className={cn('flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted', err.location && 'ring-2 ring-red-500/60')}
+                className={cn('flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted', err.location && 'ring-2 ring-destructive/60')}
               >
                 <span className={cn('flex min-w-0 items-center gap-2', areaLabel ? 'text-foreground font-medium' : 'text-ink-4')}>
                   <MapPin className="h-4 w-4 shrink-0 text-accent-foreground" />
@@ -1077,7 +1082,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {locating ? <Loader2 className="h-5 w-5 animate-spin" /> : <LocateFixed className="h-5 w-5" />}
               </button>
             </div>
-            {err.location && <p role="alert" className="mt-1.5 text-xs font-semibold text-red-600">{t('Chọn khu vực', 'Set the area')}</p>}
+            {err.location && <p role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{t('Chọn khu vực', 'Set the area')}</p>}
           </Section>
 
           {/* Contact — taken from your ACCOUNT (a number belongs to one account, so
@@ -1110,7 +1115,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       maxLength={80}
                       onChange={(e) => setContactName(e.target.value)}
                       placeholder={t('Tên hiển thị cho người mua', 'Name buyers will see')}
-                      className={cn('max-w-md', err.contact && contactName.trim().length < 2 && 'ring-2 ring-red-500/60')}
+                      className={cn('max-w-md', err.contact && contactName.trim().length < 2 && 'ring-2 ring-destructive/60')}
                     />
                   </Field>
                 )}
@@ -1132,7 +1137,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       value={contactPhone}
                       onChange={(e) => setContactPhone(e.target.value)}
                       placeholder="+84…"
-                      className={cn('max-w-md', err.contact && !phoneOk && 'ring-2 ring-red-500/60')}
+                      className={cn('max-w-md', err.contact && !phoneOk && 'ring-2 ring-destructive/60')}
                     />
                     {/* Zalo OTP verification is BUILT but hidden until Zalo is live —
                         no dead "coming soon" buttons on the posting path. */}
@@ -1146,7 +1151,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             )}
           </Section>
 
-          {error && <p role="alert" className="text-sm font-semibold text-red-600">{error}</p>}
+          {error && <p role="alert" className="text-sm font-semibold text-destructive">{error}</p>}
         </div>
 
         {/* ── PREVIEW + PUBLISH (desktop) ── */}

@@ -155,13 +155,13 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
         {open ? (
           data.stage === 'evidence'
             ? <span className="rounded-full bg-tint px-2.5 py-1 text-xs font-bold text-accent-foreground"><Clock className="mr-1 inline h-3 w-3" />evidence window{left ? ` · ${left} left` : ''}</span>
-            : <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">awaiting decision</span>
+            : <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning">awaiting decision</span>
         ) : (
           <span className={cn('rounded-full bg-tint px-2.5 py-1 text-xs font-bold capitalize', data.status === 'confirmed' ? 'text-success' : data.status === 'abusive' ? 'text-destructive' : 'text-ink-4')}>
             {data.withdrawn ? 'withdrawn by reporter' : `${data.status}${data.resolvedBy && !data.withdrawn ? ` by ${data.resolvedBy}` : ''}`}
           </span>
         )}
-        {data.appealed && open && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">appeal</span>}
+        {data.appealed && open && <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning">appeal</span>}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         Filed {new Date(data.createdAt).toLocaleString('en-GB')}
@@ -217,8 +217,8 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
               <Sparkles className="h-4 w-4 text-ink-4" />
               <span className="text-3xs font-bold uppercase tracking-wide text-ink-4">AI suggestion — you decide</span>
               <span className={cn('rounded-full px-2 py-0.5 text-3xs font-bold',
-                ai.outcome === 'confirm' ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-                : ai.outcome === 'abusive' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                ai.outcome === 'confirm' ? 'bg-destructive/10 text-destructive'
+                : ai.outcome === 'abusive' ? 'bg-warning/10 text-warning'
                 : 'bg-tint text-body')}>
                 {ai.outcome === 'confirm' ? 'Confirm report' : ai.outcome === 'abusive' ? 'Abusive reporter' : 'Dismiss report'}{ai.severity ? ` · ${ai.severity}` : ''}
               </span>

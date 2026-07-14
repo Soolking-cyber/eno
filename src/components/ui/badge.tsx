@@ -37,7 +37,7 @@ const VARIANTS = {
   // The alert/count TONE. Deliberately not aliased as `count`: a `count` variant that
   // shared a name with the `count` SIZE could be half-applied — variant alone gives a
   // red pill with sm padding, not the 16px bubble. Bubble = variant="counter" + size="count".
-  counter: 'bg-destructive text-white',
+  counter: 'bg-destructive text-destructive-foreground',
 } as const
 
 const SIZES = {

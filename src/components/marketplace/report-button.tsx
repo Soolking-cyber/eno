@@ -100,12 +100,13 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
       {/* Borderless safety action (user 2026-07-08 — one-canvas philosophy): flush at rest
           (no border, no fill), red flag + label so it's the recognisable red sibling of the
           blue "Safe trading tips" link; colour fills in only on hover. font-semibold + red
-          keep it findable without a box. text-red-700/red-300 pass AA on the hover tint. */}
+          keep it findable without a box. text-destructive passes AA on the bg-destructive/10
+          hover tint (it carries its own dark value — no dark: twin). */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-red-300 dark:hover:bg-red-900/40 cursor-pointer tap-44 relative',
+          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 cursor-pointer tap-44 relative',
           className,
         )}
       >

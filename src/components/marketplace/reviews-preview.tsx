@@ -33,7 +33,7 @@ export function ReviewsPreview({
         {tr('Buyer reviews', 'Đánh giá về người bán')}
         <span className="text-muted-foreground">({total})</span>
         <span className="ml-1 inline-flex items-center gap-0.5 text-body">
-          <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden />
+          <Star className="h-4 w-4 fill-rating text-rating" aria-hidden />
           <RatingValue value={avg} />
         </span>
       </h2>

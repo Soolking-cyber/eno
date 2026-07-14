@@ -20,7 +20,7 @@ type BadgeVariant = 'overlay' | 'inline'
 
 const TONE: Record<BadgeKind, string> = {
   urgent: 'bg-foreground text-background', // solid slate — quietly stronger than the /85 "New"
-  drop: 'bg-red-600 text-white tabular-nums',
+  drop: 'bg-destructive text-destructive-foreground tabular-nums',
   new: 'bg-foreground/85 text-background backdrop-blur-[2px]',
 }
 

@@ -1362,7 +1362,7 @@ export function ListingsExplorer({
                               <span className="eyebrow flex items-center gap-1 text-body"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }}
-                                className="text-2xs font-semibold text-body hover:text-red-500 cursor-pointer"
+                                className="text-2xs font-semibold text-body hover:text-destructive cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
                               </button>
@@ -1387,7 +1387,7 @@ export function ListingsExplorer({
                               <span className="eyebrow flex items-center gap-1 text-body"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }}
-                                className="text-2xs font-semibold text-body hover:text-red-500 cursor-pointer"
+                                className="text-2xs font-semibold text-body hover:text-destructive cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
                               </button>

@@ -9,9 +9,13 @@ import { PRELAUNCH } from '@/lib/site-legal'
 export function PrelaunchNotice() {
   if (!PRELAUNCH) return null
   return (
-    <div id="prelaunch-banner" role="status" className="bg-amber-50 px-3 py-1.5 text-center text-2xs leading-snug text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+    <div id="prelaunch-banner" role="status" className="bg-warning/10 px-3 py-1.5 text-center text-2xs leading-snug text-warning">
       <span className="font-semibold">Website đang xây dựng và chạy thử nghiệm — chưa chính thức hoạt động.</span>{' '}
-      <span className="opacity-80">This website is under construction and in test operation — not yet officially launched.</span>
+      {/* No opacity-80 here: the old amber-900 was dark enough to survive it, but
+          --warning at 80% lands at 3.95:1 on its own tint and fails WCAG AA (axe caught
+          it on every page — this banner is site-wide). The Vietnamese half already
+          carries the emphasis via font-semibold, so the hierarchy survives. */}
+      <span>This website is under construction and in test operation — not yet officially launched.</span>
     </div>
   )
 }

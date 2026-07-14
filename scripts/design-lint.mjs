@@ -35,6 +35,10 @@ const BRAND_HEX = new Set([
   '#0068ff', // Zalo
 ])
 
+// Files allowed to use a raw Tailwind palette colour. Keep this list SHORT and justified —
+// every entry is a surface that will not adapt in dark mode.
+const PALETTE_ALLOW = new Set([])
+
 const RULES = [
   {
     name: 'arbitrary px font size (use text-3xs/2xs/xs/sm/base — docs/design-language.md §1)',
@@ -48,6 +52,27 @@ const RULES = [
     name: 'raw hex color (use tokens — docs/design-language.md §3)',
     re: /#[0-9a-fA-F]{6}\b/g,
     allow: HEX_ALLOW,
+  },
+  {
+    // The gap that let ~25 raw reds live in the app for months: the hex rule above only
+    // ever caught `#dc2626`, never `bg-red-600`. A palette class is just as un-themed —
+    // it is a fixed light-mode colour that does NOT flip in dark mode, which is exactly
+    // how the notification bubbles and every error message stayed vivid-red on a dark
+    // canvas. Semantic meaning has tokens: destructive / success / warning / brand.
+    // (Neutrals — slate/gray/zinc/neutral/stone — are deliberately NOT covered here;
+    // they are still in use as a scale and are a separate, larger migration.)
+    name: 'raw palette colour (use the destructive/success/warning/brand tokens — they adapt in dark mode; docs/design-language.md §3)',
+    re: /(?:bg|text|border|ring|fill|stroke|from|via|to|divide|outline|shadow|accent|caret|decoration)-(?:red|green|emerald|amber|yellow|orange|lime|teal|sky|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}\b/g,
+    allow: PALETTE_ALLOW,
+  },
+  {
+    // A {/* … */} in EXPRESSION position is a syntax error, not a comment — JSX comments
+    // are only valid as CHILDREN. `return (` followed by one, or one inside a ternary
+    // branch, fails the build with a baffling "')' expected". Cheap to catch, and it has
+    // now cost three separate build breaks in one day. Use a plain // comment above.
+    name: 'JSX comment in expression position — only valid as a CHILD; use a // comment above the return',
+    re: /(?:return\s*\(\s*|\?\s*|:\s*)\n?\s*\{\/\*/g,
+    raw: true, // must see the comment itself — do not run on the comment-stripped source
   },
 ]
 
@@ -76,6 +101,17 @@ for (const file of walk(SRC)) {
   const lines = code.split('\n')
   for (const rule of RULES) {
     if (rule.allow?.has(rel)) continue
+    // `raw` rules match across newlines against the ORIGINAL source (a JSX comment is
+    // invisible to the comment-stripper, and `return (\n  {/*` spans two lines).
+    if (rule.raw) {
+      for (const m of raw.matchAll(rule.re)) {
+        if (raw.slice(0, m.index).split('\n').pop()?.includes('design-lint-allow')) continue
+        const lineNo = raw.slice(0, m.index).split('\n').length
+        violations++
+        console.error(`${rel}:${lineNo}  ${m[0].trim().replace(/\s+/g, ' ')}  — ${rule.name}`)
+      }
+      continue
+    }
     lines.forEach((line, i) => {
       if (rawLines[i]?.includes('design-lint-allow')) return
       let hits = line.match(rule.re)

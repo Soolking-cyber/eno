@@ -1,6 +1,7 @@
 'use client'
 
 import { TriangleAlert } from 'lucide-react'
+import { Alert } from '@/components/ui/alert'
 import { useLanguage } from '@/context/language-context'
 
 // Off-platform lure detection: bare URLs (link shorteners for Telegram/WhatsApp/
@@ -27,12 +28,17 @@ export function findOffPlatformMessageId(messages: { id: string; mine: boolean; 
 export function FirstContactNote() {
   const { tr } = useLanguage()
   return (
-    <div className="mx-auto max-w-md rounded-xl bg-warning/10 px-3.5 py-2.5 text-center text-xs leading-relaxed text-warning">
+    <Alert
+      tone="warning"
+      appearance="flat"
+      size="xs"
+      className="mx-auto max-w-md rounded-xl px-3.5 py-2.5 text-center"
+    >
       {tr(
         'First chat — never pay or ship before meeting. Meet in public, inspect, then pay.',
         'Lần đầu trò chuyện — đừng chuyển tiền hay gửi hàng trước khi gặp mặt. Hẹn nơi công cộng, kiểm tra hàng rồi mới thanh toán.',
       )}
-    </div>
+    </Alert>
   )
 }
 
@@ -40,14 +46,19 @@ export function FirstContactNote() {
 export function OffPlatformWarning() {
   const { tr } = useLanguage()
   return (
-    <div className="flex max-w-[92%] items-start gap-2 rounded-xl bg-destructive/10 px-3.5 py-2.5 text-xs leading-relaxed text-destructive">
-      <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+    <Alert
+      tone="destructive"
+      appearance="flat"
+      size="xs"
+      className="max-w-[92%] rounded-xl px-3.5 py-2.5"
+      icon={<TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+    >
       <span>
         {tr(
           'Careful — scammers move deals off eno.vn to erase evidence. Keep the conversation here.',
           'Cẩn thận — kẻ lừa đảo thường kéo giao dịch ra ngoài eno.vn để xóa dấu vết. Hãy tiếp tục trao đổi tại đây.',
         )}
       </span>
-    </div>
+    </Alert>
   )
 }

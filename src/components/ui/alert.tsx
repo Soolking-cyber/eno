@@ -31,7 +31,10 @@ const alertVariants = cva(
   // is worse: it's a substring test that also swallows min-h-*/max-h-*, and a multi-:not()
   // arbitrary variant does not even survive Tailwind's parser — it compiles to nothing, so the
   // rule you think you wrote isn't there. Callers size their own icon: icon={<TriangleAlert className="h-4 w-4" />}.
-  "group/alert relative grid w-full gap-0.5 rounded-2xl border px-2.5 py-2 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current",
+  // The icon spans two rows ONLY when there is a title to sit beside — otherwise the
+  // row-span invents an empty second row, and the row-gap makes a title-less callout
+  // (which most of the real ones are) 2-4px taller than the div it replaced.
+  "group/alert relative grid w-full gap-0.5 rounded-2xl border px-2.5 py-2 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 has-data-[slot=alert-title]:*:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current",
   {
     variants: {
       variant: {

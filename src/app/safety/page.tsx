@@ -89,7 +89,7 @@ function TipGrid({ tips, danger = false }: { tips: Tip[]; danger?: boolean }) {
     <div className="grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
       {tips.map(([Icon, title, body], i) => (
         <div key={i}>
-          <Icon className={danger ? 'h-5 w-5 text-red-600' : 'h-5 w-5 text-accent-foreground'} strokeWidth={2} aria-hidden />
+          <Icon className={danger ? 'h-5 w-5 text-destructive' : 'h-5 w-5 text-accent-foreground'} strokeWidth={2} aria-hidden />
           <h3 className="mt-2 text-sm font-bold text-foreground"><Tr text={title} /></h3>
           <p className="mt-1 text-sm leading-relaxed text-body"><Tr text={body} /></p>
         </div>

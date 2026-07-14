@@ -26,6 +26,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -69,6 +70,9 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
+  /* Rating gold — a CONVENTION (the review star), not a status. Kept apart from
+     --warning so a caution colour change never repaints the stars. */
+  --color-rating: var(--rating);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
@@ -137,10 +141,16 @@
   --muted-foreground: #737373;
   --accent: #e8f1fb;
   --accent-foreground: #0a66c2;
-  /* red-600, not red-500 (#ef4444): as TEXT on white #ef4444 is only 3.6:1 (fails
-     WCAG AA); #dc2626 clears 4.5:1 for the form-error / destructive labels, and
-     white-on-#dc2626 still passes for the solid delete buttons. */
-  --destructive: #dc2626;
+  /* red-700, not red-600 (#dc2626) and certainly not red-500 (#ef4444, only 3.6:1 as
+     text on white). The old note said #dc2626 "clears 4.5:1" — true on a PLAIN white
+     background, false on the tinted-callout idiom this app actually uses: on
+     bg-destructive/10 it lands at 3.98:1 and fails AA. #b91c1c gives 5.26:1 there and
+     6.4:1 on plain, and lifts every white-on-destructive surface with it. */
+  --destructive: #b91c1c;
+  /* Text/icon colour ON a solid destructive surface. It must FLIP with the theme: the
+     dark --destructive is a light red (#f0616b), and white on it is only 3.17:1 — so a
+     hardcoded text-white on a solid red chip fails AA in dark mode. */
+  --destructive-foreground: #ffffff;
   --border: #e5e5e5;
   --input: #e5e5e5;
   --ring: #0a66c2;
@@ -170,9 +180,12 @@
   --trust-elite:      #6d28d9; /* violet-700 ~6.1:1 — Elite (top, 160+) */
 
   /* Semantic status (light): AA on white/tint cards. */
-  --success: #15803d; /* green-700  */
-  --warning: #b45309; /* amber-700  */
+  --success: #166534; /* green-800 — green-700 (#15803d) is only 4.22:1 as text on
+                        bg-success/10, the callout idiom. This clears AA (5.87:1). */
+  --warning: #92400e; /* amber-800 — amber-700 (#b45309) is only 4.20:1 as text on
+                         bg-warning/10, the callout idiom this app uses. This clears AA (5.82:1). */
   --info:    #0a66c2; /* brand blue */
+  --rating:  #f59e0b; /* amber-500  — review-star gold on white cards */
 
   /* Semantic — used ONLY to carry meaning, never decoration.
      verified/trust folds into the brand blue; amber = caution; red = destructive. */
@@ -253,6 +266,8 @@
   --accent: #17314d;       /* blue tint surface */
   --accent-foreground: #74b3f2;
   --destructive: #f0616b;
+  /* Near-black ON the light dark-mode red: white would be 3.17:1 (fails). 5.5:1. */
+  --destructive-foreground: #1b1b1b;
   --border: #363636;       /* more visible separators on the lighter canvas */
   --input: #3b3b3b;
   --ring: #4f97ee;
@@ -277,6 +292,7 @@
   --success: #4ade80; /* green-400 */
   --warning: #fbbf24; /* amber-400 */
   --info:    #60a5fa; /* blue-400  */
+  --rating:  #fbbf24; /* amber-400 — brighter star gold on the dark canvas */
   --skeleton: #262626;
   --skeleton-sheen: rgba(255, 255, 255, 0.06);
 

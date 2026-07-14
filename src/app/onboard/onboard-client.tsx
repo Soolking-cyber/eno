@@ -174,7 +174,7 @@ export function OnboardClient() {
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {t('Continue', 'Tiếp tục')}
           </Button>
-          {error && <p role="alert" className="mt-2 text-center text-xs font-semibold text-red-600">{error}</p>}
+          {error && <p role="alert" className="mt-2 text-center text-xs font-semibold text-destructive">{error}</p>}
         </div>
       </div>
     </main>

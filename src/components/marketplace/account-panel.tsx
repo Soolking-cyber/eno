@@ -323,7 +323,7 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
                   <div className="mt-3"><ReminderSettings /></div>
                 </section>
                 <section>
-                  <h3 className="text-sm font-bold text-red-600">{tr('Danger zone', 'Vùng nguy hiểm')}</h3>
+                  <h3 className="text-sm font-bold text-destructive">{tr('Danger zone', 'Vùng nguy hiểm')}</h3>
                   <div className="mt-3"><DeleteAccount /></div>
                 </section>
               </div>
