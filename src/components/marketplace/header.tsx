@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { Input } from '@/components/ui/input'
 import { AccountMenu } from './account-menu'
 import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
@@ -228,7 +229,8 @@ export function Header() {
                 : 'rounded-2xl border border-transparent bg-tint focus-within:border-ring focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30',
             )}>
               <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" />
-              <input
+              <Input
+                variant="unstyled"
                 value={searchVal}
                 onChange={(e) => setSearchVal(e.target.value)}
                 onFocus={openSuggestions}

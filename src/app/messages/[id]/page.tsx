@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
+import { EnoSlider } from '@/components/ui/slider'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
@@ -413,7 +414,7 @@ export default function ThreadPage() {
           <div className="flex items-center gap-3 bg-card px-4 py-3">
             <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" /></Link>
             <Avatar name={thread?.counterpart.name} url={thread?.counterpart.avatarUrl} color={thread?.counterpart.avatarColor} size="sm" />
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 cursor-pointer">
               {thread?.counterpart.sellerId ? (
                 <Link href={`/sellers/${thread.counterpart.sellerId}`} className="block truncate text-sm font-bold text-foreground hover:underline">{thread.counterpart.name}</Link>
               ) : (
@@ -632,13 +633,12 @@ export default function ThreadPage() {
                  input was — pick the discount, Send submits the computed offer. */
               <div className="flex h-10 min-w-0 flex-1 items-center gap-2.5 self-center px-1 animate-in slide-in-from-left-2 fade-in duration-150">
                 <span className="shrink-0 text-xs font-bold tabular-nums text-foreground">−{offerPct}%</span>
-                <input
-                  type="range"
+                <EnoSlider
                   min={5} max={50} step={5}
                   value={offerPct}
-                  onChange={(e) => setOfferPct(Number(e.target.value))}
+                  onChange={setOfferPct}
                   aria-label={tr('Discount', 'Mức giảm')}
-                  className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
+                  className="min-w-0 flex-1"
                 />
                 <span className="shrink-0 text-xs font-bold tabular-nums text-accent-foreground">{formatMoneyFull(sliderOffer, '₫', locale)}</span>
               </div>

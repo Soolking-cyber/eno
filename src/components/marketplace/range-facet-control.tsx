@@ -1,6 +1,7 @@
 'use client'
 
-import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { RangeSlider } from '@/components/ui/range-slider'
 import { useLanguage } from '@/context/language-context'
 import type { RangeMeta } from '@/lib/taxonomy'
 
@@ -45,8 +46,6 @@ export function RangeFacetControl({
     const mx = nhi >= max ? '' : String(round(nhi))
     onChange(!mn && !mx ? 'all' : `${mn}-${mx}`)
   }
-  const span = Math.max(step, max - min)
-  const pct = (v: number) => ((v - min) / span) * 100
   const digits = (s: string) => (decimals > 0 ? s.replace(/[^0-9.]/g, '') : s.replace(/[^0-9]/g, ''))
 
   const blurLo = () => {
@@ -64,41 +63,16 @@ export function RangeFacetControl({
     setHi(n); commit(lo, n); setHiText(n >= max ? '' : fmt(n))
   }
 
-  // Click anywhere on the track → jump the NEAREST thumb to that point (the dual
-  // inputs have pointer-events:none on the track, so this fills that gap).
-  const onTrackDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).tagName === 'INPUT') return // a thumb → let it drag natively
-    const rect = e.currentTarget.getBoundingClientRect()
-    if (!rect.width) return
-    const f = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
-    const v = round(min + f * (max - min))
-    if (v <= lo) { setLo(v); commit(v, hi) }
-    else if (v >= hi) { setHi(v); commit(lo, v) }
-    else if (v - lo <= hi - v) { setLo(v); commit(v, hi) }
-    else { setHi(v); commit(lo, v) }
-  }
-
   return (
     <div className="min-w-0 flex-1">
-      <div className="relative h-5 cursor-pointer" onPointerDown={onTrackDown}>
-        <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-muted" />
-        <div
-          className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary"
-          style={{ left: `${pct(lo)}%`, width: `${Math.max(0, pct(hi) - pct(lo))}%` }}
-        />
-        <input
-          type="range" className="eno-range" aria-label={tr('Minimum', 'Tối thiểu')}
-          min={min} max={max} step={step} value={lo}
-          onChange={(e) => setLo(Math.min(round(Number(e.target.value)), hi))}
-          onPointerUp={() => commit(lo, hi)} onKeyUp={() => commit(lo, hi)}
-        />
-        <input
-          type="range" className="eno-range" aria-label={tr('Maximum', 'Tối đa')}
-          min={min} max={max} step={step} value={hi}
-          onChange={(e) => setHi(Math.max(round(Number(e.target.value)), lo))}
-          onPointerUp={() => commit(lo, hi)} onKeyUp={() => commit(lo, hi)}
-        />
-      </div>
+      {/* Dual-thumb track — the .eno-range pointer-events contract and the
+          tagName==='INPUT' track-jump guard both live inside the primitive. */}
+      <RangeSlider
+        value={[lo, hi]} min={min} max={max} step={step}
+        aria-label={[tr('Minimum', 'Tối thiểu'), tr('Maximum', 'Tối đa')]}
+        onChange={([a, b]) => { setLo(a); setHi(b) }}
+        onCommit={([a, b]) => commit(a, b)}
+      />
       <div className="mt-2 flex items-center gap-2">
         <span className="flex items-center gap-1 rounded-lg bg-tint px-2.5 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring/30">
           <input

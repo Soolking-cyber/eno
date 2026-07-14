@@ -6,6 +6,7 @@ import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
+import { Slider } from '@/components/ui/slider'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
 import Image from 'next/image'
@@ -370,21 +371,20 @@ function ListingCardImpl({
           />
         )}
         {quickOffer !== null && (
-          <span
+          <div
             onClick={(e) => e.stopPropagation()}
             className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-popover/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150"
           >
-            <span className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <span className="shrink-0 text-2xs font-bold tabular-nums text-foreground">−{quickOffer}%</span>
-              <input
-                type="range"
+              <Slider
                 min={5} max={50} step={5}
                 value={quickOffer}
-                onChange={(e) => setQuickOffer(Number(e.target.value))}
+                onChange={setQuickOffer}
                 aria-label={tr('Discount', 'Mức giảm')}
-                className="min-w-0 flex-1 accent-[var(--brand)] cursor-pointer"
+                className="min-w-0 flex-1 cursor-pointer"
               />
-            </span>
+            </div>
             <Button
               variant="cta"
               size="none"
@@ -394,7 +394,7 @@ function ListingCardImpl({
             >
               {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency, moneyLocale(lang))} →
             </Button>
-          </span>
+          </div>
         )}
 
         {/* carousel arrows (desktop hover, only when multiple images) */}

@@ -18,6 +18,7 @@ import { useAuth } from '@/context/auth-context'
 import { stashQuickCompose } from '@/lib/quick-contact'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { EnoSlider } from '@/components/marketplace/eno-slider'
 
 type Props = {
   listing: SerializedListingCard
@@ -117,18 +118,23 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           The offer slider rolls open leftwards, replacing nothing — icons stay put. */}
       <div className="relative flex shrink-0 items-center" onMouseLeave={() => setOffer(null)}>
         {offer !== null && (
-          <span
+          // A div, not a span: <EnoSlider> renders a <div> root, which is not
+          // phrasing content — a span wrapper would be invalid nesting. Same
+          // classes, same flex layout, identical render.
+          <div
             onClick={(e) => e.stopPropagation()}
             className="flex min-w-0 items-center gap-2 py-1 pr-1 animate-in slide-in-from-right-2 fade-in duration-150"
           >
             <span className="shrink-0 text-2xs font-bold tabular-nums text-foreground">−{offer}%</span>
-            <input
-              type="range"
+            {/* THE app slider (ui/slider, re-exported as EnoSlider) — same
+                single-handle offer slider the contact composer uses. w-28 keeps
+                the row's action cluster from growing. */}
+            <EnoSlider
               min={5} max={50} step={5}
               value={offer}
-              onChange={(e) => setOffer(Number(e.target.value))}
+              onChange={setOffer}
               aria-label={tr('Discount', 'Mức giảm')}
-              className="w-28 accent-[var(--brand)] cursor-pointer"
+              className="w-28 cursor-pointer"
             />
             <Button
               type="button"
@@ -139,7 +145,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             >
               {formatMoneyFull(Math.round(l.price * (1 - offer / 100)), l.currency, moneyLocale(lang))} →
             </Button>
-          </span>
+          </div>
         )}
         {l.price > 0 && l.negotiable !== false ? (
           // tapTarget={false} on all three: this cluster is 36px-pitch with ZERO gap, so a

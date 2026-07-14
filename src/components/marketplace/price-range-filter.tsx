@@ -1,6 +1,6 @@
 'use client'
 
-import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
@@ -9,6 +9,7 @@ import { compactPrice, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RangeSlider } from '@/components/ui/range-slider'
 import { PricePresetChips } from './price-preset-chips'
 
 const BINS = 30
@@ -116,20 +117,6 @@ export function PriceRangeFilter({
     onChange(!mn && !mx ? 'all' : `${mn}-${mx}`)
   }
 
-  const pct = (v: number) => ((v - dataMin) / span) * 100
-  // Click the track → jump the NEAREST handle to that point (the dual inputs have
-  // pointer-events:none on the track, so a bare track click would otherwise do nothing).
-  const onTrackDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).tagName === 'INPUT') return // a handle → native drag
-    const rect = e.currentTarget.getBoundingClientRect()
-    if (!rect.width) return
-    const f = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
-    const v = Math.round(dataMin + f * span)
-    if (v <= effLo) { setLo(v); commit(v, effHi) }
-    else if (v >= effHi) { setHi(v); commit(effLo, v) }
-    else if (v - effLo <= effHi - v) { setLo(v); commit(v, effHi) }
-    else { setHi(v); commit(effLo, v) }
-  }
   const inRangeCount = prices.filter((p) => p >= effLo && p <= effHi).length
   const toDisplay = (vnd: number) => (rate ? Math.round(vnd * rate) : Math.round(vnd))
   const fromDisplay = (disp: number) => (rate ? disp / rate : disp)
@@ -210,25 +197,16 @@ export function PriceRangeFilter({
                   })}
                 </div>
 
-                <div className="relative mt-1 h-5 cursor-pointer" onPointerDown={onTrackDown}>
-                  <div className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-muted" />
-                  <div
-                    className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary"
-                    style={{ left: `${pct(effLo)}%`, width: `${Math.max(0, pct(effHi) - pct(effLo))}%` }}
-                  />
-                  <input
-                    type="range" className="eno-range" aria-label={tr('Minimum price', 'Giá tối thiểu')}
-                    min={dataMin} max={dataMax} step={step} value={effLo}
-                    onChange={(e) => setLo(Math.min(Number(e.target.value), effHi))}
-                    onPointerUp={() => commit(effLo, effHi)} onKeyUp={() => commit(effLo, effHi)}
-                  />
-                  <input
-                    type="range" className="eno-range" aria-label={tr('Maximum price', 'Giá tối đa')}
-                    min={dataMin} max={dataMax} step={step} value={effHi}
-                    onChange={(e) => setHi(Math.max(Number(e.target.value), effLo))}
-                    onPointerUp={() => commit(effLo, effHi)} onKeyUp={() => commit(effLo, effHi)}
-                  />
-                </div>
+                {/* Dual-thumb slider — the .eno-range pointer-events dance and the
+                    nearest-thumb track jump now live in the primitive. */}
+                <RangeSlider
+                  className="mt-1"
+                  value={[effLo, effHi]}
+                  min={dataMin} max={dataMax} step={step}
+                  aria-label={[tr('Minimum price', 'Giá tối thiểu'), tr('Maximum price', 'Giá tối đa')]}
+                  onChange={([nlo, nhi]) => { setLo(nlo); setHi(nhi) }}
+                  onCommit={([nlo, nhi]) => commit(nlo, nhi)}
+                />
               </div>
 
               {/* Preset budget chips — one tap sets the range via onChange (shared with

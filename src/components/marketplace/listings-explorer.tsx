@@ -47,6 +47,7 @@ import { useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
 import { Mascot } from './mascot'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
@@ -1273,7 +1274,8 @@ export function ListingsExplorer({
                 >
                   <Search className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
                 </Button>
-                <input
+                <Input
+                  variant="unstyled"
                   id="listings-search-input"
                   type="search"
                   inputMode="search"
