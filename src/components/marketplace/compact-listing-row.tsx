@@ -84,16 +84,15 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               stay glyph-sized. */}
           {/* The row's single color anchor — brand blue, matching the grid card. */}
           <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" className="shrink-0 text-base font-bold text-accent-foreground" />
-          {/* Urgent — RIGHT of the price (user-picked 2026-07-14): phones get the
-              bare black bolt (no chip/outline); the chip + word return at sm:. */}
+          {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
+              bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
+              is gone — one glyph reads the same everywhere and keeps the one-line
+              meta row quiet. */}
           {l.urgent && (
-            <>
-              <Zap className={cn('h-3.5 w-3.5 shrink-0 fill-current text-foreground sm:hidden', offer !== null && 'hidden')} aria-label={tr('Urgent', 'Bán gấp')} />
-              <Badge kind="urgent" variant="inline" className={cn('hidden shrink-0 sm:inline-flex', offer !== null && 'sm:hidden')}>
-                <Zap className="h-2.5 w-2.5 fill-current" />
-                <span>{tr('Urgent', 'Bán gấp')}</span>
-              </Badge>
-            </>
+            <Zap
+              className={cn('h-3.5 w-3.5 shrink-0 fill-current text-foreground', offer !== null && 'hidden')}
+              aria-label={tr('Urgent', 'Bán gấp')}
+            />
           )}
           {l.prevPrice != null && dropPercent(l.prevPrice, l.price) && (
             <Badge kind="drop" variant="inline" className="shrink-0">{dropPercent(l.prevPrice, l.price)}</Badge>
@@ -141,7 +140,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             </Button>
           </span>
         )}
-        {l.price > 0 && l.negotiable !== false && (
+        {l.price > 0 && l.negotiable !== false ? (
           <button
             type="button"
             aria-label={tr('Make an offer', 'Trả giá')}
@@ -152,6 +151,13 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           >
             <Tag className="h-[17px] w-[17px]" />
           </button>
+        ) : (
+          // Fixed-price / free listings have no offer button — hold its 36px anyway.
+          // Without this the actions cluster shrinks, the flex-1 text column grows by
+          // the same amount, and the trust badge (ml-auto, so it hangs off that
+          // column's right edge) jumps right on exactly those rows — the badges stop
+          // forming one vertical column (user-picked 2026-07-14).
+          <span aria-hidden className="hidden h-9 w-9 shrink-0 sm:block" />
         )}
         <button
           type="button"
