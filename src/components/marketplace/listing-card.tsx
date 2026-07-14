@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
 import Image from 'next/image'
@@ -453,9 +454,9 @@ function ListingCardImpl({
               Deal-positive only; kept off the photo so it never crowds urgent/drop badges,
               and yields to a live price-drop so the two cheapness signals never stack. */}
           {listing.goodPrice && !hasDrop && (
-            <span className="shrink-0 self-center rounded-full bg-success/15 px-1.5 py-0.5 text-3xs font-bold text-success">
+            <Badge variant="success" className="shrink-0 self-center px-1.5 py-0.5 text-3xs">
               {tr('Good price', 'Giá tốt')}
-            </span>
+            </Badge>
           )}
         </span>
 

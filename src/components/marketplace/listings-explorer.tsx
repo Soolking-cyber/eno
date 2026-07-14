@@ -45,6 +45,8 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Separator } from '@/components/ui/separator'
 import { Mascot } from './mascot'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
@@ -1203,6 +1205,27 @@ export function ListingsExplorer({
     debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters,
   })
 
+  // Distinct from the empty state: a failed fetch (DB down, 500) must NOT read as
+  // "no listings" — show an error + retry so the marketplace never looks empty.
+  // Hoisted ABOVE the isLandingMode early return on purpose: both the landing feed and
+  // the explorer feed call it, and a const arrow declared after that return would be in
+  // its TDZ (ReferenceError) when the landing branch renders.
+  const renderErrorState = (className?: string) => (
+    <EmptyState
+      icon={AlertTriangle}
+      title={tr("Couldn't load listings.", 'Không tải được tin đăng.')}
+      className={className}
+      action={
+        <Button variant="cta" size="none"
+          onClick={() => refetchListings()}
+          className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
+        >
+          {tr('Try again', 'Thử lại')}
+        </Button>
+      }
+    />
+  )
+
   if (isLandingMode) {
     // Never open an empty dropdown: with a typed query it's the typeahead; when empty
     // it needs recents/locations or the Popular fallback (categories, already
@@ -1303,7 +1326,7 @@ export function ListingsExplorer({
                 />
                 {/* Photo search folded into the AI assistant (camera in the ✨ chat
                     composer); pasting an image here still visual-searches. */}
-                <span className="h-6 w-px shrink-0 bg-border sm:h-7" />
+                <Separator orientation="vertical" className="h-6 shrink-0 sm:h-7" />
                 {/* Search-bar icon standard (matches the magnifier + AI button):
                     quiet ink at rest, brand-blue on hover. */}
                 <button
@@ -1494,11 +1517,7 @@ export function ListingsExplorer({
           {/* INFINITE FEED (Facebook-style) — all listings, loads more on scroll. */}
           {shownListings.length === 0 && !isLoading ? (
             queryError ? (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line-strong bg-card/60 py-16 text-center">
-                <AlertTriangle className="h-10 w-10 text-muted-foreground" />
-                <p className="text-sm font-semibold text-body">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
-                <Button variant="cta" size="none" onClick={() => refetchListings()} className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer">{tr('Try again', 'Thử lại')}</Button>
-              </div>
+              renderErrorState('gap-3 bg-card/60 py-16')
             ) : (
               // Zero results is a fork, not a dead end: widen the area (only when an
               // area filter is narrowing — never true in landing mode by construction,
@@ -1778,21 +1797,6 @@ export function ListingsExplorer({
   // filter transition here since it owns setSort + the useTransition.
   const pickSort = (val: SortKey) => startFilterTransition(() => setSort(val))
 
-  // Distinct from the empty state: a failed fetch (DB down, 500) must NOT read as
-  // "no listings" — show an error + retry so the marketplace never looks empty.
-  const renderErrorState = () => (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center">
-      <AlertTriangle className="h-10 w-10 text-muted-foreground" />
-      <p className="text-sm font-semibold text-body">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</p>
-      <Button variant="cta" size="none"
-        onClick={() => refetchListings()}
-        className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
-      >
-        {tr('Try again', 'Thử lại')}
-      </Button>
-    </div>
-  )
-
   return (
     // overflow-x-CLIP (not hidden): hidden would make this section the sort strip's
     // scroll box and position:sticky would never pin; clip contains the horizontal
@@ -1911,12 +1915,12 @@ export function ListingsExplorer({
                 <div className="space-y-2">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 p-2">
-                      <div className="h-16 w-20 shrink-0 rounded-lg shimmer" />
+                      <Skeleton className="h-16 w-20 shrink-0" />
                       <div className="flex-1 space-y-2">
-                        <div className="h-3.5 w-1/2 rounded-lg shimmer" />
-                        <div className="h-3 w-1/3 rounded-lg shimmer" />
+                        <Skeleton className="h-3.5 w-1/2" />
+                        <Skeleton className="h-3 w-1/3" />
                       </div>
-                      <div className="h-8 w-24 rounded-lg shimmer mr-2" />
+                      <Skeleton className="h-8 w-24 mr-2" />
                     </div>
                   ))}
                 </div>

@@ -13,6 +13,8 @@ import { useLanguage } from '@/context/language-context'
 import { PreferencesInline } from './preferences-inline'
 import { TrustScore } from './trust-score'
 import { DashboardListingRow } from './dashboard-listing-row'
+import { IconButton } from '@/components/ui/icon-button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import type { SerializedListing } from '@/lib/types'
 
@@ -220,15 +222,15 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
             </>
           ) : (
             <>
-              <button onClick={() => setView('root')} aria-label={tr('Back', 'Quay lại')} className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground tap-44 relative">
+              <IconButton size="sm" onClick={() => setView('root')} aria-label={tr('Back', 'Quay lại')} className="text-ink-4 transition-colors hover:bg-muted hover:text-foreground">
                 <ChevronLeft className="h-4 w-4" />
-              </button>
+              </IconButton>
               <p className="min-w-0 flex-1 truncate text-sm font-bold text-foreground">{active?.label}</p>
             </>
           )}
-          <button onClick={onClose} aria-label={tr('Close', 'Đóng')} className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-muted hover:text-foreground tap-44 relative">
+          <IconButton onClick={onClose} aria-label={tr('Close', 'Đóng')} size="sm" className="text-ink-4 transition-colors hover:bg-muted hover:text-foreground">
             <X className="h-4 w-4" />
-          </button>
+          </IconButton>
         </div>
 
         {/* Sliding layers: root parks left, sections slide in right→left. */}
@@ -285,7 +287,7 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
             {view === 'listings' && (
               <div className="space-y-2.5 p-3">
                 {!dash ? (
-                  <div className="space-y-2.5">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[92px] rounded-2xl shimmer" />)}</div>
+                  <div className="space-y-2.5">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[92px] rounded-2xl" />)}</div>
                 ) : dash.listings.length === 0 ? (
                   <p className="py-10 text-center text-sm text-muted-foreground">{tr('No listings yet — post your first one.', 'Chưa có tin nào — đăng tin đầu tiên.')}</p>
                 ) : (

@@ -8,6 +8,14 @@
    there (user decision 2026-07-06). Width alone (lg:) misclassifies tablets. */
 @custom-variant pc (@media (min-width: 64rem) and (pointer: fine));
 @custom-variant mobile (@media not ((min-width: 64rem) and (pointer: fine)));
+/* Base UI emits data-orientation="vertical|horizontal". WITHOUT these two lines,
+   Tailwind reads `data-vertical:w-px` as the built-in bare-attribute variant and
+   compiles it to `[data-vertical]` — an attribute Base UI never sets. Every rule in
+   ui/separator (w-px, h-px, w-full, self-stretch) then silently never applies and the
+   separator renders with zero width/height: present in the DOM, invisible on screen.
+   Nothing fails; the line is just gone. */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
 
 @theme inline {
   --color-background: var(--background);
