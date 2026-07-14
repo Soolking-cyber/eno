@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { MapPin, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { CustomSelect } from './custom-select'
@@ -67,6 +67,11 @@ export function FacetBar({
   const { lang, tr } = useLanguage()
   const [areaOpen, setAreaOpen] = useState(false)
   const [advOpen, setAdvOpen] = useState(false) // advanced per-category filter panel
+  // Ids for the accessibility wiring below: the advanced panel (so its trigger can point at it
+  // with aria-controls) and the per-facet labels (so each toggle group can be NAMED — those
+  // <label>s dangle otherwise, naming nothing).
+  const uid = useId()
+  const advPanelId = `${uid}-adv-panel`
   const areaBtnRef = useRef<HTMLButtonElement>(null)
   // The advanced-filter panel is PORTALED to <body> (like the price/area popovers) so
   // it can't be painted under later page content (the footer). Positioned under the
@@ -88,6 +93,24 @@ export function FacetBar({
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
     return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
+  }, [advOpen])
+
+  // The trigger claims aria-haspopup="dialog" and the panel claims role="dialog" — so the dialog
+  // CONTRACT has to be real, not just asserted. Escape closes, and focus goes back to the pill that
+  // opened it. Without this the panel is portaled to the end of <body> with focus left behind on the
+  // trigger: a keyboard user could only reach the panel's controls by tabbing through the whole rest
+  // of the page, and could never dismiss it from the keyboard at all. Attributes that promise a
+  // behaviour and don't deliver it are worse than no attributes — the screen reader announces a
+  // dialog that does not act like one.
+  useEffect(() => {
+    if (!advOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setAdvOpen(false)
+      advBtnRef.current?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
   }, [advOpen])
   // The area pill is "active" when a ward/province or a near-you search is set.
   const areaActive = !!ward || !!province || !!nearby
@@ -132,6 +155,7 @@ export function FacetBar({
         value={listingType}
         onChange={setListingType}
         options={[{ value: 'all', label: tr('Any type', 'Mọi loại') }, ...typeOptions]}
+        label={tr('Listing type', 'Loại tin')}
         placeholder={tr('Type', 'Loại')}
         className={cls}
         activeClassName={active}
@@ -163,6 +187,16 @@ export function FacetBar({
       // anchor survives the primitive — do not swap this for a render-prop child.
       ref={areaBtnRef}
       type="button"
+      // This pill OPENS A POPOVER and never said so. Base UI's PopoverTrigger supplies
+      // aria-expanded/haspopup/controls for free, but both popovers here are hand-portaled and
+      // rect-positioned from a load-bearing ref (see the comment above), and <AreaFilter> lives in
+      // another file — routing them through a real PopoverTrigger is a rewrite of two components,
+      // and this bar is coupled to the page gutter (-mx-3 px-3). So the aria goes on by hand.
+      // aria-controls is deliberately ABSENT: AreaFilter's panel carries no id of its own, and a
+      // dangling aria-controls is worse than none. aria-expanded + aria-haspopup are the two that
+      // actually carry the disclosure.
+      aria-haspopup="dialog"
+      aria-expanded={areaOpen}
       onClick={() => setAreaOpen((o) => !o)}
       className={cn(
         'flex shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-95 cursor-pointer',
@@ -201,6 +235,11 @@ export function FacetBar({
   // branches below stay fully in charge of the border/background/label colour.
   // whitespace-normal restores the plain <button> wrapping these labels had (the
   // Button base is whitespace-nowrap).
+  //
+  // ⚠️ SELECTION IS PAINT ONLY — the caller MUST also pass aria-pressed={selected}. This helper
+  // returns a className, so it cannot put the state in the accessibility tree itself; every call
+  // site below does it. These are aria-PRESSED toggle buttons and not a radio group on purpose:
+  // clicking the selected chip DESELECTS it (back to 'all'), which a radio cannot express.
   const segBtn = (selected: boolean) =>
     cn('rounded-lg border px-3 py-1.5 text-sm font-semibold whitespace-normal transition-colors cursor-pointer',
       selected ? 'border-brand bg-primary text-white' : 'border-line-strong text-body hover:bg-muted')
@@ -222,6 +261,13 @@ export function FacetBar({
             // Button forwards its ref onto the real <button>, so the anchor survives.
             ref={advBtnRef}
             type="button"
+            // Same disclosure contract as the Area pill. This one CAN carry aria-controls: the
+            // panel is rendered right here in this file, so it has an id we own. It is only set
+            // while open, because the panel is unmounted when closed and aria-controls must not
+            // point at an id that does not exist.
+            aria-haspopup="dialog"
+            aria-expanded={advOpen}
+            aria-controls={advOpen ? advPanelId : undefined}
             onClick={() => setAdvOpen((o) => !o)}
             className={cn(
               'flex shrink-0 items-center justify-start gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-95 cursor-pointer',
@@ -278,6 +324,12 @@ export function FacetBar({
         <>
           <div className="fixed inset-0 z-[1099]" aria-hidden onClick={() => setAdvOpen(false)} />
           <div
+            id={advPanelId}
+            // The trigger claims aria-haspopup="dialog", so the thing it opens must actually BE
+            // one. Not aria-modal: nothing traps focus here, and claiming modality would hide the
+            // rest of the page from assistive tech while the keyboard could still walk out of it.
+            role="dialog"
+            aria-label={tr('Filters', 'Bộ lọc')}
             style={{ position: 'fixed', top: advPos.top, left: advPos.left, width: advPos.width || undefined }}
             className="z-[1100] max-h-[70vh] overflow-y-auto scroll-thin rounded-2xl bg-popover p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
             <div className="mb-3 flex items-center justify-between">
@@ -291,11 +343,15 @@ export function FacetBar({
                   (e.g. Motorbike → bike type / engine cc / origin). */}
               {subcats.length > 0 && (
                 <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
-                  <label className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0 sm:pt-1.5">{tr('Type', 'Phân loại')}</label>
-                  <div className="flex flex-1 flex-wrap gap-1.5">
-                    <Button variant="bare" size="none" type="button" onClick={() => setActiveSubcategory('all')} className={segBtn(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</Button>
+                  {/* A <label> with no htmlFor and no control inside names NOTHING. It stays a
+                      <label> visually, but the chips it heads are now a real role="group" that
+                      points back at it — so the group is announced as "Type", not as a bare run of
+                      buttons. */}
+                  <label id={`${uid}-subcat-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0 sm:pt-1.5">{tr('Type', 'Phân loại')}</label>
+                  <div role="group" aria-labelledby={`${uid}-subcat-label`} className="flex flex-1 flex-wrap gap-1.5">
+                    <Button variant="bare" size="none" type="button" aria-pressed={activeSubcategory === 'all'} onClick={() => setActiveSubcategory('all')} className={segBtn(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</Button>
                     {subcats.map((s) => (
-                      <Button key={s.slug} variant="bare" size="none" type="button" onClick={() => setActiveSubcategory(activeSubcategory === s.slug ? 'all' : s.slug)} className={segBtn(activeSubcategory === s.slug)}>
+                      <Button key={s.slug} variant="bare" size="none" type="button" aria-pressed={activeSubcategory === s.slug} onClick={() => setActiveSubcategory(activeSubcategory === s.slug ? 'all' : s.slug)} className={segBtn(activeSubcategory === s.slug)}>
                         {tr(s.name, s.nameVi)}
                       </Button>
                     ))}
@@ -307,13 +363,13 @@ export function FacetBar({
                 const opts = f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
                 return (
                   <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-                    <label className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
+                    <label id={`${uid}-${f.key}-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
                     {f.kind === 'range' && f.range ? (
                       <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacetValue(f, v)} />
                     ) : f.kind === 'toggle' ? (
-                      <div className="flex flex-1 flex-wrap gap-1.5">
+                      <div role="group" aria-labelledby={`${uid}-${f.key}-label`} className="flex flex-1 flex-wrap gap-1.5">
                         {opts.map((o) => (
-                          <Button key={o.value} variant="bare" size="none" type="button" onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>
+                          <Button key={o.value} variant="bare" size="none" type="button" aria-pressed={value === o.value} onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>
                             {o.label}
                           </Button>
                         ))}
@@ -324,6 +380,7 @@ export function FacetBar({
                           value={value}
                           onChange={(v) => setFacetValue(f, v)}
                           options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...opts]}
+                          label={tr(f.label, f.labelVi)}
                           placeholder={tr(f.label, f.labelVi)}
                           activeClassName="text-accent-foreground border-accent-foreground/35"
                         />

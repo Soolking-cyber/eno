@@ -11,9 +11,14 @@ function Tabs({
   ...props
 }: TabsPrimitive.Root.Props) {
   return (
+    // `orientation` must reach the Root, not just the stylesheet: Base UI derives the
+    // arrow-key axis (Left/Right vs Up/Down) and aria-orientation from it. Painting a
+    // manual data-orientation instead left a "vertical" strip LOOKING vertical while
+    // Base UI still thought it was horizontal. The Root emits data-orientation from its
+    // own state, which is what the data-horizontal/data-vertical variants read.
     <TabsPrimitive.Root
       data-slot="tabs"
-      data-orientation={orientation}
+      orientation={orientation}
       className={cn(
         "group/tabs flex gap-2 data-horizontal:flex-col",
         className

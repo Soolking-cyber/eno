@@ -50,7 +50,7 @@ import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Mascot } from './mascot'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
-import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
+import { SearchSuggest, buildSuggestItems, suggestOptionId, type SuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
 import { useTrendingSearches } from '@/hooks/use-trending-searches'
 import { AISearchButton } from './ai-concierge'
@@ -129,6 +129,11 @@ function prettyBrand(slug: string): string {
 // "Liên quan". TRUE recency is the separate 'recent' value.
 type SortKey = 'newest' | 'recent' | 'price-low' | 'price-high' | 'popular'
 type ViewMode = 'compact' | 'grid' | 'map' | 'video'
+
+// The hero typeahead's listbox. Distinct from the header bar's ('header-search-suggest')
+// so both can sit in the DOM at once — the header search reveals itself on scroll while
+// the hero is still mounted — without colliding ids.
+const SUGGEST_ID = 'hero-search-suggest'
 
 type Props = {
   categories: SerializedCategory[]
@@ -1234,6 +1239,18 @@ export function ListingsExplorer({
     const heroPanelOpen = showSuggestions && (
       landingQuery.trim().length >= 2 || recentSearches.length > 0 || recentLocations.length > 0 || categories.length > 0 || trending.length > 0
     )
+    // The subset of `heroPanelOpen` where the panel is actually the typeahead LISTBOX
+    // (≥2 chars) rather than the recents/locations/Popular panel. This — not
+    // heroPanelOpen — is what the input's aria-expanded/-controls may claim: the other
+    // panel is a set of plain buttons and has no listbox to point at.
+    // Mirrors the `landingQuery.trim().length >= 2` branch that renders <SearchSuggest/>.
+    const heroListOpen = showSuggestions && landingQuery.trim().length >= 2
+    // Virtual focus for the input: DOM focus never leaves it, so the moving bg-muted
+    // highlight has no focus event to announce. Bounds-checked — a dangling id is
+    // announced as nothing, i.e. the silence we're removing.
+    const heroActiveOptionId = heroListOpen && heroActiveIdx >= 0 && heroActiveIdx < heroSuggestItems.length
+      ? suggestOptionId(SUGGEST_ID, heroActiveIdx)
+      : undefined
     return (
       <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pt-2 pb-5 sm:pt-3 sm:pb-8">
         {/* Width + edge gutter are owned by the parent page <main> (canonical
@@ -1278,6 +1295,13 @@ export function ListingsExplorer({
                   variant="unstyled"
                   id="listings-search-input"
                   aria-label={tr('Search listings', 'Tìm kiếm tin đăng')}
+                  // Combobox semantics for the arrow-key typeahead below. See
+                  // `heroListOpen` above for why these track it and not heroPanelOpen.
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={heroListOpen}
+                  aria-controls={heroListOpen ? SUGGEST_ID : undefined}
+                  aria-activedescendant={heroActiveOptionId}
                   type="search"
                   inputMode="search"
                   enterKeyHint="search"
@@ -1361,6 +1385,7 @@ export function ListingsExplorer({
                         loading={heroSuggest.loading}
                         query={landingQuery}
                         activeIndex={heroActiveIdx}
+                        listboxId={SUGGEST_ID}
                         onPick={pickHeroSuggest}
                         onSubmitQuery={() => handleLandingSearch(landingQuery)}
                       />

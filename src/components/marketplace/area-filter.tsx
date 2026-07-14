@@ -95,8 +95,7 @@ export function AreaFilter({
   // adjust-state-in-render pattern, guarded by a ref so it runs once per open).
   // This is the root-cause fix for the "fly-in": relying on a post-mount effect
   // let the panel paint once at (0,0) and then jump to the trigger. Computing
-  // here means the very first paint is already correctly placed — same as
-  // CustomSelect, which positions in its own onClick before opening.
+  // here means the very first paint is already correctly placed.
   const wasOpen = useRef(false)
   if (open && !wasOpen.current) {
     wasOpen.current = true
@@ -254,6 +253,7 @@ export function AreaFilter({
               value={provCode}
               onChange={(c) => { setProvCode(c); setWardCode('') }}
               options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
+              label={tr('Province / City', 'Tỉnh / Thành phố')}
               placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
               className={FIELD}
               activeClassName={FIELD}
@@ -268,6 +268,7 @@ export function AreaFilter({
                 value={wardCode}
                 onChange={setWardCode}
                 options={wards.map((w) => ({ value: w.code, label: label(w) }))}
+                label={tr('Ward / Commune', 'Phường / Xã')}
                 placeholder={tr('Select Ward/Commune', 'Chọn Phường/Xã')}
                 className={FIELD}
                 activeClassName={FIELD}
@@ -399,6 +400,7 @@ export function WardPicker({ onPick, className }: { onPick: (v: { province: Geo 
             onPick({ province: toGeo(provinces.find((p) => p.code === c)), ward: null })
           }}
           options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
+          label={tr('Province / City', 'Tỉnh / Thành phố')}
           placeholder={tr('Province/City', 'Tỉnh/Thành phố')}
           className={FIELD}
           activeClassName={FIELD}
@@ -415,6 +417,7 @@ export function WardPicker({ onPick, className }: { onPick: (v: { province: Geo 
               onPick({ province: toGeo(provinces.find((p) => p.code === provCode)), ward: toGeo(wards.find((w) => w.code === c)) })
             }}
             options={wards.map((w) => ({ value: w.code, label: label(w) }))}
+            label={tr('Ward / Commune', 'Phường / Xã')}
             placeholder={tr('Ward/Commune', 'Phường/Xã')}
             className={FIELD}
             activeClassName={FIELD}

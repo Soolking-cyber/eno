@@ -18,12 +18,16 @@ import { AccountMenu } from './account-menu'
 import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
-import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
+import { SearchSuggest, buildSuggestItems, suggestOptionId, type SuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
 import { useTrendingSearches } from '@/hooks/use-trending-searches'
 import { AISearchButton } from './ai-concierge'
 import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
 import { toast } from 'sonner'
+
+// The typeahead listbox this bar owns. Static (one Header per page), and distinct
+// from the hero bar's so both can be in the DOM at once without id collisions.
+const SUGGEST_ID = 'header-search-suggest'
 
 export function Header() {
   const { t, tr, lang } = useLanguage()
@@ -98,6 +102,14 @@ export function Header() {
   const suggestItems = buildSuggestItems(searchVal, live.brands, live.categories, live.listings)
   const [activeIdx, setActiveIdx] = useState(-1)
   useEffect(() => { setActiveIdx(-1) }, [searchVal])
+  // DOM focus stays in the input while the arrows move `activeIdx`, so there is no
+  // focus event to announce the highlighted row. aria-activedescendant IS that
+  // announcement — it points the screen reader's "virtual focus" at the option the
+  // highlight is on. Bounds-checked because a dangling id would announce nothing at
+  // all, which is the exact failure we're fixing.
+  const activeOptionId = instantOpen && activeIdx >= 0 && activeIdx < suggestItems.length
+    ? suggestOptionId(SUGGEST_ID, activeIdx)
+    : undefined
 
   const pickSuggest = (it: SuggestItem) => {
     setShowSuggestions(false)
@@ -253,6 +265,16 @@ export function Header() {
                 tabIndex={pathname && /^\/messages\/.+/.test(pathname) ? -1 : undefined}
                 placeholder={tr('Find products…', 'Tìm sản phẩm…')}
                 aria-label={tr('Search', 'Tìm kiếm')}
+                // Combobox semantics for the typeahead the arrow keys already drive.
+                // aria-expanded/-controls track `instantOpen` ONLY — the empty-focus
+                // panel (recents/locations/trending) is not this listbox, and claiming
+                // it is would point aria-controls at an element that isn't rendered.
+                // Its chips are real, focusable buttons and are announced on their own.
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={instantOpen}
+                aria-controls={instantOpen ? SUGGEST_ID : undefined}
+                aria-activedescendant={activeOptionId}
                 className="min-w-0 flex-1 bg-transparent py-3 pl-2 pr-2 text-base text-foreground outline-none placeholder:text-ink-4"
               />
               {/* Clear — appears once there's text, left of the location picker. */}
@@ -346,6 +368,7 @@ export function Header() {
                   loading={live.loading}
                   query={searchVal}
                   activeIndex={activeIdx}
+                  listboxId={SUGGEST_ID}
                   onPick={pickSuggest}
                   onSubmitQuery={() => { submitSearch(searchVal); setShowSuggestions(false) }}
                 />

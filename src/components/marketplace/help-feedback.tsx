@@ -9,12 +9,19 @@ import { Textarea } from '@/components/ui/textarea'
 
 // Hoisted to module scope so it keeps a stable component identity across the parent's
 // re-renders — a component created inside render remounts its subtree on every keystroke.
+//
+// `active` used to be spent ENTIRELY on className: the selected toggle was blue and reported
+// nothing, so a screen reader heard two identical buttons and could not tell which kind of message
+// it was about to send. aria-pressed puts the state in the accessibility tree. (aria-pressed, not
+// role="radio": these two are a pair of toggle buttons, and the group is titled by the form around
+// them — there is no separate radiogroup label to hang.)
 function Toggle({ label, Icon, active, onSelect }: { label: string; Icon: typeof Wrench; active: boolean; onSelect: () => void }) {
   return (
     <Button
       variant="bare"
       size="none"
       type="button"
+      aria-pressed={active}
       onClick={onSelect}
       className={
         'gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer ' +

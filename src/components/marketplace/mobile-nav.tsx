@@ -115,13 +115,30 @@ export function MobileNav() {
   // are device-local), so they're never gated.
   const gate = !loading && !user
 
+  // translate-y-full + opacity-0 + pointer-events-none slide the bar out of SIGHT, but not out of
+  // the TAB ORDER or the accessibility tree — a keyboard user could tab straight into five invisible,
+  // off-screen tabs. `inert` removes the whole subtree from focus, pointer and a11y in one go, and it
+  // has to sit on the <nav>, not the tabs, because the focusable elements are the descendants.
+  //
+  // ⚠️ NO aria-hidden HERE, and that is deliberate — it is NOT a safe fallback for engines without
+  // `inert`. aria-hidden removes a subtree from the accessibility tree but does NOT remove anything
+  // from the tab order. So on an engine without inert (older Android WebView, the Zalo and Facebook
+  // in-app browsers — a real slice of VN traffic), the seven links stay tabbable AND become invisible
+  // to AT: the user lands focus on a control that announces nothing. That is strictly worse than the
+  // bug it was meant to patch, and it is the aria-hidden-focus violation by definition. Where `inert`
+  // IS supported it already hides the subtree from AT, so aria-hidden buys nothing there either.
+  // (back-to-top.tsx can pair aria-hidden with tabIndex={-1} because it is a SINGLE button; here the
+  // focusable nodes are descendants, so there is no one element to make untabbable.)
+  const off = hidden || keyboardOpen
+
   return (
     <nav
+      inert={off}
       className={cn(
         'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style: slide DOWN off-screen + fade out at the same rate on scroll-down;
         // slide up + fade in on scroll-up. Also drop it while the keyboard is open.
-        hidden || keyboardOpen ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100',
+        off ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100',
       )}
     >
       {/* Fixed 64px tab row; the safe-area padding sits BELOW it (filled white) so

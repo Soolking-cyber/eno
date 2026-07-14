@@ -14,6 +14,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FieldControl } from '@/components/ui/field'
+import { RadioGroup, Radio } from '@/components/ui/radio-group'
 import { haptic } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -885,20 +886,28 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           <Section id="pw-category" title={t('Danh mục', 'Category')} hint={t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
             {showRentToggle && (
               <Field group label={t('Bán hay cho thuê?', 'For sale or for rent?')}>
-                <div className="inline-flex rounded-xl bg-tint p-1">
+                {/* Single-select and mutually exclusive = a radio group, not two buttons that
+                    happen to paint one of themselves blue. The RadioGroup carries its own
+                    aria-label because Field's `group` wrapper labels a role="group", which cannot
+                    name the radiogroup nested inside it. `switchIntent` already early-returns when
+                    `to === intent`, which is exactly the radio contract (re-selecting the checked
+                    option fires nothing) — so the swap is behaviour-for-behaviour identical. */}
+                <RadioGroup
+                  value={intent}
+                  onValueChange={(v) => switchIntent(v as 'sell' | 'rent')}
+                  aria-label={t('Bán hay cho thuê?', 'For sale or for rent?')}
+                  className="inline-flex rounded-xl bg-tint p-1"
+                >
                   {(['sell', 'rent'] as const).map((v) => (
-                    <Button
+                    <Radio
                       key={v}
-                      type="button"
-                      variant="bare"
-                      size="none"
-                      onClick={() => switchIntent(v)}
-                      className={cn('rounded-lg px-4 py-1.5 text-sm font-bold transition-colors cursor-pointer', intent === v ? 'bg-primary text-white' : 'text-body hover:text-foreground')}
+                      value={v}
+                      className={cn('rounded-lg px-4 py-1.5 text-sm font-bold transition-colors', intent === v ? 'bg-primary text-white' : 'text-body hover:text-foreground')}
                     >
                       {v === 'sell' ? t('Bán', 'For sale') : t('Cho thuê', 'For rent')}
-                    </Button>
+                    </Radio>
                   ))}
-                </div>
+                </RadioGroup>
               </Field>
             )}
             {edit ? (
@@ -911,22 +920,43 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               </div>
             ) : (
               <>
-                {/* Chip grid — not labelable, so it gets Field's contract by hand. */}
+                {/* Chip grid = a RADIO GROUP: pick exactly one category. It used to be a
+                    role="group" of <Button>s whose only selected cue was `bg-primary text-white`,
+                    so assistive tech was told a category grid existed but never which category was
+                    chosen. Base UI now supplies role="radiogroup" + per-chip aria-checked, one tab
+                    stop, and arrow keys.
+                    Two things this ALSO fixes, quietly: (a) aria-invalid is not allowed on
+                    role="group" but IS supported on role="radiogroup", so the error state finally
+                    reports legally; (b) re-clicking the ALREADY-selected chip no longer re-runs
+                    chooseCategory(), which used to wipe the user's subcategory/brand/attrs.
+                    Layout is untouched — RadioGroup renders the same <div> with the same classes. */}
+                {/* ⚠️ DELIBERATELY NOT A RadioGroup — do not "upgrade" this to one.
+                    It was briefly made a Base UI RadioGroup for the aria-checked win, and that was a
+                    DATA-LOSS BUG. Base UI radios use SELECTION-FOLLOWS-FOCUS (RadioGroup.js:190 marks
+                    any Arrow key as touched; the newly-focused RadioRoot.js:151 onFocus fires
+                    inputRef.click() → onValueChange). And selecting a category here is DESTRUCTIVE:
+                    chooseCategory() wipes subcategory, attrs, ranges, condition, brand and model.
+                    So a keyboard user who had filled the form, tabbed back to the category chips and
+                    pressed ONE arrow key just to look at the options would silently lose all of it,
+                    with no undo. Radio semantics assume selecting is cheap. Here it is not.
+                    Toggle semantics are the honest model: aria-pressed announces the selected chip,
+                    and a chip only fires when you deliberately activate it. facet-bar's segmented
+                    chips are aria-pressed for the same reason. */}
                 <div
                   role="group"
                   aria-label={t('Danh mục', 'Category')}
-                  aria-invalid={err.category ? true : undefined}
                   aria-describedby={err.category ? 'pw-category-error' : undefined}
                   className={cn('flex flex-wrap gap-2 rounded-xl transition-colors', err.category && 'p-2 -m-2 ring-2 ring-destructive/60')}
                 >
                   {categories.map((c) => (
                     <Button
                       key={c.id}
-                      type="button"
                       variant="bare"
                       size="none"
+                      type="button"
+                      aria-pressed={categorySlug === c.slug}
                       onClick={() => chooseCategory(c.slug)}
-                      className={cn('gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
+                      className={cn('gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
                     >
                       <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')} />
                       {tr(c.name, c.nameVi)}

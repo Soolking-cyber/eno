@@ -7,6 +7,7 @@ import { Flag, Loader2, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'
+import { RadioGroup, Radio, RadioDot } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
@@ -154,25 +155,39 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <div className="space-y-1.5">
+              {/* A REAL radio group. These reasons are mutually exclusive and used to be
+                  <Button>s with a hand-drawn circle: it LOOKED like a radio and reported
+                  nothing — no group, no aria-checked, no "3 of 7", no arrow keys, and seven
+                  separate tab stops. ui/radio-group is Base UI's, so the circle (RadioDot) is
+                  now the RadioIndicator and the selected state lives in the accessibility tree
+                  rather than only in paint. Visually identical — same classes, same circle. */}
+              <RadioGroup
+                value={reason}
+                onValueChange={setReason}
+                aria-label={t('Reason', 'Lý do')}
+                // ⚠️ `flex flex-col gap-1.5`, NOT `space-y-1.5`. Base UI's Radio.Root renders the
+                // <span role="radio"> AND a hidden <input> as SIBLINGS, so this group has 14 children,
+                // not 7 — and the LAST one is a hidden input. Tailwind v4 compiles space-y-* to
+                // `> :not(:last-child)`, so the 7th visible row stops being :last-child and picks up a
+                // 6px margin it never had. A flex `gap` only applies between in-flow items, and the
+                // hidden inputs are position:fixed — so it produces exactly the original 6 gaps and is
+                // immune to the shift.
+                className="flex flex-col gap-1.5"
+              >
                 {reasons.map((r) => (
-                  <Button
+                  <Radio
                     key={r.value}
-                    variant="bare"
-                    size="none"
-                    onClick={() => setReason(r.value)}
+                    value={r.value}
                     className={cn(
-                      'flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border px-3 py-2.5 text-left text-sm font-normal transition-colors cursor-pointer',
+                      'flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border px-3 py-2.5 text-left text-sm font-normal transition-colors',
                       reason === r.value ? 'border-brand font-semibold text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
                     )}
                   >
-                    <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', reason === r.value ? 'border-brand' : 'border-line-strong')}>
-                      {reason === r.value && <span className="h-2 w-2 rounded-full bg-primary" />}
-                    </span>
+                    <RadioDot />
                     {t(r.en, r.vi)}
-                  </Button>
+                  </Radio>
                 ))}
-              </div>
+              </RadioGroup>
 
               <Textarea
                 variant="filled"

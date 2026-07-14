@@ -27,6 +27,7 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         value={lang}
         onChange={(v) => setLang(v as typeof lang)}
         options={LANGUAGES.map((l) => ({ value: l.code, label: l.native }))}
+        label={tr('Language', 'Ngôn ngữ')}
         triggerLabel={compact ? code : undefined}
         wrapperClassName={compact ? 'shrink-0' : 'min-w-0 flex-1'}
         className="text-body hover:bg-muted"
@@ -36,6 +37,7 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         value={currency}
         onChange={setCurrency}
         options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol}  ${c.label}` }))}
+        label={tr('Display currency', 'Tiền tệ hiển thị')}
         triggerLabel={compact ? curSymbol : undefined}
         wrapperClassName={compact ? 'shrink-0' : 'min-w-0 flex-1'}
         className="text-body hover:bg-muted"

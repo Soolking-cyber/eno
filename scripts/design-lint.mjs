@@ -84,6 +84,57 @@ for (const e of RAW_CONTROL_ALLOW) {
   RAW_ALLOW_MAP.get(e.file).push(e.match)
 }
 
+// ── THE POPUP GATE ────────────────────────────────────────────────────────────────
+// The raw-control gate above asks "which primitive is this control?". It cannot ask the OTHER
+// question: "did you hand-roll a WIDGET out of other primitives?" That blind spot is exactly how
+// `custom-select.tsx` survived the whole sweep — a select built from <Button>s and createPortal,
+// used at 17 call sites across the entire browse UI, with ONE aria attribute in the file: no
+// role=combobox, no listbox, no aria-selected, no arrow keys, and no focus management, so Tab from
+// the trigger walked out of the menu and into the rest of the page. It passed design-lint every
+// single time, because every element in it was already a "correct" primitive.
+//
+// createPortal is the tell. A floating layer anchored to a trigger is a POPUP, and a popup is a
+// primitive's job: ui/select, ui/popover, ui/dropdown-menu, ui/dialog, ui/sheet. Base UI's versions
+// bring the roles, the roving focus, the typeahead, Escape, focus return and the anchoring — all of
+// which a hand-roll re-implements badly or, as here, not at all.
+//
+// A portal that is NOT an anchored popup (a fullscreen takeover, a fixed affordance) is fine — it
+// just has to say so here.
+const PORTAL_ALLOW = [
+  { file: 'src/components/marketplace/listings-video-feed.tsx', reason: 'fullscreen TikTok-style video takeover — a page-level layer, not a popup anchored to a trigger' },
+  { file: 'src/components/marketplace/back-to-top.tsx', reason: 'a fixed affordance portaled above the panel stack — no trigger, no anchoring, nothing to focus-manage' },
+
+  // ⚠️ DEBT, not approval. These four are hand-rolled ANCHORED POPUPS and should become ui/popover.
+  // Each re-implements getBoundingClientRect anchoring + an outside-click backdrop by hand, and each
+  // is missing some of: aria-expanded/haspopup/controls on the trigger, Escape, focus move on open,
+  // focus return on close. They are listed so they cannot multiply — not because they are correct.
+  { file: 'src/components/marketplace/facet-bar.tsx', reason: 'DEBT: hand-rolled advanced-filter panel; role=dialog + Escape + focus-return were added by hand — should be ui/popover' },
+  { file: 'src/components/marketplace/area-filter.tsx', reason: 'DEBT: hand-rolled province/ward panel — should be ui/popover' },
+  { file: 'src/components/marketplace/price-range-filter.tsx', reason: 'DEBT: hand-rolled price popover — should be ui/popover' },
+  { file: 'src/components/marketplace/more-overflow.tsx', reason: 'DEBT: hand-rolled overflow menu — should be ui/dropdown-menu' },
+]
+const PORTAL_ALLOW_SET = new Set(PORTAL_ALLOW.map((e) => e.file))
+
+function checkPortals(rel, codeLines, rawLines) {
+  if (rel.startsWith('src/components/ui/')) return 0
+  if (PORTAL_ALLOW_SET.has(rel)) return 0
+  let n = 0
+  codeLines.forEach((line, i) => {
+    if (rawLines[i]?.includes('design-lint-allow')) return
+    if (!/\bcreatePortal\s*\(/.test(line)) return
+    n++
+    console.error(
+      `${rel}:${i + 1}  createPortal  — a hand-rolled popup. A floating layer anchored to a trigger is a ` +
+        `PRIMITIVE's job (ui/select · ui/popover · ui/dropdown-menu · ui/dialog · ui/sheet) — they bring the ` +
+        `roles, roving focus, typeahead, Escape and focus-return that a hand-roll silently omits. This is the ` +
+        `gap that let custom-select.tsx ship a 17-call-site select with no combobox/listbox/option roles at ` +
+        `all. If this portal is genuinely NOT an anchored popup (a fullscreen takeover, a fixed affordance), ` +
+        `add it to PORTAL_ALLOW in this file WITH A REASON.`,
+    )
+  })
+  return n
+}
+
 // Files allowed to use a raw Tailwind palette colour. Keep this list SHORT and justified —
 // every entry is a surface that will not adapt in dark mode.
 const PALETTE_ALLOW = new Set([])
@@ -179,6 +230,7 @@ for (const file of walk(SRC)) {
   const rawLines = raw.split('\n')
   const lines = code.split('\n')
   violations += checkRawControls(rel, lines, rawLines)
+  violations += checkPortals(rel, lines, rawLines)
   for (const rule of RULES) {
     if (rule.allow?.has(rel)) continue
     // `raw` rules match across newlines against the ORIGINAL source (a JSX comment is

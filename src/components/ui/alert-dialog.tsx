@@ -141,14 +141,46 @@ function AlertDialogDescription({
   )
 }
 
+/**
+ * The confirming button. Renders through AlertDialogPrimitive.Close, so an UNCONTROLLED
+ * <AlertDialog> actually closes when you confirm — as a plain <Button> it never did, and
+ * every current caller only looked correct because it closed the dialog itself.
+ *
+ * ASYNC ACTIONS still work. Base UI runs OUR onClick before its own close handler and
+ * skips that handler if we call `event.preventBaseUIHandler()` synchronously
+ * (see mergeProps → mergeEventHandlers). So if the handler returns a thenable — i.e. it
+ * awaits, and wants to render its pending/error state INSIDE the still-open dialog, then
+ * close on its own terms — we hold the dialog open. A void handler closes immediately,
+ * which is what a confirm button should do.
+ *
+ * `closeOnClick` overrides the inference in either direction.
+ */
 function AlertDialogAction({
   className,
+  variant,
+  size,
+  onClick,
+  closeOnClick,
   ...props
-}: React.ComponentProps<typeof Button>) {
+}: AlertDialogPrimitive.Close.Props &
+  Pick<React.ComponentProps<typeof Button>, "variant" | "size"> & {
+    closeOnClick?: boolean
+  }) {
   return (
-    <Button
+    <AlertDialogPrimitive.Close
       data-slot="alert-dialog-action"
       className={cn(className)}
+      render={<Button variant={variant} size={size} />}
+      onClick={(event) => {
+        const result = onClick?.(event) as unknown
+        const isAsync =
+          typeof (result as PromiseLike<unknown> | undefined)?.then === "function"
+        if (closeOnClick === false || (closeOnClick === undefined && isAsync)) {
+          // Must be synchronous: Base UI checks the flag the moment our handler returns.
+          event.preventBaseUIHandler()
+        }
+        return result
+      }}
       {...props}
     />
   )

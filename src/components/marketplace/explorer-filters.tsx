@@ -89,6 +89,7 @@ export function ExplorerFilters({
                 { value: 'automatic', label: tr('Automatic', 'Xe ga (Automatic)') },
                 { value: 'manual', label: tr('Manual / Semi-Auto', 'Xe số / Côn tay') },
               ]}
+              label={tr('Transmission', 'Hộp số')}
               placeholder={tr('Transmission', 'Hộp số')}
               activeClassName="text-accent-foreground border-accent-foreground/35"
             />
@@ -107,6 +108,7 @@ export function ExplorerFilters({
                 { value: '110-125', label: '110cc - 125cc' },
                 { value: '150-up', label: '150cc+' },
               ]}
+              label={tr('Engine Size', 'Phân khối')}
               placeholder={tr('Engine Size', 'Phân khối')}
               activeClassName="text-accent-foreground border-accent-foreground/35"
             />
@@ -133,6 +135,7 @@ export function ExplorerFilters({
                 { value: '2', label: tr('2 Bedrooms', '2 Phòng ngủ') },
                 { value: '3', label: tr('3+ Bedrooms', '3+ Phòng ngủ') },
               ]}
+              label={tr('Bedrooms', 'Số phòng ngủ')}
               placeholder={tr('Bedrooms', 'Số phòng ngủ')}
               activeClassName="text-accent-foreground border-accent-foreground/35"
             />
@@ -151,6 +154,7 @@ export function ExplorerFilters({
                 { value: 'fully', label: tr('Fully Furnished', 'Đầy đủ nội thất') },
                 { value: 'partly', label: tr('Partially / Unfurnished', 'Đồ cơ bản / Trống') },
               ]}
+              label={tr('Furnishing', 'Nội thất')}
               placeholder={tr('Furnishing', 'Nội thất')}
               activeClassName="text-accent-foreground border-accent-foreground/35"
             />
@@ -175,6 +179,7 @@ export function ExplorerFilters({
                 { value: 'wood', label: tr('Wood (Oak/Teak)', 'Gỗ tự nhiên (Oak/Teak)') },
                 { value: 'fabric', label: tr('Fabric / Cushion', 'Vải bọc / Nệm') },
               ]}
+              label={tr('Material', 'Chất liệu')}
               placeholder={tr('Material', 'Chất liệu')}
               activeClassName="text-accent-foreground border-accent-foreground/35"
             />
@@ -199,6 +204,7 @@ export function ExplorerFilters({
                 { value: 'apple', label: 'Apple (iPhone/Mac/iPad)' },
                 { value: 'sony', label: 'Sony (Audio/Camera)' },
               ]}
+              label={tr('Brand', 'Thương hiệu')}
               placeholder={tr('Brand', 'Thương hiệu')}
               activeClassName="text-accent-foreground border-accent-foreground/35"
             />
@@ -216,6 +222,7 @@ export function ExplorerFilters({
                 { value: 'all', label: tr('All Warranty', 'Tất cả bảo hành') },
                 { value: 'yes', label: tr('Under Active Warranty', 'Còn bảo hành hãng') },
               ]}
+              label={tr('Warranty', 'Bảo hành')}
               placeholder={tr('Warranty', 'Bảo hành')}
               activeClassName="text-accent-foreground border-accent-foreground/35"
             />
@@ -239,6 +246,7 @@ export function ExplorerFilters({
                 { value: 'all', label: tr('Any Level', 'Bất kỳ mức độ nào') },
                 { value: 'required', label: tr('English Required', 'Yêu cầu tiếng Anh') },
               ]}
+              label={tr('English Requirement', 'Tiếng Anh')}
               placeholder={tr('English Requirement', 'Tiếng Anh')}
               activeClassName="text-accent-foreground border-accent-foreground/35"
             />
@@ -361,6 +369,7 @@ export function ExplorerFilters({
           value={activeDistrict}
           onChange={setActiveDistrict}
           options={DISTRICTS.map(d => ({ value: d.slug, label: lang === 'vi' ? d.name : d.nameEn }))}
+          label={tr('District / Commune', 'Quận / Huyện')}
           placeholder={tr('Select District', 'Chọn Quận / Huyện')}
           activeClassName="text-accent-foreground border-accent-foreground/35"
         />
@@ -421,9 +430,8 @@ export function ExplorerFiltersDrawer({
       open={open}
       onOpenChange={(next, details) => {
         // The hand-rolled shell never closed on Escape — that key belongs to the
-        // CustomSelect menus (their own document-level listener closes just the
-        // open menu). Letting the drawer react too would collapse menu + drawer
-        // on a single press.
+        // CustomSelect menus (Base UI Select dismisses the open menu on Escape).
+        // Letting the drawer react too would collapse menu + drawer on one press.
         if (!next && details.reason === 'escape-key') return
         onOpenChange(next)
       }}

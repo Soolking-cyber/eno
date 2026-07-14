@@ -77,6 +77,16 @@ export function BackToTop() {
           size="none"
           type="button"
           aria-label="Back to top"
+          // opacity-0 + pointer-events-none hides this from the MOUSE only: none of the
+          // three classes below removes the button from the TAB ORDER or the accessibility
+          // tree, so a keyboard user used to tab into an invisible "Back to top". `inert`
+          // is the one lever that removes all three (focus, pointer, a11y tree);
+          // aria-hidden + tabIndex=-1 are the fallback for browsers without it.
+          // NOT `hidden`/display:none — the slot must keep its size so the "?" below never
+          // shifts as this fades in.
+          inert={!show}
+          aria-hidden={!show || undefined}
+          tabIndex={show ? undefined : -1}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className={cn(
             'relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-90 tap-44',

@@ -80,10 +80,24 @@ function SelectContent({
         alignItemWithTrigger={alignItemWithTrigger}
         className="isolate z-50"
       >
+        {/* Item-alignment mode must not animate: the popup opens ALREADY overlapping the
+            trigger, so a zoom/slide reads as a glitch. The old gate was `data-align-trigger`,
+            a mirror of the REQUESTED prop — but Base UI falls back to normal side-anchoring
+            on touch, or when the list can't fit (SelectPopup calls setControlledAlignItemWithTrigger(false)),
+            and the mirrored attribute kept claiming "true" through the fallback. The real
+            signal is the Positioner's own `data-side="none"` (renderedSide === 'none' iff
+            alignItemWithTriggerActive), which the Popup re-emits from its state.
+            The old override also RACED: an animate-none keyed on the align-trigger attribute
+            shared no modifier with the open/animate-in rule, so cn() kept both at equal
+            specificity and stylesheet order picked the winner. Gating the animate-in and
+            animate-out utilities themselves leaves exactly one animation rule on the popup,
+            so there is nothing left to race. The fade, zoom and slide utilities only set the
+            keyframes' custom properties, so they are inert with no animation running.
+            (Don't spell a full utility candidate in this comment: Tailwind scans raw TEXT,
+            so a class name written here is emitted into the bundle even if nothing uses it.) */}
         <SelectPrimitive.Popup
           data-slot="select-content"
-          data-align-trigger={alignItemWithTrigger}
-          className={cn("relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95", className )}
+          className={cn("relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 not-data-[side=none]:data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 not-data-[side=none]:data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95", className )}
           {...props}
         >
           <SelectScrollUpButton />
