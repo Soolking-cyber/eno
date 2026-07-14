@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -63,22 +64,37 @@ export function ShareButton({ url, title, price, currency, className, compact = 
       {/* Base UI supplies toggle-on-click + aria-expanded/haspopup on the rendered button. */}
       <PopoverTrigger
         render={
-          <button
-            type="button"
-            aria-label={tr('Share', 'Chia sẻ')}
-            className={cn(
-              // compact: icon-only circle for overlaying media (mirrors SaveListingButton's
-              // compact mode) — sized/tinted for the gallery's top-right corner.
-              compact
-                ? 'flex h-9 w-9 items-center justify-center rounded-full bg-card/80 backdrop-blur transition-colors cursor-pointer active:scale-95 tap-44 relative'
-                : 'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95 tap-44 relative',
-              open ? (compact ? 'text-accent-foreground' : 'bg-accent text-accent-foreground') : compact ? 'text-body' : 'text-body hover:bg-muted',
-              className,
-            )}
-          >
-            <Share2 className="h-4 w-4" />
-            {!compact && <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>}
-          </button>
+          // compact: icon-only circle for overlaying media (mirrors SaveListingButton's
+          // compact mode) — sized/tinted for the gallery's top-right corner. That shell IS
+          // <IconButton size="md">, so use the primitive. The labelled (non-compact) variant
+          // is a padded pill with text, NOT an icon button — IconButton's h-9 w-9 box would
+          // squeeze the label, so it stays a plain button.
+          compact ? (
+            <IconButton
+              size="md"
+              aria-label={tr('Share', 'Chia sẻ')}
+              className={cn(
+                'bg-card/80 backdrop-blur transition-colors active:scale-95',
+                open ? 'text-accent-foreground' : 'text-body',
+                className,
+              )}
+            >
+              <Share2 className="h-4 w-4" />
+            </IconButton>
+          ) : (
+            <button
+              type="button"
+              aria-label={tr('Share', 'Chia sẻ')}
+              className={cn(
+                'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95 tap-44 relative',
+                open ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted',
+                className,
+              )}
+            >
+              <Share2 className="h-4 w-4" />
+              <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>
+            </button>
+          )
         }
       />
 

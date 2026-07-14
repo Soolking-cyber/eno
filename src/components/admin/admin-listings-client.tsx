@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -171,7 +172,7 @@ export function AdminListingsClient() {
         cell: ({ row }) => (
           <div className="flex justify-end">
             <DropdownMenu>
-              <DropdownMenuTrigger render={<button aria-label="More actions" className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-4 transition-colors hover:bg-muted hover:text-foreground" />}>
+              <DropdownMenuTrigger render={<IconButton size="xs" tapTarget={false} aria-label="More actions" className="rounded-lg text-ink-4 transition-colors hover:bg-muted hover:text-foreground" />}>
                 <MoreHorizontal className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">

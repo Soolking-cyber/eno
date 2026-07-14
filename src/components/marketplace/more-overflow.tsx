@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 /** A "More +N" chip that reveals overflow items in a dropdown — opens on HOVER on
@@ -49,7 +50,9 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
 
   return (
     <>
-      <button
+      <Button
+        variant="bare"
+        size="none"
         ref={btnRef}
         type="button"
         onClick={() => (open ? setOpen(false) : show())}
@@ -58,14 +61,17 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
         aria-haspopup="menu"
         aria-expanded={open}
         className={cn(
-          'inline-flex w-full shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1 text-sm font-semibold transition-colors cursor-pointer tap-44 relative',
+          // active:scale-100 is load-bearing: this button is the popover anchor and
+          // place() reads its getBoundingClientRect() — a press transform would move it.
+          // justify-start likewise: the chip is w-full and its label must stay left-aligned.
+          'inline-flex w-full shrink-0 items-center justify-start gap-1 whitespace-nowrap rounded-lg px-2.5 py-1 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer tap-44 relative',
           open ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground',
         )}
       >
         {label || tr('More', 'Thêm')}
         <span className="text-2xs font-bold text-ink-4">+{count}</span>
         <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
-      </button>
+      </Button>
       {open && pos && createPortal(
         <div
           ref={panelRef}

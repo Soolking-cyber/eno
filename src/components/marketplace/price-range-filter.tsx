@@ -156,18 +156,22 @@ export function PriceRangeFilter({
 
   return (
     <div className={cn('relative', wrapperClassName)}>
-      <button
+      <Button
+        variant="bare"
+        size="none"
         ref={triggerRef}
         type="button"
         onClick={() => { if (!open) place(); setOpen((o) => !o) }}
         className={cn(
-          'flex w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer',
+          // active:scale-100 is load-bearing: this button is the popover anchor and
+          // place() reads its getBoundingClientRect() — a press transform would move it.
+          'flex w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer',
           open ? 'text-foreground' : active ? activeClassName : className,
         )}
       >
         <span className="truncate">{triggerText}</span>
         <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', open && 'rotate-180')} />
-      </button>
+      </Button>
 
       {mounted && open && createPortal(
         <>

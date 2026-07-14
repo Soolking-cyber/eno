@@ -154,8 +154,13 @@ export function FacetBar({
 
   // Area / location — to the RIGHT of price (it was awkwardly leading the bar).
   facets.push(
-    <button
+    <Button
       key="area"
+      variant="bare"
+      size="none"
+      // Load-bearing ref: <AreaFilter anchorRef> reads this node's rect to place the
+      // popover. Base UI's Button forwards its ref onto the real <button>, so the
+      // anchor survives the primitive — do not swap this for a render-prop child.
       ref={areaBtnRef}
       type="button"
       onClick={() => setAreaOpen((o) => !o)}
@@ -170,7 +175,7 @@ export function FacetBar({
         <span className="truncate">{areaLabel}</span>
       </span>
       <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', areaOpen && 'rotate-180')} />
-    </button>,
+    </Button>,
   )
 
   // All category facets live in the advanced "Filter" panel — a real per-category
@@ -209,12 +214,17 @@ export function FacetBar({
       <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
         {/* Advanced per-category filter form — leftmost. Only when the category has facets. */}
         {hasAdvanced && (
-          <button
+          <Button
+            variant="bare"
+            size="none"
+            // Load-bearing ref: the portaled advanced panel is positioned from this
+            // node's getBoundingClientRect() (see the `place()` effect above). Base UI's
+            // Button forwards its ref onto the real <button>, so the anchor survives.
             ref={advBtnRef}
             type="button"
             onClick={() => setAdvOpen((o) => !o)}
             className={cn(
-              'flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-95 cursor-pointer',
+              'flex shrink-0 items-center justify-start gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-95 cursor-pointer',
               advOpen || activeAdvCount > 0 ? active : 'text-body hover:bg-muted',
             )}
           >
@@ -224,7 +234,7 @@ export function FacetBar({
               <Badge variant="counter-brand" size="count" className="ml-0.5">{activeAdvCount}</Badge>
             )}
             <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', advOpen && 'rotate-180')} />
-          </button>
+          </Button>
         )}
         {facets}
         {hasActive && (

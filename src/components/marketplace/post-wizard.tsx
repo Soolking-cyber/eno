@@ -1063,18 +1063,37 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           {/* Location */}
           <Section id="pw-location" title={t('Khu vực', 'Location')}>
             <div className="flex max-w-md items-center gap-2">
-              <button
+              <Button
+                variant="bare"
+                size="none"
                 type="button"
                 ref={areaBtnRef}
                 onClick={() => setAreaOpen((o) => !o)}
-                className={cn('flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm text-left transition-colors hover:bg-muted', err.location && 'ring-2 ring-destructive/60')}
+                className={cn(
+                  // POPOVER ANCHOR. AreaFilter's reposition() reads this button's
+                  // getBoundingClientRect() during the render that opens the panel, so three
+                  // base classes have to be cancelled here or the panel lands wrong / the
+                  // control changes weight:
+                  //   active:scale-100 — the base active:scale-[0.97] shrinks the rect mid-press,
+                  //     and the open-render happens while the button is still :active. Same
+                  //     load-bearing guard as price-range-filter's trigger.
+                  //   font-normal — the placeholder span below has NO weight of its own, so the
+                  //     base font-medium would inherit into it and bold it 400→500. (The
+                  //     picked-area span carries its own font-medium and is unaffected.)
+                  //   shrink — flex-1 and shrink-0 are different tailwind-merge groups, so the
+                  //     base's shrink-0 survives twMerge and beats flex-1's flex-shrink:1 on
+                  //     stylesheet order. `shrink` is the same group, so it wins and restores it.
+                  // duration-150 restores the default transition time the base's duration-100 cuts.
+                  'flex min-w-0 flex-1 shrink items-center justify-between gap-2 rounded-xl bg-tint px-3.5 py-3 text-sm font-normal text-left transition-colors duration-150 active:scale-100 hover:bg-muted',
+                  err.location && 'ring-2 ring-destructive/60',
+                )}
               >
                 <span className={cn('flex min-w-0 items-center gap-2', areaLabel ? 'text-foreground font-medium' : 'text-ink-4')}>
                   <MapPin className="h-4 w-4 shrink-0 text-accent-foreground" />
                   <span className="truncate">{areaLabel || t('Chọn khu vực', 'Set area')}</span>
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-ink-4" />
-              </button>
+              </Button>
               {/* Quick "use my current location" */}
               <IconButton
                 size="lg"

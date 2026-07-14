@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronsUpDown, Check } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface CustomSelectProps {
@@ -64,14 +65,33 @@ export function CustomSelect({
 
   return (
     <div ref={containerRef} className={cn('relative', wrapperClassName ?? 'w-full')}>
-      <button
+      {/* ui/button (variant="bare" size="none") owns nothing but focus ring + icon rule
+          here; the box, colours and radius stay exactly as hand-rolled. Three base
+          classes are deliberately neutralised in the className below:
+            · gap-2      → gap-0   (the children carry their own margins: the label
+                                    group has gap-1.5, the chevron has ml-1.5)
+            · font-medium→ font-semibold, justify-center → justify-between, inline-flex
+                           → flex, transition-all → transition-colors (all via cn/twMerge)
+            · active:scale-[0.97] → active:scale-100. This trigger is a POPOVER ANCHOR:
+                           reposition() reads getBoundingClientRect() on click and on
+                           every scroll while open, and a transform scales that rect —
+                           a pressed trigger would anchor the menu off by ~3%. It also
+                           never had a press-scale before. Do not let the base scale back in. */}
+      <Button
         ref={triggerRef}
         type="button"
+        variant="bare"
+        size="none"
         onClick={() => { if (!isOpen) reposition(); setIsOpen((o) => !o) }}
         className={cn(
-          'flex w-full items-center justify-between px-3.5 py-2 text-sm font-semibold outline-none transition-colors cursor-pointer',
+          'flex w-full items-center justify-between gap-0 px-3.5 py-2 text-sm font-semibold outline-none transition-colors duration-150 cursor-pointer active:scale-100',
           // Closed: consistent rounded-xl (no more pills). Caller className may restyle.
           !isOpen && 'rounded-xl',
+          // Open: flatten. The base carries rounded-xl unconditionally, so the open
+          // state must say rounded-none out loud — and it stays BEFORE `className` so a
+          // caller that hard-sets its own radius (area-filter's FIELD) still wins, as
+          // it did when the open branch simply emitted no radius class at all.
+          isOpen && 'rounded-none',
           !isOpen && (value !== 'all' && value !== 'newest'
             ? (activeClassName ?? 'bg-accent text-accent-foreground')
             : 'text-body hover:bg-muted'), // flush at rest, color on hover (one-canvas)
@@ -87,7 +107,7 @@ export function CustomSelect({
         </span>
         {/* Select-trigger convention (shadcn/macOS): stacked chevrons = value picker. */}
         <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4" />
-      </button>
+      </Button>
 
       {isOpen && mounted && createPortal(
         <>
