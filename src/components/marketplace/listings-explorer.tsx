@@ -2002,8 +2002,11 @@ export function ListingsExplorer({
                         selectedId={hoveredId ?? focusId}
                         onHover={setHoveredId}
                         onPinOpen={(id) => {
-                          // Tapping a pin surfaces its card in the list (user decision
-                          // 2026-07-14) — scroll only on pin taps, never on hover sync.
+                          // Surface the listing's card in the list. WHEN this fires is the
+                          // map's call: desktop = on pin open (the list is a side column, so
+                          // scrolling it is free); touch = only on the first tap of the popup
+                          // card (on mobile the list is BELOW the map, so scrolling on a pin
+                          // tap would drag the page off the map — user decision 2026-07-14).
                           mapListRef.current?.querySelector(`[data-lid="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
                         }}
                         onMove={setMapCenter}

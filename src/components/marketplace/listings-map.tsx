@@ -182,12 +182,34 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   const onMoveRef = useRef(onMove)
   onMoveRef.current = onMove
 
-  const openCard = (l: SerializedListingCard, center = false) => {
+  // Hover-capable = desktop. Read live (not memoized) so a hybrid device that
+  // switches input mid-session still gets the right branch.
+  const isHoverable = () =>
+    typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+
+  // Touch two-step (user decision 2026-07-14). On mobile the feed sits BELOW the
+  // map, so scrolling it on a pin tap yanks the page off the map the user is
+  // reading. Instead: pin tap only opens the card; the FIRST tap on that card
+  // scrolls the feed to it; the second opens the listing. Desktop is unchanged
+  // (the feed is a side column — scrolling it costs the user nothing).
+  const peekedRef = useRef<string | null>(null)
+
+  const openCard = (l: SerializedListingCard, center = false, scroll = true) => {
+    if (cardIdRef.current !== l.id) peekedRef.current = null
     cardIdRef.current = l.id; setCard(l)
     if (center) recenterOnPin(l)
-    placeCardFor(l); onHover?.(l.id); onPinOpen?.(l.id)
+    placeCardFor(l); onHover?.(l.id)
+    if (scroll) onPinOpen?.(l.id)
   }
-  const closeCard = () => { cardIdRef.current = null; setCard(null); setCardPos(null); onHover?.(null) }
+  // Tap/click on the popup card itself.
+  const activateCard = (l: SerializedListingCard) => {
+    // No feed to scroll to (e.g. the listing-detail location map passes no
+    // onPinOpen) → never swallow the first tap.
+    if (!onPinOpen || isHoverable() || peekedRef.current === l.id) { onOpenListing(l); return }
+    peekedRef.current = l.id
+    onPinOpen?.(l.id) // first tap: bring its card into view in the feed below
+  }
+  const closeCard = () => { cardIdRef.current = null; peekedRef.current = null; setCard(null); setCardPos(null); onHover?.(null) }
   // Desktop hover UX: keep the card open while the cursor is over the marker OR the
   // card, and close it gracefully a beat after the cursor leaves both — so it never
   // persists over the cards behind it (and the small grace period lets the cursor
@@ -272,7 +294,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     // On hover-capable devices (desktop), HOVER reveals the card so the user can
     // browse pins fast; CLICK centres the pin and opens its card (same as touch) —
     // navigation happens by clicking the card, never straight off the pin.
-    const hoverable = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    const hoverable = isHoverable()
 
     const bounds: [number, number][] = []
     listings.forEach((l) => {
@@ -283,8 +305,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       marker.on('click', () => {
         // Click = centre the pin + show the card on EVERY input (mobile pattern
         // everywhere, user decision 2026-07-06); the card itself opens the page.
+        // On touch the pin NEVER scrolls the feed — that would drag the page off
+        // the map (see the two-step note above); the card tap does it instead.
         if (!hoverable && cardIdRef.current === l.id) onOpenListing(l) // touch: 2nd tap on the pin still opens
-        else openCard(l, true)
+        else openCard(l, true, hoverable)
       })
       marker.on('mouseover', () => { if (hoverable) { cancelClose(); openCard(l) } else { onHover?.(l.id) } })
       marker.on('mouseout', () => { if (hoverable) { scheduleClose() } else { onHover?.(null) } })
@@ -389,7 +413,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
               // Short map (listing detail) → slim horizontal card: thumb + title + price
               // + a close ✕. Fits within a ~260px-tall map without dwarfing it.
               <div className="flex items-center gap-2.5 p-2">
-                <button onClick={() => onOpenListing(card)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left cursor-pointer">
+                <button onClick={() => activateCard(card)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left cursor-pointer">
                   <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-tint">
                     {card.images[0] && (
                       <Image src={card.images[0]} alt="" fill sizes="44px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
@@ -417,7 +441,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                     <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
                   </button>
                 </div>
-                <button onClick={() => onOpenListing(card)} className="block w-full text-left cursor-pointer">
+                <button onClick={() => activateCard(card)} className="block w-full text-left cursor-pointer">
                   <div className="relative aspect-square w-full bg-tint">
                     {card.images[0] && (
                       <Image src={card.images[0]} alt="" fill sizes="280px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
