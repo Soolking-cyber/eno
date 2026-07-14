@@ -2,6 +2,8 @@
 name: authed-e2e
 description: Run the authed (seller + admin) Playwright suite against a local build — seeds ephemeral Supabase users, signs them in via admin magic-link, runs the seller/admin projects, then cleans the users up.
 disable-model-invocation: true
+model: sonnet
+effort: low
 ---
 
 # /authed-e2e — the seller + admin suite

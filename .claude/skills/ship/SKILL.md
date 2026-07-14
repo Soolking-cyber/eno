@@ -2,6 +2,8 @@
 name: ship
 description: Ship the current work to production — typecheck, design-lint, build, local guest e2e, commit, push, wait for the Vercel deploy, then re-run the guest suite against prod. Aborts on the first failure.
 disable-model-invocation: true
+model: sonnet
+effort: medium
 ---
 
 # /ship — the eno.vn release ritual
