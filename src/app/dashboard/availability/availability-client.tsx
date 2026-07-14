@@ -106,7 +106,7 @@ export function AvailabilityClient() {
           ) : filtered.map((l) => {
             const sold = soldIds.has(l.id)
             return (
-              <button key={l.id} onClick={() => toggle(l.id)} className={cn('flex w-full items-center gap-3 rounded-2xl p-2.5 text-left transition-colors', sold ? 'bg-accent' : 'hover:bg-muted')}>
+              <Button key={l.id} variant="bare" size="none" onClick={() => toggle(l.id)} className={cn('flex w-full items-center justify-start gap-3 whitespace-normal rounded-2xl p-2.5 text-left transition-colors active:scale-100 cursor-pointer', sold ? 'bg-accent' : 'hover:bg-muted')}>
                 <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-tint">
                   {l.images[0] && /* eslint-disable-next-line @next/next/no-img-element */ <img src={l.images[0]} alt="" className={cn('h-full w-full object-cover transition-opacity', sold && 'opacity-50')} loading="lazy" />}
                 </span>
@@ -117,7 +117,7 @@ export function AvailabilityClient() {
                 <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-colors', sold ? 'bg-primary text-white' : 'bg-tint text-ink-4')}>
                   {sold ? <Check className="h-4 w-4" /> : ''}
                 </span>
-              </button>
+              </Button>
             )
           })}
         </div>

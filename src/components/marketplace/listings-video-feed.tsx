@@ -13,6 +13,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLocalized } from './listing-content'
 import { Price } from './price'
 import { Spinner } from '@/components/ui/spinner'
+import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { stashQuickCompose } from '@/lib/quick-contact'
 import { optimizedImageUrl } from '@/lib/listing-image'
@@ -305,11 +306,20 @@ function VideoFeedItem({
         )}
 
         {paused && (
-          <button type="button" onClick={togglePlay} aria-label={tr('Play', 'Phát')} className="absolute inset-0 z-10 flex items-center justify-center">
+          <Button
+            variant="bare"
+            size="none"
+            onClick={togglePlay}
+            aria-label={tr('Play', 'Phát')}
+            // active:scale-100 kills the base press-scale: this button IS the video surface
+            // (absolute inset-0), so the base active:scale-[0.97] would visibly shrink the whole
+            // frame on every tap-to-play.
+            className="absolute inset-0 z-10 flex items-center justify-center active:scale-100"
+          >
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-[2px]">
               <Play className="h-8 w-8 fill-current" />
             </span>
-          </button>
+          </Button>
         )}
 
         {/* Legibility gradient. */}
@@ -318,9 +328,18 @@ function VideoFeedItem({
         {/* Info overlay — bottom-left, minimal. Tapping title / View opens the listing. pb tracks
             the safe-area inset so the CTA clears the home indicator under viewport-fit:cover. */}
         <div className="absolute inset-x-0 bottom-0 z-10 p-5 pr-16 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] text-white sm:pr-6">
-          <button type="button" onClick={() => onOpen(listing)} onMouseEnter={() => onPrefetch?.(listing.id)} className="block max-w-md text-left">
+          {/* whitespace-normal: the base is whitespace-nowrap and white-space INHERITS — without
+              it the line-clamp-2 <h3> below collapses to one unwrappable line. `block` keeps the
+              original box (the base is inline-flex). */}
+          <Button
+            variant="bare"
+            size="none"
+            onClick={() => onOpen(listing)}
+            onMouseEnter={() => onPrefetch?.(listing.id)}
+            className="block max-w-md whitespace-normal text-left"
+          >
             <h3 className="line-clamp-2 text-base font-semibold leading-snug drop-shadow sm:text-lg">{title}</h3>
-          </button>
+          </Button>
           <div className="mt-1">
             <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-xl font-bold text-white drop-shadow" />
           </div>

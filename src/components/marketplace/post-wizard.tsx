@@ -1011,19 +1011,23 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   { val: true, label: t('Có thể trả giá', 'Negotiable'), hint: t('Người mua có thể trả giá', 'Buyers can send offers') },
                   { val: false, label: t('Giá cố định', 'Fixed price'), hint: t('Không nhận trả giá', 'No offers — ask & buy directly') },
                 ].map((opt) => (
-                  <button
+                  <Button
                     key={String(opt.val)}
                     type="button"
+                    variant="bare"
+                    size="none"
                     onClick={() => { setNegotiable(opt.val); if (!opt.val) setUrgent(false) }}
                     aria-pressed={negotiable === opt.val}
                     className={cn(
-                      'rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
+                      // Stacked two-line label: `block` (the base is inline-flex) and
+                      // `whitespace-normal` (the base nowrap inherits into the hint line).
+                      'block whitespace-normal rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
                       negotiable === opt.val ? 'bg-primary text-white' : 'bg-tint text-body hover:bg-muted',
                     )}
                   >
                     {opt.label}
                     <span className={cn('block text-xs font-medium', negotiable === opt.val ? 'text-white/80' : 'text-ink-4')}>{opt.hint}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
               {/* Urgent sale ("Bán gấp") — free, 7 days, auto-expires. Selecting it

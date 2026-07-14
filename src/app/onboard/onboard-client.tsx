@@ -121,13 +121,15 @@ export function OnboardClient() {
             {options.map(({ key, Icon, title, desc }) => {
               const active = choice === key
               return (
-                <button
+                <Button
                   key={key}
+                  variant="bare"
+                  size="none"
                   type="button"
                   onClick={() => setChoice(key)}
                   aria-pressed={active}
                   className={cn(
-                    'flex w-full items-start gap-3 rounded-2xl p-4 text-left transition-colors cursor-pointer',
+                    'flex w-full items-start justify-start gap-3 whitespace-normal rounded-2xl p-4 text-left font-normal transition-colors cursor-pointer',
                     active ? 'bg-accent ring-2 ring-brand/30' : 'hover:bg-muted',
                   )}
                 >
@@ -138,7 +140,7 @@ export function OnboardClient() {
                     <span className="flex items-center gap-2 text-sm font-bold text-foreground">{title}{active && <Check className="h-4 w-4 text-accent-foreground" />}</span>
                     <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{desc}</span>
                   </span>
-                </button>
+                </Button>
               )
             })}
           </div>

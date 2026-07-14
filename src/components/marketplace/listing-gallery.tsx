@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tr, useLanguage } from '@/context/language-context'
@@ -122,11 +123,18 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
         <Play className="h-3 w-3 fill-current" /> {tr('Video', 'Video')}
       </span>
       {showPlayGlyph && (
-        <button type="button" onClick={togglePlay} aria-label={tr('Play video', 'Phát video')} className="absolute inset-0 z-10 flex items-center justify-center cursor-pointer">
+        <Button
+          variant="bare"
+          size="none"
+          type="button"
+          onClick={togglePlay}
+          aria-label={tr('Play video', 'Phát video')}
+          className="absolute inset-0 z-10 flex items-center justify-center cursor-pointer active:scale-100"
+        >
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-[2px]">
             <Play className="h-7 w-7 fill-current" />
           </span>
-        </button>
+        </Button>
       )}
       <IconButton
         size="sm"
@@ -259,11 +267,11 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
   return (
     <>
       {images.length === 1 && !hasVideo ? (
-        <button onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer">
+        <Button variant="bare" size="none" onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer active:scale-100">
           <div data-protected className="relative aspect-[4/3] w-full overflow-hidden bg-tint">
             <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority hover />
           </div>
-        </button>
+        </Button>
       ) : (
         <>
           {variant !== 'desktop' && (<>
@@ -286,9 +294,9 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 </div>
               )}
               {images.map((img, i) => (
-                <button key={i} onClick={() => openAt(i)} className="relative aspect-[4/3] w-full shrink-0 snap-center overflow-hidden bg-tint cursor-pointer">
+                <Button key={i} variant="bare" size="none" onClick={() => openAt(i)} className="relative block aspect-[4/3] w-full shrink-0 snap-center overflow-hidden rounded-none bg-tint cursor-pointer active:scale-100">
                   <BlurFillImage img={img} alt={`${title} — photo ${i + 1}`} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0 && !hasVideo} />
-                </button>
+                </Button>
               ))}
             </div>
             {/* black/60 not /50: white text on the translucent chip must hold 4.5:1
@@ -313,9 +321,9 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 (() => {
                   const photoIdx = hasVideo ? sel - 1 : sel
                   return (
-                    <button onClick={() => openAt(photoIdx)} className="group relative h-full w-full overflow-hidden cursor-pointer">
+                    <Button variant="bare" size="none" onClick={() => openAt(photoIdx)} className="group relative block h-full w-full overflow-hidden rounded-none cursor-pointer active:scale-100">
                       <BlurFillImage img={images[photoIdx]} alt={`${title} — photo ${photoIdx + 1}`} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[photoIdx])} eager={photoIdx === 0} hover />
-                    </button>
+                    </Button>
                   )
                 })()
               )}
@@ -333,29 +341,33 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               <CarouselContent className="-ml-2">
                 {hasVideo && (
                   <CarouselItem className="basis-auto pl-2">
-                    <button
+                    <Button
+                      variant="bare"
+                      size="none"
                       onClick={() => setSel(0)}
                       aria-label="Video"
-                      className={cn('relative h-20 w-20 overflow-hidden rounded-lg border-2 transition-colors cursor-pointer', sel === 0 ? 'border-brand' : 'border-transparent hover:border-line-strong')}
+                      className={cn('relative h-20 w-20 overflow-hidden rounded-lg border-2 transition-colors cursor-pointer active:scale-100', sel === 0 ? 'border-brand' : 'border-transparent hover:border-line-strong')}
                     >
                       <Image src={images[0]} alt="" fill sizes="80px" quality={60} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover" />
                       <span className="absolute inset-0 flex items-center justify-center bg-black/25">
                         <Play className="h-6 w-6 fill-white text-white" />
                       </span>
-                    </button>
+                    </Button>
                   </CarouselItem>
                 )}
                 {images.map((img, i) => {
                   const s2 = hasVideo ? i + 1 : i
                   return (
                     <CarouselItem key={i} className="basis-auto pl-2">
-                      <button
+                      <Button
+                        variant="bare"
+                        size="none"
                         onClick={() => setSel(s2)}
                         aria-label={`${title} — photo ${i + 1}`}
-                        className={cn('relative h-20 w-20 overflow-hidden rounded-lg border-2 transition-colors cursor-pointer', sel === s2 ? 'border-brand' : 'border-transparent hover:border-line-strong')}
+                        className={cn('relative h-20 w-20 overflow-hidden rounded-lg border-2 transition-colors cursor-pointer active:scale-100', sel === s2 ? 'border-brand' : 'border-transparent hover:border-line-strong')}
                       >
                         <Image src={img} alt="" fill sizes="80px" quality={60} unoptimized={isMockImageUrl(img) || undefined} className="object-cover" />
-                      </button>
+                      </Button>
                     </CarouselItem>
                   )
                 })}

@@ -13,6 +13,7 @@ import { useLanguage } from '@/context/language-context'
 import { PreferencesInline } from './preferences-inline'
 import { TrustScore } from './trust-score'
 import { DashboardListingRow } from './dashboard-listing-row'
+import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -337,9 +338,14 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
         </div>
 
         <div className="border-t border-border p-3">
-          <button onClick={() => { onClose(); signOut() }} className={`${item} hover:bg-destructive/10 hover:text-destructive`}>
+          <Button
+            variant="bare"
+            size="none"
+            onClick={() => { onClose(); signOut() }}
+            className={cn(item, 'justify-start hover:bg-destructive/10 hover:text-destructive')}
+          >
             <LogOut className="h-4 w-4" /> {tr('Sign out', 'Đăng xuất')}
-          </button>
+          </Button>
         </div>
       </aside>
     </>
@@ -359,5 +365,5 @@ function StatTile({ icon, value, label, href, onClick, accent }: { icon: React.R
   const cls = 'flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5 text-left transition-colors hover:bg-muted cursor-pointer'
   return href
     ? <Link href={href} className={cls}>{inner}</Link>
-    : <button onClick={onClick} className={cls}>{inner}</button>
+    : <Button variant="bare" size="none" onClick={onClick} className={cn(cls, 'justify-start font-normal')}>{inner}</Button>
 }

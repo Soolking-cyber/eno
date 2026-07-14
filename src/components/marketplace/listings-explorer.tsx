@@ -1264,13 +1264,15 @@ export function ListingsExplorer({
               )}>
                 {/* No leading filter icon here — ambiguous on the hero; the results
                     view keeps its Filter chip in the facet bar. */}
-                <button
+                <Button
+                  variant="bare"
+                  size="none"
                   onClick={() => handleLandingSearch(landingQuery)}
                   aria-label={tr('Search', 'Tìm kiếm')}
-                  className="flex shrink-0 items-center justify-center rounded-l-2xl pl-4 pr-2.5 py-2.5 sm:pl-5 sm:py-3 text-ink-4 hover:text-accent-foreground hover:scale-110 transition-[color,transform] duration-200 cursor-pointer"
+                  className="flex shrink-0 items-center justify-center rounded-l-2xl pl-4 pr-2.5 py-2.5 sm:pl-5 sm:py-3 text-ink-4 hover:text-accent-foreground hover:scale-110 active:scale-100 transition-[color,transform] duration-200 cursor-pointer"
                 >
                   <Search className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
-                </button>
+                </Button>
                 <input
                   id="listings-search-input"
                   type="search"
@@ -1329,14 +1331,16 @@ export function ListingsExplorer({
                 <Separator orientation="vertical" className="h-6 shrink-0 sm:h-7" />
                 {/* Search-bar icon standard (matches the magnifier + AI button):
                     quiet ink at rest, brand-blue on hover. */}
-                <button
+                <Button
+                  variant="bare"
+                  size="none"
                   onClick={() => { setViewMode('map'); setShowExplorer(true) }}
                   aria-label={tr('Map', 'Bản đồ')}
                   title={tr('Map', 'Bản đồ')}
-                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-3 text-ink-4 hover:text-accent-foreground hover:scale-110 transition-[color,transform] duration-200 cursor-pointer"
+                  className="flex shrink-0 items-center justify-center rounded-r-2xl pl-3.5 pr-4 py-3 text-ink-4 hover:text-accent-foreground hover:scale-110 active:scale-100 transition-[color,transform] duration-200 cursor-pointer"
                 >
                   <Map className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.25} />
-                </button>
+                </Button>
               </div>
 
               {/* Suggestions Overlay in Landing Page */}
@@ -1451,11 +1455,13 @@ export function ListingsExplorer({
                 const cc = CATEGORY_COLOR_CLASSES[cat.color] ?? CATEGORY_COLOR_CLASSES.brand
                 const hex = cc.text.match(/#[0-9a-fA-F]{6}/)?.[0] ?? 'var(--brand)'
                 return (
-                  <button
+                  <Button
+                    variant="bare"
+                    size="none"
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.slug)}
                     style={{ '--cat': hex } as CSSProperties}
-                    className="group flex snap-start flex-col items-center justify-center gap-2 p-2 text-center cursor-pointer transition-transform duration-100 active:scale-95"
+                    className="group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer transition-transform duration-100 active:scale-95"
                   >
                     <CategoryIcon
                       name={cat.icon}
@@ -1471,15 +1477,17 @@ export function ListingsExplorer({
                         {cat.verifiedCount} {tr('listings', 'tin')}
                       </span>
                     )}
-                  </button>
+                  </Button>
                 )
               })}
               {/* Free & Wanted — intent tiles (filter across all categories) */}
               {INTENT_SHORTCUTS.map((s) => (
-                <button
+                <Button
+                  variant="bare"
+                  size="none"
                   key={s.type}
                   onClick={() => browseIntent(s.type)}
-                  className="group flex flex-col items-center justify-center gap-2 p-2 text-center cursor-pointer"
+                  className="group flex flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
                 >
                   <CategoryIcon
                     name={s.icon}
@@ -1488,7 +1496,7 @@ export function ListingsExplorer({
                   <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
                     <Tr text={lang === 'vi' ? s.nameVi : s.name} />
                   </span>
-                </button>
+                </Button>
               ))}
             </div>
           </div>

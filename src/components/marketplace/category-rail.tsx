@@ -6,6 +6,7 @@ import { useLanguage, Tr } from '@/context/language-context'
 import { CategoryIcon } from './category-icons'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { MoreOverflow } from './more-overflow'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import type { SerializedCategory } from '@/lib/types'
@@ -68,12 +69,12 @@ export function CategoryRail({
   return (
     <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none snap-x py-1">
       {/* All */}
-      <button data-cat="all" onClick={() => onCategory('all')} className={tileCls}>
+      <Button variant="bare" size="none" data-cat="all" onClick={() => onCategory('all')} className={cn('whitespace-normal', tileCls)}>
         <span className="flex h-11 items-center justify-center">
           <Layers className={iconCls(activeCategory === 'all')} />
         </span>
         <span className={nameCls(activeCategory === 'all')}>{tr('All', 'Tất cả')}</span>
-      </button>
+      </Button>
 
       {categories.map((cat) => {
         const isActive = activeCategory === cat.slug
@@ -90,12 +91,12 @@ export function CategoryRail({
         const overflowSubs = subsNeedMore ? subs.slice(7) : []
         return (
           <Fragment key={cat.id}>
-            <button data-cat={cat.slug} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={tileCls}>
+            <Button variant="bare" size="none" data-cat={cat.slug} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls)}>
               <span className="flex h-11 items-center justify-center">
                 <CategoryIcon name={cat.icon} className={iconCls(isActive)} />
               </span>
               <span className={nameCls(isActive)}><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
-            </button>
+            </Button>
 
             {/* Subcategories roll out to the right of the active category */}
             {subs.length > 0 && (
@@ -103,16 +104,16 @@ export function CategoryRail({
                 <Separator orientation="vertical" className="mt-1 h-12 shrink-0 self-start" />
                 {/* 3×3 grid (column-fill): All first, 7 most-used in between, More last. */}
                 <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
-                  <button onClick={() => onSubcategory('all')} className={subChip(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</button>
+                  <Button variant="bare" size="none" onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>{tr('All', 'Tất cả')}</Button>
                   {visibleSubs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug
                     const count = subcategoryCounts[sub.slug]
                     return (
-                      <button key={sub.slug} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={subChip(subActive)}>
+                      <Button key={sub.slug} variant="bare" size="none" onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
                         <CategoryIcon name={sub.icon} className="mr-1 inline h-3.5 w-3.5 shrink-0 align-[-2px]" />
                         <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
                         {count != null && <span className="ml-1 text-3xs font-semibold text-ink-4">{count}</span>}
-                      </button>
+                      </Button>
                     )
                   })}
                   {overflowSubs.length > 0 && (
@@ -149,12 +150,12 @@ export function CategoryRail({
           {intents.map((s) => {
             const active = activeType === s.type
             return (
-              <button key={s.type} data-intent={s.type} onClick={() => onIntent?.(s.type)} className={tileCls}>
+              <Button key={s.type} variant="bare" size="none" data-intent={s.type} onClick={() => onIntent?.(s.type)} className={cn('whitespace-normal', tileCls)}>
                 <span className="flex h-11 items-center justify-center">
                   <CategoryIcon name={s.icon} className={iconCls(active)} />
                 </span>
                 <span className={nameCls(active)}><Tr text={lang === 'vi' ? s.nameVi : s.name} /></span>
-              </button>
+              </Button>
             )
           })}
         </>

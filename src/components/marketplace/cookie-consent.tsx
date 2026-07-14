@@ -10,11 +10,13 @@ import { Button } from '@/components/ui/button'
 
 function Toggle({ title, desc, value, onChange, locked = false }: { title: string; desc: string; value: boolean; onChange?: (v: boolean) => void; locked?: boolean }) {
   return (
-    <button
+    <Button
+      variant="bare"
+      size="none"
       type="button"
       disabled={locked}
       onClick={() => onChange?.(!value)}
-      className={cn('flex w-full items-start gap-2.5 rounded-lg p-1.5 text-left transition-colors', locked ? 'opacity-70' : 'hover:bg-muted cursor-pointer')}
+      className={cn('flex w-full items-start gap-2.5 whitespace-normal rounded-lg p-1.5 text-left transition-colors font-normal disabled:opacity-70', locked ? 'opacity-70' : 'hover:bg-muted cursor-pointer')}
     >
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-semibold text-foreground">{title}</span>
@@ -23,7 +25,7 @@ function Toggle({ title, desc, value, onChange, locked = false }: { title: strin
       <span className={cn('mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors', value ? 'bg-primary' : 'bg-line-strong')}>
         <span className={cn('h-4 w-4 rounded-full bg-white shadow-sm transition-transform', value && 'translate-x-4')} />
       </span>
-    </button>
+    </Button>
   )
 }
 

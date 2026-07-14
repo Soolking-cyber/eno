@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { BrandLogo } from './brand-logo'
 import { MoreOverflow } from './more-overflow'
 
@@ -115,7 +116,15 @@ export function BrandRail({
         const isActive = activeBrand === b.slug
         return (
           <Fragment key={b.slug}>
-            <button data-brand={b.slug} onClick={() => { onPickBrand(isActive ? 'all' : b.slug); onPickModel('all') }} className={tileCls}>
+            {/* whitespace-normal: the base is whitespace-nowrap and white-space INHERITS,
+                which would turn the line-clamp-2 brand name into one unwrappable line. */}
+            <Button
+              variant="bare"
+              size="none"
+              data-brand={b.slug}
+              onClick={() => { onPickBrand(isActive ? 'all' : b.slug); onPickModel('all') }}
+              className={cn(tileCls, 'whitespace-normal')}
+            >
               {/* Logo mirrors the category icon exactly — same 44px box, slate→blue
                   on hover/active, same scale animation — so the two rails feel as one.
                   (Brand marks read a touch bolder than the line icons by nature.) */}
@@ -129,7 +138,7 @@ export function BrandRail({
                 />
               </span>
               <span className={nameCls(isActive)}>{b.name}</span>
-            </button>
+            </Button>
 
             {/* Models roll out to the right of the active brand */}
             {isActive && models.length > 0 && (
@@ -137,14 +146,22 @@ export function BrandRail({
                 <span className="mt-1 h-12 w-px shrink-0 bg-border" />
                 {/* 3×3 grid (column-fill): All first, 7 most-used in between, More last. */}
                 <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
-                  <button onClick={() => onPickModel('all')} className={modelChip(activeModel === 'all')}>{tr('All', 'Tất cả')}</button>
+                  {/* justify-start: the base CENTRES, these chips are full-width text-left rows. */}
+                  <Button variant="bare" size="none" onClick={() => onPickModel('all')} className={cn(modelChip(activeModel === 'all'), 'justify-start')}>{tr('All', 'Tất cả')}</Button>
                   {visibleModels.map((m) => {
                     const mActive = activeModel === m.model
                     return (
-                      <button key={m.model} onClick={() => onPickModel(mActive ? 'all' : m.model)} className={modelChip(mActive)}>
+                      // gap-0 too: the count's spacing comes from its own ml-1; the base gap-2 would double it.
+                      <Button
+                        key={m.model}
+                        variant="bare"
+                        size="none"
+                        onClick={() => onPickModel(mActive ? 'all' : m.model)}
+                        className={cn(modelChip(mActive), 'justify-start gap-0')}
+                      >
                         {m.model}
                         <span className="ml-1 text-3xs font-semibold text-ink-4">{m.count}</span>
-                      </button>
+                      </Button>
                     )
                   })}
                   {overflowModels.length > 0 && (

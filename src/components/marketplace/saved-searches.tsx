@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Search, Bell, BellOff, Trash2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type SavedSearch = { id: string; label: string; notify: boolean; createdAt: string; url: string }
@@ -65,13 +66,15 @@ export function SavedSearches() {
       <div className="mt-2 divide-y divide-transparent">
         {searches.map((s) => (
           <div key={s.id} className="group flex items-center gap-2 rounded-xl py-2 pr-1 transition-colors hover:bg-muted">
-            <button
+            <Button
+              variant="bare"
+              size="none"
               onClick={() => router.push(s.url)}
-              className="flex min-w-0 flex-1 items-center gap-2.5 px-2 text-left cursor-pointer"
+              className="flex min-w-0 flex-1 shrink items-center justify-start gap-2.5 px-2 text-left cursor-pointer"
             >
               <Search className="h-4 w-4 shrink-0 text-accent-foreground" />
               <span className="truncate text-sm font-medium text-foreground group-hover:underline">{s.label}</span>
-            </button>
+            </Button>
             <button
               onClick={() => toggle(s)}
               aria-label={s.notify ? tr('Mute alerts', 'Tắt thông báo') : tr('Enable alerts', 'Bật thông báo')}

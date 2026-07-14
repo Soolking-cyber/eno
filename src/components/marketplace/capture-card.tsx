@@ -33,13 +33,15 @@ export function CaptureCard() {
         >
           {tr('Continue with Google', 'Tiếp tục với Google')}
         </Button>
-        <button
+        <Button
           type="button"
+          variant="bare"
+          size="none"
           onClick={() => openSignIn()}
-          className="mt-1.5 w-full text-center text-2xs font-bold text-body transition-colors hover:text-accent-foreground cursor-pointer"
+          className="mt-1.5 block w-full whitespace-normal text-center text-2xs font-bold text-body transition-colors hover:text-accent-foreground active:scale-100 cursor-pointer"
         >
           {tr('or email · free, 10 seconds', 'hoặc email · miễn phí, 10 giây')}
-        </button>
+        </Button>
       </div>
     </div>
   )

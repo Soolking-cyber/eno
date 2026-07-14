@@ -1,6 +1,7 @@
 'use client'
 
 import { List, Grid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -54,9 +55,12 @@ export function SortStrip({
 }) {
   const { tr } = useLanguage()
   const priceSortActive = sort === 'price-low' || sort === 'price-high'
+  // rounded-none is MANDATORY: these tabs are underlined with border-b-2, and ui/button's base
+  // rounded-xl would curve that underline into a lozenge. gap-1 / flex / font-semibold /
+  // transition-colors all override their base counterparts through cn()'s tailwind-merge.
   const sortTab = (selected: boolean) =>
     cn(
-      '-mb-px flex shrink-0 items-center gap-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
+      '-mb-px flex shrink-0 items-center gap-1 rounded-none border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
       selected ? 'border-brand text-accent-foreground' : 'border-transparent text-body hover:text-foreground',
     )
   return (
@@ -71,16 +75,18 @@ export function SortStrip({
       )}
     >
       <div className="scrollbar-none flex flex-nowrap items-center gap-1 overflow-x-auto">
-        <button type="button" onClick={() => onPickSort('newest')} aria-pressed={sort === 'newest'} className={sortTab(sort === 'newest')}>
+        <Button variant="bare" size="none" type="button" onClick={() => onPickSort('newest')} aria-pressed={sort === 'newest'} className={sortTab(sort === 'newest')}>
           {tr('Relevance', 'Liên quan')}
-        </button>
-        <button type="button" onClick={() => onPickSort('recent')} aria-pressed={sort === 'recent'} className={sortTab(sort === 'recent')}>
+        </Button>
+        <Button variant="bare" size="none" type="button" onClick={() => onPickSort('recent')} aria-pressed={sort === 'recent'} className={sortTab(sort === 'recent')}>
           {tr('Newest', 'Mới nhất')}
-        </button>
-        <button type="button" onClick={() => onPickSort('popular')} aria-pressed={sort === 'popular'} className={sortTab(sort === 'popular')}>
+        </Button>
+        <Button variant="bare" size="none" type="button" onClick={() => onPickSort('popular')} aria-pressed={sort === 'popular'} className={sortTab(sort === 'popular')}>
           {tr('Most contacted', 'Được quan tâm')}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="bare"
+          size="none"
           type="button"
           onClick={() => onPickSort(sort === 'price-low' ? 'price-high' : 'price-low')}
           aria-pressed={priceSortActive}
@@ -95,7 +101,7 @@ export function SortStrip({
           ) : (
             <ArrowUpDown className="h-3.5 w-3.5 text-ink-4" />
           )}
-        </button>
+        </Button>
       </div>
     </div>
   )

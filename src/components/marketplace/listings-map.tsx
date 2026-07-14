@@ -19,6 +19,7 @@ import { getListingCoordinates } from '@/lib/geo'
 import type { Nearby } from './area-filter'
 import { cn } from '@/lib/utils'
 import { Spinner } from '@/components/ui/spinner'
+import { Button } from '@/components/ui/button'
 
 // Compact price for map labels (Airbnb-style price pins). VND uses the shared
 // compactPrice, which follows the viewer's language — "850K" / "51M" / "1.2B"
@@ -425,7 +426,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
               // Short map (listing detail) → slim horizontal card: thumb + title + price
               // + a close ✕. Fits within a ~260px-tall map without dwarfing it.
               <div className="flex items-center gap-2.5 p-2">
-                <button onClick={() => activateCard(card)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left cursor-pointer">
+                <Button variant="bare" size="none" onClick={() => activateCard(card)} className="flex min-w-0 flex-1 items-center justify-start gap-2.5 whitespace-normal text-left font-normal cursor-pointer active:scale-100">
                   <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-tint">
                     {card.images[0] && (
                       <Image src={card.images[0]} alt="" fill sizes="44px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
@@ -436,7 +437,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                     <span className="block text-xs font-bold text-accent-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</span>
                     <span className="mt-0.5 block"><MapTravel to={getListingCoordinates(card)} userLoc={userLoc} state={locState} onRequest={requestLoc} compact /></span>
                   </span>
-                </button>
+                </Button>
                 <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />
                 <MapsDirectionsButton to={getListingCoordinates(card)} className="h-8 w-8 shrink-0" />
               </div>
@@ -453,7 +454,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                     <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
                   </button>
                 </div>
-                <button onClick={() => activateCard(card)} className="block w-full text-left cursor-pointer">
+                <Button variant="bare" size="none" onClick={() => activateCard(card)} className="block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">
                   <div className="relative aspect-square w-full bg-tint">
                     {card.images[0] && (
                       <Image src={card.images[0]} alt="" fill sizes="280px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
@@ -467,7 +468,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.district || card.location}</p>
                     <p className="mt-1 text-sm font-bold text-accent-foreground">{card.currency === '₫' ? formatPrice(card.price, locale) : formatMoneyFull(card.price, card.currency, locale)}</p>
                   </div>
-                </button>
+                </Button>
                 {/* Travel estimate — separate tap target, below the open-listing button.
                     The Google Maps directions FAB floats in the card's bottom-right corner
                     (opposite the favorite heart), clear of the short estimate text. */}

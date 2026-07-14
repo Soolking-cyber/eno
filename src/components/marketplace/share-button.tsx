@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -104,17 +105,17 @@ export function ShareButton({ url, title, price, currency, className, compact = 
         </div>
 
         <div className="mt-3 pt-2">
-          <button onClick={copy} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
+          <Button variant="bare" size="none" onClick={copy} className="flex w-full justify-start items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
             <span className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted">
               {copied ? <Check className="h-4 w-4 text-accent-foreground" /> : <Link2 className="h-4 w-4" />}
             </span>
             {copied ? tr('Link copied', 'Đã sao chép') : tr('Copy link', 'Sao chép liên kết')}
-          </button>
+          </Button>
           {hasNative && (
-            <button onClick={nativeShare} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
+            <Button variant="bare" size="none" onClick={nativeShare} className="flex w-full justify-start items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
               <span className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></span>
               {tr('More…', 'Thêm…')}
-            </button>
+            </Button>
           )}
         </div>
       </PopoverContent>

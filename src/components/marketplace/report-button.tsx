@@ -152,11 +152,13 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
             <div className="mt-4 space-y-3">
               <div className="space-y-1.5">
                 {reasons.map((r) => (
-                  <button
+                  <Button
                     key={r.value}
+                    variant="bare"
+                    size="none"
                     onClick={() => setReason(r.value)}
                     className={cn(
-                      'flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors cursor-pointer',
+                      'flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border px-3 py-2.5 text-left text-sm font-normal transition-colors cursor-pointer',
                       reason === r.value ? 'border-brand font-semibold text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
                     )}
                   >
@@ -164,7 +166,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
                       {reason === r.value && <span className="h-2 w-2 rounded-full bg-primary" />}
                     </span>
                     {t(r.en, r.vi)}
-                  </button>
+                  </Button>
                 ))}
               </div>
 
