@@ -2,7 +2,7 @@
 name: i18n-reviewer
 description: Reviews changes for eno.vn's bilingual contract — tr()/<Tr> coverage, natural Vietnamese, EN-as-a-translation-target for listing content, locale-aware money/number formatting, and the EN-only admin-chrome convention. Use after any change that adds or edits user-facing copy.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 effort: high
 ---
 

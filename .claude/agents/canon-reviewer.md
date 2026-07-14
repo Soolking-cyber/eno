@@ -2,7 +2,7 @@
 name: canon-reviewer
 description: Reviews UI changes against the eno.vn design canon (docs/design-language.md), the Base UI primitive contract, and the known landmine files. Use after any change under src/components or src/app that touches markup, styling, or a shared primitive — before shipping.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 effort: high
 ---
 

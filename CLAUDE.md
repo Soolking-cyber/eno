@@ -2,28 +2,30 @@
 
 Vietnamese expat marketplace. Next.js 16 (App Router) · Tailwind v4 · Prisma 7 → Supabase · Vercel. `PRELAUNCH=true` until the owner flips it.
 
-## Model routing — send the work to the right worker
+## Model routing — top tier everywhere; delegate for isolation, not for savings
 
-Claude Code has **no automatic per-prompt model router**: the main-loop model is whatever `/model` is set to, and it never changes on its own. Routing therefore happens by *delegation* — each agent and skill below pins its own model and effort, and that pin overrides the session. So the rule is: **don't do cheap work in an expensive main thread, and don't do hard work in a cheap one.**
+**Policy (owner, 2026-07-14): every worker runs on the highest-intelligence model.** No task on this repo gets a downgraded brain — the cost of a missed bug on a live marketplace dwarfs the cost of the tokens. Claude Code has **no automatic per-prompt router** (the main-loop model is whatever `/model` says and never changes on its own), so this is enforced the only way it can be: each agent and skill below pins `model:` explicitly, and that pin overrides the session.
 
-| Work | Send it to | Runs on |
+**The dial is `effort:`, not `model:`.** Mechanical retrieval doesn't need deep reasoning; a race condition does. Same intelligence, different amount of thinking.
+
+| Work | Send it to | Model / effort |
 |---|---|---|
-| "Where is X?", "list every call site", "do we already have a helper for this?" | `scout` subagent | Haiku, low effort |
-| Reviewing a UI diff for canon drift | `canon-reviewer` subagent | Sonnet, high effort |
-| Reviewing copy / bilingual contract | `i18n-reviewer` subagent | Sonnet, high effort |
-| Shipping to prod (the whole ritual) | `/ship` skill | Sonnet, medium effort |
-| Seller/admin e2e suite | `/authed-e2e` skill | Sonnet, low effort |
-| A bug that already survived one plausible fix | `deep-debugger` subagent | **Opus, xhigh** |
-| Design, architecture, anything genuinely novel | stay in the main thread | the session model |
+| "Where is X?", "every call site", "do we already have a helper?" | `scout` | Opus · low |
+| UI diff → canon drift | `canon-reviewer` | Opus · high |
+| Copy → bilingual contract | `i18n-reviewer` | Opus · high |
+| **Independent second opinion / adversarial review** | `fable-reviewer` | **Fable 5 · xhigh** |
+| A bug that already survived one plausible fix | `deep-debugger` | Opus · xhigh |
+| Shipping to prod (the whole ritual) | `/ship` | Opus · medium |
+| Seller/admin e2e suite | `/authed-e2e` | Opus · low |
+| Design, architecture, anything genuinely novel | main thread | session model |
 
-Two habits that follow from this:
+Three habits that follow:
 
-- **Search via `scout`, not in the main thread.** A grep sweep run at the session's model burns the expensive tier on output you're going to discard. Delegate it and keep the conclusion.
-- **Escalate, don't grind.** When a fix doesn't hold the first time, hand it to `deep-debugger` rather than trying a second guess at the current tier. That agent is pinned to Opus at max effort precisely so a cheap session can still get a hard answer.
+- **Delegate search to `scout`.** Not to save money — to keep bulk grep output out of the main context. You get the conclusion, not the file dump.
+- **Escalate, don't grind.** A fix that didn't hold goes to `deep-debugger` (Opus, xhigh), not to a second guess at the same altitude.
+- **Break agreement bias with `fable-reviewer`.** It runs on a *different model family*, so it doesn't inherit our blind spots. When the main thread and its reviewers all agree, that's precisely when to ask the dissenter — especially on the money and trust paths (offers, publish gate, contact reveals, conversations). `/codex:review` is the same trick from a third family; use both on anything irreversible.
 
-In a `Workflow`, pass `model` and `effort` per `agent()` call for the same reason — mechanical stages on a cheap tier, verification and judging on an expensive one.
-
-If you want the *session* itself to auto-split, `/model opusplan` plans on Opus and executes on Sonnet. That is the only built-in automatic split; it's by phase, not by prompt complexity.
+In a `Workflow`, pass `model` and `effort` per `agent()` call. Cross-family verification is the highest-value use of the option: find with one family, refute with another.
 
 ## Non-negotiables
 

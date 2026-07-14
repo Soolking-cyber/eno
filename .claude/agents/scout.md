@@ -1,8 +1,8 @@
 ---
 name: scout
-description: Cheap read-only reconnaissance — find where something lives, list every call site, inventory a pattern across the repo. Use for any "where is X / which files do Y / how many places do Z" question INSTEAD of searching in the main thread, which burns the session's expensive model on grep output.
+description: Read-only reconnaissance — find where something lives, list every call site, inventory a pattern across the repo. Use for any "where is X / which files do Y / how many places do Z" question INSTEAD of searching in the main thread: it keeps the search output (which is bulk, not signal) out of the main context and hands back only the conclusion.
 tools: Read, Grep, Glob, Bash
-model: haiku
+model: opus
 effort: low
 ---
 
