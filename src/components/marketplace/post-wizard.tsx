@@ -1177,9 +1177,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {!editingPhone && phoneOk ? (
                   <div className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="tabular-nums text-muted-foreground">{contactPhone}</span>
-                    <button type="button" onClick={() => setEditingPhone(true)} className="text-xs font-bold text-accent-foreground hover:underline cursor-pointer">
+                    <Button variant="bare" size="none" type="button" onClick={() => setEditingPhone(true)} className="text-xs font-bold text-accent-foreground hover:underline">
                       {t('Đổi số', 'Change number')}
-                    </button>
+                    </Button>
                   </div>
                 ) : (
                   <Field label={t('Số điện thoại', 'Phone number')} hint={t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')} error={err.contact && !phoneOk ? t('Thêm số điện thoại hợp lệ', 'Add a valid phone number') : undefined}>
