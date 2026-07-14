@@ -80,6 +80,7 @@ export function RangeFacetControl({
             variant="unstyled"
             type="text" inputMode={decimals > 0 ? 'decimal' : 'numeric'}
             value={loText} placeholder={tr('Min', 'Tối thiểu')}
+            aria-label={unit ? `${tr('Minimum', 'Tối thiểu')} (${unit})` : tr('Minimum', 'Tối thiểu')}
             onFocus={() => { loFoc.current = true }}
             onChange={(e) => setLoText(digits(e.target.value))}
             onBlur={blurLo}
@@ -93,6 +94,7 @@ export function RangeFacetControl({
             variant="unstyled"
             type="text" inputMode={decimals > 0 ? 'decimal' : 'numeric'}
             value={hiText} placeholder={tr('Max', 'Tối đa')}
+            aria-label={unit ? `${tr('Maximum', 'Tối đa')} (${unit})` : tr('Maximum', 'Tối đa')}
             onFocus={() => { hiFoc.current = true }}
             onChange={(e) => setHiText(digits(e.target.value))}
             onBlur={blurHi}

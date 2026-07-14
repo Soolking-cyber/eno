@@ -536,9 +536,16 @@ export default function ThreadPage() {
                   <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-[78%]">{m.body}</MessageBubble>
                 )}
                   {m.mine && m.failed ? (
-                    <Button variant="bare" size="none" onClick={() => retry(m)} className="mt-0.5 gap-1 px-1 text-3xs font-semibold text-destructive hover:underline cursor-pointer">
-                      <RotateCcw className="h-2.5 w-2.5" /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
-                    </Button>
+                    // A send that FAILED must be spoken, not just reddened. The scroller
+                    // above is role="log" aria-relevant="additions", so a pending bubble
+                    // FLIPPING to failed is a text change it never announces. role="alert"
+                    // goes on this WRAPPER, never on the Button — overriding a button's
+                    // role would strip its button semantics and lose the retry affordance.
+                    <div role="alert" className="mt-0.5">
+                      <Button variant="bare" size="none" onClick={() => retry(m)} className="gap-1 px-1 text-3xs font-semibold text-destructive hover:underline cursor-pointer">
+                        <RotateCcw className="h-2.5 w-2.5" /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
+                      </Button>
+                    </div>
                   ) : m.mine && m.pending ? (
                     <span className="mt-0.5 flex items-center gap-1 px-1 text-3xs text-ink-4"><Loader2 className="h-2.5 w-2.5 animate-spin" /> {tr('Sending…', 'Đang gửi…')}</span>
                   ) : (
@@ -653,6 +660,7 @@ export default function ThreadPage() {
                   inputMode="numeric"
                   enterKeyHint="send"
                   autoFocus
+                  aria-label={tr('Offer amount (VND)', 'Số tiền đề nghị (VND)')}
                   placeholder={tr('Offer amount (VND)', 'Số tiền đề nghị (VND)')}
                   onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
                   className="rounded-2xl border-brand px-3.5 py-2.5 pr-16 text-base focus:ring-brand/20 lg:text-sm"

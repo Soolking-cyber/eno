@@ -400,6 +400,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           onChange={(e) => setNote(e.target.value)}
           rows={2}
           maxLength={2000}
+          aria-label="Internal note (never shown to users)"
           className="mt-1"
         />
         <Button

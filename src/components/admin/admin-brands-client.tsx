@@ -68,7 +68,7 @@ export function AdminBrandsClient() {
 
       <div className="relative mt-5">
         <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-ink-4" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search brands…" className="py-2.5 pl-9 pr-3" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search brands" placeholder="Search brands…" className="py-2.5 pl-9 pr-3" />
       </div>
 
       {loading ? (

@@ -161,6 +161,7 @@ export function SellerListings({
             variant="unstyled"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            aria-label={tr('Search this seller', 'Tìm trong tin của người bán')}
             placeholder={tr('Search this seller', 'Tìm trong tin của người bán')}
             className="min-w-0 flex-1 text-sm"
           />

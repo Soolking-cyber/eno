@@ -365,6 +365,7 @@ export default function DisputeRoomPage() {
                   onChange={(e) => setText(e.target.value)}
                   rows={3}
                   maxLength={2000}
+                  aria-label={t('Your statement', 'Trình bày của bạn')}
                   placeholder={data.role === 'reporter'
                     ? t('Explain what happened and attach any proof — this is your one statement.', 'Giải thích sự việc và đính kèm bằng chứng — đây là lần trình bày duy nhất của bạn.')
                     : t('Share your side and attach any proof — this is your one statement.', 'Trình bày phía bạn và đính kèm bằng chứng — đây là lần trình bày duy nhất của bạn.')}

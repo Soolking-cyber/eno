@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Field, FieldControl, FieldDescription, FieldError } from '@/components/ui/field'
 import { getInitials } from '@/lib/utils'
 import { compressImageFile } from '@/lib/normalize-image'
 
@@ -32,6 +33,11 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   const [uploading, setUploading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [locating, setLocating] = useState(false)
+  // The server names the field it rejected (`bad_tax_code`, `phone_taken`, …), so the message is
+  // shown ON that field via <Field invalid>/<FieldError> — it lands in the control's
+  // aria-describedby and marks it aria-invalid. `error` stays for the FORM-level residue only
+  // (save failed, logo upload failed, an unmapped code): role="alert", bound to no single input.
+  const [fieldErr, setFieldErr] = useState<{ name?: string; bio?: string; phone?: string; idNumber?: string; taxCode?: string }>({})
   const [error, setError] = useState('')
 
   // One-tap: fill Location from the device's GPS via reverse-geocoding.
@@ -77,7 +83,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   }
 
   const save = async () => {
-    setSaving(true); setError(''); setSaved(false)
+    setSaving(true); setError(''); setFieldErr({}); setSaved(false)
     try {
       // The representative's name lives on the Profile (one business → many staff,
       // each their own account), saved alongside the storefront fields.
@@ -95,14 +101,23 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(
-          d.error === 'no_phone_in_profile' ? tr("Phone numbers aren't allowed in the name/about.", 'Không ghi số trong tên/giới thiệu.')
-          : d.error === 'phone_taken' ? tr('That phone is already used by another storefront.', 'Số này đã được dùng cho gian hàng khác.')
-          : d.error === 'bad_phone' ? tr('Enter a valid phone number.', 'Nhập số điện thoại hợp lệ.')
-          : d.error === 'bad_id_number' ? tr('ID/ERC number should be 9–13 digits.', 'Số CCCD/ĐKDN gồm 9–13 chữ số.')
-          : d.error === 'bad_tax_code' ? tr('Tax code format: 10 digits (or 10-3 with branch).', 'Mã số thuế: 10 chữ số (hoặc 10-3 cho chi nhánh).')
-          : tr('Could not save. Try again.', 'Không lưu được. Thử lại.'),
-        )
+        // Route each server code to the field it is ABOUT. Anything unrecognised stays form-level —
+        // guessing a field for an unknown code would point a screen reader at the wrong input.
+        if (d.error === 'no_phone_in_profile') {
+          // The API rejects the pair, not one of them: flag both places a number could hide.
+          const msg = tr("Phone numbers aren't allowed in the name/about.", 'Không ghi số trong tên/giới thiệu.')
+          setFieldErr({ name: msg, bio: msg })
+        } else if (d.error === 'phone_taken') {
+          setFieldErr({ phone: tr('That phone is already used by another storefront.', 'Số này đã được dùng cho gian hàng khác.') })
+        } else if (d.error === 'bad_phone') {
+          setFieldErr({ phone: tr('Enter a valid phone number.', 'Nhập số điện thoại hợp lệ.') })
+        } else if (d.error === 'bad_id_number') {
+          setFieldErr({ idNumber: tr('ID/ERC number should be 9–13 digits.', 'Số CCCD/ĐKDN gồm 9–13 chữ số.') })
+        } else if (d.error === 'bad_tax_code') {
+          setFieldErr({ taxCode: tr('Tax code format: 10 digits (or 10-3 with branch).', 'Mã số thuế: 10 chữ số (hoặc 10-3 cho chi nhánh).') })
+        } else {
+          setError(tr('Could not save. Try again.', 'Không lưu được. Thử lại.'))
+        }
         return
       }
       setSaved(true); onSaved()
@@ -127,10 +142,11 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
       </label>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <Field invalid={!!fieldErr.name}>
           <Label htmlFor="biz-name">{tr('Business name', 'Tên doanh nghiệp')}</Label>
-          <Input id="biz-name" autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
-        </div>
+          <FieldControl id="biz-name" render={<Input id="biz-name" autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />} />
+          {fieldErr.name && <FieldError>{fieldErr.name}</FieldError>}
+        </Field>
         <div className="space-y-1.5">
           <Label htmlFor="biz-rep">{tr('Your name (representative)', 'Tên người đại diện')}</Label>
           <Input id="biz-rep" autoComplete="name" value={rep} onChange={(e) => setRep(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} />
@@ -154,16 +170,18 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
           />
           <Input id="biz-location" autoComplete="address-level2" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={120} placeholder={tr('e.g. Thảo Điền, HCMC', 'vd. Thảo Điền, TP.HCM')} />
         </div>
-        <div className="space-y-1.5">
+        <Field invalid={!!fieldErr.phone}>
           <Label htmlFor="biz-phone">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</Label>
-          <Input id="biz-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" />
-          <p className="text-xs text-muted-foreground">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</p>
-        </div>
+          <FieldControl id="biz-phone" render={<Input id="biz-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" />} />
+          <FieldDescription className="text-muted-foreground">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</FieldDescription>
+          {fieldErr.phone && <FieldError>{fieldErr.phone}</FieldError>}
+        </Field>
       </div>
-      <div className="mt-4 space-y-1.5">
+      <Field className="mt-4" invalid={!!fieldErr.bio}>
         <Label htmlFor="biz-bio">{tr('About', 'Giới thiệu')}</Label>
-        <Textarea id="biz-bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={1000} placeholder={tr('Tell buyers about your business…', 'Giới thiệu doanh nghiệp của bạn…')} className="resize-none" />
-      </div>
+        <FieldControl id="biz-bio" render={<Textarea id="biz-bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={1000} placeholder={tr('Tell buyers about your business…', 'Giới thiệu doanh nghiệp của bạn…')} className="resize-none" />} />
+        {fieldErr.bio && <FieldError>{fieldErr.bio}</FieldError>}
+      </Field>
 
       {/* Legal information — Đ.29 ND52 + Law 122/2025: platforms must collect the
           seller's legal name, address, ID/registration number and tax code. Shown
@@ -182,14 +200,16 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
             <Label htmlFor="biz-legal-address">{tr('Registered address', 'Địa chỉ đăng ký')}</Label>
             <Input id="biz-legal-address" value={legalAddress} onChange={(e) => setLegalAddress(e.target.value)} maxLength={240} placeholder={tr('Head office (business) or residence (individual)', 'Trụ sở (doanh nghiệp) hoặc nơi cư trú (cá nhân)')} />
           </div>
-          <div className="space-y-1.5">
+          <Field invalid={!!fieldErr.idNumber}>
             <Label htmlFor="biz-id-number">{tr('CCCD / business registration no.', 'Số CCCD / GCN ĐKDN')}</Label>
-            <Input id="biz-id-number" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} inputMode="numeric" maxLength={16} />
-          </div>
-          <div className="space-y-1.5">
+            <FieldControl id="biz-id-number" render={<Input id="biz-id-number" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} inputMode="numeric" maxLength={16} />} />
+            {fieldErr.idNumber && <FieldError>{fieldErr.idNumber}</FieldError>}
+          </Field>
+          <Field invalid={!!fieldErr.taxCode}>
             <Label htmlFor="biz-tax-code">{tr('Tax code (if any)', 'Mã số thuế (nếu có)')}</Label>
-            <Input id="biz-tax-code" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} inputMode="numeric" maxLength={14} placeholder="0312345678" />
-          </div>
+            <FieldControl id="biz-tax-code" render={<Input id="biz-tax-code" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} inputMode="numeric" maxLength={14} placeholder="0312345678" />} />
+            {fieldErr.taxCode && <FieldError>{fieldErr.taxCode}</FieldError>}
+          </Field>
         </div>
       </div>
 

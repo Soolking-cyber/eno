@@ -54,6 +54,9 @@ export function RangeSpecInput({
   }
 
   const slider = value == null ? range.min : clamp(value)
+  // The facet's own label lives on the caller's heading, not in RangeMeta — so the
+  // control names itself by its unit ("Value (km)"), which is at least a real name.
+  const name = range.unit ? `${tr('Value', 'Giá trị')} (${range.unit})` : tr('Value', 'Giá trị')
 
   return (
     <div className={cn('space-y-2.5', className)}>
@@ -67,6 +70,7 @@ export function RangeSpecInput({
             onFocus={() => { focused.current = true }}
             onChange={(e) => onType(e.target.value)}
             onBlur={onBlur}
+            aria-label={name}
             placeholder={tr('Any', 'Bất kỳ')}
             className="w-20"
           />
@@ -91,7 +95,7 @@ export function RangeSpecInput({
         step={range.step}
         value={slider}
         onChange={(v) => onChange(round(v))}
-        aria-label={range.unit || 'value'}
+        aria-label={name}
       />
     </div>
   )

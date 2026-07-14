@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { FieldControl } from '@/components/ui/field'
 import { haptic } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -440,12 +441,21 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     photo: attempted && photos.length < 3,
     category: attempted && !categorySlug,
     title: (touched.title || attempted) && title.trim().length < 3,
+    // The 20-char minimum BLOCKS publish (see `checks`) but used to render no message at
+    // all — the seller was bounced by a rule the form never stated.
+    description: (touched.description || attempted) && description.trim().length < 20,
     price: (touched.price || attempted) && price.trim().length === 0,
     location: attempted && !hasLocation,
-    contact: attempted && !isGuest && !(contactName.trim().length >= 2 && phoneOk),
+    // Name and phone are TWO fields. One shared `contact` flag lit both of them red when
+    // only one was wrong — and pointed the screen reader at the wrong one.
+    contactName: attempted && !isGuest && contactName.trim().length < 2,
+    contactPhone: attempted && !isGuest && !phoneOk,
   }
   const titleErr = err.title
     ? (title.trim().length === 0 ? t('Hãy nhập tiêu đề', 'Add a title') : t('Tiêu đề cần tối thiểu 3 ký tự', 'Title needs at least 3 characters'))
+    : undefined
+  const descErr = err.description
+    ? (description.trim().length === 0 ? t('Hãy viết mô tả — ít nhất 20 ký tự', 'Add a description — at least 20 characters') : t('Mô tả cần tối thiểu 20 ký tự', 'Description needs at least 20 characters'))
     : undefined
   const priceErr = err.price ? t('Hãy nhập giá', 'Set a price') : undefined
   // Jump to (and focus) the first still-missing field when a publish attempt fails.
@@ -777,7 +787,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         <div className="min-w-0 space-y-10">
           {/* Photos */}
           <Section id="pw-photo" title={t('Ảnh', 'Photos')} hint={t('Tối thiểu 3 ảnh từ các góc khác nhau, tối đa 6. Ảnh đầu là ảnh bìa. Tin nhiều ảnh được xem nhiều hơn hẳn.', 'At least 3 photos from different angles, up to 6. The first is your cover. Listings with more photos get far more views.')}>
+            {/* A photo grid is not a labelable control, so it can't go in a <Field>. Same
+                contract by hand: it names itself, reports invalid, and points at its error. */}
             <div
+              role="group"
+              aria-label={t('Ảnh', 'Photos')}
+              aria-invalid={err.photo ? true : undefined}
+              aria-describedby={err.photo ? 'pw-photo-error pw-photo-hint' : 'pw-photo-hint'}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => { e.preventDefault(); setDragOver(false); addPhotos(e.dataTransfer.files) }}
@@ -847,9 +863,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 )}
               </div>
             </div>
-            {err.photo && <p role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
+            {err.photo && <p id="pw-photo-error" role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
             {/* Media hint covers the video square in the grid above. */}
-            <p className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.', 'First photo is your cover. A video (optional) autoplays on hover and in the Video feed.')}</p>
+            <p id="pw-photo-hint" className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.', 'First photo is your cover. A video (optional) autoplays on hover and in the Video feed.')}</p>
             {aiEnabled && photos.length > 0 && (
               <Button
                 type="button"
@@ -868,7 +884,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           {/* Category & type */}
           <Section id="pw-category" title={t('Danh mục', 'Category')} hint={t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
             {showRentToggle && (
-              <Field label={t('Bán hay cho thuê?', 'For sale or for rent?')}>
+              <Field group label={t('Bán hay cho thuê?', 'For sale or for rent?')}>
                 <div className="inline-flex rounded-xl bg-tint p-1">
                   {(['sell', 'rent'] as const).map((v) => (
                     <Button
@@ -895,7 +911,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               </div>
             ) : (
               <>
-                <div className={cn('flex flex-wrap gap-2 rounded-xl transition-colors', err.category && 'p-2 -m-2 ring-2 ring-destructive/60')}>
+                {/* Chip grid — not labelable, so it gets Field's contract by hand. */}
+                <div
+                  role="group"
+                  aria-label={t('Danh mục', 'Category')}
+                  aria-invalid={err.category ? true : undefined}
+                  aria-describedby={err.category ? 'pw-category-error' : undefined}
+                  className={cn('flex flex-wrap gap-2 rounded-xl transition-colors', err.category && 'p-2 -m-2 ring-2 ring-destructive/60')}
+                >
                   {categories.map((c) => (
                     <Button
                       key={c.id}
@@ -910,29 +933,33 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     </Button>
                   ))}
                 </div>
-                {err.category && <p role="alert" className="text-xs font-semibold text-destructive">{t('Chọn một danh mục', 'Pick a category')}</p>}
+                {err.category && <p id="pw-category-error" role="alert" className="text-xs font-semibold text-destructive">{t('Chọn một danh mục', 'Pick a category')}</p>}
               </>
             )}
 
             {categorySlug && typeOptions.length > 1 && (
-              <Field label={t('Loại tin', 'Listing type')}>
+              <Field group label={t('Loại tin', 'Listing type')}>
                 <Chips options={LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => ({ value: lt.value, label: tr(lt.label, lt.labelVi) }))} value={listingType} onPick={setListingType} />
               </Field>
             )}
             {categorySlug && subOptions.length > 0 && (
-              <Field label={t('Danh mục con', 'Subcategory')}>
+              <Field group label={t('Danh mục con', 'Subcategory')}>
                 <Chips options={subOptions.map((s) => ({ value: s.slug, label: tr(s.name, s.nameVi) }))} value={subcategorySlug} onPick={(v) => setSubcategorySlug(v === subcategorySlug ? '' : v)} />
               </Field>
             )}
             {showBrand && (
               <Field label={t('Thương hiệu', 'Brand')} hint={t('Giúp người mua tìm theo hãng. Bỏ trống nếu không có.', 'Helps buyers find you by brand. Leave blank if none.')}>
-                <Input
-                  value={brand}
-                  list="brand-options"
-                  maxLength={40}
-                  onChange={(e) => setBrand(e.target.value)}
-                  placeholder={t('VD: Apple, Samsung, Honda', 'e.g. Apple, Samsung, Honda')}
-                  className="max-w-md"
+                <FieldControl
+                  render={
+                    <Input
+                      value={brand}
+                      list="brand-options"
+                      maxLength={40}
+                      onChange={(e) => setBrand(e.target.value)}
+                      placeholder={t('VD: Apple, Samsung, Honda', 'e.g. Apple, Samsung, Honda')}
+                      className="max-w-md"
+                    />
+                  }
                 />
                 <datalist id="brand-options">
                   {brandOptions.map((b) => <option key={b} value={b} />)}
@@ -941,12 +968,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             )}
             {showBrand && brand.trim() && (
               <Field label={t('Mẫu / Model', 'Model')} hint={t('VD: iPhone 14 Pro, Sorento. Giúp người mua lọc theo mẫu.', 'e.g. iPhone 14 Pro, Sorento. Lets buyers filter by model.')}>
-                <Input
-                  value={model}
-                  maxLength={60}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder={t('VD: iPhone 14 Pro', 'e.g. iPhone 14 Pro')}
-                  className="max-w-md"
+                <FieldControl
+                  render={
+                    <Input
+                      value={model}
+                      maxLength={60}
+                      onChange={(e) => setModel(e.target.value)}
+                      placeholder={t('VD: iPhone 14 Pro', 'e.g. iPhone 14 Pro')}
+                      className="max-w-md"
+                    />
+                  }
                 />
               </Field>
             )}
@@ -955,19 +986,32 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           {/* Details */}
           <Section title={t('Chi tiết', 'Details')}>
             <Field label={t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`} error={titleErr}>
-              <Input
+              {/* `id` goes on the CONTROL, not the wrapper: scrollToMissing() does
+                  getElementById('pw-title').focus() and that focus() is guarded by
+                  `instanceof HTMLInputElement` — on a wrapper <div> it silently no-ops.
+                  Passing it to FieldControl also makes it the id the label points at. */}
+              <FieldControl
                 id="pw-title"
-                value={title}
-                maxLength={TITLE_MAX}
-                onChange={(e) => setTitle(e.target.value)}
-                onBlur={() => touch('title')}
-                placeholder={t('VD: iPhone 14 128GB — pin 92%', 'e.g. iPhone 14 128GB — battery 92%')}
-                className={cn('max-w-2xl', err.title && 'ring-2 ring-destructive/60')}
+                render={
+                  <Input
+                    value={title}
+                    maxLength={TITLE_MAX}
+                    onChange={(e) => setTitle(e.target.value)}
+                    onBlur={() => touch('title')}
+                    placeholder={t('VD: iPhone 14 128GB — pin 92%', 'e.g. iPhone 14 128GB — battery 92%')}
+                    className={cn('max-w-2xl', err.title && 'ring-2 ring-destructive/60')}
+                  />
+                }
               />
             </Field>
-            <Field id="pw-description" label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')}>
+            {/* `pw-description` stays on the WRAPPER — it is the scroll anchor, and other
+                code may look it up. Only the title's id lives on its control. */}
+            <Field id="pw-description" label={t('Mô tả', 'Description')} counter={`${description.length}/${DESC_MAX}`} hint={t('Tình trạng, lý do bán, điểm nổi bật. Đừng ghi số điện thoại.', 'Condition, why you’re selling, what stands out. No phone numbers.')} error={descErr}>
+              {/* No mb-* on the row below: the Field wrapper is now `flex flex-col gap-1.5`, and a
+                  flex GAP does not collapse with a sibling's margin the way the old `space-y-1.5`
+                  block flow did — they ADD. An mb-1.5 here would put 12px under the row, not 6px. */}
               {aiEnabled && (
-                <div className="mb-1.5 flex max-w-2xl justify-end">
+                <div className="flex max-w-2xl justify-end">
                   <Button
                     type="button"
                     variant="bare"
@@ -986,13 +1030,18 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   </Button>
                 </div>
               )}
-              <Textarea
-                value={description}
-                maxLength={DESC_MAX}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={5}
-                placeholder={t('Mô tả chi tiết…', 'Describe it in detail…')}
-                className="max-w-2xl resize-none"
+              <FieldControl
+                render={
+                  <Textarea
+                    value={description}
+                    maxLength={DESC_MAX}
+                    onChange={(e) => setDescription(e.target.value)}
+                    onBlur={() => touch('description')}
+                    rows={5}
+                    placeholder={t('Mô tả chi tiết…', 'Describe it in detail…')}
+                    className={cn('max-w-2xl resize-none', err.description && 'ring-2 ring-destructive/60')}
+                  />
+                }
               />
             </Field>
           </Section>
@@ -1001,12 +1050,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           {categorySlug && (hasCondition || attrFacets.length > 0) && (
             <Section title={t('Thông số', 'Specifics')}>
               {hasCondition && (
-                <Field id="pw-condition" label={t('Tình trạng', 'Condition')}>
+                <Field group id="pw-condition" label={t('Tình trạng', 'Condition')}>
                   <Chips options={[{ value: 'new', label: t('Mới', 'New') }, { value: 'used', label: t('Đã dùng', 'Used') }]} value={condition} onPick={setCondition} />
                 </Field>
               )}
               {attrFacets.map((f, fi) => (
-                <Field key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)}>
+                <Field group key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)}>
                   {f.kind === 'range' && f.range ? (
                     <RangeSpecInput range={f.range} value={ranges[f.key] ?? null} onChange={(v) => setRanges((prev) => ({ ...prev, [f.key]: v }))} />
                   ) : (
@@ -1021,10 +1070,26 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           <Section id="pw-price" title={t('Giá', 'Price')}>
             <div onBlur={() => touch('price')}>
               <div className="flex max-w-xs items-center gap-2">
-                <div className="flex-1"><VndInput id="pw-price-input" value={price} onChange={setPrice} placeholder={t('Nhập giá', 'Enter price')} invalid={err.price} /></div>
+                {/* VndInput renders a <div> (input + VND suffix + preset chips), so it is not a
+                    labelable control and cannot go inside a <FieldControl>. The Section's heading
+                    "Giá/Price" is a heading, not a label — so the name and the reason have to be
+                    handed to the inner <input> by hand, or a screen reader reads this as an
+                    "invalid, blank edit field" with no name and no reason, on the one control that
+                    blocks every publish. */}
+                <div className="flex-1">
+                  <VndInput
+                    id="pw-price-input"
+                    value={price}
+                    onChange={setPrice}
+                    placeholder={t('Nhập giá', 'Enter price')}
+                    invalid={err.price}
+                    aria-label={t('Giá', 'Price')}
+                    aria-describedby={priceErr ? 'pw-price-error' : undefined}
+                  />
+                </div>
                 {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
               </div>
-              {priceErr && <p role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{priceErr}</p>}
+              {priceErr && <p id="pw-price-error" role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{priceErr}</p>}
               {priceBand && Number(price) > 0 && <PriceGuidance price={Number(price)} band={priceBand} />}
               {/* Negotiable vs fixed — a fixed price hides the offer UI so buyers just
                   ask availability and buy directly (seller's convenience). Fixed price
@@ -1090,12 +1155,23 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
           {/* Location */}
           <Section id="pw-location" title={t('Khu vực', 'Location')}>
-            <div className="flex max-w-md items-center gap-2">
+            {/* A popover trigger + a geolocate button — no labelable control, so this is
+                Field's contract by hand. The trigger carries it too: it is the focusable
+                one, so it is what a screen reader actually lands on. */}
+            <div
+              role="group"
+              aria-label={t('Khu vực', 'Location')}
+              aria-invalid={err.location ? true : undefined}
+              aria-describedby={err.location ? 'pw-location-error' : undefined}
+              className="flex max-w-md items-center gap-2"
+            >
               <Button
                 variant="bare"
                 size="none"
                 type="button"
                 ref={areaBtnRef}
+                aria-invalid={err.location ? true : undefined}
+                aria-describedby={err.location ? 'pw-location-error' : undefined}
                 onClick={() => setAreaOpen((o) => !o)}
                 className={cn(
                   // POPOVER ANCHOR. AreaFilter's reposition() reads this button's
@@ -1134,7 +1210,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {locating ? <Loader2 className="h-5 w-5 animate-spin" /> : <LocateFixed className="h-5 w-5" />}
               </IconButton>
             </div>
-            {err.location && <p role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{t('Chọn khu vực', 'Set the area')}</p>}
+            {err.location && <p id="pw-location-error" role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{t('Chọn khu vực', 'Set the area')}</p>}
           </Section>
 
           {/* Contact — taken from your ACCOUNT (a number belongs to one account, so
@@ -1161,13 +1237,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 {contactName.trim().length >= 2 ? (
                   <p className="text-sm font-semibold text-foreground">{contactName}</p>
                 ) : (
-                  <Field label={t('Tên của bạn', 'Your name')} error={err.contact && contactName.trim().length < 2 ? t('Thêm tên của bạn', 'Add your name') : undefined}>
-                    <Input
-                      value={contactName}
-                      maxLength={80}
-                      onChange={(e) => setContactName(e.target.value)}
-                      placeholder={t('Tên hiển thị cho người mua', 'Name buyers will see')}
-                      className={cn('max-w-md', err.contact && contactName.trim().length < 2 && 'ring-2 ring-destructive/60')}
+                  <Field label={t('Tên của bạn', 'Your name')} error={err.contactName ? t('Thêm tên của bạn', 'Add your name') : undefined}>
+                    <FieldControl
+                      render={
+                        <Input
+                          value={contactName}
+                          maxLength={80}
+                          onChange={(e) => setContactName(e.target.value)}
+                          placeholder={t('Tên hiển thị cho người mua', 'Name buyers will see')}
+                          className={cn('max-w-md', err.contactName && 'ring-2 ring-destructive/60')}
+                        />
+                      }
                     />
                   </Field>
                 )}
@@ -1182,14 +1262,18 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     </Button>
                   </div>
                 ) : (
-                  <Field label={t('Số điện thoại', 'Phone number')} hint={t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')} error={err.contact && !phoneOk ? t('Thêm số điện thoại hợp lệ', 'Add a valid phone number') : undefined}>
-                    <Input
-                      type="tel"
-                      inputMode="tel"
-                      value={contactPhone}
-                      onChange={(e) => setContactPhone(e.target.value)}
-                      placeholder="+84…"
-                      className={cn('max-w-md', err.contact && !phoneOk && 'ring-2 ring-destructive/60')}
+                  <Field label={t('Số điện thoại', 'Phone number')} hint={t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')} error={err.contactPhone ? t('Thêm số điện thoại hợp lệ', 'Add a valid phone number') : undefined}>
+                    <FieldControl
+                      render={
+                        <Input
+                          type="tel"
+                          inputMode="tel"
+                          value={contactPhone}
+                          onChange={(e) => setContactPhone(e.target.value)}
+                          placeholder="+84…"
+                          className={cn('max-w-md', err.contactPhone && 'ring-2 ring-destructive/60')}
+                        />
+                      }
                     />
                     {/* Zalo OTP verification is BUILT but hidden until Zalo is live —
                         no dead "coming soon" buttons on the posting path. */}

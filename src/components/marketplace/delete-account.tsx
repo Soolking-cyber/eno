@@ -7,6 +7,7 @@ import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field, FieldControl, FieldError, FieldLabel } from '@/components/ui/field'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,10 +29,16 @@ export function DeleteAccount() {
   const [open, setOpen] = useState(false)
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
+  // Two channels again. The server's 400 is a verdict on the TYPED WORD → it belongs to
+  // #delete-account-confirm. Everything else (409 under_review, 429, network) is a verdict on the
+  // ATTEMPT → form-level. Only ONE of them is a live announcement (role="alert" on the form-level p):
+  // the field error is announced by the control itself via aria-invalid + aria-describedby, so adding
+  // role="alert" there too would make an alertdialog speak the same sentence twice.
   const [error, setError] = useState('')
+  const [confirmErr, setConfirmErr] = useState('')
 
   const run = async () => {
-    setBusy(true); setError('')
+    setBusy(true); setError(''); setConfirmErr('')
     try {
       const res = await fetch('/api/account/delete', {
         method: 'POST',
@@ -40,7 +47,14 @@ export function DeleteAccount() {
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(d.message || d.error || tr('Something went wrong — try again.', 'Có lỗi xảy ra — thử lại nhé.'))
+        // The server rejects anything but the exact word (the button is also gated on it, so this is
+        // the race/tamper path) — that is a per-field failure, and its EN-only server string is
+        // replaced by our bilingual copy.
+        if (res.status === 400 && d.error === 'Confirmation required') {
+          setConfirmErr(tr('Type DELETE to confirm.', 'Nhập DELETE để xác nhận.'))
+        } else {
+          setError(d.message || d.error || tr('Something went wrong — try again.', 'Có lỗi xảy ra — thử lại nhé.'))
+        }
         setBusy(false)
         return
       }
@@ -78,7 +92,7 @@ export function DeleteAccount() {
       </p>
       <AlertDialog
         open={open}
-        onOpenChange={(next) => { setOpen(next); if (!next) { setConfirm(''); setError('') } }}
+        onOpenChange={(next) => { setOpen(next); if (!next) { setConfirm(''); setError(''); setConfirmErr('') } }}
       >
         <AlertDialogTrigger
           render={
@@ -102,17 +116,26 @@ export function DeleteAccount() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-1.5">
-            <Label htmlFor="delete-account-confirm">
-              {tr('Type DELETE to confirm', 'Nhập DELETE để xác nhận')}
-            </Label>
-            <Input
-              id="delete-account-confirm"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="DELETE"
-              autoComplete="off"
-              className="focus:ring-destructive/30"
-            />
+            <Field invalid={!!confirmErr} className="gap-1.5">
+              <FieldLabel render={<Label />}>
+                {tr('Type DELETE to confirm', 'Nhập DELETE để xác nhận')}
+              </FieldLabel>
+              <FieldControl id="delete-account-confirm"
+                render={
+                  <Input
+                    id="delete-account-confirm"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    placeholder="DELETE"
+                    autoComplete="off"
+                    className="focus:ring-destructive/30"
+                  />
+                }
+              />
+              {confirmErr && <FieldError className="font-semibold">{confirmErr}</FieldError>}
+            </Field>
+            {/* The only live announcement in this dialog. The field error above is NOT role="alert" —
+                it reaches the user through the control it describes, so the dialog speaks once. */}
             {error && <p role="alert" className="text-xs font-semibold text-destructive">{error}</p>}
           </div>
           <AlertDialogFooter>

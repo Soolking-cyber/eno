@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field, FieldControl, FieldError, FieldLabel } from '@/components/ui/field'
 
 type Choice = 'individual' | 'business'
 
@@ -30,7 +31,13 @@ export function OnboardClient() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // Two error channels, deliberately. `error` is FORM-level ("something went wrong") — it belongs to
+  // no input, so it is ANNOUNCED via role="alert". `fieldErr` holds the server's per-field rejections
+  // (business_name_required → #biz, phone_taken → #ph); those are wired into the control's
+  // aria-invalid + aria-describedby by <Field>, which is how a screen reader learns WHICH field is
+  // wrong and WHY. A per-field message only routes to a field that is actually RENDERED — see submit().
   const [error, setError] = useState('')
+  const [fieldErr, setFieldErr] = useState<{ biz?: string; ph?: string }>({})
 
   // Prefill the name from the OAuth profile + phone from a verified OTP login.
   useEffect(() => {
@@ -60,7 +67,7 @@ export function OnboardClient() {
 
   const submit = async () => {
     if (!canSubmit || !choice) return
-    setSubmitting(true); setError('')
+    setSubmitting(true); setError(''); setFieldErr({})
     try {
       const res = await fetch('/api/profile/account-type', {
         method: 'POST',
@@ -75,13 +82,19 @@ export function OnboardClient() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setSubmitting(false)
-        setError(
-          data?.error === 'phone_taken'
-            ? t('This phone number is already used by another account. Try a different one.', 'Số điện thoại này đã được tài khoản khác sử dụng. Hãy dùng số khác.')
-            : data?.error === 'business_name_required'
-            ? t('Please enter your business name.', 'Vui lòng nhập tên doanh nghiệp.')
-            : t('Something went wrong. Please try again.', 'Đã xảy ra lỗi. Vui lòng thử lại.'),
-        )
+        // The per-field inputs only exist in the BUSINESS branch — an individual still POSTs the phone
+        // prefilled from their OTP login, so `phone_taken` can come back with no #ph on screen. Routing
+        // it to a field that isn't rendered would swallow the message entirely; fall back to form-level.
+        const hasFields = choice === 'business'
+        if (hasFields && data?.error === 'phone_taken') {
+          setFieldErr({ ph: t('This phone number is already used by another account. Try a different one.', 'Số điện thoại này đã được tài khoản khác sử dụng. Hãy dùng số khác.') })
+        } else if (hasFields && data?.error === 'business_name_required') {
+          setFieldErr({ biz: t('Please enter your business name.', 'Vui lòng nhập tên doanh nghiệp.') })
+        } else if (data?.error === 'phone_taken') {
+          setError(t('This phone number is already used by another account. Try a different one.', 'Số điện thoại này đã được tài khoản khác sử dụng. Hãy dùng số khác.'))
+        } else {
+          setError(t('Something went wrong. Please try again.', 'Đã xảy ra lỗi. Vui lòng thử lại.'))
+        }
         return
       }
       markOnboarded(choice) // updates context so the global gate won't bounce us back
@@ -145,27 +158,33 @@ export function OnboardClient() {
             })}
           </div>
 
-          {/* Profile fields revealed once a type is chosen */}
+          {/* Profile fields revealed once a type is chosen. The two branches are MUTUALLY EXCLUSIVE and
+              must stay that way: both render an input with id="nm", so if they ever rendered together
+              the document would carry a duplicate id and every label/aria-describedby pointing at "nm"
+              would resolve to the wrong node. The ids are passed EXPLICITLY (Field would otherwise mint
+              its own) because they are the ones the server's per-field errors are routed to. */}
           {choice === 'individual' && (
-            <div className="mt-5">
-              <Label htmlFor="nm" className="mb-1 block text-xs font-semibold text-body">{t('Your name', 'Tên của bạn')}</Label>
-              <Input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className="transition-colors" />
-            </div>
+            <Field className="mt-5 gap-1">
+              <FieldLabel render={<Label />} className="text-xs font-semibold text-body">{t('Your name', 'Tên của bạn')}</FieldLabel>
+              <FieldControl id="nm" render={<Input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className="transition-colors" />} />
+            </Field>
           )}
           {choice === 'business' && (
             <div className="mt-5 space-y-3">
-              <div>
-                <Label htmlFor="biz" className="mb-1 block text-xs font-semibold text-body">{t('Business name', 'Tên doanh nghiệp')}</Label>
-                <Input id="biz" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder={t('e.g. Saigon Moto Rentals', 'vd. Saigon Moto Rentals')} maxLength={120} className="transition-colors" />
-              </div>
-              <div>
-                <Label htmlFor="nm" className="mb-1 block text-xs font-semibold text-body">{t('Your name (contact person)', 'Tên người liên hệ')}</Label>
-                <Input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className="transition-colors" />
-              </div>
-              <div>
-                <Label htmlFor="ph" className="mb-1 block text-xs font-semibold text-body">{t('Phone / Zalo', 'Số điện thoại / Zalo')}</Label>
-                <Input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="0901 234 567" maxLength={20} className="transition-colors" />
-              </div>
+              <Field invalid={!!fieldErr.biz} className="gap-1">
+                <FieldLabel render={<Label />} className="text-xs font-semibold text-body">{t('Business name', 'Tên doanh nghiệp')}</FieldLabel>
+                <FieldControl id="biz" render={<Input id="biz" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder={t('e.g. Saigon Moto Rentals', 'vd. Saigon Moto Rentals')} maxLength={120} className="transition-colors" />} />
+                {fieldErr.biz && <FieldError className="font-semibold">{fieldErr.biz}</FieldError>}
+              </Field>
+              <Field className="gap-1">
+                <FieldLabel render={<Label />} className="text-xs font-semibold text-body">{t('Your name (contact person)', 'Tên người liên hệ')}</FieldLabel>
+                <FieldControl id="nm" render={<Input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className="transition-colors" />} />
+              </Field>
+              <Field invalid={!!fieldErr.ph} className="gap-1">
+                <FieldLabel render={<Label />} className="text-xs font-semibold text-body">{t('Phone / Zalo', 'Số điện thoại / Zalo')}</FieldLabel>
+                <FieldControl id="ph" render={<Input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="0901 234 567" maxLength={20} className="transition-colors" />} />
+                {fieldErr.ph && <FieldError className="font-semibold">{fieldErr.ph}</FieldError>}
+              </Field>
             </div>
           )}
 

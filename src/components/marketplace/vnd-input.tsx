@@ -19,6 +19,7 @@ const chip = 'rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-body t
  */
 export function VndInput({
   value, onChange, presets, placeholder, autoFocus, id, className, invalid,
+  'aria-label': ariaLabel, 'aria-describedby': describedBy,
 }: {
   value: string
   onChange: (digits: string) => void
@@ -28,6 +29,12 @@ export function VndInput({
   id?: string
   className?: string
   invalid?: boolean
+  /** VndInput renders a <div>, so it is NOT a labelable control and cannot sit in a <FieldControl>.
+   *  Its inner <input> therefore has no way to acquire a name or a reason on its own — these two
+   *  props are how the caller supplies them by hand. Without them the price field announces as
+   *  "invalid, blank edit field": no name, no reason, on the one control that blocks every publish. */
+  'aria-label'?: string
+  'aria-describedby'?: string
 }) {
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // grouping follows the viewer's language (vi: dots)
@@ -48,6 +55,12 @@ export function VndInput({
           value={groupVnd(digits, locale)}
           onChange={(e) => set(e.target.value)}
           placeholder={placeholder ?? '0'}
+          // `invalid` used to paint the red ring and NOTHING else: the field LOOKED invalid and
+          // REPORTED valid, so a screen-reader user was never told the price was rejected. The ring
+          // is for the sighted; aria-invalid is for everyone else. Both, or neither.
+          aria-invalid={invalid || undefined}
+          aria-label={ariaLabel}
+          aria-describedby={describedBy}
           // pr-14 is LOAD-BEARING: it reserves the room for the "VND" suffix span
           // below — without it the digits run under the suffix.
           className={cn('py-2.5 pl-3.5 pr-14 text-lg font-bold tabular-nums focus:ring-brand/20', invalid && 'ring-2 ring-destructive/60')}

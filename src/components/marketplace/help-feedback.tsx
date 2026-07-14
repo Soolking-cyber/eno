@@ -78,6 +78,7 @@ export function HelpFeedback() {
         onChange={(e) => setMessage(e.target.value)}
         rows={4}
         maxLength={4000}
+        aria-label={kind === 'technical' ? tr('Describe the problem', 'Mô tả lỗi') : tr('Your feedback', 'Phản hồi của bạn')}
         placeholder={kind === 'technical' ? tr('What went wrong, and what were you doing?', 'Lỗi gì, và bạn đang làm gì?') : tr('What works well, what could be better?', 'Điều gì tốt, điều gì có thể cải thiện?')}
         className="mt-3 border-border bg-background px-3.5 py-2.5 transition-colors focus:ring-0"
       />
@@ -86,11 +87,14 @@ export function HelpFeedback() {
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
+        aria-label={tr('Email (optional, so we can reply)', 'Email (tùy chọn, để chúng tôi trả lời)')}
         placeholder={tr('Email (optional, so we can reply)', 'Email (tùy chọn, để chúng tôi trả lời)')}
         className="mt-2.5 border-border bg-background px-3.5 py-2.5 transition-colors focus:ring-0"
       />
+      {/* Submit-level failure: it belongs to the whole send, not to the message or the
+          email field, so it is ANNOUNCED (role="alert") — never aria-describedby. */}
       {state === 'error' && (
-        <p className="mt-2 text-sm font-semibold text-destructive">{tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.')}</p>
+        <p role="alert" className="mt-2 text-sm font-semibold text-destructive">{tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.')}</p>
       )}
       <Button variant="cta" size="none"
         type="button"

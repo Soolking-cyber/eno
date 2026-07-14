@@ -44,28 +44,45 @@ const BRAND_HEX = new Set([
 // design system. If you are tempted, check first whether the PRIMITIVE is what's wrong —
 // that was true of ~116 controls in this sweep, which stopped being "impossible" the
 // moment ui/button, ui/badge, ui/icon-button and ui/input grew the variants they needed.
+// ⚠️ Entries are matched on the CONTROL'S OWN SOURCE TEXT, not on a line number.
+//
+// This list used to be keyed by line. That made it a tripwire on UNRELATED edits: add one line
+// anywhere ABOVE an exempted control and its entry silently stops matching, the control reads as a
+// brand-new violation, and the build goes red in a file the author never touched. It broke the build
+// TWICE in a single afternoon (an added aria-label pushed the disputes file input 393 → 394). A gate
+// that fails because of correct edits elsewhere is one people learn to route around, which is the
+// only way this gate can actually die.
+//
+// `match` is a substring of the offending line. It must be SPECIFIC — `type="file"` identifies the
+// hidden file inputs precisely, and would not accidentally exempt a raw <button> or a text <input>
+// added to the same file later. That is the property worth preserving: line-independence must not
+// become a blanket per-file amnesty.
 const RAW_CONTROL_ALLOW = [
   // A. The <label> IS the control. A hidden <input type=file> is opened by click-through
   //    containment (or a ref .click()), renders nothing, and often needs its raw node for
   //    the `value = ''` reset that lets the same file be picked twice. ui/label is a form
   //    label; ui/input is a visible field. Neither can be this.
-  { file: 'src/components/marketplace/bulk-upload-panel.tsx', lines: [139], reason: 'hidden CSV input, fired by the dropzone via fileRef.click()' },
-  { file: 'src/components/marketplace/business-profile-editor.tsx', lines: [126], reason: 'hidden logo input inside the <label> picker' },
-  { file: 'src/components/marketplace/profile-editor.tsx', lines: [76], reason: 'hidden avatar input inside the clickable <label>' },
-  { file: 'src/components/marketplace/post-wizard.tsx', lines: [822, 845], reason: 'hidden photo + video inputs inside the dashed <label> tiles; the video one needs currentTarget.value = "" to allow a re-pick' },
-  { file: 'src/app/disputes/[id]/page.tsx', lines: [393], reason: 'hidden evidence input inside the Evidence <label>' },
-  { file: 'src/app/appeal/[id]/page.tsx', lines: [98], reason: 'hidden proof input inside the Add <label>' },
-  { file: 'src/app/reports/[id]/page.tsx', lines: [107], reason: 'hidden screenshot input inside the Add <label>' },
-  { file: 'src/components/admin/admin-brands-client.tsx', lines: [242], reason: 'hidden .svg input inside the Upload <label>; needs the raw node for its value="" reset' },
+  { file: 'src/components/marketplace/bulk-upload-panel.tsx', match: 'type="file"', reason: 'hidden CSV input, fired by the dropzone via fileRef.click()' },
+  { file: 'src/components/marketplace/business-profile-editor.tsx', match: 'type="file"', reason: 'hidden logo input inside the <label> picker' },
+  { file: 'src/components/marketplace/profile-editor.tsx', match: 'type="file"', reason: 'hidden avatar input inside the clickable <label>' },
+  { file: 'src/components/marketplace/post-wizard.tsx', match: 'type="file"', reason: 'hidden photo + video inputs inside the dashed <label> tiles; the video one needs currentTarget.value = "" to allow a re-pick' },
+  { file: 'src/app/disputes/[id]/page.tsx', match: 'type="file"', reason: 'hidden evidence input inside the Evidence <label>' },
+  { file: 'src/app/appeal/[id]/page.tsx', match: 'type="file"', reason: 'hidden proof input inside the Add <label>' },
+  { file: 'src/app/reports/[id]/page.tsx', match: 'type="file"', reason: 'hidden screenshot input inside the Add <label>' },
+  { file: 'src/components/admin/admin-brands-client.tsx', match: 'type="file"', reason: 'hidden .svg input inside the Upload <label>; needs the raw node for its value="" reset' },
 
   // B. Nested interactive content. A <button> may not contain another button/input — the
   //    HTML parser reparents it and hydration breaks.
-  { file: 'src/components/marketplace/dashboard-listing-row.tsx', lines: [168], reason: 'the grid cover HOSTS the select checkbox (Base UI span + its hidden input), so it must stay a raw button/div — nested interactive content, and a <button> inside a <button> is reparented by the parser' },
+  { file: 'src/components/marketplace/dashboard-listing-row.tsx', match: 'aspect-square w-full overflow-hidden rounded-t-2xl', reason: 'the grid cover HOSTS the select checkbox (Base UI span + its hidden input), so it must stay a raw button/div — nested interactive content, and a <button> inside a <button> is reparented by the parser' },
 
   // C. No stylesheet exists here.
-  { file: 'src/app/global-error.tsx', lines: [20], reason: 'renders its own <html> WITHOUT globals.css — no Tailwind, no tokens, no primitives; inline styles only' },
+  { file: 'src/app/global-error.tsx', match: '<button', reason: 'renders its own <html> WITHOUT globals.css — no Tailwind, no tokens, no primitives; inline styles only' },
 ]
-const RAW_ALLOW_MAP = new Map(RAW_CONTROL_ALLOW.map((e) => [e.file, new Set(e.lines)]))
+const RAW_ALLOW_MAP = new Map()
+for (const e of RAW_CONTROL_ALLOW) {
+  if (!RAW_ALLOW_MAP.has(e.file)) RAW_ALLOW_MAP.set(e.file, [])
+  RAW_ALLOW_MAP.get(e.file).push(e.match)
+}
 
 // Files allowed to use a raw Tailwind palette colour. Keep this list SHORT and justified —
 // every entry is a surface that will not adapt in dark mode.
@@ -135,12 +152,13 @@ function stripComments(src) {
 const RAW_CONTROL_RE = /<(button|input|textarea|select)[\s>]/g
 function checkRawControls(rel, codeLines, rawLines) {
   if (rel.startsWith('src/components/ui/')) return 0
-  const allowed = RAW_ALLOW_MAP.get(rel)
+  const allowed = RAW_ALLOW_MAP.get(rel) ?? []
   let n = 0
   codeLines.forEach((line, i) => {
     if (rawLines[i]?.includes('design-lint-allow')) return
     for (const m of line.matchAll(RAW_CONTROL_RE)) {
-      if (allowed?.has(i + 1)) continue
+      // Content match, not line number — see the note on RAW_CONTROL_ALLOW.
+      if (allowed.some((sig) => line.includes(sig))) continue
       n++
       console.error(
         `${rel}:${i + 1}  <${m[1]}>  — raw control: use the primitive in src/components/ui/ ` +

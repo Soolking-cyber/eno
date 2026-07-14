@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TrendingDown, Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Field, FieldLabel, FieldControl, FieldError } from '@/components/ui/field'
 import { EnoSlider } from './eno-slider'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, parseVnd, groupVnd, dropPercent, moneyLocale } from '@/lib/vnd'
@@ -25,16 +26,38 @@ export function tidyPrice(raw: number): number {
 }
 
 /** The 1–99% discount picker: a big live %, a slider, and the quick presets.
- *  Shared so the single + bulk discount dialogs feel identical. */
-export function PercentPicker({ pct, onPct }: { pct: number; onPct: (p: number) => void }) {
+ *  Shared so the single + bulk discount dialogs feel identical.
+ *
+ *  ⚠️ The picker and the exact-VND field are TWO CONTROLS BOUND TO ONE VALUE, so they
+ *  share one validity. The slider is not a labelable control (no <Field> around it),
+ *  so the association is done by hand: the group carries the LABEL and the
+ *  `aria-describedby` pointed at the SAME error node the VND field describes itself
+ *  with, while the validity state rides on the SLIDER.
+ *
+ *  ⚠️ aria-invalid must NOT go on the `role="group"` div. ARIA 1.2 does not list
+ *  aria-invalid as a supported property of `group`, so assistive tech simply DROPS it —
+ *  the flag would read as correct in the source and reach nobody. It is supported on
+ *  `slider`, which is what EnoSlider renders. Same trap as the rest of this sweep: a
+ *  control that looks like it reports its state and doesn't. */
+export function PercentPicker({ pct, onPct, invalid, describedBy }: {
+  pct: number
+  onPct: (p: number) => void
+  invalid?: boolean
+  describedBy?: string
+}) {
   const { tr } = useLanguage()
   return (
-    <div className="space-y-3">
+    <div
+      className="space-y-3"
+      role="group"
+      aria-label={tr('Discount percent', 'Phần trăm giảm')}
+      aria-describedby={invalid ? describedBy : undefined}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-muted-foreground">{tr('Discount', 'Mức giảm')}</span>
         <span className="text-lg font-bold tabular-nums text-destructive">−{pct}%</span>
       </div>
-      <EnoSlider value={pct} min={1} max={99} step={1} onChange={(v) => onPct(clampPct(v))} aria-label={tr('Discount percent', 'Phần trăm giảm')} />
+      <EnoSlider value={pct} min={1} max={99} step={1} onChange={(v) => onPct(clampPct(v))} aria-invalid={invalid || undefined} aria-label={tr('Discount percent', 'Phần trăm giảm')} />
       <div className="grid grid-cols-3 gap-2">
         {DISCOUNT_PRESETS.map((p) => (
           <Button
@@ -73,6 +96,7 @@ export function QuickDiscount({
 }) {
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // amounts + live grouping follow the viewer's language
+  const errId = useId()
   const [open, setOpen] = useState(false)
   const [pct, setPctState] = useState(10)
   const [amount, setAmount] = useState('') // grouped new-price string, e.g. "3,600,000"
@@ -95,6 +119,7 @@ export function QuickDiscount({
 
   const newPrice = parseVnd(amount)
   const valid = newPrice > 0 && newPrice < cur
+  const showErr = !!amount && !valid
   const pctLabel = valid ? dropPercent(cur, newPrice) : null
   const willEarnBadge = valid && newPrice <= cur * (1 - BADGE_HINT_PCT / 100)
 
@@ -152,23 +177,37 @@ export function QuickDiscount({
               <p className="text-sm font-semibold text-foreground">{formatMoneyFull(cur, listing.currency, locale)}</p>
             </div>
 
-            <PercentPicker pct={pct} onPct={setPct} />
+            <PercentPicker pct={pct} onPct={setPct} invalid={showErr} describedBy={errId} />
 
-            {/* Exact new price (kept in sync with the slider). */}
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">{tr('New price', 'Giá mới')}</label>
+            {/* Exact new price (kept in sync with the slider).
+                The WRAPPER owns the box + the focus-within ring, so the control stays
+                variant="unstyled" and <Field> adds no second ring — it only wires the
+                label, aria-invalid and aria-describedby. */}
+            <Field invalid={showErr} className="gap-0">
+              <FieldLabel className="text-xs font-semibold text-muted-foreground">{tr('New price', 'Giá mới')}</FieldLabel>
               <div className="mt-1 flex items-center gap-2 rounded-xl bg-tint px-3 py-2 focus-within:ring-2 focus-within:ring-brand/20">
-                <Input
-                  variant="unstyled"
-                  inputMode="numeric"
+                <FieldControl
+                  render={
+                    <Input
+                      variant="unstyled"
+                      inputMode="numeric"
+                      placeholder="0"
+                      className="min-w-0 flex-1 text-sm font-semibold tabular-nums"
+                    />
+                  }
                   value={amount}
                   onChange={(e) => onAmount(e.target.value)}
-                  placeholder="0"
-                  className="min-w-0 flex-1 text-sm font-semibold tabular-nums"
                 />
                 <span className="shrink-0 text-xs font-semibold text-muted-foreground">VND</span>
               </div>
-            </div>
+              {/* role="alert" as well as being the field's description: a validation
+                  message that appears while typing is otherwise announced to nobody. */}
+              {showErr && (
+                <FieldError id={errId} role="alert" className="mt-4 text-center font-semibold">
+                  {tr('Enter a price lower than the current one.', 'Nhập giá thấp hơn giá hiện tại.')}
+                </FieldError>
+              )}
+            </Field>
 
             {/* Live preview: the drop % + whether it clears the buyer-badge floor. */}
             {valid && (
@@ -186,11 +225,6 @@ export function QuickDiscount({
                   </p>
                 )}
               </div>
-            )}
-            {amount && !valid && (
-              <p className="text-center text-xs font-semibold text-destructive">
-                {tr('Enter a price lower than the current one.', 'Nhập giá thấp hơn giá hiện tại.')}
-              </p>
             )}
 
             <Button

@@ -5,8 +5,15 @@
 // component identity across the wizard's frequent re-renders (a keystroke must not remount
 // these subtrees). No behaviour change from the in-file versions.
 
+import { useId } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import {
+  Field as UiField,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+} from '@/components/ui/field'
 import { useLanguage } from '@/context/language-context'
 import { CategoryIcon } from './category-icons'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -59,16 +66,73 @@ export function Section({ title, hint, children, id }: { title: string; hint?: s
   )
 }
 
-export function Field({ id, label, counter, hint, error, children }: { id?: string; label: string; counter?: string; hint?: string; error?: string; children: React.ReactNode }) {
+/** The wizard's field wrapper — the label/hint/error frame every step reuses.
+ *
+ *  ## What it used to be, and why that was the worst bug in the form
+ *  A `<div>` with a bare `<label>` that had no `htmlFor` and wrapped nothing. A dangling label
+ *  names NOTHING: title, description, brand, model, condition, contact name and phone all
+ *  rendered a visible label that assistive tech could not connect to any input. The `id` prop
+ *  landed on the WRAPPER, so it couldn't rescue the association either, and no control ever
+ *  reported `aria-invalid` — the red text sat beside a field that still announced as valid.
+ *
+ *  Now it is `ui/field` (Base UI `Field.Root`): the label registers itself with the control, the
+ *  hint and the error register as descriptions, and `invalid` sets `aria-invalid`. The call sites
+ *  keep the same props — they only have to pass their control through `<FieldControl render={…}>`
+ *  so Field knows which element to bind to.
+ *
+ *  ⚠️ Hint and error now render TOGETHER (they used to be a ternary — one XOR the other). Base UI
+ *  merges both ids into a single `aria-describedby`, and the phone field genuinely wants both
+ *  ("buyers never see it until you reply" AND "add a valid number").
+ *
+ *  ⚠️ `group` — Base UI's `Field.Control` needs a LABELABLE element (input/textarea/select). The
+ *  chip grids, the sale/rent toggle and `RangeSpecInput` are none of those, so a `Field.Label`
+ *  there would dangle exactly like the old one. Those pass `group` and get the same wiring by
+ *  hand on a `role="group"`: `aria-labelledby` → the label, `aria-invalid`, `aria-describedby` →
+ *  the hint + error. Same contract, no lie about being an input.
+ *
+ *  ⚠️ `id` lands on the WRAPPER (it always did). `scrollToMissing()` in post-wizard.tsx looks up
+ *  `pw-description` / `pw-condition` / `pw-details` as SCROLL anchors, so that must not move. The
+ *  one id that has to be on the control itself is `pw-title` — it is passed to `<FieldControl>`
+ *  there, not to this wrapper.
+ */
+export function Field({ id, label, counter, hint, error, group, children }: { id?: string; label: string; counter?: string; hint?: string; error?: string; group?: boolean; children: React.ReactNode }) {
+  const uid = useId()
+  const labelId = `${uid}-label`
+  const hintId = `${uid}-hint`
+  const errorId = `${uid}-error`
+
+  if (group) {
+    const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined
+    return (
+      <div id={id} className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span id={labelId} className="text-sm font-semibold text-foreground">{label}</span>
+          {counter && <span className="text-2xs text-ink-4">{counter}</span>}
+        </div>
+        <div role="group" aria-labelledby={labelId} aria-invalid={error ? true : undefined} aria-describedby={describedBy}>
+          {children}
+        </div>
+        {hint && <p id={hintId} className="text-xs text-muted-foreground">{hint}</p>}
+        {/* Nothing focuses a chip grid on a failed publish, so the message is announced
+            (role="alert") as well as being the group's description. */}
+        {error && <p id={errorId} role="alert" className="text-xs font-semibold text-destructive">{error}</p>}
+      </div>
+    )
+  }
+
   return (
-    <div id={id} className="space-y-1.5">
+    <UiField id={id} invalid={!!error}>
       <div className="flex items-center justify-between">
-        <label className="text-sm font-semibold text-foreground">{label}</label>
+        <FieldLabel className="font-semibold">{label}</FieldLabel>
         {counter && <span className="text-2xs text-ink-4">{counter}</span>}
       </div>
       {children}
-      {error ? <p role="alert" className="text-xs font-semibold text-destructive">{error}</p> : hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-    </div>
+      {hint && <FieldDescription className="text-muted-foreground">{hint}</FieldDescription>}
+      {/* FieldError has match={true} baked in — it renders whenever the CALLER says so.
+          Never render it unconditionally: this app validates in React state, not native
+          validity, so an always-mounted error would show an empty description. */}
+      {error && <FieldError className="font-semibold">{error}</FieldError>}
+    </UiField>
   )
 }
 

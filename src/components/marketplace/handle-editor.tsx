@@ -6,7 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { Field, FieldControl, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { HANDLE_RE } from '@/lib/handle-format'
 
 // Telegram-style @handle editor — shared by the user handle (Dashboard → Settings)
@@ -83,31 +83,45 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
     } catch {}
   }
 
-  const hint =
-    state === 'available' ? { text: tr('Available!', 'Còn trống!'), cls: 'text-success' }
-    : state === 'taken' ? { text: tr('Already taken', 'Đã có người dùng'), cls: 'text-destructive' }
-    : state === 'reserved' ? { text: tr('Reserved name', 'Tên được bảo lưu'), cls: 'text-destructive' }
-    : state === 'invalid' && normalized ? { text: tr('3–30 chars: a–z, 0–9, _ — start with a letter', '3–30 ký tự: a–z, 0–9, _ — bắt đầu bằng chữ'), cls: 'text-destructive' }
+  // The verdict of the live check, split by KIND — because the two kinds are different a11y objects.
+  // A failure is a property of the field: it makes the control aria-invalid and becomes its description
+  // (<FieldError>). "Available!" is the opposite of an error, so it cannot ride in a <FieldError> at all
+  // — it stays a <FieldDescription>. Both render inside one polite live region so that a screen-reader
+  // user, who is mid-typing and never changes focus, actually HEARS the verdict instead of just finding
+  // Save mysteriously disabled.
+  const hint: { kind: 'error' | 'ok'; text: string } | null =
+    state === 'available' ? { kind: 'ok', text: tr('Available!', 'Còn trống!') }
+    : state === 'taken' ? { kind: 'error', text: tr('Already taken', 'Đã có người dùng') }
+    : state === 'reserved' ? { kind: 'error', text: tr('Reserved name', 'Tên được bảo lưu') }
+    : state === 'invalid' && normalized ? { kind: 'error', text: tr('3–30 chars: a–z, 0–9, _ — start with a letter', '3–30 ký tự: a–z, 0–9, _ — bắt đầu bằng chữ') }
     : null
 
   return (
-    <div>
-      <Label htmlFor={`handle-${target}`} className="block text-xs font-semibold leading-normal text-muted-foreground">
+    // gap-0: this layout already spaces itself with mt-* on each row, so Field's default gap would
+    // add a second helping. Field is here for the WIRING (aria-invalid + a merged aria-describedby),
+    // not for the spacing.
+    <Field invalid={hint?.kind === 'error'} className="gap-0">
+      <FieldLabel render={<Label />} className="block text-xs font-semibold leading-normal text-muted-foreground">
         {label || tr('Public handle', 'Tên định danh công khai')}
-      </Label>
+      </FieldLabel>
       <div className="mt-1 flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
           <AtSign className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-4" />
-          <Input
+          <FieldControl
             id={`handle-${target}`}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={tr('your_name', 'ten_cua_ban')}
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            variant="filled"
-            className="py-2.5 pl-9 pr-9 font-semibold transition-colors focus:ring-brand/20"
+            render={
+              <Input
+                id={`handle-${target}`}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder={tr('your_name', 'ten_cua_ban')}
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                variant="filled"
+                className="py-2.5 pl-9 pr-9 font-semibold transition-colors focus:ring-brand/20"
+              />
+            }
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2">
             {state === 'checking' && <Loader2 className="h-4 w-4 animate-spin text-ink-4" />}
@@ -141,11 +155,19 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
           </Button>
         ) : null}
       </div>
-      <p className={cn('mt-1 h-4 text-xs font-semibold', hint ? hint.cls : 'text-transparent')}>{hint?.text || '—'}</p>
+      {/* h-4 is LOAD-BEARING: the slot keeps its height whether or not there is a verdict, so the row
+          below does not jump on every keystroke (it used to hold a transparent em-dash for exactly this
+          reason). aria-live="polite" — never "assertive"/role="alert" — so the verdict is spoken between
+          keystrokes instead of interrupting the letter the user is typing. */}
+      <div aria-live="polite" className="mt-1 h-4">
+        {hint?.kind === 'error' && <FieldError className="font-semibold">{hint.text}</FieldError>}
+        {hint?.kind === 'ok' && <FieldDescription className="font-semibold text-success">{hint.text}</FieldDescription>}
+      </div>
       {current && !dirty && (
         <p className="text-xs text-muted-foreground">eno.vn/<span className="font-semibold text-body">{current}</span></p>
       )}
+      {/* Save failed — a verdict on the ATTEMPT (incl. rate limits), so it is announced, not described. */}
       {error && <p role="alert" className="mt-1 text-xs font-semibold text-destructive">{error}</p>}
-    </div>
+    </Field>
   )
 }

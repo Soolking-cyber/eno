@@ -148,6 +148,7 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
                   rows={4}
                   autoFocus
                   maxLength={4000}
+                  aria-label={kind === 'technical' ? tr('Describe the problem', 'Mô tả lỗi') : tr('Your feedback', 'Phản hồi của bạn')}
                   placeholder={tr('Type your message…', 'Nhập tin nhắn của bạn…')}
                   className="mt-3 border-border bg-background px-3.5 py-2.5 transition-colors focus:ring-0"
                 />
@@ -156,11 +157,13 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  aria-label={tr('Email (optional, so we can reply)', 'Email (tùy chọn, để chúng tôi trả lời)')}
                   placeholder={tr('Email (optional, so we can reply)', 'Email (tùy chọn, để chúng tôi trả lời)')}
                   className="mt-2.5 border-border bg-background px-3.5 py-2.5 transition-colors focus:ring-0"
                 />
+                {/* Submit-level failure: announced, not attached to a field's description. */}
                 {state === 'error' && (
-                  <p className="mt-2 text-sm font-semibold text-destructive">{tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.')}</p>
+                  <p role="alert" className="mt-2 text-sm font-semibold text-destructive">{tr("Couldn't send — please try again.", 'Không gửi được — vui lòng thử lại.')}</p>
                 )}
                 <Button variant="cta" size="none"
                   type="button"

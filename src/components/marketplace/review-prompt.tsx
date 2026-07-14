@@ -109,6 +109,7 @@ export function ReviewPrompt({
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
               maxLength={600}
+              aria-label={tr('Your review (optional)', 'Đánh giá của bạn (không bắt buộc)')}
               placeholder={tr('Anything to add? (optional)', 'Bạn muốn chia sẻ thêm? (không bắt buộc)')}
               className="w-auto min-w-0 flex-1 px-3 py-2 text-xs focus:ring-brand/20"
             />

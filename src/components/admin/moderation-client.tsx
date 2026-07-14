@@ -106,7 +106,7 @@ function NoteEditor({ caseId, initial, onSaved }: { caseId: string; initial: str
   return (
     <div className="w-full rounded-lg border border-border bg-tint/40 p-2" onClick={(e) => e.stopPropagation()}>
       <p className="mb-1 text-3xs font-semibold text-muted-foreground">Internal note (staff-only, never shown to users)</p>
-      <Textarea variant="outline" value={text} onChange={(e) => setText(e.target.value)} rows={2} maxLength={2000} className="min-h-0 resize-none px-2 py-1.5 text-xs" />
+      <Textarea variant="outline" value={text} onChange={(e) => setText(e.target.value)} rows={2} maxLength={2000} aria-label="Internal note (staff-only, never shown to users)" className="min-h-0 resize-none px-2 py-1.5 text-xs" />
       <div className="mt-1.5 flex items-center gap-1.5">
         <Button size="none" onClick={save} disabled={saving || !dirty} className="gap-1 rounded-lg bg-foreground px-2.5 py-1 text-3xs font-bold text-background hover:bg-foreground hover:opacity-90 disabled:opacity-40 cursor-pointer">{saving ? <Loader2 className="size-3 animate-spin" /> : null} Save note</Button>
         <Button size="none" variant="ghost" onClick={() => { setText(initial || ''); setOpen(false) }} className="rounded-lg px-2 py-1 text-3xs font-bold text-muted-foreground hover:bg-muted hover:text-muted-foreground cursor-pointer">Close</Button>
@@ -254,7 +254,9 @@ function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
           {state === 'loading' ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
           {state === 'loading' ? 'Reading the evidence…' : 'AI review'}
         </Button>
-        {state === 'error' && <span className="text-2xs font-semibold text-warning">{err}</span>}
+        {/* The AI run failed / was budget-capped — a whole-action outcome, so it is
+            ANNOUNCED (role="alert"). Admin chrome is EN-only by convention. */}
+        {state === 'error' && <span role="alert" className="text-2xs font-semibold text-warning">{err}</span>}
       </div>
     )
   }
@@ -609,7 +611,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
           <Button size="none" variant="ghost" onClick={() => bulk('bulk-dismiss')} disabled={bulkBusy} className="rounded-lg border border-line-strong px-2.5 py-1 text-2xs font-bold text-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 cursor-pointer">Dismiss selected</Button>
           <span className="ml-1 flex items-center gap-1">
             <Select value={bulkSev} onValueChange={(v) => { if (typeof v === 'string') setBulkSev(v) }}>
-              <SelectTrigger size="sm" className="rounded-lg border-line-strong bg-card text-2xs cursor-pointer">
+              <SelectTrigger size="sm" aria-label="Severity for the selected reports" className="rounded-lg border-line-strong bg-card text-2xs cursor-pointer">
                 {bulkSev} {PENALTY[bulkSev]}
               </SelectTrigger>
               <SelectContent>

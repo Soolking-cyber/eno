@@ -111,7 +111,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
           <div className="mt-6 rounded-2xl bg-card p-5 shadow-pop">
             <CheckCircle2 className="h-8 w-8 text-accent-foreground" />
             <p className="mt-2 text-sm font-bold text-foreground">{tr('Import complete', 'Hoàn tất')}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{result.created} {tr('listings created', 'tin đã tạo')}{result.failed > 0 ? `, ${result.failed} ${tr('failed', 'lỗi')}` : ''}.</p>
+            {/* role=status: the outcome is the answer to the action just taken — spoken, not only shown. */}<p role="status" aria-live="polite" className="mt-1 text-sm text-muted-foreground">{result.created} {tr('listings created', 'tin đã tạo')}{result.failed > 0 ? `, ${result.failed} ${tr('failed', 'lỗi')}` : ''}.</p>
             {result.failed > 0 && (
               <ul className="mt-3 space-y-1 text-xs text-destructive">
                 {result.results.filter((r) => r.error).map((r) => <li key={r.row}>{tr('Row', 'Dòng')} {r.row}: {r.error}</li>)}
@@ -139,13 +139,19 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
               <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f) }} />
             </div>
 
-            {error && <p className="mt-3 text-sm font-semibold text-destructive">{error}</p>}
+            {/* Whole-upload failure — belongs to no single input, so it is ANNOUNCED
+                (role="alert") rather than wired into some field's aria-describedby. */}
+            {error && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{error}</p>}
 
             {/* Preview */}
             {rows && (
               <div className="mt-5">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-foreground">
+                  {/* The per-row errors below are a LIST, not 200 alerts — announcing each
+                      would bury the user. The SUMMARY is the live region: it speaks the
+                      one thing that matters ("42 ready, 3 with errors") when a CSV is
+                      parsed or replaced, and the rows stay silent for reading on demand. */}
+                  <p role="status" aria-live="polite" className="text-sm font-semibold text-foreground">
                     <span className="text-accent-foreground">{valid.length} {tr('ready', 'hợp lệ')}</span>
                     {invalid.length > 0 && <span className="text-destructive">, {invalid.length} {tr('with errors', 'có lỗi')}</span>}
                   </p>

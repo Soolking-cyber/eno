@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field, FieldControl, FieldDescription, FieldError } from '@/components/ui/field'
 import { compressImageFile } from '@/lib/normalize-image'
 import { Avatar } from '@/components/ui/avatar'
 
@@ -21,6 +22,9 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [saved, setSaved] = useState(false)
+  // Per-field server rejections (bad_phone, name_too_short, …) render ON the field via
+  // <Field invalid>/<FieldError>; `error` is the FORM-level residue (photo upload, unmapped code).
+  const [fieldErr, setFieldErr] = useState<{ name?: string; phone?: string }>({})
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -42,7 +46,7 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
   }
 
   const save = async () => {
-    setSaving(true); setError(''); setSaved(false)
+    setSaving(true); setError(''); setFieldErr({}); setSaved(false)
     try {
       // Only send avatarUrl when it actually changed — re-sending an unchanged
       // default/Google avatar (not a Supabase-bucket URL) would 400 as bad_avatar.
@@ -54,12 +58,23 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(
-          d.error === 'phone_taken' ? tr('That phone is already in use.', 'Số này đã được dùng.')
-          : d.error === 'bad_phone' ? tr('Enter a valid phone number.', 'Nhập số điện thoại hợp lệ.')
-          : d.error === 'name_too_short' ? tr('Enter your name.', 'Nhập tên của bạn.')
-          : tr('Could not save. Try again.', 'Không lưu được. Thử lại.'),
-        )
+        // Route each server code to the field it is ABOUT; an unknown code stays form-level rather
+        // than being pinned to an arbitrary input.
+        if (d.error === 'phone_taken') {
+          setFieldErr({ phone: tr('That phone is already in use.', 'Số này đã được dùng.') })
+        } else if (d.error === 'bad_phone') {
+          setFieldErr({ phone: tr('Enter a valid phone number.', 'Nhập số điện thoại hợp lệ.') })
+        } else if (d.error === 'name_too_short') {
+          setFieldErr({ name: tr('Enter your name.', 'Nhập tên của bạn.') })
+        } else if (d.error === 'no_phone_in_name') {
+          // /api/profile/route.ts:31 — containsPhoneNumber() rejects a phone hidden in the display
+          // name (the contact gate exists to keep numbers out of public text). It is a NAME error;
+          // without this branch it fell through to the generic "Could not save", leaving the user to
+          // guess which field the server hated.
+          setFieldErr({ name: tr("Phone numbers aren't allowed in your name.", 'Không ghi số điện thoại trong tên.') })
+        } else {
+          setError(tr('Could not save. Try again.', 'Không lưu được. Thử lại.'))
+        }
         return
       }
       setSaved(true); onSaved()
@@ -77,15 +92,17 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
       </label>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <Field invalid={!!fieldErr.name}>
           <Label htmlFor="profile-name">{tr('Your name', 'Tên của bạn')}</Label>
-          <Input id="profile-name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} />
-        </div>
-        <div className="space-y-1.5">
+          <FieldControl id="profile-name" render={<Input id="profile-name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} />} />
+          {fieldErr.name && <FieldError>{fieldErr.name}</FieldError>}
+        </Field>
+        <Field invalid={!!fieldErr.phone}>
           <Label htmlFor="profile-phone">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</Label>
-          <Input id="profile-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" />
-          <p className="text-xs text-muted-foreground">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ sau khi bạn trả lời — không hiển thị công khai.')}</p>
-        </div>
+          <FieldControl id="profile-phone" render={<Input id="profile-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" />} />
+          <FieldDescription className="text-muted-foreground">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ sau khi bạn trả lời — không hiển thị công khai.')}</FieldDescription>
+          {fieldErr.phone && <FieldError>{fieldErr.phone}</FieldError>}
+        </Field>
       </div>
 
       <div className="mt-4 flex items-center gap-3">

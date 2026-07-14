@@ -209,7 +209,7 @@ export function AdminListingsClient() {
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <div className="relative min-w-[12rem] flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-ink-4" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title / location…" className="py-2 pl-9 pr-3" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search listings by title or location" placeholder="Search title / location…" className="py-2 pl-9 pr-3" />
         </div>
         <Segmented options={STATUS} value={status} onChange={setStatus} />
         <Segmented options={VERIFIED} value={verified} onChange={setVerified} />

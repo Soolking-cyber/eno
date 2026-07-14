@@ -1277,6 +1277,7 @@ export function ListingsExplorer({
                 <Input
                   variant="unstyled"
                   id="listings-search-input"
+                  aria-label={tr('Search listings', 'Tìm kiếm tin đăng')}
                   type="search"
                   inputMode="search"
                   enterKeyHint="search"
