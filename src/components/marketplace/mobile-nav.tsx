@@ -38,12 +38,15 @@ function TabStack({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <>
       <span className="relative">{icon}</span>
-      <span className="text-3xs font-medium">{label}</span>
+      {/* leading-none keeps the label box at ~10px so the icon + label + the taller Post chip
+          all clear the 64px bar with headroom (even under OS font-scaling). */}
+      <span className="text-3xs font-medium leading-none">{label}</span>
     </>
   )
 }
 
-const STACK = 'relative flex h-full w-full flex-col items-center justify-center gap-1 transition-colors'
+// gap-0.5 (not gap-1) so the taller Post chip (h-12) + its label still clear the 64px bar.
+const STACK = 'relative flex h-full w-full flex-col items-center justify-center gap-0.5 transition-colors'
 
 /** Content of a navigating tab: the icon + micro-label stack. Active = the whole stack turns
  *  brand + a short bar sits at the top of the bar. Lives INSIDE <Link> so useLinkStatus lights
@@ -167,7 +170,9 @@ export function MobileNav() {
     <nav
       inert={off}
       className={cn(
-        'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        // No top border — the bar is a pure bg-card layer that blends into the canvas; the
+        // spatial split + the active-tab colour carry the hierarchy, not a divider line.
+        'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // The bar is permanently docked; it slides DOWN off-screen + fades only while the
         // on-screen keyboard is open (so a chat composer can sit flush above it), and returns
         // the moment the keyboard closes.
@@ -210,7 +215,7 @@ export function MobileNav() {
         // brand-blue plus — no shadow, no FAB lift, no heavy solid fill. It reads as the primary
         // action while staying part of the same flat canvas as the other tabs.
         icon={
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-tint text-brand">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-tint text-brand">
             <Plus className="h-6 w-6" strokeWidth={STROKE} />
           </span>
         }

@@ -79,6 +79,9 @@ test.describe('eno.forum itinerary builder', () => {
 
     await expect(page).toHaveTitle(/Vietnam itinerary builder/i)
     await expect(page.getByRole('heading', { level: 1, name: /A Vietnam itinerary that survives reality/i })).toBeVisible()
+    const paceOptions = page.getByRole('radiogroup', { name: /Trip pace/i }).getByRole('radio')
+    await expect(paceOptions).toHaveCount(3)
+    expect(await paceOptions.evaluateAll((options) => options.every((option) => option.scrollWidth <= option.clientWidth))).toBe(true)
 
     await page.getByLabel(/Start date/i).fill('2026-09-10')
     await page.getByLabel(/Flying from/i).fill('Singapore (SIN)')

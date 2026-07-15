@@ -131,7 +131,8 @@ export function PriceRangeFilter({
               className={cn(
                 // active:scale-100 is load-bearing: this button is the popover anchor and
                 // floating-ui reads its rect — a press transform would move the panel off it.
-                'flex w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer',
+                // h-12 (48px) to match the other facet pills — flat, borderless.
+                'flex min-h-12 w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-4 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer',
                 open ? 'text-foreground' : active ? activeClassName : className,
               )}
             >

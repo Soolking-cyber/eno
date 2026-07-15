@@ -466,7 +466,9 @@ export function ExplorerFiltersDrawer({
             variant="cta"
             size="none"
             onClick={() => onOpenChange(false)}
-            className="w-full rounded-xl py-2.5 text-xs shadow-md active:scale-98 cursor-pointer"
+            // Massive, impossible-to-miss primary CTA: h-14 (56px), text-base, rounded-2xl. `cta`
+            // already paints the solid brand fill; no shadow (flat canvas — elevation is banned).
+            className="w-full h-14 rounded-2xl text-base font-semibold active:scale-98 cursor-pointer"
           >
             {tr('Apply Filters', 'Áp dụng lọc')} ({totalCount} {tr('listings', 'tin')})
           </Button>

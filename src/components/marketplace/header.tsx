@@ -247,11 +247,11 @@ export function Header() {
                 // fused silhouette is one consistent radius. The floating shadow is the standard
                 // popover treatment for a layer over content — not canvas elevation.
                 ? 'rounded-2xl bg-popover shadow-pop sm:rounded-b-none'
-                // Idle = the canon filled-tint INPUT idiom, identical to ui/input's `filled` variant
-                // (rounded-xl bg-tint, ZERO border, brand ring on focus) so the search field matches
-                // every other filled input in the app. It melts into the canvas; focus adds a white
-                // fill + soft ring.
-                : 'rounded-xl bg-tint focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30',
+                // Idle = maximally seamless: rounded-xl and PURE bg-tint — zero border, zero ring,
+                // and NO bg swap on focus (a white focus fill would merge into the bg-card header).
+                // The only focus cue is the text caret. It's distinguished from the header solely by
+                // the tint, exactly as requested.
+                : 'rounded-xl bg-tint',
             )}>
               <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" strokeWidth={STROKE} />
               <Input

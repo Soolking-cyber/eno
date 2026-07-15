@@ -116,7 +116,10 @@ export function CustomSelect({
               variant="bare"
               size="none"
               className={cn(
-                'flex w-full items-center justify-between gap-0 px-3.5 py-2 text-sm font-semibold outline-none transition-colors duration-150 cursor-pointer active:scale-100',
+                // h-12 (48px) default — kid-friendly filter target across every call site (facet
+                // bar, explorer filters, area picker). A caller that sets its own height still wins
+                // (its className lands after this in the cn). px-4 for generous horizontal room.
+                'flex min-h-12 w-full items-center justify-between gap-0 px-4 text-sm font-semibold outline-none transition-colors duration-150 cursor-pointer active:scale-100',
                 // Closed: consistent rounded-xl (no more pills). Caller className may restyle.
                 !open && 'rounded-xl',
                 // Open: flatten. The base carries rounded-xl unconditionally, so the open
