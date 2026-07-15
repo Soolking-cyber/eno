@@ -244,15 +244,11 @@ function AccountPanel({ open, view, setView, onClose, resizing, onResizeStart, o
 
   return (
     <>
-      {/* Mobile scrim — desktop squeezes instead of dimming. */}
-      <div
-        aria-hidden
-        onClick={onClose}
-        className={cn(
-          'fixed inset-x-0 top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 bg-black/40 transition-opacity duration-300 lg:hidden',
-          open ? 'opacity-100' : 'pointer-events-none opacity-0',
-        )}
-      />
+      {/* No mobile scrim: the panel is a FULL-SCREEN page on mobile, so a scrim behind it is
+          never seen except as a modal-style dim bleeding through during the fade — which is
+          exactly the "floating overlay" feel we're removing. The dashboard enters as a page
+          (fade), not a modal. Desktop squeezes the feed instead of dimming, so it had no scrim
+          either. Close on mobile is the header X (the panel covers any tap-to-close area). */}
       <aside
         role="dialog"
         aria-label={tr('Account', 'Tài khoản')}
@@ -261,10 +257,31 @@ function AccountPanel({ open, view, setView, onClose, resizing, onResizeStart, o
           // whose width is the shared --account-w var. NO shadow: the rail is not a floating
           // card over the feed — it is a column of the same canvas, divided from it by a single
           // full-height seam (the border-l, open top and bottom). The seam is the drag handle.
-          'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] right-0 z-50 flex w-full flex-col border-l border-border bg-background duration-300 motion-reduce:transition-none lg:bottom-0 lg:w-[var(--account-w)]',
-          // Suspend the slide easing while dragging so the rail tracks the seam 1:1.
-          resizing ? 'transition-none' : 'transition-transform',
-          open ? 'translate-x-0' : 'invisible translate-x-full',
+          'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] right-0 z-50 flex w-full flex-col border-l border-border bg-background motion-reduce:transition-none lg:bottom-0 lg:w-[var(--account-w)]',
+          // ENTRANCE — two different motions on purpose:
+          // · MOBILE the dashboard is reached from the bottom nav, a sibling of Explore /
+          //   Saved / Messages, so it must ENTER like one of them: a fade, matching the app's
+          //   page template (`animate-in fade-in duration-150`) and the same tw-animate-css
+          //   vocabulary every Base UI surface uses for data-open. NOT a right-sliding sheet —
+          //   that read as a modal, not a page.
+          // · DESKTOP the resizable rail slides in from the right (transform).
+          // `transition-discrete` (transition-behavior: allow-discrete) lets `visible/invisible`
+          // flip discretely so the fade-OUT finishes before the panel leaves the a11y tree, and
+          // `starting:opacity-0` gives the fade-IN on the very first (lazy) mount too.
+          //
+          // ⚠️ The transition is SPLIT by breakpoint, and that split is load-bearing. Tailwind v4's
+          // `translate-x-*` animates the `translate` PROPERTY, not `transform` — so an arbitrary
+          // `transition-[…,transform,…]` list does NOT cover the desktop slide and it would JUMP.
+          // `lg:transition-transform` is the v4 utility that transitions transform+translate+scale
+          // +rotate together, so the rail slides; mobile only needs opacity+visibility.
+          resizing ? 'transition-none' : 'transition-[opacity,visibility] transition-discrete duration-150 lg:transition-transform lg:duration-300',
+          open
+            // max-lg:starting: keeps the fade-IN on first (lazy) mount MOBILE-ONLY — an
+            // unscoped starting:opacity-0 would also fade the DESKTOP rail on its first open
+            // (and it mounts at translate-x-0, so it wouldn't slide), making desktop's first
+            // open a fade and every later open a slide. Scope it so desktop always slides.
+            ? 'opacity-100 max-lg:starting:opacity-0 lg:translate-x-0'
+            : 'invisible opacity-0 lg:visible lg:opacity-100 lg:translate-x-full',
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >

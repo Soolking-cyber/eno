@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowBigDown,
   ArrowBigUp,
@@ -100,6 +100,7 @@ export function ThreadDialog({
   const { tr } = useLanguage()
   const [reply, setReply] = useState('')
   const [addedComments, setAddedComments] = useState<ForumComment[]>([])
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setReply('')
@@ -140,7 +141,7 @@ export function ThreadDialog({
 
   return (
     <Dialog open={Boolean(post)} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[calc(100dvh-1rem)] flex-col gap-0 overflow-hidden bg-card p-0 sm:max-h-[calc(100dvh-3rem)] sm:max-w-3xl">
+      <DialogContent ref={dialogRef} initialFocus={dialogRef} className="flex max-h-[calc(100dvh-1rem)] flex-col gap-0 overflow-hidden bg-card p-0 sm:max-h-[calc(100dvh-3rem)] sm:max-w-3xl">
         <div className="min-h-0 overflow-y-auto overscroll-contain">
           <DialogHeader className="border-b border-border px-5 py-5 pr-14 sm:px-6">
             <div className="flex flex-wrap items-center gap-2 text-xs text-body">

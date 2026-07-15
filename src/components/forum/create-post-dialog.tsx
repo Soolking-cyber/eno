@@ -46,6 +46,7 @@ export function CreatePostDialog({
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const selectedCommunity = FORUM_COMMUNITIES.find((item) => item.slug === community)
 
   useEffect(() => {
     if (open) setCommunity(defaultCommunity || 'vietnam-101')
@@ -82,14 +83,14 @@ export function CreatePostDialog({
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">
                 <MessageSquareText className="h-5 w-5" />
               </span>
-              <span className="min-w-0">
+              <div className="min-w-0">
                 <DialogTitle className="text-lg font-bold text-foreground">
                   {tr('Start a conversation', 'Bắt đầu cuộc trò chuyện')}
                 </DialogTitle>
                 <DialogDescription className="mt-1">
                   {tr('Ask clearly, share context, and help the right people find you.', 'Hỏi rõ ràng, chia sẻ bối cảnh để đúng người có thể giúp bạn.')}
                 </DialogDescription>
-              </span>
+              </div>
             </div>
           </DialogHeader>
 
@@ -100,7 +101,7 @@ export function CreatePostDialog({
               </p>
               <Select value={community} onValueChange={(value) => { if (typeof value === 'string') setCommunity(value) }}>
                 <SelectTrigger aria-labelledby="forum-community-label" className="h-11 w-full cursor-pointer rounded-xl border-line-strong bg-background px-3">
-                  <SelectValue />
+                  <SelectValue>{selectedCommunity ? tr(selectedCommunity.name, selectedCommunity.nameVi) : ''}</SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start" className="min-w-[min(22rem,calc(100vw-2rem))]">
                   {FORUM_COMMUNITIES.map((item) => (

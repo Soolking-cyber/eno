@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -28,12 +27,14 @@ import {
   ShieldCheck,
   Sparkles,
   Store,
+  UserRound,
   Users,
   Waves,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { useAccountPanel } from '@/components/marketplace/account-panel'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -295,6 +296,8 @@ function MobileForumNav({
   onSaved: () => void
 }) {
   const { tr } = useLanguage()
+  const { user, openSignIn } = useAuth()
+  const { openTo } = useAccountPanel()
   const itemClass = 'relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-3xs font-semibold'
 
   return (
@@ -321,11 +324,9 @@ function MobileForumNav({
           </span>
           <span>{tr('Saved', 'Đã lưu')}</span>
         </Button>
-        <Button variant="bare" size="none" asChild className={cn(itemClass, 'text-body')}>
-          <Link href="/">
-            <Store className="h-5 w-5" />
-            <span>{tr('Market', 'Mua bán')}</span>
-          </Link>
+        <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={() => user ? openTo('root') : openSignIn()}>
+          <UserRound className="h-5 w-5" />
+          <span>{user ? tr('Profile', 'Hồ sơ') : tr('Sign in', 'Đăng nhập')}</span>
         </Button>
       </div>
     </nav>
@@ -432,6 +433,13 @@ export function ForumClient() {
 
   const activePost = posts.find((post) => post.id === openPostId) || null
   const activePostCommunity = activePost ? communityMap.get(activePost.community) || null : null
+  const locationLabel = location === 'hcmc'
+    ? tr('Ho Chi Minh City', 'TP. Hồ Chí Minh')
+    : location === 'hanoi'
+      ? tr('Hanoi', 'Hà Nội')
+      : location === 'danang'
+        ? tr('Da Nang', 'Đà Nẵng')
+        : tr('All Vietnam', 'Toàn Việt Nam')
 
   const chooseCommunity = (slug: string | null) => {
     setCommunity(slug)
@@ -625,7 +633,7 @@ export function ForumClient() {
                 <Select value={location} onValueChange={(value) => { if (typeof value === 'string') setLocation(value) }}>
                   <SelectTrigger size="sm" aria-label={tr('Filter by location', 'Lọc theo địa điểm')} className="shrink-0 cursor-pointer border-0 bg-tint text-xs">
                     <MapPin className="h-3.5 w-3.5" />
-                    <SelectValue />
+                    <SelectValue>{locationLabel}</SelectValue>
                   </SelectTrigger>
                   <SelectContent align="end">
                     <SelectItem value="all">{tr('All Vietnam', 'Toàn Việt Nam')}</SelectItem>

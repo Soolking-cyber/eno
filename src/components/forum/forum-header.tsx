@@ -92,12 +92,13 @@ export function ForumHeader({
             </Button>
           )}
 
-          <Button type="button" variant="cta" size="sm" onClick={onCreatePost} className="hidden sm:inline-flex">
+          <Button data-testid="forum-create" type="button" variant="cta" size="sm" onClick={onCreatePost} className="hidden sm:inline-flex">
             <Plus className="h-4 w-4" />
             {tr('Start a post', 'Tạo bài viết')}
           </Button>
 
           <IconButton
+            data-testid="forum-create"
             size="lg"
             className="bg-primary text-white shadow-sm sm:hidden"
             aria-label={tr('Start a post', 'Tạo bài viết')}
