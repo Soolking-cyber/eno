@@ -18,7 +18,11 @@ export function SignInDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [sent, setSent] = useState(false)
   const { getToken, Widget } = useTurnstile()
 
-  const callbackUrl = () => `${window.location.origin}/auth/callback?next=${encodeURIComponent(window.location.pathname + window.location.search)}`
+  const callbackUrl = () => {
+    const isForumHost = window.location.hostname === 'eno.forum' || window.location.hostname === 'www.eno.forum'
+    const origin = isForumHost ? 'https://www.eno.forum' : window.location.origin
+    return `${origin}/auth/callback?next=${encodeURIComponent(window.location.pathname + window.location.search)}`
+  }
 
   const sendMagicLink = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
