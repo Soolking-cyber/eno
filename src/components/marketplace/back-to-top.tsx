@@ -56,14 +56,14 @@ export function BackToTop() {
         className={cn(
           'fixed z-[60] flex flex-col items-center gap-2.5',
           'bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-6', // clear the mobile bottom-nav
-          // The account panel is a 440px rail on desktop and full-screen below lg.
-          // These controls are FIXED, so the shell's lg:mr-[440px] doesn't move them —
-          // they have to travel themselves, or they float on top of the dashboard
-          // (user-picked 2026-07-14). Same 300ms spring as the panel and the page
-          // margin, so the three move as one. Below lg the panel owns the whole
-          // screen, so they simply stand down.
+          // The account panel is a DRAGGABLE rail on desktop (width = --account-w) and
+          // full-screen below lg. These controls are FIXED, so the shell's lg:mr can't move
+          // them — they travel themselves, off the same --account-w var, so they stay pinned
+          // to the rail's edge at ANY dragged width instead of a hardcoded 440 (user-picked
+          // 2026-07-14). Same 300ms spring as the panel and the page margin, so the three move
+          // as one. Below lg the panel owns the whole screen, so they simply stand down.
           'right-4 transition-[right] duration-300 motion-reduce:transition-none',
-          panelOpen ? 'max-lg:hidden lg:right-[calc(440px+1.5rem)]' : 'lg:right-6',
+          panelOpen ? 'max-lg:hidden lg:right-[calc(var(--account-w)+1.5rem)]' : 'lg:right-6',
         )}
         // Inline bottom (beats the classes) only while a bottom bar is on screen.
         style={{ ...(lift ? { bottom: lift + 12 } : {}), transitionTimingFunction: 'var(--ease-spring)' }}

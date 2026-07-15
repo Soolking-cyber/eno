@@ -64,14 +64,69 @@ type Dash = {
   listings: SerializedListing[]
 }
 
+// The desktop rail is DRAGGABLE (owner 2026-07-15). Base UI ships no splitter/resizable
+// primitive, and react-resizable-panels needs sibling flex panels in a PanelGroup — it
+// can't drive a `position: fixed` overlay AND a separate content margin at once. So this
+// is the policy's step (3): a hand-rolled pointer-drag, kept to one small handler. The
+// width lives in ONE place — the `--account-w` CSS var on :root — so the panel, the
+// content squeeze, the seam, and the fixed back-to-top all move together as you drag,
+// which is what makes the rail read as part of the same canvas rather than a floating
+// card. Clamped and persisted; the seam is a plain full-height line (no top/bottom caps).
+const PANEL_MIN = 360
+const PANEL_MAX = 720
+const clampW = (n: number) => Math.max(PANEL_MIN, Math.min(PANEL_MAX, Math.round(n)))
+const setRootW = (px: number) => { document.documentElement.style.setProperty('--account-w', `${px}px`) }
+
 export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<PanelView>('root')
+  const [resizing, setResizing] = useState(false)
   // Lazy-mount: guests and users who never open the panel pay zero render cost.
   const [mounted, setMounted] = useState(false)
   if (open && !mounted) setMounted(true)
   const openTo = useCallback((v: PanelView) => { setView(v); setOpen(true) }, [])
+
+  // Load the persisted rail width after mount (localStorage is client-only, so reading it
+  // in useState would desync from the SSR default and flash). The :root var default (440px,
+  // globals.css) covers the first paint; the panel is closed then anyway.
+  useEffect(() => {
+    const saved = Number(localStorage.getItem('eno-account-w'))
+    if (Number.isFinite(saved) && saved > 0) setRootW(clampW(saved))
+  }, [])
+
+  // Drag the seam → resize. Width = distance from the viewport's right edge to the pointer.
+  // We write the :root var DIRECTLY on every move (no React re-render per frame — that would
+  // stutter), and only commit to state/localStorage on release. Transitions are suspended
+  // for the duration so the panel and margin track the pointer 1:1 instead of easing behind.
+  const startResize = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    setResizing(true)
+    document.body.style.cursor = 'ew-resize'
+    document.body.style.userSelect = 'none'
+    const move = (ev: PointerEvent) => setRootW(clampW(window.innerWidth - ev.clientX))
+    const up = (ev: PointerEvent) => {
+      const w = clampW(window.innerWidth - ev.clientX)
+      setRootW(w)
+      try { localStorage.setItem('eno-account-w', String(w)) } catch { /* private mode */ }
+      setResizing(false)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }, [])
+
+  // Keyboard resize for the role="separator" seam (arrows nudge in 24px steps).
+  const nudge = useCallback((delta: number) => {
+    const cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--account-w')) || 440
+    const w = clampW(cur + delta)
+    setRootW(w)
+    try { localStorage.setItem('eno-account-w', String(w)) } catch { /* private mode */ }
+  }, [])
 
   // Deferred open: fire once the route change has actually landed (the shell
   // outlives every page, so this survives the caller unmounting).
@@ -85,17 +140,22 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={{ open, setOpen, openTo, openAfterNav }}>
       <div
-        className={cn('transition-[margin] duration-300 motion-reduce:transition-none', open && 'lg:mr-[440px]')}
+        className={cn(
+          'duration-300 motion-reduce:transition-none',
+          // Suspend the margin easing while dragging so the feed tracks the seam 1:1.
+          resizing ? 'transition-none' : 'transition-[margin]',
+          open && 'lg:mr-[var(--account-w)]',
+        )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >
         {children}
       </div>
-      {mounted && <AccountPanel open={open} view={view} setView={setView} onClose={() => setOpen(false)} />}
+      {mounted && <AccountPanel open={open} view={view} setView={setView} onClose={() => setOpen(false)} resizing={resizing} onResizeStart={startResize} onResizeKey={nudge} />}
     </Ctx.Provider>
   )
 }
 
-function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: PanelView; setView: (v: PanelView) => void; onClose: () => void }) {
+function AccountPanel({ open, view, setView, onClose, resizing, onResizeStart, onResizeKey }: { open: boolean; view: PanelView; setView: (v: PanelView) => void; onClose: () => void; resizing: boolean; onResizeStart: (e: React.PointerEvent) => void; onResizeKey: (delta: number) => void }) {
   const { user, signOut } = useAuth()
   const { tr } = useLanguage()
   const pathname = usePathname()
@@ -197,12 +257,45 @@ function AccountPanel({ open, view, setView, onClose }: { open: boolean; view: P
         role="dialog"
         aria-label={tr('Account', 'Tài khoản')}
         className={cn(
-          // Full screen below lg (the panel IS the dashboard); fixed 440px rail on desktop.
-          'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] right-0 z-50 flex w-full flex-col border-l border-border bg-background shadow-overlay transition-transform duration-300 motion-reduce:transition-none lg:bottom-0 lg:w-[440px]',
+          // Full screen below lg (the panel IS the dashboard); a DRAGGABLE rail on desktop
+          // whose width is the shared --account-w var. NO shadow: the rail is not a floating
+          // card over the feed — it is a column of the same canvas, divided from it by a single
+          // full-height seam (the border-l, open top and bottom). The seam is the drag handle.
+          'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] right-0 z-50 flex w-full flex-col border-l border-border bg-background duration-300 motion-reduce:transition-none lg:bottom-0 lg:w-[var(--account-w)]',
+          // Suspend the slide easing while dragging so the rail tracks the seam 1:1.
+          resizing ? 'transition-none' : 'transition-transform',
           open ? 'translate-x-0' : 'invisible translate-x-full',
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >
+        {/* The seam IS the resize handle (desktop only). A wide, transparent hit-strip
+            straddling the left edge for grab comfort; the visible cue is a hairline that
+            warms to brand on hover/drag. role="separator" + arrow keys make it operable
+            without a pointer. Open top and bottom — no caps — so it reads as one canvas. */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={tr('Resize dashboard', 'Đổi cỡ bảng điều khiển')}
+          tabIndex={0}
+          onPointerDown={onResizeStart}
+          onKeyDown={(e) => {
+            // ArrowLeft widens the rail (its edge moves left), ArrowRight narrows it.
+            if (e.key === 'ArrowLeft') { e.preventDefault(); onResizeKey(24) }
+            else if (e.key === 'ArrowRight') { e.preventDefault(); onResizeKey(-24) }
+          }}
+          className={cn(
+            'group absolute inset-y-0 left-0 z-10 hidden w-3 -translate-x-1/2 cursor-ew-resize touch-none select-none lg:block',
+            'focus-visible:outline-none',
+          )}
+        >
+          <span
+            className={cn(
+              'absolute inset-y-0 left-1/2 -translate-x-1/2 w-px transition-colors',
+              'bg-transparent group-hover:bg-brand group-focus-visible:bg-brand',
+              resizing && 'bg-brand',
+            )}
+          />
+        </div>
         {/* Header: identity at root; back + section title inside a section. */}
         <div className="flex items-center gap-3 border-b border-border px-4 py-3.5">
           {view === 'root' ? (
