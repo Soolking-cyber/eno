@@ -24,9 +24,13 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      // We hide it by hand once the web app has painted (native-bootstrap) — no white flash, no
-      // premature reveal of a still-loading WebView.
-      launchAutoHide: false,
+      // native-bootstrap hides it the instant the web app paints (no white flash on a normal load).
+      // But it's ALSO given a hard 4s auto-hide floor: if the remote load stalls or drops (e.g. a
+      // lost connection), the splash must never freeze forever — after 4s we reveal the WebView so
+      // it can show its own retry/offline state instead of a dead splash. Fast loads still hide
+      // early via native-bootstrap; only a slow/failed load ever reaches the floor.
+      launchAutoHide: true,
+      launchShowDuration: 4000,
       backgroundColor: '#ffffff',
       showSpinner: false,
     },
