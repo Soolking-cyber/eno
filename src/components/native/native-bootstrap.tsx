@@ -72,8 +72,10 @@ export function NativeBootstrap() {
     if (!isNative()) return
     void (async () => {
       const { StatusBar, Style } = await import('@capacitor/status-bar')
-      // Style.Dark = DARK content (for a light bg); Style.Light = LIGHT content (for a dark bg).
-      StatusBar.setStyle({ style: resolved === 'dark' ? Style.Light : Style.Dark }).catch(() => {})
+      // ⚠️ Capacitor's Style enum is named for the BACKGROUND, not the text: Style.Dark = LIGHT
+      // text (use on a DARK ui); Style.Light = DARK text (use on a LIGHT ui). So follow the theme
+      // directly — dark theme → Style.Dark (light text), light theme → Style.Light (dark text).
+      StatusBar.setStyle({ style: resolved === 'dark' ? Style.Dark : Style.Light }).catch(() => {})
       // Android draws its own status-bar background; iOS shows the WebView (the bg-card header)
       // behind a transparent bar, so it only needs the style above.
       const color = cardColor()
