@@ -636,6 +636,22 @@ summary:focus-visible {
   transform: translate(-50%, -50%);
 }
 
+/* Safe-area top — the native (Capacitor) WebView is edge-to-edge under the status bar / notch,
+   and so is the installed PWA. env(safe-area-inset-top) is 0 in a normal browser, so these rules
+   are no-ops on desktop web.
+   · The prelaunch banner is the topmost element, so it clears the status bar itself (base py-1.5
+     = 0.375rem stays).
+   · The sticky #app-header ALSO reserves the inset (its own pt-[env(...)]) — correct once the
+     banner is gone (post-launch) or when the header is stuck at the top. But WHILE the banner is
+     present it would double-inset and leave a card-coloured gap under the banner, so drop the
+     header's own inset then; the banner above already provides the clearance. */
+#prelaunch-banner {
+  padding-top: calc(env(safe-area-inset-top) + 0.375rem);
+}
+body:has(#prelaunch-banner) #app-header {
+  padding-top: 0;
+}
+
 /* Favorite-button burst — the save confirmation IS the animation. Two one-shot,
    compositor-only (transform/opacity) pieces: the heart pops 1→1.35→1 with a
    slight bounce, and a brand-blue ring (::after) expands + fades once. Toggled by

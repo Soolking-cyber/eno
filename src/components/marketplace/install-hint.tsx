@@ -2,124 +2,98 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { X, Share } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
-import { isIOS, googleOauthBlocked } from '@/lib/in-app-browser'
+import { isIOS } from '@/lib/in-app-browser'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 
-/**
- * "Add to Home Screen" education — the last unlit PWA step.
- *
- * Renders NOTHING on first paint (and nothing at all for most visitors). After
- * mount it checks, in order: not already installed (standalone), not previously
- * dismissed, and an engagement signal (2nd+ visit via a self-maintained
- * localStorage counter, bumped once per session). When all pass:
- *   - iOS Safari (not in-app webviews, not CriOS/FxiOS): after a 4s idle delay,
- *     a slim bottom sheet with Share → Add-to-Home-Screen instructions.
- *   - Android/desktop Chrome: we stash the `beforeinstallprompt` event and show
- *     the same sheet with a real Install button that calls prompt().
- * Dismissing (✕) sets a forever flag. Zero work on the initial-paint path — one
- * effect, one timer, no network.
- */
+// Store links — set by the owner once the apps are published (env, so no code change to flip on).
+// iOS needs Apple's numeric app id (assigned at submission); Android is predictable but the app
+// still has to be live. Until BOTH exist the prompt stays hidden (no dead links).
+//   NEXT_PUBLIC_IOS_APP_URL      e.g. https://apps.apple.com/app/id0000000000
+//   NEXT_PUBLIC_ANDROID_APP_URL  e.g. https://play.google.com/store/apps/details?id=vn.eno.app
+const IOS_URL = process.env.NEXT_PUBLIC_IOS_APP_URL
+const ANDROID_URL = process.env.NEXT_PUBLIC_ANDROID_APP_URL
 
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
-}
-
-const DISMISS_KEY = 'eno-install-hint-dismissed'
+const DISMISS_KEY = 'eno-app-hint-dismissed'
 const VISITS_KEY = 'eno-visits'
 const SESSION_KEY = 'eno-visit-counted'
 
+/**
+ * "Get the eno app" prompt — WEB ONLY, and only when we have a store link for the visitor's phone.
+ *
+ * Renders NOTHING inside the native Capacitor app (you already have it — window.Capacitor is
+ * present) and NOTHING on desktop or when the matching store URL isn't configured yet. On mobile
+ * web it points iOS visitors to the App Store and Android visitors to Google Play. Same engagement
+ * gating the old add-to-home-screen hint used: returning visitors after a 4s settle, an engaged
+ * first-timer after dwell — never a first-load banner. Dismiss (✕) sets a forever flag.
+ */
 export function InstallHint() {
   const { tr } = useLanguage()
   const [mode, setMode] = useState<'ios' | 'android' | null>(null)
-  const [installEvt, setInstallEvt] = useState<BeforeInstallPromptEvent | null>(null)
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
-    let onBip: ((e: Event) => void) | undefined
     try {
-      // Already running as an installed app? Nothing to teach.
-      if (matchMedia('(display-mode: standalone)').matches) return
-      if ((navigator as Navigator & { standalone?: boolean }).standalone === true) return
+      // Inside the native app already — nothing to download.
+      if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) return
       if (localStorage.getItem(DISMISS_KEY)) return
 
-      // Engagement signal: visit counter, +1 once per browser session.
+      // Which store, and do we even have a link for it? (Desktop → neither → skip.)
+      const ios = isIOS()
+      const url = ios ? IOS_URL : ANDROID_URL
+      if (!url) return
+
+      // Engagement gate: returning visitor gets it quickly (4s settle); an engaged FIRST-timer
+      // earns it by dwell (75s) — never a first-load banner, which burns the one-shot ask.
       let visits = parseInt(localStorage.getItem(VISITS_KEY) || '0', 10) || 0
       if (!sessionStorage.getItem(SESSION_KEY)) {
         visits += 1
         localStorage.setItem(VISITS_KEY, String(visits))
         sessionStorage.setItem(SESSION_KEY, '1')
       }
-      // Engagement gate: returning visitors get the hint quickly (4s settle);
-      // an engaged FIRST-time visitor earns it by dwell (75s on site) — never a
-      // first-load banner, which burns the one-shot ask (near-guaranteed dismissal).
       const delay = visits >= 2 ? 4000 : 75_000
-
-      // Android / Chrome: the browser tells us installability — stash the event.
-      onBip = (e: Event) => {
-        e.preventDefault()
-        setInstallEvt(e as BeforeInstallPromptEvent)
-        if (!timer) timer = setTimeout(() => setMode('android'), delay)
-      }
-      window.addEventListener('beforeinstallprompt', onBip)
-
-      // iOS: Safari only (real Safari — in-app webviews and Chrome/Firefox-on-iOS
-      // shells don't offer the same Share → Add-to-Home-Screen path).
-      const iosSafari =
-        isIOS() && !googleOauthBlocked() && !/CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(navigator.userAgent)
-      if (iosSafari) timer = setTimeout(() => setMode('ios'), delay)
+      timer = setTimeout(() => setMode(ios ? 'ios' : 'android'), delay)
     } catch {
-      /* storage blocked / matchMedia missing — silently skip the hint */
+      /* storage blocked — silently skip */
     }
-    return () => {
-      if (onBip) window.removeEventListener('beforeinstallprompt', onBip)
-      if (timer) clearTimeout(timer)
-    }
+    return () => { if (timer) clearTimeout(timer) }
   }, [])
 
   if (!mode) return null
+  const url = mode === 'ios' ? IOS_URL : ANDROID_URL
+  if (!url) return null
 
   const dismiss = () => {
     try { localStorage.setItem(DISMISS_KEY, '1') } catch { /* ignore */ }
     setMode(null)
   }
-  const install = async () => {
-    try { await installEvt?.prompt() } catch { /* user cancelled / already used */ }
-    dismiss()
-  }
+
+  const store = mode === 'ios' ? tr('the App Store', 'App Store') : tr('Google Play', 'Google Play')
 
   return (
     <div
       role="dialog"
-      aria-label={tr('Add eno.vn to your Home Screen', 'Thêm eno.vn vào Màn hình chính')}
+      aria-label={tr('Get the eno app', 'Tải ứng dụng eno')}
       className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-50 lg:bottom-4 lg:px-4"
     >
       <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-t-2xl bg-card p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 lg:rounded-2xl">
         <Image src="/icon-192.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold leading-tight text-foreground">
-            {tr('Add eno.vn to your Home Screen', 'Thêm eno.vn vào Màn hình chính')}
+            {tr('Get the eno app', 'Tải ứng dụng eno')}
           </p>
-          {mode === 'ios' ? (
-            <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
-              {tr('Tap', 'Nhấn')}{' '}
-              <Share aria-label="Share" className="inline h-3.5 w-3.5 align-[-2px] text-accent-foreground" />{' '}
-              {tr('then “Add to Home Screen”', 'rồi chọn “Thêm vào MH chính”')}
-            </p>
-          ) : (
-            <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
-              {tr('One tap — opens like an app, no store needed', 'Một chạm — mở như ứng dụng, không cần cửa hàng')}
-            </p>
-          )}
+          <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
+            {tr(`Faster, with notifications — on ${store}`, `Nhanh hơn, có thông báo — trên ${store}`)}
+          </p>
         </div>
-        {mode === 'android' && (
-          <Button variant="cta" size="sm" onClick={install} className="shrink-0">
-            {tr('Install', 'Cài đặt')}
-          </Button>
-        )}
+        <Button asChild variant="cta" size="sm" className="shrink-0">
+          {/* External store link — new context; rel guards the opener. */}
+          <a href={url} target="_blank" rel="noopener noreferrer" onClick={dismiss}>
+            {tr('Get', 'Tải')}
+          </a>
+        </Button>
         <IconButton
           size="sm"
           type="button"

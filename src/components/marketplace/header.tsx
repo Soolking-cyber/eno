@@ -211,6 +211,7 @@ export function Header() {
 
   return (
     <header
+      id="app-header"
       className={cn(
         'sticky top-0 z-40 border-b border-border/60 bg-card/85 backdrop-blur-md pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style on ALL sizes (incl. desktop): slide UP off-screen + fade out on
