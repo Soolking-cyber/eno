@@ -56,8 +56,16 @@ const requestSchema = z.object({
   notes: z.string().trim().max(600).default(''),
 }).superRefine((value, context) => {
   const start = new Date(`${value.startDate}T00:00:00.000Z`)
-  if (Number.isNaN(start.getTime())) {
+  const today = new Date()
+  today.setUTCHours(0, 0, 0, 0)
+  const latestStart = new Date(today)
+  latestStart.setUTCFullYear(latestStart.getUTCFullYear() + 2)
+  if (Number.isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== value.startDate) {
     context.addIssue({ code: 'custom', path: ['startDate'], message: 'Invalid date' })
+  } else if (start < today) {
+    context.addIssue({ code: 'custom', path: ['startDate'], message: 'Start date cannot be in the past' })
+  } else if (start > latestStart) {
+    context.addIssue({ code: 'custom', path: ['startDate'], message: 'Start date must be within two years' })
   }
   if (new Set(value.cityIds).size !== value.cityIds.length) {
     context.addIssue({ code: 'custom', path: ['cityIds'], message: 'Cities must be unique' })
