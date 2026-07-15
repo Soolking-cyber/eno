@@ -26,6 +26,7 @@ import { AttributionCapture } from "@/components/marketplace/attribution-capture
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { VercelTelemetry } from "@/components/marketplace/vercel-telemetry";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { NativeBootstrap } from "@/components/native/native-bootstrap";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -168,6 +169,9 @@ export default function RootLayout({
       >
         <PrelaunchNotice />
         <ThemeProvider>
+          {/* Native-shell (Capacitor) bootstrap — a no-op on web; on iOS/Android it hides the
+              splash, theme-matches the status bar, bridges the native keyboard, and handles back. */}
+          <NativeBootstrap />
           <LanguageProvider>
             <SkipLink />
             <CurrencyProvider>

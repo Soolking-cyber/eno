@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>eno</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      body {
+        display: grid; place-items: center;
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #ffffff; color: #6b7280;
+      }
+      @media (prefers-color-scheme: dark) { body { background: #1b1b1b; color: #9ca3af; } }
+    </style>
+  </head>
+  <!--
+    Offline fallback ONLY. Capacitor's webDir must exist for `cap copy`/`cap sync`, but the
+    running app is loaded from server.url (https://eno.vn) — this page is what shows if the
+    device is offline at launch before the remote site loads.
+  -->
+  <body>
+    <p>Reconnecting to eno…</p>
+  </body>
+</html>

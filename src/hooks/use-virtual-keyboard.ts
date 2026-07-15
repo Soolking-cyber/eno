@@ -90,7 +90,15 @@ function onFocusOut() {
 /** Wire the single shared VisualViewport listener (idempotent). Safe to call from any
  *  always-mounted client component to keep the --vvh/--vvt vars live app-wide. */
 export function ensureKeyboardWired() {
-  if (wired || typeof window === 'undefined' || !window.visualViewport) return
+  if (wired || typeof window === 'undefined') return
+  // On the Capacitor native shell the VisualViewport signal is unreliable (the keyboard is a
+  // native overlay), so the @capacitor/keyboard plugin drives this store instead — see
+  // setNativeKeyboard, wired from native-bootstrap. Skip the web VisualViewport path entirely.
+  if ((window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) {
+    wired = true
+    return
+  }
+  if (!window.visualViewport) return
   wired = true
   const vv = window.visualViewport
   vv.addEventListener('resize', onViewportChange)
@@ -101,6 +109,25 @@ export function ensureKeyboardWired() {
   window.addEventListener('orientationchange', () => { maxVvh = 0; onViewportChange() })
   syncVars() // initial — no keyboard animation in flight
   recompute()
+}
+
+/** NATIVE bridge: on the Capacitor shell the @capacitor/keyboard plugin's willShow/willHide
+ *  events call this to drive the SAME store the web path uses — so mobile-nav's `off =
+ *  keyboardOpen` slides the bar away, and the chat composer's --vvh/--vvt geometry tracks the
+ *  real native keyboard. `height` is the plugin's keyboardHeight (px); 0 on hide. Wired from
+ *  src/components/native/native-bootstrap.tsx (native only). */
+export function setNativeKeyboard(open: boolean, height: number) {
+  if (typeof window === 'undefined') return
+  const root = document.documentElement
+  // The native keyboard overlays the WebView (resize: 'none'), so the visible area is the full
+  // height minus the keyboard — the same shape the iOS-overlay web path produces.
+  root.style.setProperty('--vvh', `${open ? window.innerHeight - height : window.innerHeight}px`)
+  root.style.setProperty('--vvt', '0px')
+  root.classList.toggle('kb-open', open)
+  const next: KB = open ? { open: true, height: window.innerHeight - height } : CLOSED
+  if (next.open === current.open && next.height === current.height) return
+  current = next
+  subscribers.forEach((notify) => notify(current))
 }
 
 /** `open` = keyboard up; `height` = visible viewport height while open. Positioning is
