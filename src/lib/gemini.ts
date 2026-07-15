@@ -1,7 +1,8 @@
 import 'server-only'
 import { GoogleGenAI } from '@google/genai'
 
-// Gemini on VERTEX AI. Configured via:
+// Gemini API-key mode is preferred when GEMINI_API_KEY is present. Vertex AI
+// remains a server-side fallback for existing deployments configured via:
 //   GOOGLE_VERTEX_PROJECT      — the GCP project id linked to billing
 //   GEMINI_LOCATION            — optional override; default "global" (see below)
 //   GOOGLE_VERTEX_CREDENTIALS  — the service-account JSON key, as a single-line string
@@ -30,6 +31,11 @@ export function getGemini(): GoogleGenAI | null {
   // Prefer GEMINI_* env (e.g. the eno-translate project on the $300 free trial); fall
   // back to the shared GOOGLE_VERTEX_* (eno-vn) when unset. vertex-search.ts keeps using
   // GOOGLE_VERTEX_* (where the data store lives), so the two stay decoupled.
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
+  if (apiKey) {
+    client = new GoogleGenAI({ apiKey })
+    return client
+  }
   const project = process.env.GEMINI_PROJECT || process.env.GOOGLE_VERTEX_PROJECT
   const location = process.env.GEMINI_LOCATION || 'global'
   const rawCreds = process.env.GEMINI_CREDENTIALS || process.env.GOOGLE_VERTEX_CREDENTIALS
@@ -62,6 +68,7 @@ export const aiEnabled = () => getGemini() !== null
  *  can see the live config without reading Vercel secrets. Exposes only ids/the service-
  *  account email (identifiers, not keys) — never the private key or credential blob. */
 export function geminiDiag() {
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
   const gProj = process.env.GEMINI_PROJECT, vProj = process.env.GOOGLE_VERTEX_PROJECT
   const gLoc = process.env.GEMINI_LOCATION
   const gCred = process.env.GEMINI_CREDENTIALS, vCred = process.env.GOOGLE_VERTEX_CREDENTIALS
@@ -76,6 +83,7 @@ export function geminiDiag() {
   return {
     model: GEMINI_MODEL,
     fallbackModel: GEMINI_MODEL_FALLBACK,
+    authSource: apiKey ? 'GEMINI_API_KEY' : gProj?.trim() || vProj?.trim() ? 'VERTEX_AI' : 'none',
     // `.trim() || fallback` so a present-but-EMPTY var falls through exactly like getGemini().
     project: (gProj?.trim() || vProj?.trim()) || null,
     projectSource: gProj?.trim() ? 'GEMINI_PROJECT' : vProj?.trim() ? 'GOOGLE_VERTEX_PROJECT' : 'none',
