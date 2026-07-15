@@ -11,12 +11,16 @@ export const dynamic = 'force-dynamic'
 
 async function proxy(request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params
-  if (!path.length || !ALLOWED_ROOTS.has(path[0])) {
+  // API helpers use marketplace-native paths (`/api/forum/...`). Accept that
+  // shape as well as the shorter `/forum/...` form without ever widening the
+  // proxy beyond the explicit allowlist.
+  const targetPath = path[0] === 'api' ? path.slice(1) : path
+  if (!targetPath.length || !ALLOWED_ROOTS.has(targetPath[0])) {
     return Response.json({ error: 'not_found' }, { status: 404 })
   }
 
   const incoming = new URL(request.url)
-  const target = new URL(`/api/${path.map(encodeURIComponent).join('/')}${incoming.search}`, MARKETPLACE_API_URL)
+  const target = new URL(`/api/${targetPath.map(encodeURIComponent).join('/')}${incoming.search}`, MARKETPLACE_API_URL)
   const headers = new Headers()
   for (const name of ['accept', 'authorization', 'content-type']) {
     const value = request.headers.get(name)
@@ -41,4 +45,3 @@ export const GET = proxy
 export const POST = proxy
 export const PATCH = proxy
 export const DELETE = proxy
-

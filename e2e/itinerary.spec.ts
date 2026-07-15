@@ -56,6 +56,22 @@ test.describe('eno.forum itinerary builder', () => {
     await page.goto('/itinerary')
   })
 
+  test('proxies marketplace-native itinerary API paths through the allowlist', async ({ request }) => {
+    const start = new Date()
+    start.setUTCDate(start.getUTCDate() + 30)
+    const response = await request.post('/api/backend/api/itineraries/generate', {
+      data: {
+        locale: 'en', origin: 'Singapore (SIN)', startDate: start.toISOString().slice(0, 10),
+        days: 4, travelers: 2, cityIds: ['danang', 'hoian'], budgetId: 'comfort', pace: 'balanced',
+        interests: ['food'], accommodation: 'boutique', notes: '',
+        flight: { include: true, cabin: 'economy', maxStops: 'one_stop', checkedBags: true },
+      },
+    })
+
+    expect(response.status()).toBe(401)
+    expect(await response.json()).toEqual({ error: 'auth_required' })
+  })
+
   test('builds a researched, responsive itinerary from granular controls', async ({ page }) => {
     await page.route('**/api/backend/api/itineraries/generate', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockResult) })
