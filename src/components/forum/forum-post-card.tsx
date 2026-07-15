@@ -63,7 +63,7 @@ export function ForumPostCard({
   return (
     <Card className="gap-0 py-0 transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-card">
       <div className="flex">
-        <div className="hidden w-14 shrink-0 flex-col items-center gap-1 border-r border-border/70 bg-tint/60 py-4 sm:flex">
+        <div className="hidden w-14 shrink-0 flex-col items-center justify-center gap-1 py-4 sm:flex">
           <Button
             type="button"
             variant="bare"

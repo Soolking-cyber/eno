@@ -1,15 +1,18 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { BulkRedirect } from './redirect-client'
+import { BulkClient } from './bulk-client'
 
-export const metadata: Metadata = { title: 'Bulk upload — eno.vn', robots: { index: false } }
+export const metadata: Metadata = {
+  title: 'Bulk upload | eno.vn',
+  robots: { index: false, follow: false },
+}
 
-/** Bulk upload lives INSIDE the account panel now (the panel is the dashboard,
- *  user decision 2026-07-14) — this route only lands existing links there. */
+/** Bulk upload now renders in <main> as a dashboard section page (owner decision
+ *  2026-07-15) — it no longer redirects into the account panel. */
 export default function BulkPage() {
   return (
     <Suspense>
-      <BulkRedirect />
+      <BulkClient />
     </Suspense>
   )
 }

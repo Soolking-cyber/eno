@@ -197,11 +197,17 @@ export function MobileNav() {
         label={tr('Messages', 'Tin nhắn')}
       />
 
+      {/* Account = the dashboard nav rail. On mobile the rail is a launcher: tapping this OPENS
+          it (full-screen menu) via a window event the shell listens for, then picking a section
+          navigates to its /dashboard/* page and the rail closes. Active on any dashboard page. */}
       <GatedTab
         href="/dashboard"
-        active={at('/dashboard')}
+        active={atPrefix('/dashboard')}
         gate={gate}
-        onNavigate={() => go('/dashboard')}
+        // Logged in → open the rail. Still resolving auth (user not yet known) → fall back to
+        // navigating /dashboard, which gates correctly once auth lands, rather than popping an
+        // empty rail. (Logged-out is already handled by `gate` → openSignIn.)
+        onNavigate={() => user ? window.dispatchEvent(new Event('eno:open-account')) : go('/dashboard')}
         icon={<User className="h-7 w-7" />}
         label={tr('Account', 'Tài khoản')}
       />

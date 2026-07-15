@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Loader2, Check } from 'lucide-react'
-import { Header } from '@/components/marketplace/header'
 import { Price } from '@/components/marketplace/price'
 import { Mascot } from '@/components/marketplace/mascot'
 import { useAuth } from '@/context/auth-context'
@@ -84,10 +83,11 @@ export function AvailabilityClient() {
     router.replace('/dashboard')
   }
 
+  // Chrome (Header/main/Footer) is provided by src/app/dashboard/layout.tsx now; this renders
+  // only its content, kept in a focused max-w-2xl column. The action bar stays fixed.
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Header />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-6 sm:px-6 lg:px-8">
+    <>
+      <div className="mx-auto w-full max-w-2xl">
         <div className="text-center">
           <Mascot name="success" className="mx-auto h-32 w-32" />
           <h1 className="mt-2 h-title text-foreground">{tr('Still available?', 'Còn hàng không?')}</h1>
@@ -101,7 +101,7 @@ export function AvailabilityClient() {
           </div>
         )}
 
-        <div className="mt-4 space-y-1.5 pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-24">
+      <div className="mt-4 space-y-1.5 pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-24">
           {!listings ? (
             Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-2xl" />)
           ) : filtered.map((l) => {
@@ -122,7 +122,7 @@ export function AvailabilityClient() {
             )
           })}
         </div>
-      </main>
+      </div>
 
       {/* Action bar — FIXED above the mobile bottom-nav, not `sticky bottom-0`. Sticky
           put it exactly where the global fixed MobileNav (z-40) sits, so at scroll-top
@@ -147,6 +147,6 @@ export function AvailabilityClient() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

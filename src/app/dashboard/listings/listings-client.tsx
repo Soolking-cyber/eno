@@ -1,0 +1,63 @@
+'use client'
+
+import { useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/context/auth-context'
+import { useLanguage } from '@/context/language-context'
+import { useDashboard } from '@/hooks/use-dashboard'
+import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
+
+/** /dashboard/listings — the seller's listings management, rendered in <main>.
+ *  Reads the shared dashboard cache so an edit/delete here re-pulls the one source. */
+export function ListingsClient() {
+  const { user, loading } = useAuth()
+  const { tr } = useLanguage()
+  const router = useRouter()
+  const { dash, refresh } = useDashboard()
+
+  useEffect(() => {
+    if (!loading && !user) router.replace('/signin?next=/dashboard/listings')
+  }, [loading, user, router])
+
+  if (loading || !user) {
+    return (
+      <div role="status" className="flex min-h-[40vh] items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <h1 className="text-xl font-bold text-foreground">{tr('Listings', 'Tin đăng')}</h1>
+      <div className="mt-4">
+        {!dash ? (
+          <div className="space-y-2.5">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-[92px] rounded-2xl" />
+            ))}
+          </div>
+        ) : dash.listings.length === 0 ? (
+          <div className="flex flex-col items-center gap-4 py-16 text-center">
+            <p className="text-sm text-muted-foreground">
+              {tr('No listings yet — post your first one.', 'Chưa có tin nào — đăng tin đầu tiên.')}
+            </p>
+            <Button variant="cta" asChild>
+              <Link href="/post">{tr('Post a listing', 'Đăng tin')}</Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {dash.listings.map((l) => (
+              <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
