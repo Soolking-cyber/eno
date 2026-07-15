@@ -181,12 +181,12 @@ export function ForumPostCard({
               </Button>
             </div>
 
-            <Button type="button" variant="soft" size="sm" className="text-body" onClick={onOpen}>
+            <Button type="button" variant="soft" size="sm" className="text-body" onClick={onOpen} aria-label={tr('Open replies', 'Mở phản hồi')}>
               <MessageCircle className="h-4 w-4" />
               <span>{post.commentCount}</span>
               <span className="hidden sm:inline">{tr('replies', 'phản hồi')}</span>
             </Button>
-            <Button type="button" variant="soft" size="sm" className="ml-auto text-body" onClick={share}>
+            <Button type="button" variant="soft" size="sm" className="ml-auto text-body" onClick={share} aria-label={tr('Share post', 'Chia sẻ bài viết')}>
               <Share2 className="h-4 w-4" />
               <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>
             </Button>
@@ -197,6 +197,7 @@ export function ForumPostCard({
               className={cn('text-body', saved && 'bg-accent text-accent-foreground')}
               onClick={onSave}
               aria-pressed={saved}
+              aria-label={saved ? tr('Remove from saved posts', 'Xóa khỏi bài viết đã lưu') : tr('Save post', 'Lưu bài viết')}
             >
               <Bookmark className={cn('h-4 w-4', saved && 'fill-current')} />
               <span className="hidden sm:inline">{saved ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}</span>

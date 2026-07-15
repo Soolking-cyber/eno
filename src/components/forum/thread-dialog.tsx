@@ -35,7 +35,7 @@ import {
   type ForumPost,
 } from './forum-data'
 
-function ThreadComment({ comment, nested = false }: { comment: ForumComment; nested?: boolean }) {
+function ThreadComment({ comment, nested = false, onReply }: { comment: ForumComment; nested?: boolean; onReply: (author: string) => void }) {
   const { tr } = useLanguage()
   const [vote, setVote] = useState<0 | 1>(0)
   const score = comment.score + vote
@@ -65,16 +65,17 @@ function ThreadComment({ comment, nested = false }: { comment: ForumComment; nes
             className={cn('h-7 gap-1 px-2 text-xs text-body', vote === 1 && 'bg-accent text-accent-foreground')}
             onClick={() => setVote(vote === 1 ? 0 : 1)}
             aria-pressed={vote === 1}
+            aria-label={vote === 1 ? tr('Remove helpful vote', 'Bỏ đánh giá hữu ích') : tr('Mark reply as helpful', 'Đánh dấu phản hồi hữu ích')}
           >
             <ArrowBigUp className={cn('h-4 w-4', vote === 1 && 'fill-current')} />
             {score}
           </Button>
-          <Button type="button" variant="soft" size="sm" className="h-7 gap-1 px-2 text-xs text-body">
+          <Button type="button" variant="soft" size="sm" className="h-7 gap-1 px-2 text-xs text-body" onClick={() => onReply(comment.author)}>
             <Reply className="h-3.5 w-3.5" />
             {tr('Reply', 'Trả lời')}
           </Button>
         </div>
-        {comment.replies?.map((reply) => <ThreadComment key={reply.id} comment={reply} nested />)}
+        {comment.replies?.map((reply) => <ThreadComment key={reply.id} comment={reply} nested onReply={onReply} />)}
       </div>
     </article>
   )
@@ -99,17 +100,18 @@ export function ThreadDialog({
 }) {
   const { tr } = useLanguage()
   const [reply, setReply] = useState('')
-  const [addedComments, setAddedComments] = useState<ForumComment[]>([])
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, ForumComment[]>>({})
   const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setReply('')
-    setAddedComments([])
   }, [post?.id])
 
+  const addedComments = post ? commentsByPost[post.id] || [] : []
   const comments = useMemo(() => {
     if (!post) return []
-    return [...addedComments, ...(THREAD_COMMENTS[post.id] || DEFAULT_THREAD_COMMENTS)]
+    const seeded = post.id.startsWith('local-') ? [] : THREAD_COMMENTS[post.id] || DEFAULT_THREAD_COMMENTS
+    return [...addedComments, ...seeded]
   }, [addedComments, post])
 
   if (!post || !community) return null
@@ -128,15 +130,23 @@ export function ThreadDialog({
   const addReply = () => {
     const body = reply.trim()
     if (!body) return
-    setAddedComments((current) => [{
-      id: `local-${Date.now()}`,
-      author: tr('You', 'Bạn'),
-      body,
-      score: 1,
-      timeLabel: tr('Just now', 'Vừa xong'),
-    }, ...current])
+    setCommentsByPost((current) => ({
+      ...current,
+      [post.id]: [{
+        id: `local-${Date.now()}`,
+        author: tr('You', 'Bạn'),
+        body,
+        score: 1,
+        timeLabel: tr('Just now', 'Vừa xong'),
+      }, ...(current[post.id] || [])],
+    }))
     setReply('')
     toast.success(tr('Your reply was added to this preview.', 'Câu trả lời đã được thêm vào bản xem trước.'))
+  }
+
+  const startReply = (author: string) => {
+    setReply(`@${author} `)
+    requestAnimationFrame(() => document.getElementById('forum-thread-reply')?.focus())
   }
 
   return (
@@ -194,11 +204,11 @@ export function ThreadDialog({
                 <ArrowBigDown className={cn('h-4 w-4', vote === -1 && 'fill-current')} />
               </Button>
             </div>
-            <Button type="button" variant="soft" size="sm" className="text-body">
+            <span className="inline-flex h-8 items-center gap-2 rounded-xl px-3 text-sm font-medium text-body" aria-label={`${post.commentCount + addedComments.length} ${tr('replies', 'phản hồi')}`}>
               <MessageCircle className="h-4 w-4" />
               {post.commentCount + addedComments.length}
-            </Button>
-            <Button type="button" variant="soft" size="sm" className="ml-auto text-body" onClick={share}>
+            </span>
+            <Button type="button" variant="soft" size="sm" className="ml-auto text-body" onClick={share} aria-label={tr('Share post', 'Chia sẻ bài viết')}>
               <Share2 className="h-4 w-4" />
               <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>
             </Button>
@@ -209,6 +219,7 @@ export function ThreadDialog({
               className={cn('text-body', saved && 'bg-accent text-accent-foreground')}
               onClick={onSave}
               aria-pressed={saved}
+              aria-label={saved ? tr('Remove from saved posts', 'Xóa khỏi bài viết đã lưu') : tr('Save post', 'Lưu bài viết')}
             >
               <Bookmark className={cn('h-4 w-4', saved && 'fill-current')} />
               <span className="hidden sm:inline">{saved ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}</span>
@@ -248,7 +259,7 @@ export function ThreadDialog({
             </div>
 
             <div className="space-y-6">
-              {comments.map((comment) => <ThreadComment key={comment.id} comment={comment} />)}
+              {comments.map((comment) => <ThreadComment key={comment.id} comment={comment} onReply={startReply} />)}
             </div>
           </div>
         </div>

@@ -35,6 +35,7 @@ import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useAccountPanel } from '@/components/marketplace/account-panel'
+import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -111,7 +112,7 @@ function ForumLeftRail({
   ]
 
   return (
-    <aside className="hidden lg:block">
+    <aside aria-label={tr('Forum sections and communities', 'Các mục và cộng đồng diễn đàn')} className="hidden lg:block">
       <div className="sticky top-20 space-y-6">
         <nav aria-label={tr('Forum navigation', 'Điều hướng diễn đàn')} className="space-y-1">
           {nav.map((item) => {
@@ -123,6 +124,7 @@ function ForumLeftRail({
                 variant="bare"
                 size="none"
                 onClick={item.action}
+                aria-current={item.active ? 'page' : undefined}
                 className={cn(
                   'h-10 w-full justify-start gap-3 rounded-xl px-3 text-sm font-semibold text-body hover:bg-tint hover:text-foreground',
                   item.active && 'bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground',
@@ -140,7 +142,7 @@ function ForumLeftRail({
 
         <div>
           <div className="mb-2 flex items-center justify-between px-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-ink-4">{tr('Communities', 'Cộng đồng')}</h2>
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-4">{tr('Communities', 'Cộng đồng')}</p>
             {activeCommunity && (
               <Button type="button" variant="bare" size="none" className="text-xs text-accent-foreground" onClick={() => onSelectCommunity(null)}>
                 {tr('Clear', 'Xóa')}
@@ -155,6 +157,7 @@ function ForumLeftRail({
                 variant="bare"
                 size="none"
                 onClick={() => onSelectCommunity(community.slug)}
+                aria-pressed={activeCommunity === community.slug}
                 className={cn(
                   'h-auto w-full justify-start gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-body hover:bg-tint hover:text-foreground',
                   activeCommunity === community.slug && 'bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground',
@@ -179,7 +182,7 @@ function ForumRightRail({ onOpenPost, onCreatePost }: { onOpenPost: (id: string)
   const popular = INITIAL_FORUM_POSTS.slice().sort((a, b) => b.score - a.score).slice(0, 3)
 
   return (
-    <aside className="hidden xl:block">
+    <aside aria-label={tr('Forum information', 'Thông tin diễn đàn')} className="hidden xl:block">
       <div className="sticky top-20 space-y-4">
         <Card className="gap-0 bg-card py-0">
           <div className="bg-brand-deep px-4 py-5 text-white">
@@ -298,16 +301,24 @@ function MobileForumNav({
   const { tr } = useLanguage()
   const { user, openSignIn } = useAuth()
   const { openTo } = useAccountPanel()
+  const { open: keyboardOpen } = useVirtualKeyboard()
   const itemClass = 'relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-3xs font-semibold'
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label={tr('Forum mobile navigation', 'Điều hướng diễn đàn trên di động')}>
+    <nav
+      inert={keyboardOpen}
+      className={cn(
+        'fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] lg:hidden',
+        keyboardOpen && 'pointer-events-none translate-y-full opacity-0',
+      )}
+      aria-label={tr('Forum mobile navigation', 'Điều hướng diễn đàn trên di động')}
+    >
       <div className="flex h-16 items-stretch">
-        <Button type="button" variant="bare" size="none" className={cn(itemClass, mode === 'all' && sort === 'best' ? 'text-accent-foreground' : 'text-body')} onClick={onHome}>
+        <Button type="button" variant="bare" size="none" aria-pressed={mode === 'all' && sort === 'best'} className={cn(itemClass, mode === 'all' && sort === 'best' ? 'text-accent-foreground' : 'text-body')} onClick={onHome}>
           <Home className="h-5 w-5" />
           <span>{tr('Home', 'Trang chủ')}</span>
         </Button>
-        <Button type="button" variant="bare" size="none" className={cn(itemClass, mode === 'all' && sort === 'top' ? 'text-accent-foreground' : 'text-body')} onClick={onPopular}>
+        <Button type="button" variant="bare" size="none" aria-pressed={mode === 'all' && sort === 'top'} className={cn(itemClass, mode === 'all' && sort === 'top' ? 'text-accent-foreground' : 'text-body')} onClick={onPopular}>
           <Flame className="h-5 w-5" />
           <span>{tr('Popular', 'Phổ biến')}</span>
         </Button>
@@ -317,7 +328,7 @@ function MobileForumNav({
           </span>
           <span className="-mt-0.5 text-body">{tr('Post', 'Đăng')}</span>
         </Button>
-        <Button type="button" variant="bare" size="none" className={cn(itemClass, mode === 'saved' ? 'text-accent-foreground' : 'text-body')} onClick={onSaved}>
+        <Button type="button" variant="bare" size="none" aria-pressed={mode === 'saved'} className={cn(itemClass, mode === 'saved' ? 'text-accent-foreground' : 'text-body')} onClick={onSaved}>
           <span className="relative">
             <Bookmark className={cn('h-5 w-5', mode === 'saved' && 'fill-current')} />
             {savedCount > 0 && <Badge variant="counter-brand" size="count" className="absolute -right-3 -top-2">{savedCount}</Badge>}
@@ -390,6 +401,8 @@ function FeedList({
 export function ForumClient() {
   const { tr } = useLanguage()
   const { user } = useAuth()
+  const { open: accountPanelOpen } = useAccountPanel()
+  const [hydrated, setHydrated] = useState(false)
   const [posts, setPosts] = useState<ForumPost[]>(INITIAL_FORUM_POSTS)
   const [query, setQuery] = useState('')
   const [community, setCommunity] = useState<string | null>(null)
@@ -404,6 +417,7 @@ export function ForumClient() {
   const communityMap = useMemo(() => new Map(FORUM_COMMUNITIES.map((item) => [item.slug, item])), [])
 
   useEffect(() => {
+    setHydrated(true)
     const postId = new URLSearchParams(window.location.search).get('post')
     if (postId && INITIAL_FORUM_POSTS.some((post) => post.id === postId)) setOpenPostId(postId)
   }, [])
@@ -513,7 +527,7 @@ export function ForumClient() {
   }
 
   return (
-    <div data-forum-page className="min-h-screen bg-background pb-24 lg:pb-0">
+    <div data-forum-page data-hydrated={hydrated ? 'true' : 'false'} className="min-h-screen bg-background pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-0">
       <ForumHeader query={query} onQueryChange={setQuery} onCreatePost={() => setCreateOpen(true)} />
 
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -532,7 +546,7 @@ export function ForumClient() {
 
         <section id="forum-communities" aria-labelledby="forum-communities-title" className="mb-4 lg:hidden">
           <div className="mb-2 flex items-center justify-between px-1">
-            <h2 id="forum-communities-title" className="text-xs font-bold text-foreground">{tr('Find your community', 'Tìm cộng đồng của bạn')}</h2>
+            <p id="forum-communities-title" className="text-xs font-bold text-foreground">{tr('Find your community', 'Tìm cộng đồng của bạn')}</p>
             {community && <Button type="button" variant="bare" size="none" className="text-xs text-accent-foreground" onClick={() => setCommunity(null)}>{tr('See all', 'Xem tất cả')}</Button>}
           </div>
           <div className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 pb-1 sm:-mx-6 sm:px-6">
@@ -547,6 +561,7 @@ export function ForumClient() {
                   community === item.slug && 'border-brand bg-accent text-accent-foreground',
                 )}
                 onClick={() => chooseCommunity(item.slug)}
+                aria-pressed={community === item.slug}
               >
                 <CommunityIcon community={item} className="h-6 w-6" />
                 {tr(item.name, item.nameVi)}
@@ -555,15 +570,20 @@ export function ForumClient() {
           </div>
         </section>
 
-        <div className="grid items-start gap-6 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,680px)_300px]">
-          <ForumLeftRail
-            activeCommunity={community}
-            mode={mode}
-            sort={sort}
-            savedCount={saved.size}
-            onSelectCommunity={chooseCommunity}
-            onNavigate={navigateFeed}
-          />
+        <div className={cn(
+          'grid items-start gap-6',
+          accountPanelOpen ? 'grid-cols-1' : 'lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,680px)_300px]',
+        )}>
+          {!accountPanelOpen && (
+            <ForumLeftRail
+              activeCommunity={community}
+              mode={mode}
+              sort={sort}
+              savedCount={saved.size}
+              onSelectCommunity={chooseCommunity}
+              onNavigate={navigateFeed}
+            />
+          )}
 
           <div className="min-w-0 space-y-4">
             <Card className="relative gap-0 overflow-hidden bg-brand-deep px-5 py-5 text-white ring-0 sm:px-6 sm:py-6">
@@ -646,22 +666,24 @@ export function ForumClient() {
 
               {(['best', 'latest', 'top'] as ForumSort[]).map((tab) => (
                 <TabsContent key={tab} value={tab}>
-                  <FeedList
-                    posts={sortedPosts(tab)}
-                    communityMap={communityMap}
-                    votes={votes}
-                    saved={saved}
-                    onVote={votePost}
-                    onSave={savePost}
-                    onOpen={openThread}
-                    onReset={resetFilters}
-                  />
+                  {sort === tab && (
+                    <FeedList
+                      posts={sortedPosts(tab)}
+                      communityMap={communityMap}
+                      votes={votes}
+                      saved={saved}
+                      onVote={votePost}
+                      onSave={savePost}
+                      onOpen={openThread}
+                      onReset={resetFilters}
+                    />
+                  )}
                 </TabsContent>
               ))}
             </Tabs>
           </div>
 
-          <ForumRightRail onOpenPost={openThread} onCreatePost={() => setCreateOpen(true)} />
+          {!accountPanelOpen && <ForumRightRail onOpenPost={openThread} onCreatePost={() => setCreateOpen(true)} />}
         </div>
       </main>
 

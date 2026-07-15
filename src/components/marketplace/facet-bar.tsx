@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useId, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
 import { MapPin, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
@@ -10,6 +9,7 @@ import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useLanguage } from '@/context/language-context'
 import { facetsFor, subcategoriesFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
@@ -67,51 +67,11 @@ export function FacetBar({
   const { lang, tr } = useLanguage()
   const [areaOpen, setAreaOpen] = useState(false)
   const [advOpen, setAdvOpen] = useState(false) // advanced per-category filter panel
-  // Ids for the accessibility wiring below: the advanced panel (so its trigger can point at it
-  // with aria-controls) and the per-facet labels (so each toggle group can be NAMED — those
-  // <label>s dangle otherwise, naming nothing).
+  // Per-facet label ids so each toggle group can be NAMED — those <label>s dangle
+  // otherwise, naming nothing.
   const uid = useId()
-  const advPanelId = `${uid}-adv-panel`
+  // Load-bearing ref: <AreaFilter anchorRef> reads this node's rect to place its popover.
   const areaBtnRef = useRef<HTMLButtonElement>(null)
-  // The advanced-filter panel is PORTALED to <body> (like the price/area popovers) so
-  // it can't be painted under later page content (the footer). Positioned under the
-  // Filter button via its rect.
-  const advBtnRef = useRef<HTMLButtonElement>(null)
-  const [mounted, setMounted] = useState(false)
-  const [advPos, setAdvPos] = useState({ top: 0, left: 0, width: 0 })
-  useEffect(() => { setMounted(true) }, [])
-  useEffect(() => {
-    if (!advOpen) { setAdvPos({ top: 0, left: 0, width: 0 }); return } // reset so it never paints at (0,0)
-    const place = () => {
-      const r = advBtnRef.current?.getBoundingClientRect()
-      if (!r) return
-      const width = Math.min(416, window.innerWidth - 24) // 26rem, clamped to viewport
-      const left = Math.max(12, Math.min(r.left, window.innerWidth - width - 12))
-      setAdvPos({ top: r.bottom + 6, left, width })
-    }
-    place()
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
-    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
-  }, [advOpen])
-
-  // The trigger claims aria-haspopup="dialog" and the panel claims role="dialog" — so the dialog
-  // CONTRACT has to be real, not just asserted. Escape closes, and focus goes back to the pill that
-  // opened it. Without this the panel is portaled to the end of <body> with focus left behind on the
-  // trigger: a keyboard user could only reach the panel's controls by tabbing through the whole rest
-  // of the page, and could never dismiss it from the keyboard at all. Attributes that promise a
-  // behaviour and don't deliver it are worse than no attributes — the screen reader announces a
-  // dialog that does not act like one.
-  useEffect(() => {
-    if (!advOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      setAdvOpen(false)
-      advBtnRef.current?.focus()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [advOpen])
   // The area pill is "active" when a ward/province or a near-you search is set.
   const areaActive = !!ward || !!province || !!nearby
   const areaLabel = ward
@@ -253,34 +213,112 @@ export function FacetBar({
       <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
         {/* Advanced per-category filter form — leftmost. Only when the category has facets. */}
         {hasAdvanced && (
-          <Button
-            variant="bare"
-            size="none"
-            // Load-bearing ref: the portaled advanced panel is positioned from this
-            // node's getBoundingClientRect() (see the `place()` effect above). Base UI's
-            // Button forwards its ref onto the real <button>, so the anchor survives.
-            ref={advBtnRef}
-            type="button"
-            // Same disclosure contract as the Area pill. This one CAN carry aria-controls: the
-            // panel is rendered right here in this file, so it has an id we own. It is only set
-            // while open, because the panel is unmounted when closed and aria-controls must not
-            // point at an id that does not exist.
-            aria-haspopup="dialog"
-            aria-expanded={advOpen}
-            aria-controls={advOpen ? advPanelId : undefined}
-            onClick={() => setAdvOpen((o) => !o)}
-            className={cn(
-              'flex shrink-0 items-center justify-start gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-95 cursor-pointer',
-              advOpen || activeAdvCount > 0 ? active : 'text-body hover:bg-muted',
-            )}
-          >
-            <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
-            <span>{tr('Filter', 'Bộ lọc')}</span>
-            {activeAdvCount > 0 && (
-              <Badge variant="counter-brand" size="count" className="ml-0.5">{activeAdvCount}</Badge>
-            )}
-            <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', advOpen && 'rotate-180')} />
-          </Button>
+          // Advanced per-category filter panel. Base UI Popover now supplies the whole
+          // disclosure contract that used to be hand-rolled: aria-expanded/haspopup/controls on
+          // the trigger, Escape, focus move-and-return on open/close, and anchoring + portaling.
+          <Popover open={advOpen} onOpenChange={setAdvOpen}>
+            <PopoverTrigger
+              render={
+                <Button
+                  variant="bare"
+                  size="none"
+                  type="button"
+                  className={cn(
+                    'flex shrink-0 items-center justify-start gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-95 cursor-pointer',
+                    advOpen || activeAdvCount > 0 ? active : 'text-body hover:bg-muted',
+                  )}
+                >
+                  <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
+                  <span>{tr('Filter', 'Bộ lọc')}</span>
+                  {activeAdvCount > 0 && (
+                    <Badge variant="counter-brand" size="count" className="ml-0.5">{activeAdvCount}</Badge>
+                  )}
+                  <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', advOpen && 'rotate-180')} />
+                </Button>
+              }
+            />
+            {/* Base UI portals this itself, so sitting inside the swipable facet row is fine.
+                `backdrop` absorbs the outside dismiss-tap so it can't fall through to a listing
+                card. `block` overrides the primitive's base flex-col so the panel's own spacing
+                (mb-3 header, space-y-3.5 body) is preserved. */}
+            <PopoverContent
+              align="start"
+              side="bottom"
+              sideOffset={6}
+              backdrop
+              aria-label={tr('Filters', 'Bộ lọc')}
+              className="block w-[416px] max-w-[calc(100vw-1.5rem)] max-h-[70vh] overflow-y-auto scroll-thin p-4 shadow-pop ring-0"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-bold text-foreground">{tr('Filters', 'Bộ lọc')}</span>
+                <IconButton size="xs" onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="h-6 w-6 text-ink-4 hover:bg-muted hover:text-foreground">
+                  <X className="h-4 w-4" />
+                </IconButton>
+              </div>
+              <div className="space-y-3.5">
+                {/* Subcategory picker — unlocks the subcategory-specific facets below
+                    (e.g. Motorbike → bike type / engine cc / origin). */}
+                {subcats.length > 0 && (
+                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                    {/* A <label> with no htmlFor and no control inside names NOTHING. It stays a
+                        <label> visually, but the chips it heads are now a real role="group" that
+                        points back at it — so the group is announced as "Type", not as a bare run of
+                        buttons. */}
+                    <label id={`${uid}-subcat-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0 sm:pt-1.5">{tr('Type', 'Phân loại')}</label>
+                    <div role="group" aria-labelledby={`${uid}-subcat-label`} className="flex flex-1 flex-wrap gap-1.5">
+                      <Button variant="bare" size="none" type="button" aria-pressed={activeSubcategory === 'all'} onClick={() => setActiveSubcategory('all')} className={segBtn(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</Button>
+                      {subcats.map((s) => (
+                        <Button key={s.slug} variant="bare" size="none" type="button" aria-pressed={activeSubcategory === s.slug} onClick={() => setActiveSubcategory(activeSubcategory === s.slug ? 'all' : s.slug)} className={segBtn(activeSubcategory === s.slug)}>
+                          {tr(s.name, s.nameVi)}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {advFacets.map((f) => {
+                  const value = facetValue(f)
+                  const opts = f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
+                  return (
+                    <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                      <label id={`${uid}-${f.key}-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
+                      {f.kind === 'range' && f.range ? (
+                        <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacetValue(f, v)} />
+                      ) : f.kind === 'toggle' ? (
+                        <div role="group" aria-labelledby={`${uid}-${f.key}-label`} className="flex flex-1 flex-wrap gap-1.5">
+                          {opts.map((o) => (
+                            <Button key={o.value} variant="bare" size="none" type="button" aria-pressed={value === o.value} onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>
+                              {o.label}
+                            </Button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="min-w-0 flex-1">
+                          <CustomSelect
+                            value={value}
+                            onChange={(v) => setFacetValue(f, v)}
+                            options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...opts]}
+                            label={tr(f.label, f.labelVi)}
+                            placeholder={tr(f.label, f.labelVi)}
+                            activeClassName="text-accent-foreground border-accent-foreground/35"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {activeAdvCount > 0 && (
+                <Button
+                  variant="bare"
+                  size="none"
+                  onClick={() => { setConditionFilter('all'); setCustomFilters({}) }}
+                  className="mt-3.5 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
+                >
+                  {tr('Clear all', 'Xóa tất cả')}
+                </Button>
+              )}
+            </PopoverContent>
+          </Popover>
         )}
         {facets}
         {hasActive && (
@@ -316,94 +354,6 @@ export function FacetBar({
           onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
         />
       </div>
-
-      {/* Advanced per-category filter form — segmented toggles + selects. PORTALED to
-          <body> + fixed-positioned so it floats above all page content (incl. the
-          footer), closing on outside click. */}
-      {mounted && advOpen && hasAdvanced && advPos.top > 0 && createPortal(
-        <>
-          <div className="fixed inset-0 z-[1099]" aria-hidden onClick={() => setAdvOpen(false)} />
-          <div
-            id={advPanelId}
-            // The trigger claims aria-haspopup="dialog", so the thing it opens must actually BE
-            // one. Not aria-modal: nothing traps focus here, and claiming modality would hide the
-            // rest of the page from assistive tech while the keyboard could still walk out of it.
-            role="dialog"
-            aria-label={tr('Filters', 'Bộ lọc')}
-            style={{ position: 'fixed', top: advPos.top, left: advPos.left, width: advPos.width || undefined }}
-            className="z-[1100] max-h-[70vh] overflow-y-auto scroll-thin rounded-2xl bg-popover p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-150">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-bold text-foreground">{tr('Filters', 'Bộ lọc')}</span>
-              <IconButton size="xs" onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="h-6 w-6 text-ink-4 hover:bg-muted hover:text-foreground">
-                <X className="h-4 w-4" />
-              </IconButton>
-            </div>
-            <div className="space-y-3.5">
-              {/* Subcategory picker — unlocks the subcategory-specific facets below
-                  (e.g. Motorbike → bike type / engine cc / origin). */}
-              {subcats.length > 0 && (
-                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
-                  {/* A <label> with no htmlFor and no control inside names NOTHING. It stays a
-                      <label> visually, but the chips it heads are now a real role="group" that
-                      points back at it — so the group is announced as "Type", not as a bare run of
-                      buttons. */}
-                  <label id={`${uid}-subcat-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0 sm:pt-1.5">{tr('Type', 'Phân loại')}</label>
-                  <div role="group" aria-labelledby={`${uid}-subcat-label`} className="flex flex-1 flex-wrap gap-1.5">
-                    <Button variant="bare" size="none" type="button" aria-pressed={activeSubcategory === 'all'} onClick={() => setActiveSubcategory('all')} className={segBtn(activeSubcategory === 'all')}>{tr('All', 'Tất cả')}</Button>
-                    {subcats.map((s) => (
-                      <Button key={s.slug} variant="bare" size="none" type="button" aria-pressed={activeSubcategory === s.slug} onClick={() => setActiveSubcategory(activeSubcategory === s.slug ? 'all' : s.slug)} className={segBtn(activeSubcategory === s.slug)}>
-                        {tr(s.name, s.nameVi)}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {advFacets.map((f) => {
-                const value = facetValue(f)
-                const opts = f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
-                return (
-                  <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-                    <label id={`${uid}-${f.key}-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
-                    {f.kind === 'range' && f.range ? (
-                      <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacetValue(f, v)} />
-                    ) : f.kind === 'toggle' ? (
-                      <div role="group" aria-labelledby={`${uid}-${f.key}-label`} className="flex flex-1 flex-wrap gap-1.5">
-                        {opts.map((o) => (
-                          <Button key={o.value} variant="bare" size="none" type="button" aria-pressed={value === o.value} onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>
-                            {o.label}
-                          </Button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="min-w-0 flex-1">
-                        <CustomSelect
-                          value={value}
-                          onChange={(v) => setFacetValue(f, v)}
-                          options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...opts]}
-                          label={tr(f.label, f.labelVi)}
-                          placeholder={tr(f.label, f.labelVi)}
-                          activeClassName="text-accent-foreground border-accent-foreground/35"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            {activeAdvCount > 0 && (
-              <Button
-                variant="bare"
-                size="none"
-                onClick={() => { setConditionFilter('all'); setCustomFilters({}) }}
-                className="mt-3.5 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
-              >
-                {tr('Clear all', 'Xóa tất cả')}
-              </Button>
-            )}
-          </div>
-        </>,
-        document.body,
-      )}
     </div>
   )
 }

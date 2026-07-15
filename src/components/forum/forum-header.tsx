@@ -6,9 +6,10 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useAccountPanel } from '@/components/marketplace/account-panel'
 import { Avatar } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
 export function ForumHeader({
@@ -52,12 +53,18 @@ export function ForumHeader({
         </div>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <Button variant="soft" size="sm" asChild className="hidden text-body lg:inline-flex">
-            <Link href="/">
-              <Store className="h-4 w-4" />
-              {tr('Marketplace', 'Chợ mua bán')}
-            </Link>
-          </Button>
+          <Link href="/" className={cn(buttonVariants({ variant: 'soft', size: 'sm' }), 'hidden text-body lg:inline-flex')}>
+            <Store className="h-4 w-4" />
+            {tr('Marketplace', 'Chợ mua bán')}
+          </Link>
+
+          <Link
+            href="/"
+            className={cn(buttonVariants({ variant: 'soft', size: 'icon' }), 'text-body sm:hidden')}
+            aria-label={tr('Open the eno.vn marketplace', 'Mở chợ eno.vn')}
+          >
+            <Store className="h-5 w-5" />
+          </Link>
 
           <IconButton
             size="lg"

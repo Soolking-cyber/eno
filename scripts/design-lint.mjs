@@ -103,14 +103,8 @@ for (const e of RAW_CONTROL_ALLOW) {
 const PORTAL_ALLOW = [
   { file: 'src/components/marketplace/listings-video-feed.tsx', reason: 'fullscreen TikTok-style video takeover — a page-level layer, not a popup anchored to a trigger' },
   { file: 'src/components/marketplace/back-to-top.tsx', reason: 'a fixed affordance portaled above the panel stack — no trigger, no anchoring, nothing to focus-manage' },
-
-  // ⚠️ DEBT, not approval. This is the last hand-rolled ANCHORED POPUP and should become ui/popover.
-  // It re-implements getBoundingClientRect anchoring + an outside-click backdrop by hand, and is
-  // missing some of: aria-expanded/haspopup/controls on the trigger, Escape, focus move on open,
-  // focus return on close. It is listed so it cannot multiply — not because it is correct.
-  // (area-filter.tsx / price-range-filter.tsx / more-overflow.tsx were paid down to Base UI
-  // Popover + Menu — do NOT re-add them here; the gate now protects them.)
-  { file: 'src/components/marketplace/facet-bar.tsx', reason: 'DEBT: hand-rolled advanced-filter panel; role=dialog + Escape + focus-return were added by hand — should be ui/popover' },
+  // (area-filter.tsx / price-range-filter.tsx / more-overflow.tsx / facet-bar.tsx were all paid down
+  // to Base UI Popover + Menu — do NOT re-add them here; the gate now protects them.)
 ]
 const PORTAL_ALLOW_SET = new Set(PORTAL_ALLOW.map((e) => e.file))
 

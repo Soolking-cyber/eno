@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { User, Search, MapPin, Clock, Heart, MessageSquare, X } from 'lucide-react'
+import { User, UsersRound, Search, MapPin, Clock, Heart, MessageSquare, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
@@ -382,6 +382,14 @@ export function Header() {
         {/* Actions. The notification bell shows on ALL sizes (top-right, per the
             Chợ Tốt pattern); account + Post are desktop-only (mobile uses the bottom nav). */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <Link
+            href="/forum"
+            aria-label={tr('Community forum', 'Diễn đàn cộng đồng')}
+            title={tr('Community forum', 'Diễn đàn cộng đồng')}
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-44"
+          >
+            <UsersRound className="h-6 w-6" />
+          </Link>
           {/* Desktop quick actions (mobile uses the bottom nav): Saved · Messages · Bell */}
           {user && (
             <>
@@ -451,4 +459,3 @@ export function Header() {
     </header>
   )
 }
-

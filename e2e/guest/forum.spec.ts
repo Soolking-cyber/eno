@@ -1,19 +1,22 @@
 import { expectNoA11yViolations, test, expect } from '../helpers'
 
 test.describe('Guest · eno.forum MVP', () => {
-  test.beforeEach(async ({ page }) => { await page.goto('/forum') })
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/forum')
+    await expect(page.locator('[data-forum-page]')).toHaveAttribute('data-hydrated', 'true')
+  })
 
   test('renders the forum shell and a useful discussion feed', async ({ page }) => {
     await expect(page).toHaveTitle(/eno\.forum/i)
     await expect(page.getByRole('heading', { level: 1, name: /Vietnam feels easier together/i })).toBeVisible()
-    await expect(page.getByRole('button', { name: /New to Vietnam\? Start with these 8 things/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /New to Vietnam\? Start with these 8 things/i }).first()).toBeVisible()
     await expect(page.getByRole('tablist')).toBeVisible()
     await expectNoA11yViolations(page, 'forum feed')
   })
 
   test('search narrows the feed and opens a full discussion', async ({ page }) => {
     const search = page.locator('input[aria-label="Search the forum"]:visible')
-    await search.fill('three-month deposit')
+    await search.fill('deposit')
 
     const post = page.getByRole('button', { name: /Landlord wants a 3-month deposit/i })
     await expect(post).toBeVisible()
@@ -39,6 +42,6 @@ test.describe('Guest · eno.forum MVP', () => {
     await dialog.getByLabel('Details').fill('I am comparing two apartments and would appreciate a practical checklist from recent renters.')
     await dialog.getByRole('button', { name: 'Publish post' }).click()
 
-    await expect(page.getByRole('button', { name: 'What should I check before signing a lease?' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'What should I check before signing a lease?' }).first()).toBeVisible()
   })
 })

@@ -65,6 +65,11 @@ export function CreatePostDialog({
     setSubmitted(false)
   }
 
+  const close = () => {
+    reset()
+    onOpenChange(false)
+  }
+
   const publish = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitted(true)
@@ -167,7 +172,7 @@ export function CreatePostDialog({
           </div>
 
           <DialogFooter className="border-t border-border bg-tint/60 px-5 py-4 sm:px-6">
-            <Button type="button" variant="bare" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="bare" onClick={close}>
               {tr('Cancel', 'Hủy')}
             </Button>
             <Button type="submit" variant="cta">
