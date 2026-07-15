@@ -1,10 +1,12 @@
-# dependencies
-/node_modules
+# dependencies — unanchored so nested workspaces (apps/*/node_modules) are covered too.
+# (The root-only `/node_modules` let apps/forum/node_modules get committed — a 114MB swc
+# binary — which GitHub's pre-receive hook rejects. Never commit deps/build artifacts.)
+node_modules/
 /.pnp
 .pnp.*
 
-# next.js
-/.next/
+# next.js — unanchored: also catches apps/*/.next
+.next/
 /out/
 /build
 next-env.d.ts

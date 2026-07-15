@@ -446,14 +446,14 @@ export function ItineraryBuilder() {
               <Card className="gap-0 overflow-hidden p-0">
                 <div className="bg-primary px-5 py-5 text-white sm:px-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <Badge variant="brand" size="sm" className="bg-white/15 text-white">
+                    <Badge variant="brand" size="sm" className="bg-white text-brand-deep">
                       <Sparkles className="h-3.5 w-3.5" />
                       {tr('Your AI itinerary preview', 'Bản xem trước lịch trình AI')}
                     </Badge>
-                    <span className="text-xs font-semibold text-white/80">{days} {tr('days', 'ngày')}</span>
+                    <span className="text-xs font-semibold text-white">{days} {tr('days', 'ngày')}</span>
                   </div>
                   <h2 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">{tr(destination.shortLabel, destination.shortLabelVi)}</h2>
-                  <p className="mt-2 flex items-center gap-2 text-sm text-white/80"><Route className="h-4 w-4" />{tr(destination.route, destination.routeVi)}</p>
+                  <p className="mt-2 flex items-center gap-2 text-sm text-white"><Route className="h-4 w-4" />{tr(destination.route, destination.routeVi)}</p>
                 </div>
                 <div className="grid gap-px bg-border sm:grid-cols-3">
                   <div className="bg-card px-5 py-4">
@@ -506,7 +506,7 @@ export function ItineraryBuilder() {
                 </div>
                 <div className="space-y-3">
                   {tripDays.map((day, index) => (
-                    <Card key={`${day.area}-${index}`} className="gap-0 p-0">
+                    <Card data-testid="itinerary-day" key={`${day.area}-${index}`} className="gap-0 p-0">
                       <div className="flex flex-col sm:flex-row">
                         <div className="flex shrink-0 items-center gap-3 bg-tint px-4 py-3 sm:w-28 sm:flex-col sm:justify-center sm:gap-1 sm:px-3 sm:text-center">
                           <span className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Day', 'Ngày')}</span>

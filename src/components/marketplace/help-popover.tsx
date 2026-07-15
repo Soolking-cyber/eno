@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { X, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -23,17 +24,7 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const trapRef = useFocusTrap<HTMLDivElement>()
 
-  // Close on Escape; lock background scroll while open.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
-    }
-  }, [onClose])
+  // DialogPrimitive handles Escape and scroll-lock natively.
 
   const isForm = typeof view === 'object'
   const kind = isForm ? view.kind : 'feedback'
@@ -62,9 +53,11 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
   const backToMenu = () => { setView('menu'); setMessage(''); setEmail(''); setState('idle') }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={tr('Help', 'Trợ giúp')} className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" aria-hidden onClick={onClose} />
-      <div ref={trapRef} className="relative w-full max-h-[85vh] overflow-y-auto rounded-t-2xl bg-card shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-200 sm:max-w-md sm:rounded-2xl sm:slide-in-from-bottom-0 sm:zoom-in-95">
+    <DialogPrimitive.Root open={true} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Backdrop className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[2px] data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out" />
+        <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
+          <DialogPrimitive.Popup ref={trapRef} className="relative w-full max-h-[85vh] overflow-y-auto rounded-t-2xl bg-card shadow-overlay outline-none animate-in fade-in slide-in-from-bottom-4 duration-200 sm:max-w-md sm:rounded-2xl sm:slide-in-from-bottom-0 sm:zoom-in-95">
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4">
           {isForm ? (
@@ -177,7 +170,9 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
             )}
           </div>
         )}
+        </DialogPrimitive.Popup>
       </div>
-    </div>
+    </DialogPrimitive.Portal>
+  </DialogPrimitive.Root>
   )
 }

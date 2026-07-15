@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
 
 /**
@@ -31,10 +32,12 @@ export function SaveSignupSheet() {
 
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-[130] flex flex-col justify-end" role="dialog" aria-modal="true" aria-label={tr('Keep your saved items', 'Giữ tin đã lưu')}>
-      <div aria-hidden className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200" onClick={() => setOpen(false)} />
-      <div className="relative mx-auto w-full max-w-md rounded-t-2xl bg-card px-6 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-3 shadow-overlay animate-in slide-in-from-bottom-4 duration-250">
-        <div aria-hidden className="mx-auto h-1 w-10 rounded-full bg-line-strong" />
+    <DialogPrimitive.Root open={true} onOpenChange={(open) => { if (!open) setOpen(false) }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Backdrop className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-[2px] data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out" />
+        <div className="fixed inset-0 z-[130] flex flex-col justify-end">
+          <DialogPrimitive.Popup aria-label={tr('Keep your saved items', 'Giữ tin đã lưu')} className="relative mx-auto w-full max-w-md rounded-t-2xl bg-card px-6 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-3 shadow-overlay outline-none animate-in slide-in-from-bottom-4 duration-250 data-closed:animate-out data-closed:slide-out-to-bottom-4">
+            <div aria-hidden className="mx-auto h-1 w-10 rounded-full bg-line-strong" />
         <h2 className="mt-4 text-lg font-extrabold tracking-tight text-foreground">{tr('Saved! Now keep it.', 'Đã lưu! Giữ nó nhé.')}</h2>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
           {tr('Sign up free to keep your saved items, chat with sellers and get price-drop alerts.', 'Đăng ký miễn phí để giữ tin đã lưu, nhắn tin với người bán và nhận báo giá giảm.')}
@@ -69,7 +72,9 @@ export function SaveSignupSheet() {
           </Button>
         </div>
         <p className="mt-2 text-center text-3xs text-ink-4">{tr('Free forever · no spam · 10 seconds', 'Miễn phí · không spam · 10 giây')}</p>
+        </DialogPrimitive.Popup>
       </div>
-    </div>
+    </DialogPrimitive.Portal>
+  </DialogPrimitive.Root>
   )
 }

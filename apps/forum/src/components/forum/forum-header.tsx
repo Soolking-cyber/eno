@@ -1,16 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { Bell, Plus, Search, Store, UserRound } from 'lucide-react'
-import { useAuth } from '@/context/auth-context'
+import { Languages, Plus, Route, Search, Store, UserRound } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
-import { useAccountPanel } from '@/components/marketplace/account-panel'
-import { Avatar } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
+
+const MARKETPLACE_URL = process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn'
 
 export function ForumHeader({
   query,
@@ -21,15 +19,12 @@ export function ForumHeader({
   onQueryChange: (value: string) => void
   onCreatePost: () => void
 }) {
-  const { tr } = useLanguage()
-  const { user, loading, openSignIn } = useAuth()
-  const { openTo } = useAccountPanel()
-  const displayName = String(user?.user_metadata?.full_name || user?.email || tr('Your profile', 'Hồ sơ của bạn'))
+  const { tr, lang, setLang } = useLanguage()
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-card/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
-        <Link href="/forum" className="flex shrink-0 items-center gap-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 rounded-xl" aria-label={tr('eno.forum home', 'Trang chủ eno.forum')}>
+        <Link href="/" className="flex shrink-0 items-center gap-2 rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50" aria-label={tr('eno.forum home', 'Trang chủ eno.forum')}>
           <img src="/logo-mark.svg" alt="" width={44} height={44} className="h-11 w-11" />
           <span className="hidden leading-none min-[390px]:block">
             <span className="block text-lg font-bold tracking-tight text-foreground">{tr('eno.forum', 'eno.forum')}</span>
@@ -53,51 +48,41 @@ export function ForumHeader({
         </div>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <Link href="/" className={cn(buttonVariants({ variant: 'soft', size: 'sm' }), 'hidden text-body lg:inline-flex')}>
+          <IconButton
+            size="lg"
+            className="text-body hover:bg-tint hover:text-foreground"
+            aria-label={lang === 'en' ? 'Chuyển sang tiếng Việt' : 'Switch to English'}
+            onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
+          >
+            <Languages className="h-5 w-5" />
+          </IconButton>
+
+          <a
+            href={`${MARKETPLACE_URL}/itinerary`}
+            className={cn(buttonVariants({ variant: 'soft', size: 'icon' }), 'text-body')}
+            aria-label={tr('Plan a Vietnam itinerary', 'Lập lịch trình Việt Nam')}
+            title={tr('Plan a Vietnam itinerary', 'Lập lịch trình Việt Nam')}
+          >
+            <Route className="h-5 w-5" />
+          </a>
+
+          <a href={MARKETPLACE_URL} className={cn(buttonVariants({ variant: 'soft', size: 'sm' }), 'hidden text-body lg:inline-flex')}>
             <Store className="h-4 w-4" />
             {tr('Marketplace', 'Chợ mua bán')}
-          </Link>
+          </a>
 
-          <Link
-            href="/"
+          <a
+            href={MARKETPLACE_URL}
             className={cn(buttonVariants({ variant: 'soft', size: 'icon' }), 'text-body sm:hidden')}
             aria-label={tr('Open the eno.vn marketplace', 'Mở chợ eno.vn')}
           >
             <Store className="h-5 w-5" />
-          </Link>
+          </a>
 
-          <IconButton
-            size="lg"
-            className="hidden text-body transition-colors hover:bg-tint hover:text-foreground sm:flex"
-            aria-label={tr('Notifications', 'Thông báo')}
-            onClick={() => toast.message(tr('You are all caught up.', 'Bạn đã xem hết thông báo.'))}
-          >
-            <Bell className="h-5 w-5" />
-          </IconButton>
-
-          {!loading && user ? (
-            <Button
-              type="button"
-              variant="bare"
-              size="none"
-              className="rounded-full focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              onClick={() => openTo('root')}
-              aria-label={tr('Open your profile', 'Mở hồ sơ của bạn')}
-            >
-              <Avatar name={displayName} url={user.user_metadata?.avatar_url} size="sm" />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="hidden sm:inline-flex"
-              onClick={() => openSignIn()}
-            >
-              <UserRound className="h-4 w-4" />
-              {tr('Sign in', 'Đăng nhập')}
-            </Button>
-          )}
+          <a href={`${MARKETPLACE_URL}/signin`} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'hidden sm:inline-flex')}>
+            <UserRound className="h-4 w-4" />
+            {tr('Sign in', 'Đăng nhập')}
+          </a>
 
           <Button data-testid="forum-create" type="button" variant="cta" size="sm" onClick={onCreatePost} className="hidden sm:inline-flex">
             <Plus className="h-4 w-4" />

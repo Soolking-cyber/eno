@@ -171,6 +171,10 @@ const RULES = [
     re: /\(\s*\n\s*\{\/\*[\s\S]*?\*\/\}\s*\n\s*</g,
     raw: true, // must see the comment itself — do not run on the comment-stripped source
   },
+  {
+    name: 'onClick on generic element (use <button>, <Button>, or proper routing elements)',
+    re: /<(div|span)[^>]*\bonClick=/g,
+  },
 ]
 
 function* walk(dir) {

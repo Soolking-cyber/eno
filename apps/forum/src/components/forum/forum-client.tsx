@@ -26,15 +26,12 @@ import {
   SearchX,
   ShieldCheck,
   Sparkles,
-  Store,
   UserRound,
   Users,
   Waves,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { useAccountPanel } from '@/components/marketplace/account-panel'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -65,6 +62,8 @@ import { ThreadDialog } from './thread-dialog'
 
 type ForumSort = 'best' | 'latest' | 'top'
 type FeedMode = 'all' | 'saved'
+
+const MARKETPLACE_URL = process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn'
 
 const COMMUNITY_ICONS: Record<string, LucideIcon> = {
   'vietnam-101': Compass,
@@ -184,16 +183,16 @@ function ForumRightRail({ onOpenPost, onCreatePost }: { onOpenPost: (id: string)
   return (
     <aside aria-label={tr('Forum information', 'Thông tin diễn đàn')} className="hidden xl:block">
       <div className="sticky top-20 space-y-4">
-        <Card className="gap-0 bg-card py-0">
-          <div className="bg-brand-deep px-4 py-5 text-white">
+        <Card className="gap-0 rounded-none border-b border-border/80 bg-transparent py-0 ring-0">
+          <div className="px-4 py-5 text-foreground">
             <div className="flex items-center gap-2">
               <img src="/logo-mark.svg" alt="" className="h-9 w-9" />
               <div>
                 <h2 className="text-base font-bold">{tr('About eno.forum', 'Về eno.forum')}</h2>
-                <p className="text-2xs text-white/75">{tr('Real life in Vietnam, together.', 'Cùng nhau sống tốt hơn tại Việt Nam.')}</p>
+                <p className="text-2xs text-body">{tr('Real life in Vietnam, together.', 'Cùng nhau sống tốt hơn tại Việt Nam.')}</p>
               </div>
             </div>
-            <p className="mt-4 text-sm leading-relaxed text-white/85">
+            <p className="mt-4 text-sm leading-relaxed text-body">
               {tr('A practical, welcoming place for expats and locals to exchange firsthand help.', 'Nơi thân thiện để người nước ngoài và người Việt chia sẻ kinh nghiệm thực tế.')}
             </p>
           </div>
@@ -218,7 +217,7 @@ function ForumRightRail({ onOpenPost, onCreatePost }: { onOpenPost: (id: string)
           </CardContent>
         </Card>
 
-        <Card size="sm">
+        <Card size="sm" className="rounded-none border-b border-border/80 bg-transparent ring-0">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-bold">
               <Flame className="h-4 w-4 text-accent-foreground" />
@@ -245,7 +244,7 @@ function ForumRightRail({ onOpenPost, onCreatePost }: { onOpenPost: (id: string)
           </CardContent>
         </Card>
 
-        <Card size="sm">
+        <Card size="sm" className="rounded-none border-b border-border/80 bg-transparent ring-0">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-bold">
               <CalendarDays className="h-4 w-4 text-accent-foreground" />
@@ -266,7 +265,7 @@ function ForumRightRail({ onOpenPost, onCreatePost }: { onOpenPost: (id: string)
           </CardContent>
         </Card>
 
-        <Card size="sm">
+        <Card size="sm" className="rounded-none bg-transparent ring-0">
           <CardHeader>
             <CardTitle className="font-bold">{tr('Community values', 'Giá trị cộng đồng')}</CardTitle>
           </CardHeader>
@@ -299,8 +298,6 @@ function MobileForumNav({
   onSaved: () => void
 }) {
   const { tr } = useLanguage()
-  const { user, openSignIn } = useAuth()
-  const { openTo } = useAccountPanel()
   const { open: keyboardOpen } = useVirtualKeyboard()
   const itemClass = 'relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-3xs font-semibold'
 
@@ -335,10 +332,10 @@ function MobileForumNav({
           </span>
           <span>{tr('Saved', 'Đã lưu')}</span>
         </Button>
-        <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={() => user ? openTo('root') : openSignIn()}>
+        <a href={`${MARKETPLACE_URL}/signin`} className={cn(itemClass, 'text-body')}>
           <UserRound className="h-5 w-5" />
-          <span>{user ? tr('Profile', 'Hồ sơ') : tr('Sign in', 'Đăng nhập')}</span>
-        </Button>
+          <span>{tr('Sign in', 'Đăng nhập')}</span>
+        </a>
       </div>
     </nav>
   )
@@ -371,13 +368,13 @@ function FeedList({
         title={tr('No discussions match these filters.', 'Không có thảo luận phù hợp với bộ lọc.')}
         subtitle={tr('Try another community, location, or search term.', 'Hãy thử cộng đồng, địa điểm hoặc từ khóa khác.')}
         action={<Button type="button" variant="outline" onClick={onReset}>{tr('Reset filters', 'Đặt lại bộ lọc')}</Button>}
-        className="bg-card"
+        className="bg-transparent ring-0"
       />
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div>
       {posts.map((post) => {
         const community = communityMap.get(post.community)
         if (!community) return null
@@ -400,8 +397,6 @@ function FeedList({
 
 export function ForumClient() {
   const { tr } = useLanguage()
-  const { user } = useAuth()
-  const { open: accountPanelOpen } = useAccountPanel()
   const [hydrated, setHydrated] = useState(false)
   const [posts, setPosts] = useState<ForumPost[]>(INITIAL_FORUM_POSTS)
   const [query, setQuery] = useState('')
@@ -503,7 +498,7 @@ export function ForumClient() {
       ...draft,
       flair: 'Community discussion',
       flairVi: 'Thảo luận cộng đồng',
-      author: String(user?.user_metadata?.full_name || user?.email?.split('@')[0] || tr('You', 'Bạn')),
+      author: tr('You', 'Bạn'),
       minutesAgo: 0,
       timeLabel: tr('Just now', 'Vừa xong'),
       score: 1,
@@ -557,7 +552,7 @@ export function ForumClient() {
                 variant="bare"
                 size="none"
                 className={cn(
-                  'h-10 shrink-0 gap-2 rounded-full border border-border bg-card px-3 text-xs font-semibold text-body shadow-xs',
+                  'h-10 shrink-0 gap-2 rounded-full border border-border bg-transparent px-3 text-xs font-semibold text-body',
                   community === item.slug && 'border-brand bg-accent text-accent-foreground',
                 )}
                 onClick={() => chooseCommunity(item.slug)}
@@ -570,32 +565,27 @@ export function ForumClient() {
           </div>
         </section>
 
-        <div className={cn(
-          'grid items-start gap-6',
-          accountPanelOpen ? 'grid-cols-1' : 'lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,680px)_300px]',
-        )}>
-          {!accountPanelOpen && (
-            <ForumLeftRail
-              activeCommunity={community}
-              mode={mode}
-              sort={sort}
-              savedCount={saved.size}
-              onSelectCommunity={chooseCommunity}
-              onNavigate={navigateFeed}
-            />
-          )}
+        <div className="grid items-start gap-6 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,680px)_300px]">
+          <ForumLeftRail
+            activeCommunity={community}
+            mode={mode}
+            sort={sort}
+            savedCount={saved.size}
+            onSelectCommunity={chooseCommunity}
+            onNavigate={navigateFeed}
+          />
 
           <div className="min-w-0 space-y-4">
-            <Card className="relative gap-0 overflow-hidden bg-brand-deep px-5 py-5 text-white ring-0 sm:px-6 sm:py-6">
+            <Card className="relative gap-0 overflow-hidden rounded-none bg-transparent px-1 py-5 text-foreground ring-0 sm:px-1 sm:py-6">
               <div className="relative z-10 max-w-lg">
-                <Badge variant="brand" size="sm" className="bg-white/10 text-white">
+                <Badge variant="brand" size="sm">
                   <Languages className="h-3 w-3" />
                   {tr('People-powered local knowledge', 'Kiến thức địa phương từ cộng đồng')}
                 </Badge>
                 <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
                   {tr('Vietnam feels easier together.', 'Cuộc sống ở Việt Nam dễ dàng hơn khi có nhau.')}
                 </h1>
-                <p className="mt-2 text-sm leading-relaxed text-white/80 sm:text-base">
+                <p className="mt-2 text-sm leading-relaxed text-body sm:text-base">
                   {tr('Ask what search results cannot answer. Get current, firsthand help from people who live here.', 'Hỏi những điều khó tìm trên mạng. Nhận chia sẻ cập nhật từ những người đang sống tại đây.')}
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -603,18 +593,18 @@ export function ForumClient() {
                     <Plus className="h-4 w-4" />
                     {tr('Ask the community', 'Hỏi cộng đồng')}
                   </Button>
-                  <Button type="button" variant="bare" className="text-white hover:bg-white/10" onClick={() => openThread('new-to-vietnam-checklist')}>
+                  <Button type="button" variant="soft" className="text-body" onClick={() => openThread('new-to-vietnam-checklist')}>
                     <CircleHelp className="h-4 w-4" />
                     {tr('Newcomer guide', 'Hướng dẫn người mới')}
                   </Button>
                 </div>
               </div>
-              <MessageCircleQuestion className="pointer-events-none absolute -bottom-8 -right-4 h-40 w-40 text-white/5 sm:h-48 sm:w-48" aria-hidden="true" />
+              <MessageCircleQuestion className="pointer-events-none absolute -bottom-8 -right-4 h-40 w-40 text-brand/5 sm:h-48 sm:w-48" aria-hidden="true" />
             </Card>
 
-            <Card className="gap-0 py-0">
+            <Card className="gap-0 rounded-none border-y border-border/80 bg-transparent py-0 ring-0">
               <div className="flex items-center gap-3 px-4 py-3 sm:px-5">
-                <Avatar name={String(user?.user_metadata?.full_name || user?.email || tr('Guest', 'Khách'))} url={user?.user_metadata?.avatar_url} size="sm" />
+                <Avatar name={tr('Guest', 'Khách')} size="sm" />
                 <Button type="button" variant="bare" size="none" className="h-11 min-w-0 flex-1 justify-start rounded-xl bg-tint px-4 text-left text-sm font-normal text-body hover:bg-muted" onClick={() => setCreateOpen(true)}>
                   <span className="truncate">{tr('Ask a question or share an experience…', 'Đặt câu hỏi hoặc chia sẻ trải nghiệm…')}</span>
                 </Button>
@@ -636,7 +626,7 @@ export function ForumClient() {
             </Card>
 
             <Tabs value={sort} onValueChange={(value) => { setSort(value as ForumSort); setMode('all') }} className="gap-3">
-              <div className="flex items-center justify-between gap-3 rounded-2xl bg-card px-3 py-2 ring-1 ring-foreground/10">
+              <div className="flex items-center justify-between gap-3 border-b border-border/80 px-0 py-2">
                 <TabsList variant="line" className="min-w-0 gap-0 group-data-horizontal/tabs:h-9">
                   <TabsTrigger value="best" className="h-9 cursor-pointer px-3 text-xs font-semibold">
                     <Sparkles className="h-4 w-4" />
@@ -683,7 +673,7 @@ export function ForumClient() {
             </Tabs>
           </div>
 
-          {!accountPanelOpen && <ForumRightRail onOpenPost={openThread} onCreatePost={() => setCreateOpen(true)} />}
+          <ForumRightRail onOpenPost={openThread} onCreatePost={() => setCreateOpen(true)} />
         </div>
       </main>
 

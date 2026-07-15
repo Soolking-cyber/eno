@@ -62,7 +62,7 @@ export function Checkbox({
     // row's checkbox ALSO opens/selects the row. Every checkbox lives inside a clickable row,
     // so containment belongs here, once, rather than at each call site where it will be
     // forgotten. `display: contents` keeps the wrapper out of layout entirely.
-    <span className="contents" onClick={(e) => e.stopPropagation()}>
+    <span className="contents" onClick={(e) => e.stopPropagation()}> {/* design-lint-allow */}
     <BaseCheckbox.Root
       checked={checked}
       onCheckedChange={(next) => onChange?.(next)}

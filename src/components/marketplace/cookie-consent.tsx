@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { getConsent, setConsent, syncConsentCookie } from '@/lib/consent'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
 
 function Toggle({ title, desc, value, onChange, locked = false }: { title: string; desc: string; value: boolean; onChange?: (v: boolean) => void; locked?: boolean }) {
@@ -68,10 +69,12 @@ export function CookieConsent() {
   const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-body active:scale-95 cursor-pointer'
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" aria-hidden onClick={close} />
-      <div className="relative flex w-full max-w-md items-center gap-2 overflow-hidden rounded-2xl bg-card p-3 shadow-overlay animate-in fade-in zoom-in-95 duration-150 sm:gap-3.5 sm:p-4">
-        {/* Mascot — fills the card height (the tallest element), minimal padding. */}
+    <DialogPrimitive.Root open={show} onOpenChange={(open) => { if (!open) close() }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Backdrop className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-[2px] data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out" />
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <DialogPrimitive.Popup className="relative flex w-full max-w-md items-center gap-2 overflow-hidden rounded-2xl bg-card p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-150 sm:gap-3.5 sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95">
+            {/* Mascot — fills the card height (the tallest element), minimal padding. */}
         <Mascot name="cookie" className="h-24 w-24 shrink-0 self-center text-foreground sm:h-28 sm:w-28" />
 
         <div className="min-w-0 flex-1 pr-0.5">
@@ -106,7 +109,9 @@ export function CookieConsent() {
             </>
           )}
         </div>
-      </div>
+      </DialogPrimitive.Popup>
     </div>
+  </DialogPrimitive.Portal>
+</DialogPrimitive.Root>
   )
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { User, UsersRound, Search, MapPin, Clock, Heart, MessageSquare, X } from 'lucide-react'
+import { User, UsersRound, Search, MapPin, Clock, Heart, MessageSquare, Route, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
@@ -28,6 +28,7 @@ import { toast } from 'sonner'
 // The typeahead listbox this bar owns. Static (one Header per page), and distinct
 // from the hero bar's so both can be in the DOM at once without id collisions.
 const SUGGEST_ID = 'header-search-suggest'
+const FORUM_URL = process.env.NEXT_PUBLIC_FORUM_URL || '/forum'
 
 export function Header() {
   const { t, tr, lang } = useLanguage()
@@ -46,6 +47,7 @@ export function Header() {
   // Active-page indicator for the desktop header icons (mirrors the mobile bottom nav).
   const savedActive = pathname === '/saved'
   const msgActive = pathname?.startsWith('/messages') ?? false
+  const itineraryActive = pathname === '/itinerary'
 
   // Chợ Tốt-style: the in-header search + area selector appear once the big hero
   // search pill scrolls out of view (or immediately on any page without a hero).
@@ -383,13 +385,26 @@ export function Header() {
             Chợ Tốt pattern); account + Post are desktop-only (mobile uses the bottom nav). */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <Link
-            href="/forum"
+            href="/itinerary"
+            aria-label={tr('Vietnam itinerary builder', 'Lập lịch trình Việt Nam')}
+            title={tr('Vietnam itinerary builder', 'Lập lịch trình Việt Nam')}
+            aria-current={itineraryActive ? 'page' : undefined}
+            className={cn(
+              'relative flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-44',
+              itineraryActive && 'bg-accent text-accent-foreground',
+            )}
+          >
+            <Route className="h-6 w-6" />
+            {itineraryActive && <span aria-hidden className="absolute -bottom-0.5 left-1/2 h-0.5 w-7 -translate-x-1/2 rounded-full bg-brand" />}
+          </Link>
+          <a
+            href={FORUM_URL}
             aria-label={tr('Community forum', 'Diễn đàn cộng đồng')}
             title={tr('Community forum', 'Diễn đàn cộng đồng')}
             className="relative flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-44"
           >
             <UsersRound className="h-6 w-6" />
-          </Link>
+          </a>
           {/* Desktop quick actions (mobile uses the bottom nav): Saved · Messages · Bell */}
           {user && (
             <>

@@ -326,13 +326,23 @@ function AccountPanel({ open, onClose, resizing, onResizeStart, onResizeKey }: {
             </a>
           )}
 
-          {/* Language + theme — device prefs. */}
-          <div className="mt-2 border-t border-border px-1.5 pb-1 pt-3">
-            <PreferencesInline compact />
+          {/* Language + theme — device prefs. On MOBILE Sign out sits at the right end of this
+              toggle row (owner 2026-07-15); on desktop it keeps its own full-width row at the
+              bottom of the rail, where there's vertical room. */}
+          <div className="mt-2 flex items-center gap-2 border-t border-border px-1.5 pb-1 pt-3">
+            <PreferencesInline compact className="min-w-0 flex-1" />
+            <IconButton
+              onClick={() => { onClose(); signOut() }}
+              aria-label={tr('Sign out', 'Đăng xuất')}
+              className="shrink-0 text-ink-4 hover:bg-destructive/10 hover:text-destructive lg:hidden"
+            >
+              <LogOut className="h-4 w-4" />
+            </IconButton>
           </div>
         </div>
 
-        <div className="border-t border-border p-3">
+        {/* Desktop: Sign out gets its own labelled row at the foot of the rail. */}
+        <div className="hidden border-t border-border p-3 lg:block">
           <Button
             variant="bare"
             size="none"

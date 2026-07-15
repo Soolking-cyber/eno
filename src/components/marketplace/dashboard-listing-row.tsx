@@ -66,7 +66,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // no box, so layout is untouched. Toggling stays on onChange (the input's change event,
   // which the click-stop does not affect) — putting it on onClick too would double-fire.
   const checkbox = selectable ? (
-    <span className="contents" onClick={(e) => e.stopPropagation()}>
+    <span className="contents" onClick={(e) => e.stopPropagation()}> {/* design-lint-allow */}
       <Checkbox
         checked={selected}
         onChange={() => onSelectToggle?.()}

@@ -44,15 +44,19 @@ const CACHE_KEY = 'eno-dashboard'
 // fetch, and one refresh(). Keyed by userId so a fast account switch can't leak the previous
 // account's data (a late response for an old uid is dropped).
 type State = { userId: string | null; dash: Dash | null; loading: boolean }
-let state: State = { userId: null, dash: null, loading: true }
+// ⚠️ `state` STARTS as the exact same reference as SERVER_SNAPSHOT (below). During hydration
+// useSyncExternalStore renders once from getServerSnapshot, then reads getSnapshot; if those
+// returned equal-but-DIFFERENT objects React would force an extra re-render (and risk tearing).
+// Sharing the reference makes the first client snapshot identical to the server's.
+const SERVER_SNAPSHOT: State = { userId: null, dash: null, loading: true }
+let state: State = SERVER_SNAPSHOT
 const subscribers = new Set<() => void>()
 const emit = () => subscribers.forEach((fn) => fn())
 const set = (next: Partial<State>) => { state = { ...state, ...next }; emit() }
 const subscribe = (fn: () => void) => { subscribers.add(fn); return () => { subscribers.delete(fn) } }
 const getSnapshot = () => state
-// Server + first client render must agree AND be reference-stable — useSyncExternalStore warns
-// (and can loop) if getServerSnapshot returns a fresh object each call, so it's a hoisted const.
-const SERVER_SNAPSHOT: State = { userId: null, dash: null, loading: true }
+// Reference-stable (a fresh object per call makes useSyncExternalStore warn/loop) AND the same
+// object `state` starts from, so the hydration snapshot matches the server's by reference.
 const getServerSnapshot = () => SERVER_SNAPSHOT
 
 let inflight = 0            // monotonic ticket: only the newest response is applied

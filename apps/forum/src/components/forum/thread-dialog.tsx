@@ -118,7 +118,7 @@ export function ThreadDialog({
   const score = post.score + vote
 
   const share = async () => {
-    const url = `${window.location.origin}/forum?post=${encodeURIComponent(post.id)}`
+    const url = `${window.location.origin}/?post=${encodeURIComponent(post.id)}`
     try {
       await navigator.clipboard.writeText(url)
       toast.success(tr('Discussion link copied.', 'Đã sao chép liên kết thảo luận.'))

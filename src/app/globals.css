@@ -17,14 +17,6 @@
 @custom-variant data-horizontal (&[data-orientation="horizontal"]);
 @custom-variant data-vertical (&[data-orientation="vertical"]);
 
-/* The forum has its own mobile navigation. Hide the marketplace tab bar and its
-   reserved spacer whenever the forum route is mounted, so two app shells never
-   compete for the same bottom edge. :has() is supported by the app's browser floor. */
-body:has([data-forum-page]) .mobile-nav,
-body:has([data-forum-page]) .bottom-nav-spacer {
-  display: none;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

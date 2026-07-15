@@ -14,7 +14,7 @@ Vietnamese expat marketplace. Next.js 16 (App Router) · Tailwind v4 · Prisma 7
 | UI diff → canon drift | `canon-reviewer` | Opus · high |
 | Copy → bilingual contract | `i18n-reviewer` | Opus · high |
 | A bug that already survived one plausible fix | `deep-debugger` | Opus · xhigh |
-| **Second opinion — DEFAULT** | `codex-sol` | **GPT-5.6 (`gpt-5.6-sol`) · xhigh, via Codex CLI** |
+| **Second opinion — run BOTH** | `codex` + `antigravity` | **GPT-5.6 + Gemini 3.1 Pro (High) — two non-Anthropic families** |
 | Second opinion — Anthropic-lineage | `fable-reviewer` | Fable 5 · xhigh — **budget-limited, use sparingly** |
 | Shipping to prod (the whole ritual) | `/ship` | Opus · medium |
 | Seller/admin e2e suite | `/authed-e2e` | Opus · low |
@@ -24,9 +24,17 @@ Three habits that follow:
 
 - **Delegate search to `scout`.** Not to save money — to keep bulk grep output out of the main context. You get the conclusion, not the file dump.
 - **Escalate, don't grind.** A fix that didn't hold goes to `deep-debugger` (Opus, xhigh), not to a second guess at the same altitude.
-- **Three families, not one.** The main thread is Opus, `fable-reviewer` is Fable 5, `codex-sol` is GPT-5.6. They fail differently, which is the whole point: an Opus review of Opus code shares its blind spots. **Anything irreversible or money/trust-adjacent — offers, publish gate, contact reveals, conversations, payments, anything that writes to prod — gets at least one non-Opus reviewer before it ships.** When everyone agrees, that's when to ask the dissenter, not when to relax.
+- **Four families, not one.** Main thread is Opus, `fable-reviewer` is Fable 5, and the two DEFAULT external reviewers are **codex (GPT-5.6)** and **antigravity (Gemini 3.1 Pro, High)** — run BOTH on substantive code (owner 2026-07-15). They fail differently, which is the whole point: an Opus review of Opus code shares its blind spots, and even codex+Opus missed things Gemini caught (the `use-dashboard` hydration-snapshot ref, e.g.). **Anything irreversible or money/trust-adjacent — offers, publish gate, contact reveals, conversations, payments, anything that writes to prod — gets at least one non-Opus reviewer before it ships.** When everyone agrees, that's when to ask the dissenter, not when to relax.
 
-In a `Workflow`, pass `model` and `effort` per `agent()` call. Cross-family verification is the highest-value use of the option: find with one family, refute with another (`model: 'fable'` for the refuter, or shell out to `codex exec -m gpt-5.6-sol` for a third).
+**How to invoke the two external reviewers (both read-only, non-interactive):**
+- **codex** — pipe the prompt via STDIN, never as an argument (the arg form hangs waiting on stdin):
+  `echo "<review prompt>" | codex exec -m gpt-5.6-sol --sandbox read-only`  (or heredoc into stdin).
+- **antigravity** — `agy -p "<prompt>" --model "Gemini 3.1 Pro (High)"`. Feed the file CONTENT inline in the
+  prompt (its agentic file-reading mode times out on `--print-timeout`); use `--print-timeout 240s`.
+
+In a `Workflow`, pass `model` and `effort` per `agent()` call for the Opus/Fable fan-out, and shell out to
+`codex exec` / `agy -p` from inside agents (or the main thread) for the two external families. Cross-family
+verification is the highest-value use: find with one family, have the other three try to refute.
 
 ## Non-negotiables
 

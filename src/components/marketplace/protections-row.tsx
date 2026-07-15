@@ -85,7 +85,12 @@ export function ProtectionsRow() {
       </DialogTrigger>
 
       <DialogContent
-        className="top-auto bottom-0 left-0 max-h-[85vh] w-full max-w-full translate-x-0 translate-y-0 gap-0 overflow-y-auto rounded-b-none rounded-t-2xl p-0 duration-200 motion-reduce:animate-none motion-reduce:transition-none data-[state=closed]:slide-out-to-bottom-4 data-[state=open]:slide-in-from-bottom-4 sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-w-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-2xl"
+        // ⚠️ Base UI emits data-open / data-closed — NOT Radix's data-[state=open|closed]. The old
+        // data-[state=*] slide classes never matched, so this bottom-anchored sheet fell back to the
+        // base DialogContent's zoom-in-95/zoom-out-95 and CENTER-ZOOMED instead of sliding up. These
+        // Base UI variants make it slide from the bottom edge (with the base's subtle zoom riding
+        // along, which reads fine on a full-width sheet). Found in the 3-reviewer Base UI audit.
+        className="top-auto bottom-0 left-0 max-h-[85vh] w-full max-w-full translate-x-0 translate-y-0 gap-0 overflow-y-auto rounded-b-none rounded-t-2xl p-0 duration-200 motion-reduce:animate-none motion-reduce:transition-none data-closed:slide-out-to-bottom-4 data-open:slide-in-from-bottom-4 sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-w-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-2xl"
       >
         <div className="px-5 pt-5 pb-4">
           <div className="flex items-center gap-2">

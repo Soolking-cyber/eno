@@ -51,7 +51,7 @@ export function ForumPostCard({
   const score = post.score + vote
 
   const share = async () => {
-    const url = `${window.location.origin}/forum?post=${encodeURIComponent(post.id)}`
+    const url = `${window.location.origin}/?post=${encodeURIComponent(post.id)}`
     try {
       await navigator.clipboard.writeText(url)
       toast.success(tr('Discussion link copied.', 'Đã sao chép liên kết thảo luận.'))
@@ -61,7 +61,7 @@ export function ForumPostCard({
   }
 
   return (
-    <Card className="gap-0 py-0 transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-card">
+    <Card className="gap-0 rounded-none border-b border-border/80 bg-transparent py-0 ring-0">
       <div className="flex">
         <div className="hidden w-14 shrink-0 flex-col items-center justify-center gap-1 py-4 sm:flex">
           <Button
@@ -154,7 +154,7 @@ export function ForumPostCard({
           </Button>
           <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-body">{post.body}</p>
 
-          <div className="mt-4 flex items-center gap-1 border-t border-border/70 pt-2.5">
+          <div className="mt-4 flex items-center gap-1 pt-1">
             <div className="flex items-center rounded-xl bg-tint p-0.5 sm:hidden">
               <Button
                 type="button"

@@ -115,7 +115,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   files: ["e2e/**"],
   rules: { "react-hooks/rules-of-hooks": "off" },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**"]
 }];
 
 export default eslintConfig;
