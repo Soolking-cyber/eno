@@ -15,7 +15,6 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://*.supabase.co'
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn'
     const csp = [
       "default-src 'self'",
       "base-uri 'self'",
@@ -26,7 +25,7 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: ${supabaseUrl}`,
       "font-src 'self' data:",
-      `connect-src 'self' ${supabaseUrl} ${apiUrl} https://challenges.cloudflare.com`,
+      `connect-src 'self' ${supabaseUrl} https://challenges.cloudflare.com`,
       "frame-src 'self' https://challenges.cloudflare.com",
       "worker-src 'self' blob:",
       "manifest-src 'self'",

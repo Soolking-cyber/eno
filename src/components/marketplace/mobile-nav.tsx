@@ -91,8 +91,24 @@ export function MobileNav() {
   // keeps them identical; the active tab lights up a frame later (imperceptible).
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
-  const at = (p: string) => mounted && pathname === p
-  const atPrefix = (p: string) => mounted && (pathname?.startsWith(p) ?? false)
+
+  // The account rail opens as a full-screen OVERLAY on mobile (via the eno:open-account event),
+  // so tapping Account never changes the route — the tab could never light up. The shell
+  // broadcasts its open state on eno:account-open-change; while the rail is open it IS the active
+  // surface, so the Account tab shows the indicator and the page tabs dim (one active tab that
+  // follows the current surface, matching every other tab's feel).
+  const [accountOpen, setAccountOpen] = useState(false)
+  useEffect(() => {
+    const onChange = (e: Event) => setAccountOpen((e as CustomEvent).detail === true)
+    window.addEventListener('eno:account-open-change', onChange)
+    return () => window.removeEventListener('eno:account-open-change', onChange)
+  }, [])
+
+  const at = (p: string) => mounted && pathname === p && !accountOpen
+  const atPrefix = (p: string) => mounted && (pathname?.startsWith(p) ?? false) && !accountOpen
+  // The Account tab is active while the rail is open OR on any /dashboard/* page (rail closed
+  // after a section nav). Independent of the !accountOpen dimming the other tabs get.
+  const accountActive = accountOpen || (mounted && (pathname?.startsWith('/dashboard') ?? false))
 
   // Navigate with an FB-style directional slide: right if the target tab is further
   // right than the current one, left otherwise.
@@ -202,7 +218,7 @@ export function MobileNav() {
           navigates to its /dashboard/* page and the rail closes. Active on any dashboard page. */}
       <GatedTab
         href="/dashboard"
-        active={atPrefix('/dashboard')}
+        active={accountActive}
         gate={gate}
         // Logged in → open the rail. Still resolving auth (user not yet known) → fall back to
         // navigating /dashboard, which gates correctly once auth lands, rather than popping an

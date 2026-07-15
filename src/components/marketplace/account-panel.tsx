@@ -70,6 +70,13 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('eno:open-account', openRail)
   }, [])
 
+  // Broadcast the rail's open state back out (the reverse of eno:open-account) so the bottom-nav
+  // Account tab — which lives OUTSIDE this provider — can light its active indicator while the rail
+  // is open, exactly like the other tabs do for their page. Fires on every change (incl. closes).
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('eno:account-open-change', { detail: open }))
+  }, [open])
+
   // Load the persisted rail width after mount (localStorage is client-only, so reading it
   // in useState would desync from the SSR default and flash). The :root var default (440px,
   // globals.css) covers the first paint; the panel is closed then anyway.
