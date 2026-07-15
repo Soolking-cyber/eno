@@ -30,16 +30,11 @@ test.describe('eno.forum standalone', () => {
     await expect(page).toHaveURL(/\?post=thao-dien-deposit/)
   })
 
-  test('creates a local preview post', async ({ page }) => {
+  test('gates publishing behind the unified eno account', async ({ page }) => {
     await page.locator('[data-testid="forum-create"]:visible').first().click()
 
     const dialog = page.getByRole('dialog')
-    await dialog.getByLabel('Community').click()
-    await page.getByRole('option', { name: 'Housing' }).click()
-    await dialog.getByLabel('Title').fill('What should I check before signing a lease?')
-    await dialog.getByLabel('Details').fill('I am comparing two apartments and would appreciate a practical checklist from recent renters.')
-    await dialog.getByRole('button', { name: 'Publish post' }).click()
-
-    await expect(page.getByRole('button', { name: 'What should I check before signing a lease?' }).first()).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'One eno account, everywhere.' })).toBeVisible()
+    await expect(dialog.getByLabel('Email address')).toBeVisible()
   })
 })

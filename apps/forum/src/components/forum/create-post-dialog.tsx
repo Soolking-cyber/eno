@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { FileText, Loader2, MessageSquareText, ShieldCheck } from 'lucide-react'
+import { Bold, FileText, ImagePlus, Italic, List, Loader2, MessageSquareText, ShieldCheck, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -22,12 +23,22 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { IconButton } from '@/components/ui/icon-button'
+import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { FORUM_COMMUNITIES, type ForumPost } from './forum-data'
 
-export type NewForumPost = Pick<ForumPost, 'community' | 'title' | 'body' | 'kind'>
+export type NewForumPost = Pick<ForumPost, 'community' | 'title' | 'body' | 'kind'> & {
+  media?: Array<{ storagePath: string; mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; altText: string | null }>
+}
 
 function characterCount(current: number, maximum: number): string {
   return `${current}/${maximum}`
+}
+
+function ImagePreview({ file }: { file: File }) {
+  const [url] = useState(() => URL.createObjectURL(file))
+  useEffect(() => () => URL.revokeObjectURL(url), [url])
+  return <img src={url} alt="" className="h-20 w-full rounded-lg object-cover" />
 }
 
 export function CreatePostDialog({
@@ -42,11 +53,13 @@ export function CreatePostDialog({
   onPublish: (post: NewForumPost) => void | Promise<void>
 }) {
   const { tr } = useLanguage()
+  const { user } = useAuth()
   const [community, setCommunity] = useState(defaultCommunity || 'vietnam-101')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [images, setImages] = useState<File[]>([])
   const selectedCommunity = FORUM_COMMUNITIES.find((item) => item.slug === community)
 
   useEffect(() => {
@@ -64,6 +77,7 @@ export function CreatePostDialog({
     setTitle('')
     setBody('')
     setSubmitted(false)
+    setImages([])
   }
 
   const close = () => {
@@ -71,17 +85,66 @@ export function CreatePostDialog({
     onOpenChange(false)
   }
 
+  const formatSelection = (before: string, after = before) => {
+    const editor = document.getElementById('forum-post-body') as HTMLTextAreaElement | null
+    if (!editor) return
+    const start = editor.selectionStart
+    const end = editor.selectionEnd
+    const selected = body.slice(start, end)
+    const next = `${body.slice(0, start)}${before}${selected}${after}${body.slice(end)}`
+    setBody(next)
+    requestAnimationFrame(() => {
+      editor.focus()
+      editor.setSelectionRange(start + before.length, end + before.length)
+    })
+  }
+
+  const addImages = (files: FileList | null) => {
+    if (!files) return
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+    const next = Array.from(files).filter((file) => allowed.has(file.type) && file.size <= 10 * 1024 * 1024)
+    setImages((current) => [...current, ...next].slice(0, 8))
+  }
+
+  const uploadImages = async () => {
+    if (images.length === 0) return []
+    if (!user) throw new Error('auth_required')
+    const supabase = createSupabaseBrowser()
+    const uploaded: string[] = []
+    try {
+      for (const [index, file] of images.entries()) {
+        const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || file.type.split('/')[1] || 'jpg'
+        const path = `${user.id}/${crypto.randomUUID()}/${index}.${extension}`
+        const { error } = await supabase.storage.from('forum-media').upload(path, file, { contentType: file.type, upsert: false })
+        if (error) throw error
+        uploaded.push(path)
+      }
+      return uploaded.map((storagePath, index) => ({
+        storagePath,
+        mimeType: images[index].type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
+        altText: images[index].name || null,
+      }))
+    } catch (error) {
+      if (uploaded.length) await supabase.storage.from('forum-media').remove(uploaded).catch(() => {})
+      throw error
+    }
+  }
+
   const publish = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitted(true)
     if (title.trim().length < 8 || body.trim().length < 20) return
     setPublishing(true)
+    let uploadedPaths: string[] = []
     try {
-      await onPublish({ community, title: title.trim(), body: body.trim(), kind: 'discussion' })
+      const media = await uploadImages()
+      uploadedPaths = media.map((item) => item.storagePath)
+      await onPublish({ community, title: title.trim(), body: body.trim(), kind: 'discussion', media })
       reset()
       onOpenChange(false)
     } catch {
       // Parent surfaces the API-specific error and keeps the draft intact.
+      if (uploadedPaths.length) await createSupabaseBrowser().storage.from('forum-media').remove(uploadedPaths).catch(() => {})
     } finally {
       setPublishing(false)
     }
@@ -150,6 +213,14 @@ export function CreatePostDialog({
 
             <Field invalid={Boolean(bodyError)}>
               <FieldLabel>{tr('Details', 'Chi tiết')}</FieldLabel>
+              <div className="flex items-center gap-1 rounded-t-xl border border-b-0 border-line-strong bg-tint px-2 py-1.5">
+                <IconButton type="button" size="sm" className="text-body hover:bg-card" aria-label={tr('Bold', 'In đậm')} onClick={() => formatSelection('**')}><Bold className="h-4 w-4" /></IconButton>
+                <IconButton type="button" size="sm" className="text-body hover:bg-card" aria-label={tr('Italic', 'In nghiêng')} onClick={() => formatSelection('_')}><Italic className="h-4 w-4" /></IconButton>
+                <IconButton type="button" size="sm" className="text-body hover:bg-card" aria-label={tr('Bulleted list', 'Danh sách dấu đầu dòng')} onClick={() => formatSelection('\n- ', '')}><List className="h-4 w-4" /></IconButton>
+                <IconButton type="button" size="sm" className="text-body hover:bg-card" aria-label={tr('Add images', 'Thêm hình ảnh')} onClick={() => document.getElementById('forum-post-images')?.click()}><ImagePlus className="h-4 w-4" /></IconButton>
+                <input id="forum-post-images" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="sr-only" onChange={(event) => { addImages(event.target.files); event.target.value = '' }} />
+                <span className="ml-auto text-2xs text-ink-4">{tr('Simple formatting', 'Định dạng cơ bản')}</span>
+              </div>
               <FieldControl
                 id="forum-post-body"
                 render={
@@ -161,6 +232,7 @@ export function CreatePostDialog({
                     rows={7}
                     maxLength={3000}
                     placeholder={tr('Share what happened, what you already tried, and where in Vietnam this applies.', 'Chia sẻ điều đã xảy ra, những gì bạn đã thử và khu vực áp dụng tại Việt Nam.')}
+                    className="rounded-t-none"
                   />
                 }
               />
@@ -170,6 +242,20 @@ export function CreatePostDialog({
               </div>
               {bodyError && <FieldError>{bodyError}</FieldError>}
             </Field>
+
+            {images.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {images.map((file, index) => (
+                  <div key={`${file.name}-${file.lastModified}-${index}`} className="relative overflow-hidden rounded-xl bg-tint p-2">
+                    <ImagePreview file={file} />
+                    <IconButton type="button" size="sm" className="absolute right-1 top-1 bg-card text-body shadow-sm" aria-label={tr('Remove image', 'Xóa hình ảnh')} onClick={() => setImages((current) => current.filter((_, itemIndex) => itemIndex !== index))}>
+                      <X className="h-3.5 w-3.5" />
+                    </IconButton>
+                    <p className="mt-1 truncate text-2xs text-body">{file.name}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex gap-3 rounded-xl bg-accent p-3 text-accent-foreground">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />

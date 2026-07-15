@@ -31,6 +31,7 @@ export type ForumPostResponse = {
   updatedAt: string
   viewerVote: -1 | 0 | 1
   saved: boolean
+  media: Array<{ url: string | null; altText: string | null; width: number | null; height: number | null }>
 }
 
 export type ForumCommentResponse = {
@@ -91,6 +92,7 @@ export function mapForumPost(post: ForumPostResponse): ForumPost {
     pinned: post.pinned,
     official: post.official,
     live: true,
+    media: post.media.filter((item): item is typeof item & { url: string } => Boolean(item.url)),
   }
 }
 

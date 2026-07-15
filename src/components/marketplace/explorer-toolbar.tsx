@@ -2,6 +2,7 @@
 
 import { List, Grid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Tooltip } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -26,19 +27,27 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMo
     cn('rounded-lg p-2.5 transition-colors cursor-pointer', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
   return (
     <>
-      <Button variant="bare" size="none" onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} title={tr('List view', 'Danh sách')} className={tab('compact')}>
-        <List className="h-[18px] w-[18px]" />
-      </Button>
-      <Button variant="bare" size="none" onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} title={tr('Grid view', 'Lưới')} className={tab('grid')}>
-        <Grid className="h-[18px] w-[18px]" />
-      </Button>
-      <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} title={tr('Map view', 'Xem Bản đồ')} className={tab('map')}>
-        <Map className="h-[18px] w-[18px]" />
-      </Button>
-      {showVideo && (
-        <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} title={tr('Video view', 'Xem Video')} className={tab('video')}>
-          <Play className="h-[18px] w-[18px]" />
+      <Tooltip content={tr('List view', 'Danh sách')} side="bottom">
+        <Button variant="bare" size="none" onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} className={tab('compact')}>
+          <List className="h-[18px] w-[18px]" />
         </Button>
+      </Tooltip>
+      <Tooltip content={tr('Grid view', 'Lưới')} side="bottom">
+        <Button variant="bare" size="none" onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} className={tab('grid')}>
+          <Grid className="h-[18px] w-[18px]" />
+        </Button>
+      </Tooltip>
+      <Tooltip content={tr('Map view', 'Xem Bản đồ')} side="bottom">
+        <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} className={tab('map')}>
+          <Map className="h-[18px] w-[18px]" />
+        </Button>
+      </Tooltip>
+      {showVideo && (
+        <Tooltip content={tr('Video view', 'Xem Video')} side="bottom">
+          <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} className={tab('video')}>
+            <Play className="h-[18px] w-[18px]" />
+          </Button>
+        </Tooltip>
       )}
     </>
   )

@@ -8,6 +8,7 @@ import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 type SavedSearch = { id: string; label: string; notify: boolean; createdAt: string; url: string }
@@ -76,16 +77,17 @@ export function SavedSearches() {
               <Search className="h-4 w-4 shrink-0 text-accent-foreground" />
               <span className="truncate text-sm font-medium text-foreground group-hover:underline">{s.label}</span>
             </Button>
-            <IconButton
-              size="sm"
-              tapTarget={false}
-              onClick={() => toggle(s)}
-              aria-label={s.notify ? tr('Mute alerts', 'Tắt thông báo') : tr('Enable alerts', 'Bật thông báo')}
-              title={s.notify ? tr('Alerts on', 'Đang báo') : tr('Alerts off', 'Đã tắt')}
-              className={cn('transition-colors hover:bg-accent', s.notify ? 'text-accent-foreground' : 'text-ink-4')}
-            >
-              {s.notify ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
-            </IconButton>
+            <Tooltip content={s.notify ? tr('Alerts on', 'Đang báo') : tr('Alerts off', 'Đã tắt')} side="top">
+              <IconButton
+                size="sm"
+                tapTarget={false}
+                onClick={() => toggle(s)}
+                aria-label={s.notify ? tr('Mute alerts', 'Tắt thông báo') : tr('Enable alerts', 'Bật thông báo')}
+                className={cn('transition-colors hover:bg-accent', s.notify ? 'text-accent-foreground' : 'text-ink-4')}
+              >
+                {s.notify ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+              </IconButton>
+            </Tooltip>
             <IconButton
               size="sm"
               tapTarget={false}

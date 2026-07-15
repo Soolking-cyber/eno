@@ -25,6 +25,7 @@ import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { VercelTelemetry } from "@/components/marketplace/vercel-telemetry";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -175,6 +176,9 @@ export default function RootLayout({
                 <ChatProvider>
                   <FavoritesProvider>
                     <QueryProvider>
+                      {/* One delay group for every ui/tooltip in the app: moving between adjacent
+                          icon tooltips feels instant once the first opens. Context only, no DOM. */}
+                      <TooltipProvider>
                       <PageTransitions>
                       <AccountPanelShell>
                       {children}
@@ -199,6 +203,7 @@ export default function RootLayout({
                       <SaveSignupSheet />
                       <ImageShield />
                       </PageTransitions>
+                      </TooltipProvider>
                     </QueryProvider>
                   </FavoritesProvider>
                 </ChatProvider>

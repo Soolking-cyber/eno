@@ -36,6 +36,7 @@ export type ForumPost = {
   pinned?: boolean
   official?: boolean
   live?: boolean
+  media?: Array<{ url: string; altText?: string | null; width?: number | null; height?: number | null }>
 }
 
 export type ForumComment = {

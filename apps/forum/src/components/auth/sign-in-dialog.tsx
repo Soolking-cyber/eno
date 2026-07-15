@@ -9,12 +9,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Field, FieldControl, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
+import { useTurnstile } from './turnstile'
 
 export function SignInDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { tr } = useLanguage()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState<'email' | 'google' | null>(null)
   const [sent, setSent] = useState(false)
+  const { getToken, Widget } = useTurnstile()
 
   const callbackUrl = () => `${window.location.origin}/auth/callback?next=${encodeURIComponent(window.location.pathname + window.location.search)}`
 
@@ -23,9 +25,10 @@ export function SignInDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     const value = email.trim().toLowerCase()
     if (!/^\S+@\S+\.\S+$/.test(value)) return
     setLoading('email')
+    const captchaToken = await getToken()
     const { error } = await createSupabaseBrowser().auth.signInWithOtp({
       email: value,
-      options: { emailRedirectTo: callbackUrl() },
+      options: { emailRedirectTo: callbackUrl(), captchaToken },
     })
     setLoading(null)
     if (error) {
@@ -80,6 +83,7 @@ export function SignInDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               {loading === 'google' ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="text-base font-bold">G</span>}
               {tr('Continue with Google', 'Tiếp tục với Google')}
             </Button>
+            <Widget />
           </form>
         )}
 
@@ -91,4 +95,3 @@ export function SignInDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     </Dialog>
   )
 }
-

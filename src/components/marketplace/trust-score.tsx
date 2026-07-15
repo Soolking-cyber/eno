@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { Tooltip } from '@/components/ui/tooltip'
 import { useLanguage } from '@/context/language-context'
 import { trustScoreColor, trustFillClass } from '@/lib/trust-score'
 import { cn } from '@/lib/utils'
@@ -44,9 +45,14 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   const fill = trustFillClass(band)
   const n = Math.round(score)
   const title = `${tr('Trust score', 'Điểm uy tín')}: ${n} · ${lang === 'vi' ? labelVi : label}`
+  // The inner span carries a NATIVE title only when there is NO href — that is the unwrapped case
+  // where it's the sole hint. When href is set the badge is wrapped in a Base UI <Tooltip> below,
+  // which owns the hint; leaving the native title on too would fire BOTH bubbles (same text twice)
+  // on every card's mini badge.
+  const nativeTitle = href ? undefined : title
   // Badge-as-link: tapping any trust badge explains the system.
   const wrap = (node: React.ReactNode) => href
-    ? <Link href={href} aria-label={tr('How trust works', 'Điểm uy tín hoạt động thế nào')} title={title} className="inline-flex cursor-pointer transition-transform hover:scale-105 active:scale-95">{node}</Link>
+    ? <Tooltip content={title} side="top"><Link href={href} aria-label={tr('How trust works', 'Điểm uy tín hoạt động thế nào')} className="inline-flex cursor-pointer transition-transform hover:scale-105 active:scale-95">{node}</Link></Tooltip>
     : <>{node}</>
 
   if (variant === 'mini') {
@@ -56,7 +62,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
     // building/restricted keep the quiet 10%-tint treatment.
     return wrap(
       <span
-        title={title}
+        title={nativeTitle}
         className={cn(
           'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-bold leading-none tabular-nums',
           fill,
@@ -82,7 +88,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   if (variant === 'number') {
     const txt = { sm: 'text-xs', md: 'text-sm', lg: 'text-base' }[size]
     return wrap(
-      <span title={title} className={cn('font-extrabold tabular-nums', txt, className)} style={{ color }}>
+      <span title={nativeTitle} className={cn('font-extrabold tabular-nums', txt, className)} style={{ color }}>
         {n}
       </span>,
     )
@@ -96,7 +102,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
 
   return wrap(
     <span
-      title={title}
+      title={nativeTitle}
       className={cn('inline-flex items-center gap-1.5 align-middle', className)}
     >
       <svg width={px} height={px} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">

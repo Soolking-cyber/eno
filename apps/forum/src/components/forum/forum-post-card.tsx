@@ -157,6 +157,13 @@ export function ForumPostCard({
             {post.title}
           </Button>
           <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-body">{post.body}</p>
+          {post.media?.length ? (
+            <div className={cn('mt-3 grid gap-1.5 overflow-hidden rounded-xl', post.media.length > 1 && 'grid-cols-2')}>
+              {post.media.slice(0, 4).map((item, index) => (
+                <img key={item.url} src={item.url} alt={item.altText || ''} className={cn('h-52 w-full object-cover', post.media!.length > 1 && 'h-36', index === 0 && post.media!.length === 3 && 'row-span-2 h-full')} />
+              ))}
+            </div>
+          ) : null}
 
           <div className="mt-4 flex items-center gap-1 pt-1">
             <div className="flex items-center rounded-xl bg-tint p-0.5 sm:hidden">

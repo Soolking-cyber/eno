@@ -5,6 +5,7 @@ import { Camera, Loader2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { runVisualSearch } from '@/lib/visual-search'
 import { IconButton } from '@/components/ui/icon-button'
+import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 /** Camera button for a search bar — take / upload a photo, recognize the main
@@ -52,16 +53,17 @@ export function ImageSearchButton({
         className="hidden"
         onChange={(e) => { handle(e.target.files?.[0]); if (ref.current) ref.current.value = '' }}
       />
-      <IconButton
-        size="lg"
-        aria-label={tr('Search by photo', 'Tìm bằng ảnh')}
-        title={tr('Search by photo', 'Tìm bằng ảnh')}
-        onClick={() => ref.current?.click()}
-        disabled={busy}
-        className={className}
-      >
-        {busy ? <Loader2 className={cn(iconClassName, 'animate-spin')} /> : <Camera className={iconClassName} />}
-      </IconButton>
+      <Tooltip content={tr('Search by photo', 'Tìm bằng ảnh')} side="bottom">
+        <IconButton
+          size="lg"
+          aria-label={tr('Search by photo', 'Tìm bằng ảnh')}
+          onClick={() => ref.current?.click()}
+          disabled={busy}
+          className={className}
+        >
+          {busy ? <Loader2 className={cn(iconClassName, 'animate-spin')} /> : <Camera className={iconClassName} />}
+        </IconButton>
+      </Tooltip>
     </>
   )
 }

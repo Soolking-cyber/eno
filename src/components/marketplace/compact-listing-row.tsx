@@ -18,6 +18,7 @@ import { useAuth } from '@/context/auth-context'
 import { stashQuickCompose } from '@/lib/quick-contact'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { Tooltip } from '@/components/ui/tooltip'
 import { EnoSlider } from '@/components/marketplace/eno-slider'
 
 type Props = {
@@ -152,17 +153,18 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           // baked 44px ::before would overflow into its neighbours and a boundary tap would
           // fire the WRONG action (chat → offer, map → chat). Under-44px is a real a11y cost;
           // a mis-fired money-path action is worse. See ui/icon-button's header.
-          <IconButton
-            size="md"
-            tapTarget={false}
-            aria-label={tr('Make an offer', 'Trả giá')}
-            title={tr('Make an offer', 'Trả giá')}
-            aria-pressed={offer !== null}
-            onClick={(e) => { e.stopPropagation(); setOffer(offer === null ? 10 : null) }}
-            className="hidden text-foreground transition-colors hover:bg-accent sm:flex"
-          >
-            <Tag className="h-[17px] w-[17px]" />
-          </IconButton>
+          <Tooltip content={tr('Make an offer', 'Trả giá')} side="top">
+            <IconButton
+              size="md"
+              tapTarget={false}
+              aria-label={tr('Make an offer', 'Trả giá')}
+              aria-pressed={offer !== null}
+              onClick={(e) => { e.stopPropagation(); setOffer(offer === null ? 10 : null) }}
+              className="hidden text-foreground transition-colors hover:bg-accent sm:flex"
+            >
+              <Tag className="h-[17px] w-[17px]" />
+            </IconButton>
+          </Tooltip>
         ) : (
           // Fixed-price / free listings have no offer button — hold its 36px anyway.
           // Without this the actions cluster shrinks, the flex-1 text column grows by
@@ -171,16 +173,17 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           // forming one vertical column (user-picked 2026-07-14).
           <span aria-hidden className="hidden h-9 w-9 shrink-0 sm:block" />
         )}
-        <IconButton
-          size="md"
-          tapTarget={false}
-          aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
-          title={tr('Chat with seller', 'Nhắn tin với người bán')}
-          onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-          className={cn('text-foreground transition-colors hover:bg-accent', offer === null ? 'flex' : 'hidden')}
-        >
-          <MessageCircle className="h-[18px] w-[18px]" />
-        </IconButton>
+        <Tooltip content={tr('Chat with seller', 'Nhắn tin với người bán')} side="top">
+          <IconButton
+            size="md"
+            tapTarget={false}
+            aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
+            onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
+            className={cn('text-foreground transition-colors hover:bg-accent', offer === null ? 'flex' : 'hidden')}
+          >
+            <MessageCircle className="h-[18px] w-[18px]" />
+          </IconButton>
+        </Tooltip>
         <IconButton
           size="md"
           tapTarget={false}

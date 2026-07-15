@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
+import { Tooltip } from '@/components/ui/tooltip'
 import { AccountMenu } from './account-menu'
 import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
@@ -384,13 +385,15 @@ export function Header() {
           {/* Desktop quick actions (mobile uses the bottom nav): Saved · Messages · Bell */}
           {user && (
             <>
-              <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} title={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} aria-current={savedActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-44">
-                <Heart className={cn('h-6 w-6 sm:h-7 sm:w-7', savedCount > 0 ? 'fill-brand text-brand' : savedActive && 'text-brand')} />
-                {savedCount > 0 && (
-                  <Badge variant="counter" size="count" className="absolute right-1 top-1">{savedCount > 9 ? '9+' : savedCount}</Badge>
-                )}
-                {savedActive && <span aria-hidden className="absolute -bottom-0.5 left-1/2 h-0.5 w-7 -translate-x-1/2 rounded-full bg-brand" />}
-              </Link>
+              <Tooltip content={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} side="bottom">
+                <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} aria-current={savedActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-44">
+                  <Heart className={cn('h-6 w-6 sm:h-7 sm:w-7', savedCount > 0 ? 'fill-brand text-brand' : savedActive && 'text-brand')} />
+                  {savedCount > 0 && (
+                    <Badge variant="counter" size="count" className="absolute right-1 top-1">{savedCount > 9 ? '9+' : savedCount}</Badge>
+                  )}
+                  {savedActive && <span aria-hidden className="absolute -bottom-0.5 left-1/2 h-0.5 w-7 -translate-x-1/2 rounded-full bg-brand" />}
+                </Link>
+              </Tooltip>
               <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} aria-current={msgActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-44">
                 <MessageSquare className={cn('h-6 w-6 sm:h-7 sm:w-7', unread > 0 ? 'fill-brand text-brand' : msgActive && 'text-brand')} />
                 {unread > 0 && (

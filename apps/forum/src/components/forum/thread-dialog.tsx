@@ -244,6 +244,11 @@ export function ThreadDialog({
             <DialogDescription className="mt-2 whitespace-pre-line text-base leading-relaxed text-body">
               {post.body}
             </DialogDescription>
+            {post.media?.length ? (
+              <div className={cn('mt-4 grid gap-2 overflow-hidden rounded-xl', post.media.length > 1 && 'grid-cols-2')}>
+                {post.media.map((item) => <img key={item.url} src={item.url} alt={item.altText || ''} className="max-h-96 w-full object-cover" />)}
+              </div>
+            ) : null}
           </DialogHeader>
 
           <div className="flex items-center gap-1 border-b border-border px-4 py-2 sm:px-6">

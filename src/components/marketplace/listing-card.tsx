@@ -6,6 +6,7 @@ import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
+import { Tooltip } from '@/components/ui/tooltip'
 import { Slider } from '@/components/ui/slider'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
@@ -300,50 +301,53 @@ function ListingCardImpl({
             // Bare glyph — same face treatment as the heart/pin (white + drop-shadow) = variant="overlay".
             // tapTarget={false} is REQUIRED here: this is a gap-1 row of h-8 glyphs at ~36px pitch, so a
             // 44px ::before would overlap its neighbour and a boundary tap would fire OFFER, not CHAT.
-            <IconButton
-              size="sm"
-              variant="overlay"
-              tapTarget={false}
-              aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
-              title={tr('Chat with seller', 'Nhắn tin với người bán')}
-              onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-              className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-              <MessageCircle className="h-[20px] w-[20px]" />
-            </IconButton>
+            <Tooltip content={tr('Chat with seller', 'Nhắn tin với người bán')} side="top">
+              <IconButton
+                size="sm"
+                variant="overlay"
+                tapTarget={false}
+                aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
+                onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
+                className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                <MessageCircle className="h-[20px] w-[20px]" />
+              </IconButton>
+            </Tooltip>
           )}
           {listing.price > 0 && listing.negotiable !== false && (
-            <IconButton
-              size="sm"
-              variant="overlay"
-              tapTarget={false}
-              aria-label={tr('Make an offer', 'Trả giá')}
-              title={tr('Make an offer', 'Trả giá')}
-              aria-pressed={quickOffer !== null}
-              onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
-              className={cn(
-                'pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
-                quickOffer === null && 'delay-75 group-hover:delay-75',
-              )}
-            >
-              {/* Pressed = brand fill, mirroring the heart's saved state. The offer
-                  controls open as ONE wide edge-to-edge bar (shared with mobile,
-                  below) so the amount never gets cramped on a narrow card. */}
-              <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
-            </IconButton>
+            <Tooltip content={tr('Make an offer', 'Trả giá')} side="top">
+              <IconButton
+                size="sm"
+                variant="overlay"
+                tapTarget={false}
+                aria-label={tr('Make an offer', 'Trả giá')}
+                aria-pressed={quickOffer !== null}
+                onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
+                className={cn(
+                  'pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                  quickOffer === null && 'delay-75 group-hover:delay-75',
+                )}
+              >
+                {/* Pressed = brand fill, mirroring the heart's saved state. The offer
+                    controls open as ONE wide edge-to-edge bar (shared with mobile,
+                    below) so the amount never gets cramped on a narrow card. */}
+                <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
+              </IconButton>
+            </Tooltip>
           )}
           {quickOffer === null && (
-            <IconButton
-              size="sm"
-              variant="overlay"
-              tapTarget={false}
-              aria-label={tr('Show on map', 'Xem trên bản đồ')}
-              title={tr('Show on map', 'Xem trên bản đồ')}
-              onClick={(e) => { e.stopPropagation(); locate(listing) }}
-              className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-              <MapPin className="h-[20px] w-[20px]" />
-            </IconButton>
+            <Tooltip content={tr('Show on map', 'Xem trên bản đồ')} side="top">
+              <IconButton
+                size="sm"
+                variant="overlay"
+                tapTarget={false}
+                aria-label={tr('Show on map', 'Xem trên bản đồ')}
+                onClick={(e) => { e.stopPropagation(); locate(listing) }}
+                className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                <MapPin className="h-[20px] w-[20px]" />
+              </IconButton>
+            </Tooltip>
           )}
         </span>
 

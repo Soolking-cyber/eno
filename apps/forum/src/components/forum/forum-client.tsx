@@ -715,7 +715,7 @@ export function ForumClient() {
       const { post } = await forumApi<{ post: ForumPostResponse }>('/api/forum/posts', {
       method: 'POST',
       auth: 'required',
-      body: JSON.stringify({ ...draft, location: 'all', media: [] }),
+      body: JSON.stringify({ ...draft, location: 'all', media: draft.media || [] }),
       })
       const mapped = mapForumPost(post)
       setPosts((current) => [mapped, ...current.filter((item) => item.id !== mapped.id)])
