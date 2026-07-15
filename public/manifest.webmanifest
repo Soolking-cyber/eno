@@ -1,0 +1,12 @@
+{
+  "name": "eno.forum",
+  "short_name": "eno.forum",
+  "description": "Vietnam, figured out together.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#0a66c2",
+  "icons": [
+    { "src": "/logo-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

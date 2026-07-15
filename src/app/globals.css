@@ -1,0 +1,878 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+/* Device-capability variants: `pc` = wide AND hover-capable (a real desktop);
+   `mobile` = everything else, INCLUDING iPads/tablets at any width — hover-only
+   affordances are unusable on touch, so quick actions must follow the mobile UI
+   there (user decision 2026-07-06). Width alone (lg:) misclassifies tablets. */
+@custom-variant pc (@media (min-width: 64rem) and (pointer: fine));
+@custom-variant mobile (@media not ((min-width: 64rem) and (pointer: fine)));
+/* Base UI emits data-orientation="vertical|horizontal". WITHOUT these two lines,
+   Tailwind reads `data-vertical:w-px` as the built-in bare-attribute variant and
+   compiles it to `[data-vertical]` — an attribute Base UI never sets. Every rule in
+   ui/separator (w-px, h-px, w-full, self-stretch) then silently never applies and the
+   separator renders with zero width/height: present in the DOM, invisible on screen.
+   Nothing fails; the line is just gone. */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+
+/* The forum has its own mobile navigation. Hide the marketplace tab bar and its
+   reserved spacer whenever the forum route is mounted, so two app shells never
+   compete for the same bottom edge. :has() is supported by the app's browser floor. */
+body:has([data-forum-page]) .mobile-nav,
+body:has([data-forum-page]) .bottom-nav-spacer {
+  display: none;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: calc(var(--radius) - 1px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 2px);
+  --radius-2xl: calc(var(--radius) + 4px);
+  --radius-3xl: calc(var(--radius) + 8px);
+
+  /* Micro type steps below Tailwind's `xs` — the ONLY sanctioned sizes for dense
+     card meta and badge labels (docs/design-language.md). They replace the ad-hoc
+     text-[10px]/text-[11px] arbitraries; scripts/design-lint.mjs blocks new ones. */
+  --text-2xs: 0.6875rem; /* 11px — dense card meta, chip labels */
+  --text-2xs--line-height: 1.35;
+  --text-3xs: 0.625rem; /* 10px — micro badge/counter labels */
+  --text-3xs--line-height: 1.3;
+
+  /* Brand tokens (Craigslist re-design case study palette) */
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-light: var(--brand-light);
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  /* Deep-navy pair for fixed dark marketing panels (e.g. /signin hero gradient).
+     Defined once in :root and NOT overridden in .dark — the panel is dark by
+     design in both themes. */
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-deeper: var(--brand-deeper);
+  /* Semantic status colors — flip lighter on dark so success/warning/info chips
+     stay on-theme instead of using raw emerald/amber (which have no dark variant). */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  /* Rating gold — a CONVENTION (the review star), not a status. Kept apart from
+     --warning so a caution colour change never repaints the stars. */
+  --color-rating: var(--rating);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  /* Sweep helpers — light values match the literals they replace (zero light
+     regression); dark values are the dark-mode counterparts. */
+  --color-body: var(--body);             /* neutral-600 secondary body text */
+  --color-tint: var(--tint);             /* neutral-100 tint surfaces / chips */
+  --color-line-strong: var(--line-strong); /* neutral-300 stronger borders/inputs */
+  --color-verified: var(--verified);
+  --color-pending: var(--pending);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+}
+
+:root {
+  /* Light is the default scheme; the real dark theme lives in `.dark` below and
+     is toggled explicitly (System/Light/Dark) so Chrome's "Auto Dark Theme"
+     never force-darkens the light palette into a low-contrast mess. */
+  color-scheme: light;
+
+  /* ============================================================
+     PALETTE (minimal, proven — 60/30/10)
+     60% canvas    : #ffffff
+     30% neutrals  : TRUE-NEUTRAL ramp (luma-style, de-blued 2026-07-13) — ink #171717 · body #525252 · muted #737373 · faint #a3a3a3 · line #e5e5e5 · tint #f5f5f5
+     10% accent    : ONE brand blue #0a66c2 (hover #004182 · tint #e8f1fb · deep #034078) — all actions, links, active, verified
+     semantic only : amber #f59e0b (caution) · red #ef4444 (destructive)
+     Category colours all resolve to the single blue; product photos provide the colour.
+     ============================================================ */
+  --radius: 0.4375rem;
+
+  /* Brand blues (FINN.no palette) */
+  --brand: #0a66c2;
+  --brand-dark: #034078;
+  --brand-light: #8fbfe8;
+  --brand-50: #e8f1fb;
+  --brand-100: #cfe3f5;
+  /* Muted deep navy-blue ramp end — fixed dark marketing panels (both themes) */
+  --brand-deep: #1b4b76;
+  --brand-deeper: #0c2b48;
+
+  /* Dashboard rail width (desktop). Lives on :root so the ONE value drives the panel
+     width, the main content's squeeze margin, the draggable seam, and the fixed
+     back-to-top offset together — the panel and the feed stay one continuous canvas as
+     you drag the seam. JS clamps + persists it; this is the SSR/first-paint default. */
+  --account-w: 440px;
+
+  /* Surfaces — soft neutral canvas so white surfaces (cards, header, popovers)
+     gain subtle Airbnb-style depth without reintroducing borders/boxes. */
+  --background: #fafafa;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  /* Floating panels MATCH the canvas (user decision 2026-07-13 — pure-white
+     dropdowns read lighter than the #fafafa app). Dark keeps its lighter
+     elevation values: that's the correct dark-mode depth cue. */
+  --popover: #fafafa;
+  --popover-foreground: #171717;
+
+  /* shadcn primary maps to brand blue */
+  --primary: #0a66c2;
+  --primary-foreground: #ffffff;
+  --secondary: #e5e5e5;
+  --secondary-foreground: #171717;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #e8f1fb;
+  --accent-foreground: #0a66c2;
+  /* red-700, not red-600 (#dc2626) and certainly not red-500 (#ef4444, only 3.6:1 as
+     text on white). The old note said #dc2626 "clears 4.5:1" — true on a PLAIN white
+     background, false on the tinted-callout idiom this app actually uses: on
+     bg-destructive/10 it lands at 3.98:1 and fails AA. #b91c1c gives 5.26:1 there and
+     6.4:1 on plain, and lifts every white-on-destructive surface with it. */
+  --destructive: #b91c1c;
+  /* Text/icon colour ON a solid destructive surface. It must FLIP with the theme: the
+     dark --destructive is a light red (#f0616b), and white on it is only 3.17:1 — so a
+     hardcoded text-white on a solid red chip fails AA in dark mode. */
+  --destructive-foreground: #ffffff;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #0a66c2;
+
+  /* Ink scale */
+  --ink: #171717;
+  --ink-2: #262626;
+  --ink-3: #737373;
+  --ink-4: #616161;        /* neutral-gray ~5.6:1 on tint / 6:1 on white — AA for placeholder/meta/chevrons/small icons on BOTH white and bg-tint (was #6b7280 gray-500, 4.1:1 on tint → failed AA on the tinted search pill) */
+  --body: #525252;        /* neutral-600 */
+  --tint: #f5f5f5;        /* neutral-100 */
+  --line-strong: #d4d4d4; /* neutral-300 */
+  --skeleton: #f0f0f0;             /* loading placeholder base */
+  --skeleton-sheen: rgba(255, 255, 255, 0.6); /* sweep highlight */
+  /* Trust-score tiers — the CANONICAL ladder (matches /trust and the tier design
+     decision): red = restricted, NEUTRAL slate = building/standard (where every new
+     account starts — never a warning color), brand BLUE = Trusted, GOLD = Exceptional,
+     violet = Elite (160+). Every trust surface (mini chip, shield, number, /trust page)
+     reads these tokens — change here, changes everywhere.
+     LIGHT values are AA-tuned for the chips' 10% currentColor tint (costs ~0.7 vs
+     white): all ≥4.9:1 on the tint. Dark pairs are unaffected (light-fg tint over a
+     dark canvas raises contrast instead). */
+  --trust-restricted: #b91c1c; /* red-700    ~4.9:1 — bad (vivid crimson) */
+  --trust-standard:   #525252; /* neutral-600  ~7.6:1 — building (neutral, not punitive) */
+  --trust-trusted:    #1d4ed8; /* blue-700   ~6.4:1 — Trusted (electric brand blue) */
+  --trust-exceptional:#a16207; /* yellow-700 ~5.0:1 — Exceptional TEXT contexts (true gold family; the shiny badge fill is .trust-fill-exceptional) */
+  --trust-elite:      #6d28d9; /* violet-700 ~6.1:1 — Elite (top, 160+) */
+
+  /* Semantic status (light): AA on white/tint cards. */
+  --success: #166534; /* green-800 — green-700 (#15803d) is only 4.22:1 as text on
+                        bg-success/10, the callout idiom. This clears AA (5.87:1). */
+  --warning: #92400e; /* amber-800 — amber-700 (#b45309) is only 4.20:1 as text on
+                         bg-warning/10, the callout idiom this app uses. This clears AA (5.82:1). */
+  --info:    #0a66c2; /* brand blue */
+  --rating:  #f59e0b; /* amber-500  — review-star gold on white cards */
+
+  /* Semantic — used ONLY to carry meaning, never decoration.
+     verified/trust folds into the brand blue; amber = caution; red = destructive. */
+  --verified: #0a66c2;
+  --pending: #f59e0b;
+
+  /* ── Elevation (soft, diffuse — Airbnb-style) ────────────────────── */
+  --shadow-pop: 0 8px 30px rgba(16, 24, 40, 0.08);     /* dropdowns, popovers */
+  --shadow-card: 0 6px 20px rgba(16, 24, 40, 0.10);    /* card hover lift */
+  --shadow-overlay: 0 16px 48px rgba(16, 24, 40, 0.16); /* dialogs / modals */
+  --shadow-thumb: 0 1px 4px rgba(16, 24, 40, 0.18);    /* slider handle — ported verbatim
+     from the old .eno-slider::-webkit-slider-thumb; intentionally NOT overridden in dark
+     (the native thumb never was), so the handle reads identically in both themes. */
+
+  /* Spring easings authored as linear() sampled curves (iOS Safari 17.2+, degrades to
+     ease-out on older). Overshoot points >1 give a physical settle. Compositor-only when
+     paired with transform/opacity; the global reduced-motion switch neutralizes them.
+       --ease-spring        gentle, ~no overshoot   → default (pair 220–340ms)
+       --ease-spring-snappy quick, tiny overshoot   → toggles/chips/press (pair 160–220ms)
+       --ease-bounce        playful, big overshoot  → success moments only (pair 400–520ms) */
+  --ease-spring: linear(0, 0.007, 0.029, 0.063, 0.108, 0.219, 0.354, 0.5, 0.638, 0.756, 0.85, 0.919, 0.965, 0.992, 1.006, 1.011, 1.009, 1.005, 1.001, 1);
+  --ease-spring-snappy: linear(0, 0.026, 0.101, 0.219, 0.375, 0.559, 0.727, 0.859, 0.949, 1.001, 1.025, 1.03, 1.024, 1.014, 1.005, 0.999, 0.998, 1);
+  --ease-bounce: linear(0, 0.004, 0.036, 0.098, 0.19, 0.417, 0.685, 0.912, 1.062, 1.13, 1.147, 1.13, 1.098, 1.062, 1.033, 1.013, 1.002, 0.998, 0.999, 1);
+
+  /* ── Type scale (~1.25 modular ratio) & rhythm — base 15px ──────────
+     Display + title are FLUID (clamp) so they scale smoothly from phone to
+     desktop with no breakpoint jumps; the smaller steps stay fixed for rhythm.
+     Range  →  display 28→40px · title 20→24px · section 18 · body 15 · caption 12. */
+  --text-display: clamp(1.75rem, 1.4rem + 1.5vw, 2.5rem);   /* 28 → 40px — hero / page title */
+  --text-title:   clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);   /* 20 → 24px — detail title */
+  --text-section: 1.125rem;  /* 18px — section heading */
+  --text-body:    0.9375rem; /* 15px — body */
+  --text-small:   0.8125rem; /* 13px */
+  --text-caption: 0.75rem;   /* 12px — meta / eyebrow (was 11px, a touch small) */
+  /* Spacing rhythm uses an 8pt grid: 4 · 8 · 12 · 16 · 24 · 32 · 48 */
+  /* Sidebar (shadcn sidebar block) — mapped onto the ENO palette by REFERENCE,
+     so the .dark overrides of the underlying tokens flip the sidebar too (no
+     separate dark literals needed). Active/hover = the brand-50 tint pattern. */
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--brand-50);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+
+}
+
+/* ============================================================
+   DARK THEME — a faithful counterpart of the light identity:
+   deep slate canvas (not pure black), the SAME single blue accent
+   (brightened where it sits on dark for legibility), inverted ink
+   ramp. Applied by toggling `.dark` on <html> (ThemeProvider + the
+   no-FOUC script in layout). Brand-blue buttons read on both themes.
+   ============================================================ */
+.dark {
+  color-scheme: dark;
+
+  /* Softer "dark dimmed" palette — a lighter slate canvas (not near-black) with
+     brighter text tokens so every text/background pair clears WCAG AA. */
+  --brand: #3b8ee6;        /* brand blue, brightened for dark surfaces */
+  --brand-dark: #74b3f2;   /* hover goes LIGHTER in dark */
+  --brand-light: #2f5377;
+  --brand-50: #17314d;     /* dark blue tint (was #e8f1fb) */
+  --brand-100: #214161;
+
+  --background: #1b1b1b;   /* soft neutral canvas (lighter than near-black) */
+  --foreground: #f0f0f0;
+  --card: #242424;         /* elevated surface, sits clearly above the canvas */
+  --card-foreground: #f0f0f0;
+  --popover: #2a2a2a;
+  --popover-foreground: #f0f0f0;
+
+  --primary: #0a66c2;      /* primary button keeps brand blue + white text */
+  --primary-foreground: #ffffff;
+  --secondary: #303030;
+  --secondary-foreground: #f0f0f0;
+  --muted: #262626;
+  --muted-foreground: #b8b8b8; /* ~7:1 on card — readable secondary text */
+  --accent: #17314d;       /* blue tint surface */
+  --accent-foreground: #74b3f2;
+  --destructive: #f0616b;
+  /* Near-black ON the light dark-mode red: white would be 3.17:1 (fails). 5.5:1. */
+  --destructive-foreground: #1b1b1b;
+  --border: #363636;       /* more visible separators on the lighter canvas */
+  --input: #3b3b3b;
+  --ring: #4f97ee;
+
+  /* Ink ramp inverted (light → dark text), brightened for contrast */
+  --ink: #f0f0f0;
+  --ink-2: #d6d6d6;
+  --ink-3: #b8b8b8;
+  --ink-4: #a0a0a0;        /* ~5.9:1 on canvas / AA on the dark bg-tint too (was #8995a6, ~4.4:1 on dark tint) */
+  --body: #cccccc;         /* ~8.8:1 on card — comfortable body text */
+  --tint: #262626;
+  --line-strong: #414141;
+  /* Trust-score tiers — DARK theme: lightened so the number passes AA on dark cards.
+     Same intuition: red=bad, yellow=warning, green=good, emerald=great, purple=royal. */
+  --trust-restricted: #f87171; /* red-400     — bad */
+  --trust-standard:   #a3a3a3; /* slate-400   — building (neutral) */
+  --trust-trusted:    #60a5fa; /* blue-400    — Trusted (electric on dark) */
+  --trust-exceptional:#facc15; /* yellow-400  — Exceptional (true gold, vivid on dark) */
+  --trust-elite:      #a78bfa; /* violet-400  — Elite */
+
+  /* Semantic status (dark): lightened so they read on dark cards. */
+  --success: #4ade80; /* green-400 */
+  --warning: #fbbf24; /* amber-400 */
+  --info:    #60a5fa; /* blue-400  */
+  --rating:  #fbbf24; /* amber-400 — brighter star gold on the dark canvas */
+  --skeleton: #262626;
+  --skeleton-sheen: rgba(255, 255, 255, 0.06);
+
+  --verified: #74b3f2;
+  --pending: #f5b042;
+
+  /* Deepen elevation so surfaces still read on the dark canvas */
+  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.6);
+  /* Sidebar tokens intentionally NOT overridden here — the :root definitions
+     reference theme vars (--background/--brand/--brand-50/…) that this .dark
+     block already flips, so the sidebar follows the theme automatically. */
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  /* The iOS rubber-band overscroll exposes the <html> canvas at the top & bottom
+     edges. Paint it WHITE (the header & bottom-nav colour) — not the #fafafa page
+     canvas — so a swipe past either edge stays seamless with the chrome instead of
+     flashing a grey band. overscroll-behavior-y also kills the bounce/pull-to-
+     refresh on Android for an app-like feel. */
+  html {
+    background-color: var(--card);
+    overscroll-behavior-y: none;
+    /* Kill the grey tap-flash on Android (we have :active/:focus-visible styling). */
+    -webkit-tap-highlight-color: transparent;
+    /* NOTE: no document-level vertical scroll-snap — it auto-aligns a card on page load
+       (jumping the scroll on short pages like /saved) and fights the auto-hide nav.
+       Horizontal rail snap (contained scrollers) is kept; vertical feeds scroll freely. */
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    /* Inter (next/font, layout.tsx) opt-in features: cv01 serifed-1 · cv11
+       single-storey a · ss01/ss03 contextual alternates · zero slashed-0 —
+       disambiguates 0/O and 1/l in prices, phone numbers and IDs. */
+    font-feature-settings: "cv01", "cv11", "ss01", "ss03", "zero";
+    font-variation-settings: "opsz" 32;
+  }
+  /* Sub-100ms press feel: drop the browser's ~300ms double-tap-zoom wait on
+     interactive elements (pan + pinch-zoom still work; only double-tap zoom is
+     sacrificed, and only on these elements). The grey tap-flash is already
+     killed via -webkit-tap-highlight-color on <html> above (it inherits). */
+  a, button, [role="button"], summary {
+    touch-action: manipulation;
+  }
+  /* type="search" gives us role=searchbox + enterKeyHint="search", but our search
+     bars ship a custom Clear button — suppress the duplicate native one. */
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  /* iOS Safari auto-zooms when a focused field's font-size is < 16px (most of
+     ours are text-sm = 14px). Force a 16px minimum on form controls on small
+     screens to kill the jarring zoom — without disabling pinch-zoom (which would
+     break accessibility). Larger screens keep the designed sizes. */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    textarea,
+    select {
+      font-size: 16px;
+    }
+  }
+}
+
+/* ============================================================
+   CLEAN FLAT CARD SURFACES (FINN.no inspired)
+   ============================================================ */
+
+.blob-bg {
+  background-color: var(--background);
+}
+
+/* ============================================================
+   TYPOGRAPHY SCALE — reusable semantic headings
+   ============================================================ */
+.h-display {
+  font-size: var(--text-display);
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.h-title {
+  font-size: var(--text-title);
+  line-height: 1.22;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.h-section {
+  font-size: var(--text-section);
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.eyebrow {
+  font-size: var(--text-caption);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   ELEVATION — soft diffuse shadows + Airbnb-style hover lift
+   ============================================================ */
+.shadow-pop { box-shadow: var(--shadow-pop); }
+.shadow-overlay { box-shadow: var(--shadow-overlay); }
+/* The slider handle's lift. Plain CSS (like its siblings above), so it is emitted
+   unconditionally — it does not depend on Tailwind scanning a class name. */
+.shadow-thumb { box-shadow: var(--shadow-thumb); }
+
+/* ============================================================
+   VIRTUAL-KEYBOARD PINNING (iOS) — see use-virtual-keyboard.ts
+   While the on-screen keyboard is up (html.kb-open, set imperatively), pin the chat
+   shell as a fixed overlay EXACTLY over the visual viewport: height = its visible
+   height, translated by the iOS scroll offset. Its bottom edge then sits flush on the
+   keyboard (zero gap) and the header stays pinned. --vvh/--vvt are written every frame
+   on the <html> element; the fallbacks keep a sane full-height shell before first paint.
+   `.kb-open` never fires on desktop (no VisualViewport keyboard) so desktop is untouched.
+   ============================================================ */
+/* ============================================================
+   VIRTUAL-KEYBOARD PINNING (iOS) — see use-virtual-keyboard.ts + messages/[id]/page.tsx
+   The composer sits FLUSH above the keyboard via two levers:
+   (1) html.chat-locked locks the DOCUMENT so visualViewport.offsetTop stays ~0 (no gap,
+       no momentum jitter); (2) html.kb-open lifts ONLY the chat FOOTER to position:fixed,
+       pinned to the visual-viewport bottom (= keyboard top). --vvh/--vvt are written every
+       frame on <html> by the hook. Neither class fires on desktop and the pin rules are
+       mobile-gated, so the two-pane messenger is untouched. The shell is NEVER fixed (that
+       collapsed the flex-height chain and stranded the composer at the top).
+   ============================================================ */
+
+/* Hide the fixed bottom-nav + its spacer while the keyboard is up. */
+html.kb-open .mobile-nav {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+html.kb-open .bottom-nav-spacer { display: none; }
+
+@media (max-width: 1023px) {
+  /* (1) DOCUMENT LOCK while inside a thread. touch-action:none on <body> is what actually
+     stops iOS scrolling the layout viewport on focus (overflow:hidden alone is ignored by
+     WebKit) → offsetTop stays ~0 → flush + no jitter. */
+  html.chat-locked,
+  html.chat-locked body {
+    overflow: hidden;
+    overscroll-behavior: none;
+    height: 100%;
+  }
+  html.chat-locked body {
+    position: relative;
+    touch-action: none;
+  }
+  /* The message list must still scroll though the body is touch-action:none — a touch that
+     STARTS on the list uses the list's own touch-action. */
+  html.chat-locked .chat-scroll {
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* (2) FLUSH FOOTER. Only this small element tracks the keyboard per frame (cheap GPU
+     transform) — the shell/list are never reflowed per frame (which aborts the keyboard).
+       top: calc(--vvt + --vvh) → keyboard top in layout coords (--vvt compensates any
+                                  residual iOS scroll offset the lock didn't catch, ~0px)
+       translateY(-100%)        → lift by the footer's OWN height so its BOTTOM lands on
+                                  the keyboard, self-correcting for any composer height. */
+  html.kb-open .chat-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    top: calc(var(--vvt, 0px) + var(--vvh, 100dvh));
+    transform: translateY(-100%);
+    z-index: 45;
+    background: var(--background);
+    will-change: transform;
+  }
+  /* Zero the home-indicator inset while typing (the keyboard already covers it) so the
+     input sits snug on the keyboard instead of floating a safe-area's height above it. */
+  html.kb-open .chat-composer {
+    padding-bottom: 0.75rem;
+  }
+  /* Reserve exactly the fixed footer's height at the bottom of the scroller so the last
+     message clears it (--footer-h measured by the page's ResizeObserver). */
+  html.kb-open .chat-scroll {
+    padding-bottom: calc(var(--footer-h, 96px) + 0.5rem);
+  }
+  /* WebKit doesn't reposition a fixed element until it repaints; force one the instant the
+     composer gains focus so the footer snaps to the keyboard with no visible lag. */
+  html.kb-open .chat-footer:focus-within { animation: kbblink 0.02s; }
+}
+
+/* Imperceptible repaint trigger for the fixed footer on focus. */
+@keyframes kbblink { from { opacity: 0.999; } to { opacity: 1; } }
+
+/* ============================================================
+   SCROLLBARS — hidden EVERYWHERE (scrolling still works). User preference:
+   no visible scroll track/thumb anywhere — page, dropdowns, rows, modals.
+   ============================================================ */
+* {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* old Edge/IE */
+}
+*::-webkit-scrollbar {          /* Chrome/Safari/WebKit */
+  display: none;
+  width: 0;
+  height: 0;
+}
+/* Legacy utility classes kept as no-op aliases so existing usages still hide. */
+.scroll-thin::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* Skeleton shimmer — GPU-composited sweep (animates transform, not
+   background-position, so it stays off the main thread / paint). */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: var(--skeleton);
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--skeleton-sheen), transparent);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* Branded skeleton — a centred, faint eno wordmark over the shimmer so loading
+   photo tiles read as eno.vn instead of blank grey. Uses ::before so the shimmer
+   sweep (::after) is left untouched; the parent .shimmer is already relative. */
+.skeleton-photo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image: url('/logo.svg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 42% auto;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+/* ── Image protection ─────────────────────────────────────────────────────────
+   A diagonal "eno.vn" watermark that is INVISIBLE in normal viewing and only
+   flashes over protected photos when someone tries to save / copy / drag /
+   screenshot (<ImageShield> toggles .show-watermark on <html>). It deters casual
+   right-click/drag saving and brands any capture. Honest limits: OS-level
+   screenshots (e.g. macOS ⌘⇧4) and direct image-URL fetches can't be intercepted
+   client-side — those need a server-baked watermark. */
+[data-protected] img {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.img-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease;
+  background-image: url('/watermark.svg');
+  background-repeat: repeat;
+  background-size: 200px 138px;
+}
+html.show-watermark .img-watermark { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .img-watermark { transition: none; }
+}
+
+/* Hide number input spinners etc. not needed but keep base clean */
+input, select, textarea {
+  font-family: inherit;
+}
+
+/* Keyboard focus — a clear ring on any interactive element, ONLY for keyboard
+   navigation (:focus-visible), so mouse clicks don't show it. Inputs keep their own
+   focus:ring; this guarantees icon buttons/links are never invisible to keyboard
+   users (WCAG 2.4.7). Modern browsers render outline along the element's radius. */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* a11y — guarantee a ≥44×44px TAP target on compact icon controls WITHOUT changing
+   their visual size: an invisible centered hit area (::before) that overflows the
+   element; pointer events on it dispatch to the element. Add `tap-44` to a small
+   icon button/link. The element must be positioned — add `relative` too unless it is
+   already absolute/fixed/relative. (Apple/Google 44px minimum, WCAG 2.5.5 AAA.) */
+.tap-44::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+/* Favorite-button burst — the save confirmation IS the animation. Two one-shot,
+   compositor-only (transform/opacity) pieces: the heart pops 1→1.35→1 with a
+   slight bounce, and a brand-blue ring (::after) expands + fades once. Toggled by
+   listing-card ONLY when a listing becomes saved (never on unsave). Under
+   prefers-reduced-motion the global kill switch (below) collapses the pop, and
+   the ring is removed outright — the blue colour flip is the feedback. */
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+@keyframes heart-ring {
+  0% { transform: scale(0.4); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.animate-heart-pop {
+  position: relative;
+  animation: heart-pop 0.42s var(--ease-bounce);
+}
+.animate-heart-pop::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  border: 2px solid var(--brand);
+  opacity: 0;
+  pointer-events: none;
+  animation: heart-ring 0.35s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-heart-pop::after { content: none; }
+}
+
+/* Tabular (fixed-width) numerals — '12,000,000 VND' digit columns align across
+   card grids instead of wobbling per-digit. Same as Tailwind's `tabular-nums`
+   utility (used in components); this class is for non-utility contexts. */
+/* ============================================================
+   MICROINTERACTIONS — premium but subtle (transform/opacity only; reduced-motion safe)
+   ============================================================ */
+
+/* .press — tactile press for buttons/tappables. ASYMMETRIC timing: press-down is
+   near-instant, release SPRINGS back. 0.96 reads "pressed", not the toy-ish 0.90. The
+   base transition also lists colour/opacity/shadow so a button's existing hover:bg-*
+   still animates (a bare `transition: transform` would clobber Tailwind's transition-*). */
+.press {
+  transition: transform 220ms var(--ease-spring-snappy),
+              background-color 150ms linear, color 150ms linear,
+              opacity 150ms linear, box-shadow 150ms linear;
+  touch-action: manipulation; /* also removes the legacy 300ms tap delay */
+}
+.press:active { transform: scale(0.96); transition: transform 40ms var(--ease-spring-snappy); }
+
+/* Chat bubbles rise + fade in as they arrive (own + incoming). Subtle, one-shot. */
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+.bubble-in { animation: bubble-in 220ms var(--ease-spring) both; }
+
+/* Scroll-driven feed reveal: cards gently rise + fade as they enter. Runs OFF the main
+   thread with ZERO scroll listeners. iOS Safari 26+ only → pure enhancement behind
+   @supports; iOS 18–25 and reduced-motion users just see the card (no animation). */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal-on-scroll {
+      animation: reveal-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 26%;
+    }
+    @keyframes reveal-rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: none; }
+    }
+  }
+}
+
+/* ============================================================
+   ACCESSIBILITY — honor reduced-motion preference
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* View Transitions aren't covered by the transition/animation kill above. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
+
+/* ============================================================
+   APP SLIDERS — one shared look everywhere (price histogram, search
+   radius, make-an-offer discount): a white thumb with a brand-blue
+   ring on a transparent track (the visible blue fill is a div behind).
+   .eno-range = DUAL handles (overlaid, track ignores pointer events so
+   both thumbs work); .eno-slider = SINGLE handle (whole track tappable).
+   ============================================================ */
+.eno-range,
+.eno-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+}
+.eno-range { pointer-events: none; }
+.eno-range::-webkit-slider-thumb,
+.eno-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  pointer-events: auto;
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: 9999px;
+  background: var(--card);
+  border: 2px solid var(--ring);
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.18);
+  cursor: pointer;
+}
+.eno-range::-moz-range-thumb,
+.eno-slider::-moz-range-thumb {
+  pointer-events: auto;
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: 9999px;
+  background: var(--card);
+  border: 2px solid var(--ring);
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.18);
+  cursor: pointer;
+}
+.eno-range::-webkit-slider-runnable-track,
+.eno-slider::-webkit-slider-runnable-track { background: transparent; }
+.eno-range::-moz-range-track,
+.eno-slider::-moz-range-track { background: transparent; }
+
+/* .eno-thumb = the SAME thumb, for the Base UI dual-thumb slider (ui/range-slider).
+   Base UI's Slider.Thumb is a real <div> (absolutely positioned on the track), not the
+   ::-webkit-slider-thumb / ::-moz-range-thumb pseudo-element of a native range input —
+   so it needs a real class. Every value below is copied from the pseudo-element rules
+   above: same 1.25rem circle, same --card fill, same 2px --ring border, same shadow.
+   Kept in CSS rather than Tailwind so the shadow's rgba() literal stays out of the
+   design-lint'd .tsx and the two sliders stay visibly one family. */
+.eno-thumb {
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: 9999px;
+  background: var(--card);
+  border: 2px solid var(--ring);
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.18);
+  cursor: pointer;
+}
+/* The focusable element is an <input> INSIDE the thumb and Base UI visually-hides it, so
+   a keyboard user would otherwise get NO focus indicator at all. :focus-visible keeps it
+   keyboard-only — a pointer drag (which also focuses the input) shows nothing, exactly
+   like the native thumbs did. */
+.eno-thumb:has(:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   TOASTS (sonner) — pop in the CENTER of the screen, styled to our
+   design language: rounded-2xl panel, soft pop shadow, design tokens.
+   The toaster is position="top-center" (horizontal centering handled by
+   sonner); we override the vertical anchor to the viewport middle.
+   ============================================================ */
+[data-sonner-toaster][data-x-position="center"] {
+  top: 50% !important;
+  bottom: auto !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translate(-50%, -50%) !important;
+}
+/* Mobile: sonner goes full-width at an edge by default. Keep it centered and make
+   it a tidy rectangle that fits the screen (full width minus a small gutter). */
+@media (max-width: 600px) {
+  [data-sonner-toaster][data-x-position="center"] {
+    width: calc(100vw - 2rem) !important;
+    max-width: calc(100vw - 2rem) !important;
+  }
+  [data-sonner-toaster][data-x-position="center"] [data-sonner-toast] {
+    width: 100% !important;
+  }
+}
+[data-sonner-toast] {
+  border-radius: 1rem;                 /* rounded-2xl panel */
+  box-shadow: var(--shadow-pop);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+/* Tighten the close button + give it our muted hover. */
+[data-sonner-toast] [data-close-button] {
+  border-radius: 9999px;
+}
+/* On-brand toast icons (no richColors green/red fills — the card stays our
+   popover surface; only the small status icon carries colour). */
+[data-sonner-toast][data-type="success"] [data-icon],
+[data-sonner-toast][data-type="info"] [data-icon] {
+  color: #0a66c2;
+}
+[data-sonner-toast][data-type="error"] [data-icon] {
+  color: #dc2626;
+}
+[data-sonner-toast][data-type="warning"] [data-icon] {
+  color: #b45309;
+}
+
+/* ============================================================
+   NO FOCUS-ZOOM ON MOBILE — iOS Safari auto-zooms when a focused form
+   control's font is < 16px. Our inputs use text-sm (14px), so tapping one
+   zoomed the page in. Force 16px on form controls on TOUCH devices only
+   (desktop keeps the smaller text). !important so it beats Tailwind's
+   text-sm utility. Pinch-zoom stays enabled — we only kill the focus jump.
+   ============================================================ */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* ── Trust badge fills — the EARNED tiers get vivid, glossy gradient chips ──────
+   (Trusted = electric blue, Exceptional = true yellow gold, Elite = royal violet).
+   Text colors hold ≥4.5:1 against the LIGHTEST gradient stop. The gloss is a
+   static inner highlight (no animation on feed chips — dozens per screen); the
+   larger shield SVG carries its own glassy highlight. Same fills in both themes. */
+.trust-fill-trusted {
+  background-image: linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 8px rgba(37, 99, 235, 0.28);
+}
+.trust-fill-exceptional {
+  background-image: linear-gradient(135deg, #fde047 0%, #facc15 45%, #f59e0b 100%);
+  color: #713f12; /* amber-900 on gold ≈ 7:1 */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 0 8px rgba(250, 204, 21, 0.4);
+}
+.trust-fill-elite {
+  background-image: linear-gradient(135deg, #7c3aed 0%, #6d28d9 55%, #5b21b6 100%);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 8px rgba(124, 58, 237, 0.35);
+}
