@@ -128,8 +128,11 @@ function ForumLeftRail({
   ]
 
   return (
-    <aside aria-label={tr('Forum sections and communities', 'Các mục và cộng đồng diễn đàn')} className="hidden lg:block">
-      <div className="sticky top-20 space-y-6">
+    <aside
+      aria-label={tr('Forum sections and communities', 'Các mục và cộng đồng diễn đàn')}
+      className="hidden lg:sticky lg:top-20 lg:block lg:h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:border-r lg:border-border/80 lg:pr-5"
+    >
+      <div className="space-y-6 pb-4">
         <nav aria-label={tr('Forum navigation', 'Điều hướng diễn đàn')} className="space-y-1">
           {nav.map((item) => {
             const Icon = item.icon
@@ -210,8 +213,11 @@ function ForumRightRail({ communities, posts, onOpenPost, onCreatePost }: { comm
   }, [])
 
   return (
-    <aside aria-label={tr('Forum information', 'Thông tin diễn đàn')} className="hidden xl:block">
-      <div className="sticky top-20 space-y-4">
+    <aside
+      aria-label={tr('Forum information', 'Thông tin diễn đàn')}
+      className="hidden xl:sticky xl:top-20 xl:block xl:h-[calc(100dvh-6rem)] xl:overflow-y-auto xl:overscroll-contain xl:border-l xl:border-border/80 xl:pl-5"
+    >
+      <div className="space-y-4 pb-4">
         <Card className="gap-0 rounded-none border-b border-border/80 bg-transparent py-0 ring-0">
           <div className="px-4 py-5 text-foreground">
             <div className="flex items-center gap-2">
