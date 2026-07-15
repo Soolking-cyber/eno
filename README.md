@@ -21,6 +21,8 @@ Import the `Soolking-cyber/eno-forum` repository into its dedicated Vercel proje
 - Install Command: `npm install`
 - Node.js: 24.x
 
+The Vercel project is connected to this repository. Pushes to `main` create production deployments, while pull requests and non-production branches create previews.
+
 Set these production environment variables:
 
 ```text
