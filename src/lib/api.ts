@@ -10,9 +10,9 @@ export class ForumApiError extends Error {
 
 export async function forumApi<T>(
   path: string,
-  init?: RequestInit & { auth?: 'optional' | 'required' },
+  init?: RequestInit & { auth?: 'optional' | 'required'; direct?: boolean },
 ): Promise<T> {
-  const { auth = 'optional', headers: inputHeaders, ...requestInit } = init || {}
+  const { auth = 'optional', direct = false, headers: inputHeaders, ...requestInit } = init || {}
   const headers = new Headers(inputHeaders)
   headers.set('Accept', 'application/json')
   if (requestInit.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
@@ -29,7 +29,7 @@ export async function forumApi<T>(
     if (auth === 'required') throw new ForumApiError(401, 'auth_unavailable')
   }
 
-  const response = await fetch(`/api/backend${path}`, { ...requestInit, headers, cache: 'no-store' })
+  const response = await fetch(direct ? path : `/api/backend${path}`, { ...requestInit, headers, cache: 'no-store' })
   const payload = await response.json().catch(() => ({})) as { error?: string }
   if (!response.ok) {
     if (response.status === 401) window.dispatchEvent(new Event('eno-forum:require-signin'))

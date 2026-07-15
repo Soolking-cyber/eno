@@ -429,6 +429,7 @@ export function ItineraryBuilder() {
       const response = await forumApi<GeneratedItineraryResponse>('/api/itineraries/generate', {
         method: 'POST',
         auth: 'optional',
+        direct: true,
         body: JSON.stringify({
           locale: lang,
           origin: origin.trim(),

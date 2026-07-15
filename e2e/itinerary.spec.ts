@@ -73,7 +73,7 @@ test.describe('eno.forum itinerary builder', () => {
   })
 
   test('builds a researched, responsive itinerary from granular controls', async ({ page }) => {
-    await page.route('**/api/backend/api/itineraries/generate', async (route) => {
+    await page.route('**/api/itineraries/generate', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockResult) })
     })
 
