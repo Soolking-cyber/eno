@@ -130,18 +130,31 @@ function ListingCardImpl({
   const hasDrop = listing.prevPrice != null && !!dropPercent(listing.prevPrice, listing.price)
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => {
-        if (suppressClick.current) { suppressClick.current = false; return }
-        onOpen(listing)
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(listing) }
-      }}
-      className="reveal-on-scroll group flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.985] [touch-action:manipulation] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-    >
+    <div className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.985] [touch-action:manipulation]">
+      {/* Card = link, actions = siblings. The whole card navigates via this ONE real,
+          keyboard-focusable stretched <a> (the card link). Every IconButton below is a
+          SIBLING that paints ABOVE it (z-10 vs this z-0), so NO interactive control is
+          nested inside another — a role=button/anchor may not contain buttons (the AX tree
+          collapses them and click/keydown collide; that was the P1 this fixes). The link
+          sits UNDER the image (the image container is an `isolate` stacking context, painted
+          above this by tree order → its action buttons stay clickable) and OVER the in-flow
+          body (so title/price/location clicks land on it). Image-area clicks are handled by
+          the image container's own onClick, below (a plain div, NOT an interactive ancestor),
+          which also lets a swipe suppress the release tap. The whole-card focus ring lives
+          here now (it was on the old wrapper). Enter navigates; a modifier/middle click falls
+          through to the real href → open-in-new-tab, which a div role=button never allowed. */}
+      <a
+        href={`/listings/${listing.id}`}
+        aria-label={displayTitle}
+        data-card-link
+        draggable={false}
+        onClick={(e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+          e.preventDefault()
+          onOpen(listing)
+        }}
+        className="absolute inset-0 z-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      />
       {/* Image carousel / placeholder.
           transform-gpu/isolate force a compositing layer so the rounded
           overflow-hidden actually clips the translateX-transformed carousel row
@@ -149,6 +162,30 @@ function ListingCardImpl({
       <div
         data-protected
         className="relative aspect-[10/11] w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
+        onClick={(e) => {
+          // Image-area click → open the listing. It bubbles up from the photo, scrims,
+          // badges and dots (none of which stopPropagation); the action buttons DO
+          // stopPropagation, so they never reach here. A swipe sets suppressClick so the
+          // release tap doesn't also open it. This div carries no role/tabindex → it is NOT
+          // an interactive ancestor, so the buttons inside it are NOT nested-in-interactive
+          // (which is exactly why it can't be an <a> — that would re-nest them). The card-link
+          // <a> below sits UNDER the image, so it only catches clicks over the body/title.
+          // ⚠️ The image therefore has to reproduce the anchor's modifier behaviour itself, or
+          // Cmd/Ctrl/Shift-click over the PHOTO (the dominant area) would client-navigate instead
+          // of opening a new tab — which is the whole point of having a real href. Middle-click is
+          // handled in onAuxClick (it never fires onClick).
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+            window.open(`/listings/${listing.id}`, '_blank', 'noopener')
+            return
+          }
+          if (suppressClick.current) { suppressClick.current = false; return }
+          onOpen(listing)
+        }}
+        onAuxClick={(e) => {
+          // Middle-click (button 1) → open the listing in a new tab, matching the anchor and what
+          // a middle-click on any real link does. onClick never fires for the middle button.
+          if (e.button === 1) { e.preventDefault(); window.open(`/listings/${listing.id}`, '_blank', 'noopener') }
+        }}
         onMouseEnter={() => { if (images.length > 1) setExpanded(true); if (listing.video) setHoverVideo(true) }}
         onMouseLeave={() => { setQuickOffer(null); setHoverVideo(false) }}
         onTouchStart={(e) => { if (images.length > 1) setExpanded(true); touchStartX.current = e.touches[0].clientX }}

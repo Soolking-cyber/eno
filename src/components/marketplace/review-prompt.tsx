@@ -5,6 +5,7 @@ import { X, Star, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { RadioGroup, Radio } from '@/components/ui/radio-group'
 import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/context/language-context'
 import { haptic } from '@/lib/haptics'
@@ -89,18 +90,32 @@ export function ReviewPrompt({
             <X className="h-3.5 w-3.5" />
           </IconButton>
         </div>
-        <div className="mt-0.5 flex items-center">
+        {/* A rating IS a radio group — one of five, mutually exclusive, and selecting is not
+            destructive — so ui/radio-group announces it honestly: role="radiogroup" (named "Rating")
+            wrapping role="radio" stars with aria-checked + posinset ("3 of 5") + arrow keys, in place
+            of five unrelated icon <button>s with no group.
+            ⚠️ GAP IS LOAD-BEARING, not decoration. Each star keeps a 44px tap target (tap-44) whose
+            ::before OVERFLOWS its 36px box; the old row was `flex items-center` with NO gap, so two
+            adjacent 44px targets overlapped and a tap near a boundary checked the WRONG star. gap-2.5
+            spaces the 36px boxes to a 46px pitch so the 44px targets clear each other. (gap also
+            sidesteps Base UI's hidden <input> siblings, which space-y-* would trip over.) */}
+        <RadioGroup
+          value={rating ? String(rating) : undefined}
+          onValueChange={(v) => setRating(Number(v))}
+          aria-label={tr('Rating', 'Đánh giá')}
+          className="mt-0.5 flex items-center gap-2.5"
+        >
           {[1, 2, 3, 4, 5].map((n) => (
-            <IconButton
+            <Radio
               key={n}
-              size="md"
-              onClick={() => setRating(n)}
+              value={String(n)}
               aria-label={tr('{n} stars', '{n} sao').replace('{n}', String(n))}
+              className="relative tap-44 h-9 w-9"
             >
               <Star className={`h-5 w-5 transition-colors ${n <= rating ? 'fill-warning text-warning' : 'text-ink-4'}`} />
-            </IconButton>
+            </Radio>
           ))}
-        </div>
+        </RadioGroup>
         {rating > 0 && (
           <div className="mt-1.5 flex items-center gap-2 duration-200 animate-in fade-in">
             <Input

@@ -1,14 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { LocateFixed, Loader2, Check, ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { CustomSelect } from './custom-select'
 import { EnoSlider } from './eno-slider'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { useFocusTrap } from '@/lib/use-focus-trap'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Label } from '@/components/ui/label'
@@ -50,7 +49,12 @@ function DisabledField({ label }: { label: string }) {
 /**
  * Area filter: Province/City → Ward/Commune (Vietnam's 2025 admin structure, live
  * from /api/geo) plus "Search near you" (geolocation + radius). Controlled — the
- * parent owns the applied province/ward/nearby and re-opens it.
+ * parent owns the applied province/ward/nearby, the trigger button and its ref, and
+ * the open state. The floating shell is a Base UI Popover in controlled mode anchored
+ * to the parent's trigger (`anchor={anchorRef}`): the primitive brings the dialog
+ * role, Escape, focus move + return and collision-aware anchoring that the old
+ * hand-rolled portal omitted. Non-modal (no scroll lock, no focus trap) so the nested
+ * Base UI Selects — which portal their own listbox — keep working untouched.
  */
 export function AreaFilter({
   open, anchorRef, onClose, province, ward, nearby, onApply, onReset, mode = 'search', hideLocate = false,
@@ -71,58 +75,6 @@ export function AreaFilter({
   hideLocate?: boolean
 }) {
   const { lang, tr } = useLanguage()
-  const [mounted, setMounted] = useState(false)
-  const panelRef = useRef<HTMLDivElement>(null)
-  const trapRef = useFocusTrap<HTMLDivElement>(open)
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 320 })
-
-  // Anchor the panel under the trigger like CustomSelect (one design language).
-  const reposition = useCallback(() => {
-    const el = anchorRef?.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    const width = Math.min(360, window.innerWidth - 16)
-    // Symmetry: right-align the panel under triggers on the right half of the
-    // screen (e.g. the header pin) and left-align under those on the left (e.g.
-    // the facet Area pill) so the panel edge lines up with the button.
-    const alignRight = r.left + r.width / 2 > window.innerWidth / 2
-    const rawLeft = alignRight ? r.right - width : r.left
-    const left = Math.max(8, Math.min(rawLeft, window.innerWidth - width - 8))
-    setPos({ top: r.bottom + 6, left, width })
-  }, [anchorRef])
-
-  // Position the panel DURING the render that opens it (React's supported
-  // adjust-state-in-render pattern, guarded by a ref so it runs once per open).
-  // This is the root-cause fix for the "fly-in": relying on a post-mount effect
-  // let the panel paint once at (0,0) and then jump to the trigger. Computing
-  // here means the very first paint is already correctly placed.
-  const wasOpen = useRef(false)
-  if (open && !wasOpen.current) {
-    wasOpen.current = true
-    reposition()
-  } else if (!open && wasOpen.current) {
-    wasOpen.current = false
-  }
-
-  // Reposition + outside-click/Escape close. useLayoutEffect so position is set
-  // BEFORE paint — otherwise the panel flashes at top-left (0,0) for a frame then
-  // jumps, which reads as a "fly-in from the corner".
-  useLayoutEffect(() => {
-    if (!open) return
-    reposition()
-    // Outside-tap closing is handled by the portaled backdrop (so the tap is absorbed
-    // and never reaches a card below); here we only keep Escape + repositioning.
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    const onScroll = () => reposition()
-    document.addEventListener('keydown', onKey)
-    window.addEventListener('scroll', onScroll, true)
-    window.addEventListener('resize', onScroll)
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      window.removeEventListener('scroll', onScroll, true)
-      window.removeEventListener('resize', onScroll)
-    }
-  }, [open, reposition, onClose, anchorRef])
   const [provinces, setProvinces] = useState<Unit[]>([])
   const [wards, setWards] = useState<Unit[]>([])
   const [loadingWards, setLoadingWards] = useState(false)
@@ -134,8 +86,6 @@ export function AreaFilter({
   const [resolving, setResolving] = useState(false)
   const [locating, setLocating] = useState(false)
   const pendingWard = useRef<string[]>([]) // ward-name candidates from geolocation, applied once its wards load
-
-  useEffect(() => { setMounted(true) }, [])
 
   // Provinces (once).
   useEffect(() => {
@@ -229,133 +179,153 @@ export function AreaFilter({
 
   const reset = () => { setProvCode(HCMC); setWardCode(''); setLoc(null); setAddress(null); setRadiusKm(5); onReset(); onClose() }
 
-  if (!open || !mounted) return null
+  // Symmetry, preserved from the old hand-rolled placement: right-align the panel under
+  // triggers on the right half of the screen (e.g. the header pin) and left-align under
+  // those on the left (e.g. the facet Area pill) so the panel edge lines up with the
+  // button. Base UI's collision handling then shifts it to stay on screen. Measured only
+  // while open + on the client (the panel renders nowhere until then).
+  const align: 'start' | 'end' =
+    open && typeof window !== 'undefined' && anchorRef?.current
+      ? (anchorRef.current.getBoundingClientRect().left + anchorRef.current.getBoundingClientRect().width / 2 > window.innerWidth / 2 ? 'end' : 'start')
+      : 'start'
 
-  return createPortal(
-    <>
-    <div className="fixed inset-0 z-[99] bg-black/25 animate-in fade-in duration-150" aria-hidden onClick={onClose} />
-    <div
-      ref={(node) => { panelRef.current = node; trapRef.current = node }}
-      role="dialog"
-      aria-modal="true"
-      aria-label={tr('Choose area', 'Chọn khu vực')}
-      style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, visibility: pos.top > 0 ? 'visible' : 'hidden' }}
-      className="z-[100] max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
-    >
-      <div className="space-y-4">
-        {/* Province/City + Ward side-by-side (user decision 2026-07-13): one row,
-            two dropdowns. Vietnam's 2025 two-tier model has no district level —
-            city → ward IS the full official hierarchy. */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="min-w-0 space-y-1.5">
-            <Label className="text-xs font-bold text-foreground leading-normal">{tr('Province / City', 'Tỉnh / Thành phố')}</Label>
-            <CustomSelect
-              value={provCode}
-              onChange={(c) => { setProvCode(c); setWardCode('') }}
-              options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
-              label={tr('Province / City', 'Tỉnh / Thành phố')}
-              placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
-              className={FIELD}
-              activeClassName={FIELD}
-            />
-          </div>
-          <div className="min-w-0 space-y-1.5">
-            <Label className="text-xs font-bold text-foreground leading-normal">{tr('Ward / Commune', 'Phường / Xã')}</Label>
-            {loadingWards ? (
-              <DisabledField label={tr('Loading wards…', 'Đang tải phường/xã…')} />
-            ) : wards.length ? (
-              <CustomSelect
-                value={wardCode}
-                onChange={setWardCode}
-                options={wards.map((w) => ({ value: w.code, label: label(w) }))}
-                label={tr('Ward / Commune', 'Phường / Xã')}
-                placeholder={tr('Select Ward/Commune', 'Chọn Phường/Xã')}
-                className={FIELD}
-                activeClassName={FIELD}
-              />
-            ) : (
-              <DisabledField label={tr('Select a province first', 'Hãy chọn tỉnh/thành trước')} />
-            )}
-          </div>
-        </div>
-
-        {/* Near you / use your location — the action button below is self-explanatory,
-            so no heading. Hidden when the parent provides its own geolocate button. */}
-        {!hideLocate && (
-        <div className="pt-1">
-          {mode === 'search' ? (
-            // SEARCH: the radius is ALWAYS visible + adjustable; "use my location" is a
-            // compact icon to its right — set the range any time, geolocate on demand
-            // (no need to commit to the geolocation prompt before seeing the radius).
-            <div className="mt-2 space-y-2">
-              <div className="flex items-end gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{tr('Search range', 'Bán kính tìm')}</span>
-                    <span className="font-bold text-foreground">{radiusKm} km</span>
-                  </div>
-                  <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
-                  <div className="flex justify-between text-3xs text-ink-4"><span>1 km</span><span>20 km</span></div>
+  return (
+    // Controlled + non-modal. onOpenChange only ever fires with `false` here (no Base UI
+    // trigger to open it) — Escape / outside-press / backdrop-tap → onClose(). The dark
+    // scrim is preserved as a Popover.Backdrop; the panel stays at z-[100] over a z-[99]
+    // scrim so a CustomSelect opened inside (its own backdrop at z-[1200]) still layers on top.
+    <PopoverPrimitive.Root open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Backdrop className="fixed inset-0 z-[99] bg-black/25 animate-in fade-in duration-150" />
+        <PopoverPrimitive.Positioner
+          anchor={anchorRef}
+          side="bottom"
+          align={align}
+          sideOffset={6}
+          positionMethod="fixed"
+          collisionPadding={8}
+          className="z-[100]"
+        >
+          <PopoverPrimitive.Popup
+            finalFocus={anchorRef}
+            aria-label={tr('Choose area', 'Chọn khu vực')}
+            className="w-90 max-h-[72vh] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-pop scroll-thin animate-in fade-in duration-150"
+          >
+            <div className="space-y-4">
+              {/* Province/City + Ward side-by-side (user decision 2026-07-13): one row,
+                  two dropdowns. Vietnam's 2025 two-tier model has no district level —
+                  city → ward IS the full official hierarchy. */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="min-w-0 space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground leading-normal">{tr('Province / City', 'Tỉnh / Thành phố')}</Label>
+                  <CustomSelect
+                    value={provCode}
+                    onChange={(c) => { setProvCode(c); setWardCode('') }}
+                    options={provinces.map((p) => ({ value: p.code, label: label(p) }))}
+                    label={tr('Province / City', 'Tỉnh / Thành phố')}
+                    placeholder={tr('Select Province/City', 'Chọn Tỉnh/Thành phố')}
+                    className={FIELD}
+                    activeClassName={FIELD}
+                  />
                 </div>
-                <IconButton
-                  size="lg"
-                  onClick={locate}
-                  disabled={locating}
-                  aria-label={tr('Use my current location', 'Dùng vị trí hiện tại')}
-                  title={tr('Use my current location', 'Dùng vị trí hiện tại')}
-                  className={cn(
-                    'mb-3.5 rounded-xl border transition-colors active:scale-95 disabled:opacity-60',
-                    loc ? 'border-brand bg-tint text-accent-foreground' : 'border-line-strong text-accent-foreground hover:bg-muted',
+                <div className="min-w-0 space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground leading-normal">{tr('Ward / Commune', 'Phường / Xã')}</Label>
+                  {loadingWards ? (
+                    <DisabledField label={tr('Loading wards…', 'Đang tải phường/xã…')} />
+                  ) : wards.length ? (
+                    <CustomSelect
+                      value={wardCode}
+                      onChange={setWardCode}
+                      options={wards.map((w) => ({ value: w.code, label: label(w) }))}
+                      label={tr('Ward / Commune', 'Phường / Xã')}
+                      placeholder={tr('Select Ward/Commune', 'Chọn Phường/Xã')}
+                      className={FIELD}
+                      activeClassName={FIELD}
+                    />
+                  ) : (
+                    <DisabledField label={tr('Select a province first', 'Hãy chọn tỉnh/thành trước')} />
                   )}
-                >
-                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-                </IconButton>
-              </div>
-              {loc && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-xs text-body">
-                    {resolving ? tr('Finding your address…', 'Đang tìm địa chỉ…') : address || tr('Using your location', 'Dùng vị trí của bạn')}
-                  </span>
-                  <Button variant="bare" size="none" onClick={() => { setLoc(null); setAddress(null) }} className="shrink-0 text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</Button>
                 </div>
+              </div>
+
+              {/* Near you / use your location — the action button below is self-explanatory,
+                  so no heading. Hidden when the parent provides its own geolocate button. */}
+              {!hideLocate && (
+              <div className="pt-1">
+                {mode === 'search' ? (
+                  // SEARCH: the radius is ALWAYS visible + adjustable; "use my location" is a
+                  // compact icon to its right — set the range any time, geolocate on demand
+                  // (no need to commit to the geolocation prompt before seeing the radius).
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-end gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{tr('Search range', 'Bán kính tìm')}</span>
+                          <span className="font-bold text-foreground">{radiusKm} km</span>
+                        </div>
+                        <EnoSlider min={1} max={20} step={1} value={radiusKm} onChange={setRadiusKm} aria-label={tr('Search range in km', 'Bán kính tìm theo km')} />
+                        <div className="flex justify-between text-3xs text-ink-4"><span>1 km</span><span>20 km</span></div>
+                      </div>
+                      <IconButton
+                        size="lg"
+                        onClick={locate}
+                        disabled={locating}
+                        aria-label={tr('Use my current location', 'Dùng vị trí hiện tại')}
+                        title={tr('Use my current location', 'Dùng vị trí hiện tại')}
+                        className={cn(
+                          'mb-3.5 rounded-xl border transition-colors active:scale-95 disabled:opacity-60',
+                          loc ? 'border-brand bg-tint text-accent-foreground' : 'border-line-strong text-accent-foreground hover:bg-muted',
+                        )}
+                      >
+                        {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                      </IconButton>
+                    </div>
+                    {loc && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-xs text-body">
+                          {resolving ? tr('Finding your address…', 'Đang tìm địa chỉ…') : address || tr('Using your location', 'Dùng vị trí của bạn')}
+                        </span>
+                        <Button variant="bare" size="none" onClick={() => { setLoc(null); setAddress(null) }} className="shrink-0 text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</Button>
+                      </div>
+                    )}
+                  </div>
+                ) : loc ? (
+                  // PICK (post wizard): located → show the resolved address + remove, no radius.
+                  <div className="mt-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-sm font-semibold text-accent-foreground"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
+                      <Button variant="bare" size="none" onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</Button>
+                    </div>
+                    {resolving ? (
+                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> {tr('Finding your address…', 'Đang tìm địa chỉ…')}</p>
+                    ) : address ? (
+                      <p className="text-xs leading-relaxed text-body">{address}</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="none"
+                    onClick={locate}
+                    disabled={locating}
+                    className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted hover:text-accent-foreground active:scale-[0.99] disabled:opacity-60"
+                  >
+                    {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                    {tr('Use my current location', 'Dùng vị trí hiện tại')}
+                  </Button>
+                )}
+              </div>
               )}
             </div>
-          ) : loc ? (
-            // PICK (post wizard): located → show the resolved address + remove, no radius.
-            <div className="mt-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-sm font-semibold text-accent-foreground"><LocateFixed className="h-4 w-4" /> {tr('Using your location', 'Dùng vị trí của bạn')}</span>
-                <Button variant="bare" size="none" onClick={() => { setLoc(null); setAddress(null) }} className="text-xs font-semibold text-ink-4 hover:text-foreground">{tr('Remove', 'Bỏ')}</Button>
-              </div>
-              {resolving ? (
-                <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> {tr('Finding your address…', 'Đang tìm địa chỉ…')}</p>
-              ) : address ? (
-                <p className="text-xs leading-relaxed text-body">{address}</p>
-              ) : null}
-            </div>
-          ) : (
-            <Button
-              variant="ghost"
-              size="none"
-              onClick={locate}
-              disabled={locating}
-              className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted hover:text-accent-foreground active:scale-[0.99] disabled:opacity-60"
-            >
-              {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-              {tr('Use my current location', 'Dùng vị trí hiện tại')}
-            </Button>
-          )}
-        </div>
-        )}
-      </div>
 
-      <div className="mt-4 flex gap-3">
-        <Button variant="ghost" size="none" onClick={reset} className="flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted hover:text-body">{mode === 'pick' ? tr('Clear', 'Xóa') : tr('Delete filter', 'Xóa lọc')}</Button>
-        <Button variant="cta" size="none" onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-colors"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</Button>
-      </div>
-    </div>
-    </>,
-    document.body,
+            <div className="mt-4 flex gap-3">
+              <Button variant="ghost" size="none" onClick={reset} className="flex-1 cursor-pointer rounded-xl py-2.5 text-sm font-bold text-body transition-colors hover:bg-muted hover:text-body">{mode === 'pick' ? tr('Clear', 'Xóa') : tr('Delete filter', 'Xóa lọc')}</Button>
+              <Button variant="cta" size="none" onClick={apply} className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-colors"><Check className="h-4 w-4" /> {tr('Apply', 'Áp dụng')}</Button>
+            </div>
+          </PopoverPrimitive.Popup>
+        </PopoverPrimitive.Positioner>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   )
 }
 

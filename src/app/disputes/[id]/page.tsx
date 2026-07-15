@@ -381,6 +381,7 @@ export default function DisputeRoomPage() {
                       <Button
                         variant="bare" size="none"
                         onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))}
+                        aria-label={t('Remove', 'Xóa')}
                         className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white cursor-pointer"
                       >
                         <X className="h-3 w-3" />

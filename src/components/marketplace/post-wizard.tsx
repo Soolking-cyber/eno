@@ -1124,7 +1124,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               {/* Negotiable vs fixed — a fixed price hides the offer UI so buyers just
                   ask availability and buy directly (seller's convenience). Fixed price
                   also switches off Urgent: urgency promises flexibility. */}
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={t('Kiểu giá', 'Price type')}>
                 {[
                   { val: true, label: t('Có thể trả giá', 'Negotiable'), hint: t('Người mua có thể trả giá', 'Buyers can send offers') },
                   { val: false, label: t('Giá cố định', 'Fixed price'), hint: t('Không nhận trả giá', 'No offers — ask & buy directly') },

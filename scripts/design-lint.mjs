@@ -104,14 +104,13 @@ const PORTAL_ALLOW = [
   { file: 'src/components/marketplace/listings-video-feed.tsx', reason: 'fullscreen TikTok-style video takeover — a page-level layer, not a popup anchored to a trigger' },
   { file: 'src/components/marketplace/back-to-top.tsx', reason: 'a fixed affordance portaled above the panel stack — no trigger, no anchoring, nothing to focus-manage' },
 
-  // ⚠️ DEBT, not approval. These four are hand-rolled ANCHORED POPUPS and should become ui/popover.
-  // Each re-implements getBoundingClientRect anchoring + an outside-click backdrop by hand, and each
-  // is missing some of: aria-expanded/haspopup/controls on the trigger, Escape, focus move on open,
-  // focus return on close. They are listed so they cannot multiply — not because they are correct.
+  // ⚠️ DEBT, not approval. This is the last hand-rolled ANCHORED POPUP and should become ui/popover.
+  // It re-implements getBoundingClientRect anchoring + an outside-click backdrop by hand, and is
+  // missing some of: aria-expanded/haspopup/controls on the trigger, Escape, focus move on open,
+  // focus return on close. It is listed so it cannot multiply — not because it is correct.
+  // (area-filter.tsx / price-range-filter.tsx / more-overflow.tsx were paid down to Base UI
+  // Popover + Menu — do NOT re-add them here; the gate now protects them.)
   { file: 'src/components/marketplace/facet-bar.tsx', reason: 'DEBT: hand-rolled advanced-filter panel; role=dialog + Escape + focus-return were added by hand — should be ui/popover' },
-  { file: 'src/components/marketplace/area-filter.tsx', reason: 'DEBT: hand-rolled province/ward panel — should be ui/popover' },
-  { file: 'src/components/marketplace/price-range-filter.tsx', reason: 'DEBT: hand-rolled price popover — should be ui/popover' },
-  { file: 'src/components/marketplace/more-overflow.tsx', reason: 'DEBT: hand-rolled overflow menu — should be ui/dropdown-menu' },
 ]
 const PORTAL_ALLOW_SET = new Set(PORTAL_ALLOW.map((e) => e.file))
 

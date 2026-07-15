@@ -18,7 +18,11 @@ export function AISearchButton({
       variant="bare"
       size="none"
       onClick={onClick}
-      aria-pressed={active}
+      // NAVIGATION, not a toggle: `active` is derived from the route (header.tsx: pathname ===
+      // '/messages/ai') and clicking only pushes to that chat — it never "un-presses". aria-pressed
+      // would mis-announce this as a pressed toggle button, so mark the current view with aria-current
+      // instead ("page", since it navigates to a distinct page).
+      aria-current={active ? 'page' : undefined}
       aria-label={tr('AI shopping assistant', 'Trợ lý mua sắm AI')}
       title={tr('Ask eno AI', 'Hỏi eno AI')}
       className={cn(

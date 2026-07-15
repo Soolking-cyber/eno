@@ -1,8 +1,9 @@
 import { test, expect } from '../helpers'
 
-// Guest category page. Cards are clickable `div[role=button]` (router.push), NOT anchors —
-// so we open one by clicking the card itself (identified by its price text) and assert the
-// client-side navigation to a listing detail.
+// Guest category page. Each card is a real stretched <a href="/listings/<id>"> (data-card-link):
+// a plain left-click preventDefaults and does client-side navigation (onOpen), while
+// modifier/middle click falls through to the href so open-in-new-tab works. We open one by
+// clicking the card link and assert the client-side navigation to a listing detail.
 test.describe('Guest · category (/c/electronics)', () => {
   test.beforeEach(async ({ page }) => { await page.goto('/c/electronics') })
 
@@ -24,10 +25,17 @@ test.describe('Guest · category (/c/electronics)', () => {
 
   test('clicking a card opens the listing detail (client routing)', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Add favorite' }).first()).toBeVisible()
-    // The card container is the role=button carrying the price text (the heart/map/carousel
-    // buttons have aria-labels and no price), so this resolves to the first listing card.
-    const card = page.getByRole('button').filter({ hasText: /VND|₫/ }).first()
-    await card.click()
+    // Two things to assert: (1) the card exposes a real stretched anchor with the listing href
+    // (SEO + open-in-new-tab, which the old div[role=button] never had); (2) clicking the photo —
+    // the dominant tap area — navigates client-side. The photo sits ABOVE the anchor and carries
+    // its own onClick, so we click its centre by coordinate (a plain locator.click races the
+    // hover-expand animation's actionability check).
+    const link = page.locator('a[data-card-link]').first()
+    await expect(link).toHaveAttribute('href', /\/listings\//)
+    const photo = page.locator('[data-protected]').first()
+    const box = await photo.boundingBox()
+    if (!box) throw new Error('no listing card photo found')
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
     await expect(page).toHaveURL(/\/listings\//)
   })
 })

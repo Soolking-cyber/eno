@@ -1946,7 +1946,7 @@ export function ListingsExplorer({
             {/* Results metadata count — also the feed's h2 (keeps headings sequential).
                 On mobile the view toggles live here (the sort/view row is collapsed). */}
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1 select-none">
-              <h2 className="text-xs font-normal text-muted-foreground">
+              <h2 aria-live="polite" aria-atomic="true" className="text-xs font-normal text-muted-foreground">
                 {tr('Found', 'Tìm thấy')}{' '}
                 <strong className="text-foreground">{nearby ? shownListings.length : totalCount}</strong>{' '}
                 {tr('listings', 'tin đăng')}

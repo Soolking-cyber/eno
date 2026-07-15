@@ -64,6 +64,11 @@ export function PricePresetChips({
             variant="bare"
             size="none"
             onClick={() => apply(p.min, p.max)}
+            // TOGGLES, not a radio group: a valid "none applied" state exists (value 'all'/'' , or a
+            // custom min–max the manual inputs land between two brackets), so this is not a
+            // one-is-always-chosen radiogroup — each chip is independently applied-or-not. aria-pressed
+            // is the honest role; without it the `on` paint was invisible to a screen reader.
+            aria-pressed={on}
             className={cn(
               'rounded-full border px-3 py-1 text-xs font-semibold transition-colors cursor-pointer',
               on ? 'border-accent-foreground/40 bg-tint text-accent-foreground' : 'border-border text-body hover:bg-muted',

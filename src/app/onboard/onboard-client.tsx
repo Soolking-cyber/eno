@@ -9,6 +9,7 @@ import { Mascot } from '@/components/marketplace/mascot'
 import { safeNextPath } from '@/lib/url'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { RadioGroup, Radio } from '@/components/ui/radio-group'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Field, FieldControl, FieldError, FieldLabel } from '@/components/ui/field'
@@ -130,19 +131,28 @@ export function OnboardClient() {
           <h1 className="text-center text-xl font-bold text-foreground">{t('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h1>
           <p className="mt-1 text-center text-sm text-muted-foreground">{t('How will you use eno.vn? You can ask us to change this later.', 'Bạn sẽ dùng eno.vn như thế nào? Bạn có thể thay đổi sau.')}</p>
 
-          <div className="mt-6 space-y-3">
+          {/* Account type is a single-select RADIO GROUP, not a pile of toggles. Selecting is NOT
+              destructive here — a choice only reveals the matching profile fields below, nothing is
+              wiped — so ui/radio-group is the honest model: real role="radiogroup" + role="radio" +
+              aria-checked + roving arrow keys, replacing two unrelated aria-pressed <Button>s that
+              announced no group and no selected state. The big-card look is unchanged (same classes).
+              ⚠️ flex/gap, NOT space-y: Base UI's Radio.Root emits a hidden <input> sibling, and
+              space-y-* (`> :not(:last-child)`) would hand that invisible last child the margin
+              exemption and shift the cards. */}
+          <RadioGroup
+            value={choice ?? undefined}
+            onValueChange={(v) => setChoice(v as Choice)}
+            aria-label={t('Account type', 'Loại tài khoản')}
+            className="mt-6 flex flex-col gap-3"
+          >
             {options.map(({ key, Icon, title, desc }) => {
               const active = choice === key
               return (
-                <Button
+                <Radio
                   key={key}
-                  variant="bare"
-                  size="none"
-                  type="button"
-                  onClick={() => setChoice(key)}
-                  aria-pressed={active}
+                  value={key}
                   className={cn(
-                    'flex w-full items-start justify-start gap-3 whitespace-normal rounded-2xl p-4 text-left font-normal transition-colors cursor-pointer',
+                    'flex w-full items-start justify-start gap-3 whitespace-normal rounded-2xl p-4 text-left transition-colors',
                     active ? 'bg-accent ring-2 ring-brand/30' : 'hover:bg-muted',
                   )}
                 >
@@ -153,10 +163,10 @@ export function OnboardClient() {
                     <span className="flex items-center gap-2 text-sm font-bold text-foreground">{title}{active && <Check className="h-4 w-4 text-accent-foreground" />}</span>
                     <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{desc}</span>
                   </span>
-                </Button>
+                </Radio>
               )
             })}
-          </div>
+          </RadioGroup>
 
           {/* Profile fields revealed once a type is chosen. The two branches are MUTUALLY EXCLUSIVE and
               must stay that way: both render an input with id="nm", so if they ever rendered together

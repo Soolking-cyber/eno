@@ -51,14 +51,14 @@ export function NotificationBell() {
       <IconButton
         size="lg"
         onClick={toggle}
-        aria-label={tr('Notifications', 'Thông báo')}
+        aria-label={user && unread > 0 ? tr(`Notifications, ${unread} unread`, `Thông báo, ${unread} chưa đọc`) : tr('Notifications', 'Thông báo')}
         className="text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90"
       >
         {/* 28px everywhere — matches the bottom-nav icons on mobile and the
             Saved/Messages action icons on desktop (one consistent nav scale). */}
         <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} />
         {user && unread > 0 && (
-          <Badge variant="counter" size="count" className="absolute right-1 top-1 animate-in zoom-in duration-200">
+          <Badge aria-hidden variant="counter" size="count" className="absolute right-1 top-1 animate-in zoom-in duration-200">
             {unread > 9 ? '9+' : unread}
           </Badge>
         )}

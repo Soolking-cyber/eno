@@ -81,6 +81,17 @@ allowlist lives in `scripts/design-lint.mjs`.
 All in `src/components/ui/` unless noted. Hand-rolling one of these in a page
 component is a defect.
 
+**Library policy (owner, 2026-07-15): Base UI is the primary UI library, in a fixed
+order of preference.** For any new interactive/structural element: **(1)** a Base UI
+component (`@base-ui/react`); **(2)** if Base UI has no equivalent, the best purpose-built
+library (embla for carousel, `input-otp`, `sonner` — Base UI ships no carousel/OTP/toast);
+**(3)** hand-rolled only as a last resort, with a comment naming which of (1)/(2) was ruled
+out and why. Check `node_modules/@base-ui/react/` before hand-rolling anything — a widget
+built from `<Button>`s + `createPortal` is still a hand-roll (and `design-lint` fails the
+build on `createPortal` outside `ui/`). When a call site seems to need a hand-roll, suspect
+the primitive first. The one deliberate opt-out is `ui/avatar` (Base UI hides the `<img>`
+until load → strips it from SSR → costs the LCP; reason in the file).
+
 | Need | Use |
 |---|---|
 | Any button | `<Button>` — `variant="cta"` is THE brand CTA; `size="none"` preserves bespoke sizing during migration |

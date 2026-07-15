@@ -19,14 +19,32 @@ function PopoverContent({
   alignOffset = 0,
   side = "bottom",
   sideOffset = 4,
+  backdrop = false,
+  backdropClassName,
   ...props
 }: PopoverPrimitive.Popup.Props &
   Pick<
     PopoverPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset"
-  >) {
+  > & {
+    /**
+     * Render a transparent full-screen Backdrop that ABSORBS the outside tap which dismisses the
+     * popover, so that tap does NOT fall through and activate whatever sits beneath it. Base UI's
+     * Popover is non-modal by default — an outside press both closes the popover AND clicks the
+     * element under the pointer. In the facet bar that means dismissing the price panel by tapping a
+     * listing card ALSO navigates to that card's PDP. Opt-in, because a menu opened off a toolbar
+     * usually WANTS the click-through; a filter dropdown floating over a grid does not. (The sibling
+     * area-filter and every ui/select keep exactly such a backdrop for the same reason.)
+     */
+    backdrop?: boolean
+    backdropClassName?: string
+  }) {
   return (
     <PopoverPrimitive.Portal>
+      {backdrop && (
+        // z-40: above the sticky facet bar (z-30) and the grid, below the Positioner's popup (z-50).
+        <PopoverPrimitive.Backdrop className={cn("fixed inset-0 z-40", backdropClassName)} />
+      )}
       <PopoverPrimitive.Positioner
         align={align}
         alignOffset={alignOffset}
