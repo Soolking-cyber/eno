@@ -53,3 +53,6 @@ test-results/
 playwright-report/
 playwright/.cache/
 scripts/tmp-*
+
+# Supabase CLI local cache (not migrations)
+supabase/.temp/

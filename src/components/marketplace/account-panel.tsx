@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   X, Store, Settings, Scale, CircleHelp, LogOut, LayoutDashboard,
-  MessageSquareText, CalendarCheck, Eye, ChevronRight, Upload, Code2,
+  MessageSquareText, CalendarCheck, Eye, ChevronRight, Upload, Code2, UsersRound,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -14,6 +14,7 @@ import { TrustScore } from './trust-score'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
+import { useFocusTrap } from '@/lib/use-focus-trap'
 import { useDashboard } from '@/hooks/use-dashboard'
 
 // Right-side account/dashboard NAV RAIL (owner 2026-07-15). The header avatar opens it; its
@@ -47,6 +48,7 @@ export const useAccountPanel = () => useContext(Ctx)
 // card. Clamped and persisted; the seam is a plain full-height line (no top/bottom caps).
 const PANEL_MIN = 360
 const PANEL_MAX = 720
+const FORUM_URL = process.env.NEXT_PUBLIC_FORUM_URL || '/forum'
 const clampW = (n: number) => Math.max(PANEL_MIN, Math.min(PANEL_MAX, Math.round(n)))
 const setRootW = (px: number) => { document.documentElement.style.setProperty('--account-w', `${px}px`) }
 
@@ -175,6 +177,24 @@ function AccountPanel({ open, onClose, resizing, onResizeStart, onResizeKey }: {
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  // MOBILE the panel is a full-screen MODAL (fixed inset, body-locked, no scrim), so focus MUST
+  // be trapped inside it — otherwise Tab walks straight into the page behind, which is still in
+  // the DOM (the panel toggles visibility, it never unmounts). DESKTOP it's a persistent non-modal
+  // rail (the feed just squeezes to make room), so NO trap there.
+  //
+  // Decide modal-vs-rail when the panel opens and freeze it for that session — the SAME
+  // matchMedia-at-open pattern the body-lock effect above uses, so the two never disagree. NOT
+  // reactive-on-resize: useFocusTrap restores focus to the launcher whenever `active` goes false,
+  // so toggling it across the lg breakpoint mid-open would rip focus out of an open panel.
+  // Recompute on EVERY open/close (not just `if (open)`) so it is always FALSE while closed —
+  // a stale TRUE lingering from a prior mobile session would otherwise transiently arm the trap
+  // for one render on a desktop reopen, then rip focus when the effect corrected it.
+  const [modalThisOpen, setModalThisOpen] = useState(false)
+  useEffect(() => {
+    setModalThisOpen(open && !window.matchMedia('(min-width: 64rem)').matches)
+  }, [open])
+  const trapRef = useFocusTrap<HTMLElement>(modalThisOpen)
+
   if (!user) return null
   const initial = (user.email || user.phone || '?').charAt(0).toUpperCase()
   const isBusiness = dash?.tier === 'business'
@@ -203,8 +223,11 @@ function AccountPanel({ open, onClose, resizing, onResizeStart, onResizeKey }: {
           (fade), not a modal. Desktop squeezes the feed instead of dimming, so it had no scrim
           either. Close on mobile is the header X (the panel covers any tap-to-close area). */}
       <aside
+        ref={trapRef}
         role="dialog"
         aria-label={tr('Account', 'Tài khoản')}
+        // Modal ONLY on mobile (full-screen, focus-trapped); a plain non-modal rail on desktop.
+        aria-modal={modalThisOpen ? true : undefined}
         className={cn(
           // Full screen below lg (the panel IS the dashboard); a DRAGGABLE rail on desktop
           // whose width is the shared --account-w var. NO shadow: the rail is not a floating
@@ -269,7 +292,6 @@ function AccountPanel({ open, onClose, resizing, onResizeStart, onResizeKey }: {
         {/* Header — always the identity; the rail is a single nav surface now. */}
         <div className="flex items-center gap-3 border-b border-border px-4 py-3.5">
           {dash?.profile.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={dash.profile.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
           ) : (
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{initial}</span>
@@ -315,6 +337,13 @@ function AccountPanel({ open, onClose, resizing, onResizeStart, onResizeKey }: {
                 <ChevronRight className="h-4 w-4 text-ink-4" />
               </Link>
             ))}
+            <a href={FORUM_URL} className={cn(item, 'justify-between')}>
+              <span className="flex items-center gap-2.5">
+                <UsersRound className="h-4 w-4 text-accent-foreground" />
+                {tr('Community forum', 'Diễn đàn cộng đồng')}
+              </span>
+              <ChevronRight className="h-4 w-4 text-ink-4" />
+            </a>
           </div>
 
           <Link href="/post" className={cn(item, 'mt-2 bg-accent font-semibold text-accent-foreground hover:bg-brand/15')}>

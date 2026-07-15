@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { X, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
-import { useFocusTrap } from '@/lib/use-focus-trap'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
@@ -16,21 +15,42 @@ type View = 'menu' | { kind: 'feedback' | 'technical' }
 /** Quick Help sheet opened from the floating "?" button — a fast hub to the Help
  *  Center, reporting, and feedback (bottom-sheet on mobile, centered card on
  *  desktop). Feedback / technical reports post to /admin/feedback, not email. */
-export function HelpPopover({ onClose }: { onClose: () => void }) {
+export function HelpPopover({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { tr } = useLanguage()
   const [view, setView] = useState<View>('menu')
   const [message, setMessage] = useState('')
   const [email, setEmail] = useState('')
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
-  const trapRef = useFocusTrap<HTMLDivElement>()
 
-  // DialogPrimitive handles Escape and scroll-lock natively.
+  // DialogPrimitive handles Escape, scroll-lock, and focus trap/return natively.
+
+  // CONTROLLED open (not a `{open && …}` mount in the parent) so Base UI drives its own
+  // unmount and the data-closed exit animation actually plays — a conditional unmount would
+  // rip the node out before it could animate (the House Trap). Because the component now stays
+  // mounted across opens, reset the view/form on each OPEN so it starts fresh (matching the old
+  // remount behaviour). Reset DURING RENDER (the store-previous-prop pattern), not in an effect:
+  // an effect fires AFTER paint, so it would flash the stale 'sent'/form view for one frame
+  // before flipping to the menu. Only the OPEN edge resets — closing leaves the content intact so
+  // it stays stable through the exit animation.
+  const [wasOpen, setWasOpen] = useState(open)
+  // Bumped on every reset so an in-flight send() that resolves AFTER a close+reopen can detect it
+  // belongs to a stale session and drop its result — the component now stays mounted across opens,
+  // so (unlike the old unmount) a late setState WOULD otherwise clobber the fresh form.
+  const sendEpoch = useRef(0)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    // Bump on BOTH edges: closing must also invalidate an in-flight send, or a fetch resolving
+    // during the exit animation would flash the form to the success screen mid-fade-out.
+    sendEpoch.current++
+    if (open) { setView('menu'); setMessage(''); setEmail(''); setState('idle') }
+  }
 
   const isForm = typeof view === 'object'
   const kind = isForm ? view.kind : 'feedback'
 
   const send = async () => {
     if (message.trim().length < 2 || state === 'sending') return
+    const epoch = sendEpoch.current
     setState('sending')
     try {
       const res = await fetch('/api/feedback', {
@@ -43,8 +63,11 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
           url: typeof window !== 'undefined' ? window.location.href : undefined,
         }),
       })
+      // Dropped if the user closed and reopened (fresh session) while this was in flight.
+      if (sendEpoch.current !== epoch) return
       setState(res.ok ? 'sent' : 'error')
     } catch {
+      if (sendEpoch.current !== epoch) return
       setState('error')
     }
   }
@@ -53,11 +76,11 @@ export function HelpPopover({ onClose }: { onClose: () => void }) {
   const backToMenu = () => { setView('menu'); setMessage(''); setEmail(''); setState('idle') }
 
   return (
-    <DialogPrimitive.Root open={true} onOpenChange={(open) => { if (!open) onClose() }}>
+    <DialogPrimitive.Root open={open} onOpenChange={(next) => { if (!next) onClose() }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[2px] data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out" />
         <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
-          <DialogPrimitive.Popup ref={trapRef} className="relative w-full max-h-[85vh] overflow-y-auto rounded-t-2xl bg-card shadow-overlay outline-none animate-in fade-in slide-in-from-bottom-4 duration-200 sm:max-w-md sm:rounded-2xl sm:slide-in-from-bottom-0 sm:zoom-in-95">
+          <DialogPrimitive.Popup className="relative w-full max-h-[85vh] overflow-y-auto rounded-t-2xl bg-card shadow-overlay outline-none duration-200 data-open:animate-in data-open:fade-in data-open:slide-in-from-bottom-4 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-4 sm:max-w-md sm:rounded-2xl sm:data-open:slide-in-from-bottom-0 sm:data-open:zoom-in-95 sm:data-closed:slide-out-to-bottom-0 sm:data-closed:zoom-out-95">
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4">
           {isForm ? (

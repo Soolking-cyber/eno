@@ -6,7 +6,6 @@ import {
   ArrowBigUp,
   Bookmark,
   CheckCircle2,
-  CornerDownRight,
   MessageCircle,
   Reply,
   Share2,
@@ -34,19 +33,46 @@ import {
   type ForumCommunity,
   type ForumPost,
 } from './forum-data'
+import { ForumTrustBadgeIcon } from './trust-badge'
 
-function ThreadComment({ comment, nested = false, onReply }: { comment: ForumComment; nested?: boolean; onReply: (author: string) => void }) {
+type CommentVoteResult = { score: number; viewerVote: -1 | 0 | 1 }
+
+function ThreadComment({
+  comment,
+  onReply,
+  onVote,
+}: {
+  comment: ForumComment
+  onReply: (comment: ForumComment) => void
+  onVote: (comment: ForumComment, value: -1 | 0 | 1) => Promise<CommentVoteResult>
+}) {
   const { tr } = useLanguage()
-  const [vote, setVote] = useState<0 | 1>(0)
-  const score = comment.score + vote
+  const [vote, setVote] = useState<-1 | 0 | 1>(comment.viewerVote || 0)
+  const [baseScore, setBaseScore] = useState(comment.score)
+  const [collapsed, setCollapsed] = useState(false)
+  const replies = comment.replies || []
+  const score = baseScore + vote
+
+  const voteComment = (direction: -1 | 1) => {
+    const previous = vote
+    const next = vote === direction ? 0 : direction
+    setVote(next)
+    void onVote(comment, next).then((result) => {
+      setVote(result.viewerVote)
+      setBaseScore(result.score - result.viewerVote)
+    }).catch(() => {
+      setVote(previous)
+      toast.error(tr('Your vote could not be saved.', 'Không thể lưu bình chọn của bạn.'))
+    })
+  }
 
   return (
-    <article className={cn('relative flex gap-3', nested && 'mt-4')}>
-      {nested && <CornerDownRight className="mt-2 h-4 w-4 shrink-0 text-ink-4" />}
-      <Avatar name={comment.author} size="sm" className="h-8 w-8 text-2xs" />
+    <article className="relative flex gap-3">
+      <Avatar name={comment.author} url={comment.authorAvatarUrl} color={comment.authorAvatarColor} size="sm" className="h-8 w-8 text-2xs" />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-xs font-bold text-foreground">{comment.author}</span>
+          <ForumTrustBadgeIcon badge={comment.trustBadge} trustScore={comment.trustScore} />
           {comment.authorRole && <span className="text-2xs text-body">{comment.authorRole}</span>}
           <span className="text-2xs text-ink-4">{comment.timeLabel}</span>
           {comment.helpful && (
@@ -63,19 +89,35 @@ function ThreadComment({ comment, nested = false, onReply }: { comment: ForumCom
             variant="soft"
             size="sm"
             className={cn('h-7 gap-1 px-2 text-xs text-body', vote === 1 && 'bg-accent text-accent-foreground')}
-            onClick={() => setVote(vote === 1 ? 0 : 1)}
+            onClick={() => voteComment(1)}
             aria-pressed={vote === 1}
             aria-label={vote === 1 ? tr('Remove helpful vote', 'Bỏ đánh giá hữu ích') : tr('Mark reply as helpful', 'Đánh dấu phản hồi hữu ích')}
           >
             <ArrowBigUp className={cn('h-4 w-4', vote === 1 && 'fill-current')} />
             {score}
           </Button>
-          <Button type="button" variant="soft" size="sm" className="h-7 gap-1 px-2 text-xs text-body" onClick={() => onReply(comment.author)}>
+          <Button type="button" variant="soft" size="sm" className="h-7 gap-1 px-2 text-xs text-body" onClick={() => onReply(comment)}>
             <Reply className="h-3.5 w-3.5" />
             {tr('Reply', 'Trả lời')}
           </Button>
         </div>
-        {comment.replies?.map((reply) => <ThreadComment key={reply.id} comment={reply} nested onReply={onReply} />)}
+        {replies.length > 0 && (collapsed ? (
+          <Button type="button" variant="bare" size="none" className="mt-3 h-auto text-xs font-semibold text-accent-foreground" onClick={() => setCollapsed(false)}>
+            {tr(`Show ${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}`, `Hiện ${replies.length} phản hồi`)}
+          </Button>
+        ) : (
+          <div className="relative mt-4 space-y-4 pl-5">
+            <Button
+              type="button"
+              variant="bare"
+              size="none"
+              className="group absolute inset-y-0 left-0 w-3 rounded-full before:absolute before:inset-y-0 before:left-1.5 before:border-l before:border-border hover:before:border-brand focus-visible:before:border-brand"
+              onClick={() => setCollapsed(true)}
+              aria-label={tr('Collapse this comment branch', 'Thu gọn nhánh bình luận này')}
+            />
+            {replies.map((reply) => <ThreadComment key={reply.id} comment={reply} onReply={onReply} onVote={onVote} />)}
+          </div>
+        ))}
       </div>
     </article>
   )
@@ -89,6 +131,9 @@ export function ThreadDialog({
   onOpenChange,
   onVote,
   onSave,
+  comments: liveComments,
+  onAddReply,
+  onCommentVote,
 }: {
   post: ForumPost | null
   community: ForumCommunity | null
@@ -97,22 +142,28 @@ export function ThreadDialog({
   onOpenChange: (open: boolean) => void
   onVote: (direction: -1 | 1) => void
   onSave: () => void
+  comments?: ForumComment[] | null
+  onAddReply?: (body: string, parentId: string | null) => Promise<ForumComment>
+  onCommentVote?: (comment: ForumComment, value: -1 | 0 | 1) => Promise<CommentVoteResult>
 }) {
   const { tr } = useLanguage()
   const [reply, setReply] = useState('')
   const [commentsByPost, setCommentsByPost] = useState<Record<string, ForumComment[]>>({})
+  const [replyTo, setReplyTo] = useState<{ id: string; author: string } | null>(null)
+  const [submittingReply, setSubmittingReply] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setReply('')
+    setReplyTo(null)
   }, [post?.id])
 
   const addedComments = post ? commentsByPost[post.id] || [] : []
   const comments = useMemo(() => {
     if (!post) return []
-    const seeded = post.id.startsWith('local-') ? [] : THREAD_COMMENTS[post.id] || DEFAULT_THREAD_COMMENTS
+    const seeded = liveComments ?? (post.live ? [] : THREAD_COMMENTS[post.id] || DEFAULT_THREAD_COMMENTS)
     return [...addedComments, ...seeded]
-  }, [addedComments, post])
+  }, [addedComments, liveComments, post])
 
   if (!post || !community) return null
   const score = post.score + vote
@@ -127,9 +178,23 @@ export function ThreadDialog({
     }
   }
 
-  const addReply = () => {
+  const addReply = async () => {
     const body = reply.trim()
     if (!body) return
+    if (post.live && onAddReply) {
+      setSubmittingReply(true)
+      try {
+        await onAddReply(body, replyTo?.id || null)
+        setReply('')
+        setReplyTo(null)
+        toast.success(tr('Your reply is live.', 'Câu trả lời của bạn đã được đăng.'))
+      } catch {
+        toast.error(tr('Your reply could not be published.', 'Không thể đăng câu trả lời của bạn.'))
+      } finally {
+        setSubmittingReply(false)
+      }
+      return
+    }
     setCommentsByPost((current) => ({
       ...current,
       [post.id]: [{
@@ -141,11 +206,13 @@ export function ThreadDialog({
       }, ...(current[post.id] || [])],
     }))
     setReply('')
+    setReplyTo(null)
     toast.success(tr('Your reply was added to this preview.', 'Câu trả lời đã được thêm vào bản xem trước.'))
   }
 
-  const startReply = (author: string) => {
-    setReply(`@${author} `)
+  const startReply = (comment: ForumComment) => {
+    setReplyTo({ id: comment.id, author: comment.author })
+    setReply(`@${comment.author} `)
     requestAnimationFrame(() => document.getElementById('forum-thread-reply')?.focus())
   }
 
@@ -161,6 +228,7 @@ export function ThreadDialog({
               <span className="font-bold text-foreground">{tr(community.name, community.nameVi)}</span>
               <span aria-hidden="true">·</span>
               <span>{post.author}</span>
+              <ForumTrustBadgeIcon badge={post.trustBadge} trustScore={post.trustScore} />
               <span aria-hidden="true">·</span>
               <span>{post.timeLabel}</span>
             </div>
@@ -243,7 +311,12 @@ export function ThreadDialog({
                 }
               />
               <div className="flex justify-end">
-                <Button type="button" variant="cta" size="sm" disabled={!reply.trim()} onClick={addReply}>
+                {replyTo && (
+                  <Button type="button" variant="bare" size="sm" className="mr-auto text-body" onClick={() => { setReplyTo(null); setReply('') }}>
+                    {tr(`Replying to ${replyTo.author} · cancel`, `Đang trả lời ${replyTo.author} · hủy`)}
+                  </Button>
+                )}
+                <Button type="button" variant="cta" size="sm" disabled={!reply.trim() || submittingReply} onClick={() => void addReply()}>
                   <Reply className="h-4 w-4" />
                   {tr('Reply', 'Trả lời')}
                 </Button>
@@ -259,7 +332,14 @@ export function ThreadDialog({
             </div>
 
             <div className="space-y-6">
-              {comments.map((comment) => <ThreadComment key={comment.id} comment={comment} onReply={startReply} />)}
+              {comments.map((comment) => (
+                <ThreadComment
+                  key={comment.id}
+                  comment={comment}
+                  onReply={startReply}
+                  onVote={onCommentVote || (async (_item, value) => ({ score: comment.score + value, viewerVote: value }))}
+                />
+              ))}
             </div>
           </div>
         </div>

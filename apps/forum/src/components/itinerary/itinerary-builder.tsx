@@ -18,6 +18,7 @@ import {
   Navigation,
   RefreshCw,
   Route,
+  Save,
   Sparkles,
   Sun,
   TreePine,
@@ -25,7 +26,9 @@ import {
   WalletCards,
   Waves,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -41,6 +44,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
+import { forumApi } from '@/lib/api'
 
 type DestinationId = 'north' | 'central' | 'south' | 'island'
 type BudgetId = 'smart' | 'comfort' | 'premium'
@@ -220,11 +224,14 @@ function PlannerLoading() {
 
 export function ItineraryBuilder() {
   const { tr } = useLanguage()
+  const { user, openSignIn } = useAuth()
   const [destinationId, setDestinationId] = useState<DestinationId>('central')
   const [days, setDays] = useState(5)
   const [budgetId, setBudgetId] = useState<BudgetId>('comfort')
   const [interests, setInterests] = useState<Set<InterestId>>(() => new Set(['food', 'culture']))
   const [state, setState] = useState<'empty' | 'building' | 'ready'>('empty')
+  const [saving, setSaving] = useState(false)
+  const [savedId, setSavedId] = useState<string | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
 
   const destination = DESTINATIONS.find((item) => item.id === destinationId) || DESTINATIONS[0]
@@ -242,11 +249,47 @@ export function ItineraryBuilder() {
   }
 
   const buildPlan = () => {
+    setSavedId(null)
     setState('building')
     window.setTimeout(() => {
       setState('ready')
       window.requestAnimationFrame(() => resultRef.current?.focus())
     }, 700)
+  }
+
+  const savePlan = async () => {
+    if (!user) { openSignIn(); return }
+    setSaving(true)
+    try {
+      const { itinerary } = await forumApi<{ itinerary: { id: string } }>('/api/itineraries', {
+        method: 'POST',
+        auth: 'required',
+        body: JSON.stringify({
+          title: `${destination.shortLabel} · ${days} days`,
+          destinationId,
+          days,
+          budgetId,
+          interests: Array.from(interests),
+          status: 'ready',
+          estimatedBudget,
+          currency: 'VND',
+          generatedAt: new Date().toISOString(),
+          dayPlans: tripDays.map((day, index) => ({ ...day, dayNumber: index + 1 })),
+          stays: destination.stays.map((stay, index) => ({
+            ...stay,
+            position: index,
+            estimatedNightly: Math.round(budget.daily * (index === 0 ? 0.55 : index === 1 ? 0.8 : 1)),
+            currency: 'VND',
+          })),
+        }),
+      })
+      setSavedId(itinerary.id)
+      toast.success(tr('Itinerary saved to your eno account.', 'Lịch trình đã được lưu vào tài khoản eno.'))
+    } catch {
+      toast.error(tr('Your itinerary could not be saved.', 'Không thể lưu lịch trình của bạn.'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -403,8 +446,14 @@ export function ItineraryBuilder() {
             {state === 'building' ? <Loader2 className="h-4 w-4 animate-spin" /> : state === 'ready' ? <RefreshCw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
             {state === 'building' ? tr('Building your trip…', 'Đang tạo chuyến đi…') : state === 'ready' ? tr('Build a new version', 'Tạo phiên bản mới') : tr('Build my itinerary', 'Tạo lịch trình cho tôi')}
           </Button>
+          {state === 'ready' && (
+            <Button type="button" variant="outline" size="lg" className="mt-2 w-full" onClick={() => void savePlan()} disabled={saving || Boolean(savedId)}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : savedId ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+              {saving ? tr('Saving…', 'Đang lưu…') : savedId ? tr('Saved to your eno account', 'Đã lưu vào tài khoản eno') : tr('Save this itinerary', 'Lưu lịch trình này')}
+            </Button>
+          )}
           <p className="mt-3 text-center text-2xs leading-relaxed text-ink-4">
-            {tr('UI preview — AI recommendations and live prices will be connected later.', 'Bản xem trước giao diện — gợi ý AI và giá trực tiếp sẽ được kết nối sau.')}
+            {tr('Recommendations and prices are examples for now. Signed-in plans are saved securely to your unified eno account.', 'Gợi ý và giá hiện là ví dụ. Lịch trình đã đăng nhập được lưu an toàn vào tài khoản eno thống nhất.')}
           </p>
         </Card>
 

@@ -50,7 +50,7 @@ export async function GET() {
 `
 
     // Static info pages (not data-driven → no lastmod)
-    for (const p of ['about', 'safety', 'help', 'guide', 'itinerary', 'trust', 'terms', 'privacy', 'regulations', 'prohibited']) {
+    for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'prohibited']) {
       xml += `  <url><loc>${hostUrl}/${p}</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>\n`
     }
 

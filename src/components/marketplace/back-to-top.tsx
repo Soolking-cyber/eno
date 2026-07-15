@@ -111,7 +111,9 @@ export function BackToTop() {
         </Button>
       </div>
 
-      {helpOpen && <HelpPopover onClose={() => setHelpOpen(false)} />}
+      {/* Always mounted (not `{helpOpen && …}`) so Base UI Dialog can play its exit animation
+          before it unmounts itself — a conditional unmount would remove the node mid-close. */}
+      <HelpPopover open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>,
     document.body,
   )

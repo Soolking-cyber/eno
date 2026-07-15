@@ -29,6 +29,7 @@ import {
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
 import type { ForumCommunity, ForumPost } from './forum-data'
+import { ForumTrustBadgeIcon } from './trust-badge'
 
 export function ForumPostCard({
   post,
@@ -38,6 +39,8 @@ export function ForumPostCard({
   onVote,
   onSave,
   onOpen,
+  onBlock,
+  onReport,
 }: {
   post: ForumPost
   community: ForumCommunity
@@ -46,6 +49,8 @@ export function ForumPostCard({
   onVote: (direction: -1 | 1) => void
   onSave: () => void
   onOpen: () => void
+  onBlock: () => void
+  onReport: () => void
 }) {
   const { tr } = useLanguage()
   const score = post.score + vote
@@ -91,14 +96,13 @@ export function ForumPostCard({
 
         <div className="min-w-0 flex-1 px-4 pb-3 pt-4 sm:px-5">
           <div className="flex items-start gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
-              {community.name.charAt(0)}
-            </span>
+            <Avatar name={post.author} url={post.authorAvatarUrl} color={post.authorAvatarColor} size="sm" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
                 <span className="font-bold text-foreground">{tr(community.name, community.nameVi)}</span>
                 <span className="text-ink-4" aria-hidden="true">·</span>
                 <span className="text-body">{post.author}</span>
+                <ForumTrustBadgeIcon badge={post.trustBadge} trustScore={post.trustScore} />
                 {post.official && <CheckCircle2 className="h-3.5 w-3.5 fill-brand text-white" aria-label={tr('Official', 'Chính thức')} />}
                 <span className="text-ink-4" aria-hidden="true">·</span>
                 <span className="text-ink-4">{post.timeLabel}</span>
@@ -112,12 +116,12 @@ export function ForumPostCard({
                 </IconButton>
               } />
               <DropdownMenuContent align="end" className="min-w-44">
-                <DropdownMenuItem onClick={() => toast.message(tr('You will see fewer posts like this.', 'Bạn sẽ thấy ít bài viết như thế này hơn.'))}>
+                <DropdownMenuItem onClick={onBlock}>
                   <UserRoundX />
-                  {tr('Show me less', 'Hiển thị ít hơn')}
+                  {tr('Block this member', 'Chặn thành viên này')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onClick={() => toast.message(tr('Report flow will be connected with the backend.', 'Luồng báo cáo sẽ được kết nối ở giai đoạn backend.'))}>
+                <DropdownMenuItem variant="destructive" onClick={onReport}>
                   <Flag />
                   {tr('Report post', 'Báo cáo bài viết')}
                 </DropdownMenuItem>

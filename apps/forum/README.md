@@ -1,6 +1,6 @@
 # eno.forum
 
-Independent Next.js application for the eno.forum community experience. It shares a Git repository with eno.vn but has its own dependencies, build, tests, environment variables, and Vercel project.
+Independent Next.js application for the eno.forum community experience and Vietnam itinerary builder. It shares a Git repository with eno.vn but has its own dependencies, build, tests, environment variables, and Vercel project.
 
 ## Local development
 

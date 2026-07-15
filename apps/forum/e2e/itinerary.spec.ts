@@ -1,6 +1,6 @@
-import { expectNoA11yViolations, test, expect } from '../helpers'
+import { expectNoA11yViolations, test, expect } from './helpers'
 
-test.describe('Guest · Vietnam itinerary builder', () => {
+test.describe('eno.forum itinerary builder', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/itinerary')
   })
@@ -22,6 +22,6 @@ test.describe('Guest · Vietnam itinerary builder', () => {
     await expect(page.getByRole('heading', { name: /Day by day/i })).toBeVisible()
     await expect(page.getByText(/District 3 design hotel/i)).toBeVisible()
     await expect(page.getByTestId('itinerary-day')).toHaveCount(4)
-    await expectNoA11yViolations(page, 'itinerary preview')
+    await expectNoA11yViolations(page, 'forum itinerary preview')
   })
 })

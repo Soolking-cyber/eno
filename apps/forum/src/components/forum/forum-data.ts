@@ -9,6 +9,7 @@ export type ForumCommunity = {
 }
 
 export type ForumPostKind = 'guide' | 'question' | 'experience' | 'event' | 'discussion'
+export type ForumTrustBadge = 'verified_seller' | 'trusted_member' | 'established_expat' | 'top_helper'
 
 export type ForumPost = {
   id: string
@@ -19,7 +20,13 @@ export type ForumPost = {
   title: string
   body: string
   author: string
+  authorId?: string | null
+  authorAvatarUrl?: string | null
+  authorAvatarColor?: string | null
   authorRole?: string
+  trustScore?: number | null
+  trustTier?: string | null
+  trustBadge?: ForumTrustBadge | null
   minutesAgo: number
   timeLabel: string
   score: number
@@ -28,17 +35,26 @@ export type ForumPost = {
   locationLabel?: string
   pinned?: boolean
   official?: boolean
+  live?: boolean
 }
 
 export type ForumComment = {
   id: string
   author: string
+  authorId?: string | null
+  authorAvatarUrl?: string | null
+  authorAvatarColor?: string | null
   authorRole?: string
+  trustScore?: number | null
+  trustTier?: string | null
+  trustBadge?: ForumTrustBadge | null
   body: string
   score: number
   timeLabel: string
   helpful?: boolean
   official?: boolean
+  viewerVote?: -1 | 0 | 1
+  live?: boolean
   replies?: ForumComment[]
 }
 

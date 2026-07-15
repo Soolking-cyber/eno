@@ -30,7 +30,6 @@ export function Footer() {
     {
       title: tr('Shortcuts', 'Lối tắt'),
       links: [
-        { label: tr('Plan a Vietnam trip', 'Lập kế hoạch du lịch Việt Nam'), href: '/itinerary' },
         { label: tr('Post a listing', 'Đăng tin'), href: '/post' },
         { label: tr('Saved listings', 'Tin đã lưu'), href: '/saved' },
         { label: tr('Map', 'Bản đồ'), href: '/?view=map' },

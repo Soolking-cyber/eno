@@ -30,58 +30,75 @@ model Category {
 // authenticated user has exactly one Profile (buyer and/or seller-owner).
 // The auth.users FK is added via raw SQL (Prisma can't model the auth schema).
 model Profile {
-  id          String   @id @db.Uuid       // = auth.users.id
-  email       String?  @unique             // mirrored from auth for display/search
-  displayName String?                      // from OAuth metadata or set later
-  avatarUrl   String?
-  avatarColor String   @default("#0a66c2")
-  phone       String?  @unique             // normalized +84…, mirrored from VERIFIED auth phone
-  locale      String?
-  accountType String?                       // 'individual' | 'business' — null until onboarded (drives the one-time choice)
-  businessName String?                      // captured at business onboarding; synced to the Seller storefront later
+  id                   String    @id @db.Uuid // = auth.users.id
+  email                String?   @unique // mirrored from auth for display/search
+  displayName          String? // from OAuth metadata or set later
+  avatarUrl            String?
+  avatarColor          String    @default("#0a66c2")
+  phone                String?   @unique // normalized +84…, mirrored from VERIFIED auth phone
+  locale               String?
+  accountType          String? // 'individual' | 'business' — null until onboarded (drives the one-time choice)
+  businessName         String? // captured at business onboarding; synced to the Seller storefront later
   // ── Trust & Reputation (replaces manual verification) ──
   trustScore           Int       @default(100) // 100 = good standing; never mutate blindly — recompute from TrustEvent
   trustTier            String    @default("standard") // denormalized: restricted | standard | trusted | exceptional
-  positiveInteractions Int       @default(0)   // track-record gate for the Trusted/Exceptional badge
-  falseReportStrikes   Int       @default(0)   // anti-abuse: confirmed-false reports filed BY this user
-  reportCooldownUntil  DateTime?               // anti-abuse: can't file new reports until this passes
+  positiveInteractions Int       @default(0) // track-record gate for the Trusted/Exceptional badge
+  falseReportStrikes   Int       @default(0) // anti-abuse: confirmed-false reports filed BY this user
+  reportCooldownUntil  DateTime? // anti-abuse: can't file new reports until this passes
   // ── Enforcement ladder (trust Phase 2) — denormalized current state ──
   // scripts/add-enforcement.mjs has run on prod (2026-07), so these are live typed
   // columns now (the deploy-order @ignore markers were dropped in trust Phase 3).
   // Writes still go through src/lib/enforcement.ts only — never mutate directly.
-  enforcementState  String    @default("good_standing") // good_standing | warned | throttled | held | suspended
-  enforcementUntil  DateTime?                            // when a timed state (warning / insurance grace) lapses
-  goodStandingSince DateTime?                            // maintained by recomputeTrust (≥85 sets, <85 clears); insured = ≥180d
+  enforcementState     String    @default("good_standing") // good_standing | warned | throttled | held | suspended
+  enforcementUntil     DateTime? // when a timed state (warning / insurance grace) lapses
+  goodStandingSince    DateTime? // maintained by recomputeTrust (≥85 sets, <85 clears); insured = ≥180d
   dailyReminderOptIn   Boolean   @default(true) // receive the daily "confirm availability" reminder
-  availabilitySkips    Int       @default(0)    // consecutive "Skip for now" taps; ≥2 → next review hides Skip (must act). Reset to 0 on confirm.
+  availabilitySkips    Int       @default(0) // consecutive "Skip for now" taps; ≥2 → next review hides Skip (must act). Reset to 0 on confirm.
   weeklyDigestOptIn    Boolean   @default(true) // receive the weekly "top products + moving sales" email digest
   unsubscribeToken     String    @unique @default(cuid()) // tamper-proof one-click email unsubscribe (no login)
   // ── Acquisition attribution (FIRST-touch) — measure CAC per channel ──
-  attrSource    String?  // 'facebook' | 'google' | 'reddit' | 'direct' | utm_source…
-  attrMedium    String?  // 'social' | 'cpc' | 'organic' | 'referral' | 'none' | utm_medium…
-  attrCampaign  String?  // utm_campaign
-  attrReferrer  String?  // referring hostname on first landing
-  attrLandingAt DateTime? // first-touch timestamp
+  attrSource           String? // 'facebook' | 'google' | 'reddit' | 'direct' | utm_source…
+  attrMedium           String? // 'social' | 'cpc' | 'organic' | 'referral' | 'none' | utm_medium…
+  attrCampaign         String? // utm_campaign
+  attrReferrer         String? // referring hostname on first landing
+  attrLandingAt        DateTime? // first-touch timestamp
   // ── ToS acceptance record (E-Transactions Law: keep a tamper-evident record of
   //    click-wrap acceptance). Stamped at onboarding; re-stamped if a user accepts
   //    a newer TOS_VERSION (src/lib/site-legal.ts). ──
-  tosAcceptedAt DateTime?
-  tosVersion    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  tosAcceptedAt        DateTime?
+  tosVersion           String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  seller      Seller?                       // a user MAY own one storefront (FK on Seller.ownerId)
-  handle      Handle?                       // public @username (see model Handle)
+  seller Seller? // a user MAY own one storefront (FK on Seller.ownerId)
+  handle Handle? // public @username (see model Handle)
 
-  buyerConversations  Conversation[] @relation("BuyerConversations")
-  sellerConversations Conversation[] @relation("SellerConversations")
-  sentMessages        Message[]
-  notifications       Notification[] @relation("RecipientNotifications")
-  trustEvents         TrustEvent[]   @relation("SubjectTrustEvents")
-  pushSubscriptions   PushSubscription[]
-  savedSearches       SavedSearch[]
-  authoredReviews     Review[]       @relation("AuthoredReviews")
-  enforcementActions  EnforcementAction[] @relation("ProfileEnforcementActions")
+  buyerConversations      Conversation[]          @relation("BuyerConversations")
+  sellerConversations     Conversation[]          @relation("SellerConversations")
+  sentMessages            Message[]
+  notifications           Notification[]          @relation("RecipientNotifications")
+  trustEvents             TrustEvent[]            @relation("SubjectTrustEvents")
+  pushSubscriptions       PushSubscription[]
+  savedSearches           SavedSearch[]
+  authoredReviews         Review[]                @relation("AuthoredReviews")
+  enforcementActions      EnforcementAction[]     @relation("ProfileEnforcementActions")
+  forumProfile            ForumProfile?
+  forumMemberships        ForumCommunityMember[]
+  forumPosts              ForumPost[]             @relation("ForumPostAuthor")
+  forumComments           ForumComment[]          @relation("ForumCommentAuthor")
+  forumPostVotes          ForumPostVote[]
+  forumCommentVotes       ForumCommentVote[]
+  forumBookmarks          ForumBookmark[]
+  forumSubscriptions      ForumPostSubscription[]
+  forumBlocksCreated      ForumUserBlock[]        @relation("ForumBlocker")
+  forumBlocksReceived     ForumUserBlock[]        @relation("ForumBlocked")
+  forumReportsFiled       ForumReport[]           @relation("ForumReportReporter")
+  forumReportsReceived    ForumReport[]           @relation("ForumReportTarget")
+  forumModerationReceived ForumModerationAction[] @relation("ForumModerationTarget")
+  forumModerationTaken    ForumModerationAction[] @relation("ForumModerationActor")
+  forumPostRevisions      ForumPostRevision[]     @relation("ForumPostRevisionEditor")
+  forumCommentRevisions   ForumCommentRevision[]  @relation("ForumCommentRevisionEditor")
+  itineraries             Itinerary[]
 
   @@index([phone])
   @@index([trustTier])
@@ -93,17 +110,17 @@ model Profile {
 // (so "huawi" merges into "huawei", recorded as an alias) before a new row is added.
 // `iconSlug` maps to a simple-icons monotone logo when recognized, else a monogram.
 model Brand {
-  id           String   @id @default(cuid())
-  slug         String   @unique           // url/canonical slug, e.g. "huawei"
-  name         String                     // display name, e.g. "Huawei"
-  normalized   String   @unique           // matching key: lowercased, de-accented, alphanumeric only
-  aliases      String   @default("[]")    // JSON array of normalized variants/typos merged into this brand
-  iconSlug     String?                    // simple-icons slug if recognized; null → monogram fallback
-  logoPath     String?                    // admin-curated monotone SVG path (24x24); overrides iconSlug
-  listingCount Int      @default(0)        // ranks the brand directory
-  status       String   @default("active") // active | hidden (admin can hide junk)
-  createdAt    DateTime @default(now())
-  curatedAt    DateTime?                   // when an admin last reviewed/curated this brand
+  id           String    @id @default(cuid())
+  slug         String    @unique // url/canonical slug, e.g. "huawei"
+  name         String // display name, e.g. "Huawei"
+  normalized   String    @unique // matching key: lowercased, de-accented, alphanumeric only
+  aliases      String    @default("[]") // JSON array of normalized variants/typos merged into this brand
+  iconSlug     String? // simple-icons slug if recognized; null → monogram fallback
+  logoPath     String? // admin-curated monotone SVG path (24x24); overrides iconSlug
+  listingCount Int       @default(0) // ranks the brand directory
+  status       String    @default("active") // active | hidden (admin can hide junk)
+  createdAt    DateTime  @default(now())
+  curatedAt    DateTime? // when an admin last reviewed/curated this brand
 
   @@index([status, listingCount])
 }
@@ -114,8 +131,8 @@ model SavedSearch {
   id             String   @id @default(cuid())
   profileId      String   @db.Uuid
   profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  label          String   // human-readable summary of the filters
-  params         String   // JSON of SavedSearchParams (category/subcategory/type/price/q/district/attrs)
+  label          String // human-readable summary of the filters
+  params         String // JSON of SavedSearchParams (category/subcategory/type/price/q/district/attrs)
   notify         Boolean  @default(true) // alert on new matches
   lastNotifiedAt DateTime @default(now()) // only listings created after this trigger an alert
   createdAt      DateTime @default(now())
@@ -140,42 +157,42 @@ model PushSubscription {
 }
 
 model Seller {
-  id            String    @id @default(cuid())
+  id                String            @id @default(cuid())
   // Link to the owning account. NULL = legacy/guest seller (no account yet).
-  ownerId       String?   @unique @db.Uuid  // one Profile owns at most one Seller (1:0..1)
-  owner         Profile?  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  claimedAt     DateTime?                    // when a real account claimed this guest seller
-  avatarUrl     String?
-  name          String
-  avatarColor   String    @default("#dc2626")
-  rating        Float     @default(5)
-  reviewCount   Int       @default(0)
-  verified      Boolean   @default(false)
-  verifiedSeller Boolean  @default(false)
+  ownerId           String?           @unique @db.Uuid // one Profile owns at most one Seller (1:0..1)
+  owner             Profile?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  claimedAt         DateTime? // when a real account claimed this guest seller
+  avatarUrl         String?
+  name              String
+  avatarColor       String            @default("#dc2626")
+  rating            Float             @default(5)
+  reviewCount       Int               @default(0)
+  verified          Boolean           @default(false)
+  verifiedSeller    Boolean           @default(false)
   // Mirror of the owner Profile's trust (denormalized so a storefront card/badge
   // renders without a Profile join; recomputed whenever the owner's score changes).
-  trustScore    Int       @default(100)
-  trustTier     String    @default("standard") // restricted | standard | trusted | exceptional
-  memberSince   DateTime  @default(now())
-  responseRate  Int       @default(100)
-  responseTime  String    @default("within an hour")
-  location      String?
-  bio           String?
-  phone         String?   @unique           // KEEP: the guest-claim join key
+  trustScore        Int               @default(100)
+  trustTier         String            @default("standard") // restricted | standard | trusted | exceptional
+  memberSince       DateTime          @default(now())
+  responseRate      Int               @default(100)
+  responseTime      String            @default("within an hour")
+  location          String?
+  bio               String?
+  phone             String?           @unique // KEEP: the guest-claim join key
   // ── Seller legal identity (Đ.29 ND52 + Law 122/2025 collection duty; VNeID
   //    verification enforceable 1 Jan 2027). Provided to buyers on request and to
   //    authorities — idNumber/taxCode must NEVER appear in public serializations. ──
-  legalName         String?   // full legal name (individual) or registered company name
-  legalAddress      String?   // residence (individual) / head office (business)
-  idNumber          String?   // CCCD (individual) or ERC number (business)
-  taxCode           String?   // mã số thuế, if any
+  legalName         String? // full legal name (individual) or registered company name
+  legalAddress      String? // residence (individual) / head office (business)
+  idNumber          String? // CCCD (individual) or ERC number (business)
+  taxCode           String? // mã số thuế, if any
   identityUpdatedAt DateTime? // when the seller last edited these fields
-  listings      Listing[]
-  reviews       Review[]
-  conversations Conversation[]
-  apiKeys       ApiKey[]
-  webhooks      WebhookEndpoint[]
-  handle        Handle?                     // public @shopname (see model Handle)
+  listings          Listing[]
+  reviews           Review[]
+  conversations     Conversation[]
+  apiKeys           ApiKey[]
+  webhooks          WebhookEndpoint[]
+  handle            Handle? // public @shopname (see model Handle)
 
   @@index([ownerId])
 }
@@ -221,17 +238,17 @@ model ApiKey {
 // Webhooks HMAC). Auto-disabled after repeated failures (failureCount); re-enable by
 // re-registering. URL is SSRF-validated at registration.
 model WebhookEndpoint {
-  id           String   @id @default(cuid())
-  sellerId     String
-  seller       Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  url          String
-  secret       String   // whsec_… used for HMAC signatures
-  events       String   @default("*") // space-separated event names, or "*" for all
-  enabled      Boolean  @default(true)
-  failureCount Int      @default(0)
-  lastError    String?
+  id             String    @id @default(cuid())
+  sellerId       String
+  seller         Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  url            String
+  secret         String // whsec_… used for HMAC signatures
+  events         String    @default("*") // space-separated event names, or "*" for all
+  enabled        Boolean   @default(true)
+  failureCount   Int       @default(0)
+  lastError      String?
   lastDeliveryAt DateTime?
-  createdAt    DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   @@index([sellerId])
 }
@@ -253,12 +270,12 @@ model ListingDailyStat {
 }
 
 model Review {
-  id        String   @id @default(cuid())
-  sellerId  String
-  seller    Seller   @relation(fields: [sellerId], references: [id])
-  author    String
-  rating    Int      @default(5)
-  text      String
+  id              String   @id @default(cuid())
+  sellerId        String
+  seller          Seller   @relation(fields: [sellerId], references: [id])
+  author          String
+  rating          Int      @default(5)
+  text            String
   // ── Verified-buyer provenance (all NULLABLE — seeded/legacy rows have none and
   // render WITHOUT the "Verified buyer" badge). A real review is created only from
   // a conversation whose listing sold / offer was accepted (api/sellers/[id]/reviews).
@@ -268,120 +285,122 @@ model Review {
   listing         Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
   // One review per conversation — perfect dedup + the verified-buyer proof.
   conversationId  String?  @unique
-  createdAt DateTime @default(now())
+  createdAt       DateTime @default(now())
 
   @@index([sellerId])
   @@index([authorProfileId])
 }
 
 model Listing {
-  id                 String    @id @default(cuid())
-  title              String
-  titleVi            String?
-  description        String
-  price              Float
-  priceUnit          String    @default("VND")
-  currency           String    @default("₫")
+  id                      String             @id @default(cuid())
+  title                   String
+  titleVi                 String?
+  description             String
+  price                   Float
+  priceUnit               String             @default("VND")
+  currency                String             @default("₫")
   // Price is open to offers. Default TRUE (Vietnamese haggling norm + preserves the
   // pre-2026-07-07 "offers work everywhere" behavior). Sellers opt into a FIXED price
   // in the post wizard → the offer UI is hidden and offer POSTs are rejected server-side.
-  negotiable         Boolean   @default(true)
+  negotiable              Boolean            @default(true)
   // ── Price drop (anti-fake-discount, 2026-07-07) ──────────────────────────────
   // The struck-through "was" anchor. SERVER-COMPUTED ONLY: the lowest price the
   // listing was offered at in the trailing 30 days (EU-Omnibus-style reference,
   // from the PriceChange audit) — never seller-entered, so raise-then-drop can't
   // fake a discount. null = no active badge. Cleared instantly on any price raise.
-  previousPrice       Float?
-  priceDropAt         DateTime? // badge clock — the drop badge shows for 7 days from here
+  previousPrice           Float?
+  priceDropAt             DateTime? // badge clock — the drop badge shows for 7 days from here
   // Monotonic notification ratchet (Poshmark model): the lowest price buyers were
   // ever notified at. A new drop notification requires ≥10% below this. NEVER reset
   // upward (not even by raises), so cycling can't re-farm notifications.
-  lowestNotifiedPrice Float?
-  priceDropNotifiedAt DateTime? // max 1 drop notification per listing per 24h (DB-enforced)
+  lowestNotifiedPrice     Float?
+  priceDropNotifiedAt     DateTime? // max 1 drop notification per listing per 24h (DB-enforced)
   // ── Urgent sale "Bán gấp" (2026-07-07) ───────────────────────────────────────
   // Active while > now (read-time check — no cron). A PAST value is kept as history:
   // it anchors the 7-day re-arm cooldown (early switch-off sets it to now), so
   // off/on cycling can't keep a listing permanently urgent. null = never urgent.
-  urgentUntil         DateTime?
-  priceChanges        PriceChange[]
-  location           String
-  district           String?
-  city               String
-  lat                Float?
-  lng                Float?
-  condition          String?
-  images             String
+  urgentUntil             DateTime?
+  priceChanges            PriceChange[]
+  location                String
+  district                String?
+  city                    String
+  lat                     Float?
+  lng                     Float?
+  condition               String?
+  images                  String
   // Optional single listing video (≤60s) — public URL in the `listing-videos` bucket. Autoplays
   // muted on card hover + powers the TikTok-style Video view. Additive raw column (no FK).
-  video              String?
-  categoryId         String
-  category           Category  @relation(fields: [categoryId], references: [id])
+  video                   String?
+  categoryId              String
+  category                Category           @relation(fields: [categoryId], references: [id])
   // Subcategory is an explicit slug from the canonical taxonomy (src/lib/taxonomy.ts),
   // chosen at post time (keyword auto-suggested). Reliable filtering + accurate facets.
-  subcategorySlug    String?
+  subcategorySlug         String?
   // Intent axis, separate from the category: sell | rent | wanted | free | service | job | event.
   // A motorbike lives in Vehicles whether rented or sold. Defaults to 'sell'.
-  listingType        String    @default("sell")
+  listingType             String             @default("sell")
   // Canonical Brand.slug (product categories only) — typo-deduped at post time.
-  brandSlug          String?
+  brandSlug               String?
   // Specific model within the brand (e.g. "iPhone 14 Pro", "Sorento"). Display
   // string; the brand rail groups distinct models present in the catalogue.
-  model              String?
-  sellerId           String
-  seller             Seller    @relation(fields: [sellerId], references: [id])
+  model                   String?
+  sellerId                String
+  seller                  Seller             @relation(fields: [sellerId], references: [id])
   // Denormalized mirror of the seller's effective trust score (Seller.trustScore),
   // synced on listing create + every trust recompute (src/lib/trust.ts). Lets the feed
   // ORDER BY a LOCAL indexed column instead of joining Seller + external-sorting on
   // every query (the hot read-path scaling fix). Card display still reads the joined
   // seller; this column is purely the ranking key.
-  sellerTrustScore   Int       @default(100)
+  sellerTrustScore        Int                @default(100)
   // Balanced feed ranking key (src/lib/ranking.ts): a BOUNDED blend of seller trust +
   // recency (+ featured) — NOT trust alone, so a trusted business gets a real edge without
   // burying fresher/more-relevant listings. Recomputed on create/bump, on a seller's trust
   // change, and by the daily cron (recency decay). The default "Recommended" feed sorts by
   // this; search blends it with query relevance. Backfill on migrate or it sorts last.
-  rankScore          Float     @default(0)
+  rankScore               Float              @default(0)
   // Partner's own id for this listing (Partner API sync/upsert). Unique PER seller so two
   // shops can each use "sku-1". NULL for listings not created via the sync endpoint.
-  externalId         String?
-  verified           Boolean   @default(false)
-  verificationMethod String?
-  verifiedAt         DateTime?
-  verifiedBy         String?
-  verificationNotes  String?
-  searchText         String    @default("") // folded EN+VI blob for accent-insensitive search
+  externalId              String?
+  verified                Boolean            @default(false)
+  verificationMethod      String?
+  verifiedAt              DateTime?
+  verifiedBy              String?
+  verificationNotes       String?
+  searchText              String             @default("") // folded EN+VI blob for accent-insensitive search
   // Availability (separate from `verified` moderation): 'active' is live,
   // 'sold'/'hidden' are pulled from the public feed but kept in the seller's
   // dashboard. Public feed requires verified=true AND status='active'.
-  status             String    @default("active")
+  status                  String             @default("active")
   // Denormalized market-price position vs this item's brand+model+segment band, refreshed
   // nightly by /api/cron/price-stats: 'low' (below P25 → "Good price" card badge) | 'typical'
   // | 'high' | null (no reliable band). Approximate hint on cards; the PDP shows the exact
   // live band (getPriceBand). Added via raw ALTER (additive, no FK) — see image-hash-index.mjs.
-  marketPosition     String?
-  availabilityConfirmedAt DateTime?            // last seller "still available" confirmation (reminder targeting)
-  postedAt           DateTime  @default(now()) // also the feed-recency key; "confirm availability" bumps it
-  views              Int       @default(0)
-  savedCount         Int       @default(0)
-  featured           Boolean   @default(false)
-  attributes         String?
+  marketPosition          String?
+  availabilityConfirmedAt DateTime? // last seller "still available" confirmation (reminder targeting)
+  postedAt                DateTime           @default(now()) // also the feed-recency key; "confirm availability" bumps it
+  views                   Int                @default(0)
+  savedCount              Int                @default(0)
+  featured                Boolean            @default(false)
+  attributes              String?
   // Structured numeric specs (vehicles today; queryable as ranges, unlike the JSON
   // `attributes` blob). All optional — only set for categories that surface them.
-  year               Int?      // model/manufacture year (vehicles)
-  mileageKm          Int?      // odometer in km (vehicles)
-  engineL            Float?    // engine displacement in litres, e.g. 2.0 (cars)
-  engineCc           Int?      // engine displacement in cc, e.g. 150 (motorbikes)
-  areaM2             Float?    // floor area in m² (property + property rentals)
-  salaryM            Int?      // salary in million VND/month (jobs)
-  reports            Report[]
-  contactReveals     ContactReveal[]
-  conversations      Conversation[]
-  dailyStats         ListingDailyStat[]
-  reviews            Review[]           // verified-buyer reviews that reference this listing
-  contactCount       Int       @default(0) // distinct authenticated viewers who revealed contact
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  year                    Int? // model/manufacture year (vehicles)
+  mileageKm               Int? // odometer in km (vehicles)
+  engineL                 Float? // engine displacement in litres, e.g. 2.0 (cars)
+  engineCc                Int? // engine displacement in cc, e.g. 150 (motorbikes)
+  areaM2                  Float? // floor area in m² (property + property rentals)
+  salaryM                 Int? // salary in million VND/month (jobs)
+  reports                 Report[]
+  contactReveals          ContactReveal[]
+  conversations           Conversation[]
+  dailyStats              ListingDailyStat[]
+  reviews                 Review[] // verified-buyer reviews that reference this listing
+  contactCount            Int                @default(0) // distinct authenticated viewers who revealed contact
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
 
+  // Partner sync upserts by (sellerId, externalId) — unique per shop.
+  @@unique([sellerId, externalId])
   // Composite indexes for the hot feed paths (verified is always an equality
   // predicate on public reads). [verified, postedAt] supersedes the standalone
   // postedAt index for the default sort.
@@ -396,8 +415,6 @@ model Listing {
   // Legacy trust-only ranked indexes (kept for the explicit price/popular tiebreaks).
   @@index([verified, status, sellerTrustScore, postedAt])
   @@index([verified, status, categoryId, sellerTrustScore, postedAt])
-  // Partner sync upserts by (sellerId, externalId) — unique per shop.
-  @@unique([sellerId, externalId])
   // Feed path filtered by category + intent (e.g. Vehicles · For rent), recency-sorted.
   @@index([verified, status, categoryId, listingType, postedAt])
   @@index([verified, status, categoryId, subcategorySlug, postedAt])
@@ -445,8 +462,8 @@ model ContactReveal {
   id        String   @id @default(cuid())
   listingId String
   listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  viewerId  String   // auth.users.id (uuid string)
-  ipHash    String?  // salted hash of client IP — abuse signal, never the raw IP
+  viewerId  String // auth.users.id (uuid string)
+  ipHash    String? // salted hash of client IP — abuse signal, never the raw IP
   createdAt DateTime @default(now())
 
   @@unique([listingId, viewerId])
@@ -459,27 +476,27 @@ model ContactReveal {
 // claims their business profile, at which point existing threads light up.
 // Denormalized last-message + unread counts power the inbox/badge without N+1.
 model Conversation {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   listingId       String
-  listing         Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  buyerProfileId  String   @db.Uuid
-  buyer           Profile  @relation("BuyerConversations", fields: [buyerProfileId], references: [id], onDelete: Cascade)
+  listing         Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyerProfileId  String    @db.Uuid
+  buyer           Profile   @relation("BuyerConversations", fields: [buyerProfileId], references: [id], onDelete: Cascade)
   sellerId        String
-  seller          Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  sellerProfileId String?  @db.Uuid // null until the seller claims their account
-  sellerProfile   Profile? @relation("SellerConversations", fields: [sellerProfileId], references: [id], onDelete: SetNull)
+  seller          Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sellerProfileId String?   @db.Uuid // null until the seller claims their account
+  sellerProfile   Profile?  @relation("SellerConversations", fields: [sellerProfileId], references: [id], onDelete: SetNull)
   messages        Message[]
-  lastMessageAt   DateTime @default(now())
+  lastMessageAt   DateTime  @default(now())
   lastMessageText String?
-  buyerUnread     Int      @default(0)
-  sellerUnread    Int      @default(0)
+  buyerUnread     Int       @default(0)
+  sellerUnread    Int       @default(0)
   // Per-user inbox hide ("delete conversation"): set to now() when that side
   // deletes the thread. The inbox query hides it until a newer message arrives
   // (lastMessageAt > the timestamp), so it reappears if the other party replies.
   // Non-destructive — the conversation + messages stay intact for the other side.
   buyerDeletedAt  DateTime?
   sellerDeletedAt DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   @@unique([listingId, buyerProfileId]) // one thread per buyer per listing
   @@index([buyerProfileId])
@@ -503,8 +520,8 @@ model Message {
   // Structured offers live in the message timeline: kind 'offer' carries an amount
   // + status the recipient can accept/decline/counter. 'text' = a normal chat message.
   kind            String       @default("text") // 'text' | 'offer'
-  offerAmount     Float?       // VND, set when kind='offer'
-  offerStatus     String?      // 'pending' | 'accepted' | 'declined' | 'countered'
+  offerAmount     Float? // VND, set when kind='offer'
+  offerStatus     String? // 'pending' | 'accepted' | 'declined' | 'countered'
   createdAt       DateTime     @default(now())
 
   @@index([conversationId, createdAt])
@@ -521,13 +538,13 @@ model Notification {
   id             String   @id @default(cuid())
   recipientId    String   @db.Uuid
   recipient      Profile  @relation("RecipientNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
-  type           String   // 'message' | 'offer' | 'reminder' | 'system'
-  title          String   // short headline (e.g. the actor's name)
-  body           String?  // preview text
-  actorName      String?  // who triggered it (denormalized display name)
-  conversationId String?  // deep-link target
+  type           String // 'message' | 'offer' | 'reminder' | 'system'
+  title          String // short headline (e.g. the actor's name)
+  body           String? // preview text
+  actorName      String? // who triggered it (denormalized display name)
+  conversationId String? // deep-link target
   listingId      String?
-  url            String?  // generic deep-link target (e.g. a saved-search results URL)
+  url            String? // generic deep-link target (e.g. a saved-search results URL)
   read           Boolean  @default(false)
   createdAt      DateTime @default(now())
 
@@ -538,45 +555,45 @@ model Notification {
 // User-submitted report of a problematic listing (scam, sold, wrong info…).
 // Anonymous — no auth required to report. Feeds the /admin moderation queue.
 model Report {
-  id        String   @id @default(cuid())
+  id                String           @id @default(cuid())
   // A report can target a listing AND/OR an account/storefront (business or user).
-  listingId String?
-  listing   Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  reporterProfileId String? @db.Uuid          // who filed it — for trust-weighting + anti-abuse
-  targetProfileId   String? @db.Uuid          // reported account (business/user), if any
-  targetSellerId    String?                    // reported storefront, if any
-  conversationId    String?                    // set when reported FROM a chat — links the thread for admin context
-  reason    String   // scam | counterfeit | wrong-info | duplicate | offensive | sold | other
-  detail    String?
-  severity  String?                            // minor | moderate | severe — set/confirmed by admin
-  status    String   @default("open")          // open | confirmed | dismissed | abusive
-  resolvedBy String?                           // admin email/id who resolved it
-  resolvedAt DateTime?
-  internalNote String?                          // staff-only note on the case (never shown to users)
-  appealNote   String?                          // the reported party's appeal (re-opens the case)
-  appealImages String?                          // JSON array of proof image URLs submitted with the appeal
-  appealedAt   DateTime?                         // when the target appealed (tags the case "Appeal")
+  listingId         String?
+  listing           Listing?         @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reporterProfileId String?          @db.Uuid // who filed it — for trust-weighting + anti-abuse
+  targetProfileId   String?          @db.Uuid // reported account (business/user), if any
+  targetSellerId    String? // reported storefront, if any
+  conversationId    String? // set when reported FROM a chat — links the thread for admin context
+  reason            String // scam | counterfeit | wrong-info | duplicate | offensive | sold | other
+  detail            String?
+  severity          String? // minor | moderate | severe — set/confirmed by admin
+  status            String           @default("open") // open | confirmed | dismissed | abusive
+  resolvedBy        String? // admin email/id who resolved it
+  resolvedAt        DateTime?
+  internalNote      String? // staff-only note on the case (never shown to users)
+  appealNote        String? // the reported party's appeal (re-opens the case)
+  appealImages      String? // JSON array of proof image URLs submitted with the appeal
+  appealedAt        DateTime? // when the target appealed (tags the case "Appeal")
   // ── Buyer-king SLA + due process (trust Phase 2). Live typed columns since
   // scripts/add-enforcement.mjs ran on prod (deploy-order @ignore dropped in Phase 3).
-  sellerResponse    String?                       // the reported seller's reply (≤600 chars) — buyer-king SLA
-  sellerRespondedAt DateTime?                     // unanswered >72h → "buyer waiting" flag in the admin queue
-  remediatedAt      DateTime?                     // admin "marked remediated" → this event's conduct weight ×0.5
+  sellerResponse    String? // the reported seller's reply (≤600 chars) — buyer-king SLA
+  sellerRespondedAt DateTime? // unanswered >72h → "buyer waiting" flag in the admin queue
+  remediatedAt      DateTime? // admin "marked remediated" → this event's conduct weight ×0.5
   // ── Repeat-false-reporter pre-screen (trust Phase 3). @ignore until
   // scripts/add-ban-evasion.mjs has run in prod — Report.create in /api/report
   // RETURNs the full row, which would 500 on the missing column. Access goes via
   // guarded raw SQL (set in /api/report, read in the admin queues) until then.
-  preScreen Boolean @default(false) @ignore       // reporter has ≥2 false-report strikes → triaged LAST, excluded from buyer-waiting
+  preScreen         Boolean          @default(false) @ignore // reporter has ≥2 false-report strikes → triaged LAST, excluded from buyer-waiting
   // ── Dispute center (2026-07-07): every report IS a dispute case with a threaded
   // room (DisputeMessage) where reporter + respondent + admin exchange statements
   // and evidence, Binance-P2P style. This is the Decree 52/85-required complaint-
   // resolution mechanism — admin is always party to the thread (not open social chat).
-  evidenceUntil DateTime?                          // evidence window (filing + 72h; admin-extendable)
-  lastMessageAt DateTime?                          // last thread activity — sorts the queues
-  aiAnalysis    String?                            // cached /api/admin/ai-review JSON (advisory)
-  aiAnalyzedAt  DateTime?
-  decisionNote  String?                            // admin's outcome note — shown to BOTH parties
-  messages      DisputeMessage[]
-  createdAt DateTime @default(now())
+  evidenceUntil     DateTime? // evidence window (filing + 72h; admin-extendable)
+  lastMessageAt     DateTime? // last thread activity — sorts the queues
+  aiAnalysis        String? // cached /api/admin/ai-review JSON (advisory)
+  aiAnalyzedAt      DateTime?
+  decisionNote      String? // admin's outcome note — shown to BOTH parties
+  messages          DisputeMessage[]
+  createdAt         DateTime         @default(now())
 
   @@index([listingId])
   @@index([status])
@@ -594,10 +611,10 @@ model DisputeMessage {
   id              String   @id @default(cuid())
   reportId        String
   report          Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  senderProfileId String?  @db.Uuid                // null = admin/system (never expose admin identity)
-  senderRole      String                            // 'reporter' | 'respondent' | 'admin' | 'system'
+  senderProfileId String?  @db.Uuid // null = admin/system (never expose admin identity)
+  senderRole      String // 'reporter' | 'respondent' | 'admin' | 'system'
   body            String
-  images          String?                           // JSON array — PRIVATE-bucket paths (disputes/<reportId>/…)
+  images          String? // JSON array — PRIVATE-bucket paths (disputes/<reportId>/…)
   createdAt       DateTime @default(now())
 
   @@index([reportId, createdAt])
@@ -610,11 +627,11 @@ model Feedback {
   id        String   @id @default(cuid())
   kind      String   @default("feedback") // feedback | technical | other
   message   String
-  email     String?                        // optional reply-to the sender gave
-  profileId String?  @db.Uuid              // filled when sent while signed in
-  url       String?                        // the page they were on
+  email     String? // optional reply-to the sender gave
+  profileId String?  @db.Uuid // filled when sent while signed in
+  url       String? // the page they were on
   userAgent String?
-  status    String   @default("open")      // open | resolved
+  status    String   @default("open") // open | resolved
   createdAt DateTime @default(now())
 
   @@index([status, createdAt])
@@ -627,11 +644,11 @@ model TrustEvent {
   id               String   @id @default(cuid())
   subjectProfileId String   @db.Uuid
   subject          Profile  @relation("SubjectTrustEvents", fields: [subjectProfileId], references: [id], onDelete: Cascade)
-  type             String   // report_confirmed | report_dismissed | positive_review | fast_response | engagement | decay_recover | manual_adjust
-  delta            Int      // signed points applied
+  type             String // report_confirmed | report_dismissed | positive_review | fast_response | engagement | decay_recover | manual_adjust
+  delta            Int // signed points applied
   reason           String?
-  actorId          String?  @db.Uuid           // admin/user who triggered it, if any
-  reportId         String?                      // link back to the Report, when applicable
+  actorId          String?  @db.Uuid // admin/user who triggered it, if any
+  reportId         String? // link back to the Report, when applicable
   createdAt        DateTime @default(now())
 
   @@index([subjectProfileId, createdAt])
@@ -653,17 +670,17 @@ model EnforcementAction {
   id               String    @id @default(cuid())
   profileId        String    @db.Uuid
   profile          Profile   @relation("ProfileEnforcementActions", fields: [profileId], references: [id], onDelete: Cascade)
-  state            String    // ladder actions: warned | throttled | held | suspended · flag rows: the state at flag time
-  reason           String    // slug → client-side i18n copy: scam_hold | conduct_restricted | conduct_warning | insurance_grace | admin_manual | ban_evasion_review | ban_evasion_email | velocity_review
-  adminNote        String?   // optional admin-written notice shown to the seller with the reason copy
-  triggerReportId  String?   // the Report that triggered it, when applicable (no FK — reports are deletable)
-  decidedBy        String    // 'system' | the admin's email — precedence: system never downgrades an admin action
+  state            String // ladder actions: warned | throttled | held | suspended · flag rows: the state at flag time
+  reason           String // slug → client-side i18n copy: scam_hold | conduct_restricted | conduct_warning | insurance_grace | admin_manual | ban_evasion_review | ban_evasion_email | velocity_review
+  adminNote        String? // optional admin-written notice shown to the seller with the reason copy
+  triggerReportId  String? // the Report that triggered it, when applicable (no FK — reports are deletable)
+  decidedBy        String // 'system' | the admin's email — precedence: system never downgrades an admin action
   status           String    @default("active") // active | lifted | expired | overturned
   expiresAt        DateTime? // timed states (30d warning, 72h insurance grace) — cron expires them
-  pulledListingIds String?   // JSON array of listing ids pulled by held/suspended
-  appealText       String?   // the seller's one-shot appeal
+  pulledListingIds String? // JSON array of listing ids pulled by held/suspended
+  appealText       String? // the seller's one-shot appeal
   appealedAt       DateTime?
-  appealOutcome    String?   // upheld | overturned
+  appealOutcome    String? // upheld | overturned
   appealResolvedAt DateTime?
   liftedAt         DateTime?
   createdAt        DateTime  @default(now())
@@ -688,10 +705,10 @@ model EnforcementAction {
 // scripts/add-ban-evasion.mjs runs.
 model BannedIdentity {
   id              String   @id @default(cuid())
-  phone           String?  // normalized +84… (same canonical form as Profile.phone)
+  phone           String? // normalized +84… (same canonical form as Profile.phone)
   email           String?
   sourceProfileId String   @db.Uuid // the suspended account these identities came from
-  reason          String   // the enforcement reason of the suspension (audit)
+  reason          String // the enforcement reason of the suspension (audit)
   createdAt       DateTime @default(now())
 
   @@index([phone])
@@ -710,4 +727,365 @@ model Translation {
 
   @@unique([hash, target])
   @@index([target])
+}
+
+// ── eno.forum ────────────────────────────────────────────────────────────────
+// Forum accounts are NOT a second identity system. Every row points back to the
+// existing Profile (whose id is the Supabase auth.users UUID), so marketplace
+// trust, enforcement, avatar, display name, and notification delivery stay
+// canonical across eno.vn and eno.forum.
+
+model ForumProfile {
+  profileId          String   @id @db.Uuid
+  profile            Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  bio                String?
+  homeBase           String?
+  residentSince      Int?
+  reputation         Int      @default(0)
+  postCount          Int      @default(0)
+  commentCount       Int      @default(0)
+  helpfulAnswerCount Int      @default(0)
+  lastSeenAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model ForumCommunity {
+  slug          String   @id
+  name          String
+  nameVi        String
+  description   String
+  descriptionVi String
+  icon          String
+  location      String?
+  status        String   @default("active") // active | archived | hidden
+  memberCount   Int      @default(0)
+  postCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  members ForumCommunityMember[]
+  posts   ForumPost[]
+
+  @@index([status, postCount])
+}
+
+model ForumCommunityMember {
+  communitySlug String
+  community     ForumCommunity @relation(fields: [communitySlug], references: [slug], onDelete: Cascade)
+  profileId     String         @db.Uuid
+  profile       Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  role          String         @default("member") // member | helper | moderator | admin
+  notifications Boolean        @default(true)
+  joinedAt      DateTime       @default(now())
+
+  @@id([communitySlug, profileId])
+  @@index([profileId, joinedAt])
+  @@index([communitySlug, role])
+}
+
+model ForumPost {
+  id              String         @id @default(cuid())
+  communitySlug   String
+  community       ForumCommunity @relation(fields: [communitySlug], references: [slug], onDelete: Restrict)
+  authorProfileId String?        @db.Uuid
+  author          Profile?       @relation("ForumPostAuthor", fields: [authorProfileId], references: [id], onDelete: SetNull)
+  authorName      String? // preserved display name for system/legacy posts
+  authorRole      String?
+  kind            String         @default("discussion") // guide | question | experience | event | discussion
+  flair           String
+  flairVi         String
+  title           String
+  body            String
+  location        String         @default("all")
+  locationLabel   String?
+  status          String         @default("published") // draft | published | hidden | removed | locked
+  pinned          Boolean        @default(false)
+  official        Boolean        @default(false)
+  score           Int            @default(0)
+  commentCount    Int            @default(0)
+  viewCount       Int            @default(0)
+  hotScore        Float          @default(0)
+  editedAt        DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  comments      ForumComment[]
+  votes         ForumPostVote[]
+  bookmarks     ForumBookmark[]
+  subscriptions ForumPostSubscription[]
+  media         ForumPostMedia[]
+  tags          ForumPostTag[]
+  reports       ForumReport[]
+  moderation    ForumModerationAction[]
+  revisions     ForumPostRevision[]
+
+  @@index([status, pinned, hotScore, createdAt])
+  @@index([communitySlug, status, createdAt])
+  @@index([authorProfileId, createdAt])
+  @@index([location, status, createdAt])
+}
+
+model ForumPostMedia {
+  id          String    @id @default(cuid())
+  postId      String
+  post        ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  storagePath String    @unique
+  mimeType    String
+  width       Int?
+  height      Int?
+  position    Int       @default(0)
+  altText     String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([postId, position])
+  @@index([postId])
+}
+
+model ForumComment {
+  id              String         @id @default(cuid())
+  postId          String
+  post            ForumPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorProfileId String?        @db.Uuid
+  author          Profile?       @relation("ForumCommentAuthor", fields: [authorProfileId], references: [id], onDelete: SetNull)
+  authorName      String?
+  authorRole      String?
+  parentId        String?
+  parent          ForumComment?  @relation("ForumCommentTree", fields: [parentId], references: [id], onDelete: Cascade)
+  replies         ForumComment[] @relation("ForumCommentTree")
+  body            String
+  status          String         @default("published") // published | hidden | removed
+  helpful         Boolean        @default(false)
+  score           Int            @default(0)
+  replyCount      Int            @default(0)
+  editedAt        DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  votes      ForumCommentVote[]
+  reports    ForumReport[]
+  moderation ForumModerationAction[]
+  revisions  ForumCommentRevision[]
+
+  @@index([postId, parentId, createdAt])
+  @@index([authorProfileId, createdAt])
+  @@index([parentId])
+}
+
+model ForumPostVote {
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profileId String    @db.Uuid
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  value     Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@id([postId, profileId])
+  @@index([profileId, createdAt])
+}
+
+model ForumCommentVote {
+  commentId String
+  comment   ForumComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  profileId String       @db.Uuid
+  profile   Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  value     Int
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@id([commentId, profileId])
+  @@index([profileId, createdAt])
+}
+
+model ForumBookmark {
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profileId String    @db.Uuid
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@id([postId, profileId])
+  @@index([profileId, createdAt])
+}
+
+model ForumPostSubscription {
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profileId String    @db.Uuid
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@id([postId, profileId])
+  @@index([profileId, createdAt])
+}
+
+model ForumTag {
+  slug       String   @id
+  label      String
+  labelVi    String
+  usageCount Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  posts ForumPostTag[]
+
+  @@index([usageCount])
+}
+
+model ForumPostTag {
+  postId  String
+  post    ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tagSlug String
+  tag     ForumTag  @relation(fields: [tagSlug], references: [slug], onDelete: Cascade)
+
+  @@id([postId, tagSlug])
+  @@index([tagSlug, postId])
+}
+
+model ForumUserBlock {
+  blockerProfileId String   @db.Uuid
+  blocker          Profile  @relation("ForumBlocker", fields: [blockerProfileId], references: [id], onDelete: Cascade)
+  blockedProfileId String   @db.Uuid
+  blocked          Profile  @relation("ForumBlocked", fields: [blockedProfileId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+
+  @@id([blockerProfileId, blockedProfileId])
+  @@index([blockedProfileId])
+}
+
+model ForumReport {
+  id                String        @id @default(cuid())
+  reporterProfileId String?       @db.Uuid
+  reporter          Profile?      @relation("ForumReportReporter", fields: [reporterProfileId], references: [id], onDelete: SetNull)
+  targetProfileId   String?       @db.Uuid
+  target            Profile?      @relation("ForumReportTarget", fields: [targetProfileId], references: [id], onDelete: SetNull)
+  postId            String?
+  post              ForumPost?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+  commentId         String?
+  comment           ForumComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  reason            String
+  detail            String?
+  status            String        @default("open") // open | confirmed | dismissed | abusive
+  resolvedBy        String?
+  resolvedAt        DateTime?
+  internalNote      String?
+  createdAt         DateTime      @default(now())
+
+  @@index([status, createdAt])
+  @@index([reporterProfileId, createdAt])
+  @@index([targetProfileId, createdAt])
+  @@index([postId])
+  @@index([commentId])
+}
+
+model ForumModerationAction {
+  id                 String        @id @default(cuid())
+  targetProfileId    String?       @db.Uuid
+  target             Profile?      @relation("ForumModerationTarget", fields: [targetProfileId], references: [id], onDelete: SetNull)
+  moderatorProfileId String?       @db.Uuid
+  moderator          Profile?      @relation("ForumModerationActor", fields: [moderatorProfileId], references: [id], onDelete: SetNull)
+  postId             String?
+  post               ForumPost?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+  commentId          String?
+  comment            ForumComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  action             String // warn | hide | remove | lock | suspend
+  reason             String
+  note               String?
+  expiresAt          DateTime?
+  createdAt          DateTime      @default(now())
+
+  @@index([targetProfileId, createdAt])
+  @@index([postId, createdAt])
+  @@index([commentId, createdAt])
+}
+
+model ForumPostRevision {
+  id              String    @id @default(cuid())
+  postId          String
+  post            ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  editorProfileId String?   @db.Uuid
+  editor          Profile?  @relation("ForumPostRevisionEditor", fields: [editorProfileId], references: [id], onDelete: SetNull)
+  title           String
+  body            String
+  createdAt       DateTime  @default(now())
+
+  @@index([postId, createdAt])
+}
+
+model ForumCommentRevision {
+  id              String       @id @default(cuid())
+  commentId       String
+  comment         ForumComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  editorProfileId String?      @db.Uuid
+  editor          Profile?     @relation("ForumCommentRevisionEditor", fields: [editorProfileId], references: [id], onDelete: SetNull)
+  body            String
+  createdAt       DateTime     @default(now())
+
+  @@index([commentId, createdAt])
+}
+
+// Saved itinerary snapshots use the same Profile identity. The generated result
+// is normalized into days/stays so future AI versions can update one segment
+// without replacing an opaque JSON blob.
+model Itinerary {
+  id              String    @id @default(cuid())
+  profileId       String    @db.Uuid
+  profile         Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title           String
+  destinationId   String
+  days            Int
+  budgetId        String
+  interests       String    @default("[]")
+  status          String    @default("ready") // draft | ready | archived
+  estimatedBudget Int?
+  currency        String    @default("VND")
+  generatedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  dayPlans ItineraryDay[]
+  stays    ItineraryStay[]
+
+  @@index([profileId, updatedAt])
+  @@index([status, updatedAt])
+}
+
+model ItineraryDay {
+  id          String    @id @default(cuid())
+  itineraryId String
+  itinerary   Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  dayNumber   Int
+  area        String
+  areaVi      String?
+  title       String
+  titleVi     String?
+  morning     String
+  morningVi   String?
+  afternoon   String
+  afternoonVi String?
+  evening     String
+  eveningVi   String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([itineraryId, dayNumber])
+  @@index([itineraryId])
+}
+
+model ItineraryStay {
+  id               String    @id @default(cuid())
+  itineraryId      String
+  itinerary        Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  position         Int
+  name             String
+  nameVi           String?
+  area             String
+  areaVi           String?
+  note             String?
+  noteVi           String?
+  estimatedNightly Int?
+  currency         String    @default("VND")
+  createdAt        DateTime  @default(now())
+
+  @@unique([itineraryId, position])
+  @@index([itineraryId])
 }

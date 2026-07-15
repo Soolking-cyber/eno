@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -48,22 +49,29 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { forumApi } from '@/lib/api'
+import {
+  mapForumComment,
+  mapForumPost,
+  type ForumCommentResponse,
+  type ForumPostResponse,
+} from '@/lib/forum-api'
 import { CreatePostDialog, type NewForumPost } from './create-post-dialog'
 import {
   FORUM_COMMUNITIES,
   INITIAL_FORUM_POSTS,
   formatForumCount,
   type ForumCommunity,
+  type ForumComment,
   type ForumPost,
 } from './forum-data'
 import { ForumHeader } from './forum-header'
 import { ForumPostCard } from './forum-post-card'
 import { ThreadDialog } from './thread-dialog'
+import { ForumTrustBadgeIcon } from './trust-badge'
 
 type ForumSort = 'best' | 'latest' | 'top'
 type FeedMode = 'all' | 'saved'
-
-const MARKETPLACE_URL = process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn'
 
 const COMMUNITY_ICONS: Record<string, LucideIcon> = {
   'vietnam-101': Compass,
@@ -78,6 +86,13 @@ const COMMUNITY_ICONS: Record<string, LucideIcon> = {
   'events-meetups': CalendarDays,
 }
 
+function insertThreadComment(comments: ForumComment[], comment: ForumComment, parentId: string | null): ForumComment[] {
+  if (!parentId) return [comment, ...comments]
+  return comments.map((item) => item.id === parentId
+    ? { ...item, replies: [...(item.replies || []), comment] }
+    : { ...item, replies: item.replies ? insertThreadComment(item.replies, comment, parentId) : item.replies })
+}
+
 function CommunityIcon({ community, className }: { community: ForumCommunity; className?: string }) {
   const Icon = COMMUNITY_ICONS[community.slug] || MessageSquareText
   return (
@@ -88,6 +103,7 @@ function CommunityIcon({ community, className }: { community: ForumCommunity; cl
 }
 
 function ForumLeftRail({
+  communities,
   activeCommunity,
   mode,
   sort,
@@ -95,6 +111,7 @@ function ForumLeftRail({
   onSelectCommunity,
   onNavigate,
 }: {
+  communities: ForumCommunity[]
   activeCommunity: string | null
   mode: FeedMode
   sort: ForumSort
@@ -149,7 +166,7 @@ function ForumLeftRail({
             )}
           </div>
           <div className="space-y-0.5">
-            {FORUM_COMMUNITIES.map((community) => (
+            {communities.map((community) => (
               <Button
                 key={community.slug}
                 type="button"
@@ -174,11 +191,23 @@ function ForumLeftRail({
   )
 }
 
-function ForumRightRail({ onOpenPost, onCreatePost }: { onOpenPost: (id: string) => void; onCreatePost: () => void }) {
+function ForumRightRail({ communities, posts, onOpenPost, onCreatePost }: { communities: ForumCommunity[]; posts: ForumPost[]; onOpenPost: (id: string) => void; onCreatePost: () => void }) {
   const { tr } = useLanguage()
-  const totalMembers = FORUM_COMMUNITIES.reduce((sum, community) => sum + community.members, 0)
-  const online = FORUM_COMMUNITIES.reduce((sum, community) => sum + community.online, 0)
-  const popular = INITIAL_FORUM_POSTS.slice().sort((a, b) => b.score - a.score).slice(0, 3)
+  const [helpers, setHelpers] = useState<Array<{
+    author: { name: string; avatarUrl: string | null; avatarColor: string | null; trustScore: number | null; badge: import('./forum-data').ForumTrustBadge | null }
+    helpfulAnswers: number
+  }>>([])
+  const totalMembers = communities.reduce((sum, community) => sum + community.members, 0)
+  const online = communities.reduce((sum, community) => sum + community.online, 0)
+  const popular = posts.slice().sort((a, b) => b.score - a.score).slice(0, 3)
+
+  useEffect(() => {
+    let active = true
+    forumApi<{ helpers: typeof helpers }>('/api/forum/helpers')
+      .then((result) => { if (active) setHelpers(result.helpers) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
 
   return (
     <aside aria-label={tr('Forum information', 'Thông tin diễn đàn')} className="hidden xl:block">
@@ -214,6 +243,28 @@ function ForumRightRail({ onOpenPost, onCreatePost }: { onOpenPost: (id: string)
               <Plus className="h-4 w-4" />
               {tr('Start a post', 'Tạo bài viết')}
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card size="sm" className="rounded-none border-b border-border/80 bg-transparent ring-0">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-bold">
+              <HeartHandshake className="h-4 w-4 text-accent-foreground" />
+              {tr('Top helpers this week', 'Người hỗ trợ nổi bật tuần này')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {helpers.length > 0 ? helpers.slice(0, 5).map((helper, index) => (
+              <div key={`${helper.author.name}-${index}`} className="flex items-center gap-2.5 py-1">
+                <span className="w-4 text-xs font-bold tabular-nums text-ink-4">{index + 1}</span>
+                <Avatar name={helper.author.name} url={helper.author.avatarUrl} color={helper.author.avatarColor} size="sm" className="h-8 w-8" />
+                <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{helper.author.name}</span>
+                <ForumTrustBadgeIcon badge={helper.author.badge} trustScore={helper.author.trustScore} />
+                <span className="text-2xs font-bold tabular-nums text-accent-foreground">{helper.helpfulAnswers}</span>
+              </div>
+            )) : (
+              <p className="text-xs leading-relaxed text-body">{tr('Helpful answers will earn the first places here.', 'Các câu trả lời hữu ích sẽ giành những vị trí đầu tiên tại đây.')}</p>
+            )}
           </CardContent>
         </Card>
 
@@ -298,6 +349,7 @@ function MobileForumNav({
   onSaved: () => void
 }) {
   const { tr } = useLanguage()
+  const { user, openSignIn, signOut } = useAuth()
   const { open: keyboardOpen } = useVirtualKeyboard()
   const itemClass = 'relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-3xs font-semibold'
 
@@ -332,10 +384,10 @@ function MobileForumNav({
           </span>
           <span>{tr('Saved', 'Đã lưu')}</span>
         </Button>
-        <a href={`${MARKETPLACE_URL}/signin`} className={cn(itemClass, 'text-body')}>
+        <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={() => user ? void signOut() : openSignIn()}>
           <UserRound className="h-5 w-5" />
-          <span>{tr('Sign in', 'Đăng nhập')}</span>
-        </a>
+          <span>{user ? tr('Account', 'Tài khoản') : tr('Sign in', 'Đăng nhập')}</span>
+        </Button>
       </div>
     </nav>
   )
@@ -349,6 +401,8 @@ function FeedList({
   onVote,
   onSave,
   onOpen,
+  onBlock,
+  onReport,
   onReset,
 }: {
   posts: ForumPost[]
@@ -358,6 +412,8 @@ function FeedList({
   onVote: (id: string, direction: -1 | 1) => void
   onSave: (id: string) => void
   onOpen: (id: string) => void
+  onBlock: (post: ForumPost) => void
+  onReport: (post: ForumPost) => void
   onReset: () => void
 }) {
   const { tr } = useLanguage()
@@ -388,6 +444,8 @@ function FeedList({
             onVote={(direction) => onVote(post.id, direction)}
             onSave={() => onSave(post.id)}
             onOpen={() => onOpen(post.id)}
+            onBlock={() => onBlock(post)}
+            onReport={() => onReport(post)}
           />
         )
       })}
@@ -397,8 +455,10 @@ function FeedList({
 
 export function ForumClient() {
   const { tr } = useLanguage()
+  const { user, openSignIn } = useAuth()
   const [hydrated, setHydrated] = useState(false)
   const [posts, setPosts] = useState<ForumPost[]>(INITIAL_FORUM_POSTS)
+  const [communities, setCommunities] = useState<ForumCommunity[]>(FORUM_COMMUNITIES)
   const [query, setQuery] = useState('')
   const [community, setCommunity] = useState<string | null>(null)
   const [location, setLocation] = useState('all')
@@ -408,14 +468,69 @@ export function ForumClient() {
   const [saved, setSaved] = useState<Set<string>>(() => new Set())
   const [createOpen, setCreateOpen] = useState(false)
   const [openPostId, setOpenPostId] = useState<string | null>(null)
+  const [threadComments, setThreadComments] = useState<Record<string, ForumComment[]>>({})
 
-  const communityMap = useMemo(() => new Map(FORUM_COMMUNITIES.map((item) => [item.slug, item])), [])
+  const communityMap = useMemo(() => new Map(communities.map((item) => [item.slug, item])), [communities])
 
   useEffect(() => {
     setHydrated(true)
     const postId = new URLSearchParams(window.location.search).get('post')
-    if (postId && INITIAL_FORUM_POSTS.some((post) => post.id === postId)) setOpenPostId(postId)
+    if (postId) setOpenPostId(postId)
   }, [])
+
+  useEffect(() => {
+    let active = true
+    forumApi<{ posts: ForumPostResponse[] }>('/api/forum/posts?limit=50')
+      .then(({ posts: livePosts }) => {
+        if (!active || livePosts.length === 0) return
+        setPosts(livePosts.map(mapForumPost))
+        setVotes(Object.fromEntries(livePosts.map((post) => [post.id, post.viewerVote])))
+        setSaved(new Set(livePosts.filter((post) => post.saved).map((post) => post.id)))
+      })
+      // The static discussions are a deliberate empty-database/development
+      // fallback, so a backend outage never leaves the community home blank.
+      .catch(() => {})
+    return () => { active = false }
+  }, [user?.id])
+
+  useEffect(() => {
+    let active = true
+    forumApi<{ communities: Array<Omit<ForumCommunity, 'members' | 'online'> & { memberCount: number }> }>('/api/forum/communities')
+      .then(({ communities: rows }) => {
+        if (!active || rows.length === 0) return
+        const bySlug = new Map(rows.map((row) => [row.slug, row]))
+        setCommunities(FORUM_COMMUNITIES.map((fallback) => {
+          const live = bySlug.get(fallback.slug)
+          return live ? { ...fallback, ...live, members: live.memberCount, online: 0 } : fallback
+        }))
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!openPostId) return
+    if (INITIAL_FORUM_POSTS.some((post) => post.id === openPostId)) return
+    let active = true
+    forumApi<{ post: ForumPostResponse; comments: ForumCommentResponse[] }>(`/api/forum/posts/${encodeURIComponent(openPostId)}`)
+      .then(({ post, comments }) => {
+        if (!active) return
+        const mapped = mapForumPost(post)
+        setPosts((current) => current.some((item) => item.id === mapped.id)
+          ? current.map((item) => item.id === mapped.id ? mapped : item)
+          : [mapped, ...current])
+        setVotes((current) => ({ ...current, [mapped.id]: post.viewerVote }))
+        setSaved((current) => {
+          const next = new Set(current)
+          if (post.saved) next.add(post.id)
+          else next.delete(post.id)
+          return next
+        })
+        setThreadComments((current) => ({ ...current, [post.id]: comments.map(mapForumComment) }))
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [openPostId, user?.id])
 
   const filteredPosts = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase()
@@ -460,11 +575,35 @@ export function ForumClient() {
     setSort(nextSort)
   }
 
+  const openCreatePost = () => {
+    if (!user) { openSignIn(); return }
+    setCreateOpen(true)
+  }
+
   const votePost = (id: string, direction: -1 | 1) => {
-    setVotes((current) => ({ ...current, [id]: current[id] === direction ? 0 : direction }))
+    if (!user) { openSignIn(); return }
+    const post = posts.find((item) => item.id === id)
+    const previous = votes[id] || 0
+    const next = previous === direction ? 0 : direction
+    setVotes((current) => ({ ...current, [id]: next }))
+    if (!post?.live) return
+    void forumApi<{ score: number; viewerVote: -1 | 0 | 1 }>(`/api/forum/posts/${encodeURIComponent(id)}/vote`, {
+      method: 'POST',
+      auth: 'required',
+      body: JSON.stringify({ value: next }),
+    }).then((result) => {
+      setVotes((current) => ({ ...current, [id]: result.viewerVote }))
+      setPosts((current) => current.map((item) => item.id === id ? { ...item, score: result.score - result.viewerVote } : item))
+    }).catch(() => {
+      setVotes((current) => ({ ...current, [id]: previous }))
+      toast.error(tr('Your vote could not be saved.', 'Không thể lưu bình chọn của bạn.'))
+    })
   }
 
   const savePost = (id: string) => {
+    if (!user) { openSignIn(); return }
+    const post = posts.find((item) => item.id === id)
+    const wasSaved = saved.has(id)
     setSaved((current) => {
       const next = new Set(current)
       if (next.has(id)) {
@@ -476,6 +615,59 @@ export function ForumClient() {
       }
       return next
     })
+    if (!post?.live) return
+    void forumApi<{ saved: boolean }>(`/api/forum/posts/${encodeURIComponent(id)}/bookmark`, {
+      method: 'POST',
+      auth: 'required',
+      body: JSON.stringify({ saved: !wasSaved }),
+    }).then((result) => {
+      setSaved((current) => {
+        const next = new Set(current)
+        if (result.saved) next.add(id)
+        else next.delete(id)
+        return next
+      })
+    }).catch(() => {
+      setSaved((current) => {
+        const next = new Set(current)
+        if (wasSaved) next.add(id)
+        else next.delete(id)
+        return next
+      })
+      toast.error(tr('Your saved posts could not be updated.', 'Không thể cập nhật bài viết đã lưu.'))
+    })
+  }
+
+  const reportPost = (post: ForumPost) => {
+    if (!user) { openSignIn(); return }
+    if (!post.live) {
+      toast.message(tr('Preview discussions cannot be reported.', 'Không thể báo cáo thảo luận xem trước.'))
+      return
+    }
+    void forumApi('/api/forum/reports', {
+      method: 'POST',
+      auth: 'required',
+      body: JSON.stringify({ postId: post.id, reason: 'other' }),
+    }).then(() => toast.success(tr('Report sent to the community team.', 'Báo cáo đã được gửi đến đội ngũ cộng đồng.')))
+      .catch(() => toast.error(tr('The report could not be sent.', 'Không thể gửi báo cáo.')))
+  }
+
+  const blockPostAuthor = (post: ForumPost) => {
+    if (!user) { openSignIn(); return }
+    if (!post.live || !post.authorId) {
+      setPosts((current) => current.filter((item) => item.id !== post.id))
+      toast.message(tr('This discussion was hidden from your preview.', 'Thảo luận này đã được ẩn khỏi bản xem trước.'))
+      return
+    }
+    void forumApi('/api/forum/blocks', {
+      method: 'POST',
+      auth: 'required',
+      body: JSON.stringify({ profileId: post.authorId, blocked: true }),
+    }).then(() => {
+      setPosts((current) => current.filter((item) => item.authorId !== post.authorId))
+      if (openPostId === post.id) closeThread()
+      toast.success(tr('Member blocked. Their posts are now hidden.', 'Đã chặn thành viên. Bài viết của họ hiện đã được ẩn.'))
+    }).catch(() => toast.error(tr('This member could not be blocked.', 'Không thể chặn thành viên này.')))
   }
 
   const openThread = (id: string) => {
@@ -492,25 +684,51 @@ export function ForumClient() {
     window.history.replaceState({}, '', url)
   }
 
-  const publishPost = (draft: NewForumPost) => {
-    const next: ForumPost = {
-      id: `local-${Date.now()}`,
-      ...draft,
-      flair: 'Community discussion',
-      flairVi: 'Thảo luận cộng đồng',
-      author: tr('You', 'Bạn'),
-      minutesAgo: 0,
-      timeLabel: tr('Just now', 'Vừa xong'),
-      score: 1,
-      commentCount: 0,
-      location: 'all',
+  const addThreadReply = async (body: string, parentId: string | null) => {
+    if (!activePost) throw new Error('post_not_found')
+    const { comment } = await forumApi<{ comment: ForumCommentResponse }>('/api/forum/comments', {
+      method: 'POST',
+      auth: 'required',
+      body: JSON.stringify({ postId: activePost.id, parentId, body }),
+    })
+    const mapped = mapForumComment(comment)
+    setThreadComments((current) => ({
+      ...current,
+      [activePost.id]: insertThreadComment(current[activePost.id] || [], mapped, parentId),
+    }))
+    setPosts((current) => current.map((post) => post.id === activePost.id ? { ...post, commentCount: post.commentCount + 1 } : post))
+    return mapped
+  }
+
+  const voteThreadComment = async (comment: ForumComment, value: -1 | 0 | 1) => {
+    if (!user) { openSignIn(); throw new Error('auth_required') }
+    if (!comment.live) return { score: comment.score + value, viewerVote: value }
+    return forumApi<{ score: number; viewerVote: -1 | 0 | 1 }>(`/api/forum/comments/${encodeURIComponent(comment.id)}/vote`, {
+      method: 'POST',
+      auth: 'required',
+      body: JSON.stringify({ value }),
+    })
+  }
+
+  const publishPost = async (draft: NewForumPost) => {
+    try {
+      const { post } = await forumApi<{ post: ForumPostResponse }>('/api/forum/posts', {
+      method: 'POST',
+      auth: 'required',
+      body: JSON.stringify({ ...draft, location: 'all', media: [] }),
+      })
+      const mapped = mapForumPost(post)
+      setPosts((current) => [mapped, ...current.filter((item) => item.id !== mapped.id)])
+      setVotes((current) => ({ ...current, [mapped.id]: post.viewerVote }))
+      setCommunity(draft.community)
+      setMode('all')
+      setSort('latest')
+      setQuery('')
+      toast.success(tr('Your post is live.', 'Bài viết của bạn đã được đăng.'))
+    } catch (error) {
+      toast.error(tr('Your post could not be published.', 'Không thể đăng bài viết của bạn.'))
+      throw error
     }
-    setPosts((current) => [next, ...current])
-    setCommunity(draft.community)
-    setMode('all')
-    setSort('latest')
-    setQuery('')
-    toast.success(tr('Your post is live in the preview feed.', 'Bài viết đã xuất hiện trong bảng tin xem trước.'))
   }
 
   const resetFilters = () => {
@@ -523,7 +741,7 @@ export function ForumClient() {
 
   return (
     <div data-forum-page data-hydrated={hydrated ? 'true' : 'false'} className="min-h-screen bg-background pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-0">
-      <ForumHeader query={query} onQueryChange={setQuery} onCreatePost={() => setCreateOpen(true)} />
+      <ForumHeader query={query} onQueryChange={setQuery} onCreatePost={openCreatePost} />
 
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="mb-4 flex items-center rounded-2xl bg-tint px-3 sm:hidden">
@@ -545,7 +763,7 @@ export function ForumClient() {
             {community && <Button type="button" variant="bare" size="none" className="text-xs text-accent-foreground" onClick={() => setCommunity(null)}>{tr('See all', 'Xem tất cả')}</Button>}
           </div>
           <div className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 pb-1 sm:-mx-6 sm:px-6">
-            {FORUM_COMMUNITIES.map((item) => (
+            {communities.map((item) => (
               <Button
                 key={item.slug}
                 type="button"
@@ -567,6 +785,7 @@ export function ForumClient() {
 
         <div className="grid items-start gap-6 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,680px)_300px]">
           <ForumLeftRail
+            communities={communities}
             activeCommunity={community}
             mode={mode}
             sort={sort}
@@ -589,7 +808,7 @@ export function ForumClient() {
                   {tr('Ask what search results cannot answer. Get current, firsthand help from people who live here.', 'Hỏi những điều khó tìm trên mạng. Nhận chia sẻ cập nhật từ những người đang sống tại đây.')}
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="cta" onClick={() => setCreateOpen(true)}>
+                  <Button type="button" variant="cta" onClick={openCreatePost}>
                     <Plus className="h-4 w-4" />
                     {tr('Ask the community', 'Hỏi cộng đồng')}
                   </Button>
@@ -605,20 +824,20 @@ export function ForumClient() {
             <Card className="gap-0 rounded-none border-y border-border/80 bg-transparent py-0 ring-0">
               <div className="flex items-center gap-3 px-4 py-3 sm:px-5">
                 <Avatar name={tr('Guest', 'Khách')} size="sm" />
-                <Button type="button" variant="bare" size="none" className="h-11 min-w-0 flex-1 justify-start rounded-xl bg-tint px-4 text-left text-sm font-normal text-body hover:bg-muted" onClick={() => setCreateOpen(true)}>
+                <Button type="button" variant="bare" size="none" className="h-11 min-w-0 flex-1 justify-start rounded-xl bg-tint px-4 text-left text-sm font-normal text-body hover:bg-muted" onClick={openCreatePost}>
                   <span className="truncate">{tr('Ask a question or share an experience…', 'Đặt câu hỏi hoặc chia sẻ trải nghiệm…')}</span>
                 </Button>
               </div>
               <div className="grid grid-cols-3 border-t border-border/70">
-                <Button type="button" variant="bare" size="none" className="h-10 gap-1.5 rounded-none text-xs text-body hover:bg-tint" onClick={() => setCreateOpen(true)}>
+                <Button type="button" variant="bare" size="none" className="h-10 gap-1.5 rounded-none text-xs text-body hover:bg-tint" onClick={openCreatePost}>
                   <MessageCircleQuestion className="h-4 w-4 text-accent-foreground" />
                   {tr('Ask', 'Đặt câu hỏi')}
                 </Button>
-                <Button type="button" variant="bare" size="none" className="h-10 gap-1.5 rounded-none border-x border-border/70 text-xs text-body hover:bg-tint" onClick={() => setCreateOpen(true)}>
+                <Button type="button" variant="bare" size="none" className="h-10 gap-1.5 rounded-none border-x border-border/70 text-xs text-body hover:bg-tint" onClick={openCreatePost}>
                   <HeartHandshake className="h-4 w-4 text-accent-foreground" />
                   {tr('Share', 'Chia sẻ')}
                 </Button>
-                <Button type="button" variant="bare" size="none" className="h-10 gap-1.5 rounded-none text-xs text-body hover:bg-tint" onClick={() => setCreateOpen(true)}>
+                <Button type="button" variant="bare" size="none" className="h-10 gap-1.5 rounded-none text-xs text-body hover:bg-tint" onClick={openCreatePost}>
                   <CalendarDays className="h-4 w-4 text-accent-foreground" />
                   {tr('Meet up', 'Gặp gỡ')}
                 </Button>
@@ -665,6 +884,8 @@ export function ForumClient() {
                       onVote={votePost}
                       onSave={savePost}
                       onOpen={openThread}
+                      onBlock={blockPostAuthor}
+                      onReport={reportPost}
                       onReset={resetFilters}
                     />
                   )}
@@ -673,7 +894,7 @@ export function ForumClient() {
             </Tabs>
           </div>
 
-          <ForumRightRail onOpenPost={openThread} onCreatePost={() => setCreateOpen(true)} />
+          <ForumRightRail communities={communities} posts={posts} onOpenPost={openThread} onCreatePost={openCreatePost} />
         </div>
       </main>
 
@@ -683,7 +904,7 @@ export function ForumClient() {
         savedCount={saved.size}
         onHome={resetFilters}
         onPopular={() => navigateFeed('all', 'top')}
-        onCreate={() => setCreateOpen(true)}
+        onCreate={openCreatePost}
         onSaved={() => setMode('saved')}
       />
 
@@ -702,6 +923,9 @@ export function ForumClient() {
         onOpenChange={(open) => { if (!open) closeThread() }}
         onVote={(direction) => { if (activePost) votePost(activePost.id, direction) }}
         onSave={() => { if (activePost) savePost(activePost.id) }}
+        comments={activePost?.live ? threadComments[activePost.id] || [] : null}
+        onAddReply={addThreadReply}
+        onCommentVote={voteThreadComment}
       />
     </div>
   )

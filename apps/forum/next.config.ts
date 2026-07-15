@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
     return [{ source: '/forum', destination: '/', permanent: true }]
   },
   async headers() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://*.supabase.co'
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn'
     const csp = [
       "default-src 'self'",
       "base-uri 'self'",
@@ -22,9 +24,9 @@ const nextConfig: NextConfig = {
       "form-action 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      `img-src 'self' data: blob: ${supabaseUrl}`,
       "font-src 'self' data:",
-      "connect-src 'self'",
+      `connect-src 'self' ${supabaseUrl} ${apiUrl}`,
       "worker-src 'self' blob:",
       "manifest-src 'self'",
     ].join('; ')

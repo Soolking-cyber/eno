@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { FileText, MessageSquareText, Sparkles } from 'lucide-react'
+import { FileText, Loader2, MessageSquareText, ShieldCheck } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import {
@@ -39,13 +39,14 @@ export function CreatePostDialog({
   open: boolean
   defaultCommunity?: string
   onOpenChange: (open: boolean) => void
-  onPublish: (post: NewForumPost) => void
+  onPublish: (post: NewForumPost) => void | Promise<void>
 }) {
   const { tr } = useLanguage()
   const [community, setCommunity] = useState(defaultCommunity || 'vietnam-101')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const selectedCommunity = FORUM_COMMUNITIES.find((item) => item.slug === community)
 
   useEffect(() => {
@@ -70,13 +71,20 @@ export function CreatePostDialog({
     onOpenChange(false)
   }
 
-  const publish = (event: React.FormEvent<HTMLFormElement>) => {
+  const publish = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitted(true)
     if (title.trim().length < 8 || body.trim().length < 20) return
-    onPublish({ community, title: title.trim(), body: body.trim(), kind: 'discussion' })
-    reset()
-    onOpenChange(false)
+    setPublishing(true)
+    try {
+      await onPublish({ community, title: title.trim(), body: body.trim(), kind: 'discussion' })
+      reset()
+      onOpenChange(false)
+    } catch {
+      // Parent surfaces the API-specific error and keeps the draft intact.
+    } finally {
+      setPublishing(false)
+    }
   }
 
   return (
@@ -164,9 +172,9 @@ export function CreatePostDialog({
             </Field>
 
             <div className="flex gap-3 rounded-xl bg-accent p-3 text-accent-foreground">
-              <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
               <p className="text-xs leading-relaxed">
-                {tr('Preview mode: your post will appear in this feed locally. Supabase publishing comes in the backend phase.', 'Chế độ xem trước: bài viết sẽ xuất hiện cục bộ trong bảng tin. Đăng lên Supabase sẽ có ở giai đoạn backend.')}
+                {tr('Your post is saved to the same secure account and moderation system as eno.vn.', 'Bài viết được lưu vào cùng tài khoản và hệ thống kiểm duyệt an toàn như eno.vn.')}
               </p>
             </div>
           </div>
@@ -175,9 +183,9 @@ export function CreatePostDialog({
             <Button type="button" variant="bare" onClick={close}>
               {tr('Cancel', 'Hủy')}
             </Button>
-            <Button type="submit" variant="cta">
-              <FileText className="h-4 w-4" />
-              {tr('Publish post', 'Đăng bài')}
+            <Button type="submit" variant="cta" disabled={publishing}>
+              {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              {publishing ? tr('Publishing…', 'Đang đăng…') : tr('Publish post', 'Đăng bài')}
             </Button>
           </DialogFooter>
         </form>
