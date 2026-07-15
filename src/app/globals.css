@@ -621,6 +621,21 @@ summary:focus-visible {
   transform: translate(-50%, -50%);
 }
 
+/* Same trick, a more forgiving 48px floor for the primary mobile controls (search-bar
+   buttons, header actions) — kid-friendly, fast-scroller-friendly. Defined AFTER .tap-44
+   so that when both land on one element (the IconButton base ships tap-44), 48 wins. */
+.tap-48::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  min-width: 48px;
+  min-height: 48px;
+  transform: translate(-50%, -50%);
+}
+
 /* Favorite-button burst — the save confirmation IS the animation. Two one-shot,
    compositor-only (transform/opacity) pieces: the heart pops 1→1.35→1 with a
    slight bounce, and a brand-blue ring (::after) expands + fades once. Toggled by

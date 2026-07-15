@@ -29,6 +29,11 @@ import { toast } from 'sonner'
 // The typeahead listbox this bar owns. Static (one Header per page), and distinct
 // from the hero bar's so both can be in the DOM at once without id collisions.
 const SUGGEST_ID = 'header-search-suggest'
+
+// One uniform lucide stroke across the whole header, matching the bottom nav — a slightly
+// thicker, identical weight reads softer and keeps every icon visually the same weight.
+const STROKE = 2.25
+
 export function Header() {
   const { t, tr, lang } = useLanguage()
   const { user } = useAuth()
@@ -237,10 +242,18 @@ export function Header() {
             <div className={cn(
               'relative z-50 flex items-center transition-all duration-200',
               panelOpen
+                // Open = the fused search WINDOW (a panel, not an input): rounded-2xl to match the
+                // suggestions panel it fuses with at sm+ (bottom flattened where they join), so the
+                // fused silhouette is one consistent radius. The floating shadow is the standard
+                // popover treatment for a layer over content — not canvas elevation.
                 ? 'rounded-2xl bg-popover shadow-pop sm:rounded-b-none'
-                : 'rounded-2xl border border-transparent bg-tint focus-within:border-ring focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30',
+                // Idle = the canon filled-tint INPUT idiom, identical to ui/input's `filled` variant
+                // (rounded-xl bg-tint, ZERO border, brand ring on focus) so the search field matches
+                // every other filled input in the app. It melts into the canvas; focus adds a white
+                // fill + soft ring.
+                : 'rounded-xl bg-tint focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30',
             )}>
-              <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" />
+              <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" strokeWidth={STROKE} />
               <Input
                 variant="unstyled"
                 value={searchVal}
@@ -283,9 +296,11 @@ export function Header() {
                   size="sm"
                   onClick={() => { setSearchVal(''); submitSearch('') }}
                   aria-label={tr('Clear search', 'Xóa tìm kiếm')}
-                  className="mr-0.5 text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
+                  // tap-48 overrides the IconButton's baked-in tap-44 (defined later in the sheet)
+                  // for a 48px hit area — forgiving for kids / fast scrollers — with no size change.
+                  className="mr-0.5 tap-48 text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-5 w-5" strokeWidth={STROKE} />
                 </IconButton>
               )}
               {/* AI shopping concierge — pressable: press to enter AI mode (filled), press
@@ -293,7 +308,8 @@ export function Header() {
               <AISearchButton
                 active={pathname === '/messages/ai'}
                 onClick={() => { router.push('/messages/ai'); setShowSuggestions(false) }}
-                className="mr-0.5 h-10 w-10"
+                // relative + tap-48 → a 48px hit area around the 40px visual (invisible ::before).
+                className="relative mr-0.5 h-10 w-10 tap-48"
               />
               {/* Photo search folded into the AI assistant (✨ → camera in the chat
                   composer) — one smart entry point, less icon crowding. Pasting an
@@ -307,7 +323,7 @@ export function Header() {
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
+                        <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" strokeWidth={STROKE} />{tr('Recent', 'Tìm gần đây')}</span>
                         <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -329,7 +345,7 @@ export function Header() {
                   {recentLocations.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
+                        <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" strokeWidth={STROKE} />{tr('Recent locations', 'Khu vực gần đây')}</span>
                         <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -342,7 +358,7 @@ export function Header() {
                             onClick={() => { applyArea({ province: loc.province, ward: loc.ward, nearby: null }); setShowSuggestions(false) }}
                             className="whitespace-normal gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:text-accent-foreground cursor-pointer"
                           >
-                            <MapPin className="h-3.5 w-3.5" />
+                            <MapPin className="h-3.5 w-3.5" strokeWidth={STROKE} />
                             {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
                           </Button>
                         ))}
@@ -386,16 +402,16 @@ export function Header() {
           {user && (
             <>
               <Tooltip content={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} side="bottom">
-                <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} aria-current={savedActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-44">
-                  <Heart className={cn('h-6 w-6 sm:h-7 sm:w-7', savedCount > 0 ? 'fill-brand text-brand' : savedActive && 'text-brand')} />
+                <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} aria-current={savedActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-48">
+                  <Heart className={cn('h-6 w-6 sm:h-7 sm:w-7', savedCount > 0 ? 'fill-brand text-brand' : savedActive && 'text-brand')} strokeWidth={STROKE} />
                   {savedCount > 0 && (
                     <Badge variant="counter" size="count" className="absolute right-1 top-1">{savedCount > 9 ? '9+' : savedCount}</Badge>
                   )}
                   {savedActive && <span aria-hidden className="absolute -bottom-0.5 left-1/2 h-0.5 w-7 -translate-x-1/2 rounded-full bg-brand" />}
                 </Link>
               </Tooltip>
-              <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} aria-current={msgActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-44">
-                <MessageSquare className={cn('h-6 w-6 sm:h-7 sm:w-7', unread > 0 ? 'fill-brand text-brand' : msgActive && 'text-brand')} />
+              <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} aria-current={msgActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-48">
+                <MessageSquare className={cn('h-6 w-6 sm:h-7 sm:w-7', unread > 0 ? 'fill-brand text-brand' : msgActive && 'text-brand')} strokeWidth={STROKE} />
                 {unread > 0 && (
                   <Badge variant="counter" size="count" className="absolute right-1 top-1">{unread > 9 ? '9+' : unread}</Badge>
                 )}
@@ -409,10 +425,10 @@ export function Header() {
           ) : (
             <Link
               href="/signin"
-              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-44 relative"
+              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-48 relative"
               aria-label={tr('Sign in', 'Đăng nhập')}
             >
-              <User className="h-6 w-6 sm:h-7 sm:w-7" />
+              <User className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={STROKE} />
               <span className="hidden lg:inline">{tr('Log in', 'Đăng nhập')}</span>
             </Link>
           )}

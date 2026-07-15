@@ -21,10 +21,12 @@ Import the `Soolking-cyber/eno-forum` repository into its dedicated Vercel proje
 - Install Command: `npm install`
 - Node.js: 24.x
 
+The Vercel project is connected to this repository. Pushes to `main` create production deployments, while pull requests and non-production branches create previews.
+
 Set these production environment variables:
 
 ```text
-NEXT_PUBLIC_FORUM_URL=https://eno.forum
+NEXT_PUBLIC_FORUM_URL=https://www.eno.forum
 NEXT_PUBLIC_MARKETPLACE_URL=https://eno.vn
 MARKETPLACE_API_URL=https://eno.vn
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
@@ -32,17 +34,19 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<same publishable key as eno.vn>
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=<same public site key as eno.vn>
 ```
 
-Add the custom domain to this forum project in Vercel. In the marketplace Vercel project, set `NEXT_PUBLIC_FORUM_URL=https://eno.forum` and redeploy. `FORUM_DEV_ORIGINS` is optional and should contain only comma-separated local forum origins used for local production-mode testing.
+The custom domain is attached to this forum project. The apex `https://eno.forum` redirects to the canonical `https://www.eno.forum`. In the marketplace Vercel project, set `NEXT_PUBLIC_FORUM_URL=https://eno.forum` and redeploy. `FORUM_DEV_ORIGINS` is optional and should contain only comma-separated local forum origins used for local production-mode testing.
 
 In Supabase Authentication → URL Configuration, add these redirect URLs:
 
 ```text
 https://eno.forum/auth/callback
+https://www.eno.forum/auth/callback
+https://*-eno-vn.vercel.app/**
 http://localhost:3101/auth/callback
 http://127.0.0.1:3101/auth/callback
 ```
 
-Also add `eno.forum` to the allowed hostnames for the existing Cloudflare Turnstile widget. Email magic-link sends use the same invisible bot check as the marketplace; Google OAuth does not need it.
+Also add `eno.forum` to the allowed hostnames for the existing Cloudflare Turnstile widget; Cloudflare applies a root hostname entry to its subdomains, including `www`. Email magic-link sends use the same invisible bot check as the marketplace; Google OAuth does not need it.
 
 The forum uses the marketplace Supabase Auth project, so both apps resolve to the same `auth.users.id` and public `Profile`. Each domain keeps its own secure auth cookie because `.vn` and `.forum` cannot share cookies. The forum's same-origin `/api/backend/*` proxy forwards authorized requests to the centralized eno.vn `/api/forum/*` and `/api/itineraries/*` routes; Prisma and database credentials remain only in the marketplace backend. This also keeps Vercel preview URLs compatible with the marketplace's strict browser CORS policy.
 

@@ -8,12 +8,15 @@ import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
-import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { useSlideRouter } from './page-transitions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+
+// One uniform lucide stroke across the whole bar. A slightly thicker, identical weight on
+// every icon reads softer and keeps all five tabs at the same visual weight (symmetry).
+const STROKE = 2.25
 
 // Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay.
 const TAB = 'flex flex-1 cursor-pointer transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-90 active:duration-[60ms] [touch-action:manipulation]'
@@ -27,17 +30,31 @@ function tabIndex(path: string): number {
   return i === -1 ? 0 : i
 }
 
-/** Content of a navigating tab. Facebook-style: a big, clear, label-LESS icon (the
- *  accessible name lives on the parent <Link>'s aria-label). Active = blue icon + a
- *  short bar at the top of the bar. Lives INSIDE <Link> so useLinkStatus can light it
- *  blue the instant it's tapped — instant feedback before the destination loads. */
-function TabBody({ active, icon }: { active: boolean; icon: React.ReactNode }) {
+// The icon + micro-label stack, centred in the bar. The label (text-3xs — the canon's
+// micro-label size, §1) makes every tab unmistakable ("Post", "Saved") without turning the
+// bar into a text row. No colour of its own, so it INHERITS the tab's state colour and the
+// whole stack lights up together when active — one legible unit a child can read.
+function TabStack({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <>
+      <span className="relative">{icon}</span>
+      <span className="text-3xs font-medium">{label}</span>
+    </>
+  )
+}
+
+const STACK = 'relative flex h-full w-full flex-col items-center justify-center gap-1 transition-colors'
+
+/** Content of a navigating tab: the icon + micro-label stack. Active = the whole stack turns
+ *  brand + a short bar sits at the top of the bar. Lives INSIDE <Link> so useLinkStatus lights
+ *  it the instant it's tapped — feedback before the destination loads. */
+function TabBody({ active, icon, label }: { active: boolean; icon: React.ReactNode; label: string }) {
   const { pending } = useLinkStatus()
   const on = active || pending
   return (
-    <span className={cn('relative flex h-full w-full items-center justify-center transition-colors', on ? 'text-accent-foreground' : 'text-body')}>
+    <span className={cn(STACK, on ? 'text-accent-foreground' : 'text-body')}>
       {on && <span aria-hidden className="absolute top-0 h-0.5 w-8 rounded-full bg-accent-foreground" />}
-      <span className="relative">{icon}</span>
+      <TabStack icon={icon} label={label} />
     </span>
   )
 }
@@ -52,8 +69,8 @@ function GatedTab({ href, active, icon, label, gate, onNavigate }: { href: strin
   if (gate) {
     return (
       <Button type="button" variant="bare" size="none" onClick={() => openSignIn()} aria-label={label} className={TAB}>
-        <span className="flex h-full w-full items-center justify-center text-body transition-colors">
-          <span className="relative">{icon}</span>
+        <span className={cn(STACK, 'text-body')}>
+          <TabStack icon={icon} label={label} />
         </span>
       </Button>
     )
@@ -62,7 +79,7 @@ function GatedTab({ href, active, icon, label, gate, onNavigate }: { href: strin
   // router so it animates directionally.
   return (
     <Link href={href} aria-label={label} aria-current={active ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); onNavigate() }}>
-      <TabBody active={active} icon={icon} />
+      <TabBody active={active} icon={icon} label={label} />
     </Link>
   )
 }
@@ -76,12 +93,11 @@ export function MobileNav() {
   const { user, loading } = useAuth()
   const { unread } = useChat()
   const { navigate } = useSlideRouter()
-  // Slide the bar down out of view on scroll-down, back up on scroll-up.
-  const hidden = useHideOnScroll()
-  // Hide entirely while the on-screen keyboard is up: iOS lifts a fixed bottom bar
-  // ABOVE the keyboard, so it wedges between a chat composer and the keyboard. A
-  // typing user doesn't need the tabs (standard mobile pattern) — drop it so the
-  // input can sit flush above the keyboard.
+  // The bar is a PERMANENT anchor: it no longer hides on scroll (a disappearing bottom bar
+  // is disorienting — owner 2026-07-15). The ONLY time it steps aside is when the on-screen
+  // keyboard is up: iOS lifts a fixed bottom bar ABOVE the keyboard, so it would wedge between
+  // a chat composer and the keyboard. A typing user doesn't need the tabs (standard mobile
+  // pattern), so it drops just for that.
   const { open: keyboardOpen } = useVirtualKeyboard()
 
   // Don't apply the active-tab state until after mount. On a STATICALLY prerendered
@@ -145,15 +161,16 @@ export function MobileNav() {
   // IS supported it already hides the subtree from AT, so aria-hidden buys nothing there either.
   // (back-to-top.tsx can pair aria-hidden with tabIndex={-1} because it is a SINGLE button; here the
   // focusable nodes are descendants, so there is no one element to make untabbable.)
-  const off = hidden || keyboardOpen
+  const off = keyboardOpen
 
   return (
     <nav
       inert={off}
       className={cn(
         'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
-        // Facebook-style: slide DOWN off-screen + fade out at the same rate on scroll-down;
-        // slide up + fade in on scroll-up. Also drop it while the keyboard is open.
+        // The bar is permanently docked; it slides DOWN off-screen + fades only while the
+        // on-screen keyboard is open (so a chat composer can sit flush above it), and returns
+        // the moment the keyboard closes.
         off ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100',
       )}
     >
@@ -161,7 +178,7 @@ export function MobileNav() {
           the home-indicator inset never compresses the icons out of the bar. */}
       <div className="flex h-16 items-stretch">
       <Link href="/" aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); go('/') }}>
-        <TabBody active={at('/')} icon={<Compass className="h-7 w-7" />} />
+        <TabBody active={at('/')} label={tr('Explore', 'Khám phá')} icon={<Compass className="h-7 w-7" strokeWidth={STROKE} />} />
       </Link>
 
       {/* Saved is public — favorites are stored device-local (localStorage), so a
@@ -169,9 +186,10 @@ export function MobileNav() {
       <Link href="/saved" aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); go('/saved') }}>
         <TabBody
           active={at('/saved')}
+          label={tr('Saved', 'Đã lưu')}
           icon={
             <>
-              <Heart className={cn('h-7 w-7', count > 0 && 'fill-brand text-brand')} />
+              <Heart className={cn('h-7 w-7', count > 0 && 'fill-brand text-brand')} strokeWidth={STROKE} />
               {count > 0 && (
                 <Badge variant="counter" size="count" className="absolute -right-2 -top-1">
                   {count}
@@ -187,12 +205,15 @@ export function MobileNav() {
         active={at('/post')}
         gate={gate}
         onNavigate={() => go('/post')}
+        label={tr('Post', 'Đăng tin')}
+        // Emphasised but FLAT: a soft tinted chip (canon chip = rounded-full + tint, §2) with a
+        // brand-blue plus — no shadow, no FAB lift, no heavy solid fill. It reads as the primary
+        // action while staying part of the same flat canvas as the other tabs.
         icon={
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-sm">
-            <Plus className="h-6 w-6" />
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-tint text-brand">
+            <Plus className="h-6 w-6" strokeWidth={STROKE} />
           </span>
         }
-        label={tr('Post', 'Đăng tin')}
       />
 
       <GatedTab
@@ -200,9 +221,10 @@ export function MobileNav() {
         active={atPrefix('/messages')}
         gate={gate}
         onNavigate={() => go('/messages')}
+        label={tr('Messages', 'Tin nhắn')}
         icon={
           <>
-            <MessageSquare className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} />
+            <MessageSquare className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} strokeWidth={STROKE} />
             {user && unread > 0 && (
               <Badge variant="counter" size="count" className="absolute -right-2 -top-1">
                 {unread > 9 ? '9+' : unread}
@@ -210,7 +232,6 @@ export function MobileNav() {
             )}
           </>
         }
-        label={tr('Messages', 'Tin nhắn')}
       />
 
       {/* Account = the dashboard nav rail. On mobile the rail is a launcher: tapping this OPENS
@@ -220,12 +241,12 @@ export function MobileNav() {
         href="/dashboard"
         active={accountActive}
         gate={gate}
+        label={tr('Account', 'Tài khoản')}
         // Logged in → open the rail. Still resolving auth (user not yet known) → fall back to
         // navigating /dashboard, which gates correctly once auth lands, rather than popping an
         // empty rail. (Logged-out is already handled by `gate` → openSignIn.)
         onNavigate={() => user ? window.dispatchEvent(new Event('eno:open-account')) : go('/dashboard')}
-        icon={<User className="h-7 w-7" />}
-        label={tr('Account', 'Tài khoản')}
+        icon={<User className="h-7 w-7" strokeWidth={STROKE} />}
       />
       </div>
     </nav>

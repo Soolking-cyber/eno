@@ -56,3 +56,4 @@ scripts/tmp-*
 
 # Supabase CLI local cache (not migrations)
 supabase/.temp/
+.env*
