@@ -74,7 +74,10 @@ function revalidate(uid: string, force = false) {
       }
     })
     .catch(() => { if (ticket === inflight) set({ loading: false }) })
-    .finally(() => { if (inflightUid === uid) inflightUid = null })
+    // Only the LATEST request may clear the in-flight marker. A forced refresh can overlap an
+    // older same-uid fetch; if the older one's finally cleared the marker, a third load could
+    // start concurrently. Gating on `ticket === inflight` means only the newest resolves it.
+    .finally(() => { if (ticket === inflight && inflightUid === uid) inflightUid = null })
 }
 
 /** Point the store at a user, painting from cache first. Idempotent per uid — a second
