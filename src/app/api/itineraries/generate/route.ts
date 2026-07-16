@@ -52,8 +52,8 @@ const requestSchema = z.object({
   locale: z.enum(['en', 'vi']).default('en'),
   origin: z.string().trim().max(120).default(''),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  days: z.number().int().min(3).max(21),
-  travelers: z.number().int().min(1).max(8),
+  days: z.number().int().min(1).max(30),
+  travelers: z.number().int().min(1).max(100),
   cityIds: z.array(z.enum(cityIds)).min(1).max(6),
   budgetId: z.enum(['smart', 'comfort', 'premium']),
   pace: z.enum(['slow', 'balanced', 'full']),
@@ -142,7 +142,7 @@ const planSchema = z.object({
     url: z.string().max(1000),
   })).min(1).max(12),
   days: z.array(z.object({
-    dayNumber: z.number().int().min(1).max(21),
+    dayNumber: z.number().int().min(1).max(30),
     date: z.string().min(1).max(40),
     city: z.string().min(1).max(120),
     title: z.string().min(1).max(180),
@@ -153,7 +153,7 @@ const planSchema = z.object({
     evening: activitySchema,
     foodNote: z.string().min(1).max(500),
     estimatedDailyCostVnd: z.number().int().min(0).max(2_000_000_000),
-  })).min(3).max(21),
+  })).min(1).max(30),
   practical: z.object({
     arrival: z.string().min(1).max(700),
     localTransport: z.string().min(1).max(700),
@@ -352,7 +352,7 @@ Planning rules:
       contents: prompt,
       config: {
         temperature: 0.2,
-        maxOutputTokens: 20_000,
+        maxOutputTokens: 32_000,
         tools: [{ googleSearch: {} }],
         responseMimeType: 'application/json',
         responseSchema,

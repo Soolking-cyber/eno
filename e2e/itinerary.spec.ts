@@ -74,6 +74,46 @@ test.describe('eno.forum itinerary builder', () => {
     expect(await response.json()).toEqual({ error: 'auth_required' })
   })
 
+  test('supports bounded slider and direct-entry trip sizes', async ({ page }) => {
+    const daysSlider = page.getByRole('slider', { name: /Trip length in days/i })
+    const travelerSlider = page.getByRole('slider', { name: /Number of travelers/i })
+    const daysInput = page.getByRole('spinbutton', { name: /Enter trip length in days/i })
+    const travelersInput = page.getByRole('spinbutton', { name: /Enter number of travelers/i })
+    const startDateInput = page.getByLabel(/^Start date$/i)
+    const endDateDisplay = page.getByText(/^Choose start$/i)
+
+    const startDateBox = await startDateInput.boundingBox()
+    const endDateBox = await endDateDisplay.boundingBox()
+    expect(startDateBox).not.toBeNull()
+    expect(endDateBox).not.toBeNull()
+    const dateControlsOverlap = Math.min(startDateBox!.x + startDateBox!.width, endDateBox!.x + endDateBox!.width) > Math.max(startDateBox!.x, endDateBox!.x)
+      && Math.min(startDateBox!.y + startDateBox!.height, endDateBox!.y + endDateBox!.height) > Math.max(startDateBox!.y, endDateBox!.y)
+    expect(dateControlsOverlap).toBe(false)
+    if ((page.viewportSize()?.width || 0) < 640) expect(endDateBox!.y).toBeGreaterThan(startDateBox!.y + startDateBox!.height)
+
+    await expect(daysSlider).toHaveAttribute('min', '1')
+    await expect(daysSlider).toHaveAttribute('max', '30')
+    await expect(travelerSlider).toHaveAttribute('min', '1')
+    await expect(travelerSlider).toHaveAttribute('max', '10')
+    await expect(daysInput).toHaveAttribute('max', '30')
+    await expect(travelersInput).toHaveAttribute('max', '100')
+
+    await daysInput.fill('30')
+    await expect(daysInput).toHaveValue('30')
+    await daysInput.fill('31')
+    await expect(daysInput).toHaveValue('30')
+    await daysInput.fill('0')
+    await expect(daysInput).toHaveValue('1')
+
+    await travelersInput.fill('100')
+    await expect(travelersInput).toHaveValue('100')
+    await expect(travelerSlider).toHaveAttribute('aria-valuenow', '10')
+    await travelersInput.fill('101')
+    await expect(travelersInput).toHaveValue('100')
+    await travelersInput.fill('0')
+    await expect(travelersInput).toHaveValue('1')
+  })
+
   test('builds a researched, responsive itinerary from granular controls', async ({ page }) => {
     await page.route('**/api/itineraries/generate', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockResult) })
@@ -110,9 +150,34 @@ test.describe('eno.forum itinerary builder', () => {
     await expect(page.getByRole('heading', { name: /Researched flight options/i })).toBeVisible()
     await expect(page.getByRole('heading', { name: /Searched stay shortlist/i })).toBeVisible()
     await expect(page.getByRole('heading', { name: /^Day-by-day plan$/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /^Travel services and plan links$/i })).toBeVisible()
     await expect(page.getByRole('heading', { name: /^Research sources$/i })).toBeVisible()
-    await expect(page.getByText(/Hoi An Central Boutique/i)).toBeVisible()
+    await expect(page.getByRole('link', { name: /eno Travel Marketplace/i })).toHaveAttribute('href', 'https://eno.vn/?category=tickets-travel')
+    await expect(page.getByRole('link', { name: /eno Visa Services/i })).toHaveAttribute('href', 'https://eno.vn/?category=services&subcategory=visa-legal')
+    await expect(page.getByRole('link', { name: /Official Vietnam e-Visa/i })).toHaveAttribute('href', 'https://evisa.gov.vn/')
+    await expect(page.getByRole('link', { name: /Grab Vietnam/i })).toHaveAttribute('href', 'https://www.grab.com/vn/en/download/')
+    await expect(page.getByRole('link', { name: /VeXeRe/i })).toHaveAttribute('href', 'https://vexere.com/en-US')
+    await expect(page.getByRole('link', { name: /Han River/i })).toHaveAttribute('href', /google\.com\/maps\/search/)
+    await expect(page.getByRole('heading', { name: /^Hoi An Central Boutique$/i })).toBeVisible()
     await expect(page.getByTestId('itinerary-day')).toHaveCount(4)
     await expectNoA11yViolations(page, 'advanced itinerary result')
+  })
+
+  test('keeps useful travel services available when research citations are absent', async ({ page }) => {
+    await page.route('**/api/itineraries/generate', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...mockResult, sources: [] }) })
+    })
+
+    await page.getByLabel(/Start date/i).fill('2026-09-10')
+    await page.getByLabel(/Flying from/i).fill('Singapore (SIN)')
+    await page.getByRole('slider', { name: /Trip length/i }).press('Home')
+    await page.getByRole('slider', { name: /Trip length/i }).press('ArrowRight')
+    await page.getByTestId('build-itinerary').click()
+
+    await expect(page.getByText(/No source links were returned/i)).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: /^Travel services and plan links$/i })).toBeVisible()
+    await expect(page.getByRole('link', { name: /eno Community Forum/i })).toBeVisible()
+    await expect(page.getByRole('link', { name: /Vietnam Railways/i })).toBeVisible()
+    await expect(page.getByRole('link', { name: /Hoi An Central Boutique/i })).toBeVisible()
   })
 })

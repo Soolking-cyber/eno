@@ -18,6 +18,14 @@ npm run dev
 
 The forum runs at `http://localhost:3101`. The marketplace remains on port 3000.
 
+## Design language
+
+- Prioritize symmetry, visual balance, and a pleasant, uncluttered composition.
+- Prefer airy outlined controls ("open borders") with clear but quiet borders, generous internal space, and consistent corner radii.
+- Controls presented as a pair or group must share the same height, padding, alignment, and visual weight. Use equal widths when the actions are peers.
+- Use a 44px control height for prominent form and action groups unless the surrounding component deliberately uses another shared size.
+- Check both desktop and mobile layouts; responsive reflow must preserve the same visual hierarchy and symmetry.
+
 ## Vercel project
 
 Import the `Soolking-cyber/eno-forum` repository into its dedicated Vercel project with these settings:

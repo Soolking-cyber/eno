@@ -7,8 +7,10 @@ import {
   ArrowUp,
   BedDouble,
   Building2,
+  BusFront,
   CalendarCheck,
   CalendarDays,
+  CarFront,
   Check,
   CircleDollarSign,
   Clock3,
@@ -27,6 +29,7 @@ import {
   Map,
   MapPin,
   MapPinned,
+  MessagesSquare,
   MoonStar,
   Navigation,
   Plane,
@@ -37,7 +40,9 @@ import {
   Save,
   SearchCheck,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
+  Stamp,
   Sun,
   TicketCheck,
   TrainFront,
@@ -51,7 +56,7 @@ import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { IconButton } from '@/components/ui/icon-button'
@@ -86,6 +91,7 @@ import {
   type PaceId,
   type StopsId,
 } from './itinerary-data'
+import { buildItineraryResourceGroups, type ItineraryResourceKind } from './itinerary-resources'
 
 const INTERESTS: Array<{ id: InterestId; label: string; labelVi: string; Icon: typeof Landmark }> = [
   { id: 'food', label: 'Food', labelVi: 'Ẩm thực', Icon: UtensilsCrossed },
@@ -97,6 +103,21 @@ const INTERESTS: Array<{ id: InterestId; label: string; labelVi: string; Icon: t
   { id: 'wellness', label: 'Wellness', labelVi: 'Nghỉ dưỡng', Icon: Sparkles },
   { id: 'family', label: 'Family', labelVi: 'Gia đình', Icon: Users },
 ]
+
+const RESOURCE_ICONS: Record<ItineraryResourceKind, typeof Landmark> = {
+  concierge: ConciergeBell,
+  marketplace: ShoppingBag,
+  community: MessagesSquare,
+  visa: Stamp,
+  ride: CarFront,
+  bus: BusFront,
+  rail: TrainFront,
+  flight: Plane,
+  stay: Hotel,
+  map: MapPinned,
+  tourism: Compass,
+  source: Globe2,
+}
 
 const ACCOMMODATIONS: Array<{ id: AccommodationId; label: string; labelVi: string }> = [
   { id: 'hotel', label: 'Reliable hotels', labelVi: 'Khách sạn uy tín' },
@@ -112,6 +133,16 @@ const PACES: Array<{ id: PaceId; label: string; labelVi: string; detail: string;
   { id: 'balanced', label: 'Balanced', labelVi: 'Cân bằng', detail: 'Highlights with breathing room', detailVi: 'Điểm nổi bật với thời gian nghỉ' },
   { id: 'full', label: 'Full', labelVi: 'Nhiều trải nghiệm', detail: 'More activity, still geographically sensible', detailVi: 'Nhiều hoạt động nhưng vẫn hợp lý' },
 ]
+
+const MIN_TRIP_DAYS = 1
+const MAX_TRIP_DAYS = 30
+const MAX_TRAVELER_SLIDER = 10
+const MAX_TRAVELERS = 100
+
+function clampWholeNumber(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min
+  return Math.min(max, Math.max(min, Math.round(value)))
+}
 
 function displayDate(date: string, locale: 'en' | 'vi') {
   if (!date) return '—'
@@ -201,6 +232,8 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
   const { tr, lang } = useLanguage()
   const [downloading, setDownloading] = useState(false)
   const plan = result.plan
+  const resourceGroups = buildItineraryResourceGroups(result)
+  const resourceCount = resourceGroups.reduce((total, group) => total + group.resources.length, 0)
   const conciergeHref = `mailto:support@eno.vn?subject=${encodeURIComponent(`eno Concierge — ${plan.title}`)}&body=${encodeURIComponent(tr(
     `I would like eno Concierge to help arrange this itinerary: ${plan.title}. Please contact me about booking support.`,
     `Tôi muốn eno Concierge hỗ trợ sắp xếp lịch trình này: ${plan.title}. Vui lòng liên hệ với tôi về dịch vụ đặt chỗ.`,
@@ -252,12 +285,12 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
         </div>
         <div className="flex flex-col gap-3 border-t border-border/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-relaxed text-body">{plan.budget.note}</p>
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-            <Button data-testid="download-itinerary-docx" type="button" variant="outline" onClick={() => void downloadWordFile()} disabled={downloading}>
+          <div className="grid w-full shrink-0 grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
+            <Button data-testid="download-itinerary-docx" type="button" variant="outline" className="h-11 w-full px-4" onClick={() => void downloadWordFile()} disabled={downloading}>
               {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               {downloading ? tr('Creating Word file…', 'Đang tạo tệp Word…') : tr('Download Word file', 'Tải tệp Word')}
             </Button>
-            <Button type="button" variant="outline" onClick={onSave} disabled={saving || saved}>
+            <Button type="button" variant="outline" className="h-11 w-full px-4" onClick={onSave} disabled={saving || saved}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
               {saving ? tr('Saving…', 'Đang lưu…') : saved ? tr('Saved', 'Đã lưu') : tr('Save plan', 'Lưu kế hoạch')}
             </Button>
@@ -274,9 +307,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-body">{tr('eno Concierge can arrange stays and activities, call transport providers, and coordinate the details so you can enjoy the journey. The service fee is 10% of the bookings we arrange, and you approve every cost first.', 'eno Concierge có thể đặt chỗ ở và hoạt động, gọi đơn vị vận chuyển và điều phối chi tiết để bạn tận hưởng chuyến đi. Phí dịch vụ là 10% giá trị các đặt chỗ do eno sắp xếp và bạn duyệt mọi chi phí trước.')}</p>
             </div>
           </div>
-          <Button asChild type="button" variant="cta" className="shrink-0">
-            <a href={conciergeHref}><PhoneCall className="h-4 w-4" />{tr('Ask eno Concierge', 'Liên hệ eno Concierge')}</a>
-          </Button>
+          <a href={conciergeHref} className={buttonVariants({ variant: 'cta', className: 'shrink-0' })}><PhoneCall className="h-4 w-4" />{tr('Ask eno Concierge', 'Liên hệ eno Concierge')}</a>
         </div>
       </Card>
 
@@ -302,7 +333,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
                 </div>
                 <p className="mt-4 text-sm font-bold text-accent-foreground">{flight.priceLowVnd ? `${formatVnd(flight.priceLowVnd)}–${formatVnd(flight.priceHighVnd)}` : tr('No defensible fare found', 'Chưa tìm thấy mức giá đáng tin')}</p>
                 <p className="mt-2 text-xs leading-relaxed text-body">{flight.fareNote}</p>
-                {flight.url && <Button asChild variant="link" size="none" className="mt-4 h-auto justify-start p-0 text-xs font-bold"><a href={flight.url} target="_blank" rel="noreferrer">{tr('Check this option', 'Kiểm tra lựa chọn này')}<ExternalLink className="h-3.5 w-3.5" /></a></Button>}
+                {flight.url && <a href={flight.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'link', size: 'none', className: 'mt-4 h-auto justify-start p-0 text-xs font-bold' })}>{tr('Check this option', 'Kiểm tra lựa chọn này')}<ExternalLink className="h-3.5 w-3.5" /></a>}
               </Card>
             ))}
           </div>
@@ -333,7 +364,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
               <p className="mt-1 flex items-center gap-1 text-xs text-body"><MapPin className="h-3.5 w-3.5" />{stay.area}</p>
               <p className="mt-3 text-xs leading-relaxed text-body">{stay.why}</p>
               <p className="mt-3 text-xs font-bold text-accent-foreground">{formatVnd(stay.nightlyLowVnd)}–{formatVnd(stay.nightlyHighVnd)}{tr('/night', '/đêm')}</p>
-              {stay.url && <Button asChild variant="link" size="none" className="mt-3 h-auto justify-start p-0 text-xs font-bold"><a href={stay.url} target="_blank" rel="noreferrer">{tr('View source', 'Xem nguồn')}<ExternalLink className="h-3.5 w-3.5" /></a></Button>}
+              {stay.url && <a href={stay.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'link', size: 'none', className: 'mt-3 h-auto justify-start p-0 text-xs font-bold' })}>{tr('View source', 'Xem nguồn')}<ExternalLink className="h-3.5 w-3.5" /></a>}
             </Card>
           ))}
         </div>
@@ -372,15 +403,40 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
         </Card>
       </section>
 
-      <section aria-labelledby="sources-title">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-3 px-1"><div><p className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Trust, but verify', 'Tin cậy và kiểm chứng')}</p><h2 id="sources-title" className="mt-1 text-xl font-bold text-foreground">{tr('Research sources', 'Nguồn nghiên cứu')}</h2></div><Badge variant="brand" size="sm"><Globe2 className="h-3 w-3" />{tr('Cited by eno', 'eno trích dẫn')}</Badge></div>
-        <Card className="gap-0 divide-y divide-border/70 p-0">
-          {result.sources.length ? result.sources.map((source, index) => (
-            <Button key={`${source.url}-${index}`} asChild variant="bare" size="none" className="h-auto w-full justify-between gap-4 rounded-none px-4 py-3 text-left hover:bg-tint sm:px-5">
-              <a href={source.url} target="_blank" rel="noreferrer"><span className="min-w-0"><span className="line-clamp-1 text-xs font-bold text-foreground">{source.title}</span><span className="mt-0.5 block text-2xs text-body">{source.domain}</span></span><ExternalLink className="h-4 w-4 shrink-0 text-ink-4" /></a>
-            </Button>
-          )) : <p className="px-5 py-4 text-xs text-body">{tr('No source links were returned for this plan. Treat every option as unverified.', 'Không có liên kết nguồn cho kế hoạch này. Hãy xem mọi lựa chọn là chưa được xác minh.')}</p>}
-        </Card>
+      <section aria-labelledby="resources-title">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 px-1">
+          <div>
+            <p className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Prepare before you go', 'Chuẩn bị trước chuyến đi')}</p>
+            <h2 id="resources-title" className="mt-1 text-xl font-bold text-foreground">{tr('Travel services and plan links', 'Dịch vụ du lịch và liên kết lịch trình')}</h2>
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-body">{tr('Booking, transport, visa, community, maps, and every link from this itinerary—collected in one place and included in your Word file.', 'Đặt chỗ, di chuyển, visa, cộng đồng, bản đồ và mọi liên kết trong lịch trình—được tập hợp tại một nơi và đưa vào tệp Word.')}</p>
+          </div>
+          <Badge variant="brand" size="sm"><Globe2 className="h-3 w-3" />{resourceCount} {tr('useful links', 'liên kết hữu ích')}</Badge>
+        </div>
+        <div className="space-y-3">
+          {resourceGroups.map((group) => (
+            <Card key={group.id} className="gap-0 border-line-strong p-4 sm:p-5">
+              <div>
+                <h3 className="text-sm font-bold text-foreground">{tr(group.title, group.titleVi)}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-body">{tr(group.description, group.descriptionVi)}</p>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {group.resources.map((resource) => {
+                  const ResourceIcon = RESOURCE_ICONS[resource.kind]
+                  const opensNewTab = resource.url.startsWith('http')
+                  return (
+                    <a key={resource.url} href={resource.url} target={opensNewTab ? '_blank' : undefined} rel={opensNewTab ? 'noreferrer' : undefined} className={buttonVariants({ variant: 'bare', size: 'none', className: 'h-full min-h-24 w-full items-start justify-start gap-3 whitespace-normal rounded-2xl border border-line-strong bg-card px-4 py-3 text-left hover:bg-tint' })}>
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tint text-accent-foreground"><ResourceIcon className="h-4 w-4" /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-start justify-between gap-2 text-xs font-bold text-foreground"><span>{tr(resource.title, resource.titleVi)}</span><ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-4" /></span>
+                          <span className="mt-1 block text-2xs leading-relaxed text-body">{tr(resource.description, resource.descriptionVi)}</span>
+                        </span>
+                    </a>
+                  )
+                })}
+              </div>
+            </Card>
+          ))}
+        </div>
       </section>
 
       {plan.assumptions.length > 0 && (
@@ -608,24 +664,35 @@ export function ItineraryBuilder() {
                       {availableCities.map((city) => <SelectItem key={city.id} value={city.id}><span className="flex flex-col items-start"><span className="font-semibold">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span><span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span></span></SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Button type="button" variant="outline" size="sm" onClick={addCity}>{tr('Add', 'Thêm')}</Button>
+                  <Button type="button" variant="outline" size="sm" className="h-11" onClick={addCity}>{tr('Add', 'Thêm')}</Button>
                 </div>
               )}
             </FormSection>
 
             <FormSection icon={CalendarDays} title={tr('Dates and travelers', 'Ngày và số khách')} subtitle={tr('Exact dates make flight and seasonal research useful.', 'Ngày chính xác giúp tìm chuyến bay và mùa phù hợp.')}>
-              <div className="grid grid-cols-2 gap-3">
-                <Field><FieldLabel htmlFor="trip-start">{tr('Start date', 'Ngày bắt đầu')}</FieldLabel><Input id="trip-start" variant="outline" type="date" min={minDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} className="px-3" /></Field>
-                <Field><FieldLabel>{tr('End date', 'Ngày kết thúc')}</FieldLabel><div className="flex h-[46px] items-center rounded-xl bg-tint px-3 text-sm font-semibold text-body">{endDate ? displayDate(endDate, lang) : tr('Choose start', 'Chọn ngày đầu')}</div></Field>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field className="min-w-0"><FieldLabel htmlFor="trip-start">{tr('Start date', 'Ngày bắt đầu')}</FieldLabel><Input id="trip-start" variant="outline" type="date" min={minDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} className="min-w-0 px-3" /></Field>
+                <Field className="min-w-0"><FieldLabel>{tr('End date', 'Ngày kết thúc')}</FieldLabel><div className="flex h-[46px] min-w-0 items-center rounded-xl bg-tint px-3 text-sm font-semibold text-body">{endDate ? displayDate(endDate, lang) : tr('Choose start', 'Chọn ngày đầu')}</div></Field>
               </div>
               <div className="mt-4">
                 <div className="flex items-center justify-between gap-3"><p id="trip-days-label" className="text-sm font-medium text-foreground">{tr('Trip length', 'Thời lượng')}</p><Badge variant="brand" size="md">{days} {tr('days', 'ngày')}</Badge></div>
-                <Slider value={days} min={3} max={21} onChange={setDays} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} className="mt-3" />
-                <div className="mt-1 flex justify-between text-2xs text-ink-4"><span>3</span><span>21</span></div>
+                <div className="mt-3 flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <Slider value={days} min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} onChange={(value) => setDays(clampWholeNumber(value, MIN_TRIP_DAYS, MAX_TRIP_DAYS))} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} />
+                    <div className="mt-1 flex justify-between text-2xs text-ink-4"><span>{MIN_TRIP_DAYS}</span><span>{MAX_TRIP_DAYS}</span></div>
+                  </div>
+                  <Input aria-label={tr('Enter trip length in days', 'Nhập số ngày chuyến đi')} variant="outline" type="number" inputMode="numeric" min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} value={days} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) setDays(clampWholeNumber(event.currentTarget.valueAsNumber, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) }} onBlur={(event) => { event.currentTarget.value = String(days) }} className="h-11 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" />
+                </div>
               </div>
               <div className="mt-4">
                 <div className="flex items-center justify-between gap-3"><p id="travelers-label" className="text-sm font-medium text-foreground">{tr('Travelers', 'Số khách')}</p><Badge variant="neutral" size="md"><Users className="h-3.5 w-3.5" />{travelers}</Badge></div>
-                <Slider value={travelers} min={1} max={8} onChange={setTravelers} aria-label={tr('Number of travelers', 'Số khách đi cùng')} className="mt-3" />
+                <div className="mt-3 flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <Slider value={Math.min(travelers, MAX_TRAVELER_SLIDER)} min={1} max={MAX_TRAVELER_SLIDER} onChange={(value) => setTravelers(clampWholeNumber(value, 1, MAX_TRAVELER_SLIDER))} aria-label={tr('Number of travelers', 'Số khách đi cùng')} />
+                    <div className="mt-1 flex justify-between text-2xs text-ink-4"><span>1</span><span>{MAX_TRAVELER_SLIDER}</span></div>
+                  </div>
+                  <Input aria-label={tr('Enter number of travelers', 'Nhập số khách')} variant="outline" type="number" inputMode="numeric" min={1} max={MAX_TRAVELERS} value={travelers} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) setTravelers(clampWholeNumber(event.currentTarget.valueAsNumber, 1, MAX_TRAVELERS)) }} onBlur={(event) => { event.currentTarget.value = String(travelers) }} className="h-11 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" />
+                </div>
               </div>
             </FormSection>
 

@@ -19,6 +19,7 @@ import {
   WidthType,
 } from 'docx'
 import type { ActivityPlan, GeneratedItineraryResponse } from '@/components/itinerary/itinerary-data'
+import { buildItineraryResourceGroups } from '@/components/itinerary/itinerary-resources'
 
 const BRAND = '0A66C2'
 const BRAND_DEEP = '123F6D'
@@ -147,6 +148,8 @@ function activityRows(label: string, activity: ActivityPlan, lang: Language) {
 export async function downloadItineraryDocx(result: GeneratedItineraryResponse, travelers: number, lang: Language) {
   const plan = result.plan
   const tr = (en: string, vi: string) => lang === 'vi' ? vi : en
+  const resourceGroups = buildItineraryResourceGroups(result)
+  const resourceCount = resourceGroups.reduce((total, group) => total + group.resources.length, 0)
   const firstDay = plan.days[0]
   const lastDay = plan.days.at(-1)
   const children: Array<Paragraph | Table> = []
@@ -177,7 +180,7 @@ export async function downloadItineraryDocx(result: GeneratedItineraryResponse, 
         metricCell(tr('Dates', 'Ngày'), firstDay && lastDay ? `${dateLabel(firstDay.date, lang)} – ${dateLabel(lastDay.date, lang)}` : '—'),
         metricCell(tr('Travelers', 'Số khách'), String(travelers), WHITE),
         metricCell(tr('Per traveler', 'Mỗi khách'), `${money(plan.budget.perTravelerLowVnd, lang)} – ${money(plan.budget.perTravelerHighVnd, lang)}`),
-        metricCell(tr('Sources', 'Nguồn'), String(result.sources.length), WHITE),
+        metricCell(tr('Useful links', 'Liên kết'), String(resourceCount), WHITE),
       ] })],
     }),
     new Paragraph({ spacing: { after: 180 } }),
@@ -281,14 +284,21 @@ export async function downloadItineraryDocx(result: GeneratedItineraryResponse, 
     children.push(...plan.assumptions.map(bullet))
   }
 
-  children.push(sectionHeading(tr('Research sources', 'Nguồn nghiên cứu')))
-  if (result.sources.length) {
-    children.push(...result.sources.map((source) => new Paragraph({
-      bullet: { level: 0 }, spacing: { after: 70 },
-      children: [new ExternalHyperlink({ link: source.url, children: [new TextRun({ text: source.title || source.domain, color: BRAND, underline: {}, size: 18 })] }), new TextRun({ text: `  (${source.domain})`, color: MUTED, size: 16 })],
+  children.push(sectionHeading(tr('Travel services and plan links', 'Dịch vụ du lịch và liên kết lịch trình')))
+  children.push(textParagraph(tr(
+    'Booking, transport, visa, community, maps, and every link from this itinerary are collected here for quick access.',
+    'Đặt chỗ, di chuyển, visa, cộng đồng, bản đồ và mọi liên kết trong lịch trình được tập hợp tại đây để truy cập nhanh.',
+  )))
+  for (const group of resourceGroups) {
+    children.push(subheading(tr(group.title, group.titleVi)))
+    children.push(textParagraph(tr(group.description, group.descriptionVi), { after: 100, size: 18 }))
+    children.push(...group.resources.map((resource) => new Paragraph({
+      bullet: { level: 0 }, spacing: { after: 90, line: 270 },
+      children: [
+        new ExternalHyperlink({ link: resource.url, children: [new TextRun({ text: tr(resource.title, resource.titleVi), bold: true, color: BRAND, underline: {}, size: 18 })] }),
+        new TextRun({ text: `  —  ${tr(resource.description, resource.descriptionVi)}`, color: BODY, size: 17 }),
+      ],
     })))
-  } else {
-    children.push(textParagraph(tr('No source links were returned for this plan.', 'Không có liên kết nguồn cho kế hoạch này.')))
   }
 
   children.push(textParagraph(tr(
