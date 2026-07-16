@@ -42,9 +42,13 @@ export function SignInForm({ className }: { className?: string }) {
   const lastSubmitted = useRef('')
   // Google blocks OAuth inside in-app browsers / iOS PWAs (403 disallowed_useragent).
   // Detect that client-side and hand off to the real browser instead of dead-ending.
+  // ⚠️ EXCEPT in the native Capacitor app: its WebView UA also contains "wv" (so googleOauthBlocked
+  // is true), but oauth() routes native taps through nativeGoogleSignIn — a Custom Tab /
+  // SFSafariViewController that Google DOES allow. So treat native as NOT blocked: show the normal
+  // "Continue with Google" button, not the "open in your browser" fallback + hint.
   const [oauthBlocked, setOauthBlocked] = useState(false)
   const [iosHint, setIosHint] = useState(false)
-  useEffect(() => { setOauthBlocked(googleOauthBlocked()) }, [])
+  useEffect(() => { setOauthBlocked(googleOauthBlocked() && !isNativeApp()) }, [])
 
   const supabase = createSupabaseBrowser()
   // Cloudflare Turnstile — mints a fresh single-use token for each OTP send so Supabase
