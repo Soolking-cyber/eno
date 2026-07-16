@@ -702,6 +702,14 @@ html.native .allow-select {
   user-select: text;
   -webkit-touch-callout: default;
 }
+/* iOS native pull-to-refresh (UIRefreshControl, wired in MainViewController) needs the WebView to
+   over-scroll past the top — which the base `overscroll-behavior-y: none` (the grey-band fix)
+   suppresses. Re-allow it on native iOS ONLY: the <html> background is var(--card), so the bounce
+   reveals the SAME colour as the header/nav (still seamless, no grey band), while letting the native
+   refresh spinner appear. Android keeps `none` until it gets a SwipeRefreshLayout. */
+html.native-ios {
+  overscroll-behavior-y: auto;
+}
 
 /* Favorite-button burst — the save confirmation IS the animation. Two one-shot,
    compositor-only (transform/opacity) pieces: the heart pops 1→1.35→1 with a

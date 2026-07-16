@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useTheme } from '@/context/theme-context'
+import { useLanguage } from '@/context/language-context'
 import { setNativeKeyboard } from '@/hooks/use-virtual-keyboard'
+import { hapticTap } from '@/lib/haptics'
 
 // The status bar sits over the bg-card header, so it must match it. Read the LIVE --card token
 // (which already flips light/dark) at runtime — no hardcoded colour, always in sync with the theme.
@@ -27,6 +30,78 @@ const isNative = () => !!cap()?.isNativePlatform?.()
  */
 export function NativeBootstrap() {
   const { resolved } = useTheme()
+  const router = useRouter()
+  const { tr } = useLanguage()
+
+  // Native pull-to-refresh: MainViewController's UIRefreshControl fires `eno:native-refresh` on pull;
+  // soft-refresh the current route (re-fetch server components) — no full reload, so scroll + SPA
+  // state survive. No-op on web (event never fires there).
+  useEffect(() => {
+    const onRefresh = () => router.refresh()
+    window.addEventListener('eno:native-refresh', onRefresh)
+    return () => window.removeEventListener('eno:native-refresh', onRefresh)
+  }, [router])
+
+  // Long-press a listing card → native action sheet (Share / Copy link / Open) — the native gesture
+  // users reach for on a card. Non-invasive: a global capture keyed off the card's `data-card-link`
+  // attr, native-only, so it never touches ListingCard. A 500ms hold that survives no finger movement
+  // fires the sheet; the follow-up tap (which would navigate) is swallowed once.
+  useEffect(() => {
+    if (!isNative()) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let suppressClick = false
+    const clear = () => { if (timer) { clearTimeout(timer); timer = null } }
+
+    const openSheet = async (link: HTMLAnchorElement) => {
+      clear()
+      const href = link.getAttribute('href') || ''
+      if (!href) return
+      const url = new URL(href, window.location.origin).toString()
+      const title = link.getAttribute('aria-label') || document.title
+      suppressClick = true // the touchend fires a click we must swallow so it doesn't navigate
+      hapticTap()
+      try {
+        const { ActionSheet, ActionSheetButtonStyle } = await import('@capacitor/action-sheet')
+        const res = await ActionSheet.showActions({
+          title,
+          options: [
+            { title: tr('Share', 'Chia sẻ') },
+            { title: tr('Copy link', 'Sao chép liên kết') },
+            { title: tr('Open', 'Mở') },
+            { title: tr('Cancel', 'Hủy'), style: ActionSheetButtonStyle.Cancel },
+          ],
+        })
+        if (res.index === 0) { const { Share } = await import('@capacitor/share'); await Share.share({ url, title }) }
+        else if (res.index === 1) { try { await navigator.clipboard.writeText(url) } catch { /* ignore */ } }
+        else if (res.index === 2) { window.location.assign(href) }
+      } catch { /* plugin missing / dismissed */ }
+      setTimeout(() => { suppressClick = false }, 700)
+    }
+
+    const onStart = (e: TouchEvent) => {
+      const link = (e.target as Element | null)?.closest?.('a[data-card-link]') as HTMLAnchorElement | null
+      if (!link) return
+      clear()
+      timer = setTimeout(() => { void openSheet(link) }, 500)
+    }
+    const onClickCapture = (e: MouseEvent) => {
+      if (suppressClick) { e.preventDefault(); e.stopPropagation(); suppressClick = false }
+    }
+
+    document.addEventListener('touchstart', onStart, { passive: true })
+    document.addEventListener('touchmove', clear, { passive: true })
+    document.addEventListener('touchend', clear, { passive: true })
+    document.addEventListener('touchcancel', clear, { passive: true })
+    document.addEventListener('click', onClickCapture, true)
+    return () => {
+      clear()
+      document.removeEventListener('touchstart', onStart)
+      document.removeEventListener('touchmove', clear)
+      document.removeEventListener('touchend', clear)
+      document.removeEventListener('touchcancel', clear)
+      document.removeEventListener('click', onClickCapture, true)
+    }
+  }, [tr])
 
   // One-time native wiring: platform class, splash, keyboard bridge, hardware back.
   useEffect(() => {

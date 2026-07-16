@@ -169,10 +169,12 @@ export default function RootLayout({
       >
         <PrelaunchNotice />
         <ThemeProvider>
-          {/* Native-shell (Capacitor) bootstrap — a no-op on web; on iOS/Android it hides the
-              splash, theme-matches the status bar, bridges the native keyboard, and handles back. */}
-          <NativeBootstrap />
           <LanguageProvider>
+            {/* Native-shell (Capacitor) bootstrap — a no-op on web; on iOS/Android it hides the
+                splash, theme-matches the status bar, bridges the native keyboard, handles back,
+                and (needs LanguageProvider) localizes the long-press action sheet. Still inside
+                ThemeProvider, so status-bar theming is unchanged. */}
+            <NativeBootstrap />
             <SkipLink />
             <CurrencyProvider>
             <AuthProvider>

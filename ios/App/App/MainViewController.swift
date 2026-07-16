@@ -14,6 +14,7 @@ import ObjectiveC.runtime
 class MainViewController: CAPBridgeViewController {
     private var reloadAttempts = 0
     private var watchdogGeneration = 0
+    private let refreshControl = UIRefreshControl()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -42,6 +43,22 @@ class MainViewController: CAPBridgeViewController {
         // (that horizontal give is a dead giveaway of a WebView).
         wv.scrollView.alwaysBounceHorizontal = false
         wv.scrollView.bounces = true
+
+        // Native pull-to-refresh: a real UIRefreshControl on the WebView's scroll view (the native
+        // spinner, not a web imitation). On pull we ask the web app to soft-refresh the current view
+        // via an event it listens for (router.refresh(), see native-bootstrap) — no full reload, so
+        // SPA state and scroll position survive. The web side needs top-overscroll enabled
+        // (globals.css html.native-ios) for the control to be reachable.
+        refreshControl.addTarget(self, action: #selector(handlePullRefresh), for: .valueChanged)
+        wv.scrollView.refreshControl = refreshControl
+    }
+
+    @objc private func handlePullRefresh() {
+        webView?.evaluateJavaScript("window.dispatchEvent(new Event('eno:native-refresh'))", completionHandler: nil)
+        // The soft refresh is fast; end the spinner shortly after so it feels snappy, not sticky.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            self?.refreshControl.endRefreshing()
+        }
     }
 
     /// Remove the keyboard input-accessory bar (the gray "Done / ‹ › / suggestions" toolbar above the
@@ -64,8 +81,11 @@ class MainViewController: CAPBridgeViewController {
         let sel = NSSelectorFromString("inputAccessoryView")
         let block: @convention(block) (AnyObject) -> UIView? = { _ in nil }
         let imp = imp_implementationWithBlock(block)
-        let types = class_getInstanceMethod(baseClass, sel).map { method_getTypeEncoding($0) } ?? "@@:"
-        class_addMethod(subclass, sel, imp, types)
+        if let method = class_getInstanceMethod(baseClass, sel), let enc = method_getTypeEncoding(method) {
+            class_addMethod(subclass, sel, imp, enc)
+        } else {
+            class_addMethod(subclass, sel, imp, "@@:") // id (^)(id, SEL)
+        }
         objc_registerClassPair(subclass)
         object_setClass(contentView, subclass)
     }
