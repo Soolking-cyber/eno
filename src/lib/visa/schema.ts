@@ -59,7 +59,8 @@ const required: Array<[keyof VisaPayload, string]> = [
   ['hasChildrenOnPassport', 'children_on_passport_answer_required'],
 ]
 
-export function validateVisaForReview(payload: VisaPayload, documentKinds: string[]): string[] {
+export function validateVisaForReview(payload: VisaPayload, documents: Array<string | { kind: string; validation_status?: string }>): string[] {
+  const normalizedDocuments = documents.map((document) => typeof document === 'string' ? { kind: document, validation_status: 'passed' } : document)
   const issues = required.flatMap(([key, code]) => payload[key] ? [] : [code])
   if (!z.string().email().safeParse(payload.email).success) issues.push('email_invalid')
   if (payload.stayLengthDays < 1 || payload.stayLengthDays > 90) issues.push('stay_length_invalid')
@@ -77,8 +78,14 @@ export function validateVisaForReview(payload: VisaPayload, documentKinds: strin
     const days = Math.floor((new Date(`${payload.visaValidTo}T00:00:00Z`).getTime() - new Date(`${payload.visaValidFrom}T00:00:00Z`).getTime()) / 86400_000) + 1
     if (days > 90) issues.push('visa_period_exceeds_90_days')
   }
-  if (!documentKinds.includes('portrait')) issues.push('portrait_required')
-  if (!documentKinds.includes('passport')) issues.push('passport_image_required')
+  for (const [kind, missingCode, qualityCode] of [
+    ['portrait', 'portrait_required', 'portrait_image_not_verified'],
+    ['passport', 'passport_image_required', 'passport_image_not_verified'],
+  ] as const) {
+    const document = normalizedDocuments.find((item) => item.kind === kind)
+    if (!document) issues.push(missingCode)
+    else if (document.validation_status !== 'passed') issues.push(qualityCode)
+  }
   return [...new Set(issues)]
 }
 

@@ -43,7 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   const payload = decryptVisaPayload(app.encrypted_payload)
   const snapshotHash = visaApplicantSnapshotHash(payload)
-  const issues = validateVisaForReview(payload, docs.map((item) => item.kind))
+  const issues = validateVisaForReview(payload, docs)
   if (issues.length) {
     await db.from('visa_applications').update({ checklist: issues, updated_at: new Date().toISOString() }).eq('id', id)
     return forumJson(request, { error: 'application_incomplete', issues }, { status: 400 }, METHODS)

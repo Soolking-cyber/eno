@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
@@ -14,7 +14,17 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
-type VisaDocument = { id: string; kind: string; mimeType: string; sizeBytes: number; width: number | null; height: number | null; createdAt: string }
+type VisaImageReport = {
+  issues?: string[]
+  corrections?: string[]
+  normalized?: { format?: string; sizeBytes?: number; width?: number | null; height?: number | null }
+}
+type VisaDocument = {
+  id: string; kind: string; mimeType: string; sizeBytes: number; width: number | null; height: number | null
+  validationStatus?: 'pending' | 'passed' | 'failed' | 'unavailable'
+  validationReport?: VisaImageReport
+  createdAt: string
+}
 type VisaEvent = { id: string; actorType: string; event: string; metadata: Record<string, unknown>; createdAt: string }
 type VisaApplication = {
   id: string; status: string; payload?: VisaPayload; checklist: string[]; applicantConfirmedAt: string | null;
@@ -24,6 +34,82 @@ type VisaApplication = {
 
 const STEPS = ['Documents', 'Your details', 'Vietnam trip', 'Review'] as const
 const EDITABLE = new Set(['draft', 'needs_changes'])
+const MAX_BROWSER_IMAGE_BYTES = 3_700_000
+const MAX_INTAKE_IMAGE_BYTES = 15 * 1024 * 1024
+
+async function canvasJpeg(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+}
+
+async function prepareImageForUpload(file: File) {
+  if (file.size > MAX_INTAKE_IMAGE_BYTES) throw new Error('image_size_invalid')
+  if (file.size <= MAX_BROWSER_IMAGE_BYTES) return file
+  let bitmap: ImageBitmap
+  try { bitmap = await createImageBitmap(file) } catch { throw new Error('large_image_could_not_be_prepared') }
+  try {
+    let scale = Math.min(1, 2800 / Math.max(bitmap.width, bitmap.height))
+    let quality = 0.9
+    for (let attempt = 0; attempt < 9; attempt++) {
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('large_image_could_not_be_prepared')
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+      const blob = await canvasJpeg(canvas, quality)
+      if (!blob) throw new Error('large_image_could_not_be_prepared')
+      if (blob.size <= MAX_BROWSER_IMAGE_BYTES) return new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'visa-image'}.jpg`, { type: 'image/jpeg', lastModified: file.lastModified })
+      if (quality > 0.66) quality -= 0.08
+      else { quality = 0.82; scale *= 0.8 }
+    }
+    throw new Error('large_image_could_not_be_prepared')
+  } finally { bitmap.close() }
+}
+
+function imageIssueCopy(issue: string, tr: (en: string, vi: string) => string) {
+  const copy: Record<string, [string, string]> = {
+    not_passport_biodata_page: ['Use the passport biodata page.', 'Hãy dùng trang thông tin hộ chiếu.'],
+    use_one_passport_data_page: ['Show one passport page only.', 'Chỉ hiển thị một trang hộ chiếu.'],
+    passport_image_blurry: ['Retake the passport photo in sharp focus.', 'Chụp lại hộ chiếu rõ nét.'],
+    passport_image_has_glare: ['Move away from glare or reflections.', 'Tránh ánh chói hoặc phản chiếu.'],
+    passport_page_cropped: ['Include the complete passport page.', 'Chụp đầy đủ toàn bộ trang hộ chiếu.'],
+    passport_corners_missing: ['Keep all four passport corners visible.', 'Giữ đủ bốn góc hộ chiếu trong ảnh.'],
+    passport_text_unreadable: ['Move closer so every printed field is readable.', 'Chụp gần hơn để đọc được mọi trường.'],
+    passport_mrz_unreadable: ['Make both machine-readable lines at the bottom sharp.', 'Làm rõ hai dòng mã máy đọc ở cuối trang.'],
+    passport_mrz_check_failed: ['Retake the page so passport numbers can be verified.', 'Chụp lại để có thể xác minh số hộ chiếu.'],
+    not_compliant_portrait: ['Use a recent 4×6-style portrait.', 'Dùng ảnh chân dung 4×6 mới chụp.'],
+    portrait_must_show_one_person: ['The portrait must show one person only.', 'Ảnh chỉ được có một người.'],
+    portrait_image_blurry: ['Use a sharper portrait.', 'Dùng ảnh chân dung rõ nét hơn.'],
+    face_must_look_straight: ['Look straight at the camera.', 'Nhìn thẳng vào máy ảnh.'],
+    remove_hat: ['Remove the hat or head covering.', 'Bỏ mũ hoặc vật che đầu.'],
+    remove_glasses: ['Remove glasses.', 'Bỏ kính.'],
+    wear_formal_clothes: ['Wear neat, formal clothing.', 'Mặc trang phục lịch sự.'],
+    use_plain_white_background: ['Use a plain white background.', 'Dùng nền trắng trơn.'],
+    center_face_in_photo: ['Center the face in the portrait.', 'Đặt khuôn mặt ở giữa ảnh.'],
+    show_head_and_shoulders: ['Show the full head and shoulders.', 'Hiển thị đầy đủ đầu và vai.'],
+    portrait_lighting_uneven: ['Use even light without strong shadows.', 'Dùng ánh sáng đều, không có bóng mạnh.'],
+    automatic_image_check_failed: ['Automatic checking failed. Retry the image.', 'Kiểm tra tự động thất bại. Hãy thử lại ảnh.'],
+  }
+  const value = copy[issue] || [issue.replaceAll('_', ' '), issue.replaceAll('_', ' ')]
+  return tr(value[0], value[1])
+}
+
+function uploadErrorCopy(error: unknown, tr: (en: string, vi: string) => string) {
+  const code = error instanceof ForumApiError ? error.code : error instanceof Error ? error.message : 'upload_failed'
+  const copy: Record<string, [string, string]> = {
+    image_size_invalid: ['Use an image smaller than 15 MB.', 'Dùng ảnh nhỏ hơn 15 MB.'],
+    large_image_could_not_be_prepared: ['This large image could not be resized. Export it as JPG and try again.', 'Không thể thu nhỏ ảnh lớn này. Hãy xuất ảnh thành JPG rồi thử lại.'],
+    unsupported_image_type: ['Use JPG, PNG, WebP, HEIC, or HEIF.', 'Dùng JPG, PNG, WebP, HEIC hoặc HEIF.'],
+    image_decode_failed: ['The image is damaged or unreadable. Choose another copy.', 'Ảnh bị hỏng hoặc không đọc được. Hãy chọn bản khác.'],
+    portrait_resolution_too_low: ['The portrait is too small. Use at least 480×600 pixels.', 'Ảnh chân dung quá nhỏ. Dùng ít nhất 480×600 pixel.'],
+    passport_resolution_too_low: ['The passport image is too small. Use at least 900×600 pixels.', 'Ảnh hộ chiếu quá nhỏ. Dùng ít nhất 900×600 pixel.'],
+    image_official_limit_failed: ['The image could not be reduced below the official 2 MB limit.', 'Không thể giảm ảnh xuống dưới giới hạn chính thức 2 MB.'],
+    ai_unavailable: ['Automatic checking is temporarily unavailable. Please retry shortly.', 'Kiểm tra tự động tạm thời không khả dụng. Vui lòng thử lại sau.'],
+    image_analysis_failed: ['Automatic checking failed. Please retry this image.', 'Kiểm tra tự động thất bại. Vui lòng thử lại ảnh này.'],
+  }
+  const value = copy[code] || [code.replaceAll('_', ' '), code.replaceAll('_', ' ')]
+  return tr(value[0], value[1])
+}
 
 function statusCopy(status: string, tr: (en: string, vi: string) => string) {
   const map: Record<string, [string, string, string, string]> = {
@@ -114,19 +200,80 @@ export function VisaAssistant() {
   const upload = async (kind: 'portrait' | 'passport', file: File | null) => {
     if (!file || !application || !payload) return
     setBusy(true)
+    const toastId = `visa-${kind}-upload`
     try {
-      if (kind === 'passport' && payload.aiDocumentProcessingConsent) await save(false)
-      const form = new FormData(); form.set('kind', kind); form.set('file', file)
+      toast.loading(tr('Preparing image automatically…', 'Đang tự động chuẩn bị ảnh…'), { id: toastId })
+      const preparedFile = await prepareImageForUpload(file)
+      const form = new FormData(); form.set('kind', kind); form.set('file', preparedFile)
       const result = await forumApi<{ document: VisaDocument }>(`/api/visa/applications/${application.id}/documents`, { method: 'POST', body: form, auth: 'required', direct: true })
       setApplication((current) => current ? { ...current, documents: [...current.documents.filter((item) => item.kind !== kind), result.document] } : current)
-      toast.success(tr(`${kind === 'passport' ? 'Passport' : 'Portrait'} uploaded securely.`, `${kind === 'passport' ? 'Hộ chiếu' : 'Ảnh chân dung'} đã được tải lên an toàn.`))
-      if (kind === 'passport' && payload.aiDocumentProcessingConsent) {
-        toast.loading(tr('Reading clearly visible passport fields…', 'Đang đọc các trường rõ ràng trên hộ chiếu…'), { id: 'visa-extract' })
-        const extracted = await forumApi<{ payload: VisaPayload; suggestions: string[]; warnings: string[] }>(`/api/visa/applications/${application.id}/extract`, { method: 'POST', auth: 'required', direct: true })
-        setPayload(extracted.payload)
-        toast.success(tr(`Drafted ${extracted.suggestions.length} fields—please check every one.`, `Đã tạo nháp ${extracted.suggestions.length} trường—vui lòng kiểm tra tất cả.`), { id: 'visa-extract' })
+      toast.loading(kind === 'passport' ? tr('Checking the page and filling passport fields…', 'Đang kiểm tra trang và điền thông tin hộ chiếu…') : tr('Checking the portrait against official rules…', 'Đang kiểm tra ảnh chân dung theo quy định chính thức…'), { id: toastId })
+      const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[] }>(`/api/visa/applications/${application.id}/extract`, {
+        method: 'POST', body: JSON.stringify({ kind, documentId: result.document.id }), auth: 'required', direct: true,
+      })
+      const checkedDocument = { ...result.document, ...analyzed.document }
+      setApplication((current) => current ? { ...current, documents: [...current.documents.filter((item) => item.kind !== kind), checkedDocument] } : current)
+      if (analyzed.payload) setPayload(analyzed.payload)
+      if (analyzed.document.validationStatus === 'passed') {
+        const message = kind === 'passport'
+          ? tr(`Passport verified and ${analyzed.suggestions.length} fields filled. Check them before submission.`, `Đã xác minh hộ chiếu và điền ${analyzed.suggestions.length} trường. Hãy kiểm tra trước khi nộp.`)
+          : tr('Portrait verified and formatted for the official upload.', 'Ảnh chân dung đã được xác minh và định dạng cho cổng chính thức.')
+        toast.success(message, { id: toastId })
+      } else {
+        toast.error(analyzed.issues.length ? imageIssueCopy(analyzed.issues[0], tr) : tr('Use another image.', 'Hãy dùng ảnh khác.'), { id: toastId })
       }
-    } catch (error) { toast.error((error as Error).message.replaceAll('_', ' '), { id: 'visa-extract' }) } finally { setBusy(false) }
+    } catch (error) {
+      toast.error(uploadErrorCopy(error, tr), { id: toastId })
+      await loadApplication(true).catch(() => undefined)
+    } finally { setBusy(false) }
+  }
+
+  useEffect(() => {
+    if (!application || busy || !EDITABLE.has(application.status)) return
+    const pending = application.documents.find((document) => (document.kind === 'passport' || document.kind === 'portrait') && document.validationStatus === 'pending')
+    if (!pending) return
+    let active = true
+    const check = async () => {
+      setBusy(true)
+      const toastId = `visa-${pending.kind}-upload`
+      toast.loading(tr('Finishing the automatic image check…', 'Đang hoàn tất kiểm tra ảnh tự động…'), { id: toastId })
+      try {
+        const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[] }>(`/api/visa/applications/${application.id}/extract`, {
+          method: 'POST', body: JSON.stringify({ kind: pending.kind, documentId: pending.id }), auth: 'required', direct: true,
+        })
+        if (!active) return
+        setApplication((current) => current ? { ...current, documents: current.documents.map((document) => document.id === pending.id ? { ...document, ...analyzed.document } : document) } : current)
+        if (analyzed.payload) setPayload(analyzed.payload)
+        if (analyzed.document.validationStatus === 'passed') toast.success(tr('Image verified.', 'Ảnh đã được xác minh.'), { id: toastId })
+        else toast.error(analyzed.issues.length ? imageIssueCopy(analyzed.issues[0], tr) : tr('Use another image.', 'Hãy dùng ảnh khác.'), { id: toastId })
+      } catch (error) {
+        if (active) {
+          toast.error(uploadErrorCopy(error, tr), { id: toastId })
+          await loadApplication(true)
+        }
+      } finally { if (active) setBusy(false) }
+    }
+    void check()
+    return () => { active = false }
+  }, [application, busy, loadApplication, tr])
+
+  const retryImageAnalysis = async (kind: 'portrait' | 'passport', documentId: string) => {
+    if (!application) return
+    setBusy(true)
+    const toastId = `visa-${kind}-upload`
+    toast.loading(tr('Retrying the automatic image check…', 'Đang thử lại kiểm tra ảnh tự động…'), { id: toastId })
+    try {
+      const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[] }>(`/api/visa/applications/${application.id}/extract`, {
+        method: 'POST', body: JSON.stringify({ kind, documentId }), auth: 'required', direct: true,
+      })
+      setApplication((current) => current ? { ...current, documents: current.documents.map((document) => document.id === documentId ? { ...document, ...analyzed.document } : document) } : current)
+      if (analyzed.payload) setPayload(analyzed.payload)
+      if (analyzed.document.validationStatus === 'passed') toast.success(tr('Image verified.', 'Ảnh đã được xác minh.'), { id: toastId })
+      else toast.error(analyzed.issues.length ? imageIssueCopy(analyzed.issues[0], tr) : tr('Use another image.', 'Hãy dùng ảnh khác.'), { id: toastId })
+    } catch (error) {
+      toast.error(uploadErrorCopy(error, tr), { id: toastId })
+      await loadApplication(true)
+    } finally { setBusy(false) }
   }
 
   const submitForReview = async () => {
@@ -233,7 +380,7 @@ export function VisaAssistant() {
         {STEPS.map((label, index) => <li key={label}><button type="button" onClick={() => setStep(index)} className={cn('flex h-11 w-full items-center justify-center rounded-xl border px-2 text-xs font-bold transition-colors', index === step ? 'border-brand bg-accent text-accent-foreground' : index < step ? 'border-line-strong bg-card text-foreground' : 'border-border bg-tint text-body')}><span className="sm:hidden">{index + 1}</span><span className="hidden sm:inline">{index + 1}. {tr(label, ['Giấy tờ', 'Thông tin', 'Chuyến đi', 'Kiểm tra'][index])}</span></button></li>)}
       </ol>
 
-      {step === 0 && <DocumentsStep application={application} payload={payload} set={set} upload={upload} busy={busy} tr={tr} />}
+      {step === 0 && <DocumentsStep application={application} upload={upload} retry={retryImageAnalysis} busy={busy} tr={tr} />}
       {step === 1 && <PersonalStep payload={payload} set={set} tr={tr} />}
       {step === 2 && <TripStep payload={payload} set={set} tr={tr} />}
       {step === 3 && (
@@ -260,20 +407,109 @@ function Consent({ checked, onChange, children }: { checked: boolean; onChange: 
   return <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line-strong bg-card p-4 text-sm leading-relaxed text-body"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span>{children}</span></label>
 }
 
-function DocumentsStep({ application, payload, set, upload, busy, tr }: { application: VisaApplication; payload: VisaPayload; set: <K extends keyof VisaPayload>(key: K, value: VisaPayload[K]) => void; upload: (kind: 'portrait' | 'passport', file: File | null) => void; busy: boolean; tr: (en: string, vi: string) => string }) {
-  const has = (kind: string) => application.documents.some((item) => item.kind === kind)
+function DocumentsStep({ application, upload, retry, busy, tr }: { application: VisaApplication; upload: (kind: 'portrait' | 'passport', file: File | null) => void; retry: (kind: 'portrait' | 'passport', documentId: string) => void; busy: boolean; tr: (en: string, vi: string) => string }) {
+  const documentFor = (kind: string) => application.documents.find((item) => item.kind === kind)
   return <div className="space-y-5">
     <div className="grid gap-4 md:grid-cols-2">
-      <UploadCard kind="passport" title={tr('Passport data page', 'Trang thông tin hộ chiếu')} detail={tr('Clear, full page, no missing corners. JPG, PNG, or WebP; eno converts it to the official JPG limit.', 'Rõ nét, đầy đủ trang, không mất góc. JPG, PNG hoặc WebP; eno chuyển sang giới hạn JPG chính thức.')} ready={has('passport')} busy={busy} onFile={(file) => upload('passport', file)} />
-      <UploadCard kind="portrait" title={tr('Portrait photo', 'Ảnh chân dung')} detail={tr('4×6 portrait, straight face, no hat or glasses, formal clothes, white background.', 'Ảnh 4×6, nhìn thẳng, không đội mũ hoặc đeo kính, trang phục lịch sự, nền trắng.')} ready={has('portrait')} busy={busy} onFile={(file) => upload('portrait', file)} />
+      <UploadCard kind="passport" title={tr('Passport data page', 'Trang thông tin hộ chiếu')} detail={tr('One clear, complete page with all four corners and both MRZ lines visible. We convert and compress it automatically.', 'Một trang đầy đủ, rõ nét, thấy đủ bốn góc và hai dòng MRZ. Chúng tôi tự động chuyển đổi và nén ảnh.')} document={documentFor('passport')} busy={busy} onFile={(file) => upload('passport', file)} onRetry={(documentId) => retry('passport', documentId)} tr={tr} />
+      <UploadCard kind="portrait" title={tr('Portrait photo', 'Ảnh chân dung')} detail={tr('Recent 4×6 portrait: straight face, no hat or glasses, formal clothes, plain white background. We format it automatically.', 'Ảnh 4×6 mới chụp: nhìn thẳng, không mũ hoặc kính, trang phục lịch sự, nền trắng trơn. Chúng tôi tự động định dạng.')} document={documentFor('portrait')} busy={busy} onFile={(file) => upload('portrait', file)} onRetry={(documentId) => retry('portrait', documentId)} tr={tr} />
     </div>
-    <Consent checked={payload.aiDocumentProcessingConsent} onChange={(value) => set('aiDocumentProcessingConsent', value)}><span className="flex items-start gap-2"><Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" />{tr('Allow eno AI to read clearly visible passport fields into this private draft. AI may be wrong; I will compare every suggestion with my passport before confirming.', 'Cho phép AI eno đọc các trường rõ ràng trên hộ chiếu vào bản nháp riêng tư này. AI có thể sai; tôi sẽ đối chiếu mọi gợi ý với hộ chiếu trước khi xác nhận.')}</span></Consent>
+    <p className="flex gap-2 rounded-2xl border border-brand/20 bg-accent/40 p-4 text-sm leading-relaxed text-body"><Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" /><span>{tr('Uploading starts a private automatic check. eno converts each image to the official JPG and size, checks visible requirements, reads every usable passport field, cross-checks the MRZ, and fills your draft immediately. Unclear values stay blank; you review all answers before anything is submitted.', 'Khi tải lên, hệ thống bắt đầu kiểm tra tự động riêng tư. eno chuyển từng ảnh sang JPG và kích thước chính thức, kiểm tra yêu cầu hiển thị, đọc mọi trường hộ chiếu có thể dùng, đối chiếu MRZ và điền ngay vào bản nháp. Giá trị không rõ sẽ để trống; bạn kiểm tra tất cả trước khi nộp.')}</span></p>
     <p className="flex gap-2 rounded-2xl bg-tint p-4 text-xs leading-relaxed text-body"><LockKeyhole className="h-4 w-4 shrink-0" />{tr('Documents are stored in a private bucket and opened only through short-lived owner/admin links. Do not upload a document that is not yours.', 'Giấy tờ được lưu trong kho riêng tư và chỉ mở qua liên kết ngắn hạn cho chủ sở hữu/quản trị viên. Không tải lên giấy tờ không thuộc về bạn.')}</p>
   </div>
 }
 
-function UploadCard({ title, detail, ready, busy, onFile }: { kind: string; title: string; detail: string; ready: boolean; busy: boolean; onFile: (file: File | null) => void }) {
-  return <Card className={cn('border', ready ? 'border-success/40' : 'border-line-strong')}><CardContent className="flex h-full flex-col gap-4 py-1"><div className="flex items-start justify-between gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-accent-foreground">{ready ? <Check className="h-5 w-5" /> : <FileImage className="h-5 w-5" />}</span>{ready && <Badge variant="success">Ready</Badge>}</div><div className="flex-1"><h2 className="font-bold text-foreground">{title}</h2><p className="mt-1 text-xs leading-relaxed text-body">{detail}</p></div><label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-line-strong bg-background px-4 text-sm font-bold text-foreground hover:border-brand"><Upload className="h-4 w-4" />{ready ? 'Replace image' : 'Choose image'}<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy} onChange={(event) => onFile(event.target.files?.[0] || null)} /></label></CardContent></Card>
+function UploadCard({ kind, title, detail, document, busy, onFile, onRetry, tr }: { kind: 'portrait' | 'passport'; title: string; detail: string; document?: VisaDocument; busy: boolean; onFile: (file: File | null) => void; onRetry: (documentId: string) => void; tr: (en: string, vi: string) => string }) {
+  const [dragging, setDragging] = useState(false)
+  const dragDepth = useRef(0)
+  const ready = document?.validationStatus === 'passed'
+  const failed = document?.validationStatus === 'failed'
+  const unavailable = document?.validationStatus === 'unavailable'
+  const issues = document?.validationReport?.issues || []
+  const corrections = document?.validationReport?.corrections || []
+
+  const receiveFile = (file: File | null) => {
+    dragDepth.current = 0
+    setDragging(false)
+    if (!file || busy) return
+    const acceptedMime = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+    const acceptedExtension = /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)
+    if (!acceptedMime.includes(file.type.toLowerCase()) && !acceptedExtension) {
+      toast.error(tr('Use JPG, PNG, WebP, HEIC, or HEIF.', 'Vui lòng dùng JPG, PNG, WebP, HEIC hoặc HEIF.'))
+      return
+    }
+    onFile(file)
+  }
+
+  return (
+    <Card
+      data-testid={`visa-${kind}-dropzone`}
+      onDragEnter={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        if (busy) return
+        dragDepth.current += 1
+        setDragging(true)
+      }}
+      onDragOver={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        event.dataTransfer.dropEffect = 'copy'
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        dragDepth.current = Math.max(0, dragDepth.current - 1)
+        if (dragDepth.current === 0) setDragging(false)
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        receiveFile(event.dataTransfer.files?.[0] || null)
+      }}
+      className={cn(
+        'border transition-colors',
+        ready ? 'border-success/40' : failed ? 'border-destructive/40' : unavailable ? 'border-warning/40' : 'border-line-strong',
+        dragging && 'border-brand bg-accent/40 ring-2 ring-brand/20',
+        busy && 'opacity-60',
+      )}
+    >
+      <CardContent className="flex h-full flex-col gap-4 py-1">
+        <div className="flex items-start justify-between gap-3">
+          <span className={cn('flex h-11 w-11 items-center justify-center rounded-xl', ready ? 'bg-success/15 text-success' : failed ? 'bg-destructive/10 text-destructive' : unavailable ? 'bg-warning/15 text-warning' : 'bg-accent text-accent-foreground')}>{ready ? <Check className="h-5 w-5" /> : <FileImage className="h-5 w-5" />}</span>
+          {ready && <Badge variant="success">{tr('Verified', 'Đã xác minh')}</Badge>}
+          {failed && <Badge variant="destructive">{tr('New image needed', 'Cần ảnh mới')}</Badge>}
+          {unavailable && <Badge variant="warning">{tr('Check interrupted', 'Kiểm tra bị gián đoạn')}</Badge>}
+          {document?.validationStatus === 'pending' && <Badge variant="warning">{tr('Checking', 'Đang kiểm tra')}</Badge>}
+        </div>
+        <div className="flex-1">
+          <h2 className="font-bold text-foreground">{title}</h2>
+          <p className="mt-1 text-xs leading-relaxed text-body">{detail}</p>
+          {issues.length > 0 && <ul className="mt-3 space-y-1 rounded-xl bg-destructive/5 p-3 text-xs text-destructive">{issues.map((issue) => <li key={issue}>• {imageIssueCopy(issue, tr)}</li>)}</ul>}
+          {ready && corrections.length > 0 && <p className="mt-3 text-xs leading-relaxed text-success">{tr('Automatically prepared:', 'Đã tự động chuẩn bị:')} {tr('JPG, correct orientation, official dimensions, metadata removed, under 2 MB.', 'JPG, đúng chiều, kích thước chính thức, xóa siêu dữ liệu, dưới 2 MB.')}</p>}
+        </div>
+        <label className={cn('flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-xl border border-dashed border-line-strong bg-background px-4 py-3 text-center text-sm text-foreground transition-colors hover:border-brand focus-within:border-brand focus-within:ring-2 focus-within:ring-ring/30', busy && 'cursor-not-allowed')}>
+          <Upload className="h-5 w-5 shrink-0 text-brand" />
+          <span>
+            <span className="block font-bold">{dragging ? tr('Drop image to upload', 'Thả ảnh để tải lên') : ready ? tr('Replace image', 'Thay ảnh') : tr('Choose image', 'Chọn ảnh')}</span>
+            <span className="mt-0.5 block text-xs font-normal text-body">{tr('or drag and drop it here', 'hoặc kéo và thả ảnh vào đây')}</span>
+          </span>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+            className="sr-only"
+            aria-label={tr(`Choose ${kind} image`, `Chọn ảnh ${kind === 'passport' ? 'hộ chiếu' : 'chân dung'}`)}
+            disabled={busy}
+            onChange={(event) => {
+              receiveFile(event.target.files?.[0] || null)
+              event.target.value = ''
+            }}
+          />
+        </label>
+        {unavailable && document && <Button type="button" variant="outline" className="h-11 w-full" disabled={busy} onClick={() => onRetry(document.id)}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}{tr('Retry automatic check', 'Thử lại kiểm tra tự động')}</Button>}
+      </CardContent>
+    </Card>
+  )
 }
 
 function PersonalStep({ payload, set, tr }: { payload: VisaPayload; set: <K extends keyof VisaPayload>(key: K, value: VisaPayload[K]) => void; tr: (en: string, vi: string) => string }) {
