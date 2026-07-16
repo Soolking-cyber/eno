@@ -10,19 +10,13 @@ import { GoogleGenAI } from '@google/genai'
 //   GOOGLE_VERTEX_CREDENTIALS  — the service-account JSON key, as a single-line string
 // Lazy singleton; returns null when unconfigured so the AI routes degrade gracefully.
 
-// ALL AI paths run gemini-3.5-flash (image classify, description polish, concierge,
-// visual-search, brands, admin review) — one constant, imported by all 6 paths.
-// HARD REQUIREMENT: 3.5-flash is served from the GLOBAL Vertex endpoint ONLY — it 404s
-// on regional endpoints (us-central1, etc.), which broke post-wizard AI on 2026-07-06
-// when GEMINI_LOCATION was us-central1. So GEMINI_LOCATION MUST be `global` in prod.
-// Verified 2026-07-06 via GET /api/admin/ai-health?probe=1&model=gemini-3.5-flash on
-// the live eno-translate project (GEMINI_LOCATION=global) → probe ok, ~1s. If AI ever
-// 404s again, hit ai-health: a regional GEMINI_LOCATION is the usual cause — fix is
-// GEMINI_LOCATION=global (or drop to the region-robust fallback below).
-export const GEMINI_MODEL = 'gemini-3.5-flash'
-// Region-robust (works on global AND regional endpoints) — used for high-stakes
-// retries (admin review) and as the safe manual downgrade if 3.5 has an incident.
-export const GEMINI_MODEL_FALLBACK = 'gemini-2.5-flash'
+// Keep the stable, region-robust model first for every live request. The eno-translate
+// project's 3.5 preview pool can return RESOURCE_EXHAUSTED while 2.5 remains healthy;
+// making 2.5 primary prevents itinerary and visa traffic from touching that exhausted
+// pool during normal operation. 3.5 remains an immediate secondary attempt where a
+// route explicitly uses GEMINI_MODEL_FALLBACK. The global endpoint supports both.
+export const GEMINI_MODEL = 'gemini-2.5-flash'
+export const GEMINI_MODEL_FALLBACK = 'gemini-3.5-flash'
 
 let client: GoogleGenAI | null | undefined
 

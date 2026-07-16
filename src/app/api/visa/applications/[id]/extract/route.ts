@@ -111,8 +111,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!isAllowedForumOrigin(request)) return forumJson(request, { error: 'origin_not_allowed' }, { status: 403 }, METHODS)
   const user = await getVisaUser(request)
   if (!user) return forumJson(request, { error: 'auth_required' }, { status: 401 }, METHODS)
-  const limit = await rateLimit('visa-image-analysis', user.id, 16, '24 h', { strict: true })
-  if (!limit.success) return forumJson(request, { error: 'rate_limited' }, { status: 429 }, METHODS)
   const parsed = requestSchema.safeParse(await request.json().catch(() => ({ kind: 'passport' })))
   if (!parsed.success) return forumJson(request, { error: 'invalid_analysis_request' }, { status: 400 }, METHODS)
   const { id } = await params
@@ -126,6 +124,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!application) return forumJson(request, { error: 'not_found' }, { status: 404 }, METHODS)
   if (!['draft', 'needs_changes'].includes(application.status)) return forumJson(request, { error: 'application_locked' }, { status: 409 }, METHODS)
   if (!document) return forumJson(request, { error: `${parsed.data.kind}_image_required` }, { status: 409 }, METHODS)
+  const existingReport = document.validation_report && typeof document.validation_report === 'object' ? document.validation_report as Record<string, unknown> : {}
+  const [hourlyLimit, dailyLimit] = await Promise.all([
+    rateLimit('visa-image-analysis-v2-hour', user.id, 10, '1 h', { strict: true }),
+    rateLimit('visa-image-analysis-v2-day', user.id, 30, '24 h', { strict: true }),
+  ])
+  if (!hourlyLimit.success || !dailyLimit.success) {
+    const validationReport = {
+      ...existingReport,
+      version: VISA_IMAGE_RULES_VERSION,
+      status: 'unavailable',
+      issues: ['automatic_image_check_rate_limited'],
+      analyzedAt: new Date().toISOString(),
+    }
+    await db.from('visa_documents').update({ validation_status: 'unavailable', validation_report: validationReport }).eq('id', document.id)
+    const response = forumJson(request, { error: 'image_analysis_rate_limited' }, { status: 429 }, METHODS)
+    response.headers.set('Retry-After', '300')
+    return response
+  }
   const ai = getGemini()
   if (!ai) {
     await db.from('visa_documents').update({ validation_status: 'unavailable' }).eq('id', document.id)
@@ -133,7 +149,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   const { data: blob, error: downloadError } = await db.storage.from(VISA_BUCKET).download(document.storage_path)
   if (downloadError || !blob) return forumJson(request, { error: 'image_download_failed' }, { status: 500 }, METHODS)
-  const existingReport = document.validation_report && typeof document.validation_report === 'object' ? document.validation_report as Record<string, unknown> : {}
 
   try {
     const passport = parsed.data.kind === 'passport'

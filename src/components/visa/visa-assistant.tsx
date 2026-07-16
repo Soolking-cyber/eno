@@ -97,6 +97,7 @@ function imageIssueCopy(issue: string, tr: (en: string, vi: string) => string) {
     show_head_and_shoulders: ['Show the full head and shoulders.', 'Hiển thị đầy đủ đầu và vai.'],
     portrait_lighting_uneven: ['Use even light without strong shadows.', 'Dùng ánh sáng đều, không có bóng mạnh.'],
     automatic_image_check_busy: ['Your image is saved. The automatic checker is busy—retry in about one minute.', 'Ảnh đã được lưu. Hệ thống kiểm tra tự động đang bận—hãy thử lại sau khoảng một phút.'],
+    automatic_image_check_rate_limited: ['Automatic checking paused after too many attempts. Your image is saved; retry once in a few minutes.', 'Kiểm tra tự động đã tạm dừng do có quá nhiều lần thử. Ảnh đã được lưu; hãy thử lại một lần sau vài phút.'],
     automatic_image_check_failed: ['Automatic checking failed. Retry the image.', 'Kiểm tra tự động thất bại. Hãy thử lại ảnh.'],
   }
   const value = copy[issue] || [issue.replaceAll('_', ' '), issue.replaceAll('_', ' ')]
@@ -114,6 +115,8 @@ function uploadErrorCopy(error: unknown, tr: (en: string, vi: string) => string)
     passport_resolution_too_low: ['The passport image is too small. Use at least 900×600 pixels.', 'Ảnh hộ chiếu quá nhỏ. Dùng ít nhất 900×600 pixel.'],
     image_official_limit_failed: ['The image could not be reduced below the official 2 MB limit.', 'Không thể giảm ảnh xuống dưới giới hạn chính thức 2 MB.'],
     ai_unavailable: ['Automatic checking is temporarily unavailable. Please retry shortly.', 'Kiểm tra tự động tạm thời không khả dụng. Vui lòng thử lại sau.'],
+    rate_limited: ['Your image is saved. Automatic checking paused after too many attempts—use Retry once in a few minutes.', 'Ảnh đã được lưu. Kiểm tra tự động đã tạm dừng do có quá nhiều lần thử—hãy dùng Thử lại một lần sau vài phút.'],
+    image_analysis_rate_limited: ['Your image is saved. Automatic checking paused after too many attempts—use Retry once in a few minutes.', 'Ảnh đã được lưu. Kiểm tra tự động đã tạm dừng do có quá nhiều lần thử—hãy dùng Thử lại một lần sau vài phút.'],
     image_analysis_busy: ['Your image is saved. eno will retry across two checkers; if they remain busy, retry in about one minute.', 'Ảnh đã được lưu. eno sẽ thử lại qua hai hệ thống kiểm tra; nếu vẫn bận, hãy thử lại sau khoảng một phút.'],
     image_analysis_failed: ['Automatic checking failed. Please retry this image.', 'Kiểm tra tự động thất bại. Vui lòng thử lại ảnh này.'],
   }
@@ -159,10 +162,12 @@ export function VisaAssistant() {
   const [declaration, setDeclaration] = useState(false)
   const [authorization, setAuthorization] = useState(false)
   const analysisInFlight = useRef(new Map<string, Promise<VisaAnalysis>>())
+  const analysisAttempted = useRef(new Set<string>())
 
   const analyzeDocument = useCallback((applicationId: string, kind: 'portrait' | 'passport', documentId: string) => {
     const existing = analysisInFlight.current.get(documentId)
     if (existing) return existing
+    analysisAttempted.current.add(documentId)
     const request = forumApi<VisaAnalysis>(`/api/visa/applications/${applicationId}/extract`, {
       method: 'POST', body: JSON.stringify({ kind, documentId }), auth: 'required', direct: true,
     })
@@ -256,7 +261,7 @@ export function VisaAssistant() {
   const pendingDocument = application?.documents.find((document) => (document.kind === 'passport' || document.kind === 'portrait') && document.validationStatus === 'pending')
 
   useEffect(() => {
-    if (!application || !EDITABLE.has(application.status) || !pendingDocument || analysisInFlight.current.has(pendingDocument.id)) return
+    if (!application || !EDITABLE.has(application.status) || !pendingDocument || analysisAttempted.current.has(pendingDocument.id)) return
     const pending = pendingDocument
     let active = true
     const check = async () => {
