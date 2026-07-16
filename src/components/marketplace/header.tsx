@@ -273,6 +273,13 @@ export function Header() {
             onSubmit={(e) => { e.preventDefault(); submitSearch(searchVal); setShowSuggestions(false) }}
             className="relative min-w-0 flex-1 animate-in fade-in duration-200"
           >
+            {/* Width cap + positioning context for the whole search component. The form stays
+                `flex-1` so it reserves the middle of the header (keeping the action icons pinned
+                right), but the visible input window AND its fused dropdown are capped at max-w-xl
+                and centered here — otherwise a 3-item "Recent" list sprawls across the full
+                ~810px bar on desktop. `relative` makes THIS the offset parent for the
+                `sm:absolute sm:inset-x-0` panels below, so they inherit this 576px width. */}
+            <div className="relative mx-auto w-full max-w-xl">
             {/* Morphing search "window": a rounded pill when idle that flattens its
                 bottom and fuses with the suggestions panel into one continuous white
                 window when open (Google-style monolith). */}
@@ -427,6 +434,7 @@ export function Header() {
                 />
               </div>
             )}
+            </div>
           </form>
         ) : (
           <div className="flex-1" />
