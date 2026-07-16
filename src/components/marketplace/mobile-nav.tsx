@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
+import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { useSlideRouter } from './page-transitions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -96,12 +97,14 @@ export function MobileNav() {
   const { user, loading } = useAuth()
   const { unread } = useChat()
   const { navigate } = useSlideRouter()
-  // The bar is a PERMANENT anchor: it no longer hides on scroll (a disappearing bottom bar
-  // is disorienting — owner 2026-07-15). The ONLY time it steps aside is when the on-screen
-  // keyboard is up: iOS lifts a fixed bottom bar ABOVE the keyboard, so it would wedge between
-  // a chat composer and the keyboard. A typing user doesn't need the tabs (standard mobile
-  // pattern), so it drops just for that.
+  // The bar auto-hides on scroll like a native app (owner 2026-07-16, reversing the earlier
+  // "permanent anchor"): it retracts DOWN off-screen while the user scrolls down to browse and
+  // slides back on any scroll-up / near the top — the same useHideOnScroll signal the top header
+  // uses, so the two chrome bars move together. It ALSO steps aside whenever the on-screen keyboard
+  // is up (iOS lifts a fixed bottom bar ABOVE the keyboard, so it would wedge between a chat
+  // composer and the keyboard; a typing user doesn't need the tabs).
   const { open: keyboardOpen } = useVirtualKeyboard()
+  const scrolledAway = useHideOnScroll()
 
   // Don't apply the active-tab state until after mount. On a STATICALLY prerendered
   // page (the home feed), usePathname() in the build-time render can differ from the
@@ -164,18 +167,31 @@ export function MobileNav() {
   // IS supported it already hides the subtree from AT, so aria-hidden buys nothing there either.
   // (back-to-top.tsx can pair aria-hidden with tabIndex={-1} because it is a SINGLE button; here the
   // focusable nodes are descendants, so there is no one element to make untabbable.)
-  const off = keyboardOpen
+  //
+  // `off` = the VISUAL retract (scroll-down OR keyboard). `inert` is applied for the KEYBOARD case
+  // ONLY: a keyboard user tabbing down the page makes the browser auto-scroll, which trips
+  // scrolledAway — inert-ing the nav mid-scroll would drop it out of the tab order right as they
+  // try to reach it. So while merely scroll-hidden it stays reachable, and `focus-within:` (in the
+  // className) instantly un-retracts it the moment focus lands on a tab — so a keyboard user never
+  // focuses an invisible off-screen control (the :focus-within pseudo out-specificities the `off`
+  // transform, so no JS state is needed). When the keyboard is up the tabs are genuinely not a
+  // destination (you're typing), so inert there is correct and focus can't enter anyway.
+  const off = keyboardOpen || scrolledAway
 
   return (
     <nav
-      inert={off}
+      inert={keyboardOpen}
       className={cn(
         // No top border — the bar is a pure bg-card layer that blends into the canvas; the
         // spatial split + the active-tab colour carry the hierarchy, not a divider line.
         'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
-        // The bar is permanently docked; it slides DOWN off-screen + fades only while the
-        // on-screen keyboard is open (so a chat composer can sit flush above it), and returns
-        // the moment the keyboard closes.
+        // Reveal-on-focus: if a keyboard user tabs into the (scroll-hidden) bar, :focus-within
+        // out-specificities the retract below and slides it back into view — never an invisible,
+        // focused control. (Harmless while docked; a no-op when inert during keyboard-up.)
+        'focus-within:translate-y-0 focus-within:opacity-100 focus-within:pointer-events-auto',
+        // Slides DOWN off-screen + fades while scrolling down to browse (returns on scroll-up /
+        // near the top) and while the on-screen keyboard is open (so a chat composer sits flush
+        // above it); docked and visible otherwise.
         off ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100',
       )}
     >

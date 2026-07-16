@@ -13,7 +13,7 @@ import { CardBadges } from './card-badges'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
-import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { CardVideo } from './card-video'
@@ -351,63 +351,25 @@ function ListingCardImpl({
           )}
         </span>
 
-        {/* Right-edge action column: heart + (mobile) chat/offer/pin, ONE column
-            spanning the photo so the icons distribute equally top→bottom. On lg the
-            chat/offer/pin hide (they live in the left hover stack) and
-            justify-between leaves the heart pinned top-right exactly as before. */}
-        <span className={cn(
-          'absolute bottom-2 right-2 top-2 z-10 flex flex-col items-center justify-between transition-all duration-200',
-          quickOffer !== null && 'mobile:pointer-events-none mobile:translate-x-8 mobile:opacity-0',
-        )}>
-          {/* GHOST, not overlay: the heart's shadow lives on the icon itself at 0.5 alpha
-              (softer than overlay's 0.55 on the box), and its saved/unsaved fill is on the
-              <Heart> child — so the primitive contributes only the shell. */}
-          <IconButton
-            size="sm"
-            aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
-            aria-pressed={favorited}
-            onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listing.id) }}
-            className="transition-transform hover:scale-110 active:scale-90"
-          >
-            {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow —
-                legible on ANY photo; blue fill when saved; heart-pop on save. */}
-            <span onAnimationEnd={() => setBurst(false)} className={cn('inline-flex', burst && 'animate-heart-pop')}>
-              <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
-            </span>
-          </IconButton>
-          {/* Mobile column: white-on-photo glyphs = variant="overlay" exactly. They sit at
-              ~56px pitch down the photo's right edge, so the 44px tap target stays ON. */}
-          <IconButton
-            size="sm"
-            variant="overlay"
-            aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
-            onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-            className="transition-transform active:scale-90 pc:hidden"
-          >
-            <MessageCircle className="h-[20px] w-[20px]" />
-          </IconButton>
-          {listing.price > 0 && listing.negotiable !== false && (
-            <IconButton
-              size="sm"
-              variant="overlay"
-              aria-label={tr('Make an offer', 'Trả giá')}
-              aria-pressed={quickOffer !== null}
-              onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
-              className="transition-transform active:scale-90 pc:hidden"
-            >
-              <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
-            </IconButton>
-          )}
-          <IconButton
-            size="sm"
-            variant="overlay"
-            aria-label={tr('Show on map', 'Xem trên bản đồ')}
-            onClick={(e) => { e.stopPropagation(); locate(listing) }}
-            className="transition-transform active:scale-90 pc:hidden"
-          >
-            <MapPin className="h-[20px] w-[20px]" />
-          </IconButton>
-        </span>
+        {/* Save (Heart) — pinned top-right on EVERY platform (the only control left on the
+            photo). GHOST, not overlay: the heart's shadow lives on the icon itself at 0.5
+            alpha (softer than overlay's 0.55 on the box), and its saved/unsaved fill is on
+            the <Heart> child — so the primitive contributes only the shell. The mobile
+            Chat/Offer/Map glyphs that used to stack down this edge now live in the card body
+            (a quiet native action row); desktop keeps its on-hover unfurl above. */}
+        <IconButton
+          size="sm"
+          aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
+          aria-pressed={favorited}
+          onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listing.id) }}
+          className="absolute right-2 top-2 z-10 transition-transform hover:scale-110 active:scale-90"
+        >
+          {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow —
+              legible on ANY photo; blue fill when saved; heart-pop on save. */}
+          <span onAnimationEnd={() => setBurst(false)} className={cn('inline-flex', burst && 'animate-heart-pop')}>
+            <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
+          </span>
+        </IconButton>
 
         {/* Offer slide — ONE edge-to-edge bar for BOTH mobile + desktop (was a
             cramped inline panel on desktop that squeezed the amount on narrow cards).
@@ -488,31 +450,24 @@ function ListingCardImpl({
         )}
       </div>
 
-      {/* Body — title · price · location · verified */}
-      <div className="flex flex-1 flex-col gap-1 px-0.5 pt-2.5">
-        <h3 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">
-          {displayTitle}
-        </h3>
-
-        {/* Brand · model — shown when the listing carries them (product categories).
-            Neutral on purpose: the price owns the card's single blue accent. */}
-        {(listing.brandSlug || listing.model) && (
-          <span className="truncate text-2xs font-semibold text-muted-foreground">
-            {[listing.brandSlug ? prettyBrand(listing.brandSlug) : null, listing.model].filter(Boolean).join(' · ')}
-          </span>
-        )}
-
+      {/* Body — a strict, scannable native hierarchy: price (the anchor) → title →
+          one tightly-packed subdued metadata line → (mobile only) a quiet action row.
+          gap-0.5 keeps it dense; the metadata line is pushed to the bottom (mt-auto)
+          so cards with 1- vs 2-line titles still align their footers across the grid. */}
+      <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2.5">
+        {/* PRIMARY — price. The card's single blue accent, bold and a step larger than
+            everything else so the eye lands here first. Deal chips sit INLINE (baseline
+            row) so "was"/"Good price" add no vertical bulk. */}
         <span className="flex items-baseline gap-1.5">
-          {/* The card's single color anchor — brand blue, one step up from the title. */}
-          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-base font-bold text-accent-foreground" />
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-lg font-bold leading-tight text-accent-foreground" />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, only
               present while the drop badge is live. */}
           {hasDrop && (
             <Price price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" compact className="truncate text-2xs text-ink-4 line-through" />
           )}
           {/* Below the market band (< P25) → a quiet "Good price" cue tied to the price.
-              Deal-positive only; kept off the photo so it never crowds urgent/drop badges,
-              and yields to a live price-drop so the two cheapness signals never stack. */}
+              Deal-positive only; yields to a live price-drop so the two cheapness signals
+              never stack. */}
           {listing.goodPrice && !hasDrop && (
             <Badge variant="success" className="shrink-0 self-center px-1.5 py-0.5 text-3xs">
               {tr('Good price', 'Giá tốt')}
@@ -520,27 +475,70 @@ function ListingCardImpl({
           )}
         </span>
 
-        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span className="truncate">{displayLocation}</span>
-          <span className="flex shrink-0 items-center gap-1.5">
-            {/* Demand proof — distinct contact reveals. Only once meaningful (≥3);
-                shares this row, so presence never changes the card height. */}
-            {listing.contactCount >= 3 && (
-              <span className="text-2xs text-muted-foreground tabular-nums">
-                {tr(`${formatCount(listing.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(listing.contactCount, moneyLocale(lang))}`)}
-              </span>
-            )}
-            {/* Mini chip (glyph + number), not a bare number guests can't decode. Display
-                only — the card itself is the button (no nested interactive). */}
-            <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />
+        {/* SECONDARY — title. Medium weight + neutral ink so it never competes with the
+            price above it. Two lines max, then ellipsis. */}
+        <h3 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">
+          {displayTitle}
+        </h3>
+
+        {/* TERTIARY — one subdued metadata line. Location · brand/model truncate on the left;
+            business + trust cluster (shrink-0) on the right. Business is an icon-only store glyph
+            (role=img so AT still announces it) to keep the row from wrapping on a narrow card. The
+            "N contacted" demand count moved to the PDP — one fewer shrink-0 item keeps this line
+            from overflowing on a 2-col mobile card, and reads cleaner. */}
+        <div className="mt-auto flex items-center gap-1.5 pt-1 text-2xs text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate">
+            {[displayLocation, (listing.brandSlug || listing.model)
+              ? [listing.brandSlug ? prettyBrand(listing.brandSlug) : null, listing.model].filter(Boolean).join(' · ')
+              : null].filter(Boolean).join(' · ')}
           </span>
+          {listing.seller.isBusiness && (
+            <span role="img" title={tr('Business', 'Doanh nghiệp')} aria-label={tr('Business', 'Doanh nghiệp')} className="inline-flex shrink-0 items-center">
+              <Building2 className="h-3.5 w-3.5" />
+            </span>
+          )}
+          {/* Mini chip (glyph + number) — display only; the card itself is the button. */}
+          <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />
         </div>
 
-        {listing.seller.isBusiness && (
-          <span className="mt-0.5 inline-flex items-center gap-1 text-3xs font-bold text-muted-foreground">
-            <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
-          </span>
-        )}
+        {/* NATIVE MOBILE ACTION ROW — the Chat/Offer/Map glyphs that used to stack down the
+            photo's right edge, now a quiet subdued footer (desktop uses the on-hover unfurl
+            over the image instead, so this is pc:hidden). `relative z-10` lifts the row ABOVE
+            the stretched card-link <a> (which paints at z-0 over the in-flow body) so taps land
+            on the glyph. ⚠️ The row STRETCHES to the card's full width (flex-col child), so it is
+            `pointer-events-none` and each glyph re-enables `pointer-events-auto` — otherwise the
+            empty space beside the icons would swallow taps meant for the card link beneath and
+            silently kill navigation from the bottom strip. stopPropagation stays as belt-and-
+            braces; default tapTarget → a full 44px hit area for iOS/Android. */}
+        <div className="pointer-events-none relative z-10 -ml-1.5 mt-1.5 flex items-center gap-0.5 pc:hidden">
+          <IconButton
+            size="sm"
+            aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
+            onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
+            className="pointer-events-auto text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-90"
+          >
+            <MessageCircle className="h-[18px] w-[18px]" />
+          </IconButton>
+          {listing.price > 0 && listing.negotiable !== false && (
+            <IconButton
+              size="sm"
+              aria-label={tr('Make an offer', 'Trả giá')}
+              aria-pressed={quickOffer !== null}
+              onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
+              className={cn('pointer-events-auto transition-colors hover:bg-muted active:scale-90', quickOffer !== null ? 'text-brand' : 'text-muted-foreground hover:text-foreground')}
+            >
+              <Tag className={cn('h-[18px] w-[18px]', quickOffer !== null && 'fill-brand')} />
+            </IconButton>
+          )}
+          <IconButton
+            size="sm"
+            aria-label={tr('Show on map', 'Xem trên bản đồ')}
+            onClick={(e) => { e.stopPropagation(); locate(listing) }}
+            className="pointer-events-auto text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-90"
+          >
+            <MapPin className="h-[18px] w-[18px]" />
+          </IconButton>
+        </div>
       </div>
     </div>
   )
