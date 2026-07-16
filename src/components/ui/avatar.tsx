@@ -1,11 +1,13 @@
+'use client'
+
 import { getInitials, cn, BRAND_BLUE } from '@/lib/utils'
 
 // Shared user/seller avatar: a photo when there is one, otherwise the app-wide initials
 // on the account's `avatarColor` (brand blue fallback). Consolidates the image-or-initials
 // block that was hand-rolled in ~6 places (seller card, conversation list, dashboard,
 // profile editor, storefront, chat header), each with its own `slice(0,2)` — which drifted
-// from the canonical getInitials() rule. No 'use client' / no hooks, so it renders in both
-// server and client components.
+// from the canonical getInitials() rule. The small client boundary lets a failed remote
+// photo reveal the already-rendered initials instead of leaving a broken-image glyph.
 
 const SIZES = {
   sm: 'h-9 w-9 text-xs',
@@ -29,15 +31,21 @@ export function Avatar({
   className?: string
 }) {
   const base = cn('shrink-0 overflow-hidden rounded-full', SIZES[size], className)
-  if (url) {
-    return <img src={url} alt="" className={cn(base, 'object-cover')} />
-  }
   return (
     <span
-      className={cn(base, 'flex items-center justify-center font-bold text-white')}
+      aria-hidden="true"
+      className={cn(base, 'relative flex items-center justify-center font-bold text-white')}
       style={{ backgroundColor: color || BRAND_BLUE }}
     >
       {getInitials(name)}
+      {url && (
+        <img
+          src={url}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(event) => { event.currentTarget.style.display = 'none' }}
+        />
+      )}
     </span>
   )
 }

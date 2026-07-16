@@ -23,7 +23,10 @@ const nextConfig: NextConfig = {
       "form-action 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline'",
-      `img-src 'self' data: blob: ${supabaseUrl}`,
+      // Supabase serves forum media; Google serves profile photos copied into the
+      // shared user's OAuth metadata. Keep this host aligned with the marketplace
+      // CSP or signed-in Google accounts render a blocked/broken avatar.
+      `img-src 'self' data: blob: ${supabaseUrl} https://*.googleusercontent.com`,
       "font-src 'self' data:",
       `connect-src 'self' ${supabaseUrl} https://challenges.cloudflare.com`,
       "frame-src 'self' https://challenges.cloudflare.com",

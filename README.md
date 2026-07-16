@@ -2,6 +2,13 @@
 
 Independent Next.js application for the eno.forum community experience and Vietnam itinerary builder. It has its own Git repository, dependencies, build, tests, environment variables, and Vercel project while sharing identity and backend data with eno.vn.
 
+> [!IMPORTANT]
+> **Deployment ownership:** forum and itinerary changes ship from this repository,
+> `Soolking-cyber/eno-forum`, to the separate `eno-forum` Vercel project. The
+> `apps/forum` directory in `Soolking-cyber/eno` is only a mirror; pushing that
+> monorepo does not deploy `eno.forum`. Always port forum changes here, validate
+> this repository, and push this repository's `main` branch.
+
 ## Local development
 
 ```bash
