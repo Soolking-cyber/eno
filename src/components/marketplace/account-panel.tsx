@@ -256,7 +256,7 @@ function AccountPanel({ open, onClose, resizing, onResizeStart, onResizeKey }: {
       </>
     )
     return it.external ? (
-      <a key={it.href} href={it.href} onClick={closeOnMobile} className={cn(navItem, isOn && activeItem)}>{inner}</a>
+      <a key={it.href} href={it.href} aria-current={isOn ? 'page' : undefined} onClick={closeOnMobile} className={cn(navItem, isOn && activeItem)}>{inner}</a>
     ) : (
       <Link key={it.href} href={it.href} aria-current={isOn ? 'page' : undefined} onClick={closeOnMobile} className={cn(navItem, isOn && activeItem)}>{inner}</Link>
     )
@@ -319,13 +319,18 @@ function AccountPanel({ open, onClose, resizing, onResizeStart, onResizeKey }: {
         </Button>
       </div>
 
-      {/* MIDDLE (scrollable) — the core routing */}
-      <nav aria-label={tr('Dashboard', 'Bảng điều khiển')} className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-2">
-        {NAV.map(renderNav)}
-      </nav>
+      {/* MIDDLE + BOTTOM share ONE scroll area so nothing is ever unreachable on a short viewport
+          or under text zoom (a fixed shrink-0 bottom cluster could otherwise overflow off-screen,
+          hiding Sign out). The bottom cluster gets mt-auto — pinned to the bottom when there's room
+          to spare, and it scrolls with the rest when there isn't. The Post pill above stays sticky. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-3">
+        {/* MIDDLE — the core routing */}
+        <nav aria-label={tr('Dashboard', 'Bảng điều khiển')} className="space-y-1">
+          {NAV.map(renderNav)}
+        </nav>
 
-      {/* BOTTOM (sticky) — the account: identity snippet, then Settings · Help · prefs · Sign out. */}
-      <div className="shrink-0 space-y-1 p-3 pt-2">
+        {/* BOTTOM — the account: identity snippet, then Settings · Help · prefs · Sign out. */}
+        <div className="mt-auto space-y-1 pt-3">
         <div className="flex items-center gap-3 rounded-2xl px-3 py-2">
           {dash?.profile.avatarUrl ? (
             <img src={dash.profile.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
@@ -355,6 +360,7 @@ function AccountPanel({ open, onClose, resizing, onResizeStart, onResizeKey }: {
         >
           <LogOut className="h-5 w-5 shrink-0" strokeWidth={2} /> <span className="flex-1 text-left">{tr('Sign out', 'Đăng xuất')}</span>
         </Button>
+        </div>
       </div>
     </aside>
   )
