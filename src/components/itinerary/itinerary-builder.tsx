@@ -14,6 +14,7 @@ import {
   Clock3,
   CloudSun,
   Compass,
+  ConciergeBell,
   ExternalLink,
   Footprints,
   Globe2,
@@ -28,6 +29,7 @@ import {
   MoonStar,
   Navigation,
   Plane,
+  PhoneCall,
   Plus,
   RefreshCw,
   Route,
@@ -145,7 +147,7 @@ function PlannerLoading() {
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-accent-foreground"><Loader2 className="h-5 w-5 animate-spin" /></span>
         <div>
           <p className="font-bold text-foreground">{tr('Researching your trip', 'Đang nghiên cứu chuyến đi')}</p>
-          <p className="mt-1 text-xs text-body">{tr('Gemini is checking the web and optimizing the route.', 'Gemini đang kiểm tra web và tối ưu lộ trình.')}</p>
+          <p className="mt-1 text-xs text-body">{tr('eno is checking current travel information and optimizing the route.', 'eno đang kiểm tra thông tin du lịch hiện tại và tối ưu lộ trình.')}</p>
         </div>
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -197,6 +199,10 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
 }) {
   const { tr, lang } = useLanguage()
   const plan = result.plan
+  const conciergeHref = `mailto:support@eno.vn?subject=${encodeURIComponent(`eno Concierge — ${plan.title}`)}&body=${encodeURIComponent(tr(
+    `I would like eno Concierge to help arrange this itinerary: ${plan.title}. Please contact me about booking support.`,
+    `Tôi muốn eno Concierge hỗ trợ sắp xếp lịch trình này: ${plan.title}. Vui lòng liên hệ với tôi về dịch vụ đặt chỗ.`,
+  ))}`
   const practical = [
     { Icon: Navigation, label: tr('Arrival', 'Đến nơi'), text: plan.practical.arrival },
     { Icon: TrainFront, label: tr('Getting around', 'Di chuyển'), text: plan.practical.localTransport },
@@ -211,7 +217,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
       <Card className="gap-0 overflow-hidden p-0">
         <div className="bg-brand-deep px-5 py-6 text-white sm:px-7 sm:py-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />Gemini 3.5 Flash + Google Search</Badge>
+            <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />{tr('Researched by eno', 'Được eno nghiên cứu')}</Badge>
             <span className="text-2xs font-semibold text-white/80">{tr('Researched', 'Đã nghiên cứu')} {new Date(result.generatedAt).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-GB')}</span>
           </div>
           <h2 className="mt-4 max-w-3xl text-2xl font-bold tracking-tight sm:text-3xl">{plan.title}</h2>
@@ -233,6 +239,21 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
           <Button type="button" variant="outline" onClick={onSave} disabled={saving || saved} className="sm:shrink-0">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
             {saving ? tr('Saving…', 'Đang lưu…') : saved ? tr('Saved', 'Đã lưu') : tr('Save plan', 'Lưu kế hoạch')}
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="gap-0 border-brand/30 bg-accent p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white"><ConciergeBell className="h-5 w-5" /></span>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">{tr('Want eno to handle the bookings?', 'Bạn muốn eno lo việc đặt chỗ?')}</h2>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-body">{tr('eno Concierge can arrange stays and activities, call transport providers, and coordinate the details so you can enjoy the journey. The service fee is 10% of the bookings we arrange, and you approve every cost first.', 'eno Concierge có thể đặt chỗ ở và hoạt động, gọi đơn vị vận chuyển và điều phối chi tiết để bạn tận hưởng chuyến đi. Phí dịch vụ là 10% giá trị các đặt chỗ do eno sắp xếp và bạn duyệt mọi chi phí trước.')}</p>
+            </div>
+          </div>
+          <Button asChild type="button" variant="cta" className="shrink-0">
+            <a href={conciergeHref}><PhoneCall className="h-4 w-4" />{tr('Ask eno Concierge', 'Liên hệ eno Concierge')}</a>
           </Button>
         </div>
       </Card>
@@ -297,7 +318,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
       </section>
 
       <section aria-labelledby="day-plan-title">
-        <div className="mb-3 px-1"><p className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Your days', 'Lịch từng ngày')}</p><h2 id="day-plan-title" className="mt-1 text-xl font-bold text-foreground">{tr('Meticulous day-by-day plan', 'Kế hoạch chi tiết từng ngày')}</h2></div>
+        <div className="mb-3 px-1"><p className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Your days', 'Lịch từng ngày')}</p><h2 id="day-plan-title" className="mt-1 text-xl font-bold text-foreground">{tr('Day-by-day plan', 'Kế hoạch từng ngày')}</h2></div>
         <div className="space-y-4">
           {plan.days.map((day) => (
             <Card data-testid="itinerary-day" key={day.dayNumber} className="gap-0 overflow-hidden p-0">
@@ -330,24 +351,24 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
       </section>
 
       <section aria-labelledby="sources-title">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-3 px-1"><div><p className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Trust, but verify', 'Tin cậy và kiểm chứng')}</p><h2 id="sources-title" className="mt-1 text-xl font-bold text-foreground">{tr('Web research sources', 'Nguồn nghiên cứu web')}</h2></div><Badge variant="brand" size="sm"><Globe2 className="h-3 w-3" />Google Search</Badge></div>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3 px-1"><div><p className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Trust, but verify', 'Tin cậy và kiểm chứng')}</p><h2 id="sources-title" className="mt-1 text-xl font-bold text-foreground">{tr('Research sources', 'Nguồn nghiên cứu')}</h2></div><Badge variant="brand" size="sm"><Globe2 className="h-3 w-3" />{tr('Cited by eno', 'eno trích dẫn')}</Badge></div>
         <Card className="gap-0 divide-y divide-border/70 p-0">
           {result.sources.length ? result.sources.map((source, index) => (
             <Button key={`${source.url}-${index}`} asChild variant="bare" size="none" className="h-auto w-full justify-between gap-4 rounded-none px-4 py-3 text-left hover:bg-tint sm:px-5">
               <a href={source.url} target="_blank" rel="noreferrer"><span className="min-w-0"><span className="line-clamp-1 text-xs font-bold text-foreground">{source.title}</span><span className="mt-0.5 block text-2xs text-body">{source.domain}</span></span><ExternalLink className="h-4 w-4 shrink-0 text-ink-4" /></a>
             </Button>
-          )) : <p className="px-5 py-4 text-xs text-body">{tr('Gemini returned no source links for this plan. Treat every option as unverified.', 'Gemini không trả về liên kết nguồn. Hãy xem mọi lựa chọn là chưa được xác minh.')}</p>}
+          )) : <p className="px-5 py-4 text-xs text-body">{tr('No source links were returned for this plan. Treat every option as unverified.', 'Không có liên kết nguồn cho kế hoạch này. Hãy xem mọi lựa chọn là chưa được xác minh.')}</p>}
         </Card>
       </section>
 
-      {(plan.assumptions.length > 0 || result.searchQueries.length > 0) && (
+      {plan.assumptions.length > 0 && (
         <Card className="gap-0 bg-accent p-4 text-accent-foreground">
           <p className="flex items-center gap-2 text-sm font-bold"><Info className="h-4 w-4" />{tr('Planning assumptions', 'Giả định khi lập kế hoạch')}</p>
           <ul className="mt-2 space-y-1.5 pl-5 text-xs leading-relaxed list-disc">{plan.assumptions.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>
         </Card>
       )}
 
-      <p className="px-1 text-2xs leading-relaxed text-ink-4">{tr('AI research is a planning aid, not a booking engine. Flight seats, fares, hotel rooms, opening hours, visa rules, and weather can change. Confirm material details directly with the operator before paying.', 'Nghiên cứu AI hỗ trợ lập kế hoạch, không phải hệ thống đặt chỗ. Chỗ ngồi, giá vé, phòng, giờ mở cửa, quy định thị thực và thời tiết có thể thay đổi. Hãy xác nhận trực tiếp trước khi thanh toán.')}</p>
+      <p className="px-1 text-2xs leading-relaxed text-ink-4">{tr('This plan is a travel aid, not confirmed inventory. Seats, fares, rooms, opening hours, visa rules, and weather can change. Confirm important details before paying, or ask eno Concierge to arrange them for you.', 'Kế hoạch này hỗ trợ chuyến đi, không phải tình trạng chỗ đã xác nhận. Chỗ ngồi, giá vé, phòng, giờ mở cửa, quy định thị thực và thời tiết có thể thay đổi. Hãy xác nhận trước khi thanh toán hoặc nhờ eno Concierge sắp xếp.')}</p>
     </div>
   )
 }
@@ -452,13 +473,13 @@ export function ItineraryBuilder() {
       if (error instanceof ForumApiError && error.status === 401) {
         setState('empty')
         openSignIn()
-        toast.message(tr('Sign in with your eno account to run live AI research.', 'Đăng nhập tài khoản eno để chạy nghiên cứu AI trực tiếp.'))
+        toast.message(tr('Sign in with your eno account to run live travel research.', 'Đăng nhập tài khoản eno để nghiên cứu chuyến đi trực tiếp.'))
         return
       }
       setState('error')
       toast.error(error instanceof ForumApiError && error.status === 429
         ? tr('The planner has reached its research limit. Please try again later.', 'Trình lập kế hoạch đã đạt giới hạn nghiên cứu. Vui lòng thử lại sau.')
-        : tr('Gemini could not complete this plan. Your inputs are still here—please retry.', 'Gemini chưa thể hoàn thành kế hoạch. Thông tin vẫn được giữ—hãy thử lại.'))
+        : tr('eno could not complete this plan. Your inputs are still here—please retry.', 'eno chưa thể hoàn thành kế hoạch. Thông tin vẫn được giữ—hãy thử lại.'))
     }
   }
 
@@ -519,11 +540,11 @@ export function ItineraryBuilder() {
   return (
     <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 sm:pt-10 lg:px-8">
       <div className="grid items-start gap-6 lg:grid-cols-[410px_minmax(0,1fr)] lg:grid-rows-[max-content_1fr]">
-        <section className="relative overflow-hidden rounded-3xl bg-brand-deep px-5 py-8 text-white sm:px-8 sm:py-10 lg:col-start-2 lg:row-start-1 lg:px-10">
+        {state !== 'ready' && <section className="relative overflow-hidden rounded-3xl bg-brand-deep px-5 py-8 text-white sm:px-8 sm:py-10 lg:col-start-2 lg:row-start-1 lg:px-10">
           <div className="relative z-10 max-w-3xl">
-            <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />{tr('Grounded by live Google Search', 'Dựa trên Google Search trực tiếp')}</Badge>
+            <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />{tr('Current travel research', 'Nghiên cứu du lịch hiện tại')}</Badge>
             <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">{tr('A Vietnam itinerary that survives reality.', 'Lịch trình Việt Nam thực sự khả thi.')}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/80 sm:text-base">{tr('Gemini 3.5 Flash researches viable flights, sensible transfers, current stays, and place-level details—then builds the trip around your dates, pace, and budget.', 'Gemini 3.5 Flash nghiên cứu chuyến bay phù hợp, di chuyển hợp lý, chỗ ở hiện tại và từng địa điểm—sau đó lập kế hoạch theo ngày, nhịp độ và ngân sách của bạn.')}</p>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/80 sm:text-base">{tr('eno checks practical flights, transfers, stays, and local details, then shapes the trip around your dates, pace, and budget.', 'eno kiểm tra chuyến bay, di chuyển, chỗ ở và thông tin địa phương, sau đó lập kế hoạch theo ngày, nhịp độ và ngân sách của bạn.')}</p>
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-white/80 sm:text-sm">
               <span className="inline-flex items-center gap-2"><Plane className="h-4 w-4" />{tr('Flight research', 'Tìm chuyến bay')}</span>
               <span className="inline-flex items-center gap-2"><Route className="h-4 w-4" />{tr('Route optimization', 'Tối ưu lộ trình')}</span>
@@ -531,7 +552,7 @@ export function ItineraryBuilder() {
             </div>
           </div>
           <Map className="pointer-events-none absolute -bottom-14 -right-10 h-64 w-64 rotate-6 text-white/5 sm:h-80 sm:w-80" aria-hidden="true" />
-        </section>
+        </section>}
 
         <Card className="gap-0 overflow-visible p-5 sm:p-6 lg:sticky lg:top-24 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain">
           <div className="flex items-start gap-3">
@@ -583,7 +604,7 @@ export function ItineraryBuilder() {
               </div>
             </FormSection>
 
-            <FormSection icon={Plane} title={tr('Flight research', 'Tìm chuyến bay')} subtitle={tr('Gemini searches viable route patterns and fare signals—not reserved inventory.', 'Gemini tìm đường bay và tín hiệu giá—không phải chỗ đã giữ.')}>
+            <FormSection icon={Plane} title={tr('Flight research', 'Tìm chuyến bay')} subtitle={tr('eno checks viable routes and fare signals—not reserved inventory.', 'eno kiểm tra đường bay và tín hiệu giá—không phải chỗ đã giữ.')}>
               <Button type="button" variant="bare" size="none" aria-pressed={includeFlights} onClick={() => setIncludeFlights((value) => !value)} className={cn('h-auto w-full justify-start gap-3 rounded-xl border px-3 py-3 text-left', includeFlights ? 'border-brand bg-accent' : 'border-border bg-card')}>
                 <span className={cn('flex h-5 w-5 items-center justify-center rounded-md border', includeFlights ? 'border-brand bg-primary text-white' : 'border-line-strong')}>{includeFlights && <Check className="h-3 w-3" />}</span>
                 <span><span className="block text-sm font-bold text-foreground">{tr('Include flight options', 'Bao gồm lựa chọn chuyến bay')}</span><span className="mt-0.5 block text-xs text-body">{tr('International gateway and useful domestic legs', 'Cửa ngõ quốc tế và chặng nội địa hữu ích')}</span></span>
@@ -629,7 +650,7 @@ export function ItineraryBuilder() {
           <p className="mt-3 text-center text-2xs leading-relaxed text-ink-4">{user ? tr('Includes live web research. Up to 8 plans per account each hour.', 'Bao gồm nghiên cứu web trực tiếp. Tối đa 8 kế hoạch mỗi giờ.') : tr('A unified eno account is required before paid web research runs.', 'Cần tài khoản eno thống nhất trước khi chạy nghiên cứu web trả phí.')}</p>
         </Card>
 
-        <section aria-label={tr('Itinerary result', 'Kết quả lịch trình')} className="lg:col-start-2 lg:row-start-2">
+        <section aria-label={tr('Itinerary result', 'Kết quả lịch trình')} className={cn('lg:col-start-2', state === 'ready' ? 'lg:row-start-1' : 'lg:row-start-2')}>
           {state === 'empty' && (
             <Card className="min-h-[620px] items-center justify-center gap-0 px-5 py-12 text-center sm:px-10">
               <span className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-accent text-accent-foreground"><Map className="h-9 w-9" /><SearchCheck className="absolute -right-2 -top-2 h-6 w-6 text-brand" /></span>

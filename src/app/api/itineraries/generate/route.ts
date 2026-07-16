@@ -311,7 +311,7 @@ export async function POST(request: Request) {
   const language = input.locale === 'vi' ? 'Vietnamese' : 'English'
   const generatedAt = new Date().toISOString()
 
-  const prompt = `Build a meticulous, realistic Vietnam itinerary in ${language}. Use Google Search extensively before answering.
+  const prompt = `Build a concise, realistic Vietnam itinerary in ${language}. Research current information thoroughly before answering.
 
 Research current, viable options as of ${generatedAt.slice(0, 10)}:
 - international and domestic flight routes relevant to the supplied airports and dates;
@@ -338,12 +338,13 @@ Planning rules:
 2. Respect the selected city order unless changing it materially reduces backtracking; explain any change in routeRationale. Do not force every city if the trip is too short—identify the least disruptive omission in assumptions.
 3. Keep arrival and transfer days lighter. Account for airport buffers, hotel check-in, traffic, heat, rain, and recovery time.
 4. Each morning/afternoon/evening block must name a real place or clearly described flexible activity, include travel time from the prior stop, an honest VND cost estimate, and actionable booking advice.
-5. Recommend multiple specific hotels across the requested route, matching the accommodation style and budget. URLs must be direct official hotel/operator/airline pages or reputable search pages found during research; use an empty string when uncertain.
-6. Flight options are research leads, not inventory. If flights are requested, search the requested dates and return up to four viable outbound/return options plus genuinely useful domestic legs. Never claim a seat or fare is available. Use 0 for a fare you cannot verify and say why in fareNote. If flights are not requested, return an empty flights array.
+5. Recommend one or two strong hotels per city and no more than six total, matching the accommodation style and budget. URLs must be direct official hotel/operator/airline pages or reputable search pages found during research; use an empty string when uncertain.
+6. Flight options are research leads, not inventory. If flights are requested, search the requested dates and return no more than four useful options total, including only essential domestic legs. Never claim a seat or fare is available. Use 0 for a fare you cannot verify and say why in fareNote. If flights are not requested, return an empty flights array.
 7. Prices must be ranges, not false precision. Budget totals must distinguish whether researched flights are included.
 8. Prefer official tourism sites, airports, airlines, rail/bus operators, hotels, and attraction operators as sources. Avoid SEO itinerary farms when a primary source exists.
 9. Do not recommend unsafe, illegal, exploitative, or animal-harm activities. Mention material mobility or safety limitations plainly.
-10. The JSON must stand on its own without markdown or citations embedded in text; grounding sources are attached separately by the API.`
+10. Be concise and avoid repeating facts across fields. Keep summary, routeRationale, budget.note, practical items, checklist reasons, fare notes, stay reasons, and booking advice to one short sentence each. Activity details may use at most two short sentences. Return three to six bookingChecklist items and no more than four material assumptions.
+11. The JSON must stand on its own without markdown or citations embedded in text; research sources are attached separately by the API.`
 
   try {
     const response = await ai.models.generateContent({
@@ -372,7 +373,7 @@ Planning rules:
       if (!url || seen.has(url)) return []
       seen.add(url)
       return [{ title: (chunk.web?.title || new URL(url).hostname).slice(0, 180), url, domain: new URL(url).hostname.replace(/^www\./, '') }]
-    }).slice(0, 30)
+    }).slice(0, 10)
 
     return forumJson(request, {
       plan,
