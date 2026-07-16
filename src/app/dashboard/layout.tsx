@@ -8,7 +8,10 @@ import { Footer } from '@/components/marketplace/footer'
  *  AccountPanelShell) and sits beside this main via the --account-w squeeze on desktop. */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    // Styling-only Gemini touch (owner 2026-07-16): the SAME structure (Header + section + Footer
+    // + the global nav rail) — just floated on the serene radial-blue `dashboard-canvas` instead of
+    // a flat bg, so the dashboard *feels* calmer without changing the layout or navigation.
+    <div className="dashboard-canvas flex min-h-screen flex-col">
       <Header />
       {/* Fluid, breathing content (owner 2026-07-16): the boxy max-w-5xl is gone — the section
           now flows to the app's canonical page width (max-w-7xl) beside the borderless right nav

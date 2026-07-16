@@ -378,6 +378,22 @@
   background-color: var(--background);
 }
 
+/* Serene "unified canvas" for the dashboard (owner 2026-07-16, Gemini aesthetic): the page
+   background is pure canvas at the edges, breathing very gently into a faint, airy brand-blue
+   glow low-centre — so content floats on light, not in boxes. Token-driven (var(--brand) over
+   var(--background)) so it flips with the theme; the % keeps the glow a whisper, never a fill.
+   fixed so the glow stays put as the section scrolls. */
+.dashboard-canvas {
+  background-color: var(--background);
+  background-image: radial-gradient(
+    72% 58% at 50% 62%,
+    color-mix(in oklab, var(--brand) 13%, transparent) 0%,
+    transparent 72%
+  );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
 /* ============================================================
    TYPOGRAPHY SCALE — reusable semantic headings
    ============================================================ */
