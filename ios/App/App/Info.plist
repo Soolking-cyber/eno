@@ -47,6 +47,12 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>eno uses the camera so you can photograph the items you're listing.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>eno accesses your photos so you can add them to your listings.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>eno saves photos to your library when you choose to.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
