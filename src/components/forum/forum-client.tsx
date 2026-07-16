@@ -33,6 +33,7 @@ import {
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
+import { ForumFooter } from '@/components/forum/forum-footer'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -903,6 +904,8 @@ export function ForumClient() {
           <ForumRightRail communities={communities} posts={posts} onOpenPost={openThread} onCreatePost={openCreatePost} />
         </div>
       </main>
+
+      <ForumFooter />
 
       <MobileForumNav
         mode={mode}

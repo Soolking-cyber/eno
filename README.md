@@ -46,6 +46,10 @@ NEXT_PUBLIC_MARKETPLACE_URL=https://eno.vn
 MARKETPLACE_API_URL=https://eno.vn
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<same publishable key as eno.vn>
+SUPABASE_SECRET_KEY=<server-only secret key used by the forum visa routes>
+VISA_DATA_ENCRYPTION_KEY=<32 random bytes encoded as base64; server-only>
+VISA_ADMIN_EMAILS=<comma-separated trained operator emails>
+CRON_SECRET=<random server-only retention-cron secret>
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=<same public site key as eno.vn>
 GEMINI_VERTEX_API_KEY=<server-only Vertex AI API key restricted to aiplatform.googleapis.com>
 UPSTASH_REDIS_REST_URL=<server-only Upstash REST URL>
@@ -69,3 +73,5 @@ Also add `eno.forum` to the allowed hostnames for the existing Cloudflare Turnst
 The forum uses the marketplace Supabase Auth project, so both apps resolve to the same `auth.users.id` and public `Profile`. Each domain keeps its own secure auth cookie because `.vn` and `.forum` cannot share cookies. The forum owns the Gemini itinerary generation route and keeps `GEMINI_VERTEX_API_KEY` server-only; `GEMINI_API_KEY` remains an optional Gemini Developer API fallback. Itinerary saves and all marketplace database access continue through the same-origin `/api/backend/*` proxy to eno.vn. Prisma and database credentials remain only in the marketplace backend. This also keeps Vercel preview URLs compatible with the marketplace's strict browser CORS policy.
 
 The database migration remains in the private eno.vn marketplace repository at `supabase/migrations/20260715090000_unified_forum_itinerary.sql`. It is additive, reuses `Profile`, enables RLS on every new table, and keeps public Data API access deny-by-default. Forum image uploads use the `forum-media` bucket with owner-folder write policies.
+
+The e-Visa assistance feature is different: its complete application and admin code lives in this standalone repository. Its forum-owned database migration is `supabase/migrations/20260716150000_visa_assistance.sql`; deployment and safety workflow are documented in `docs/VISA_ASSISTANCE.md`.

@@ -1,11 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Languages, LogOut, Plus, Route, Search, Store, UserRound } from 'lucide-react'
+import { Languages, LogOut, Plus, Search, UserRound } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -15,9 +14,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
-
-const MARKETPLACE_URL = process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn'
 
 export function ForumHeader({
   query,
@@ -30,19 +26,13 @@ export function ForumHeader({
 }) {
   const { tr, lang, setLang } = useLanguage()
   const { user, loading, openSignIn, signOut } = useAuth()
-  const pathname = usePathname()
   const searchEnabled = typeof query === 'string' && Boolean(onQueryChange)
-  const itineraryActive = pathname === '/itinerary'
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex shrink-0 items-center gap-2 rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50" aria-label={tr('eno.forum home', 'Trang chủ eno.forum')}>
-          <img src="/logo-mark.svg" alt="" width={44} height={44} className="h-11 w-11" />
-          <span className="hidden leading-none min-[390px]:block">
-            <span className="block text-lg font-bold tracking-tight text-foreground">{tr('eno.forum', 'eno.forum')}</span>
-            <span className="mt-1 block text-3xs font-semibold uppercase tracking-wider text-body">{tr('by eno.vn', 'bởi eno.vn')}</span>
-          </span>
+        <Link href="/" className="flex shrink-0 items-center rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50" aria-label={tr('eno.forum home', 'Trang chủ eno.forum')}>
+          <img src="/logo.svg" alt="eno" width={1200} height={300} className="h-8 w-auto" />
         </Link>
 
         {searchEnabled ? (
@@ -71,29 +61,6 @@ export function ForumHeader({
           >
             <Languages className="h-5 w-5" />
           </IconButton>
-
-          <Link
-            href="/itinerary"
-            className={cn(buttonVariants({ variant: 'soft', size: 'icon' }), 'text-body', itineraryActive && 'bg-accent text-accent-foreground')}
-            aria-label={tr('Plan a Vietnam itinerary', 'Lập lịch trình Việt Nam')}
-            title={tr('Plan a Vietnam itinerary', 'Lập lịch trình Việt Nam')}
-            aria-current={itineraryActive ? 'page' : undefined}
-          >
-            <Route className="h-5 w-5" />
-          </Link>
-
-          <a href={MARKETPLACE_URL} className={cn(buttonVariants({ variant: 'soft', size: 'sm' }), 'hidden text-body lg:inline-flex')}>
-            <Store className="h-4 w-4" />
-            {tr('Marketplace', 'Chợ mua bán')}
-          </a>
-
-          <a
-            href={MARKETPLACE_URL}
-            className={cn(buttonVariants({ variant: 'soft', size: 'icon' }), 'text-body sm:hidden')}
-            aria-label={tr('Open the eno.vn marketplace', 'Mở chợ eno.vn')}
-          >
-            <Store className="h-5 w-5" />
-          </a>
 
           {!loading && (user ? (
             <DropdownMenu>

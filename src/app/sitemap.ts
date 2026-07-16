@@ -5,5 +5,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: forumUrl, changeFrequency: 'daily', priority: 1 },
     { url: `${forumUrl}/itinerary`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${forumUrl}/visa`, changeFrequency: 'weekly', priority: 0.8 },
   ]
 }

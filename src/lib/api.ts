@@ -15,7 +15,7 @@ export async function forumApi<T>(
   const { auth = 'optional', direct = false, headers: inputHeaders, ...requestInit } = init || {}
   const headers = new Headers(inputHeaders)
   headers.set('Accept', 'application/json')
-  if (requestInit.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  if (requestInit.body && !(requestInit.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
 
   try {
     const { data } = await createSupabaseBrowser().auth.getSession()
