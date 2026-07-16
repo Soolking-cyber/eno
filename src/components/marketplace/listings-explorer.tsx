@@ -1271,7 +1271,7 @@ export function ListingsExplorer({
 
             {/* Centered Search Bar (the header reveals its own search once this
                 scrolls out of view — id is the IntersectionObserver target). */}
-            <div id="eno-hero-search" className="relative max-w-4xl w-full mx-auto select-none">
+            <div id="eno-hero-search" className="relative max-w-2xl w-full mx-auto select-none">
               {/* One cohesive search pill that morphs into a seamless suggestions
                   panel on focus (Google-style): flat bottom + shared shadow/border. */}
               <div className={cn(
