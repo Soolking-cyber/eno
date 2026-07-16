@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowRight,
@@ -15,6 +15,7 @@ import {
   CloudSun,
   Compass,
   ConciergeBell,
+  Download,
   ExternalLink,
   Footprints,
   Globe2,
@@ -198,6 +199,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
   saved: boolean
 }) {
   const { tr, lang } = useLanguage()
+  const [downloading, setDownloading] = useState(false)
   const plan = result.plan
   const conciergeHref = `mailto:support@eno.vn?subject=${encodeURIComponent(`eno Concierge — ${plan.title}`)}&body=${encodeURIComponent(tr(
     `I would like eno Concierge to help arrange this itinerary: ${plan.title}. Please contact me about booking support.`,
@@ -211,6 +213,20 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
     { Icon: CloudSun, label: tr('Weather', 'Thời tiết'), text: plan.practical.weather },
     { Icon: ShieldCheck, label: tr('Safety', 'An toàn'), text: plan.practical.safety },
   ]
+
+  const downloadWordFile = async () => {
+    setDownloading(true)
+    try {
+      const { downloadItineraryDocx } = await import('@/lib/itinerary-docx')
+      await downloadItineraryDocx(result, travelers, lang)
+      toast.message(tr('Your styled Word itinerary is ready.', 'Lịch trình Word đã sẵn sàng.'))
+    } catch (error) {
+      console.error('[itinerary/docx]', error)
+      toast.error(tr('The Word file could not be created. Please try again.', 'Không thể tạo tệp Word. Vui lòng thử lại.'))
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div className="space-y-7 duration-300 animate-in fade-in slide-in-from-bottom-2">
@@ -236,10 +252,16 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
         </div>
         <div className="flex flex-col gap-3 border-t border-border/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-relaxed text-body">{plan.budget.note}</p>
-          <Button type="button" variant="outline" onClick={onSave} disabled={saving || saved} className="sm:shrink-0">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-            {saving ? tr('Saving…', 'Đang lưu…') : saved ? tr('Saved', 'Đã lưu') : tr('Save plan', 'Lưu kế hoạch')}
-          </Button>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            <Button data-testid="download-itinerary-docx" type="button" variant="outline" onClick={() => void downloadWordFile()} disabled={downloading}>
+              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {downloading ? tr('Creating Word file…', 'Đang tạo tệp Word…') : tr('Download Word file', 'Tải tệp Word')}
+            </Button>
+            <Button type="button" variant="outline" onClick={onSave} disabled={saving || saved}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+              {saving ? tr('Saving…', 'Đang lưu…') : saved ? tr('Saved', 'Đã lưu') : tr('Save plan', 'Lưu kế hoạch')}
+            </Button>
+          </div>
         </div>
       </Card>
 
@@ -376,6 +398,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
 export function ItineraryBuilder() {
   const { tr, lang } = useLanguage()
   const { user, openSignIn } = useAuth()
+  const [hydrated, setHydrated] = useState(false)
   const [cityIds, setCityIds] = useState<CityId[]>(['danang', 'hoian', 'hue'])
   const [cityToAdd, setCityToAdd] = useState<CityId>('hanoi')
   const [origin, setOrigin] = useState('')
@@ -396,6 +419,8 @@ export function ItineraryBuilder() {
   const [saving, setSaving] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => setHydrated(true), [])
 
   const selectedCities = cityIds.map((id) => CITY_MAP.get(id)).filter((city) => Boolean(city))
   const availableCities = CITIES.filter((city) => !cityIds.includes(city.id))
@@ -538,7 +563,7 @@ export function ItineraryBuilder() {
   }
 
   return (
-    <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 sm:pt-10 lg:px-8">
+    <main id="main" tabIndex={-1} data-hydrated={hydrated} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 sm:pt-10 lg:px-8">
       <div className="grid items-start gap-6 lg:grid-cols-[410px_minmax(0,1fr)] lg:grid-rows-[max-content_1fr]">
         {state !== 'ready' && <section className="relative overflow-hidden rounded-3xl bg-brand-deep px-5 py-8 text-white sm:px-8 sm:py-10 lg:col-start-2 lg:row-start-1 lg:px-10">
           <div className="relative z-10 max-w-3xl">

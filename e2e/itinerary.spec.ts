@@ -1,4 +1,5 @@
 import { expectNoA11yViolations, test, expect } from './helpers'
+import { readFile } from 'node:fs/promises'
 
 const activity = (title: string, place: string) => ({
   time: '09:00', title, place, details: `A researched visit to ${place} with enough time to enjoy it.`,
@@ -54,6 +55,7 @@ const mockResult = {
 test.describe('eno.forum itinerary builder', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/itinerary')
+    await expect(page.locator('main[data-hydrated]')).toHaveAttribute('data-hydrated', 'true')
   })
 
   test('proxies marketplace-native itinerary API paths through the allowlist', async ({ request }) => {
@@ -96,6 +98,15 @@ test.describe('eno.forum itinerary builder', () => {
     await expect(page.getByText(/service fee is 10%/i)).toBeVisible()
     await expect(page.getByRole('link', { name: /Ask eno Concierge/i })).toHaveAttribute('href', /^mailto:support@eno\.vn/)
     await expect(page.getByText(/Gemini|Google Search/i)).toHaveCount(0)
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByTestId('download-itinerary-docx').click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toMatch(/^eno-itinerary-.*\.docx$/)
+    const downloadPath = await download.path()
+    expect(downloadPath).not.toBeNull()
+    const wordFile = await readFile(downloadPath!)
+    expect(wordFile.subarray(0, 2).toString()).toBe('PK')
+    expect(wordFile.byteLength).toBeGreaterThan(5_000)
     await expect(page.getByRole('heading', { name: /Researched flight options/i })).toBeVisible()
     await expect(page.getByRole('heading', { name: /Searched stay shortlist/i })).toBeVisible()
     await expect(page.getByRole('heading', { name: /^Day-by-day plan$/i })).toBeVisible()
