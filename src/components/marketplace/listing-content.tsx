@@ -125,7 +125,9 @@ export function ListingDescription({ text, i18n, className }: { text: string; i1
   const { lang } = useLanguage()
   const out = useLocalized(text, null, i18n)
   const cl = detectContentLang(out)
-  return <div lang={cl && cl !== lang ? cl : undefined} className={className}>{formatDescription(out)}</div>
+  // `allow-select`: keep the description selectable/copyable in the native app, where chrome
+  // selection is disabled (globals.css html.native). Content text is the exception users need.
+  return <div lang={cl && cl !== lang ? cl : undefined} className={`allow-select${className ? ` ${className}` : ''}`}>{formatDescription(out)}</div>
 }
 
 /** Relative "x ago" in the active language (client — keeps the page cacheable). */

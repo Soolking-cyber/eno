@@ -487,7 +487,7 @@ export default function ThreadPage() {
                     history never mass-animates on thread open. */}
                 <div className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 ? 'bubble-in' : ''}`}>
                 {m.kind === 'offer' ? (
-                  <div className={`max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-card'}`}>
+                  <div className={`allow-select max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-card'}`}>
                     {/* Offer line is DERIVED from the structured offerAmount (tr'd + money
                         format) — never from the stored body. Legacy messages still carry a
                         baked "💰 Offered …₫" body: skip it (rendering it too would double up). */}

@@ -15,7 +15,26 @@ class MainViewController: CAPBridgeViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        configureNativeFeel()
         scheduleWatchdog(after: 3.0)
+    }
+
+    /// Make the WebView behave like a native iOS app instead of a page in a browser.
+    private func configureNativeFeel() {
+        guard let wv = webView else { return }
+        // The #1 gesture iOS users expect: swipe from the left edge to go back (and right edge to go
+        // forward), driven through the app's History-API routing. Turns the WebView's back/forward
+        // into the system interactive-pop-gesture feel.
+        wv.allowsBackForwardNavigationGestures = true
+        // No Safari-style long-press link "peek/pop" preview — native apps don't reveal a web
+        // preview card when you hold a link.
+        wv.allowsLinkPreview = false
+        // Tap the status bar to scroll the current view to the top (standard iOS behaviour).
+        wv.scrollView.scrollsToTop = true
+        // The page owns horizontal layout; never let the native scroll view rubber-band sideways
+        // (that horizontal give is a dead giveaway of a WebView).
+        wv.scrollView.alwaysBounceHorizontal = false
+        wv.scrollView.bounces = true
     }
 
     // Re-check whenever the app returns to the foreground — the blank state is most visible on

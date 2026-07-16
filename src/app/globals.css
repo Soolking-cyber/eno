@@ -679,6 +679,30 @@ html.page-at-top:not(.native) body:has(#prelaunch-banner) #app-header {
   padding-top: 0;
 }
 
+/* ── Native app: strip the last "this is a web page" tells ───────────────────────
+   In the Capacitor WebView, kill the iOS long-press callout bubble (Copy/Share/Look
+   Up) and the text-selection handles + magnifier on the app CHROME — native apps
+   don't let you select their buttons/labels. Also pin text-size so iOS never inflates
+   copy. Selection is RE-ENABLED on real content (inputs, textareas, editable fields,
+   and anything opted in with .allow-select — e.g. a listing description or a chat
+   bubble) so users can still copy the text that matters. Scoped to .native so the web
+   (and installed PWA) keep normal selection/callout behaviour. */
+html.native {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html.native input,
+html.native textarea,
+html.native [contenteditable]:not([contenteditable="false"]),
+html.native .allow-select {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* Favorite-button burst — the save confirmation IS the animation. Two one-shot,
    compositor-only (transform/opacity) pieces: the heart pops 1→1.35→1 with a
    slight bounce, and a brand-blue ring (::after) expands + fades once. Toggled by

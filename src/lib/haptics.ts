@@ -18,6 +18,26 @@ function isIOS(): boolean {
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) // iPadOS-as-Mac
 }
 
+// In the native Capacitor app we drive the REAL Taptic Engine via @capacitor/haptics — no switch
+// trick, no Vibration API, respects the OS haptic setting. Everything below routes here first.
+function isNativeCap(): boolean {
+  if (typeof window === 'undefined') return false
+  const c = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
+  return !!c?.isNativePlatform?.()
+}
+async function nativeImpact(style: 'Light' | 'Medium' | 'Heavy'): Promise<void> {
+  try {
+    const { Haptics, ImpactStyle } = await import('@capacitor/haptics')
+    await Haptics.impact({ style: ImpactStyle[style] })
+  } catch { /* ignore */ }
+}
+async function nativeNotify(type: 'Success' | 'Warning' | 'Error'): Promise<void> {
+  try {
+    const { Haptics, NotificationType } = await import('@capacitor/haptics')
+    await Haptics.notification({ type: NotificationType[type] })
+  } catch { /* ignore */ }
+}
+
 // iOS hidden native switch — rendered but invisible (display:none would suppress the tick).
 let iosLabel: HTMLLabelElement | null = null
 function getIosTrigger(): HTMLLabelElement | null {
@@ -43,6 +63,7 @@ function getIosTrigger(): HTMLLabelElement | null {
 const REPEAT_GAP_MS = 40
 let lastFiredAt = 0
 function fire(ms: number) {
+  if (isNativeCap()) { void nativeImpact(ms >= 18 ? 'Medium' : 'Light'); return }
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
     try { navigator.vibrate(ms) } catch { /* ignore */ }
     return
@@ -67,6 +88,7 @@ export function haptic(ms = 12): void {
 /** A "success" texture — a double tick (a listing published, a review posted). */
 export function hapticConfirm(): void {
   if (typeof window === 'undefined' || prefersReducedMotion()) return
+  if (isNativeCap()) { void nativeNotify('Success'); return } // real Taptic success pattern
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) { try { navigator.vibrate([10, 50, 10]) } catch { /* ignore */ }; return }
   fire(10); setTimeout(() => fire(10), 90) // iOS: two spaced ticks
 }
@@ -74,6 +96,7 @@ export function hapticConfirm(): void {
 /** An "error" texture — a triple tick (blocked action). Use sparingly. */
 export function hapticError(): void {
   if (typeof window === 'undefined' || prefersReducedMotion()) return
+  if (isNativeCap()) { void nativeNotify('Error'); return } // real Taptic error pattern
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) { try { navigator.vibrate([12, 40, 12, 40, 12]) } catch { /* ignore */ }; return }
   fire(12); setTimeout(() => fire(12), 70); setTimeout(() => fire(12), 140)
 }
@@ -82,6 +105,10 @@ export function hapticError(): void {
  *  that survives iOS 26.5+. Use sparingly (send / publish / favorite). React ref callback:
  *  `<button ref={attachHaptic}>`. Match `radius` to the host so the hit area is round. */
 export function attachHaptic(host: HTMLElement | null, radius = '999px'): void {
+  // Native app: the real Taptic Engine already fires via the control's onClick→hapticTap, so the
+  // switch-overlay hack is redundant (and a stray transparent <input> over a control could swallow
+  // native gestures). Skip it entirely.
+  if (isNativeCap()) return
   if (!host || typeof document === 'undefined' || !isIOS() || prefersReducedMotion()) return
   if (host.querySelector('input[data-haptic]')) return
   if (getComputedStyle(host).position === 'static') host.style.position = 'relative'
