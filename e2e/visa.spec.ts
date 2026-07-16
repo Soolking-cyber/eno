@@ -4,7 +4,8 @@ import { normalizeVisaImage } from '../src/lib/visa/image-normalization'
 import { withAiRetry } from '../src/lib/visa/ai-retry'
 import { evaluatePassportImageQuality } from '../src/lib/visa/image-quality'
 import { parsePassportMrz } from '../src/lib/visa/mrz'
-import { emptyVisaPayload, visaPayloadSchema } from '../src/lib/visa/schema'
+import { emptyVisaPayload, validateVisaForReview, validateVisaStep, visaDateDefaultsForStart, visaEndDateFor90DayWindow, visaPayloadSchema } from '../src/lib/visa/schema'
+import { DEFAULT_EVISA_ENTRY_GATE, EVISA_CHECKPOINTS } from '../src/lib/visa/checkpoints'
 
 test.describe('eno.forum visa assistance', () => {
   test('explains the safe guest flow and exposes the shared quick links', async ({ page }) => {
@@ -92,10 +93,43 @@ test.describe('eno.forum visa assistance', () => {
     expect(payload).toMatchObject({
       religion: 'None', passportType: 'ordinary', hasOtherNationalities: 'no', hasVietnamLawViolation: 'no',
       hasOtherPassports: 'no', entryType: 'single', purposeOfEntry: 'Tourism', currentlyOutsideVietnam: 'yes',
-      stayLengthDays: 14, visitedVietnamLastYear: 'no', hasRelativesInVietnam: 'no', estimatedExpenses: 1000,
+      stayLengthDays: 90, visitedVietnamLastYear: 'no', hasRelativesInVietnam: 'no', estimatedExpenses: 1000,
       expensesCurrency: 'USD', expensesPayer: 'self', hasTravelInsurance: 'no', hasChildrenOnPassport: 'no',
     })
-    expect(payload).toMatchObject({ surname: '', givenNames: '', passportNumber: '', permanentAddress: '', occupation: '', entryGate: '', exitGate: '' })
+    expect(payload).toMatchObject({ surname: '', givenNames: '', passportNumber: '', permanentAddress: '', occupation: '', entryGate: DEFAULT_EVISA_ENTRY_GATE, exitGate: '' })
+  })
+
+  test('defaults to Tan Son Nhat and contains every approved e-visa checkpoint', () => {
+    expect(emptyVisaPayload().entryGate).toBe('Tan Son Nhat Airport Border Gate')
+    expect(EVISA_CHECKPOINTS).toHaveLength(81)
+    expect(new Set(EVISA_CHECKPOINTS).size).toBe(81)
+    expect(EVISA_CHECKPOINTS).toEqual(expect.arrayContaining([
+      'Noi Bai Airport Border Gate',
+      'Moc Bai International Border Gate, Tay Ninh Province',
+      'Ho Chi Minh City Port Border Gate, Ho Chi Minh City',
+    ]))
+  })
+
+  test('fills an inclusive 90-day e-visa window across month and year boundaries', () => {
+    expect(visaEndDateFor90DayWindow('2026-07-17')).toBe('2026-10-14')
+    expect(visaEndDateFor90DayWindow('2026-12-15')).toBe('2027-03-14')
+    expect(visaEndDateFor90DayWindow('2028-02-01')).toBe('2028-04-30')
+    expect(visaEndDateFor90DayWindow('')).toBe('')
+    expect(visaDateDefaultsForStart('2026-07-17')).toEqual({
+      visaValidFrom: '2026-07-17', visaValidTo: '2026-10-14', intendedEntryDate: '2026-07-17', stayLengthDays: 90,
+    })
+
+    const payload = { ...emptyVisaPayload(), visaValidFrom: '2026-07-17', visaValidTo: '2026-10-14' }
+    expect(validateVisaForReview(payload, [])).not.toContain('visa_period_exceeds_90_days')
+    expect(validateVisaForReview({ ...payload, visaValidTo: '2026-10-15' }, [])).toContain('visa_period_exceeds_90_days')
+  })
+
+  test('validates each wizard page before allowing the next one', () => {
+    const payload = emptyVisaPayload()
+    expect(validateVisaStep(payload, [], 0)).toEqual(expect.arrayContaining(['passport_image_required', 'portrait_required']))
+    expect(validateVisaStep(payload, [], 1)).toEqual(expect.arrayContaining(['surname_required', 'passport_number_required', 'phone_required']))
+    expect(validateVisaStep(payload, [], 2)).toEqual(expect.arrayContaining(['visa_start_required', 'visa_end_required', 'exit_gate_required']))
+    expect(validateVisaStep(payload, [], 2)).not.toContain('entry_gate_required')
   })
 
   test('automatically moves from a saturated primary checker to the fallback model', async () => {

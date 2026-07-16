@@ -6,13 +6,14 @@ import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { forumApi, ForumApiError } from '@/lib/api'
-import type { VisaPayload } from '@/lib/visa/schema'
+import { validateVisaStep, visaDateDefaultsForStart, visaEndDateFor90DayWindow, type VisaPayload } from '@/lib/visa/schema'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { DEFAULT_EVISA_ENTRY_GATE, EVISA_CHECKPOINT_GROUPS, EVISA_CHECKPOINTS } from '@/lib/visa/checkpoints'
 
 type VisaImageReport = {
   issues?: string[]
@@ -141,6 +142,60 @@ function statusCopy(status: string, tr: (en: string, vi: string) => string) {
   return { title: tr(value[0], value[1]), detail: tr(value[2], value[3]) }
 }
 
+const STEP_ISSUE_COPY: Record<string, [string, string, string?]> = {
+  passport_image_required: ['Upload the passport data page.', 'Tải lên trang thông tin hộ chiếu.'],
+  passport_image_not_verified: ['Finish the passport image check.', 'Hoàn tất kiểm tra ảnh hộ chiếu.'],
+  portrait_required: ['Upload the portrait photo.', 'Tải lên ảnh chân dung.'],
+  portrait_image_not_verified: ['Finish the portrait image check.', 'Hoàn tất kiểm tra ảnh chân dung.'],
+  surname_required: ['Enter the surname.', 'Nhập họ.', 'surname'],
+  given_names_required: ['Enter the given and middle names.', 'Nhập tên đệm và tên.', 'givenNames'],
+  date_of_birth_required: ['Choose the date of birth.', 'Chọn ngày sinh.', 'dateOfBirth'],
+  sex_required: ['Choose the sex.', 'Chọn giới tính.', 'sex'],
+  nationality_required: ['Enter the current nationality.', 'Nhập quốc tịch hiện tại.', 'nationality'],
+  email_required: ['Enter the email address.', 'Nhập địa chỉ email.', 'email'],
+  email_invalid: ['Enter a valid email address.', 'Nhập địa chỉ email hợp lệ.', 'email'],
+  place_of_birth_required: ['Enter the place of birth.', 'Nhập nơi sinh.', 'placeOfBirth'],
+  other_nationalities_details_required: ['List the other nationalities.', 'Liệt kê các quốc tịch khác.', 'otherNationalities'],
+  law_violation_details_required: ['Describe the law violation.', 'Mô tả vi phạm pháp luật.', 'violationDetails'],
+  passport_number_required: ['Enter the passport number.', 'Nhập số hộ chiếu.', 'passportNumber'],
+  passport_authority_required: ['Enter the passport issuing authority.', 'Nhập cơ quan cấp hộ chiếu.', 'passportAuthority'],
+  passport_issue_date_required: ['Choose the passport issue date.', 'Chọn ngày cấp hộ chiếu.', 'passportIssue'],
+  passport_expiry_date_required: ['Choose the passport expiry date.', 'Chọn ngày hết hạn hộ chiếu.', 'passportExpiry'],
+  passport_dates_invalid: ['Passport expiry must be after its issue date.', 'Ngày hết hạn hộ chiếu phải sau ngày cấp.', 'passportExpiry'],
+  other_passport_details_required: ['Describe the other valid passport.', 'Mô tả hộ chiếu hợp lệ khác.', 'otherPassportDetails'],
+  permanent_address_required: ['Enter the permanent address.', 'Nhập địa chỉ thường trú.', 'permanentAddress'],
+  phone_required: ['Enter the telephone number.', 'Nhập số điện thoại.', 'phone'],
+  emergency_contact_required: ['Enter the emergency contact name.', 'Nhập tên liên hệ khẩn cấp.', 'emergencyName'],
+  emergency_relationship_required: ['Enter the emergency contact relationship.', 'Nhập mối quan hệ của liên hệ khẩn cấp.', 'emergencyRelationship'],
+  emergency_phone_required: ['Enter the emergency contact phone.', 'Nhập số điện thoại liên hệ khẩn cấp.', 'emergencyPhone'],
+  occupation_required: ['Enter the occupation.', 'Nhập nghề nghiệp.', 'occupation'],
+  visa_start_required: ['Choose when the visa should start.', 'Chọn ngày visa bắt đầu.', 'visaFrom'],
+  visa_end_required: ['Choose when the visa should end.', 'Chọn ngày visa kết thúc.', 'visaTo'],
+  visa_dates_invalid: ['Visa end must be after its start.', 'Ngày kết thúc visa phải sau ngày bắt đầu.', 'visaTo'],
+  visa_period_exceeds_90_days: ['Keep the visa period within 90 inclusive days.', 'Giữ thời hạn visa trong 90 ngày tính cả ngày đầu và cuối.', 'visaTo'],
+  purpose_required: ['Enter the purpose of entry.', 'Nhập mục đích nhập cảnh.', 'purpose'],
+  entry_date_required: ['Choose the intended entry date.', 'Chọn ngày dự kiến nhập cảnh.', 'entryDate'],
+  stay_length_invalid: ['Choose a stay from 1 to 90 days.', 'Chọn thời gian lưu trú từ 1 đến 90 ngày.', 'stayLength'],
+  applicant_must_be_outside_vietnam: ['The official e-Visa form requires the applicant to be outside Vietnam.', 'Biểu mẫu E-Visa chính thức yêu cầu người nộp đang ở ngoài Việt Nam.', 'outsideVietnam'],
+  vietnam_address_required: ['Enter the first Vietnam address or hotel.', 'Nhập địa chỉ hoặc khách sạn đầu tiên tại Việt Nam.', 'temporaryAddress'],
+  vietnam_province_required: ['Enter the Vietnam province or city.', 'Nhập tỉnh hoặc thành phố tại Việt Nam.', 'province'],
+  entry_gate_required: ['Choose the entry checkpoint.', 'Chọn cửa khẩu nhập cảnh.', 'entryGate'],
+  exit_gate_required: ['Choose the exit checkpoint.', 'Chọn cửa khẩu xuất cảnh.', 'exitGate'],
+  previous_visits_details_required: ['Add the previous visit details.', 'Thêm thông tin lần đến trước.', 'previousVisits'],
+  relatives_details_required: ['Add the relative details.', 'Thêm thông tin người thân.', 'relativeDetails'],
+  insurance_details_required: ['Add the travel insurance details.', 'Thêm thông tin bảo hiểm du lịch.', 'insuranceDetails'],
+  children_details_required: ['Add each accompanying child’s details.', 'Thêm thông tin của từng trẻ đi kèm.', 'childrenDetails'],
+}
+
+function stepIssueCopy(issue: string, tr: (en: string, vi: string) => string) {
+  const copy = STEP_ISSUE_COPY[issue] || [issue.replaceAll('_', ' '), issue.replaceAll('_', ' ')]
+  return tr(copy[0], copy[1])
+}
+
+function issueFieldId(issue: string) {
+  return STEP_ISSUE_COPY[issue]?.[2] || ''
+}
+
 const control = 'h-11 w-full rounded-xl border border-line-strong bg-card px-3 text-sm text-foreground outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-ring/30 disabled:opacity-50'
 
 function FormField({ id, label, required, children }: { id: string; label: string; required?: boolean; children: React.ReactNode }) {
@@ -159,6 +214,7 @@ export function VisaAssistant() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState(0)
+  const [stepIssues, setStepIssues] = useState<string[]>([])
   const [declaration, setDeclaration] = useState(false)
   const [authorization, setAuthorization] = useState(false)
   const analysisInFlight = useRef(new Map<string, Promise<VisaAnalysis>>())
@@ -187,7 +243,8 @@ export function VisaAssistant() {
       const active = list.applications.find((item) => !['cancelled'].includes(item.status)) || list.applications[0]
       if (!active) { setApplication(null); setPayload(null); return }
       const detail = await forumApi<{ application: VisaApplication }>(`/api/visa/applications/${active.id}`, { auth: 'required', direct: true })
-      setApplication(detail.application); setPayload(detail.application.payload || null)
+      const loadedPayload = detail.application.payload
+      setApplication(detail.application); setPayload(loadedPayload ? { ...loadedPayload, entryGate: loadedPayload.entryGate || DEFAULT_EVISA_ENTRY_GATE } : null)
     } catch (error) {
       if (!(error instanceof ForumApiError && error.status === 401)) toast.error(tr('Could not load visa assistance.', 'Không thể tải dịch vụ hỗ trợ visa.'))
     } finally { if (!background) setLoading(false) }
@@ -209,7 +266,10 @@ export function VisaAssistant() {
     } catch (error) { toast.error((error as Error).message.replaceAll('_', ' ')) } finally { setBusy(false) }
   }
 
-  const set = <K extends keyof VisaPayload>(key: K, value: VisaPayload[K]) => setPayload((current) => current ? { ...current, [key]: value } : current)
+  const set = <K extends keyof VisaPayload>(key: K, value: VisaPayload[K]) => {
+    setStepIssues([])
+    setPayload((current) => current ? { ...current, [key]: value } : current)
+  }
 
   const save = async (announce = true) => {
     if (!application || !payload) return null
@@ -222,6 +282,15 @@ export function VisaAssistant() {
   }
 
   const next = async () => {
+    if (!application || !payload || step > 2) return
+    const issues = validateVisaStep(payload, application.documents.map((document) => ({ kind: document.kind, validation_status: document.validationStatus })), step as 0 | 1 | 2)
+    if (issues.length) {
+      setStepIssues(issues)
+      toast.error(tr('Finish this page before continuing.', 'Hoàn thành trang này trước khi tiếp tục.'))
+      window.requestAnimationFrame(() => document.getElementById(issueFieldId(issues[0]))?.focus())
+      return
+    }
+    setStepIssues([])
     setBusy(true)
     try { await save(false); setStep((value) => Math.min(3, value + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }) }
     catch (error) { toast.error((error as Error).message.replaceAll('_', ' ')) } finally { setBusy(false) }
@@ -229,6 +298,7 @@ export function VisaAssistant() {
 
   const upload = async (kind: 'portrait' | 'passport', file: File | null) => {
     if (!file || !application || !payload) return
+    setStepIssues([])
     setBusy(true)
     const toastId = `visa-${kind}-upload`
     try {
@@ -288,6 +358,7 @@ export function VisaAssistant() {
 
   const retryImageAnalysis = async (kind: 'portrait' | 'passport', documentId: string) => {
     if (!application) return
+    setStepIssues([])
     setBusy(true)
     const toastId = `visa-${kind}-upload`
     toast.loading(tr('Retrying the automatic image check…', 'Đang thử lại kiểm tra ảnh tự động…'), { id: toastId })
@@ -304,14 +375,23 @@ export function VisaAssistant() {
   }
 
   const submitForReview = async () => {
-    if (!application || !declaration) return
+    if (!application || !payload || !declaration) return
     setBusy(true)
     try {
       await save(false)
       const result = await forumApi<{ application: VisaApplication }>(`/api/visa/applications/${application.id}/submit`, { method: 'POST', body: JSON.stringify({ action: 'send_for_review', declarationAccepted: true }), auth: 'required', direct: true })
       setApplication(result.application); setPayload(result.application.payload || payload); toast.success(tr('Sent to eno for review.', 'Đã gửi eno xem xét.'))
     } catch (error) {
-      if (error instanceof ForumApiError && error.code === 'application_incomplete') toast.error(tr('Complete the highlighted required information first.', 'Vui lòng hoàn thành các thông tin bắt buộc.'))
+      if (error instanceof ForumApiError && error.code === 'application_incomplete') {
+        const documents = application.documents.map((document) => ({ kind: document.kind, validation_status: document.validationStatus }))
+        const incompleteStep = ([0, 1, 2] as const).find((candidate) => validateVisaStep(payload, documents, candidate).length)
+        if (incompleteStep !== undefined) {
+          const issues = validateVisaStep(payload, documents, incompleteStep)
+          setStep(incompleteStep); setStepIssues(issues)
+          window.requestAnimationFrame(() => document.getElementById(issueFieldId(issues[0]))?.focus())
+        }
+        toast.error(tr('One earlier page needs attention.', 'Một trang trước đó cần được kiểm tra.'))
+      }
       else toast.error((error as Error).message.replaceAll('_', ' '))
       const detail = await forumApi<{ application: VisaApplication }>(`/api/visa/applications/${application.id}`, { auth: 'required', direct: true }).catch(() => null)
       if (detail) setApplication(detail.application)
@@ -405,27 +485,27 @@ export function VisaAssistant() {
 
       <div className="mb-5 flex gap-3 rounded-2xl border border-brand/20 bg-accent/40 p-4 text-sm leading-relaxed text-body">
         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" />
-        <p><strong className="text-foreground">{tr('Common traveler answers are prefilled.', 'Các câu trả lời phổ biến của du khách đã được điền sẵn.')}</strong> {tr('They are suggestions, not assumptions about you. Change any answer that differs before confirming: ordinary passport, no additional passport or nationality, no legal violations, single-entry tourism, currently outside Vietnam, self-funded, no recent visit, relatives, accompanying children, or insurance, a 14-day stay, USD 1,000 estimated expenses, and religion None.', 'Đây là gợi ý, không phải giả định về bạn. Hãy thay đổi mọi câu trả lời không đúng trước khi xác nhận: hộ chiếu phổ thông, không có hộ chiếu hoặc quốc tịch khác, không vi phạm pháp luật, du lịch nhập cảnh một lần, hiện ở ngoài Việt Nam, tự chi trả, không đến Việt Nam gần đây, không có người thân, trẻ đi kèm hoặc bảo hiểm, lưu trú 14 ngày, chi phí dự kiến 1.000 USD và tôn giáo Không.')}</p>
+        <p><strong className="text-foreground">{tr('Common traveler answers are prefilled.', 'Các câu trả lời phổ biến của du khách đã được điền sẵn.')}</strong> {tr('They are suggestions, not assumptions about you. Change any answer that differs before confirming: ordinary passport, no additional passport or nationality, no legal violations, single-entry tourism, currently outside Vietnam, self-funded, no recent visit, relatives, accompanying children, or insurance, a 90-day validity and stay, USD 1,000 estimated expenses, and religion None.', 'Đây là gợi ý, không phải giả định về bạn. Hãy thay đổi mọi câu trả lời không đúng trước khi xác nhận: hộ chiếu phổ thông, không có hộ chiếu hoặc quốc tịch khác, không vi phạm pháp luật, du lịch nhập cảnh một lần, hiện ở ngoài Việt Nam, tự chi trả, không đến Việt Nam gần đây, không có người thân, trẻ đi kèm hoặc bảo hiểm, thời hạn và lưu trú 90 ngày, chi phí dự kiến 1.000 USD và tôn giáo Không.')}</p>
       </div>
 
       <ol className="mb-6 grid grid-cols-4 gap-2" aria-label={tr('Application progress', 'Tiến trình hồ sơ')}>
-        {STEPS.map((label, index) => <li key={label}><button type="button" onClick={() => setStep(index)} className={cn('flex h-11 w-full items-center justify-center rounded-xl border px-2 text-xs font-bold transition-colors', index === step ? 'border-brand bg-accent text-accent-foreground' : index < step ? 'border-line-strong bg-card text-foreground' : 'border-border bg-tint text-body')}><span className="sm:hidden">{index + 1}</span><span className="hidden sm:inline">{index + 1}. {tr(label, ['Giấy tờ', 'Thông tin', 'Chuyến đi', 'Kiểm tra'][index])}</span></button></li>)}
+        {STEPS.map((label, index) => <li key={label}><button type="button" disabled={index > step} onClick={() => { if (index < step) { setStepIssues([]); setStep(index) } }} className={cn('flex h-11 w-full items-center justify-center rounded-xl border px-2 text-xs font-bold transition-colors disabled:cursor-not-allowed', index === step ? 'border-brand bg-accent text-accent-foreground' : index < step ? 'border-line-strong bg-card text-foreground' : 'border-border bg-tint text-body')}><span className="sm:hidden">{index + 1}</span><span className="hidden sm:inline">{index + 1}. {tr(label, ['Giấy tờ', 'Thông tin', 'Chuyến đi', 'Kiểm tra'][index])}</span></button></li>)}
       </ol>
 
+      {stepIssues.length > 0 && <StepIssues issues={stepIssues} tr={tr} />}
       {step === 0 && <DocumentsStep application={application} upload={upload} retry={retryImageAnalysis} busy={busy} tr={tr} />}
       {step === 1 && <PersonalStep payload={payload} set={set} tr={tr} />}
       {step === 2 && <TripStep payload={payload} set={set} tr={tr} />}
       {step === 3 && (
         <div className="space-y-5">
           <Card><CardHeader><CardTitle>{tr('Review everything', 'Kiểm tra mọi thông tin')}</CardTitle></CardHeader><CardContent><ReviewGrid payload={payload} tr={tr} /></CardContent></Card>
-          {application.checklist.length > 0 && <Card className="border border-destructive/30"><CardHeader><CardTitle>{tr('Still needed', 'Còn thiếu')}</CardTitle></CardHeader><CardContent><ul className="grid gap-2 sm:grid-cols-2">{application.checklist.map((issue) => <li key={issue} className="text-sm text-destructive">• {issue.replaceAll('_', ' ')}</li>)}</ul></CardContent></Card>}
           <Consent checked={declaration} onChange={setDeclaration}>{tr('I confirm that every answer is complete, true, and accurate. I understand false information can cause refusal and legal consequences.', 'Tôi xác nhận mọi câu trả lời đầy đủ, trung thực và chính xác. Tôi hiểu thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý.')}</Consent>
           <Button type="button" variant="cta" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration} onClick={() => void submitForReview()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}{tr('Send to eno for review', 'Gửi eno xem xét')}</Button>
         </div>
       )}
 
       <div className="mt-6 flex items-center justify-between gap-3 border-t border-border pt-5">
-        <Button type="button" variant="outline" className="h-11" disabled={busy || step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}><ChevronLeft className="h-4 w-4" />{tr('Back', 'Quay lại')}</Button>
+        <Button type="button" variant="outline" className="h-11" disabled={busy || step === 0} onClick={() => { setStepIssues([]); setStep((value) => Math.max(0, value - 1)) }}><ChevronLeft className="h-4 w-4" />{tr('Back', 'Quay lại')}</Button>
         <div className="flex gap-2">
           <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => void save()}>{tr('Save draft', 'Lưu bản nháp')}</Button>
           {step < 3 && <Button type="button" variant="cta" className="h-11" disabled={busy} onClick={() => void next()}>{tr('Save and continue', 'Lưu và tiếp tục')}<ChevronRight className="h-4 w-4" /></Button>}
@@ -437,6 +517,13 @@ export function VisaAssistant() {
 
 function Consent({ checked, onChange, children }: { checked: boolean; onChange: (value: boolean) => void; children: React.ReactNode }) {
   return <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line-strong bg-card p-4 text-sm leading-relaxed text-body"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span>{children}</span></label>
+}
+
+function StepIssues({ issues, tr }: { issues: string[]; tr: (en: string, vi: string) => string }) {
+  return <div role="alert" className="mb-5 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+    <p className="text-sm font-bold text-destructive">{tr('Complete this page to continue', 'Hoàn thành trang này để tiếp tục')}</p>
+    <ul className="mt-2 grid gap-1.5 text-sm text-destructive sm:grid-cols-2">{issues.map((issue) => <li key={issue}>• {stepIssueCopy(issue, tr)}</li>)}</ul>
+  </div>
 }
 
 function DocumentsStep({ application, upload, retry, busy, tr }: { application: VisaApplication; upload: (kind: 'portrait' | 'passport', file: File | null) => void; retry: (kind: 'portrait' | 'passport', documentId: string) => void; busy: boolean; tr: (en: string, vi: string) => string }) {
@@ -588,22 +675,38 @@ function PersonalStep({ payload, set, tr }: { payload: VisaPayload; set: <K exte
 }
 
 function TripStep({ payload, set, tr }: { payload: VisaPayload; set: <K extends keyof VisaPayload>(key: K, value: VisaPayload[K]) => void; tr: (en: string, vi: string) => string }) {
+  const setVisaStart = (value: string) => {
+    const defaults = visaDateDefaultsForStart(value)
+    set('visaValidFrom', defaults.visaValidFrom)
+    set('visaValidTo', defaults.visaValidTo)
+    set('intendedEntryDate', defaults.intendedEntryDate)
+    if (value) set('stayLengthDays', defaults.stayLengthDays)
+  }
+  const setEntryDate = (value: string) => {
+    set('intendedEntryDate', value)
+    if (value && !payload.visaValidFrom) {
+      set('visaValidFrom', value)
+      set('visaValidTo', visaEndDateFor90DayWindow(value))
+    }
+  }
+  const maximumVisaEnd = visaEndDateFor90DayWindow(payload.visaValidFrom)
+
   return <div className="space-y-5">
     <Card><CardHeader><CardTitle>{tr('Requested visa', 'Visa yêu cầu')}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <FormField id="entryType" label={tr('Entry type', 'Loại nhập cảnh')}><VisaSelect id="entryType" value={payload.entryType} onChange={(v) => set('entryType', v as VisaPayload['entryType'])}><option value="single">{tr('Single entry', 'Nhập cảnh một lần')}</option><option value="multiple">{tr('Multiple entry', 'Nhập cảnh nhiều lần')}</option></VisaSelect></FormField>
-      <Text id="visaFrom" type="date" label={tr('Visa valid from', 'Visa có hiệu lực từ')} value={payload.visaValidFrom} onChange={(v) => set('visaValidFrom', v)} />
-      <Text id="visaTo" type="date" label={tr('Visa valid to', 'Visa có hiệu lực đến')} value={payload.visaValidTo} onChange={(v) => set('visaValidTo', v)} />
+      <Text id="visaFrom" type="date" label={tr('Visa valid from', 'Visa có hiệu lực từ')} value={payload.visaValidFrom} onChange={setVisaStart} />
+      <Text id="visaTo" type="date" min={payload.visaValidFrom || undefined} max={maximumVisaEnd || undefined} label={tr('Visa valid to · 90 days filled automatically', 'Visa có hiệu lực đến · tự động điền 90 ngày')} value={payload.visaValidTo} onChange={(v) => set('visaValidTo', v)} />
     </CardContent></Card>
     <Card><CardHeader><CardTitle>{tr('Vietnam stay', 'Lưu trú tại Việt Nam')}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <Text id="purpose" label={tr('Purpose of entry', 'Mục đích nhập cảnh')} value={payload.purposeOfEntry} onChange={(v) => set('purposeOfEntry', v)} />
       <YesNo id="outsideVietnam" label={tr('Are you currently outside Vietnam?', 'Hiện bạn có ở ngoài Việt Nam?')} value={payload.currentlyOutsideVietnam} onChange={(v) => set('currentlyOutsideVietnam', v)} />
-      <Text id="entryDate" type="date" label={tr('Intended entry date', 'Ngày dự kiến nhập cảnh')} value={payload.intendedEntryDate} onChange={(v) => set('intendedEntryDate', v)} />
+      <Text id="entryDate" type="date" min={payload.visaValidFrom || undefined} max={payload.visaValidTo || undefined} label={tr('Intended entry date', 'Ngày dự kiến nhập cảnh')} value={payload.intendedEntryDate} onChange={setEntryDate} />
       <FormField id="stayLength" label={tr('Length of stay (days)', 'Thời gian lưu trú (ngày)')}><Input id="stayLength" variant="outline" type="number" min={1} max={90} value={payload.stayLengthDays || ''} onChange={(event) => set('stayLengthDays', Math.min(90, Math.max(0, Number(event.target.value))))} className="h-11 py-0" /></FormField>
       <Text id="temporaryAddress" label={tr('First Vietnam address/hotel', 'Địa chỉ/khách sạn đầu tiên')} value={payload.temporaryAddress} onChange={(v) => set('temporaryAddress', v)} />
       <Text id="province" label={tr('Province/city', 'Tỉnh/thành phố')} value={payload.temporaryProvince} onChange={(v) => set('temporaryProvince', v)} />
       <Text id="ward" label={tr('Ward/commune (if known)', 'Phường/xã (nếu biết)')} value={payload.temporaryWard} onChange={(v) => set('temporaryWard', v)} />
-      <Text id="entryGate" label={tr('Entry checkpoint', 'Cửa khẩu nhập cảnh')} value={payload.entryGate} onChange={(v) => set('entryGate', v)} />
-      <Text id="exitGate" label={tr('Exit checkpoint', 'Cửa khẩu xuất cảnh')} value={payload.exitGate} onChange={(v) => set('exitGate', v)} />
+      <CheckpointSelect id="entryGate" label={tr('Entry checkpoint', 'Cửa khẩu nhập cảnh')} value={payload.entryGate} onChange={(v) => set('entryGate', v)} tr={tr} />
+      <CheckpointSelect id="exitGate" label={tr('Exit checkpoint', 'Cửa khẩu xuất cảnh')} value={payload.exitGate} onChange={(v) => set('exitGate', v)} tr={tr} />
       <Text id="localContactName" label={tr('Inviting/local contact (if any)', 'Liên hệ tại Việt Nam (nếu có)')} value={payload.localContactName} onChange={(v) => set('localContactName', v)} />
       <Text id="localContactAddress" label={tr('Local contact address', 'Địa chỉ liên hệ tại Việt Nam')} value={payload.localContactAddress} onChange={(v) => set('localContactAddress', v)} />
       <YesNo id="visited" label={tr('Visited Vietnam in the last year?', 'Đã đến Việt Nam trong năm qua?')} value={payload.visitedVietnamLastYear} onChange={(v) => set('visitedVietnamLastYear', v)} />
@@ -625,8 +728,18 @@ function TripStep({ payload, set, tr }: { payload: VisaPayload; set: <K extends 
   </div>
 }
 
-function Text({ id, label, value, onChange, type = 'text' }: { id: string; label: string; value: string; onChange: (value: string) => void; type?: string }) {
-  return <FormField id={id} label={label}><Input id={id} variant="outline" type={type} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 py-0" /></FormField>
+function Text({ id, label, value, onChange, type = 'text', min, max }: { id: string; label: string; value: string; onChange: (value: string) => void; type?: string; min?: string; max?: string }) {
+  return <FormField id={id} label={label}><Input id={id} variant="outline" type={type} min={min} max={max} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 py-0" /></FormField>
+}
+
+function CheckpointSelect({ id, label, value, onChange, tr }: { id: string; label: string; value: string; onChange: (value: string) => void; tr: (en: string, vi: string) => string }) {
+  return <FormField id={id} label={label}><VisaSelect id={id} value={value} onChange={onChange}>
+    <option value="">{tr('Choose an approved checkpoint', 'Chọn cửa khẩu được phê duyệt')}</option>
+    {value && !EVISA_CHECKPOINTS.includes(value as (typeof EVISA_CHECKPOINTS)[number]) && <option value={value}>{value}</option>}
+    {EVISA_CHECKPOINT_GROUPS.map((group) => <optgroup key={group.id} label={tr(group.label, group.labelVi)}>
+      {group.options.map((checkpoint) => <option key={checkpoint} value={checkpoint}>{checkpoint}</option>)}
+    </optgroup>)}
+  </VisaSelect></FormField>
 }
 
 function YesNo({ id, label, value, onChange }: { id: string; label: string; value: '' | 'yes' | 'no'; onChange: (value: '' | 'yes' | 'no') => void }) {

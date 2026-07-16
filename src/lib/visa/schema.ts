@@ -1,8 +1,27 @@
 import { z } from 'zod'
+import { DEFAULT_EVISA_ENTRY_GATE } from '@/lib/visa/checkpoints'
 
 export const VISA_PAYLOAD_VERSION = '2026-07-16'
 export const VISA_DECLARATION_VERSION = 'evisa-applicant-declaration-2026-07-16'
 export const VISA_AUTHORIZATION_VERSION = 'eno-prefill-authorization-2026-07-16'
+export const MAX_EVISA_VALIDITY_DAYS = 90
+
+export function visaEndDateFor90DayWindow(startDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return ''
+  const start = new Date(`${startDate}T00:00:00.000Z`)
+  if (Number.isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== startDate) return ''
+  start.setUTCDate(start.getUTCDate() + MAX_EVISA_VALIDITY_DAYS - 1)
+  return start.toISOString().slice(0, 10)
+}
+
+export function visaDateDefaultsForStart(startDate: string) {
+  return {
+    visaValidFrom: startDate,
+    visaValidTo: visaEndDateFor90DayWindow(startDate),
+    intendedEntryDate: startDate,
+    stayLengthDays: MAX_EVISA_VALIDITY_DAYS,
+  }
+}
 
 const short = z.string().trim().max(160)
 const long = z.string().trim().max(1200)
@@ -27,10 +46,10 @@ export const visaPayloadSchema = z.object({
   permanentAddress: long.default(''), phone: short.default(''), emergencyName: short.default(''),
   emergencyRelationship: short.default(''), emergencyAddress: long.default(''), emergencyPhone: short.default(''),
   occupation: short.default(''), employerName: short.default(''), employerAddress: long.default(''), employerPhone: short.default(''),
-  purposeOfEntry: short.default('Tourism'), intendedEntryDate: date.default(''), stayLengthDays: z.number().int().min(0).max(90).default(14),
+  purposeOfEntry: short.default('Tourism'), intendedEntryDate: date.default(''), stayLengthDays: z.number().int().min(0).max(90).default(90),
   currentlyOutsideVietnam: eligibleOutsideVietnam,
   temporaryAddress: long.default(''), temporaryProvince: short.default(''), temporaryWard: short.default(''),
-  entryGate: short.default(''), exitGate: short.default(''), localContactName: short.default(''), localContactAddress: long.default(''),
+  entryGate: short.default(DEFAULT_EVISA_ENTRY_GATE), exitGate: short.default(''), localContactName: short.default(''), localContactAddress: long.default(''),
   visitedVietnamLastYear: commonNo, previousVisitDetails: long.default(''),
   hasRelativesInVietnam: commonNo, relativesInVietnamDetails: long.default(''),
   estimatedExpenses: z.number().min(0).max(1_000_000_000).default(1000), expensesCurrency: z.string().trim().max(3).default('USD'),
@@ -79,7 +98,7 @@ export function validateVisaForReview(payload: VisaPayload, documents: Array<str
   if (payload.currentlyOutsideVietnam === 'no') issues.push('applicant_must_be_outside_vietnam')
   if (payload.visaValidFrom && payload.visaValidTo) {
     const days = Math.floor((new Date(`${payload.visaValidTo}T00:00:00Z`).getTime() - new Date(`${payload.visaValidFrom}T00:00:00Z`).getTime()) / 86400_000) + 1
-    if (days > 90) issues.push('visa_period_exceeds_90_days')
+    if (days > MAX_EVISA_VALIDITY_DAYS) issues.push('visa_period_exceeds_90_days')
   }
   for (const [kind, missingCode, qualityCode] of [
     ['portrait', 'portrait_required', 'portrait_image_not_verified'],
@@ -90,6 +109,30 @@ export function validateVisaForReview(payload: VisaPayload, documents: Array<str
     else if (document.validation_status !== 'passed') issues.push(qualityCode)
   }
   return [...new Set(issues)]
+}
+
+const STEP_ISSUES: Record<0 | 1 | 2, Set<string>> = {
+  0: new Set(['portrait_required', 'portrait_image_not_verified', 'passport_image_required', 'passport_image_not_verified']),
+  1: new Set([
+    'surname_required', 'given_names_required', 'date_of_birth_required', 'sex_required', 'nationality_required',
+    'email_required', 'email_invalid', 'place_of_birth_required', 'other_nationalities_answer_required',
+    'other_nationalities_details_required', 'law_violation_answer_required', 'law_violation_details_required',
+    'passport_number_required', 'passport_authority_required', 'passport_issue_date_required', 'passport_expiry_date_required',
+    'passport_dates_invalid', 'other_passports_answer_required', 'other_passport_details_required', 'permanent_address_required',
+    'phone_required', 'emergency_contact_required', 'emergency_relationship_required', 'emergency_phone_required', 'occupation_required',
+  ]),
+  2: new Set([
+    'visa_start_required', 'visa_end_required', 'visa_dates_invalid', 'visa_period_exceeds_90_days', 'purpose_required',
+    'entry_date_required', 'stay_length_invalid', 'outside_vietnam_answer_required', 'applicant_must_be_outside_vietnam',
+    'vietnam_address_required', 'vietnam_province_required', 'entry_gate_required', 'exit_gate_required',
+    'previous_visits_answer_required', 'previous_visits_details_required', 'relatives_answer_required',
+    'relatives_details_required', 'insurance_answer_required', 'insurance_details_required',
+    'children_on_passport_answer_required', 'children_details_required',
+  ]),
+}
+
+export function validateVisaStep(payload: VisaPayload, documents: Array<string | { kind: string; validation_status?: string }>, step: 0 | 1 | 2) {
+  return validateVisaForReview(payload, documents).filter((issue) => STEP_ISSUES[step].has(issue))
 }
 
 export const visaStatuses = ['draft', 'ready_for_review', 'under_review', 'needs_changes', 'applicant_approval', 'ready_to_submit', 'submitted', 'payment_required', 'processing', 'approved', 'rejected', 'cancelled'] as const
