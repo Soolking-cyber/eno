@@ -108,7 +108,7 @@ export default function RootLayout({
             in sync with ThemeProvider. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');}catch(e){}try{var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){document.documentElement.classList.add('native');}else if(!window.scrollY){document.documentElement.classList.add('page-at-top');}}catch(e){}})();`,
           }}
         />
         {/* Warm up TCP/TLS to the image origin so above-the-fold listing photos

@@ -641,14 +641,25 @@ summary:focus-visible {
    are no-ops on desktop web.
    · The prelaunch banner is the topmost element, so it clears the status bar itself (base py-1.5
      = 0.375rem stays).
-   · The sticky #app-header ALSO reserves the inset (its own pt-[env(...)]) — correct once the
-     banner is gone (post-launch) or when the header is stuck at the top. But WHILE the banner is
-     present it would double-inset and leave a card-coloured gap under the banner, so drop the
-     header's own inset then; the banner above already provides the clearance. */
+   · The sticky #app-header ALSO reserves the inset (its own pt-[env(...)]). Post-launch (no banner)
+     it always keeps it. WHILE the banner is present it depends on SCROLL: at the very top the banner
+     sits directly above and clears the notch itself, so the header drops its inset to avoid a
+     double gap (the .page-at-top class, toggled by header.tsx). But the header is STICKY — once you
+     scroll past the banner it pins to y=0 where the banner no longer shields it, so it must reclaim
+     env(safe-area-inset-top) or its content slides under the Dynamic Island / camera pill. Hence the
+     override applies ONLY while page-at-top; scrolled, the header keeps its own inset. */
 #prelaunch-banner {
   padding-top: calc(env(safe-area-inset-top) + 0.375rem);
 }
-body:has(#prelaunch-banner) #app-header {
+/* The prelaunch legal notice is a WEB requirement (sàn TMĐT registration). The native
+   iOS/Android apps are a distinct distribution that doesn't carry it, so hide it there
+   (the `native` class is set pre-paint in layout.tsx's inline script, so no flash). With
+   the banner gone on native, the header just uses its own env(safe-area-inset-top) inset
+   unconditionally — hence the override below is also scoped :not(.native). */
+html.native #prelaunch-banner {
+  display: none;
+}
+html.page-at-top:not(.native) body:has(#prelaunch-banner) #app-header {
   padding-top: 0;
 }
 

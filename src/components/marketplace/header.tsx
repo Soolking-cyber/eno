@@ -45,6 +45,39 @@ export function Header() {
   // stays pinned via lg:translate-y-0).
   const hidden = useHideOnScroll()
 
+  // Notch/Dynamic-Island handling for the installed PWA (and any web target with a real
+  // safe-area inset). The prelaunch banner sits above the header and clears the notch
+  // itself, so at the very top the header drops its own env(safe-area-inset-top) to avoid
+  // a double gap. But the header is sticky: once the page scrolls past the banner it pins
+  // to y=0 with nothing above it, so it must reclaim the inset or its content slides under
+  // the camera pill. Toggle the .page-at-top class the CSS keys off (see globals.css).
+  // On the native shell the banner is hidden entirely, and post-launch there's no banner —
+  // in both cases the header keeps its inset unconditionally, so there's nothing to wire.
+  useEffect(() => {
+    const root = document.documentElement
+    const isNative = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+    const banner = document.getElementById('prelaunch-banner')
+    if (isNative || !banner) {
+      root.classList.remove('page-at-top')
+      return
+    }
+    let ticking = false
+    const sync = () => {
+      ticking = false
+      // Banner still overlapping the top → it shields the notch; header inset off.
+      root.classList.toggle('page-at-top', window.scrollY < banner.offsetHeight)
+    }
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true
+        requestAnimationFrame(sync)
+      }
+    }
+    sync()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   // Explorer pages (home + category) mount the ListingsExplorer, which listens for
   // our search/district custom events. Elsewhere we navigate to the home explorer.
   const isExplorerPage = pathname === '/' || (pathname?.startsWith('/c/') ?? false)
