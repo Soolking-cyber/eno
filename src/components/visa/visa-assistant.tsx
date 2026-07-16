@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 
 type VisaImageReport = {
   issues?: string[]
+  warnings?: string[]
   corrections?: string[]
   normalized?: { format?: string; sizeBytes?: number; width?: number | null; height?: number | null }
 }
@@ -208,14 +209,16 @@ export function VisaAssistant() {
       const result = await forumApi<{ document: VisaDocument }>(`/api/visa/applications/${application.id}/documents`, { method: 'POST', body: form, auth: 'required', direct: true })
       setApplication((current) => current ? { ...current, documents: [...current.documents.filter((item) => item.kind !== kind), result.document] } : current)
       toast.loading(kind === 'passport' ? tr('Checking the page and filling passport fields…', 'Đang kiểm tra trang và điền thông tin hộ chiếu…') : tr('Checking the portrait against official rules…', 'Đang kiểm tra ảnh chân dung theo quy định chính thức…'), { id: toastId })
-      const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[] }>(`/api/visa/applications/${application.id}/extract`, {
+      const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[]; warnings?: string[] }>(`/api/visa/applications/${application.id}/extract`, {
         method: 'POST', body: JSON.stringify({ kind, documentId: result.document.id }), auth: 'required', direct: true,
       })
       const checkedDocument = { ...result.document, ...analyzed.document }
       setApplication((current) => current ? { ...current, documents: [...current.documents.filter((item) => item.kind !== kind), checkedDocument] } : current)
       if (analyzed.payload) setPayload(analyzed.payload)
       if (analyzed.document.validationStatus === 'passed') {
-        const message = kind === 'passport'
+        const message = kind === 'passport' && analyzed.warnings?.length
+          ? tr(`Passport accepted and ${analyzed.suggestions.length} fields filled. eno will verify the page framing during review.`, `Đã chấp nhận hộ chiếu và điền ${analyzed.suggestions.length} trường. eno sẽ kiểm tra khung trang khi xem xét.`)
+          : kind === 'passport'
           ? tr(`Passport verified and ${analyzed.suggestions.length} fields filled. Check them before submission.`, `Đã xác minh hộ chiếu và điền ${analyzed.suggestions.length} trường. Hãy kiểm tra trước khi nộp.`)
           : tr('Portrait verified and formatted for the official upload.', 'Ảnh chân dung đã được xác minh và định dạng cho cổng chính thức.')
         toast.success(message, { id: toastId })
@@ -238,7 +241,7 @@ export function VisaAssistant() {
       const toastId = `visa-${pending.kind}-upload`
       toast.loading(tr('Finishing the automatic image check…', 'Đang hoàn tất kiểm tra ảnh tự động…'), { id: toastId })
       try {
-        const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[] }>(`/api/visa/applications/${application.id}/extract`, {
+        const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[]; warnings?: string[] }>(`/api/visa/applications/${application.id}/extract`, {
           method: 'POST', body: JSON.stringify({ kind: pending.kind, documentId: pending.id }), auth: 'required', direct: true,
         })
         if (!active) return
@@ -263,7 +266,7 @@ export function VisaAssistant() {
     const toastId = `visa-${kind}-upload`
     toast.loading(tr('Retrying the automatic image check…', 'Đang thử lại kiểm tra ảnh tự động…'), { id: toastId })
     try {
-      const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[] }>(`/api/visa/applications/${application.id}/extract`, {
+      const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[]; warnings?: string[] }>(`/api/visa/applications/${application.id}/extract`, {
         method: 'POST', body: JSON.stringify({ kind, documentId }), auth: 'required', direct: true,
       })
       setApplication((current) => current ? { ...current, documents: current.documents.map((document) => document.id === documentId ? { ...document, ...analyzed.document } : document) } : current)
@@ -316,7 +319,7 @@ export function VisaAssistant() {
     }
   }
 
-  if (loading && user) return <main className="flex flex-1 items-center justify-center py-32"><Loader2 className="h-7 w-7 animate-spin text-accent-foreground" aria-label="Loading" /></main>
+  if (loading && user) return <main className="flex flex-1 items-center justify-center py-32"><Loader2 className="h-7 w-7 animate-spin text-accent-foreground" aria-label={tr('Loading', 'Đang tải')} /></main>
 
   if (!application || !payload) return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-3 py-10 sm:px-6 sm:py-16 lg:px-8">
@@ -376,7 +379,12 @@ export function VisaAssistant() {
       </div>
       {application.status === 'needs_changes' && payload.adminMessage && <div className="mb-5 rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning"><strong>{tr('Changes requested:', 'Yêu cầu chỉnh sửa:')}</strong> {payload.adminMessage}</div>}
 
-      <ol className="mb-6 grid grid-cols-4 gap-2" aria-label="Application progress">
+      <div className="mb-5 flex gap-3 rounded-2xl border border-brand/20 bg-accent/40 p-4 text-sm leading-relaxed text-body">
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" />
+        <p><strong className="text-foreground">{tr('Common traveler answers are prefilled.', 'Các câu trả lời phổ biến của du khách đã được điền sẵn.')}</strong> {tr('They are suggestions, not assumptions about you. Change any answer that differs before confirming: ordinary passport, no additional passport or nationality, no legal violations, single-entry tourism, currently outside Vietnam, self-funded, no recent visit, relatives, accompanying children, or insurance, a 14-day stay, USD 1,000 estimated expenses, and religion None.', 'Đây là gợi ý, không phải giả định về bạn. Hãy thay đổi mọi câu trả lời không đúng trước khi xác nhận: hộ chiếu phổ thông, không có hộ chiếu hoặc quốc tịch khác, không vi phạm pháp luật, du lịch nhập cảnh một lần, hiện ở ngoài Việt Nam, tự chi trả, không đến Việt Nam gần đây, không có người thân, trẻ đi kèm hoặc bảo hiểm, lưu trú 14 ngày, chi phí dự kiến 1.000 USD và tôn giáo Không.')}</p>
+      </div>
+
+      <ol className="mb-6 grid grid-cols-4 gap-2" aria-label={tr('Application progress', 'Tiến trình hồ sơ')}>
         {STEPS.map((label, index) => <li key={label}><button type="button" onClick={() => setStep(index)} className={cn('flex h-11 w-full items-center justify-center rounded-xl border px-2 text-xs font-bold transition-colors', index === step ? 'border-brand bg-accent text-accent-foreground' : index < step ? 'border-line-strong bg-card text-foreground' : 'border-border bg-tint text-body')}><span className="sm:hidden">{index + 1}</span><span className="hidden sm:inline">{index + 1}. {tr(label, ['Giấy tờ', 'Thông tin', 'Chuyến đi', 'Kiểm tra'][index])}</span></button></li>)}
       </ol>
 
@@ -426,6 +434,7 @@ function UploadCard({ kind, title, detail, document, busy, onFile, onRetry, tr }
   const failed = document?.validationStatus === 'failed'
   const unavailable = document?.validationStatus === 'unavailable'
   const issues = document?.validationReport?.issues || []
+  const warnings = document?.validationReport?.warnings || []
   const corrections = document?.validationReport?.corrections || []
 
   const receiveFile = (file: File | null) => {
@@ -486,6 +495,7 @@ function UploadCard({ kind, title, detail, document, busy, onFile, onRetry, tr }
           <h2 className="font-bold text-foreground">{title}</h2>
           <p className="mt-1 text-xs leading-relaxed text-body">{detail}</p>
           {issues.length > 0 && <ul className="mt-3 space-y-1 rounded-xl bg-destructive/5 p-3 text-xs text-destructive">{issues.map((issue) => <li key={issue}>• {imageIssueCopy(issue, tr)}</li>)}</ul>}
+          {warnings.length > 0 && <div className="mt-3 rounded-xl bg-warning/10 p-3 text-xs leading-relaxed text-warning"><p className="font-bold">{tr('Accepted with a review note', 'Đã chấp nhận, cần lưu ý khi xem xét')}</p><ul className="mt-1 space-y-1">{warnings.map((warning) => <li key={warning}>• {imageIssueCopy(warning, tr)}</li>)}</ul></div>}
           {ready && corrections.length > 0 && <p className="mt-3 text-xs leading-relaxed text-success">{tr('Automatically prepared:', 'Đã tự động chuẩn bị:')} {tr('JPG, correct orientation, official dimensions, metadata removed, under 2 MB.', 'JPG, đúng chiều, kích thước chính thức, xóa siêu dữ liệu, dưới 2 MB.')}</p>}
         </div>
         <label className={cn('flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-xl border border-dashed border-line-strong bg-background px-4 py-3 text-center text-sm text-foreground transition-colors hover:border-brand focus-within:border-brand focus-within:ring-2 focus-within:ring-ring/30', busy && 'cursor-not-allowed')}>
@@ -518,7 +528,7 @@ function PersonalStep({ payload, set, tr }: { payload: VisaPayload; set: <K exte
       <Text id="surname" label={tr('Surname', 'Họ')} value={payload.surname} onChange={(v) => set('surname', v)} />
       <Text id="givenNames" label={tr('Given and middle names', 'Tên đệm và tên')} value={payload.givenNames} onChange={(v) => set('givenNames', v)} />
       <Text id="dateOfBirth" type="date" label={tr('Date of birth', 'Ngày sinh')} value={payload.dateOfBirth} onChange={(v) => set('dateOfBirth', v)} />
-      <FormField id="sex" label={tr('Sex', 'Giới tính')}><VisaSelect id="sex" value={payload.sex} onChange={(v) => set('sex', v as VisaPayload['sex'])}><option value="">Choose</option><option value="male">Male</option><option value="female">Female</option></VisaSelect></FormField>
+      <FormField id="sex" label={tr('Sex', 'Giới tính')}><VisaSelect id="sex" value={payload.sex} onChange={(v) => set('sex', v as VisaPayload['sex'])}><option value="">{tr('Choose', 'Chọn')}</option><option value="male">{tr('Male', 'Nam')}</option><option value="female">{tr('Female', 'Nữ')}</option></VisaSelect></FormField>
       <Text id="nationality" label={tr('Current nationality', 'Quốc tịch hiện tại')} value={payload.nationality} onChange={(v) => set('nationality', v)} />
       <Text id="placeOfBirth" label={tr('Place of birth', 'Nơi sinh')} value={payload.placeOfBirth} onChange={(v) => set('placeOfBirth', v)} />
       <Text id="identityNumber" label={tr('National ID (if any)', 'Số định danh (nếu có)')} value={payload.identityNumber} onChange={(v) => set('identityNumber', v)} />
@@ -531,7 +541,7 @@ function PersonalStep({ payload, set, tr }: { payload: VisaPayload; set: <K exte
     </CardContent></Card>
     <Card><CardHeader><CardTitle>{tr('Passport', 'Hộ chiếu')}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <Text id="passportNumber" label={tr('Passport number', 'Số hộ chiếu')} value={payload.passportNumber} onChange={(v) => set('passportNumber', v)} />
-      <FormField id="passportType" label={tr('Passport type', 'Loại hộ chiếu')}><VisaSelect id="passportType" value={payload.passportType} onChange={(v) => set('passportType', v as VisaPayload['passportType'])}><option value="ordinary">Ordinary</option><option value="official">Official</option><option value="diplomatic">Diplomatic</option><option value="other">Other</option></VisaSelect></FormField>
+      <FormField id="passportType" label={tr('Passport type', 'Loại hộ chiếu')}><VisaSelect id="passportType" value={payload.passportType} onChange={(v) => set('passportType', v as VisaPayload['passportType'])}><option value="ordinary">{tr('Ordinary', 'Phổ thông')}</option><option value="official">{tr('Official', 'Công vụ')}</option><option value="diplomatic">{tr('Diplomatic', 'Ngoại giao')}</option><option value="other">{tr('Other', 'Khác')}</option></VisaSelect></FormField>
       <Text id="passportAuthority" label={tr('Issuing authority/place', 'Nơi/cơ quan cấp')} value={payload.passportIssuingAuthority} onChange={(v) => set('passportIssuingAuthority', v)} />
       <Text id="passportIssue" type="date" label={tr('Issue date', 'Ngày cấp')} value={payload.passportIssueDate} onChange={(v) => set('passportIssueDate', v)} />
       <Text id="passportExpiry" type="date" label={tr('Expiry date', 'Ngày hết hạn')} value={payload.passportExpiryDate} onChange={(v) => set('passportExpiryDate', v)} />
@@ -556,7 +566,7 @@ function PersonalStep({ payload, set, tr }: { payload: VisaPayload; set: <K exte
 function TripStep({ payload, set, tr }: { payload: VisaPayload; set: <K extends keyof VisaPayload>(key: K, value: VisaPayload[K]) => void; tr: (en: string, vi: string) => string }) {
   return <div className="space-y-5">
     <Card><CardHeader><CardTitle>{tr('Requested visa', 'Visa yêu cầu')}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <FormField id="entryType" label={tr('Entry type', 'Loại nhập cảnh')}><VisaSelect id="entryType" value={payload.entryType} onChange={(v) => set('entryType', v as VisaPayload['entryType'])}><option value="single">Single entry</option><option value="multiple">Multiple entry</option></VisaSelect></FormField>
+      <FormField id="entryType" label={tr('Entry type', 'Loại nhập cảnh')}><VisaSelect id="entryType" value={payload.entryType} onChange={(v) => set('entryType', v as VisaPayload['entryType'])}><option value="single">{tr('Single entry', 'Nhập cảnh một lần')}</option><option value="multiple">{tr('Multiple entry', 'Nhập cảnh nhiều lần')}</option></VisaSelect></FormField>
       <Text id="visaFrom" type="date" label={tr('Visa valid from', 'Visa có hiệu lực từ')} value={payload.visaValidFrom} onChange={(v) => set('visaValidFrom', v)} />
       <Text id="visaTo" type="date" label={tr('Visa valid to', 'Visa có hiệu lực đến')} value={payload.visaValidTo} onChange={(v) => set('visaValidTo', v)} />
     </CardContent></Card>
@@ -582,7 +592,7 @@ function TripStep({ payload, set, tr }: { payload: VisaPayload; set: <K extends 
     <Card><CardHeader><CardTitle>{tr('Expenses and insurance', 'Chi phí và bảo hiểm')}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <FormField id="expenses" label={tr('Estimated expenses', 'Chi phí dự kiến')}><Input id="expenses" variant="outline" type="number" min={0} value={payload.estimatedExpenses || ''} onChange={(event) => set('estimatedExpenses', Math.max(0, Number(event.target.value)))} className="h-11 py-0" /></FormField>
       <Text id="currency" label={tr('Currency', 'Tiền tệ')} value={payload.expensesCurrency} onChange={(v) => set('expensesCurrency', v.toUpperCase().slice(0, 3))} />
-      <FormField id="payer" label={tr('Who pays?', 'Ai chi trả?')}><VisaSelect id="payer" value={payload.expensesPayer} onChange={(v) => set('expensesPayer', v as VisaPayload['expensesPayer'])}><option value="self">Self</option><option value="organization">Organization</option><option value="other">Other person</option></VisaSelect></FormField>
+      <FormField id="payer" label={tr('Who pays?', 'Ai chi trả?')}><VisaSelect id="payer" value={payload.expensesPayer} onChange={(v) => set('expensesPayer', v as VisaPayload['expensesPayer'])}><option value="self">{tr('Self', 'Tự chi trả')}</option><option value="organization">{tr('Organization', 'Tổ chức')}</option><option value="other">{tr('Other person', 'Người khác')}</option></VisaSelect></FormField>
       {payload.expensesPayer !== 'self' && <Text id="payerDetails" label={tr('Payer name/contact', 'Tên/liên hệ người chi trả')} value={payload.payerDetails} onChange={(v) => set('payerDetails', v)} />}
       <YesNo id="insurance" label={tr('Travel insurance?', 'Có bảo hiểm du lịch?')} value={payload.hasTravelInsurance} onChange={(v) => set('hasTravelInsurance', v)} />
       {payload.hasTravelInsurance === 'yes' && <Text id="insuranceDetails" label={tr('Insurance provider/policy', 'Nhà cung cấp/hợp đồng bảo hiểm')} value={payload.insuranceDetails} onChange={(v) => set('insuranceDetails', v)} />}
@@ -596,13 +606,14 @@ function Text({ id, label, value, onChange, type = 'text' }: { id: string; label
 }
 
 function YesNo({ id, label, value, onChange }: { id: string; label: string; value: '' | 'yes' | 'no'; onChange: (value: '' | 'yes' | 'no') => void }) {
-  return <FormField id={id} label={label}><VisaSelect id={id} value={value} onChange={(v) => onChange(v as '' | 'yes' | 'no')}><option value="">Choose</option><option value="no">No</option><option value="yes">Yes</option></VisaSelect></FormField>
+  const { tr } = useLanguage()
+  return <FormField id={id} label={label}><VisaSelect id={id} value={value} onChange={(v) => onChange(v as '' | 'yes' | 'no')}><option value="">{tr('Choose', 'Chọn')}</option><option value="no">{tr('No', 'Không')}</option><option value="yes">{tr('Yes', 'Có')}</option></VisaSelect></FormField>
 }
 
-function ReviewGrid({ payload }: { payload: VisaPayload; tr: (en: string, vi: string) => string }) {
+function ReviewGrid({ payload, tr }: { payload: VisaPayload; tr: (en: string, vi?: string) => string }) {
   const omit = new Set(['schemaVersion', 'aiDocumentProcessingConsent', 'adminMessage', 'governmentRegistrationCode', 'governmentApplicationStatus'])
   const items = Object.entries(payload)
     .filter(([key]) => !omit.has(key))
     .map(([key, value]): [string, unknown] => [key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase()), value])
-  return <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">{items.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-ink-4">{label}</dt><dd className="mt-0.5 break-words text-sm font-semibold text-foreground">{String(value || '—')}</dd></div>)}</dl>
+  return <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">{items.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-ink-4">{tr(label)}</dt><dd className="mt-0.5 break-words text-sm font-semibold text-foreground">{String(value || '—')}</dd></div>)}</dl>
 }

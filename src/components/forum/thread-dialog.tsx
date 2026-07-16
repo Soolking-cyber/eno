@@ -11,7 +11,7 @@ import {
   Share2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useLanguage } from '@/context/language-context'
+import { useLanguage, useTr } from '@/context/language-context'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -52,6 +52,8 @@ function ThreadComment({
   const [collapsed, setCollapsed] = useState(false)
   const replies = comment.replies || []
   const score = baseScore + vote
+  const translatedBody = useTr(comment.body)
+  const translatedRole = useTr(comment.authorRole)
 
   const voteComment = (direction: -1 | 1) => {
     const previous = vote
@@ -73,7 +75,7 @@ function ThreadComment({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-xs font-bold text-foreground">{comment.author}</span>
           <ForumTrustBadgeIcon badge={comment.trustBadge} trustScore={comment.trustScore} />
-          {comment.authorRole && <span className="text-2xs text-body">{comment.authorRole}</span>}
+          {comment.authorRole && <span className="text-2xs text-body">{translatedRole}</span>}
           <span className="text-2xs text-ink-4">{comment.timeLabel}</span>
           {comment.helpful && (
             <Badge variant="brand" size="sm">
@@ -82,7 +84,7 @@ function ThreadComment({
             </Badge>
           )}
         </div>
-        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-foreground">{comment.body}</p>
+        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-foreground">{translatedBody}</p>
         <div className="mt-2 flex items-center gap-1">
           <Button
             type="button"
@@ -152,6 +154,8 @@ export function ThreadDialog({
   const [replyTo, setReplyTo] = useState<{ id: string; author: string } | null>(null)
   const [submittingReply, setSubmittingReply] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const translatedTitle = useTr(post?.title)
+  const translatedBody = useTr(post?.body)
 
   useEffect(() => {
     setReply('')
@@ -239,10 +243,10 @@ export function ThreadDialog({
               </Badge>
             </div>
             <DialogTitle className="mt-2 text-xl font-bold leading-snug text-foreground sm:text-2xl">
-              {post.title}
+              {translatedTitle}
             </DialogTitle>
             <DialogDescription className="mt-2 whitespace-pre-line text-base leading-relaxed text-body">
-              {post.body}
+              {translatedBody}
             </DialogDescription>
             {post.media?.length ? (
               <div className={cn('mt-4 grid gap-2 overflow-hidden rounded-xl', post.media.length > 1 && 'grid-cols-2')}>

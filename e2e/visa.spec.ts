@@ -1,7 +1,9 @@
 import { expectNoA11yViolations, test, expect } from './helpers'
 import sharp from 'sharp'
 import { normalizeVisaImage } from '../src/lib/visa/image-normalization'
+import { evaluatePassportImageQuality } from '../src/lib/visa/image-quality'
 import { parsePassportMrz } from '../src/lib/visa/mrz'
+import { emptyVisaPayload, visaPayloadSchema } from '../src/lib/visa/schema'
 
 test.describe('eno.forum visa assistance', () => {
   test('explains the safe guest flow and exposes the shared quick links', async ({ page }) => {
@@ -56,5 +58,42 @@ test.describe('eno.forum visa assistance', () => {
     )
     expect(corrupted.valid).toBe(false)
     expect(corrupted.checks.passportNumber).toBe(false)
+  })
+
+  test('keeps page-edge uncertainty advisory when the passport is readable', () => {
+    const quality = evaluatePassportImageQuality({
+      correctPassportBiodataPage: true,
+      singleDataPage: true,
+      clearImage: true,
+      printedTextReadable: true,
+      noSignificantGlare: true,
+      fullPageVisible: false,
+      allCornersVisible: false,
+      mrzReadable: true,
+    }, true)
+    expect(quality.status).toBe('passed')
+    expect(quality.issues).toEqual([])
+    expect(quality.warnings).toEqual(['passport_page_cropped', 'passport_corners_missing'])
+
+    const unreadable = evaluatePassportImageQuality({ correctPassportBiodataPage: true, singleDataPage: true, clearImage: false, printedTextReadable: false })
+    expect(unreadable.status).toBe('failed')
+    expect(unreadable.issues).toEqual(expect.arrayContaining(['passport_image_blurry', 'passport_text_unreadable']))
+  })
+
+  test('defaults an omitted or empty religion to None', () => {
+    expect(emptyVisaPayload().religion).toBe('None')
+    expect(visaPayloadSchema.parse({ religion: '' }).religion).toBe('None')
+    expect(visaPayloadSchema.parse({ religion: 'Buddhist' }).religion).toBe('Buddhist')
+  })
+
+  test('uses conservative common-tourist defaults without guessing identity fields', () => {
+    const payload = emptyVisaPayload('traveler@example.com')
+    expect(payload).toMatchObject({
+      religion: 'None', passportType: 'ordinary', hasOtherNationalities: 'no', hasVietnamLawViolation: 'no',
+      hasOtherPassports: 'no', entryType: 'single', purposeOfEntry: 'Tourism', currentlyOutsideVietnam: 'yes',
+      stayLengthDays: 14, visitedVietnamLastYear: 'no', hasRelativesInVietnam: 'no', estimatedExpenses: 1000,
+      expensesCurrency: 'USD', expensesPayer: 'self', hasTravelInsurance: 'no', hasChildrenOnPassport: 'no',
+    })
+    expect(payload).toMatchObject({ surname: '', givenNames: '', passportNumber: '', permanentAddress: '', occupation: '', entryGate: '', exitGate: '' })
   })
 })

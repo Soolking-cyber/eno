@@ -31,7 +31,7 @@ import {
   Waves,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useLanguage } from '@/context/language-context'
+import { Tr, useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { ForumFooter } from '@/components/forum/forum-footer'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
@@ -294,7 +294,7 @@ function ForumRightRail({ communities, posts, onOpenPost, onCreatePost }: { comm
               >
                 <span className="mt-0.5 text-sm font-bold tabular-nums text-ink-4">{index + 1}</span>
                 <span className="min-w-0">
-                  <span className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">{post.title}</span>
+                  <span className="line-clamp-2 text-xs font-semibold leading-snug text-foreground"><Tr text={post.title} /></span>
                   <span className="mt-1 block text-2xs text-body">{post.commentCount} {tr('replies', 'phản hồi')}</span>
                 </span>
               </Button>

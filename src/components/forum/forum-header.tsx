@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { Languages, LogOut, Plus, Search, UserRound } from 'lucide-react'
-import { useLanguage } from '@/context/language-context'
+import { Check, Languages, LogOut, Plus, Search, UserRound } from 'lucide-react'
+import { LANGUAGES, useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
@@ -53,14 +53,29 @@ export function ForumHeader({
         ) : <div className="flex-1" />}
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <IconButton
-            size="lg"
-            className="text-body hover:bg-tint hover:text-foreground"
-            aria-label={lang === 'en' ? 'Chuyển sang tiếng Việt' : 'Switch to English'}
-            onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
-          >
-            <Languages className="h-5 w-5" />
-          </IconButton>
+          <DropdownMenu>
+            <DropdownMenuTrigger render={
+              <Button
+                type="button"
+                variant="bare"
+                size="sm"
+                className="h-11 gap-1.5 px-2.5 text-body hover:bg-tint hover:text-foreground"
+                aria-label={tr('Choose language', 'Chọn ngôn ngữ')}
+              >
+                <Languages className="h-5 w-5" />
+                <span className="text-xs font-bold">{LANGUAGES.find((item) => item.code === lang)?.label}</span>
+              </Button>
+            } />
+            <DropdownMenuContent align="end" className="w-56">
+              {LANGUAGES.map((language) => (
+                <DropdownMenuItem key={language.code} onClick={() => setLang(language.code)}>
+                  <span className="w-7 text-xs font-bold text-ink-4">{language.label}</span>
+                  <span className="min-w-0 flex-1 truncate">{language.native}</span>
+                  {lang === language.code && <Check className="ml-auto h-4 w-4 text-accent-foreground" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {!loading && (user ? (
             <DropdownMenu>

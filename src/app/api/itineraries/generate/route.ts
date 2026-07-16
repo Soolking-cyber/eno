@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
 import { GEMINI_MODEL, getGemini } from '@/lib/gemini'
+import { languageName } from '@/lib/languages'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
@@ -49,7 +50,7 @@ type CityId = keyof typeof CITY_CATALOG
 const cityIds = Object.keys(CITY_CATALOG) as [CityId, ...CityId[]]
 
 const requestSchema = z.object({
-  locale: z.enum(['en', 'vi']).default('en'),
+  locale: z.enum(['en', 'vi', 'zh-Hans', 'ko', 'ja', 'ru', 'km', 'ms', 'th', 'fr', 'hi']).default('en'),
   origin: z.string().trim().max(120).default(''),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   days: z.number().int().min(1).max(30),
@@ -308,7 +309,7 @@ export async function POST(request: Request) {
   const end = new Date(start)
   end.setUTCDate(end.getUTCDate() + input.days - 1)
   const dailyBudget = input.budgetId === 'smart' ? 1_200_000 : input.budgetId === 'premium' ? 5_000_000 : 2_500_000
-  const language = input.locale === 'vi' ? 'Vietnamese' : 'English'
+  const language = languageName(input.locale)
   const generatedAt = new Date().toISOString()
 
   const prompt = `Build a concise, realistic Vietnam itinerary in ${language}. Research current information thoroughly before answering.

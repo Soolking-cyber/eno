@@ -20,6 +20,8 @@ import {
 } from 'docx'
 import type { ActivityPlan, GeneratedItineraryResponse } from '@/components/itinerary/itinerary-data'
 import { buildItineraryResourceGroups } from '@/components/itinerary/itinerary-resources'
+import { requestTranslations } from '@/context/language-context'
+import { localeForLanguage, type Language } from '@/lib/languages'
 
 const BRAND = '0A66C2'
 const BRAND_DEEP = '123F6D'
@@ -41,17 +43,33 @@ const tableBorders = {
   insideVertical: { style: BorderStyle.SINGLE, size: 1, color: LINE },
 }
 
-type Language = 'en' | 'vi'
+const DOCX_COPY: Array<[string, string]> = [
+  ['Vietnam itinerary', 'Lịch trình Việt Nam'],
+  ['Dates', 'Ngày'], ['Travelers', 'Số khách'], ['Per traveler', 'Mỗi khách'], ['Useful links', 'Liên kết'],
+  ['Want eno to handle the bookings?', 'Bạn muốn eno lo việc đặt chỗ?'],
+  ['eno Concierge can arrange stays and activities, call transport providers, and coordinate the details. The service fee is 10% of the bookings we arrange; you approve every cost first.', 'eno Concierge có thể đặt chỗ ở và hoạt động, gọi đơn vị vận chuyển và điều phối chi tiết. Phí dịch vụ là 10% giá trị đặt chỗ do eno sắp xếp; bạn duyệt mọi chi phí trước.'],
+  ['Budget and route', 'Ngân sách và lộ trình'], ['Group estimate', 'Ước tính cả nhóm'], ['Flight leads', 'Gợi ý chuyến bay'],
+  ['Direct', 'Bay thẳng'], ['stop(s)', 'điểm dừng'], ['Fare unavailable', 'Chưa có giá'], ['Check this flight option', 'Kiểm tra chuyến bay này'],
+  ['Stay shortlist', 'Danh sách chỗ ở'], ['/night', '/đêm'], ['View property', 'Xem chỗ ở'], ['Day-by-day plan', 'Kế hoạch từng ngày'],
+  ['Day', 'Ngày'], ['Morning', 'Buổi sáng'], ['Afternoon', 'Buổi chiều'], ['Evening', 'Buổi tối'], ['Food', 'Ẩm thực'],
+  ['Estimated day cost', 'Ước tính chi phí ngày'], ['Practical trip brief', 'Thông tin thực tế'], ['Arrival', 'Đến nơi'],
+  ['Getting around', 'Di chuyển'], ['Connectivity', 'Kết nối'], ['Money', 'Tiền tệ'], ['Weather', 'Thời tiết'], ['Safety', 'An toàn'],
+  ['What to book, and when', 'Nên đặt gì và khi nào'], ['Planning assumptions', 'Giả định khi lập kế hoạch'],
+  ['Travel services and plan links', 'Dịch vụ du lịch và liên kết lịch trình'], ['min travel', 'phút di chuyển'],
+  ['Booking, transport, visa, community, maps, and every link from this itinerary are collected here for quick access.', 'Đặt chỗ, di chuyển, visa, cộng đồng, bản đồ và mọi liên kết trong lịch trình được tập hợp tại đây để truy cập nhanh.'],
+  ['This plan is a travel aid, not confirmed inventory. Seats, fares, rooms, opening hours, visa rules, and weather can change. Confirm important details before paying.', 'Kế hoạch này hỗ trợ chuyến đi, không phải tình trạng chỗ đã xác nhận. Chỗ ngồi, giá vé, phòng, giờ mở cửa, quy định thị thực và thời tiết có thể thay đổi. Hãy xác nhận trước khi thanh toán.'],
+  ['A researched Vietnam itinerary prepared by eno.', 'Lịch trình Việt Nam do eno nghiên cứu và chuẩn bị.'],
+]
 
 function money(amount: number, lang: Language) {
   if (!amount) return '—'
-  return new Intl.NumberFormat(lang === 'vi' ? 'vi-VN' : 'en-GB', {
+  return new Intl.NumberFormat(localeForLanguage(lang), {
     style: 'currency', currency: 'VND', maximumFractionDigits: 0,
   }).format(amount)
 }
 
 function dateLabel(value: string, lang: Language) {
-  return new Intl.DateTimeFormat(lang === 'vi' ? 'vi-VN' : 'en-GB', {
+  return new Intl.DateTimeFormat(localeForLanguage(lang), {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
   }).format(new Date(`${value}T00:00:00.000Z`))
 }
@@ -125,10 +143,10 @@ function valueCell(children: Paragraph[], width = 76) {
   })
 }
 
-function activityRows(label: string, activity: ActivityPlan, lang: Language) {
+function activityRows(label: string, activity: ActivityPlan, lang: Language, tr: (english: string, vietnamese: string) => string) {
   const meta = [
     activity.time,
-    activity.travelMinutes > 0 ? `${activity.travelMinutes} ${lang === 'vi' ? 'phút di chuyển' : 'min travel'}` : '',
+    activity.travelMinutes > 0 ? `${activity.travelMinutes} ${tr('min travel', 'phút di chuyển')}` : '',
     activity.estimatedCostVnd > 0 ? money(activity.estimatedCostVnd, lang) : '',
   ].filter(Boolean).join('  •  ')
   return new TableRow({
@@ -147,8 +165,17 @@ function activityRows(label: string, activity: ActivityPlan, lang: Language) {
 
 export async function downloadItineraryDocx(result: GeneratedItineraryResponse, travelers: number, lang: Language) {
   const plan = result.plan
-  const tr = (en: string, vi: string) => lang === 'vi' ? vi : en
   const resourceGroups = buildItineraryResourceGroups(result)
+  const resourceCopy = resourceGroups.flatMap((group) => [
+    [group.title, group.titleVi] as [string, string],
+    [group.description, group.descriptionVi] as [string, string],
+    ...group.resources.flatMap((resource) => [[resource.title, resource.titleVi] as [string, string], [resource.description, resource.descriptionVi] as [string, string]]),
+  ])
+  const copy = [...DOCX_COPY, ...resourceCopy]
+  const machineTranslations = lang === 'en' || lang === 'vi'
+    ? {}
+    : await requestTranslations(copy.map(([english]) => english), lang)
+  const tr = (english: string, vietnamese: string) => lang === 'vi' ? vietnamese : lang === 'en' ? english : machineTranslations[english] || english
   const resourceCount = resourceGroups.reduce((total, group) => total + group.resources.length, 0)
   const firstDay = plan.days[0]
   const lastDay = plan.days.at(-1)
@@ -164,7 +191,7 @@ export async function downloadItineraryDocx(result: GeneratedItineraryResponse, 
         margins: { top: 420, bottom: 420, left: 420, right: 420 },
         borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
         children: [
-          new Paragraph({ spacing: { after: 150 }, children: [new TextRun({ text: 'eno', bold: true, color: WHITE, size: 24 }), new TextRun({ text: '.forum  /  VIETNAM ITINERARY', bold: true, color: 'B8D9F7', size: 17, characterSpacing: 30 })] }),
+          new Paragraph({ spacing: { after: 150 }, children: [new TextRun({ text: 'eno', bold: true, color: WHITE, size: 24 }), new TextRun({ text: `.forum  /  ${tr('Vietnam itinerary', 'Lịch trình Việt Nam').toUpperCase()}`, bold: true, color: 'B8D9F7', size: 17, characterSpacing: 30 })] }),
           new Paragraph({ spacing: { after: 150 }, children: [new TextRun({ text: plan.title, bold: true, color: WHITE, size: 42 })] }),
           new Paragraph({ spacing: { after: 130, line: 310 }, children: [new TextRun({ text: plan.summary, color: 'E7F1FA', size: 21 })] }),
           new Paragraph({ children: [new TextRun({ text: plan.routeSummary, bold: true, color: WHITE, size: 21 })] }),
@@ -250,9 +277,9 @@ export async function downloadItineraryDocx(result: GeneratedItineraryResponse, 
     children.push(new Table({
       width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, borders: tableBorders,
       rows: [
-        activityRows(tr('Morning', 'Buổi sáng'), day.morning, lang),
-        activityRows(tr('Afternoon', 'Buổi chiều'), day.afternoon, lang),
-        activityRows(tr('Evening', 'Buổi tối'), day.evening, lang),
+        activityRows(tr('Morning', 'Buổi sáng'), day.morning, lang, tr),
+        activityRows(tr('Afternoon', 'Buổi chiều'), day.afternoon, lang, tr),
+        activityRows(tr('Evening', 'Buổi tối'), day.evening, lang, tr),
       ],
     }))
     children.push(textParagraph(`${tr('Food', 'Ẩm thực')}: ${day.foodNote}`, { before: 90, after: 50, size: 18 }))
@@ -309,8 +336,8 @@ export async function downloadItineraryDocx(result: GeneratedItineraryResponse, 
   const document = new Document({
     creator: 'eno',
     title: plan.title,
-    subject: 'Vietnam itinerary',
-    description: 'A researched Vietnam itinerary prepared by eno.',
+    subject: tr('Vietnam itinerary', 'Lịch trình Việt Nam'),
+    description: tr('A researched Vietnam itinerary prepared by eno.', 'Lịch trình Việt Nam do eno nghiên cứu và chuẩn bị.'),
     styles: {
       default: {
         document: { run: { font: 'Aptos', color: BODY, size: 20 }, paragraph: { spacing: { line: 290 } } },

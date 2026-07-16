@@ -7,6 +7,9 @@ export const VISA_AUTHORIZATION_VERSION = 'eno-prefill-authorization-2026-07-16'
 const short = z.string().trim().max(160)
 const long = z.string().trim().max(1200)
 const date = z.string().trim().regex(/^$|^\d{4}-\d{2}-\d{2}$/)
+const religion = z.string().trim().max(160).transform((value) => value || 'None').default('None')
+const commonNo = z.enum(['', 'yes', 'no']).transform((value): '' | 'yes' | 'no' => value === 'yes' ? 'yes' : 'no').default('no')
+const eligibleOutsideVietnam = z.enum(['', 'yes', 'no']).transform((value): '' | 'yes' | 'no' => value === 'no' ? 'no' : 'yes').default('yes')
 
 export const visaPayloadSchema = z.object({
   schemaVersion: z.literal(VISA_PAYLOAD_VERSION).default(VISA_PAYLOAD_VERSION),
@@ -14,26 +17,26 @@ export const visaPayloadSchema = z.object({
   surname: short.default(''), givenNames: short.default(''), dateOfBirth: date.default(''),
   sex: z.enum(['', 'male', 'female']).default(''), nationality: short.default(''),
   identityNumber: short.default(''), email: z.string().trim().max(254).default(''),
-  religion: short.default(''), placeOfBirth: short.default(''),
-  hasOtherNationalities: z.enum(['', 'yes', 'no']).default(''), otherNationalities: short.default(''),
-  hasVietnamLawViolation: z.enum(['', 'yes', 'no']).default(''), vietnamLawViolationDetails: long.default(''),
+  religion, placeOfBirth: short.default(''),
+  hasOtherNationalities: commonNo, otherNationalities: short.default(''),
+  hasVietnamLawViolation: commonNo, vietnamLawViolationDetails: long.default(''),
   passportNumber: short.default(''), passportType: z.enum(['ordinary', 'official', 'diplomatic', 'other']).default('ordinary'),
   passportIssuingAuthority: short.default(''), passportIssueDate: date.default(''), passportExpiryDate: date.default(''),
-  hasOtherPassports: z.enum(['', 'yes', 'no']).default(''), otherPassportDetails: long.default(''),
+  hasOtherPassports: commonNo, otherPassportDetails: long.default(''),
   entryType: z.enum(['single', 'multiple']).default('single'), visaValidFrom: date.default(''), visaValidTo: date.default(''),
   permanentAddress: long.default(''), phone: short.default(''), emergencyName: short.default(''),
   emergencyRelationship: short.default(''), emergencyAddress: long.default(''), emergencyPhone: short.default(''),
   occupation: short.default(''), employerName: short.default(''), employerAddress: long.default(''), employerPhone: short.default(''),
-  purposeOfEntry: short.default('Tourism'), intendedEntryDate: date.default(''), stayLengthDays: z.number().int().min(0).max(90).default(0),
-  currentlyOutsideVietnam: z.enum(['', 'yes', 'no']).default(''),
+  purposeOfEntry: short.default('Tourism'), intendedEntryDate: date.default(''), stayLengthDays: z.number().int().min(0).max(90).default(14),
+  currentlyOutsideVietnam: eligibleOutsideVietnam,
   temporaryAddress: long.default(''), temporaryProvince: short.default(''), temporaryWard: short.default(''),
   entryGate: short.default(''), exitGate: short.default(''), localContactName: short.default(''), localContactAddress: long.default(''),
-  visitedVietnamLastYear: z.enum(['', 'yes', 'no']).default(''), previousVisitDetails: long.default(''),
-  hasRelativesInVietnam: z.enum(['', 'yes', 'no']).default(''), relativesInVietnamDetails: long.default(''),
-  estimatedExpenses: z.number().min(0).max(1_000_000_000).default(0), expensesCurrency: z.string().trim().max(3).default('USD'),
+  visitedVietnamLastYear: commonNo, previousVisitDetails: long.default(''),
+  hasRelativesInVietnam: commonNo, relativesInVietnamDetails: long.default(''),
+  estimatedExpenses: z.number().min(0).max(1_000_000_000).default(1000), expensesCurrency: z.string().trim().max(3).default('USD'),
   expensesPayer: z.enum(['self', 'organization', 'other']).default('self'), payerDetails: long.default(''),
-  hasTravelInsurance: z.enum(['', 'yes', 'no']).default(''), insuranceDetails: long.default(''),
-  hasChildrenOnPassport: z.enum(['', 'yes', 'no']).default(''), childrenOnPassportDetails: long.default(''),
+  hasTravelInsurance: commonNo, insuranceDetails: long.default(''),
+  hasChildrenOnPassport: commonNo, childrenOnPassportDetails: long.default(''),
   applicantNotes: long.default(''), adminMessage: long.default(''),
   governmentRegistrationCode: short.default(''), governmentApplicationStatus: short.default(''),
 })

@@ -68,4 +68,31 @@ test.describe('eno.forum standalone', () => {
     await expect(dialog.getByRole('heading', { name: 'One eno account, everywhere.' })).toBeVisible()
     await expect(dialog.getByLabel('Email address')).toBeVisible()
   })
+
+  test('shares the 11-language preference across forum, itinerary, and visa pages', async ({ page }) => {
+    const french: Record<string, string> = {
+      'Vietnam feels easier together.': 'Le Vietnam devient plus simple ensemble.',
+      'A Vietnam itinerary that survives reality.': 'Un itinéraire au Vietnam adapté à la réalité.',
+      'One guided application. Every answer stays yours.': 'Une demande guidée. Chaque réponse reste la vôtre.',
+    }
+    await page.route('**/api/translate', async (route) => {
+      const body = route.request().postDataJSON() as { texts: string[]; target: string }
+      expect(body.target).toBe('fr')
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ translations: body.texts.map((text) => french[text] || text) }),
+      })
+    })
+
+    await page.getByRole('button', { name: /Choose language/i }).click()
+    await page.getByRole('menuitem', { name: /Français/i }).click()
+    await expect(page.getByRole('heading', { name: french['Vietnam feels easier together.'] })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('lang', 'fr')
+
+    await page.goto('/itinerary')
+    await expect(page.getByRole('heading', { name: french['A Vietnam itinerary that survives reality.'] })).toBeVisible()
+    await page.goto('/visa')
+    await expect(page.getByRole('heading', { name: french['One guided application. Every answer stays yours.'] })).toBeVisible()
+  })
 })

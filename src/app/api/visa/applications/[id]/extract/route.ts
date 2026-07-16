@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { getVisaUser } from '@/lib/visa/auth'
 import { decryptVisaPayload, encryptVisaPayload } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
+import { evaluatePassportImageQuality, evaluatePortraitImageQuality, PASSPORT_IMAGE_CODES } from '@/lib/visa/image-quality'
 import { parsePassportMrz } from '@/lib/visa/mrz'
 import { recordVisaEvent } from '@/lib/visa/records'
 import { visaPayloadSchema } from '@/lib/visa/schema'
@@ -68,26 +69,6 @@ const portraitSchema = {
   required: ['checks', 'confidence', 'observations'],
 }
 
-const passportIssues: Record<string, string> = {
-  correctPassportBiodataPage: 'not_passport_biodata_page', singleDataPage: 'use_one_passport_data_page',
-  clearImage: 'passport_image_blurry', noSignificantGlare: 'passport_image_has_glare',
-  fullPageVisible: 'passport_page_cropped', allCornersVisible: 'passport_corners_missing',
-  printedTextReadable: 'passport_text_unreadable', mrzReadable: 'passport_mrz_unreadable',
-}
-
-const portraitIssues: Record<string, string> = {
-  correctPortraitPhoto: 'not_compliant_portrait', singlePerson: 'portrait_must_show_one_person', clearImage: 'portrait_image_blurry',
-  straightFace: 'face_must_look_straight', noHat: 'remove_hat', noGlasses: 'remove_glasses', formalClothes: 'wear_formal_clothes',
-  whiteBackground: 'use_plain_white_background', faceCentered: 'center_face_in_photo',
-  headAndShouldersVisible: 'show_head_and_shoulders', evenLighting: 'portrait_lighting_uneven',
-}
-
-function failedChecks(value: unknown, issueMap: Record<string, string>) {
-  if (!value || typeof value !== 'object') return Object.values(issueMap)
-  const checks = value as Record<string, unknown>
-  return Object.entries(issueMap).flatMap(([key, issue]) => checks[key] === true ? [] : [issue])
-}
-
 function isIsoDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const [year, month, day] = value.split('-').map(Number)
@@ -141,14 +122,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       config: { temperature: 0, responseMimeType: 'application/json', responseSchema: passport ? passportSchema : portraitSchema },
     })
     const analyzed = JSON.parse(response.text || '{}') as Record<string, unknown>
-    const issueMap = passport ? passportIssues : portraitIssues
-    const issues = failedChecks(analyzed.checks, issueMap)
-    const validationStatus = issues.length ? 'failed' : 'passed'
+    const quality = passport ? evaluatePassportImageQuality(analyzed.checks) : evaluatePortraitImageQuality(analyzed.checks)
+    const { issues, warnings } = quality
+    const validationStatus = quality.status
     const validationReport = {
       ...existingReport,
       version: VISA_IMAGE_RULES_VERSION,
       status: validationStatus,
       issues,
+      warnings,
       semanticChecks: analyzed.checks || {},
       confidence: typeof analyzed.confidence === 'number' ? Math.max(0, Math.min(1, analyzed.confidence)) : null,
       analyzedAt: new Date().toISOString(),
@@ -175,12 +157,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       for (const [key, value] of Object.entries(mrz.fields)) {
         if (key !== 'nationalityCode' && value) suggestions[key] = value
       }
-      if (!mrz.valid && !issues.includes('passport_mrz_check_failed')) issues.push('passport_mrz_check_failed')
+      const checkedQuality = evaluatePassportImageQuality(analyzed.checks, mrz.valid)
+      warnings.splice(0, warnings.length, ...checkedQuality.warnings)
       payload.aiDocumentProcessingConsent = true
       const merged = visaPayloadSchema.parse({ ...payload, ...suggestions })
       Object.assign(payload, merged)
       validationReport.issues = issues
-      validationReport.status = issues.length ? 'failed' : 'passed'
+      validationReport.status = checkedQuality.status
       Object.assign(validationReport, { mrzChecks })
     }
 
@@ -190,7 +173,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (documentUpdate.error) throw documentUpdate.error
     if (passport) {
       const previousChecklist = Array.isArray(application.checklist) ? application.checklist : []
-      const imageIssueCodes = new Set([...Object.values(passportIssues), 'passport_mrz_check_failed', 'passport_image_not_verified'])
+      const imageIssueCodes = new Set(PASSPORT_IMAGE_CODES)
       const checklist = [...new Set([...previousChecklist.filter((item: string) => !imageIssueCodes.has(item)), 'ai_extraction_needs_review', ...issues])]
       const applicationUpdate = await db.from('visa_applications').update({ encrypted_payload: encryptVisaPayload(payload), checklist, updated_at: now, last_applicant_action_at: now }).eq('id', id).eq('user_id', user.id)
       if (applicationUpdate.error) throw applicationUpdate.error
@@ -199,7 +182,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return forumJson(request, {
       document: { id: document.id, validationStatus: finalStatus, validationReport },
       payload: passport ? payload : undefined,
-      suggestions: Object.keys(suggestions), issues,
+      suggestions: Object.keys(suggestions), issues, warnings,
     }, undefined, METHODS)
   } catch (error) {
     const failure = error as { name?: string; status?: number; code?: number | string }

@@ -73,6 +73,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { ForumApiError, forumApi } from '@/lib/api'
+import { localeForLanguage, type Language } from '@/lib/languages'
 import { cn } from '@/lib/utils'
 import {
   addDays,
@@ -144,9 +145,9 @@ function clampWholeNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.round(value)))
 }
 
-function displayDate(date: string, locale: 'en' | 'vi') {
+function displayDate(date: string, locale: Language) {
   if (!date) return '—'
-  return new Intl.DateTimeFormat(locale === 'vi' ? 'vi-VN' : 'en-GB', {
+  return new Intl.DateTimeFormat(localeForLanguage(locale), {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
   }).format(new Date(`${date}T00:00:00.000Z`))
 }
@@ -267,7 +268,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
         <div className="bg-brand-deep px-5 py-6 text-white sm:px-7 sm:py-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />{tr('Researched by eno', 'Được eno nghiên cứu')}</Badge>
-            <span className="text-2xs font-semibold text-white/80">{tr('Researched', 'Đã nghiên cứu')} {new Date(result.generatedAt).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-GB')}</span>
+            <span className="text-2xs font-semibold text-white/80">{tr('Researched', 'Đã nghiên cứu')} {new Date(result.generatedAt).toLocaleString(localeForLanguage(lang))}</span>
           </div>
           <h2 className="mt-4 max-w-3xl text-2xl font-bold tracking-tight sm:text-3xl">{plan.title}</h2>
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-white/80">{plan.summary}</p>
