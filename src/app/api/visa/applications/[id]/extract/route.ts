@@ -36,9 +36,9 @@ const passportSchema = {
       type: Type.OBJECT,
       properties: {
         surname: { type: Type.STRING }, givenNames: { type: Type.STRING }, dateOfBirth: { type: Type.STRING },
-        sex: { type: Type.STRING, enum: ['', 'male', 'female'] }, nationality: { type: Type.STRING },
+        sex: { type: Type.STRING, enum: ['unknown', 'male', 'female'] }, nationality: { type: Type.STRING },
         identityNumber: { type: Type.STRING }, passportNumber: { type: Type.STRING },
-        passportType: { type: Type.STRING, enum: ['', 'ordinary', 'official', 'diplomatic', 'other'] },
+        passportType: { type: Type.STRING, enum: ['unknown', 'ordinary', 'official', 'diplomatic', 'other'] },
         passportIssuingAuthority: { type: Type.STRING }, passportIssueDate: { type: Type.STRING },
         passportExpiryDate: { type: Type.STRING }, placeOfBirth: { type: Type.STRING },
       },
@@ -130,7 +130,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const passport = parsed.data.kind === 'passport'
     const prompt = passport
-      ? 'Act as a strict quality checker and transcription assistant for the official Viet Nam e-Visa form. Confirm this is exactly one complete passport biodata page, clear and readable, with the entire physical page and all four corners visible and no glare obscuring data. Transcribe every relevant printed field and both 44-character ICAO TD3 MRZ lines exactly. Use English text, YYYY-MM-DD dates, and empty strings when absent or uncertain. Passport type means ordinary, official, diplomatic, or other. Never infer or invent a value. Quality booleans must be false whenever the criterion is uncertain.'
+      ? 'Act as a strict quality checker and transcription assistant for the official Viet Nam e-Visa form. Confirm this is exactly one complete passport biodata page, clear and readable, with the entire physical page and all four corners visible and no glare obscuring data. Transcribe every relevant printed field and both 44-character ICAO TD3 MRZ lines exactly. Use English text and YYYY-MM-DD dates. Use unknown for uncertain sex or passport type and empty strings for other absent or uncertain fields. Passport type means ordinary, official, diplomatic, or other. Never infer or invent a value. Quality booleans must be false whenever the criterion is uncertain.'
       : 'Act as a strict quality checker for the official Viet Nam e-Visa portrait. Check that it is one clear 4x6-style head-and-shoulders portrait of one person, facing straight forward, with no hat, no glasses, formal/neat clothing, a plain white background, centered face, and even lighting. Do not claim the photo is recent because that cannot be verified. Quality booleans must be false whenever the criterion is uncertain.'
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
@@ -201,7 +201,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       payload: passport ? payload : undefined,
       suggestions: Object.keys(suggestions), issues,
     }, undefined, METHODS)
-  } catch {
+  } catch (error) {
+    const failure = error as { name?: string; status?: number; code?: number | string }
+    console.error('[visa-image-analysis] failed', { kind: parsed.data.kind, name: failure.name || 'Error', status: failure.status || failure.code || null })
     const validationReport = { ...existingReport, version: VISA_IMAGE_RULES_VERSION, status: 'unavailable', issues: ['automatic_image_check_failed'], analyzedAt: new Date().toISOString() }
     await db.from('visa_documents').update({ validation_status: 'unavailable', validation_report: validationReport }).eq('id', document.id)
     return forumJson(request, { error: 'image_analysis_failed' }, { status: 502 }, METHODS)
