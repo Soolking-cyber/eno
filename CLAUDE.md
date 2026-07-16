@@ -58,4 +58,11 @@ These carry invariants recorded in their own comments. Read the comments before 
 
 ## Shipping
 
+**Forum/itinerary deployment boundary:** `eno.forum` is deployed only from the separate
+`Soolking-cyber/eno-forum` repository (local checkout: `/Users/mk1e3/eno-forum`) through
+its own `eno-forum` Vercel project. `apps/forum` in this monorepo is a mirror; pushing
+`Soolking-cyber/eno` does not deploy the forum. For every forum or itinerary change,
+port and validate the change in the standalone repository, then push that repository's
+`main` branch. Never report a forum deployment from a monorepo-only push.
+
 `/ship` runs the ritual: `tsc --noEmit` → design-lint → `npm run build` → local guest e2e (44 tests, server on **port 3100** — 3000 has been squatted by another project) → commit → push → poll `npx vercel ls` until Ready → prod guest suite. Stop at the first red gate. If a push breaks prod, revert to the last known-good commit and pause — don't stack fix-on-fix.
