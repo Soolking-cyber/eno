@@ -27,7 +27,7 @@ export function LogoWordmark({ className }: { className?: string }) {
       <img
         src="/logo.svg"
         alt="eno.vn Logo"
-        width={320}
+        width={219}
         height={80}
         fetchPriority="high"
         decoding="async"

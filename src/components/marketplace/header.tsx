@@ -260,10 +260,12 @@ export function Header() {
           className="flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95"
           aria-label="eno.vn"
         >
-          {/* eno WORDMARK (owner 2026-07-16, was the square logo-mark). h-8 + w-auto keeps the
-              4:1 wordmark modest in the 64px header and leaves the mobile search room; the intrinsic
-              320×80 sets the aspect so there's no CLS. */}
-          <img src="/logo.svg" alt="eno.vn" width={320} height={80} className="h-8 w-auto" />
+          {/* eno WORDMARK (owner 2026-07-16, was the square logo-mark). The SVG viewBox is now
+              cropped to the glyph ink (was ~20% empty padding each side), so h-8 + w-auto renders
+              a TIGHT ~88px box instead of 128px — the letters are the same size, just no dead
+              padding, which balances the mobile header and gives the search bar back ~40px. The
+              intrinsic 219×80 matches the cropped 823:300 aspect so there's no CLS. */}
+          <img src="/logo.svg" alt="eno.vn" width={219} height={80} className="h-8 w-auto" />
         </Link>
 
         {showSearch ? (
