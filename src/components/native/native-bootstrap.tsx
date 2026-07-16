@@ -78,25 +78,34 @@ export function NativeBootstrap() {
       setTimeout(() => { suppressClick = false }, 700)
     }
 
+    let startX = 0, startY = 0
     const onStart = (e: TouchEvent) => {
       const link = (e.target as Element | null)?.closest?.('a[data-card-link]') as HTMLAnchorElement | null
       if (!link) return
+      const t = e.touches[0]
+      startX = t?.clientX ?? 0; startY = t?.clientY ?? 0
       clear()
       timer = setTimeout(() => { void openSheet(link) }, 500)
+    }
+    // Only cancel the hold if the finger actually MOVES (a scroll/drag) — small jitter while holding
+    // still must not kill it. 10px threshold matches the platform's own long-press slop.
+    const onMove = (e: TouchEvent) => {
+      const t = e.touches[0]; if (!t) return
+      if (Math.abs(t.clientX - startX) > 10 || Math.abs(t.clientY - startY) > 10) clear()
     }
     const onClickCapture = (e: MouseEvent) => {
       if (suppressClick) { e.preventDefault(); e.stopPropagation(); suppressClick = false }
     }
 
     document.addEventListener('touchstart', onStart, { passive: true })
-    document.addEventListener('touchmove', clear, { passive: true })
+    document.addEventListener('touchmove', onMove, { passive: true })
     document.addEventListener('touchend', clear, { passive: true })
     document.addEventListener('touchcancel', clear, { passive: true })
     document.addEventListener('click', onClickCapture, true)
     return () => {
       clear()
       document.removeEventListener('touchstart', onStart)
-      document.removeEventListener('touchmove', clear)
+      document.removeEventListener('touchmove', onMove)
       document.removeEventListener('touchend', clear)
       document.removeEventListener('touchcancel', clear)
       document.removeEventListener('click', onClickCapture, true)
