@@ -96,11 +96,12 @@ test.describe('eno.forum visa assistance', () => {
       stayLengthDays: 90, visitedVietnamLastYear: 'no', hasRelativesInVietnam: 'no', estimatedExpenses: 1000,
       expensesCurrency: 'USD', expensesPayer: 'self', hasTravelInsurance: 'no', hasChildrenOnPassport: 'no',
     })
-    expect(payload).toMatchObject({ surname: '', givenNames: '', passportNumber: '', permanentAddress: '', occupation: '', entryGate: DEFAULT_EVISA_ENTRY_GATE, exitGate: '' })
+    expect(payload).toMatchObject({ surname: '', givenNames: '', passportNumber: '', permanentAddress: '', occupation: '', entryGate: DEFAULT_EVISA_ENTRY_GATE, exitGate: DEFAULT_EVISA_ENTRY_GATE })
   })
 
   test('defaults to Tan Son Nhat and contains every approved e-visa checkpoint', () => {
     expect(emptyVisaPayload().entryGate).toBe('Tan Son Nhat Airport Border Gate')
+    expect(emptyVisaPayload().exitGate).toBe('Tan Son Nhat Airport Border Gate')
     expect(EVISA_CHECKPOINTS).toHaveLength(81)
     expect(new Set(EVISA_CHECKPOINTS).size).toBe(81)
     expect(EVISA_CHECKPOINTS).toEqual(expect.arrayContaining([
@@ -128,8 +129,8 @@ test.describe('eno.forum visa assistance', () => {
     const payload = emptyVisaPayload()
     expect(validateVisaStep(payload, [], 0)).toEqual(expect.arrayContaining(['passport_image_required', 'portrait_required']))
     expect(validateVisaStep(payload, [], 1)).toEqual(expect.arrayContaining(['surname_required', 'passport_number_required', 'phone_required']))
-    expect(validateVisaStep(payload, [], 2)).toEqual(expect.arrayContaining(['visa_start_required', 'visa_end_required', 'exit_gate_required']))
-    expect(validateVisaStep(payload, [], 2)).not.toContain('entry_gate_required')
+    expect(validateVisaStep(payload, [], 2)).toEqual(expect.arrayContaining(['visa_start_required', 'visa_end_required']))
+    expect(validateVisaStep(payload, [], 2)).not.toEqual(expect.arrayContaining(['entry_gate_required', 'exit_gate_required']))
   })
 
   test('automatically moves from a saturated primary checker to the fallback model', async () => {

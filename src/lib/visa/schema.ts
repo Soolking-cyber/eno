@@ -49,7 +49,7 @@ export const visaPayloadSchema = z.object({
   purposeOfEntry: short.default('Tourism'), intendedEntryDate: date.default(''), stayLengthDays: z.number().int().min(0).max(90).default(90),
   currentlyOutsideVietnam: eligibleOutsideVietnam,
   temporaryAddress: long.default(''), temporaryProvince: short.default(''), temporaryWard: short.default(''),
-  entryGate: short.default(DEFAULT_EVISA_ENTRY_GATE), exitGate: short.default(''), localContactName: short.default(''), localContactAddress: long.default(''),
+  entryGate: short.default(DEFAULT_EVISA_ENTRY_GATE), exitGate: short.default(DEFAULT_EVISA_ENTRY_GATE), localContactName: short.default(''), localContactAddress: long.default(''),
   visitedVietnamLastYear: commonNo, previousVisitDetails: long.default(''),
   hasRelativesInVietnam: commonNo, relativesInVietnamDetails: long.default(''),
   estimatedExpenses: z.number().min(0).max(1_000_000_000).default(1000), expensesCurrency: z.string().trim().max(3).default('USD'),

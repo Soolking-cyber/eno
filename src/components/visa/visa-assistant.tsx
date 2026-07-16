@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload } from 'lucide-react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { DEFAULT_EVISA_ENTRY_GATE, EVISA_CHECKPOINT_GROUPS, EVISA_CHECKPOINTS } from '@/lib/visa/checkpoints'
+import { DEFAULT_EVISA_ENTRY_GATE, EVISA_CHECKPOINT_GROUPS } from '@/lib/visa/checkpoints'
 
 type VisaImageReport = {
   issues?: string[]
@@ -244,7 +244,11 @@ export function VisaAssistant() {
       if (!active) { setApplication(null); setPayload(null); return }
       const detail = await forumApi<{ application: VisaApplication }>(`/api/visa/applications/${active.id}`, { auth: 'required', direct: true })
       const loadedPayload = detail.application.payload
-      setApplication(detail.application); setPayload(loadedPayload ? { ...loadedPayload, entryGate: loadedPayload.entryGate || DEFAULT_EVISA_ENTRY_GATE } : null)
+      setApplication(detail.application); setPayload(loadedPayload ? {
+        ...loadedPayload,
+        entryGate: loadedPayload.entryGate || DEFAULT_EVISA_ENTRY_GATE,
+        exitGate: loadedPayload.exitGate || DEFAULT_EVISA_ENTRY_GATE,
+      } : null)
     } catch (error) {
       if (!(error instanceof ForumApiError && error.status === 401)) toast.error(tr('Could not load visa assistance.', 'Không thể tải dịch vụ hỗ trợ visa.'))
     } finally { if (!background) setLoading(false) }
@@ -705,8 +709,8 @@ function TripStep({ payload, set, tr }: { payload: VisaPayload; set: <K extends 
       <Text id="temporaryAddress" label={tr('First Vietnam address/hotel', 'Địa chỉ/khách sạn đầu tiên')} value={payload.temporaryAddress} onChange={(v) => set('temporaryAddress', v)} />
       <Text id="province" label={tr('Province/city', 'Tỉnh/thành phố')} value={payload.temporaryProvince} onChange={(v) => set('temporaryProvince', v)} />
       <Text id="ward" label={tr('Ward/commune (if known)', 'Phường/xã (nếu biết)')} value={payload.temporaryWard} onChange={(v) => set('temporaryWard', v)} />
-      <CheckpointSelect id="entryGate" label={tr('Entry checkpoint', 'Cửa khẩu nhập cảnh')} value={payload.entryGate} onChange={(v) => set('entryGate', v)} tr={tr} />
-      <CheckpointSelect id="exitGate" label={tr('Exit checkpoint', 'Cửa khẩu xuất cảnh')} value={payload.exitGate} onChange={(v) => set('exitGate', v)} tr={tr} />
+      <CheckpointCombobox id="entryGate" label={tr('Entry checkpoint', 'Cửa khẩu nhập cảnh')} value={payload.entryGate} onChange={(v) => set('entryGate', v)} tr={tr} />
+      <CheckpointCombobox id="exitGate" label={tr('Exit checkpoint', 'Cửa khẩu xuất cảnh')} value={payload.exitGate} onChange={(v) => set('exitGate', v)} tr={tr} />
       <Text id="localContactName" label={tr('Inviting/local contact (if any)', 'Liên hệ tại Việt Nam (nếu có)')} value={payload.localContactName} onChange={(v) => set('localContactName', v)} />
       <Text id="localContactAddress" label={tr('Local contact address', 'Địa chỉ liên hệ tại Việt Nam')} value={payload.localContactAddress} onChange={(v) => set('localContactAddress', v)} />
       <YesNo id="visited" label={tr('Visited Vietnam in the last year?', 'Đã đến Việt Nam trong năm qua?')} value={payload.visitedVietnamLastYear} onChange={(v) => set('visitedVietnamLastYear', v)} />
@@ -732,14 +736,33 @@ function Text({ id, label, value, onChange, type = 'text', min, max }: { id: str
   return <FormField id={id} label={label}><Input id={id} variant="outline" type={type} min={min} max={max} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 py-0" /></FormField>
 }
 
-function CheckpointSelect({ id, label, value, onChange, tr }: { id: string; label: string; value: string; onChange: (value: string) => void; tr: (en: string, vi: string) => string }) {
-  return <FormField id={id} label={label}><VisaSelect id={id} value={value} onChange={onChange}>
-    <option value="">{tr('Choose an approved checkpoint', 'Chọn cửa khẩu được phê duyệt')}</option>
-    {value && !EVISA_CHECKPOINTS.includes(value as (typeof EVISA_CHECKPOINTS)[number]) && <option value={value}>{value}</option>}
-    {EVISA_CHECKPOINT_GROUPS.map((group) => <optgroup key={group.id} label={tr(group.label, group.labelVi)}>
-      {group.options.map((checkpoint) => <option key={checkpoint} value={checkpoint}>{checkpoint}</option>)}
-    </optgroup>)}
-  </VisaSelect></FormField>
+function CheckpointCombobox({ id, label, value, onChange, tr }: { id: string; label: string; value: string; onChange: (value: string) => void; tr: (en: string, vi: string) => string }) {
+  const input = useRef<HTMLInputElement>(null)
+  const listId = `${id}-approved-checkpoints`
+  const openPicker = () => {
+    input.current?.focus()
+    try { input.current?.showPicker() } catch { /* Typing still opens the native suggestions. */ }
+  }
+
+  return <FormField id={id} label={label}>
+    <div className="relative">
+      <input
+        ref={input}
+        id={id}
+        list={listId}
+        value={value}
+        autoComplete="off"
+        placeholder={tr('Type or choose a checkpoint', 'Nhập hoặc chọn cửa khẩu')}
+        onChange={(event) => onChange(event.target.value)}
+        className={`${control} appearance-none pr-20 [&::-webkit-calendar-picker-indicator]:hidden`}
+      />
+      <datalist id={listId}>
+        {EVISA_CHECKPOINT_GROUPS.flatMap((group) => group.options.map((checkpoint) => <option key={`${group.id}-${checkpoint}`} value={checkpoint} />))}
+      </datalist>
+      {value && <button type="button" aria-label={tr(`Clear ${label}`, `Xóa ${label}`)} onClick={() => { onChange(''); input.current?.focus() }} className="absolute right-10 top-1/2 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg text-body transition-colors hover:bg-tint hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"><X className="h-4 w-4" /></button>}
+      <button type="button" aria-label={tr(`Open ${label} options`, `Mở lựa chọn ${label}`)} onClick={openPicker} className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg text-body transition-colors hover:bg-tint hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"><ChevronDown className="h-4 w-4" /></button>
+    </div>
+  </FormField>
 }
 
 function YesNo({ id, label, value, onChange }: { id: string; label: string; value: '' | 'yes' | 'no'; onChange: (value: '' | 'yes' | 'no') => void }) {
