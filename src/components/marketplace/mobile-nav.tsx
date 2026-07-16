@@ -14,6 +14,7 @@ import { useSlideRouter } from './page-transitions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { hapticTap } from '@/lib/haptics'
 
 // One uniform lucide stroke across the whole bar. A slightly thicker, identical weight on
 // every icon reads softer and keeps all five tabs at the same visual weight (symmetry).
@@ -140,6 +141,17 @@ export function MobileNav() {
     navigate(href, to >= from ? 'forward' : 'back')
   }
 
+  // Native staple: re-tapping the tab you're already on scrolls that view to the top (with a
+  // haptic tick) instead of a no-op navigation — iOS/Android users reach for this reflexively.
+  const scrollTopOrGo = (href: string, isActive: boolean) => {
+    if (isActive && typeof window !== 'undefined' && window.scrollY > 0) {
+      hapticTap()
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    go(href)
+  }
+
   // Hidden on the full-screen sign-in page, and on the listing detail page — the PDP shows
   // its OWN fixed bottom action bar (Chat / Make offer via <PdpMobileBar>), and two stacked
   // fixed bottom bars would collide. In a chat thread the nav stays put when the keyboard is
@@ -199,13 +211,13 @@ export function MobileNav() {
       {/* Fixed 64px tab row; the safe-area padding sits BELOW it (filled white) so
           the home-indicator inset never compresses the icons out of the bar. */}
       <div className="flex h-16 items-stretch">
-      <Link href="/" aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); go('/') }}>
+      <Link href="/" aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); scrollTopOrGo('/', at('/')) }}>
         <TabBody active={at('/')} label={tr('Explore', 'Khám phá')} icon={<Compass className="h-7 w-7" strokeWidth={STROKE} />} />
       </Link>
 
       {/* Saved is public — favorites are stored device-local (localStorage), so a
           logged-out visitor can save and review listings without an account. */}
-      <Link href="/saved" aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); go('/saved') }}>
+      <Link href="/saved" aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); scrollTopOrGo('/saved', at('/saved')) }}>
         <TabBody
           active={at('/saved')}
           label={tr('Saved', 'Đã lưu')}
@@ -242,7 +254,7 @@ export function MobileNav() {
         href="/messages"
         active={atPrefix('/messages')}
         gate={gate}
-        onNavigate={() => go('/messages')}
+        onNavigate={() => scrollTopOrGo('/messages', pathname === '/messages')}
         label={tr('Messages', 'Tin nhắn')}
         icon={
           <>

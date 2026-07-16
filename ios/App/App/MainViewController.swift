@@ -1,5 +1,7 @@
 import UIKit
+import WebKit
 import Capacitor
+import ObjectiveC.runtime
 
 /// Self-healing WebView shell for the REMOTE-SERVER build (the app loads https://eno.vn live).
 ///
@@ -17,6 +19,11 @@ class MainViewController: CAPBridgeViewController {
         super.viewDidLoad()
         configureNativeFeel()
         scheduleWatchdog(after: 3.0)
+        // The private WKContentView that hosts text input only exists once the WebView has content,
+        // so drop the keyboard accessory bar after the first load settles (and once more as a
+        // backstop). Idempotent — object_setClass to the same subclass is a no-op.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.removeKeyboardAccessoryBar() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in self?.removeKeyboardAccessoryBar() }
     }
 
     /// Make the WebView behave like a native iOS app instead of a page in a browser.
@@ -35,6 +42,32 @@ class MainViewController: CAPBridgeViewController {
         // (that horizontal give is a dead giveaway of a WebView).
         wv.scrollView.alwaysBounceHorizontal = false
         wv.scrollView.bounces = true
+    }
+
+    /// Remove the keyboard input-accessory bar (the gray "Done / ‹ › / suggestions" toolbar above the
+    /// keyboard) — a dead giveaway of a WebView; native text fields don't show it. WebKit's text input
+    /// lives in a private WKContentView; we give that instance a runtime subclass whose
+    /// `inputAccessoryView` returns nil. Best-effort + reversible: if WebKit's internals ever change,
+    /// the guard just no-ops (typing is unaffected — this only nils the ACCESSORY, not the input).
+    private func removeKeyboardAccessoryBar() {
+        guard let wv = webView,
+              let contentView = wv.scrollView.subviews.first(where: {
+                  String(describing: type(of: $0)).hasPrefix("WKContentView")
+              }) else { return }
+        let className = "eno_WKContentViewNoAccessory"
+        if let existing = NSClassFromString(className) {
+            object_setClass(contentView, existing)
+            return
+        }
+        guard let baseClass = object_getClass(contentView),
+              let subclass = objc_allocateClassPair(baseClass, className, 0) else { return }
+        let sel = NSSelectorFromString("inputAccessoryView")
+        let block: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+        let imp = imp_implementationWithBlock(block)
+        let types = class_getInstanceMethod(baseClass, sel).map { method_getTypeEncoding($0) } ?? "@@:"
+        class_addMethod(subclass, sel, imp, types)
+        objc_registerClassPair(subclass)
+        object_setClass(contentView, subclass)
     }
 
     // Re-check whenever the app returns to the foreground — the blank state is most visible on
