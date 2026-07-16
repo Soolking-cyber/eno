@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   X, Store, Settings, Scale, CircleHelp, LogOut, LayoutDashboard,
-  MessageSquareText, CalendarCheck, Eye, ChevronRight, Upload, Code2, UsersRound,
+  MessageSquareText, Heart, Plus, Upload, Code2, UsersRound,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -205,206 +205,157 @@ function AccountPanel({ open, onClose, resizing, onResizeStart, onResizeKey }: {
   if (!user) return null
   const initial = (user.email || user.phone || '?').charAt(0).toUpperCase()
   const isBusiness = dash?.tier === 'business'
-  const stats = dash?.stats
-  const item = 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer'
+  const unread = dash?.stats?.unreadMessages ?? 0
+  const displayName = dash?.profile.businessName || dash?.profile.displayName || user.email || user.phone
 
-  // Each section is now a /dashboard/* PAGE; the rail links to them and highlights the
-  // one that matches the current route.
-  const SECTIONS: { key: string; label: string; icon: React.ElementType }[] = [
-    { key: 'listings', label: tr('Listings', 'Tin đăng'), icon: Store },
-    { key: 'settings', label: tr('Settings', 'Cài đặt'), icon: Settings },
-    { key: 'disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
-    ...(isBusiness ? ([
-      { key: 'bulk', label: tr('Bulk upload', 'Tải hàng loạt'), icon: Upload },
-      { key: 'dev', label: tr('Developers', 'Lập trình'), icon: Code2 },
-    ]) : []),
-    { key: 'help', label: tr('Help', 'Trợ giúp'), icon: CircleHelp },
+  // Kid-friendly ghost nav item (owner 2026-07-16, ChatGPT/Gemini aesthetic): soft + borderless,
+  // generous padding, a fully-rounded pill on hover/active — no lines, no bright colour — so it
+  // feels tactile and welcoming. Active = a filled soft pill (bg-secondary). ~48px tall (py-3 +
+  // 20px line) clears the 44px touch minimum on iOS/Android.
+  const navItem = 'flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary/60 cursor-pointer'
+  const activeItem = 'bg-secondary hover:bg-secondary'
+  // On mobile the rail is a launcher — tapping an item navigates and the rail must close (a route
+  // CHANGE already closes it, but re-tapping the current route wouldn't, so close here too).
+  const closeOnMobile = () => { if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 64rem)').matches) onClose() }
+  const active = (href: string, exact?: boolean) =>
+    exact ? pathname === href : pathname === href || (pathname?.startsWith(href + '/') ?? false)
+
+  // MIDDLE — core routing. Settings + Help live in the BOTTOM cluster now; the old 2×2 stats-tile
+  // grid was dropped for a clean nav (the unread count rides Messages as a badge; views/leads/
+  // refresh live on their own pages). Storefront + forum tail the list.
+  const NAV: { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean }[] = [
+    { href: '/dashboard', label: tr('Dashboard', 'Tổng quan'), icon: LayoutDashboard, exact: true },
+    { href: '/dashboard/listings', label: tr('My listings', 'Tin của tôi'), icon: Store },
+    { href: '/messages', label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: unread },
+    { href: '/saved', label: tr('Saved', 'Đã lưu'), icon: Heart },
+    { href: '/dashboard/disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
+    ...(isBusiness
+      ? [
+          { href: '/dashboard/bulk', label: tr('Bulk upload', 'Tải hàng loạt'), icon: Upload },
+          { href: '/dashboard/dev', label: tr('Developers', 'Lập trình'), icon: Code2 },
+        ]
+      : []),
+    ...(dash?.seller
+      ? [{ href: dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`, label: tr('View storefront', 'Xem gian hàng'), icon: Store, external: true }]
+      : []),
+    { href: FORUM_URL, label: tr('Community forum', 'Diễn đàn cộng đồng'), icon: UsersRound, external: true },
   ]
-  const isActive = (key: string) => pathname === `/dashboard/${key}`
+
+  // Plain render fn (NOT a nested component — that would remount the subtree each render). Reused
+  // for the middle routing AND the Settings/Help rows in the bottom cluster.
+  const renderNav = (it: { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean }) => {
+    const Icon = it.icon
+    const isOn = active(it.href, it.exact)
+    const inner = (
+      <>
+        <Icon className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+        <span className="min-w-0 flex-1 truncate">{it.label}</span>
+        {it.badge ? (
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-2xs font-bold text-white">{it.badge > 9 ? '9+' : it.badge}</span>
+        ) : null}
+      </>
+    )
+    return it.external ? (
+      <a key={it.href} href={it.href} onClick={closeOnMobile} className={cn(navItem, isOn && activeItem)}>{inner}</a>
+    ) : (
+      <Link key={it.href} href={it.href} aria-current={isOn ? 'page' : undefined} onClick={closeOnMobile} className={cn(navItem, isOn && activeItem)}>{inner}</Link>
+    )
+  }
 
   return (
-    <>
-      {/* No mobile scrim: the panel is a FULL-SCREEN page on mobile, so a scrim behind it is
-          never seen except as a modal-style dim bleeding through during the fade — which is
-          exactly the "floating overlay" feel we're removing. The dashboard enters as a page
-          (fade), not a modal. Desktop squeezes the feed instead of dimming, so it had no scrim
-          either. Close on mobile is the header X (the panel covers any tap-to-close area). */}
-      <aside
-        ref={trapRef}
-        role="dialog"
-        aria-label={tr('Account', 'Tài khoản')}
-        // Modal ONLY on mobile (full-screen, focus-trapped); a plain non-modal rail on desktop.
-        aria-modal={modalThisOpen ? true : undefined}
-        className={cn(
-          // Full screen below lg (the panel IS the dashboard); a DRAGGABLE rail on desktop
-          // whose width is the shared --account-w var. NO shadow: the rail is not a floating
-          // card over the feed — it is a column of the same canvas, divided from it by a single
-          // full-height seam (the border-l, open top and bottom). The seam is the drag handle.
-          'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] right-0 z-50 flex w-full flex-col border-l border-border bg-background motion-reduce:transition-none lg:bottom-0 lg:w-[var(--account-w)]',
-          // ENTRANCE — two different motions on purpose:
-          // · MOBILE the dashboard is reached from the bottom nav, a sibling of Explore /
-          //   Saved / Messages, so it must ENTER like one of them: a fade, matching the app's
-          //   page template (`animate-in fade-in duration-150`) and the same tw-animate-css
-          //   vocabulary every Base UI surface uses for data-open. NOT a right-sliding sheet —
-          //   that read as a modal, not a page.
-          // · DESKTOP the resizable rail slides in from the right (transform).
-          // `transition-discrete` (transition-behavior: allow-discrete) lets `visible/invisible`
-          // flip discretely so the fade-OUT finishes before the panel leaves the a11y tree, and
-          // `starting:opacity-0` gives the fade-IN on the very first (lazy) mount too.
-          //
-          // ⚠️ The transition is SPLIT by breakpoint, and that split is load-bearing. Tailwind v4's
-          // `translate-x-*` animates the `translate` PROPERTY, not `transform` — so an arbitrary
-          // `transition-[…,transform,…]` list does NOT cover the desktop slide and it would JUMP.
-          // `lg:transition-transform` is the v4 utility that transitions transform+translate+scale
-          // +rotate together, so the rail slides; mobile only needs opacity+visibility.
-          resizing ? 'transition-none' : 'transition-[opacity,visibility] transition-discrete duration-150 lg:transition-transform lg:duration-300',
-          open
-            // max-lg:starting: keeps the fade-IN on first (lazy) mount MOBILE-ONLY — an
-            // unscoped starting:opacity-0 would also fade the DESKTOP rail on its first open
-            // (and it mounts at translate-x-0, so it wouldn't slide), making desktop's first
-            // open a fade and every later open a slide. Scope it so desktop always slides.
-            ? 'opacity-100 max-lg:starting:opacity-0 lg:translate-x-0'
-            : 'invisible opacity-0 lg:visible lg:opacity-100 lg:translate-x-full',
-        )}
-        style={{ transitionTimingFunction: 'var(--ease-spring)' }}
+    <aside
+      ref={trapRef}
+      role="dialog"
+      aria-label={tr('Account', 'Tài khoản')}
+      // Modal ONLY on mobile (full-screen, focus-trapped); a plain non-modal rail on desktop.
+      aria-modal={modalThisOpen ? true : undefined}
+      className={cn(
+        // BORDERLESS (owner 2026-07-16, ChatGPT/Gemini): no border, no shadow. On DESKTOP the rail
+        // is set apart from the page ONLY by a whisper-quiet tint (lg:bg-muted/30) — a calmer column
+        // of the SAME canvas, not a sidebar — sitting flush to the window's right edge like a native
+        // panel. On MOBILE it's a FULL-SCREEN overlay, so it must be OPAQUE (bg-background) or the
+        // page bleeds through; the 30% tint there would look broken.
+        'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] right-0 z-50 flex w-full flex-col bg-background motion-reduce:transition-none lg:bottom-0 lg:w-[var(--account-w)] lg:bg-muted/30',
+        // Entrance is SPLIT by breakpoint and that split is load-bearing: MOBILE fades like a page
+        // (opacity+visibility, transition-discrete so the fade-out finishes before it leaves the
+        // a11y tree; max-lg:starting: gives the first lazy-mount fade WITHOUT slowing desktop);
+        // DESKTOP slides via lg:transition-transform (v4 transitions translate together — an
+        // arbitrary transform list would JUMP).
+        resizing ? 'transition-none' : 'transition-[opacity,visibility] transition-discrete duration-150 lg:transition-transform lg:duration-300',
+        open
+          ? 'opacity-100 max-lg:starting:opacity-0 lg:translate-x-0'
+          : 'invisible opacity-0 lg:visible lg:opacity-100 lg:translate-x-full',
+      )}
+      style={{ transitionTimingFunction: 'var(--ease-spring)' }}
+    >
+      {/* Resize seam (desktop only) — a wide transparent hit-strip on the left edge; the visible
+          cue is a hairline that warms to brand ONLY on hover/drag, so at rest the boundary stays
+          borderless. role="separator" + arrow keys make it operable without a pointer. */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={tr('Resize dashboard', 'Đổi cỡ bảng điều khiển')}
+        tabIndex={0}
+        onPointerDown={onResizeStart}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowLeft') { e.preventDefault(); onResizeKey(24) }
+          else if (e.key === 'ArrowRight') { e.preventDefault(); onResizeKey(-24) }
+        }}
+        className="group absolute inset-y-0 left-0 z-10 hidden w-3 -translate-x-1/2 cursor-ew-resize touch-none select-none focus-visible:outline-none lg:block"
       >
-        {/* The seam IS the resize handle (desktop only). A wide, transparent hit-strip
-            straddling the left edge for grab comfort; the visible cue is a hairline that
-            warms to brand on hover/drag. role="separator" + arrow keys make it operable
-            without a pointer. Open top and bottom — no caps — so it reads as one canvas. */}
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={tr('Resize dashboard', 'Đổi cỡ bảng điều khiển')}
-          tabIndex={0}
-          onPointerDown={onResizeStart}
-          onKeyDown={(e) => {
-            // ArrowLeft widens the rail (its edge moves left), ArrowRight narrows it.
-            if (e.key === 'ArrowLeft') { e.preventDefault(); onResizeKey(24) }
-            else if (e.key === 'ArrowRight') { e.preventDefault(); onResizeKey(-24) }
-          }}
-          className={cn(
-            'group absolute inset-y-0 left-0 z-10 hidden w-3 -translate-x-1/2 cursor-ew-resize touch-none select-none lg:block',
-            'focus-visible:outline-none',
-          )}
-        >
-          <span
-            className={cn(
-              'absolute inset-y-0 left-1/2 -translate-x-1/2 w-px transition-colors',
-              'bg-transparent group-hover:bg-brand group-focus-visible:bg-brand',
-              resizing && 'bg-brand',
-            )}
-          />
+        <span className={cn('absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-brand group-focus-visible:bg-brand', resizing && 'bg-brand')} />
+      </div>
+
+      {/* TOP (sticky) — mobile close + the ONE primary action, a big soft brand pill (ChatGPT's
+          "New chat"). */}
+      <div className="shrink-0 space-y-2 p-3">
+        <div className="flex justify-end lg:hidden">
+          <IconButton onClick={onClose} aria-label={tr('Close', 'Đóng')} size="sm" className="text-ink-4 transition-colors hover:bg-secondary hover:text-foreground">
+            <X className="h-5 w-5" />
+          </IconButton>
         </div>
-        {/* Header — always the identity; the rail is a single nav surface now. */}
-        <div className="flex items-center gap-3 border-b border-border px-4 py-3.5">
+        <Button asChild variant="cta" size="none" className="w-full justify-center gap-2 rounded-2xl px-4 py-3 text-sm">
+          <Link href="/post" onClick={closeOnMobile}><Plus className="h-5 w-5" strokeWidth={2.25} /> {tr('Post a listing', 'Đăng tin')}</Link>
+        </Button>
+      </div>
+
+      {/* MIDDLE (scrollable) — the core routing */}
+      <nav aria-label={tr('Dashboard', 'Bảng điều khiển')} className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-2">
+        {NAV.map(renderNav)}
+      </nav>
+
+      {/* BOTTOM (sticky) — the account: identity snippet, then Settings · Help · prefs · Sign out. */}
+      <div className="shrink-0 space-y-1 p-3 pt-2">
+        <div className="flex items-center gap-3 rounded-2xl px-3 py-2">
           {dash?.profile.avatarUrl ? (
-            <img src={dash.profile.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+            <img src={dash.profile.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
           ) : (
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{initial}</span>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{initial}</span>
           )}
           <div className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5">
-              <p className="truncate text-sm font-bold text-foreground">{dash?.profile.businessName || dash?.profile.displayName || user.email || user.phone}</p>
+              <p className="truncate text-sm font-bold text-foreground">{displayName}</p>
               {typeof dash?.profile.trustScore === 'number' && <TrustScore score={dash.profile.trustScore} size="sm" href="/trust" />}
             </span>
             {dash?.profile.email && <p className="truncate text-xs text-ink-4">{dash.profile.email}</p>}
           </div>
-          <IconButton onClick={onClose} aria-label={tr('Close', 'Đóng')} size="sm" className="text-ink-4 transition-colors hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </IconButton>
         </div>
 
-        {/* The nav. One scrolling surface: quick stats, the section links (each opens its
-            /dashboard/* PAGE in main, highlighting the active one), Post, storefront, prefs. */}
-        <div className="flex-1 overflow-y-auto p-3">
-          {/* Quick stats — each jumps to the page that owns that number. */}
-          {stats && (
-            <div className="mb-3 grid grid-cols-2 gap-2">
-              <StatTile icon={<MessageSquareText className="h-4 w-4" />} value={stats.unreadMessages} label={tr('Unread', 'Chưa đọc')} href="/messages" accent={stats.unreadMessages > 0} />
-              <StatTile icon={<CalendarCheck className="h-4 w-4" />} value={stats.staleCount} label={tr('Need refresh', 'Cần làm mới')} href="/dashboard/availability" accent={stats.staleCount > 0} />
-              <StatTile icon={<Eye className="h-4 w-4" />} value={stats.totalViews} label={tr('Views', 'Lượt xem')} href="/dashboard/listings" />
-              <StatTile icon={<Store className="h-4 w-4" />} value={stats.totalLeads} label={tr('Leads', 'Liên hệ')} href="/dashboard/listings" />
-            </div>
-          )}
+        {renderNav({ href: '/dashboard/settings', label: tr('Settings', 'Cài đặt'), icon: Settings })}
+        {renderNav({ href: '/dashboard/help', label: tr('Help', 'Trợ giúp'), icon: CircleHelp })}
 
-          <div className="space-y-0.5">
-            {SECTIONS.map((s) => (
-              <Link
-                key={s.key}
-                href={`/dashboard/${s.key}`}
-                aria-current={isActive(s.key) ? 'page' : undefined}
-                // On mobile the rail is a launcher — close it on tap. The nav effect already
-                // closes it on a route CHANGE, but re-tapping the section you're already on
-                // doesn't change the route, so it would otherwise stay covering the page.
-                onClick={() => { if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 64rem)').matches) onClose() }}
-                className={cn(item, 'justify-between', isActive(s.key) && 'bg-accent text-accent-foreground')}
-              >
-                <span className="flex items-center gap-2.5"><s.icon className="h-4 w-4 text-accent-foreground" /> {s.label}</span>
-                <ChevronRight className="h-4 w-4 text-ink-4" />
-              </Link>
-            ))}
-            <a href={FORUM_URL} className={cn(item, 'justify-between')}>
-              <span className="flex items-center gap-2.5">
-                <UsersRound className="h-4 w-4 text-accent-foreground" />
-                {tr('Community forum', 'Diễn đàn cộng đồng')}
-              </span>
-              <ChevronRight className="h-4 w-4 text-ink-4" />
-            </a>
-          </div>
+        {/* Language + theme — quiet device prefs. */}
+        <div className="px-1 pt-1"><PreferencesInline compact className="w-full" /></div>
 
-          <Link href="/post" className={cn(item, 'mt-2 bg-accent font-semibold text-accent-foreground hover:bg-brand/15')}>
-            <LayoutDashboard className="h-4 w-4" /> {tr('Post a listing', 'Đăng tin')}
-          </Link>
-          {dash?.seller && (
-            <a href={dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`} className={item}>
-              <Store className="h-4 w-4 text-accent-foreground" /> {tr('View storefront', 'Xem gian hàng')}
-            </a>
-          )}
-
-          {/* Language + theme — device prefs. On MOBILE Sign out sits at the right end of this
-              toggle row (owner 2026-07-15); on desktop it keeps its own full-width row at the
-              bottom of the rail, where there's vertical room. */}
-          <div className="mt-2 flex items-center gap-2 border-t border-border px-1.5 pb-1 pt-3">
-            <PreferencesInline compact className="min-w-0 flex-1" />
-            <IconButton
-              onClick={() => { onClose(); signOut() }}
-              aria-label={tr('Sign out', 'Đăng xuất')}
-              className="shrink-0 text-ink-4 hover:bg-destructive/10 hover:text-destructive lg:hidden"
-            >
-              <LogOut className="h-4 w-4" />
-            </IconButton>
-          </div>
-        </div>
-
-        {/* Desktop: Sign out gets its own labelled row at the foot of the rail. */}
-        <div className="hidden border-t border-border p-3 lg:block">
-          <Button
-            variant="bare"
-            size="none"
-            onClick={() => { onClose(); signOut() }}
-            className={cn(item, 'justify-start hover:bg-destructive/10 hover:text-destructive')}
-          >
-            <LogOut className="h-4 w-4" /> {tr('Sign out', 'Đăng xuất')}
-          </Button>
-        </div>
-      </aside>
-    </>
+        <Button
+          variant="bare"
+          size="none"
+          onClick={() => { onClose(); signOut() }}
+          className={cn(navItem, 'text-destructive hover:bg-destructive/10 hover:text-destructive')}
+        >
+          <LogOut className="h-5 w-5 shrink-0" strokeWidth={2} /> <span className="flex-1 text-left">{tr('Sign out', 'Đăng xuất')}</span>
+        </Button>
+      </div>
+    </aside>
   )
-}
-
-function StatTile({ icon, value, label, href, onClick, accent }: { icon: React.ReactNode; value: number; label: string; href?: string; onClick?: () => void; accent?: boolean }) {
-  const inner = (
-    <>
-      <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tint', accent ? 'text-accent-foreground' : 'text-ink-4')}>{icon}</span>
-      <span className="min-w-0 leading-tight">
-        <span className={cn('block text-sm font-bold', accent ? 'text-accent-foreground' : 'text-foreground')}>{value}</span>
-        <span className="block truncate text-2xs text-muted-foreground">{label}</span>
-      </span>
-    </>
-  )
-  const cls = 'flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5 text-left transition-colors hover:bg-muted cursor-pointer'
-  return href
-    ? <Link href={href} className={cls}>{inner}</Link>
-    : <Button variant="bare" size="none" onClick={onClick} className={cn(cls, 'justify-start font-normal')}>{inner}</Button>
 }

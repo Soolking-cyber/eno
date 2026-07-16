@@ -500,45 +500,6 @@ function ListingCardImpl({
           {/* Mini chip (glyph + number) — display only; the card itself is the button. */}
           <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />
         </div>
-
-        {/* NATIVE MOBILE ACTION ROW — the Chat/Offer/Map glyphs that used to stack down the
-            photo's right edge, now a quiet subdued footer (desktop uses the on-hover unfurl
-            over the image instead, so this is pc:hidden). `relative z-10` lifts the row ABOVE
-            the stretched card-link <a> (which paints at z-0 over the in-flow body) so taps land
-            on the glyph. ⚠️ The row STRETCHES to the card's full width (flex-col child), so it is
-            `pointer-events-none` and each glyph re-enables `pointer-events-auto` — otherwise the
-            empty space beside the icons would swallow taps meant for the card link beneath and
-            silently kill navigation from the bottom strip. stopPropagation stays as belt-and-
-            braces; default tapTarget → a full 44px hit area for iOS/Android. */}
-        <div className="pointer-events-none relative z-10 -ml-1.5 mt-1.5 flex items-center gap-0.5 pc:hidden">
-          <IconButton
-            size="sm"
-            aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
-            onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-            className="pointer-events-auto text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-90"
-          >
-            <MessageCircle className="h-[18px] w-[18px]" />
-          </IconButton>
-          {listing.price > 0 && listing.negotiable !== false && (
-            <IconButton
-              size="sm"
-              aria-label={tr('Make an offer', 'Trả giá')}
-              aria-pressed={quickOffer !== null}
-              onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
-              className={cn('pointer-events-auto transition-colors hover:bg-muted active:scale-90', quickOffer !== null ? 'text-brand' : 'text-muted-foreground hover:text-foreground')}
-            >
-              <Tag className={cn('h-[18px] w-[18px]', quickOffer !== null && 'fill-brand')} />
-            </IconButton>
-          )}
-          <IconButton
-            size="sm"
-            aria-label={tr('Show on map', 'Xem trên bản đồ')}
-            onClick={(e) => { e.stopPropagation(); locate(listing) }}
-            className="pointer-events-auto text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-90"
-          >
-            <MapPin className="h-[18px] w-[18px]" />
-          </IconButton>
-        </div>
       </div>
     </div>
   )

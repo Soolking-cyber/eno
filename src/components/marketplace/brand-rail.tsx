@@ -111,7 +111,7 @@ export function BrandRail({
     cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
   return (
-    <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none snap-x py-1">
+    <div ref={railRef} className="flex items-center gap-4 overflow-x-auto scrollbar-none snap-x py-1">
       {visibleBrands.map((b) => {
         const isActive = activeBrand === b.slug
         return (
@@ -121,18 +121,24 @@ export function BrandRail({
             <Button
               variant="bare"
               size="none"
+              // ⚠️ iconSize={false} is REQUIRED. ui/button's base carries `[:where(&)_svg]:size-4`,
+              // which out-specificities the BrandLogo svg's width/height ATTRIBUTES (presentational
+              // attrs = specificity 0) and silently shrank the mark to 16px — the CategoryIcon dodged
+              // it only because it sets h-11/w-11 CLASSES. Turning the rule off lets `size={48}` land.
+              iconSize={false}
               data-brand={b.slug}
               onClick={() => { onPickBrand(isActive ? 'all' : b.slug); onPickModel('all') }}
               className={cn(tileCls, 'whitespace-normal')}
             >
-              {/* Logo mirrors the category icon exactly — same 44px box, slate→blue
-                  on hover/active, same scale animation — so the two rails feel as one.
-                  (Brand marks read a touch bolder than the line icons by nature.) */}
+              {/* Logo sits in the same h-11 box as the category icon, but at 48px (not 44) so a
+                  brand MARK — which carries less internal ink than a full-bleed line icon, and is
+                  short on wordmark brands (Samsung) — reads as visually the SAME size as the
+                  category glyphs beside it. The 4px overflow is centered in the (un-clipped) box. */}
               <span className="flex h-11 items-center justify-center">
                 <BrandLogo
                   name={b.name}
                   iconPath={b.iconPath}
-                  size={44}
+                  size={48}
                   flat
                   className={cn('transition-transform duration-200 group-hover:scale-110', isActive ? '!text-accent-foreground' : '!text-body group-hover:!text-accent-foreground')}
                 />
@@ -142,8 +148,8 @@ export function BrandRail({
 
             {/* Models roll out to the right of the active brand */}
             {isActive && models.length > 0 && (
-              <div className="flex shrink-0 items-start gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                <span className="mt-1 h-12 w-px shrink-0 bg-border" />
+              <div className="flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                <span className="h-12 w-px shrink-0 bg-border" />
                 {/* 3×3 grid (column-fill): All first, 7 most-used in between, More last. */}
                 <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
                   {/* justify-start: the base CENTRES, these chips are full-width text-left rows. */}

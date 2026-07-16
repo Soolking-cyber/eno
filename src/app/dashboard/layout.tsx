@@ -10,7 +10,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 w-full max-w-5xl mx-auto px-3 py-6 sm:px-6 lg:px-8">
+      {/* Fluid, breathing content (owner 2026-07-16): the boxy max-w-5xl is gone — the section
+          now flows to the app's canonical page width (max-w-7xl) beside the borderless right nav
+          rail, so the dashboard feels open and unified with the rest of the app, not trapped. */}
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-6 sm:px-6 lg:px-8">
         {children}
       </main>
       <Footer />

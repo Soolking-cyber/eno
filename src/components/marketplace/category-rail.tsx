@@ -67,7 +67,7 @@ export function CategoryRail({
     cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
   return (
-    <div ref={railRef} className="flex items-start gap-4 overflow-x-auto scrollbar-none snap-x py-1">
+    <div ref={railRef} className="flex items-center gap-4 overflow-x-auto scrollbar-none snap-x py-1">
       {/* All */}
       <Button variant="bare" size="none" data-cat="all" onClick={() => onCategory('all')} className={cn('whitespace-normal', tileCls)}>
         <span className="flex h-11 items-center justify-center">
@@ -100,8 +100,8 @@ export function CategoryRail({
 
             {/* Subcategories roll out to the right of the active category */}
             {subs.length > 0 && (
-              <div className="flex shrink-0 items-start gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                <Separator orientation="vertical" className="mt-1 h-12 shrink-0 self-start" />
+              <div className="flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                <Separator orientation="vertical" className="h-12 shrink-0" />
                 {/* 3×3 grid (column-fill): All first, 7 most-used in between, More last. */}
                 <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
                   <Button variant="bare" size="none" onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>{tr('All', 'Tất cả')}</Button>
@@ -148,7 +148,7 @@ export function CategoryRail({
           a distinct "intent" group; each toggles the listingType filter. */}
       {intents && intents.length > 0 && (
         <>
-          <Separator orientation="vertical" className="mt-1 h-11 shrink-0 self-start" />
+          <Separator orientation="vertical" className="h-11 shrink-0" />
           {intents.map((s) => {
             const active = activeType === s.type
             return (
