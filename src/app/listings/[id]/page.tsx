@@ -48,6 +48,7 @@ import { getEnforcement } from '@/lib/enforcement'
 import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
 import { SafetyStrip } from '@/components/marketplace/safety-strip'
+import { PdpMobileBar } from '@/components/marketplace/pdp-mobile-bar'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -308,7 +309,7 @@ export default async function ListingPage({ params }: Props) {
   )
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-screen flex-col blob-bg pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
       {/* JSON-LD — indexable listings only (no rich snippets for hidden/sold/pending) */}
       {indexable && (
         <>
@@ -333,290 +334,209 @@ export default async function ListingPage({ params }: Props) {
 
       <Header />
 
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-12">
-        {/* Header block — ONE set of DOM nodes, two visual orders. DOM order
-            (breadcrumb → title → caution → price → gallery → highlights) IS the
-            ≥lg layout and keeps the single H1 early for SEO; <lg, flex `order-*`
-            re-sequences it deal-first (breadcrumb → gallery → price → title →
-            highlights) — price is the headline on a deal marketplace. Pure CSS,
-            no duplicated blocks → no hydration variance, no CLS. */}
-        <div className="flex flex-col">
-        {/* Breadcrumb — Home / Category / Title */}
-        <nav aria-label="Breadcrumb" className="order-1 mb-4 truncate text-sm text-muted-foreground lg:order-none">
-          <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
-          <span className="mx-1.5 text-line-strong">/</span>
-          <Link href={`/c/${rawListing.category.slug}`} className="hover:text-accent-foreground transition-colors"><Tr text={listing.category.name} /></Link>
-          {/* Leaf crumb hidden on mobile — it duplicates the H1 directly below and
-              wraps a full row; the BreadcrumbList JSON-LD keeps all 3 levels. */}
-          <span className="mx-1.5 hidden text-line-strong md:inline">/</span>
-          <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
-        </nav>
+      {/* The mobile action bar's clearance lives on the ROOT (pb above) so it covers the
+          footer too, not just <main> — otherwise the fixed bar hides footer links at scroll end. */}
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-8 lg:pb-12">
+        {/* ONE responsive tree, TWO layouts. On mobile it is a single flex column and the
+            `order-*` on each block sequences the whole page — the LEFT/RIGHT column wrappers are
+            `display:contents` there, so their children flatten into this one shared order space:
+            breadcrumb → gallery → price/title/meta → seller → contact → protections → description
+            → safety → reviews → map. On lg the wrappers snap into a 12-col grid: a col-7 media +
+            detail column and a STICKY col-5 "buy box" (price/title/meta → seller → contact →
+            protections → safety → reviews). Exactly ONE <h1>, ONE <ContactComposer> and ONE map
+            mount across both layouts → no duplicate H1, no hydration variance, and no double
+            `eno:chat-now` listener. */}
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:gap-x-10 lg:gap-y-8">
 
-        {/* Title header — on mobile it follows the price block; share/save live
-            on the gallery overlay there, so the right-side pair is desktop-only. */}
-        <div className="order-4 mb-4 lg:order-none">
-          <div className="min-w-0 space-y-1.5">
-            <h1 className="h-title text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
+          {/* 1 — Breadcrumb (subdued, full width). Leaf crumb hidden on mobile (it duplicates
+              the H1); the BreadcrumbList JSON-LD still carries all 3 levels. */}
+          <nav aria-label="Breadcrumb" className="order-1 truncate text-sm text-muted-foreground lg:col-span-12">
+            <Link href="/" className="transition-colors hover:text-accent-foreground"><Tr text="Home" /></Link>
+            <span className="mx-1.5 text-line-strong">/</span>
+            <Link href={`/c/${rawListing.category.slug}`} className="transition-colors hover:text-accent-foreground"><Tr text={listing.category.name} /></Link>
+            <span className="mx-1.5 hidden text-line-strong md:inline">/</span>
+            <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
+          </nav>
 
+          {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
+              md:hidden. Its desktop twin lives in the left column below; the variant gates stop
+              the hidden one from fetching images. Share/Save overlay the media (Shopee pattern);
+              z-10 stays under the lightbox (z-[100]). */}
+          <div className="relative order-2 -mx-3 sm:-mx-6 md:hidden">
+            <ListingGallery variant="mobile" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
+            <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+              <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
+              <SaveListingButton id={listing.id} compact className="h-9 w-9 border-0 bg-card/80 backdrop-blur" />
+            </div>
           </div>
-        </div>
 
-        {/* Enforcement caution (Phase 2) — one line, before any contact action.
-            throttled = caution tint; held/suspended = stronger destructive wording. */}
-        {sellerCaution && (
-          <p
-            className={cn(
-              // self-start: as a flex child it would otherwise stretch full-width.
-              'order-5 mb-4 inline-flex items-center gap-2 self-start rounded-xl px-3 py-2 text-sm font-semibold lg:order-none',
-              sellerCaution === 'throttled' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive',
-            )}
-          >
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            {sellerCaution === 'throttled'
-              ? <Tr text="This seller is under review — trade with extra care" />
-              : <Tr text="This seller's account is on hold — don't send money or deposits" />}
-          </p>
-        )}
+          {/* RIGHT COLUMN (lg col-5): the sticky "buy box". It comes FIRST in the DOM (so the H1,
+              price, seller and contact controls lead the reading / tab order — the media + copy
+              column follows); `lg:order-3` still paints it on the RIGHT at lg, and `lg:order-2` on
+              the LEFT column below paints the media on the left. `contents` on mobile so its
+              children join the single order flow. */}
+          <div className="contents lg:order-3 lg:col-span-5 lg:block">
+            <div className="contents lg:sticky lg:top-24 lg:flex lg:flex-col lg:gap-4 lg:border-l lg:border-border/70 lg:pl-10">
 
-        {/* Price directly under the GALLERY on MOBILE (headline of the page) —
-            when the two-column layout stacks, the contact column's price lands
-            ~4 viewports down (ux-24). Server-rendered duplicate (zero JS); the
-            desktop column keeps its own copy, hidden <lg there / ≥lg here. */}
-        <div className="order-3 mt-4 mb-4 space-y-1 lg:hidden">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="block text-2xl font-bold text-accent-foreground tracking-tight" />
-            {/* Server-computed drop anchor (30-day-min reference) — never a seller-entered "was". */}
-            {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
-              <>
-                <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-sm text-ink-4 line-through" />
-                <Badge variant="counter" size="sm" className="tabular-nums">
-                  {dropPercent(listing.prevPrice, listing.price)}
-                </Badge>
-                <DropCountdown expiresAt={listing.dropExpiresAt} />
-              </>
-            )}
-            {/* Urgent = bare red bolt at digit height (user-picked 2026-07-14) —
-                matches the list view's icon-only treatment; aria names it. */}
-            {listing.urgent && (
-              <Zap aria-label="Urgent sale" className="h-6 w-6 self-center fill-destructive stroke-none" />
-            )}
-            {!listing.negotiable && (
-              <Badge size="md" className="text-2xs text-body">
-                <Tag className="h-3 w-3" /><Tr text="Fixed price" />
-              </Badge>
-            )}
+              {/* 3 — HEADER BLOCK: price (the anchor) → title → metadata, kept tight (gap-2) so the
+                  three read as one cohesive unit. Price is the largest, boldest text on the page. */}
+              <div className="order-3 flex flex-col gap-2">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold tracking-tight text-accent-foreground" />
+                    {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
+                    {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
+                      <>
+                        <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-base text-ink-4 line-through" />
+                        <Badge variant="counter" size="sm" className="tabular-nums">
+                          {dropPercent(listing.prevPrice, listing.price)}
+                        </Badge>
+                        <DropCountdown expiresAt={listing.dropExpiresAt} />
+                      </>
+                    )}
+                    {listing.urgent && (
+                      <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-destructive stroke-none" />
+                    )}
+                    {!listing.negotiable && (
+                      <Badge size="md" className="text-2xs text-body">
+                        <Tag className="h-3 w-3" /><Tr text="Fixed price" />
+                      </Badge>
+                    )}
+                  </div>
+                  {/* The market-price gauge travels with the price — it's a benchmark OF this number. */}
+                  {priceBand && <MarketPrice price={listing.price} band={priceBand} />}
+                </div>
+
+                {/* Title — clean + medium weight so it never out-shouts the price. The single H1. */}
+                <h1 className="text-lg font-medium leading-snug text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
+
+                {/* Metadata — ONE tightly-packed subdued row: brand · condition · specs · location ·
+                    posted · social proof; flex-wrap spills to a second row only when it must. */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground">
+                  {brand && (
+                    <Badge size="md" interactive render={<Link href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`} />} className="w-fit gap-1.5 font-semibold text-foreground">
+                      <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
+                      {brand.name}
+                    </Badge>
+                  )}
+                  {listing.condition && (
+                    <Badge size="md" className="font-semibold text-foreground">
+                      <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
+                    </Badge>
+                  )}
+                  {numericSpecs.map((s) => (
+                    <Badge key={s.label} size="md" className="font-semibold text-foreground">
+                      <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
+                    </Badge>
+                  ))}
+                  <span className="inline-flex min-w-0 items-center gap-1">
+                    <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
+                    <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
+                  </span>
+                  <span aria-hidden className="text-line-strong">·</span>
+                  <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
+                  {showProof && (
+                    <>
+                      <span aria-hidden className="text-line-strong">·</span>
+                      <span className="flex shrink-0 items-center gap-2 text-xs">{socialProof}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* 4 — Enforcement caution (rare: throttled/held sellers) — before any contact action */}
+              {sellerCaution && (
+                <p className={cn('order-4 inline-flex items-center gap-2 self-start rounded-xl px-3 py-2 text-sm font-semibold', sellerCaution === 'throttled' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive')}>
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  {sellerCaution === 'throttled'
+                    ? <Tr text="This seller is under review — trade with extra care" />
+                    : <Tr text="This seller's account is on hold — don't send money or deposits" />}
+                </p>
+              )}
+
+              {/* 5 — Seller trust snippet (brought high so buyers see who they're dealing with) */}
+              <div className="order-5">
+                <PdpSellerCard
+                  seller={{ id: listing.seller.id, name: listing.seller.name, avatarColor: listing.seller.avatarColor, isBusiness: listing.seller.isBusiness }}
+                  metrics={sellerMetricsBundle}
+                  storefrontHref={sellerHref}
+                />
+              </div>
+
+              {/* 6 — Contact + offer (auth-gated; number never in this payload). The mobile action
+                  bar mirrors these CTAs and scrolls here (#contact) for "Make offer". */}
+              <div id="contact" className="order-6 scroll-mt-24">
+                <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
+              </div>
+
+              {/* 7 — Buyer protections */}
+              <div className="order-7"><ProtectionsRow /></div>
+
+              {/* 9 — Safety strip + report */}
+              <div className="order-9">
+                <SafetyStrip categorySlug={rawListing.category.slug} action={<ReportButton listingId={listing.id} />} />
+              </div>
+
+              {/* 10 — Reviews */}
+              <div className="order-10">
+                {reviewsPreview.total > 0 && <Separator className="mb-4" />}
+                <ReviewsPreview reviews={reviewsPreview.reviews} total={reviewsPreview.total} avg={reviewsPreview.avg} sellerHref={sellerHref} />
+              </div>
+            </div>
           </div>
-          {priceBand && <div className="pt-2"><MarketPrice price={listing.price} band={priceBand} /></div>}
-        </div>
 
-        {/* Safety strip — MOBILE copy. Shares order-3 with the price block above:
-            equal order falls back to DOM order, so it lands directly under the
-            price and above the title/description without renumbering siblings.
-            (Desktop copy lives in the sticky contact column.) */}
-        {/* Gallery — MOBILE mount (deal-first order-2). The desktop mount lives
-            inside the content grid so the info column starts BESIDE it
-            (Shopee layout, user decision 2026-07-14); variant gates stop the
-            hidden twin from fetching images. */}
-        <div className="relative order-2 md:hidden">
-          <ListingGallery variant="mobile" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
-          {/* Mobile/tablet: share + save overlay the media header (Shopee pattern) —
-              the title-row pair above is desktop-only. Absolutely positioned (zero
-              layout cost, no CLS) at top-right, clear of the carousel's n/N counter
-              (bottom-right); z-10 stays under the lightbox (z-[100]). */}
-          <div className="absolute right-3 top-3 z-10 flex items-center gap-2 lg:hidden">
-            <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
-            <SaveListingButton id={listing.id} compact className="h-9 w-9 border-0 bg-card/80 backdrop-blur" />
-          </div>
-        </div>
-
-        {/* Highlights — scannable item facts up front (buyers scan before they read).
-            Trust is just the color-coded score number, kept low-key (no second shield).
-            Flex margins don't collapse, so <lg the title/caution mb-4 above already
-            provides the gap (mt-0); ≥lg it follows the gallery with the original mt-5. */}
-        </div>
-
-        {/* Content + sticky contact. The left column is split into two grid rows
-            (description/details, then map) so DOM order puts the map AFTER the
-            contact column — on mobile the stack reads price → seller → contact →
-            map (ux-24) while ≥lg the grid restores map under the description. */}
-        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-x-10">
-          {/* LEFT (row 1): protections strip + description + details. The strip is
-              the first left-column child so on MOBILE (single column) it lands right
-              after the header's price/highlights and immediately before the
-              Description; ≥lg it sits under the gallery at the head of the copy. */}
-          <div className="lg:col-span-7 flex flex-col gap-8">
-            <div className="relative hidden md:block">
+          {/* LEFT COLUMN (lg col-7): gallery → description/details → map → safety note. It follows
+              the buy box in the DOM (reading order) but `lg:order-2` paints it on the LEFT at lg;
+              `contents` on mobile flattens these into the shared order space. */}
+          <div className="contents lg:order-2 lg:col-span-7 lg:flex lg:flex-col lg:gap-8">
+            {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens) */}
+            <div className="relative order-2 hidden md:block">
               <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
-              {/* Share/Save as icons on the viewport's top-right — same affordance
-                  as mobile; z-10 stays under the lightbox. */}
               <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
                 <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
                 <SaveListingButton id={listing.id} compact className="h-9 w-9 border-0 bg-card/80 backdrop-blur" />
               </div>
             </div>
 
-            {/* ONE line below the carousel (user-picked 2026-07-14), importance-
-                ordered: brand → condition → specs → location → posted; flex-wrap
-                spills to a second row only when the chips outgrow the column.
-                Brand/location/posted are desktop-only (mobile keeps them in the
-                title flow, which already reads below the gallery). */}
-            <div className="-mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground">
-              {brand && (
-                <Badge
-                  size="md"
-                  interactive
-                  render={<Link href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`} />}
-                  className="w-fit gap-1.5 font-semibold text-foreground"
-                >
-                  <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
-                  {brand.name}
-                </Badge>
-              )}
-              {listing.condition && (
-                <Badge size="md" className="font-semibold text-foreground">
-                  <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
-                </Badge>
-              )}
-              {numericSpecs.map((s) => (
-                <Badge key={s.label} size="md" className="font-semibold text-foreground">
-                  <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
-                </Badge>
-              ))}
-              <span className="inline-flex min-w-0 items-center gap-1">
-                <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
-                <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
-              </span>
-              <span aria-hidden className="text-line-strong">·</span>
-              <span className="shrink-0"><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
-              {/* Social proof rides the same line (user-picked 2026-07-14) — it's meta
-                  about the listing, so it belongs with brand/condition/location/posted
-                  rather than on a row of its own. This is now its ONLY mount. */}
-              {showProof && (
-                <>
-                  <span aria-hidden className="text-line-strong">·</span>
-                  <span className="flex shrink-0 items-center gap-2 text-xs">{socialProof}</span>
-                </>
-              )}
-            </div>
-            {/* PRICE — desktop copy (user-picked 2026-07-14). It reads directly under
-                the gallery's meta line and above the protections strip; the contact
-                column now opens on the seller + Chat now. The mobile copy still sits
-                under the title, so this whole block is lg-only. The market-price gauge
-                travels with it — it's a benchmark OF this number and is meaningless
-                stranded from it. */}
-            <div className="hidden flex-col gap-2 lg:flex">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold text-accent-foreground tracking-tight" />
-                {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
-                  <>
-                    <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-base text-ink-4 line-through" />
-                    <Badge variant="counter" size="sm" className="tabular-nums">
-                      {dropPercent(listing.prevPrice, listing.price)}
-                    </Badge>
-                    <DropCountdown expiresAt={listing.dropExpiresAt} />
-                  </>
-                )}
-                {listing.urgent && (
-                  <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-destructive stroke-none" />
-                )}
-                {!listing.negotiable && (
-                  <Badge size="md" className="text-2xs text-body">
-                    <Tag className="h-3 w-3" /><Tr text="Fixed price" />
-                  </Badge>
-                )}
-              </div>
-              {priceBand && <MarketPrice price={listing.price} band={priceBand} />}
-            </div>
-            <ProtectionsRow />
-            <div className="space-y-2">
-              <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
-              <ListingDescription text={listing.description} i18n={i18n[listing.description]} className="space-y-3 text-base leading-relaxed text-body" />
-            </div>
-
-            {(attrs.length > 0 || numericSpecs.length > 0) && (
-              <div className="space-y-1">
-                <h2 className="h-section text-foreground mb-2"><Tr text="Details" /></h2>
-                <dl className="text-sm">
-                  {numericSpecs.map((s) => (
-                    <div key={s.label} className="flex items-start justify-between gap-4 py-2.5">
-                      <dt className="text-muted-foreground"><Tr text={s.label} /></dt>
-                      <dd className="font-medium text-foreground text-right">{s.value}</dd>
-                    </div>
-                  ))}
-                  {attrs.map(([k, v]) => (
-                    <div key={k} className="flex items-start justify-between gap-4 py-2.5">
-                      <dt className="capitalize text-muted-foreground"><Tr text={k.replace(/([A-Z])/g, ' $1')} /></dt>
-                      {/* Attribute values are stored lowercase ("automatic", "petrol") — capitalize
-                          like the keys so the row reads finished next to Year/Mileage/Engine. */}
-                      <dd className="font-medium capitalize text-foreground text-right"><Tr text={String(v)} /></dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            )}
-
-          </div>
-
-          {/* RIGHT: flat sticky contact column — no floating card, cohesive with
-              the single-canvas page; a subtle left rule separates it on desktop.
-              Spans both left rows so the map block below stays beside it ≥lg. */}
-          <div className="lg:col-span-5 lg:row-span-2">
-            <div className="lg:sticky lg:top-24 flex flex-col gap-4 lg:border-l lg:border-border/70 lg:pl-10">
-              {/* ONE importance-ordered flow (user decisions 2026-07-14):
-                  seller (Chat now / View shop) → offer (open −5%) → safety strip →
-                  reviews. The desktop PRICE moved out of this column and now reads
-                  under the gallery's meta line, above the protections strip; on mobile
-                  it still sits under the title. Either way it precedes everything here,
-                  so the contact column opens on the person you'd be dealing with. */}
-
-              {/* SELLER identity + Chat now / View shop — directly under the price
-                  (user-picked 2026-07-14: the offer sits BELOW these buttons). */}
-              <PdpSellerCard
-                seller={{
-                  id: listing.seller.id,
-                  name: listing.seller.name,
-                  avatarColor: listing.seller.avatarColor,
-                  isBusiness: listing.seller.isBusiness,
-                }}
-                metrics={sellerMetricsBundle}
-                storefrontHref={sellerHref}
-              />
-
-              {/* Unified contact + offer (auth-gated; number never in this payload).
-                  Opens at −5% by default. No escrow mention anywhere on the money
-                  path — unmet promises cost trust (user decision 2026-07-05). */}
-              <div id="contact" className="scroll-mt-24">
-                <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
+            {/* 8 — Description + Details */}
+            <div className="order-8 flex flex-col gap-8">
+              <div className="space-y-2">
+                <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
+                <ListingDescription text={listing.description} i18n={i18n[listing.description]} className="space-y-3 text-base leading-relaxed text-body" />
               </div>
 
-              {/* Safety strip — above the buyer reviews on EVERY breakpoint
-                  (user-picked 2026-07-14; replaces the old mobile copy that sat
-                  under the price). */}
-              <SafetyStrip categorySlug={rawListing.category.slug} action={<ReportButton listingId={listing.id} />} />
-
-              {reviewsPreview.total > 0 && <Separator />}
-              <ReviewsPreview
-                reviews={reviewsPreview.reviews}
-                total={reviewsPreview.total}
-                avg={reviewsPreview.avg}
-                sellerHref={sellerHref}
-              />
-
+              {(attrs.length > 0 || numericSpecs.length > 0) && (
+                <div className="space-y-1">
+                  <h2 className="h-section mb-2 text-foreground"><Tr text="Details" /></h2>
+                  <dl className="text-sm">
+                    {numericSpecs.map((s) => (
+                      <div key={s.label} className="flex items-start justify-between gap-4 py-2.5">
+                        <dt className="text-muted-foreground"><Tr text={s.label} /></dt>
+                        <dd className="text-right font-medium text-foreground">{s.value}</dd>
+                      </div>
+                    ))}
+                    {attrs.map(([k, v]) => (
+                      <div key={k} className="flex items-start justify-between gap-4 py-2.5">
+                        <dt className="capitalize text-muted-foreground"><Tr text={k.replace(/([A-Z])/g, ' $1')} /></dt>
+                        {/* Attribute values are stored lowercase — capitalize like the keys. */}
+                        <dd className="text-right font-medium capitalize text-foreground"><Tr text={String(v)} /></dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* LEFT (row 2): map + safety note — after the contact column in the DOM
-              so it stacks below the CTA on mobile; ≥lg the grid places it back
-              under the description (cols 1–7, row 2). */}
-          <div className="lg:col-span-7 flex flex-col gap-8">
-            <div id="location-on-map" className="space-y-2 scroll-mt-20">
+            {/* 11 — Map */}
+            <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20">
               <h2 className="h-section text-foreground"><Tr text="Location" /></h2>
-              <div className="h-[260px] rounded-2xl overflow-hidden relative">
+              <div className="relative h-[260px] overflow-hidden rounded-2xl">
                 <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} />
               </div>
             </div>
 
-            <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+            {/* 12 — Safety note */}
+            <p className="order-12 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />
             </p>
@@ -636,6 +556,11 @@ export default async function ListingPage({ params }: Props) {
       </main>
 
       <Footer />
+
+      {/* Mobile-only fixed action bar — the always-reachable primary CTAs. "Chat" fires the
+          shared eno:chat-now event; "Make offer" scrolls the #contact offer slider into view.
+          <main> reserves bottom padding for it, and the global tab-nav hides on the PDP. */}
+      <PdpMobileBar canOffer={listing.price > 0 && listing.negotiable !== false} />
     </div>
   )
 }
