@@ -32,6 +32,13 @@ type VisaApplication = {
   authorizedAt: string | null; assignedAdmin: string | null; submittedAt: string | null; resolvedAt: string | null;
   createdAt: string; updatedAt: string; documents: VisaDocument[]; events?: VisaEvent[]
 }
+type VisaAnalysis = {
+  document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>
+  payload?: VisaPayload
+  suggestions: string[]
+  issues: string[]
+  warnings?: string[]
+}
 
 const STEPS = ['Documents', 'Your details', 'Vietnam trip', 'Review'] as const
 const EDITABLE = new Set(['draft', 'needs_changes'])
@@ -151,6 +158,21 @@ export function VisaAssistant() {
   const [step, setStep] = useState(0)
   const [declaration, setDeclaration] = useState(false)
   const [authorization, setAuthorization] = useState(false)
+  const analysisInFlight = useRef(new Map<string, Promise<VisaAnalysis>>())
+
+  const analyzeDocument = useCallback((applicationId: string, kind: 'portrait' | 'passport', documentId: string) => {
+    const existing = analysisInFlight.current.get(documentId)
+    if (existing) return existing
+    const request = forumApi<VisaAnalysis>(`/api/visa/applications/${applicationId}/extract`, {
+      method: 'POST', body: JSON.stringify({ kind, documentId }), auth: 'required', direct: true,
+    })
+    analysisInFlight.current.set(documentId, request)
+    void request.then(
+      () => analysisInFlight.current.delete(documentId),
+      () => analysisInFlight.current.delete(documentId),
+    )
+    return request
+  }, [])
 
   const loadApplication = useCallback(async (background = false) => {
     if (!user) { setApplication(null); setPayload(null); setLoading(false); return }
@@ -211,9 +233,7 @@ export function VisaAssistant() {
       const result = await forumApi<{ document: VisaDocument }>(`/api/visa/applications/${application.id}/documents`, { method: 'POST', body: form, auth: 'required', direct: true })
       setApplication((current) => current ? { ...current, documents: [...current.documents.filter((item) => item.kind !== kind), result.document] } : current)
       toast.loading(kind === 'passport' ? tr('Checking the page and filling passport fields…', 'Đang kiểm tra trang và điền thông tin hộ chiếu…') : tr('Checking the portrait against official rules…', 'Đang kiểm tra ảnh chân dung theo quy định chính thức…'), { id: toastId })
-      const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[]; warnings?: string[] }>(`/api/visa/applications/${application.id}/extract`, {
-        method: 'POST', body: JSON.stringify({ kind, documentId: result.document.id }), auth: 'required', direct: true,
-      })
+      const analyzed = await analyzeDocument(application.id, kind, result.document.id)
       const checkedDocument = { ...result.document, ...analyzed.document }
       setApplication((current) => current ? { ...current, documents: [...current.documents.filter((item) => item.kind !== kind), checkedDocument] } : current)
       if (analyzed.payload) setPayload(analyzed.payload)
@@ -233,19 +253,18 @@ export function VisaAssistant() {
     } finally { setBusy(false) }
   }
 
+  const pendingDocument = application?.documents.find((document) => (document.kind === 'passport' || document.kind === 'portrait') && document.validationStatus === 'pending')
+
   useEffect(() => {
-    if (!application || busy || !EDITABLE.has(application.status)) return
-    const pending = application.documents.find((document) => (document.kind === 'passport' || document.kind === 'portrait') && document.validationStatus === 'pending')
-    if (!pending) return
+    if (!application || !EDITABLE.has(application.status) || !pendingDocument || analysisInFlight.current.has(pendingDocument.id)) return
+    const pending = pendingDocument
     let active = true
     const check = async () => {
       setBusy(true)
       const toastId = `visa-${pending.kind}-upload`
       toast.loading(tr('Finishing the automatic image check…', 'Đang hoàn tất kiểm tra ảnh tự động…'), { id: toastId })
       try {
-        const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[]; warnings?: string[] }>(`/api/visa/applications/${application.id}/extract`, {
-          method: 'POST', body: JSON.stringify({ kind: pending.kind, documentId: pending.id }), auth: 'required', direct: true,
-        })
+        const analyzed = await analyzeDocument(application.id, pending.kind as 'portrait' | 'passport', pending.id)
         if (!active) return
         setApplication((current) => current ? { ...current, documents: current.documents.map((document) => document.id === pending.id ? { ...document, ...analyzed.document } : document) } : current)
         if (analyzed.payload) setPayload(analyzed.payload)
@@ -260,7 +279,7 @@ export function VisaAssistant() {
     }
     void check()
     return () => { active = false }
-  }, [application, busy, loadApplication, tr])
+  }, [analyzeDocument, application, loadApplication, pendingDocument, tr])
 
   const retryImageAnalysis = async (kind: 'portrait' | 'passport', documentId: string) => {
     if (!application) return
@@ -268,9 +287,7 @@ export function VisaAssistant() {
     const toastId = `visa-${kind}-upload`
     toast.loading(tr('Retrying the automatic image check…', 'Đang thử lại kiểm tra ảnh tự động…'), { id: toastId })
     try {
-      const analyzed = await forumApi<{ document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>; payload?: VisaPayload; suggestions: string[]; issues: string[]; warnings?: string[] }>(`/api/visa/applications/${application.id}/extract`, {
-        method: 'POST', body: JSON.stringify({ kind, documentId }), auth: 'required', direct: true,
-      })
+      const analyzed = await analyzeDocument(application.id, kind, documentId)
       setApplication((current) => current ? { ...current, documents: current.documents.map((document) => document.id === documentId ? { ...document, ...analyzed.document } : document) } : current)
       if (analyzed.payload) setPayload(analyzed.payload)
       if (analyzed.document.validationStatus === 'passed') toast.success(tr('Image verified.', 'Ảnh đã được xác minh.'), { id: toastId })

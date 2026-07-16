@@ -88,15 +88,18 @@ async function analyzeImage(
 ) {
   const attempts = [
     { model: GEMINI_MODEL, delay: 0 },
-    { model: GEMINI_MODEL_FALLBACK, delay: 800 },
-    { model: GEMINI_MODEL_FALLBACK, delay: 2_500 },
-    { model: GEMINI_MODEL, delay: 7_000 },
+    { model: GEMINI_MODEL_FALLBACK, delay: 0 },
   ]
   return withAiRetry(attempts, async (attempt, index) => {
       const response = await ai.models.generateContent({
         model: attempt.model,
         contents,
-        config: { temperature: 0, responseMimeType: 'application/json', responseSchema },
+        config: {
+          temperature: 0,
+          responseMimeType: 'application/json',
+          responseSchema,
+          httpOptions: { timeout: 12_000, retryOptions: { attempts: 1 } },
+        },
       })
       const analyzed = JSON.parse(response.text || '{}') as Record<string, unknown>
       if (!analyzed.checks || typeof analyzed.checks !== 'object') throw new SyntaxError('image_analysis_missing_checks')
