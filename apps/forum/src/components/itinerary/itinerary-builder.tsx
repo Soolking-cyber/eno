@@ -517,22 +517,22 @@ export function ItineraryBuilder() {
 
   return (
     <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 sm:pt-10 lg:px-8">
-      <section className="relative overflow-hidden rounded-3xl bg-brand-deep px-5 py-8 text-white sm:px-8 sm:py-10 lg:px-10">
-        <div className="relative z-10 max-w-3xl">
-          <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />{tr('Grounded by live Google Search', 'Dựa trên Google Search trực tiếp')}</Badge>
-          <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">{tr('A Vietnam itinerary that survives reality.', 'Lịch trình Việt Nam thực sự khả thi.')}</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/80 sm:text-base">{tr('Gemini 3.5 Flash researches viable flights, sensible transfers, current stays, and place-level details—then builds the trip around your dates, pace, and budget.', 'Gemini 3.5 Flash nghiên cứu chuyến bay phù hợp, di chuyển hợp lý, chỗ ở hiện tại và từng địa điểm—sau đó lập kế hoạch theo ngày, nhịp độ và ngân sách của bạn.')}</p>
-          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-white/80 sm:text-sm">
-            <span className="inline-flex items-center gap-2"><Plane className="h-4 w-4" />{tr('Flight research', 'Tìm chuyến bay')}</span>
-            <span className="inline-flex items-center gap-2"><Route className="h-4 w-4" />{tr('Route optimization', 'Tối ưu lộ trình')}</span>
-            <span className="inline-flex items-center gap-2"><Globe2 className="h-4 w-4" />{tr('Cited web sources', 'Nguồn web được trích dẫn')}</span>
+      <div className="grid items-start gap-6 lg:grid-cols-[410px_minmax(0,1fr)] lg:grid-rows-[max-content_1fr]">
+        <section className="relative overflow-hidden rounded-3xl bg-brand-deep px-5 py-8 text-white sm:px-8 sm:py-10 lg:col-start-2 lg:row-start-1 lg:px-10">
+          <div className="relative z-10 max-w-3xl">
+            <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />{tr('Grounded by live Google Search', 'Dựa trên Google Search trực tiếp')}</Badge>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">{tr('A Vietnam itinerary that survives reality.', 'Lịch trình Việt Nam thực sự khả thi.')}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/80 sm:text-base">{tr('Gemini 3.5 Flash researches viable flights, sensible transfers, current stays, and place-level details—then builds the trip around your dates, pace, and budget.', 'Gemini 3.5 Flash nghiên cứu chuyến bay phù hợp, di chuyển hợp lý, chỗ ở hiện tại và từng địa điểm—sau đó lập kế hoạch theo ngày, nhịp độ và ngân sách của bạn.')}</p>
+            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-white/80 sm:text-sm">
+              <span className="inline-flex items-center gap-2"><Plane className="h-4 w-4" />{tr('Flight research', 'Tìm chuyến bay')}</span>
+              <span className="inline-flex items-center gap-2"><Route className="h-4 w-4" />{tr('Route optimization', 'Tối ưu lộ trình')}</span>
+              <span className="inline-flex items-center gap-2"><Globe2 className="h-4 w-4" />{tr('Cited web sources', 'Nguồn web được trích dẫn')}</span>
+            </div>
           </div>
-        </div>
-        <Map className="pointer-events-none absolute -bottom-14 -right-10 h-64 w-64 rotate-6 text-white/5 sm:h-80 sm:w-80" aria-hidden="true" />
-      </section>
+          <Map className="pointer-events-none absolute -bottom-14 -right-10 h-64 w-64 rotate-6 text-white/5 sm:h-80 sm:w-80" aria-hidden="true" />
+        </section>
 
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[410px_minmax(0,1fr)]">
-        <Card className="gap-0 overflow-visible p-5 sm:p-6 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain">
+        <Card className="gap-0 overflow-visible p-5 sm:p-6 lg:sticky lg:top-24 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground"><MapPinned className="h-5 w-5" /></span>
             <div><h2 className="text-lg font-bold text-foreground">{tr('Design the brief', 'Thiết kế yêu cầu')}</h2><p className="mt-1 text-xs leading-relaxed text-body">{tr('Specific inputs produce a plan you can actually use.', 'Thông tin cụ thể tạo ra kế hoạch thực sự hữu ích.')}</p></div>
@@ -628,7 +628,7 @@ export function ItineraryBuilder() {
           <p className="mt-3 text-center text-2xs leading-relaxed text-ink-4">{user ? tr('Includes live web research. Up to 8 plans per account each hour.', 'Bao gồm nghiên cứu web trực tiếp. Tối đa 8 kế hoạch mỗi giờ.') : tr('A unified eno account is required before paid web research runs.', 'Cần tài khoản eno thống nhất trước khi chạy nghiên cứu web trả phí.')}</p>
         </Card>
 
-        <section aria-label={tr('Itinerary result', 'Kết quả lịch trình')}>
+        <section aria-label={tr('Itinerary result', 'Kết quả lịch trình')} className="lg:col-start-2 lg:row-start-2">
           {state === 'empty' && (
             <Card className="min-h-[620px] items-center justify-center gap-0 px-5 py-12 text-center sm:px-10">
               <span className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-accent text-accent-foreground"><Map className="h-9 w-9" /><SearchCheck className="absolute -right-2 -top-2 h-6 w-6 text-brand" /></span>
