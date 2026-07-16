@@ -1,8 +1,10 @@
 import 'server-only'
 import { GoogleGenAI } from '@google/genai'
 
-// Gemini API-key mode is preferred when GEMINI_API_KEY is present. Vertex AI
-// remains a server-side fallback for existing deployments configured via:
+// Vertex AI API-key mode is preferred when GEMINI_VERTEX_API_KEY is present. It
+// uses Cloud billing without requiring a service-account credential in Vercel.
+// The Gemini Developer API remains available through GEMINI_API_KEY, followed by
+// the service-account fallback used by existing deployments configured via:
 //   GOOGLE_VERTEX_PROJECT      — the GCP project id linked to billing
 //   GEMINI_LOCATION            — optional override; default "global" (see below)
 //   GOOGLE_VERTEX_CREDENTIALS  — the service-account JSON key, as a single-line string
@@ -31,6 +33,11 @@ export function getGemini(): GoogleGenAI | null {
   // Prefer GEMINI_* env (e.g. the eno-translate project on the $300 free trial); fall
   // back to the shared GOOGLE_VERTEX_* (eno-vn) when unset. vertex-search.ts keeps using
   // GOOGLE_VERTEX_* (where the data store lives), so the two stay decoupled.
+  const vertexApiKey = process.env.GEMINI_VERTEX_API_KEY?.trim()
+  if (vertexApiKey) {
+    client = new GoogleGenAI({ vertexai: true, apiKey: vertexApiKey })
+    return client
+  }
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (apiKey) {
     client = new GoogleGenAI({ apiKey })
@@ -68,6 +75,7 @@ export const aiEnabled = () => getGemini() !== null
  *  can see the live config without reading Vercel secrets. Exposes only ids/the service-
  *  account email (identifiers, not keys) — never the private key or credential blob. */
 export function geminiDiag() {
+  const vertexApiKey = process.env.GEMINI_VERTEX_API_KEY?.trim()
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   const gProj = process.env.GEMINI_PROJECT, vProj = process.env.GOOGLE_VERTEX_PROJECT
   const gLoc = process.env.GEMINI_LOCATION
@@ -83,7 +91,7 @@ export function geminiDiag() {
   return {
     model: GEMINI_MODEL,
     fallbackModel: GEMINI_MODEL_FALLBACK,
-    authSource: apiKey ? 'GEMINI_API_KEY' : gProj?.trim() || vProj?.trim() ? 'VERTEX_AI' : 'none',
+    authSource: vertexApiKey ? 'GEMINI_VERTEX_API_KEY' : apiKey ? 'GEMINI_API_KEY' : gProj?.trim() || vProj?.trim() ? 'VERTEX_AI' : 'none',
     // `.trim() || fallback` so a present-but-EMPTY var falls through exactly like getGemini().
     project: (gProj?.trim() || vProj?.trim()) || null,
     projectSource: gProj?.trim() ? 'GEMINI_PROJECT' : vProj?.trim() ? 'GOOGLE_VERTEX_PROJECT' : 'none',

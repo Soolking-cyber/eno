@@ -39,7 +39,7 @@ MARKETPLACE_API_URL=https://eno.vn
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<same publishable key as eno.vn>
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=<same public site key as eno.vn>
-GEMINI_API_KEY=<server-only Gemini API key>
+GEMINI_VERTEX_API_KEY=<server-only Vertex AI API key restricted to aiplatform.googleapis.com>
 UPSTASH_REDIS_REST_URL=<server-only Upstash REST URL>
 UPSTASH_REDIS_REST_TOKEN=<server-only Upstash REST token>
 ```
@@ -58,6 +58,6 @@ http://127.0.0.1:3101/auth/callback
 
 Also add `eno.forum` to the allowed hostnames for the existing Cloudflare Turnstile widget; Cloudflare applies a root hostname entry to its subdomains, including `www`. Email magic-link sends use the same invisible bot check as the marketplace; Google OAuth does not need it.
 
-The forum uses the marketplace Supabase Auth project, so both apps resolve to the same `auth.users.id` and public `Profile`. Each domain keeps its own secure auth cookie because `.vn` and `.forum` cannot share cookies. The forum owns the Gemini itinerary generation route and keeps `GEMINI_API_KEY` server-only; itinerary saves and all marketplace database access continue through the same-origin `/api/backend/*` proxy to eno.vn. Prisma and database credentials remain only in the marketplace backend. This also keeps Vercel preview URLs compatible with the marketplace's strict browser CORS policy.
+The forum uses the marketplace Supabase Auth project, so both apps resolve to the same `auth.users.id` and public `Profile`. Each domain keeps its own secure auth cookie because `.vn` and `.forum` cannot share cookies. The forum owns the Gemini itinerary generation route and keeps `GEMINI_VERTEX_API_KEY` server-only; `GEMINI_API_KEY` remains an optional Gemini Developer API fallback. Itinerary saves and all marketplace database access continue through the same-origin `/api/backend/*` proxy to eno.vn. Prisma and database credentials remain only in the marketplace backend. This also keeps Vercel preview URLs compatible with the marketplace's strict browser CORS policy.
 
 The database migration remains in the private eno.vn marketplace repository at `supabase/migrations/20260715090000_unified_forum_itinerary.sql`. It is additive, reuses `Profile`, enables RLS on every new table, and keeps public Data API access deny-by-default. Forum image uploads use the `forum-media` bucket with owner-folder write policies.
