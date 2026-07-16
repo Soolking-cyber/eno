@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { googleOauthBlocked, openInSystemBrowser } from '@/lib/in-app-browser'
+import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
 import { useTurnstile } from './turnstile'
 
 const RESEND_SECONDS = 60
@@ -94,6 +95,19 @@ export function SignInForm({ className }: { className?: string }) {
   }
 
   const oauth = async (provider: 'google') => {
+    // Native app (Capacitor): Google rejects OAuth in the embedded WebView, so open it in a real
+    // in-app browser tab and finish via the deep-link handler in native-bootstrap. `googleOauthBlocked`
+    // does NOT catch the Capacitor WebView (it's not a known in-app browser UA), so gate on isNativeApp.
+    if (isNativeApp()) {
+      setError('')
+      const { pathname, search } = window.location
+      let next = pathname + search
+      if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/'
+      if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
+      try { await nativeGoogleSignIn(supabase, next) }
+      catch (e) { setError(e instanceof Error ? e.message : 'Google sign-in failed') }
+      return
+    }
     // In an in-app browser / iOS PWA, OAuth is rejected (disallowed_useragent) — break
     // out to the real browser instead of letting Google show its block page.
     if (oauthBlocked) { openGoogleInBrowser(); return }

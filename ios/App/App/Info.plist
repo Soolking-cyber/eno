@@ -47,5 +47,16 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>vn.eno.app.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>enovn</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

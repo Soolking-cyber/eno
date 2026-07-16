@@ -22,6 +22,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Google OAuth deep-link return (enovn://auth-callback). Google blocks OAuth in the
+                 embedded WebView, so sign-in opens a Chrome Custom Tab; Supabase redirects back to
+                 this scheme, which reopens the app and fires @capacitor/app's appUrlOpen. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="enovn" />
+            </intent-filter>
+
         </activity>
 
         <provider

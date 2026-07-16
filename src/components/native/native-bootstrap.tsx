@@ -59,6 +59,19 @@ export function NativeBootstrap() {
         else App.exitApp()
       })
       cleanups.push(() => { onBack.remove() })
+
+      // Google OAuth deep-link return. Google blocks OAuth in the app's WebView, so the sign-in
+      // button opens it in a real in-app browser tab; on success Supabase redirects to
+      // `enovn://auth-callback?code=…`, which reopens the app HERE. Forward that code to the SAME
+      // server /auth/callback route the web uses — it runs in THIS WebView, reads the PKCE verifier
+      // cookie set by signInWithOAuth, exchanges it, provisions + onboards, session lands in-app.
+      const onUrl = await App.addListener('appUrlOpen', ({ url }) => {
+        if (!url.includes('://auth-callback')) return
+        const query = url.split('?')[1] ?? ''
+        void import('@capacitor/browser').then(({ Browser }) => Browser.close().catch(() => {}))
+        window.location.assign(`/auth/callback${query ? `?${query}` : ''}`)
+      })
+      cleanups.push(() => { onUrl.remove() })
     })()
 
     return () => {
