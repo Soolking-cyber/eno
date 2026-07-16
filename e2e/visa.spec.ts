@@ -1,6 +1,7 @@
 import { expectNoA11yViolations, test, expect } from './helpers'
 import sharp from 'sharp'
 import { normalizeVisaImage } from '../src/lib/visa/image-normalization'
+import { withAiRetry } from '../src/lib/visa/ai-retry'
 import { evaluatePassportImageQuality } from '../src/lib/visa/image-quality'
 import { parsePassportMrz } from '../src/lib/visa/mrz'
 import { emptyVisaPayload, visaPayloadSchema } from '../src/lib/visa/schema'
@@ -95,5 +96,19 @@ test.describe('eno.forum visa assistance', () => {
       expensesCurrency: 'USD', expensesPayer: 'self', hasTravelInsurance: 'no', hasChildrenOnPassport: 'no',
     })
     expect(payload).toMatchObject({ surname: '', givenNames: '', passportNumber: '', permanentAddress: '', occupation: '', entryGate: '', exitGate: '' })
+  })
+
+  test('automatically moves from a saturated primary checker to the fallback model', async () => {
+    const models: string[] = []
+    const result = await withAiRetry(
+      [{ model: 'primary', delay: 0 }, { model: 'fallback', delay: 0 }],
+      async (attempt) => {
+        models.push(attempt.model)
+        if (attempt.model === 'primary') throw Object.assign(new Error('quota'), { status: 429 })
+        return 'checked'
+      },
+    )
+    expect(result).toBe('checked')
+    expect(models).toEqual(['primary', 'fallback'])
   })
 })

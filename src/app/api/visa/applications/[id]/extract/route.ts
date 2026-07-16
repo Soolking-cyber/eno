@@ -1,8 +1,9 @@
 import { Type } from '@google/genai'
 import { z } from 'zod'
 import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
-import { GEMINI_MODEL, getGemini } from '@/lib/gemini'
+import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
 import { rateLimit } from '@/lib/ratelimit'
+import { aiErrorStatus, withAiRetry } from '@/lib/visa/ai-retry'
 import { getVisaUser } from '@/lib/visa/auth'
 import { decryptVisaPayload, encryptVisaPayload } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
@@ -80,6 +81,29 @@ function textValue(value: unknown) {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : ''
 }
 
+async function analyzeImage(
+  ai: NonNullable<ReturnType<typeof getGemini>>,
+  contents: Parameters<typeof ai.models.generateContent>[0]['contents'],
+  responseSchema: typeof passportSchema | typeof portraitSchema,
+) {
+  const attempts = [
+    { model: GEMINI_MODEL, delay: 0 },
+    { model: GEMINI_MODEL_FALLBACK, delay: 800 },
+    { model: GEMINI_MODEL_FALLBACK, delay: 2_500 },
+    { model: GEMINI_MODEL, delay: 7_000 },
+  ]
+  return withAiRetry(attempts, async (attempt, index) => {
+      const response = await ai.models.generateContent({
+        model: attempt.model,
+        contents,
+        config: { temperature: 0, responseMimeType: 'application/json', responseSchema },
+      })
+      const analyzed = JSON.parse(response.text || '{}') as Record<string, unknown>
+      if (!analyzed.checks || typeof analyzed.checks !== 'object') throw new SyntaxError('image_analysis_missing_checks')
+      return { analyzed, model: attempt.model, attempts: index + 1 }
+  })
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isAllowedForumOrigin(request)) return forumJson(request, { error: 'origin_not_allowed' }, { status: 403 }, METHODS)
   const user = await getVisaUser(request)
@@ -113,15 +137,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const prompt = passport
       ? 'Act as a strict quality checker and transcription assistant for the official Viet Nam e-Visa form. Confirm this is exactly one complete passport biodata page, clear and readable, with the entire physical page and all four corners visible and no glare obscuring data. Transcribe every relevant printed field and both 44-character ICAO TD3 MRZ lines exactly. Use English text and YYYY-MM-DD dates. Use unknown for uncertain sex or passport type and empty strings for other absent or uncertain fields. Passport type means ordinary, official, diplomatic, or other. Never infer or invent a value. Quality booleans must be false whenever the criterion is uncertain.'
       : 'Act as a strict quality checker for the official Viet Nam e-Visa portrait. Check that it is one clear 4x6-style head-and-shoulders portrait of one person, facing straight forward, with no hat, no glasses, formal/neat clothing, a plain white background, centered face, and even lighting. Do not claim the photo is recent because that cannot be verified. Quality booleans must be false whenever the criterion is uncertain.'
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [{ role: 'user', parts: [
+    const analysis = await analyzeImage(ai, [{ role: 'user', parts: [
         { text: prompt },
         { inlineData: { mimeType: 'image/jpeg', data: Buffer.from(await blob.arrayBuffer()).toString('base64') } },
-      ] }],
-      config: { temperature: 0, responseMimeType: 'application/json', responseSchema: passport ? passportSchema : portraitSchema },
-    })
-    const analyzed = JSON.parse(response.text || '{}') as Record<string, unknown>
+      ] }], passport ? passportSchema : portraitSchema)
+    const analyzed = analysis.analyzed
     const quality = passport ? evaluatePassportImageQuality(analyzed.checks) : evaluatePortraitImageQuality(analyzed.checks)
     const { issues, warnings } = quality
     const validationStatus = quality.status
@@ -133,6 +153,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       warnings,
       semanticChecks: analyzed.checks || {},
       confidence: typeof analyzed.confidence === 'number' ? Math.max(0, Math.min(1, analyzed.confidence)) : null,
+      analysisModel: analysis.model,
+      analysisAttempts: analysis.attempts,
       analyzedAt: new Date().toISOString(),
     }
 
@@ -178,7 +200,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const applicationUpdate = await db.from('visa_applications').update({ encrypted_payload: encryptVisaPayload(payload), checklist, updated_at: now, last_applicant_action_at: now }).eq('id', id).eq('user_id', user.id)
       if (applicationUpdate.error) throw applicationUpdate.error
     }
-    await recordVisaEvent(id, 'system', passport ? 'passport_analyzed_and_extracted' : 'portrait_analyzed', undefined, { documentId: document.id, status: finalStatus, issues, fieldsSuggested: Object.keys(suggestions).length })
+    await recordVisaEvent(id, 'system', passport ? 'passport_analyzed_and_extracted' : 'portrait_analyzed', undefined, { documentId: document.id, status: finalStatus, issues, fieldsSuggested: Object.keys(suggestions).length, model: analysis.model, attempts: analysis.attempts })
     return forumJson(request, {
       document: { id: document.id, validationStatus: finalStatus, validationReport },
       payload: passport ? payload : undefined,
@@ -186,9 +208,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, undefined, METHODS)
   } catch (error) {
     const failure = error as { name?: string; status?: number; code?: number | string }
-    console.error('[visa-image-analysis] failed', { kind: parsed.data.kind, name: failure.name || 'Error', status: failure.status || failure.code || null })
-    const validationReport = { ...existingReport, version: VISA_IMAGE_RULES_VERSION, status: 'unavailable', issues: ['automatic_image_check_failed'], analyzedAt: new Date().toISOString() }
+    const status = aiErrorStatus(error)
+    const capacityBusy = status === 429
+    console.error('[visa-image-analysis] failed', { kind: parsed.data.kind, name: failure.name || 'Error', status, message: error instanceof Error ? error.message.slice(0, 300) : null })
+    const issue = capacityBusy ? 'automatic_image_check_busy' : 'automatic_image_check_failed'
+    const validationReport = { ...existingReport, version: VISA_IMAGE_RULES_VERSION, status: 'unavailable', issues: [issue], analyzedAt: new Date().toISOString() }
     await db.from('visa_documents').update({ validation_status: 'unavailable', validation_report: validationReport }).eq('id', document.id)
-    return forumJson(request, { error: 'image_analysis_failed' }, { status: 502 }, METHODS)
+    const response = forumJson(request, { error: capacityBusy ? 'image_analysis_busy' : 'image_analysis_failed' }, { status: capacityBusy ? 429 : 502 }, METHODS)
+    if (capacityBusy) response.headers.set('Retry-After', '60')
+    return response
   }
 }

@@ -2,7 +2,7 @@ import 'server-only'
 
 import { createHash } from 'node:crypto'
 import { Type } from '@google/genai'
-import { GEMINI_MODEL, getGemini } from '@/lib/gemini'
+import { GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
 import { getVisaDb } from '@/lib/visa/db'
 import { languageName, type Language } from '@/lib/languages'
 
@@ -87,7 +87,9 @@ async function geminiTranslate(texts: string[], target: Language): Promise<strin
   if (!ai) return null
   try {
     const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
+      // Translation is lower priority than passport extraction and itinerary
+      // research, so keep it off the primary 3.5 image/research quota pool.
+      model: GEMINI_MODEL_FALLBACK,
       contents: `Translate every item in the JSON array into ${languageName(target)}. Preserve eno brand names, URLs, email addresses, numbers, currency codes, placeholders, punctuation, and meaning. Use concise natural UI language. Return exactly one translated string for each input, in the same order. Input JSON:\n${JSON.stringify(texts)}`,
       config: {
         temperature: 0,
