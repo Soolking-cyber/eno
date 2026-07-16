@@ -21,4 +21,14 @@ describe('safeNextPath', () => {
     expect(safeNextPath(null, ORIGIN)).toBe('/')
     expect(safeNextPath('', ORIGIN)).toBe('/')
   })
+
+  it('rejects post-auth CONTROL routes as a destination (redirect-loop guard)', () => {
+    expect(safeNextPath('/signin', ORIGIN)).toBe('/')
+    expect(safeNextPath('/signin?next=/x', ORIGIN)).toBe('/')
+    expect(safeNextPath('/auth/callback?code=abc', ORIGIN)).toBe('/')
+    expect(safeNextPath('/onboard', ORIGIN)).toBe('/')
+    // But a legit path that merely STARTS with those letters is fine.
+    expect(safeNextPath('/signin-help', ORIGIN)).toBe('/signin-help')
+    expect(safeNextPath('/authors/jane', ORIGIN)).toBe('/authors/jane')
+  })
 })

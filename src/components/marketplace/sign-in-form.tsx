@@ -54,13 +54,22 @@ export function SignInForm({ className }: { className?: string }) {
   // action) — not always home. Phone OTP stays in place (no redirect; the modal
   // just closes); OAuth + magic-link round-trip through /auth/callback, which
   // honors this ?next (and threads it through onboarding).
+  // Round-trip through the CANONICAL origin, not window.location.origin: a visitor on www.eno.vn
+  // or a preview host must still land on the eno.vn/auth/callback that's in Supabase's redirect
+  // allow-list (and whose session cookies are scoped to eno.vn) — otherwise OAuth returns to a host
+  // where the cookie doesn't apply and the login never sticks. Dev keeps the local origin.
+  const authOrigin = (() => {
+    if (typeof window === 'undefined') return ''
+    if (process.env.NODE_ENV === 'development') return window.location.origin
+    return process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+  })()
   const redirectTo = (() => {
     if (typeof window === 'undefined') return undefined
-    const { origin, pathname, search } = window.location
+    const { pathname, search } = window.location
     let next = pathname + search
     if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/' // use the intended dest, not /signin
     if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
-    return `${origin}/auth/callback?next=${encodeURIComponent(next)}`
+    return `${authOrigin}/auth/callback?next=${encodeURIComponent(next)}`
   })()
 
   // Resend countdown tick.
@@ -74,11 +83,13 @@ export function SignInForm({ className }: { className?: string }) {
   // webview), preserving where the user wanted to go.
   const openGoogleInBrowser = () => {
     if (typeof window === 'undefined') return
-    const { origin, pathname, search } = window.location
+    const { pathname, search } = window.location
     let next = pathname + search
     if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/'
     if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
-    const handed = openInSystemBrowser(`${origin}/signin?next=${encodeURIComponent(next)}`)
+    // Hand off the CANONICAL sign-in URL to the system browser (see authOrigin) so its OAuth uses
+    // the allow-listed origin — the in-app webview has a separate cookie jar and stays logged out.
+    const handed = openInSystemBrowser(`${authOrigin}/signin?next=${encodeURIComponent(next)}`)
     if (!handed) setIosHint(true) // iOS can't auto-escape a webview → show the manual hint
   }
 

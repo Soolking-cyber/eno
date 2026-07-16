@@ -17,7 +17,12 @@ export function safeNextPath(raw: string | null | undefined, origin: string): st
     const u = new URL(raw, origin)
     if (u.origin !== origin) return '/'
     const path = u.pathname + u.search + u.hash
-    return path.startsWith('/') ? path : '/'
+    if (!path.startsWith('/')) return '/'
+    // Reject post-auth CONTROL routes as a destination. Following /signin, /auth/* or /onboard as
+    // `next` bounces the user straight back into the auth flow — a redirect loop the reporter hit.
+    // These are interstitials, never a place to "return to"; fall back to home.
+    if (/^\/(signin|auth|onboard)(\/|$)/.test(u.pathname)) return '/'
+    return path
   } catch {
     return '/'
   }
