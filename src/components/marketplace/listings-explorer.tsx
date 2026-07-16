@@ -20,7 +20,6 @@ import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
 import { CaptureCard } from './capture-card'
-import { LogoWordmark } from './logo-wordmark'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
@@ -1259,15 +1258,11 @@ export function ListingsExplorer({
 
           {/* HERO SEARCH AREA */}
           <div className="pb-2 text-center">
-            <div className="flex flex-col items-center justify-center mb-4 sm:mb-6">
-              {/* SEO: a real <h1> with the exact brand phrase (the logo is an image). */}
-              {/* eslint-disable-next-line react/jsx-no-literals -- SEO brand phrase, intentionally EN */}
-              <h1 className="sr-only">eno.vn — Trusted Expat Marketplace in Vietnam</h1>
-              <LogoWordmark className="h-14 w-auto mb-2 select-none sm:h-20 sm:mb-4" />
-              <p className="eyebrow text-body">
-                {tr('e-commerce with no drama', 'Mua bán không drama.')}
-              </p>
-            </div>
+            {/* The visible wordmark logo + "e-commerce with no drama" tagline were removed
+                (owner 2026-07-16) — the hero is just the search now. The <h1> stays sr-only so
+                the page keeps its real, exact SEO heading. */}
+            {/* eslint-disable-next-line react/jsx-no-literals -- SEO brand phrase, intentionally EN */}
+            <h1 className="sr-only">eno.vn — Trusted Expat Marketplace in Vietnam</h1>
 
             {/* Centered Search Bar (the header reveals its own search once this
                 scrolls out of view — id is the IntersectionObserver target). */}
