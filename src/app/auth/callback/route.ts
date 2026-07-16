@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { ensureProfile } from '@/lib/profile'
 import { safeNextPath } from '@/lib/url'
+import { NATIVE_OAUTH_REDIRECT } from '@/lib/native-auth'
 
 // OAuth / magic-link callback — exchanges the code for a session, then redirects.
 export async function GET(request: Request) {
@@ -25,6 +26,21 @@ export async function GET(request: Request) {
     const res = NextResponse.redirect(to)
     res.headers.set('Cache-Control', 'private, no-store, max-age=0')
     return res
+  }
+
+  // NATIVE app OAuth hand-off. The code arrived in the app's in-app browser tab (SFSafariViewController
+  // / Chrome Custom Tab), whose cookie jar is NOT the app's WebView — so exchanging HERE would set the
+  // session in the wrong place. Instead 302 to the app's deep link with the (single-use, PKCE-bound)
+  // code; the app re-enters this route INSIDE its WebView to do the real exchange. `NextResponse.redirect`
+  // rejects non-http schemes, so set Location manually. Not cached (carries the code).
+  if (url.searchParams.get('native') === '1') {
+    const q = new URLSearchParams()
+    if (code) q.set('code', code)
+    q.set('next', next)
+    return new NextResponse(null, {
+      status: 302,
+      headers: { Location: `${NATIVE_OAUTH_REDIRECT}?${q.toString()}`, 'Cache-Control': 'private, no-store, max-age=0' },
+    })
   }
 
   if (code) {
