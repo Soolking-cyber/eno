@@ -55,7 +55,10 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
         align="start"
         side="bottom"
         sideOffset={6}
-        className="flex w-62 max-h-[60vh] flex-col gap-0.5 overflow-y-auto scroll-thin rounded-2xl bg-popover p-2 shadow-pop ring-0"
+        // bg-brand-50 (not bg-popover): the same blue tint as the subcategory / model grid this
+        // overflows from, so the "More" popup reads as a continuation of that grid — one fluid
+        // surface — rather than a detached white menu. p-1.5 mirrors the grid's padding too.
+        className="flex w-62 max-h-[60vh] flex-col gap-0.5 overflow-y-auto scroll-thin rounded-2xl bg-brand-50 p-1.5 shadow-pop ring-0"
       >
         {Children.map(children, (child) =>
           isValidElement(child) ? (
@@ -67,7 +70,7 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
             <Menu.Item
               nativeButton
               render={child as ReactElement}
-              className="data-highlighted:bg-muted data-highlighted:text-accent-foreground"
+              className="data-highlighted:bg-card/70 data-highlighted:text-accent-foreground"
             />
           ) : (
             child
