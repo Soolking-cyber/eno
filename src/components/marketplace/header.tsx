@@ -260,7 +260,10 @@ export function Header() {
           className="flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95"
           aria-label="eno.vn"
         >
-          <img src="/logo-mark.svg" alt="eno.vn" width={48} height={48} className="h-12 w-12" />
+          {/* eno WORDMARK (owner 2026-07-16, was the square logo-mark). h-8 + w-auto keeps the
+              4:1 wordmark modest in the 64px header and leaves the mobile search room; the intrinsic
+              320×80 sets the aspect so there's no CLS. */}
+          <img src="/logo.svg" alt="eno.vn" width={320} height={80} className="h-8 w-auto" />
         </Link>
 
         {showSearch ? (
