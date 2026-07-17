@@ -1,10 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronRight, ChevronLeft } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
+import { cn } from '@/lib/utils'
 
 // Horizontal "shelf" rail primitive — the section header (optional icon + bold title +
 // optional "See all") and the snap scroller that ~8 rails hand-rolled identically.
@@ -49,6 +52,35 @@ export function Shelf({
     </Button>
   ) : null
 
+  // DESKTOP scroll arrows. A mouse wheel scrolls only VERTICALLY, and the rail hides its scrollbar,
+  // so pointer users can't page a horizontal rail without a trackpad. These give them ← / → buttons
+  // (touch keeps swiping; the arrows are `pc:` — pointer-fine — only). Each shows solely when there's
+  // room to scroll THAT way, tracked from the scroller's position.
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const [canLeft, setCanLeft] = useState(false)
+  const [canRight, setCanRight] = useState(false)
+  const sync = useCallback(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    setCanLeft(el.scrollLeft > 4)
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+  }, [])
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    sync()
+    el.addEventListener('scroll', sync, { passive: true })
+    const ro = new ResizeObserver(sync) // content/width changes (lazy cards, viewport resize)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', sync); ro.disconnect() }
+  }, [sync])
+  const page = (dir: 1 | -1) => {
+    const el = scrollerRef.current
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: 'smooth' })
+  }
+  const arrowCls =
+    'absolute top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 rounded-full bg-card text-foreground shadow-md transition-colors hover:bg-muted pc:flex'
+
   return (
     <section className={sectionClassName}>
       <div className="mb-2.5 flex items-center justify-between gap-2">
@@ -60,7 +92,19 @@ export function Shelf({
         </div>
         {seeAll}
       </div>
-      <div className={RAIL_SCROLLER}>{children}</div>
+      <div className="relative">
+        <div ref={scrollerRef} className={RAIL_SCROLLER}>{children}</div>
+        {canLeft && (
+          <IconButton size="md" onClick={() => page(-1)} aria-label={tr('Scroll left', 'Cuộn trái')} className={cn(arrowCls, '-left-3')}>
+            <ChevronLeft className="size-5" />
+          </IconButton>
+        )}
+        {canRight && (
+          <IconButton size="md" onClick={() => page(1)} aria-label={tr('Scroll right', 'Cuộn phải')} className={cn(arrowCls, '-right-3')}>
+            <ChevronRight className="size-5" />
+          </IconButton>
+        )}
+      </div>
     </section>
   )
 }
