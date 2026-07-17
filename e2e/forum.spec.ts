@@ -2,6 +2,17 @@ import { expectNoA11yViolations, test, expect } from './helpers'
 
 test.describe('eno.forum standalone', () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const state = window as typeof window & { __enoForumFeedFetches: number }
+      const originalFetch = window.fetch
+      state.__enoForumFeedFetches = 0
+      window.fetch = (...args) => {
+        const input = args[0]
+        const url = input instanceof Request ? input.url : String(input)
+        if (url.includes('/api/backend/api/forum/posts')) state.__enoForumFeedFetches += 1
+        return originalFetch(...args)
+      }
+    })
     // Keep the guest-flow suite deterministic. Production forum data can replace the
     // seeded preview between a locator resolving and its click, which tests the remote
     // dataset's timing instead of this standalone UI.
@@ -17,6 +28,8 @@ test.describe('eno.forum standalone', () => {
     await expect(page.getByRole('heading', { level: 1, name: /Vietnam feels easier together/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /New to Vietnam\? Start with these 8 things/i }).first()).toBeVisible()
     await expect(page.getByRole('tablist')).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(await page.evaluate(() => (window as typeof window & { __enoForumFeedFetches: number }).__enoForumFeedFetches)).toBe(0)
     await expectNoA11yViolations(page, 'standalone forum feed')
   })
 

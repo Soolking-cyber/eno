@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Bookmark,
@@ -73,6 +73,16 @@ import { ForumTrustBadgeIcon } from './trust-badge'
 
 type ForumSort = 'best' | 'latest' | 'top'
 type FeedMode = 'all' | 'saved'
+export type ForumHelper = {
+  author: {
+    name: string
+    avatarUrl: string | null
+    avatarColor: string | null
+    trustScore: number | null
+    badge: import('./forum-data').ForumTrustBadge | null
+  }
+  helpfulAnswers: number
+}
 
 const COMMUNITY_ICONS: Record<string, LucideIcon> = {
   'vietnam-101': Compass,
@@ -195,23 +205,11 @@ function ForumLeftRail({
   )
 }
 
-function ForumRightRail({ communities, posts, onOpenPost, onCreatePost }: { communities: ForumCommunity[]; posts: ForumPost[]; onOpenPost: (id: string) => void; onCreatePost: () => void }) {
+function ForumRightRail({ communities, posts, helpers, onOpenPost, onCreatePost }: { communities: ForumCommunity[]; posts: ForumPost[]; helpers: ForumHelper[]; onOpenPost: (id: string) => void; onCreatePost: () => void }) {
   const { tr } = useLanguage()
-  const [helpers, setHelpers] = useState<Array<{
-    author: { name: string; avatarUrl: string | null; avatarColor: string | null; trustScore: number | null; badge: import('./forum-data').ForumTrustBadge | null }
-    helpfulAnswers: number
-  }>>([])
   const totalMembers = communities.reduce((sum, community) => sum + community.members, 0)
   const online = communities.reduce((sum, community) => sum + community.online, 0)
   const popular = posts.slice().sort((a, b) => b.score - a.score).slice(0, 3)
-
-  useEffect(() => {
-    let active = true
-    forumApi<{ helpers: typeof helpers }>('/api/forum/helpers')
-      .then((result) => { if (active) setHelpers(result.helpers) })
-      .catch(() => {})
-    return () => { active = false }
-  }, [])
 
   return (
     <aside
@@ -460,12 +458,20 @@ function FeedList({
   )
 }
 
-export function ForumClient() {
+export function ForumClient({
+  initialPosts = INITIAL_FORUM_POSTS,
+  initialCommunities = FORUM_COMMUNITIES,
+  initialHelpers = [],
+}: {
+  initialPosts?: ForumPost[]
+  initialCommunities?: ForumCommunity[]
+  initialHelpers?: ForumHelper[]
+}) {
   const { tr } = useLanguage()
-  const { user, openSignIn } = useAuth()
+  const { user, loading: authLoading, openSignIn } = useAuth()
   const [hydrated, setHydrated] = useState(false)
-  const [posts, setPosts] = useState<ForumPost[]>(INITIAL_FORUM_POSTS)
-  const [communities, setCommunities] = useState<ForumCommunity[]>(FORUM_COMMUNITIES)
+  const [posts, setPosts] = useState<ForumPost[]>(initialPosts)
+  const [communities] = useState<ForumCommunity[]>(initialCommunities)
   const [query, setQuery] = useState('')
   const [community, setCommunity] = useState<string | null>(null)
   const [location, setLocation] = useState('all')
@@ -476,6 +482,7 @@ export function ForumClient() {
   const [createOpen, setCreateOpen] = useState(false)
   const [openPostId, setOpenPostId] = useState<string | null>(null)
   const [threadComments, setThreadComments] = useState<Record<string, ForumComment[]>>({})
+  const fetchedAuthenticatedViewer = useRef(false)
 
   const communityMap = useMemo(() => new Map(communities.map((item) => [item.slug, item])), [communities])
 
@@ -486,34 +493,27 @@ export function ForumClient() {
   }, [])
 
   useEffect(() => {
+    if (authLoading) return
+    // The public feed was already fetched before first paint. Only fetch again
+    // when viewer-specific vote/bookmark state is needed, or after that viewer
+    // signs out. Never replace the visible post array during page hydration.
+    if (!user && !fetchedAuthenticatedViewer.current) return
     let active = true
     forumApi<{ posts: ForumPostResponse[] }>('/api/forum/posts?limit=50')
       .then(({ posts: livePosts }) => {
-        if (!active || livePosts.length === 0) return
-        setPosts(livePosts.map(mapForumPost))
+        if (!active) return
+        const liveById = new Map(livePosts.map((post) => [post.id, post]))
+        setPosts((current) => current.map((post) => {
+          const live = liveById.get(post.id)
+          return live ? { ...post, score: live.score - live.viewerVote } : post
+        }))
         setVotes(Object.fromEntries(livePosts.map((post) => [post.id, post.viewerVote])))
         setSaved(new Set(livePosts.filter((post) => post.saved).map((post) => post.id)))
-      })
-      // The static discussions are a deliberate empty-database/development
-      // fallback, so a backend outage never leaves the community home blank.
-      .catch(() => {})
-    return () => { active = false }
-  }, [user?.id])
-
-  useEffect(() => {
-    let active = true
-    forumApi<{ communities: Array<Omit<ForumCommunity, 'members' | 'online'> & { memberCount: number }> }>('/api/forum/communities')
-      .then(({ communities: rows }) => {
-        if (!active || rows.length === 0) return
-        const bySlug = new Map(rows.map((row) => [row.slug, row]))
-        setCommunities(FORUM_COMMUNITIES.map((fallback) => {
-          const live = bySlug.get(fallback.slug)
-          return live ? { ...fallback, ...live, members: live.memberCount, online: 0 } : fallback
-        }))
+        fetchedAuthenticatedViewer.current = Boolean(user)
       })
       .catch(() => {})
     return () => { active = false }
-  }, [])
+  }, [authLoading, user])
 
   useEffect(() => {
     if (!openPostId) return
@@ -562,7 +562,9 @@ export function ForumClient() {
     return (b.score + b.commentCount * 1.5) - (a.score + a.commentCount * 1.5)
   })
 
-  const activePost = posts.find((post) => post.id === openPostId) || null
+  const activePost = posts.find((post) => post.id === openPostId)
+    || INITIAL_FORUM_POSTS.find((post) => post.id === openPostId)
+    || null
   const activePostCommunity = activePost ? communityMap.get(activePost.community) || null : null
   const locationLabel = location === 'hcmc'
     ? tr('Ho Chi Minh City', 'TP. Hồ Chí Minh')
@@ -901,7 +903,7 @@ export function ForumClient() {
             </Tabs>
           </div>
 
-          <ForumRightRail communities={communities} posts={posts} onOpenPost={openThread} onCreatePost={openCreatePost} />
+          <ForumRightRail communities={communities} posts={posts} helpers={initialHelpers} onOpenPost={openThread} onCreatePost={openCreatePost} />
         </div>
       </main>
 
