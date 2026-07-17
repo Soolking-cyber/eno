@@ -23,7 +23,7 @@ import { containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord } from '@/lib/publish-guard'
 import { trackPostListing } from '@/lib/analytics'
 import { VndInput } from './vnd-input'
-import { AreaFilter, type Geo, type Nearby } from './area-filter'
+import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
 import { Mascot } from './mascot'
 import { moneyLocale, compactPrice } from '@/lib/vnd'
 import { subcategoriesFor, typesFor, facetsFor, rangeFacetsFor, categoryHasBrand, LISTING_TYPES } from '@/lib/taxonomy'
@@ -221,26 +221,53 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [nearby, setNearby] = useState<Nearby | null>(edit?.lat != null && edit?.lng != null ? { lat: edit.lat, lng: edit.lng, radiusKm: 5 } : null)
   const [locating, setLocating] = useState(false)
   // Quick "use my current location": geolocate → reverse-geocode → set the precise pin
-  // (lat/lng) + the province/ward name for display + submit. No dropdown needed.
+  // (lat/lng) + the province/ward for display + submit. No dropdown needed.
+  const locReq = useRef(0) // generation guard: only the LATEST locate (or a manual pick) applies.
   const useMyLocation = () => {
     if (!('geolocation' in navigator)) { toast.error(t('Thiết bị không hỗ trợ định vị.', 'Location not available on this device.')); return }
     setLocating(true)
+    const reqId = ++locReq.current
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = pos.coords.latitude, lng = pos.coords.longitude
+        setNearby({ lat, lng, radiusKm: 5 }) // pin first — kept even if the address lookup fails
         try {
           const r = await fetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}&lang=${lang}`)
           const d = r.ok ? await r.json().catch(() => ({})) : {}
-          setNearby({ lat, lng, radiusKm: 5 })
-          if (d.province || d.ward) {
-            setProvince(d.province ? { code: '', name: d.province, nameEn: d.province } : null)
-            setWard(d.ward ? { code: '', name: d.ward, nameEn: d.ward } : null)
+          if (!d.province) return
+          // Resolve the geocoder's display NAMES to REAL /api/geo codes so the picked province/ward
+          // carry a truthy `code`. With `code:''` (the old behaviour) AreaFilter re-syncs to
+          // `province?.code || HCMC` when reopened — an empty code falls back to Ho Chi Minh City and
+          // "Apply" then silently OVERWRITES the geolocated area. Ward is matched from `wardCandidates`
+          // (the precise top result often omits the official ward) against the 2025 ward list.
+          const cands: string[] = Array.isArray(d.wardCandidates) && d.wardCandidates.length ? d.wardCandidates : (d.ward ? [d.ward] : [])
+          const provs = await fetch('/api/geo?type=provinces').then((res) => res.json()).then((j) => j.provinces || []).catch(() => [])
+          const p = findUnit(provs, d.province)
+          let prov: Geo
+          let ward: Geo | null
+          if (p) {
+            prov = { code: p.code, name: p.name, nameEn: p.nameEn }
+            const wl = await fetch(`/api/geo?type=wards&province=${p.code}`).then((res) => res.json()).then((j) => j.wards || []).catch(() => [])
+            let picked: Geo | null = null
+            for (const c of cands) { const w = findUnit(wl, c); if (w) { picked = { code: w.code, name: w.name, nameEn: w.nameEn }; break } }
+            // No dataset match (or the wards fetch failed) → keep the raw ward NAME rather than
+            // dropping it, so the listing still records the precise ward for display + submit.
+            ward = picked || (d.ward ? { code: '', name: d.ward, nameEn: d.ward } : null)
           } else {
-            // Pin kept, but the address lookup returned nothing — don't claim success on a name.
+            // Province name not in our dataset (rare, e.g. a non-standard geocoder label) — keep the
+            // raw names as a display/submit fallback rather than dropping the result entirely.
+            prov = { code: '', name: d.province, nameEn: d.province }
+            ward = d.ward ? { code: '', name: d.ward, nameEn: d.ward } : null
           }
+          // Apply only if still the latest request — a second locate OR a manual pick in the picker
+          // (its onApply bumps locReq) supersedes these seconds-long awaits and must not be clobbered.
+          if (reqId !== locReq.current) return
+          setProvince(prov); setWard(ward)
         } catch {
-          setNearby({ lat, lng, radiusKm: 5 }) // keep the pin even if address lookup fails
-        } finally { setLocating(false) }
+          /* pin already set above; the address lookup failed — leave province/ward untouched */
+        } finally {
+          if (reqId === locReq.current) setLocating(false)
+        }
       },
       () => { setLocating(false); toast.error(t('Không lấy được vị trí. Hãy cho phép truy cập vị trí và thử lại.', 'Could not get your location. Allow location access and try again.')) },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
@@ -1413,7 +1440,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         province={province}
         ward={ward}
         nearby={nearby}
-        onApply={({ province: p, ward: w, nearby: nb }) => { setProvince(p); setWard(w); setNearby(nb) }}
+        onApply={({ province: p, ward: w, nearby: nb }) => { locReq.current++; setProvince(p); setWard(w); setNearby(nb) }}
         onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
       />
     </div>

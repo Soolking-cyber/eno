@@ -820,6 +820,7 @@ export const UI_STRINGS: string[] = [
   "No matches yet",
   "No messages yet. Tap \"Message\" on a listing to start a chat.",
   "No offers — ask & buy directly",
+  "No prices changed",
   "No rows found in this CSV.",
   "No saved listings yet",
   "No statements yet.",

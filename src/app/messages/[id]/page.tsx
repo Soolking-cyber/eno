@@ -61,6 +61,11 @@ export default function ThreadPage() {
   const [showOffer, setShowOffer] = useState(false) // offer-amount input visible
   const [offerInput, setOfferInput] = useState('')
   const [offerPct, setOfferPct] = useState(10) // slider mode (priced listings): % off asking
+  // Countering an incoming offer needs the EXACT-amount text field, not the −% slider (which only
+  // expresses a round % off asking and can't represent the number being countered). counterMode
+  // forces the text input AND makes submitOffer read offerInput — otherwise the seeded counter
+  // amount is shown/sent as nothing and Send silently fires "% off asking" instead.
+  const [counterMode, setCounterMode] = useState(false)
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
   // The offer THIS seller just accepted in this session → anchors the one-time
@@ -326,6 +331,10 @@ export default function ThreadPage() {
   const actOffer = async (messageId: string, action: 'accept' | 'decline') => {
     if (actingOffer.current) return // block double-click double-POST
     actingOffer.current = true
+    // Acting on an offer closes any armed counter composer — otherwise arming "Counter", then
+    // Accept/Decline instead, would leave the exact-amount composer live and a stray Send could
+    // fire an unintended counter-offer.
+    setShowOffer(false); setCounterMode(false); setOfferInput('')
     // Optimistic flip.
     setThread((t) => (t ? { ...t, messages: t.messages.map((m) => (m.id === messageId ? { ...m, offerStatus: action === 'accept' ? 'accepted' : 'declined' } : m)) } : t))
     try {
@@ -350,8 +359,9 @@ export default function ThreadPage() {
   const askingPrice = thread?.listing.price && thread.listing.price > 0 ? thread.listing.price : null
   const sliderOffer = askingPrice ? Math.round(askingPrice * (1 - offerPct / 100)) : null
   const submitOffer = () => {
-    const n = sliderOffer ?? Number(offerInput.replace(/\D/g, ''))
-    if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput('') }
+    // counterMode → the typed amount; otherwise the slider wins when the listing has a price.
+    const n = counterMode || sliderOffer === null ? Number(offerInput.replace(/\D/g, '')) : sliderOffer
+    if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput(''); setCounterMode(false) }
   }
 
   // "+000" chip: append three zeros (the ×1,000 VND shortcut) to the current amount.
@@ -361,12 +371,12 @@ export default function ThreadPage() {
     return new Intl.NumberFormat('en-US').format(Number((d + '000').slice(0, 12)))
   })
 
-  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput(''); setOfferPct(10) }
+  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput(''); setOfferPct(10); setCounterMode(false) }
 
   // Quick-reply chip → INSERT into the composer (never auto-send), cursor at the
   // end so partial templates ("Can meet in ") are completed in one motion.
   const insertQuickReply = (t: string) => {
-    setShowOffer(false)
+    setShowOffer(false); setCounterMode(false)
     // REPLACE the composer content — each chip is a complete reply, and appending
     // turned two taps into garbage ("Can meet in Let me think about it"). Last tap
     // wins; anything half-typed is superseded deliberately by the tap.
@@ -520,7 +530,7 @@ export default function ThreadPage() {
                             can outlive a switch to fixed price — the 409 would otherwise reject
                             the counter and, for a buyer, dock trust for a control we showed. */}
                         {thread?.listing.negotiable !== false && (
-                          <Button variant="ghost" size="none" onClick={() => { setOfferInput(new Intl.NumberFormat('en-US').format(m.offerAmount ?? 0)); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</Button>
+                          <Button variant="ghost" size="none" onClick={() => { setOfferInput(new Intl.NumberFormat('en-US').format(m.offerAmount ?? 0)); setCounterMode(true); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</Button>
                         )}
                       </div>
                     )}
@@ -635,7 +645,7 @@ export default function ThreadPage() {
               </IconButton>
             )}
 
-            {showOffer && sliderOffer !== null ? (
+            {showOffer && sliderOffer !== null && !counterMode ? (
               /* Priced listing: the −% slider rolls in (left→right) where the chat
                  input was — pick the discount, Send submits the computed offer. */
               <div className="flex h-10 min-w-0 flex-1 items-center gap-2.5 self-center px-1 animate-in slide-in-from-left-2 fade-in duration-150">

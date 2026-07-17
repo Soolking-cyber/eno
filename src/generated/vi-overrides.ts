@@ -199,6 +199,7 @@ export const VI_OVERRIDES: Record<string, string> = {
   "No matches found": "Không tìm thấy kết quả phù hợp",
   "No matches. Press Enter to search.": "Không có kết quả. Nhấn Enter để tìm kiếm.",
   "No messages yet. Tap \"Message\" on a listing to start a chat.": "Chưa có tin nhắn nào. Nhấn \"Nhắn tin\" trên một tin đăng để bắt đầu trò chuyện.",
+  "No prices changed": "Không có giá nào thay đổi",
   "No saved listings yet": "Chưa có tin đăng nào được lưu",
   "No verified": "Chưa xác minh",
   "Official shop": "Gian hàng chính thức",

@@ -30,7 +30,7 @@ function norm(s: string): string {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
 }
-function findUnit(list: { code: string; name: string; nameEn: string }[], raw: string) {
+export function findUnit(list: { code: string; name: string; nameEn: string }[], raw: string) {
   const n = norm(raw)
   if (!n) return undefined
   return list.find((u) => norm(u.name) === n || norm(u.nameEn) === n) ||
@@ -86,6 +86,15 @@ export function AreaFilter({
   const [resolving, setResolving] = useState(false)
   const [locating, setLocating] = useState(false)
   const pendingWard = useRef<string[]>([]) // ward-name candidates from geolocation, applied once its wards load
+  // Latest-value refs: resolveAddress runs from the async geolocation callback, which closes over
+  // provinces/wards from the render where locate() was clicked. If those lists finished loading
+  // AFTER the click (common — geolocation takes seconds), the stale closure would match against []
+  // and silently select nothing. Reading through refs always sees the current lists. Synced in an
+  // effect (NOT assigned during render — that tears under concurrent/aborted renders).
+  const provincesRef = useRef(provinces)
+  const wardsRef = useRef(wards)
+  useEffect(() => { provincesRef.current = provinces }, [provinces])
+  useEffect(() => { wardsRef.current = wards }, [wards])
 
   // Provinces (once).
   useEffect(() => {
@@ -115,12 +124,15 @@ export function AreaFilter({
         if (off) return
         const ws = d.wards || []
         setWards(ws); setLoadingWards(false)
-        // Apply a ward pending from geolocation once its province's wards arrive —
-        // try each candidate name until one matches a real ward.
+        // Apply a ward pending from geolocation once its province's wards arrive — try each
+        // candidate name until one matches. ONE-SHOT: clear the queue after this attempt (matched
+        // or not). Leaving unmatched candidates would let a LATER manual province switch resurrect
+        // them and mis-select a same-named ward (VN reuses "Phường 1" across provinces).
         for (const cand of pendingWard.current) {
           const w = findUnit(ws, cand)
-          if (w) { setWardCode(w.code); pendingWard.current = []; break }
+          if (w) { setWardCode(w.code); break }
         }
+        pendingWard.current = []
       })
       .catch(() => { if (!off) setLoadingWards(false) })
     return () => { off = true }
@@ -140,15 +152,19 @@ export function AreaFilter({
       // wardCandidates carries several name guesses (the precise top result often omits
       // the official ward) — try them in order.
       pendingWard.current = Array.isArray(d.wardCandidates) && d.wardCandidates.length ? d.wardCandidates : (d.ward ? [d.ward] : [])
-      const prov = findUnit(provinces, d.province || '')
+      const prov = findUnit(provincesRef.current, d.province || '')
       if (prov && prov.code !== provCode) {
         setProvCode(prov.code); setWardCode('') // the wards effect loads them, then applies pendingWard
       } else {
-        // same/unknown province → match the candidates against the already-loaded list
+        // Same/unknown province → no wards effect will re-fire (provCode unchanged), so consume the
+        // queue HERE against the current list (via ref — the closure's `wards` may be stale). ONE-
+        // SHOT: clear afterwards regardless of match so a later manual province switch can't
+        // resurrect stale candidates and mis-pick a same-named ward.
         for (const cand of pendingWard.current) {
-          const w = findUnit(wards, cand)
-          if (w) { setWardCode(w.code); pendingWard.current = []; break }
+          const w = findUnit(wardsRef.current, cand)
+          if (w) { setWardCode(w.code); break }
         }
+        pendingWard.current = []
       }
     } catch { /* coords only */ } finally {
       setResolving(false)

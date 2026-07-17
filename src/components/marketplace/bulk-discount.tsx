@@ -41,10 +41,12 @@ export function BulkDiscount({
     let failed = 0
     const queue = [...listings]
     // Cut each price by the chosen %, tidy-rounded; never below 1,000 ₫, and only
-    // if it actually goes down (a rounding edge on a tiny price could no-op).
+    // if it actually goes down (a rounding edge on a tiny price could no-op). A no-op is
+    // SKIPPED (no counter bump) — counting it as `ok` made the toast over-report a discount
+    // that was never PATCHed; a lower `ok` now reflects only the rows that actually changed.
     const run = async (item: Item) => {
       const next = tidyPrice(item.price * (1 - pct / 100))
-      if (!(next < item.price)) { ok++; return }
+      if (!(next < item.price)) { return }
       try {
         const res = await fetch(`/api/listings/${item.id}`, {
           method: 'PATCH',
@@ -67,7 +69,8 @@ export function BulkDiscount({
     await Promise.all(workers)
     setSaving(false)
     onOpenChange(false)
-    if (failed === 0) toast.success(tr(`Discounted ${ok} listings`, `Đã giảm giá ${ok} tin`))
+    if (ok === 0 && failed === 0) toast.message(tr('No prices changed', 'Không có giá nào thay đổi'))
+    else if (failed === 0) toast.success(tr(`Discounted ${ok} listings`, `Đã giảm giá ${ok} tin`))
     else toast.warning(tr(`Discounted ${ok}, ${failed} failed`, `Đã giảm ${ok}, lỗi ${failed}`))
     onDone()
   }
