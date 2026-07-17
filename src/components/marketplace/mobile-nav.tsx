@@ -136,6 +136,10 @@ export function MobileNav() {
   // Navigate with an FB-style directional slide: right if the target tab is further
   // right than the current one, left otherwise.
   const go = (href: string) => {
+    // If the account launcher is open, close it first — a page tab must revert to its page even when
+    // the route doesn't change (tapping Explore while already on home with the launcher up: the
+    // panel's route-driven close can't fire, so it would otherwise stay open — the reported bug).
+    if (accountOpen) window.dispatchEvent(new CustomEvent('eno:open-account', { detail: false }))
     const from = tabIndex(pathname || '/')
     const to = TAB_ORDER.indexOf(href)
     navigate(href, to >= from ? 'forward' : 'back')

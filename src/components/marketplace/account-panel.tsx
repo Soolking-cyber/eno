@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   X, Store, Settings, Scale, CircleHelp, LogOut, LayoutDashboard,
-  MessageSquareText, Heart, Upload, Code2, UsersRound,
+  MessageSquareText, Heart, Upload, Code2, UsersRound, PanelLeft,
 } from 'lucide-react'
+import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { PreferencesInline } from './preferences-inline'
@@ -49,13 +50,16 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   if (open && !mounted) setMounted(true)
   const openTo = useCallback(() => { setOpen(true) }, [])
 
-  // Mobile entry point. The bottom-nav "Account" tab lives OUTSIDE this provider, so it opens
-  // the rail via a window event rather than the context — the launcher gesture on phones (tap
-  // Account → the rail menu opens full-screen → pick a section → it navigates and the rail closes).
+  // Mobile entry point. The bottom-nav "Account" tab lives OUTSIDE this provider, so it drives the
+  // rail via a window event rather than the context — the launcher gesture on phones (tap Account →
+  // the rail menu opens full-screen → pick a section → it navigates and the rail closes). The event
+  // carries `detail`: `false` CLOSES it (dispatched by the OTHER bottom-nav tabs) so tapping e.g.
+  // Explore while the launcher is open reverts to that page EVEN WHEN the route doesn't change (the
+  // route-driven close below can't fire when you're already on the target — the reported bug).
   useEffect(() => {
-    const openRail = () => setOpen(true)
-    window.addEventListener('eno:open-account', openRail)
-    return () => window.removeEventListener('eno:open-account', openRail)
+    const onEvt = (e: Event) => setOpen((e as CustomEvent).detail !== false)
+    window.addEventListener('eno:open-account', onEvt)
+    return () => window.removeEventListener('eno:open-account', onEvt)
   }, [])
 
   // Broadcast the rail's open state back out (the reverse of eno:open-account) so the bottom-nav
@@ -107,11 +111,11 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   // rail's stats/identity and the section pages never diverge or double-fetch.
   const { dash } = useDashboard()
 
-  // DESKTOP hover-expand. Purely a desktop enhancement — on mobile there is no hover and the panel
-  // is a full-screen launcher, so every `expanded`-gated class is `lg:`-scoped and this stays inert.
+  // DESKTOP expand — now PINNED by a toggle button (Gemini "Open sidebar"), not hover: hovering a
+  // collapsed icon reveals its NAME as a tooltip instead (see renderNav). Desktop-only; on mobile
+  // the panel is a full-screen launcher with labels always shown, so every `expanded`-gated class is
+  // `lg:`-scoped and this stays inert. Resets to collapsed when the rail closes.
   const [expanded, setExpanded] = useState(false)
-  // Never let the rail reopen mid-expanded (e.g. after a route close), which would flash the wide
-  // panel before the pointer leaves.
   useEffect(() => { if (!open) setExpanded(false) }, [open])
 
   // While open on MOBILE, freeze the page behind the overlay — without this the background keeps
@@ -196,11 +200,15 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         ) : null}
       </>
     )
-    return it.external ? (
-      <a key={it.href} href={it.href} aria-current={isOn ? 'page' : undefined} title={it.label} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</a>
+    const el = it.external ? (
+      <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={it.label} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</a>
     ) : (
-      <Link key={it.href} href={it.href} aria-current={isOn ? 'page' : undefined} title={it.label} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</Link>
+      <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={it.label} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</Link>
     )
+    // Collapsed desktop rail: hovering an icon reveals its NAME as a tooltip to the right (Gemini
+    // model). Expanded → label already visible, so no tooltip. Mobile never hovers (Base UI Tooltip
+    // stays closed on touch) and shows the label inline anyway, so it's inert there.
+    return <Tooltip key={it.href} content={expanded ? undefined : it.label} side="right">{el}</Tooltip>
   }
 
   // MIDDLE — core routing. Settings + Help live in the BOTTOM cluster; the unread count rides
@@ -230,9 +238,6 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
       aria-label={tr('Account', 'Tài khoản')}
       // Modal ONLY on mobile (full-screen, focus-trapped); a plain non-modal rail on desktop.
       aria-modal={modalThisOpen ? true : undefined}
-      // Desktop-only hover expansion. On mobile these fire but every `expanded`-gated class is lg:.
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
       className={cn(
         // Base (MOBILE): full-screen OPAQUE overlay (bg-background) — anything less lets the page
         // bleed through. left-0 + w-full, so the L/R move is moot on phones. overflow-hidden clips
@@ -265,11 +270,30 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         </IconButton>
       </div>
 
+      {/* DESKTOP toggle — PIN the rail expanded (labels) / collapsed (icons only). This is the
+          Gemini "Open sidebar" control: it replaces whole-rail hover-expand (hover now reveals a
+          per-icon tooltip instead, see renderNav). Desktop-only. */}
+      <div className="hidden shrink-0 px-3 pt-3 lg:block">
+        <Tooltip content={expanded ? undefined : tr('Expand menu', 'Mở rộng menu')} side="right">
+          <Button
+            variant="bare"
+            size="none"
+            onClick={() => setExpanded((e) => !e)}
+            aria-label={expanded ? tr('Collapse sidebar', 'Thu gọn thanh bên') : tr('Expand sidebar', 'Mở rộng thanh bên')}
+            aria-expanded={expanded}
+            className={cn(navItem(false), 'text-ink-4 hover:text-foreground')}
+          >
+            <PanelLeft className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            <span className={labelCls}>{tr('Collapse', 'Thu gọn')}</span>
+          </Button>
+        </Tooltip>
+      </div>
+
       {/* MIDDLE + BOTTOM share ONE scroll area so nothing is ever unreachable on a short viewport or
           under text zoom. The bottom cluster gets mt-auto — pinned to the bottom when there's room to
           spare, scrolling with the rest when there isn't. pt-3 gives the first nav item top air on the
           desktop rail (whose mobile-only close row above collapses to nothing at lg). */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 pt-3 pb-3 lg:pt-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 pt-3 pb-3 lg:pt-2">
         {/* MIDDLE — the core routing */}
         <nav aria-label={tr('Dashboard', 'Bảng điều khiển')} className="space-y-1">
           {NAV.map(renderNav)}
@@ -299,16 +323,18 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
               no collapsed icon form), so it's hidden on the collapsed desktop rail; full on mobile. */}
           <div className={cn('px-1 pt-1', expanded ? 'lg:block' : 'lg:hidden')}><PreferencesInline compact className="w-full" /></div>
 
-          <Button
-            variant="bare"
-            size="none"
-            onClick={() => { onClose(); signOut() }}
-            title={tr('Sign out', 'Đăng xuất')}
-            className={cn(navItem(false), 'text-destructive hover:bg-destructive/10 hover:text-destructive')}
-          >
-            <LogOut className="h-5 w-5 shrink-0" strokeWidth={2} />
-            <span className={labelCls}>{tr('Sign out', 'Đăng xuất')}</span>
-          </Button>
+          <Tooltip content={expanded ? undefined : tr('Sign out', 'Đăng xuất')} side="right">
+            <Button
+              variant="bare"
+              size="none"
+              onClick={() => { onClose(); signOut() }}
+              aria-label={tr('Sign out', 'Đăng xuất')}
+              className={cn(navItem(false), 'text-destructive hover:bg-destructive/10 hover:text-destructive')}
+            >
+              <LogOut className="h-5 w-5 shrink-0" strokeWidth={2} />
+              <span className={labelCls}>{tr('Sign out', 'Đăng xuất')}</span>
+            </Button>
+          </Tooltip>
         </div>
       </div>
     </aside>

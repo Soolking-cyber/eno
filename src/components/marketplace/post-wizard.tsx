@@ -908,9 +908,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               )}
 
               {/* Optional video — its own square in the SAME grid, so it's exactly a photo-tile
-                  size. col-start-1 forces it onto its own row on mobile (under the photos);
-                  col-start-auto lets it sit inline (beside) from sm up. */}
-              <div className="col-start-1 aspect-square sm:col-start-auto">
+                  size, flowing INLINE right after the "Add photo" tile on EVERY size (owner
+                  2026-07-17: dropped the old col-start-1 that pushed it to its own row below on
+                  mobile — it now sits to the RIGHT of "Add photo"). */}
+              <div className="aspect-square">
                 {video ? (
                   <div className="group relative h-full w-full overflow-hidden rounded-xl bg-black">
                     <video src={video.url} muted loop autoPlay playsInline preload="metadata" className="h-full w-full object-cover" />
