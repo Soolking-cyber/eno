@@ -85,7 +85,9 @@ test.describe('eno.forum standalone', () => {
   })
 
   test('gates publishing behind the unified eno account', async ({ page }) => {
-    await page.locator('[data-testid="forum-create"]:visible').first().click()
+    const createPost = page.getByRole('button', { name: /^Start a post$/i })
+    await expect(createPost).toHaveCount(1)
+    await createPost.click()
 
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByRole('heading', { name: 'One eno account, everywhere.' })).toBeVisible()

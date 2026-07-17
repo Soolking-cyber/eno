@@ -13,7 +13,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 
 export function ForumHeader({
@@ -110,22 +109,10 @@ export function ForumHeader({
           ))}
 
           {onCreatePost && (
-            <>
-              <Button data-testid="forum-create" type="button" variant="cta" size="sm" onClick={onCreatePost} className="hidden sm:inline-flex">
-                <Plus className="h-4 w-4" />
-                {tr('Start a post', 'Tạo bài viết')}
-              </Button>
-
-              <IconButton
-                data-testid="forum-create"
-                size="lg"
-                className="bg-primary text-white shadow-sm sm:hidden"
-                aria-label={tr('Start a post', 'Tạo bài viết')}
-                onClick={onCreatePost}
-              >
-                <Plus className="h-5 w-5" />
-              </IconButton>
-            </>
+            <Button data-testid="forum-create" type="button" variant="cta" size="sm" onClick={onCreatePost} className="hidden sm:inline-flex">
+              <Plus className="h-4 w-4" />
+              {tr('Start a post', 'Tạo bài viết')}
+            </Button>
           )}
         </div>
       </div>

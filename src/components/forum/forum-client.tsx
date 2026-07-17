@@ -209,7 +209,7 @@ function ForumLeftRail({
   )
 }
 
-function ForumRightRail({ communities, posts, helpers, onOpenPost, onCreatePost }: { communities: ForumCommunity[]; posts: ForumPost[]; helpers: ForumHelper[]; onOpenPost: (id: string) => void; onCreatePost: () => void }) {
+function ForumRightRail({ communities, posts, helpers, onOpenPost }: { communities: ForumCommunity[]; posts: ForumPost[]; helpers: ForumHelper[]; onOpenPost: (id: string) => void }) {
   const { tr } = useLanguage()
   const totalMembers = communities.reduce((sum, community) => sum + community.members, 0)
   const online = communities.reduce((sum, community) => sum + community.online, 0)
@@ -248,10 +248,6 @@ function ForumRightRail({ communities, posts, helpers, onOpenPost, onCreatePost 
                 <p className="text-2xs text-body">{tr('online now', 'đang trực tuyến')}</p>
               </div>
             </div>
-            <Button type="button" variant="cta" className="mt-4 w-full" onClick={onCreatePost}>
-              <Plus className="h-4 w-4" />
-              {tr('Start a post', 'Tạo bài viết')}
-            </Button>
           </CardContent>
         </Card>
 
@@ -858,10 +854,6 @@ export function ForumClient({
                   {tr('Ask what search results cannot answer. Get current, firsthand help from people who live here.', 'Hỏi những điều khó tìm trên mạng. Nhận chia sẻ cập nhật từ những người đang sống tại đây.')}
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="cta" onClick={openCreatePost}>
-                    <Plus className="h-4 w-4" />
-                    {tr('Ask the community', 'Hỏi cộng đồng')}
-                  </Button>
                   <Button type="button" variant="soft" className="text-body" onClick={() => openThread('new-to-vietnam-checklist')}>
                     <CircleHelp className="h-4 w-4" />
                     {tr('Newcomer guide', 'Hướng dẫn người mới')}
@@ -946,7 +938,7 @@ export function ForumClient({
             </Tabs>
           </div>
 
-          <ForumRightRail communities={communities} posts={posts} helpers={initialHelpers} onOpenPost={openThread} onCreatePost={openCreatePost} />
+          <ForumRightRail communities={communities} posts={posts} helpers={initialHelpers} onOpenPost={openThread} />
         </div>
       </main>
 
