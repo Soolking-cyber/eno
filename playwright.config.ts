@@ -33,6 +33,12 @@ const authedProjects: Project[] = AUTHED_BASE
         name: 'admin', dependencies: ['setup'], testMatch: /admin\/.*\.spec\.ts/,
         use: { ...devices['Desktop Chrome'], baseURL: AUTHED_BASE, ...(existsSync(`${AUTH_DIR}/admin.json`) ? { storageState: `${AUTH_DIR}/admin.json` } : {}) },
       },
+      // The multi-actor golden-path smoke test. It opens its OWN seller + buyer contexts from the
+      // captured storageStates (so no project-level storageState here), and runs serially.
+      {
+        name: 'smoke', dependencies: ['setup'], testMatch: /smoke\.spec\.ts/,
+        use: { ...devices['Desktop Chrome'], baseURL: AUTHED_BASE },
+      },
     ]
   : []
 

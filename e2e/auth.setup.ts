@@ -26,6 +26,8 @@ const AUTH_DIR = 'e2e/.auth'
 const ROLES: Record<string, string | undefined> = {
   seller: process.env.E2E_SELLER_EMAIL,
   admin: process.env.E2E_ADMIN_EMAIL,
+  // buyer: the second actor in the smoke test's multi-context golden path (messages/offers).
+  buyer: process.env.E2E_BUYER_EMAIL,
 }
 
 // Sign one role in and write its storageState. Returns false (→ spec skips) if not configured.
