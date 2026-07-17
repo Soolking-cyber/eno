@@ -6,6 +6,7 @@ import { evaluatePassportImageQuality } from '../src/lib/visa/image-quality'
 import { parsePassportMrz } from '../src/lib/visa/mrz'
 import { emptyVisaPayload, validateVisaForReview, validateVisaStep, visaDateDefaultsForStart, visaEndDateFor90DayWindow, visaPayloadSchema } from '../src/lib/visa/schema'
 import { DEFAULT_EVISA_ENTRY_GATE, EVISA_CHECKPOINTS } from '../src/lib/visa/checkpoints'
+import { isAdminPrefillableStatus, isAdminReviewStatus } from '../src/lib/visa/workflow'
 
 test.describe('eno.forum visa assistance', () => {
   test('keeps Gemini diagnostics private to the support admin', async ({ request }) => {
@@ -137,6 +138,14 @@ test.describe('eno.forum visa assistance', () => {
     expect(validateVisaStep(payload, [], 1)).toEqual(expect.arrayContaining(['surname_required', 'passport_number_required', 'phone_required']))
     expect(validateVisaStep(payload, [], 2)).toEqual(expect.arrayContaining(['visa_start_required', 'visa_end_required']))
     expect(validateVisaStep(payload, [], 2)).not.toEqual(expect.arrayContaining(['entry_gate_required', 'exit_gate_required']))
+  })
+
+  test('allows one admin approval action to launch prefill directly from review', () => {
+    expect(['ready_for_review', 'under_review', 'ready_to_submit'].filter(isAdminPrefillableStatus)).toEqual(['ready_for_review', 'under_review', 'ready_to_submit'])
+    expect(isAdminReviewStatus('ready_for_review')).toBe(true)
+    expect(isAdminReviewStatus('under_review')).toBe(true)
+    expect(isAdminPrefillableStatus('applicant_approval')).toBe(false)
+    expect(isAdminPrefillableStatus('needs_changes')).toBe(false)
   })
 
   test('automatically moves from a saturated primary checker to the fallback model', async () => {

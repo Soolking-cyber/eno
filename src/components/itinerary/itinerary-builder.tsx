@@ -38,6 +38,7 @@ import {
   RefreshCw,
   Route,
   Save,
+  Search,
   SearchCheck,
   ShieldCheck,
   ShoppingBag,
@@ -58,6 +59,19 @@ import { useAuth } from '@/context/auth-context'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import {
+  Combobox,
+  ComboboxClear,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxGroupLabel,
+  ComboboxInput,
+  ComboboxInputGroup,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from '@/components/ui/combobox'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
@@ -85,6 +99,7 @@ import {
   type ActivityPlan,
   type BudgetId,
   type CabinId,
+  type City,
   type CityId,
   type GeneratedItineraryResponse,
   type GeneratedPlan,
@@ -140,9 +155,68 @@ const MAX_TRIP_DAYS = 30
 const MAX_TRAVELER_SLIDER = 10
 const MAX_TRAVELERS = 100
 
+const CITY_GROUPS = [
+  { id: 'north', label: 'Northern Vietnam', labelVi: 'Miền Bắc', items: CITIES.filter((city) => city.region === 'north') },
+  { id: 'central', label: 'Central Vietnam', labelVi: 'Miền Trung', items: CITIES.filter((city) => city.region === 'central') },
+  { id: 'south', label: 'Southern Vietnam', labelVi: 'Miền Nam', items: CITIES.filter((city) => city.region === 'south') },
+] as const
+
+const AIRPORT_GROUPS = [
+  {
+    id: 'asia', label: 'Popular Asia gateways', labelVi: 'Cửa ngõ phổ biến ở châu Á', items: [
+      'Bangkok (BKK)', 'Singapore (SIN)', 'Kuala Lumpur (KUL)', 'Seoul (ICN)', 'Tokyo (NRT)',
+      'Hong Kong (HKG)', 'Taipei (TPE)', 'Phnom Penh (PNH)', 'Siem Reap (SAI)', 'Delhi (DEL)',
+    ],
+  },
+  {
+    id: 'long-haul', label: 'Popular long-haul gateways', labelVi: 'Cửa ngõ đường dài phổ biến', items: [
+      'Dubai (DXB)', 'Doha (DOH)', 'Sydney (SYD)', 'Melbourne (MEL)', 'London (LHR)', 'Paris (CDG)',
+      'Frankfurt (FRA)', 'Istanbul (IST)', 'Los Angeles (LAX)', 'San Francisco (SFO)', 'New York (JFK)',
+      'Toronto (YYZ)', 'Vancouver (YVR)',
+    ],
+  },
+] as const
+
+type CityGroup = { id: string; label: string; labelVi: string; items: City[] }
+type AirportGroup = { id: string; label: string; labelVi: string; items: readonly string[] }
+
 function clampWholeNumber(value: number, min: number, max: number) {
   if (!Number.isFinite(value)) return min
   return Math.min(max, Math.max(min, Math.round(value)))
+}
+
+function normalizeSearch(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
+}
+
+function cityMatchesSearch(city: City, query: string) {
+  const searchable = [city.name, city.nameVi, city.regionLabel, city.regionLabelVi, city.description, city.descriptionVi, ...city.airports].join(' ')
+  return normalizeSearch(searchable).includes(normalizeSearch(query.trim()))
+}
+
+function recommendedDayRange(city: City) {
+  const values = city.recommendedDays.match(/\d+/g)?.map(Number) || [3]
+  return { min: values[0] || 3, max: values[1] || values[0] || 3 }
+}
+
+function suggestedDaysForRoute(cityIds: CityId[]) {
+  const cities = cityIds.map((id) => CITY_MAP.get(id)).filter((city): city is City => Boolean(city))
+  if (cities.length === 0) return 4
+  if (cities.length === 1) return recommendedDayRange(cities[0]).max
+  return clampWholeNumber(cities.reduce((total, city) => {
+    const range = recommendedDayRange(city)
+    return total + Math.ceil((range.min + range.max) / 2)
+  }, 0), MIN_TRIP_DAYS, MAX_TRIP_DAYS)
+}
+
+function dateInputValueFromToday(offsetDays: number) {
+  const date = new Date()
+  date.setHours(12, 0, 0, 0)
+  date.setDate(date.getDate() + offsetDays)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function displayDate(date: string, locale: Language) {
@@ -456,17 +530,17 @@ export function ItineraryBuilder() {
   const { tr, lang } = useLanguage()
   const { user, openSignIn } = useAuth()
   const [hydrated, setHydrated] = useState(false)
-  const [cityIds, setCityIds] = useState<CityId[]>(['danang', 'hoian', 'hue'])
-  const [cityToAdd, setCityToAdd] = useState<CityId>('hanoi')
+  const [cityIds, setCityIds] = useState<CityId[]>(['danang'])
+  const [citySearch, setCitySearch] = useState('')
   const [origin, setOrigin] = useState('')
   const [startDate, setStartDate] = useState('')
-  const [days, setDays] = useState(8)
+  const [days, setDays] = useState(4)
   const [travelers, setTravelers] = useState(2)
   const [budgetId, setBudgetId] = useState<BudgetId>('comfort')
   const [pace, setPace] = useState<PaceId>('balanced')
   const [interests, setInterests] = useState<Set<InterestId>>(() => new Set(['food', 'culture', 'nature']))
-  const [accommodation, setAccommodation] = useState<AccommodationId>('boutique')
-  const [includeFlights, setIncludeFlights] = useState(true)
+  const [accommodation, setAccommodation] = useState<AccommodationId>('hotel')
+  const [includeFlights, setIncludeFlights] = useState(false)
   const [cabin, setCabin] = useState<CabinId>('economy')
   const [maxStops, setMaxStops] = useState<StopsId>('one_stop')
   const [checkedBags, setCheckedBags] = useState(true)
@@ -476,13 +550,23 @@ export function ItineraryBuilder() {
   const [saving, setSaving] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
+  const daysCustomizedRef = useRef(false)
 
   useEffect(() => setHydrated(true), [])
 
   const selectedCities = cityIds.map((id) => CITY_MAP.get(id)).filter((city) => Boolean(city))
-  const availableCities = CITIES.filter((city) => !cityIds.includes(city.id))
+  const primaryCity = CITY_MAP.get(cityIds[0]) || CITIES[0]
+  const availableCityGroups = useMemo<CityGroup[]>(() => CITY_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((city) => !cityIds.includes(city.id)),
+  })).filter((group) => group.items.length > 0), [cityIds])
   const endDate = addDays(startDate, days - 1)
-  const minDate = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const minDate = useMemo(() => dateInputValueFromToday(0), [])
+  const quickStartDates = useMemo(() => [
+    { label: tr('In 2 weeks', 'Sau 2 tuần'), value: dateInputValueFromToday(14) },
+    { label: tr('In 1 month', 'Sau 1 tháng'), value: dateInputValueFromToday(30) },
+    { label: tr('In 3 months', 'Sau 3 tháng'), value: dateInputValueFromToday(90) },
+  ], [tr])
   const budget = BUDGETS.find((item) => item.id === budgetId) || BUDGETS[1]
 
   const toggleInterest = (id: InterestId) => setInterests((current) => {
@@ -492,18 +576,36 @@ export function ItineraryBuilder() {
     return next
   })
 
-  const addCity = () => {
-    if (cityIds.includes(cityToAdd) || cityIds.length >= 6) return
-    const next = [...cityIds, cityToAdd]
+  const updateSuggestedDays = (nextCityIds: CityId[]) => {
+    if (!daysCustomizedRef.current) setDays(suggestedDaysForRoute(nextCityIds))
+  }
+
+  const choosePrimaryCity = (city: City | null) => {
+    if (!city) return
+    const existingIndex = cityIds.indexOf(city.id)
+    const next = [...cityIds]
+    if (existingIndex > 0) {
+      ;[next[0], next[existingIndex]] = [next[existingIndex], next[0]]
+    } else {
+      next[0] = city.id
+    }
     setCityIds(next)
-    const replacement = CITIES.find((city) => !next.includes(city.id))
-    if (replacement) setCityToAdd(replacement.id)
+    updateSuggestedDays(next)
+  }
+
+  const addCity = (city: City | null) => {
+    if (!city || cityIds.includes(city.id) || cityIds.length >= 6) return
+    const next = [...cityIds, city.id]
+    setCityIds(next)
+    setCitySearch('')
+    updateSuggestedDays(next)
   }
 
   const removeCity = (id: CityId) => {
     if (cityIds.length === 1) return
-    setCityIds((current) => current.filter((cityId) => cityId !== id))
-    setCityToAdd(id)
+    const next = cityIds.filter((cityId) => cityId !== id)
+    setCityIds(next)
+    updateSuggestedDays(next)
   }
 
   const moveCity = (index: number, direction: -1 | 1) => {
@@ -512,6 +614,7 @@ export function ItineraryBuilder() {
     setCityIds((current) => {
       const next = [...current]
       ;[next[index], next[target]] = [next[target], next[index]]
+      updateSuggestedDays(next)
       return next
     })
   }
@@ -519,6 +622,7 @@ export function ItineraryBuilder() {
   const buildPlan = async () => {
     if (!startDate) {
       toast.error(tr('Choose a departure date so we can research viable options.', 'Chọn ngày khởi hành để nghiên cứu lựa chọn phù hợp.'))
+      document.getElementById('trip-start')?.focus()
       return
     }
     if (includeFlights && origin.trim().length < 2) {
@@ -642,47 +746,127 @@ export function ItineraryBuilder() {
             <div><h2 className="text-lg font-bold text-foreground">{tr('Design the brief', 'Thiết kế yêu cầu')}</h2><p className="mt-1 text-xs leading-relaxed text-body">{tr('Specific inputs produce a plan you can actually use.', 'Thông tin cụ thể tạo ra kế hoạch thực sự hữu ích.')}</p></div>
           </div>
 
-          <div className="mt-6 space-y-5">
-            <FormSection icon={Route} title={tr('Route', 'Lộ trình')} subtitle={tr('Choose up to six stops in travel order.', 'Chọn tối đa sáu điểm theo thứ tự di chuyển.')}>
-              <div className="space-y-2">
-                {selectedCities.map((city, index) => city && (
-                  <div key={city.id} className="flex items-center gap-2 rounded-xl bg-tint px-3 py-2.5">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">{index + 1}</span>
-                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-foreground">{tr(city.name, city.nameVi)}</span><span className="block text-2xs text-body">{city.airports.join(' / ')} · {tr(city.recommendedDays, city.recommendedDays)}</span></span>
-                    <div className="flex shrink-0 items-center">
-                      <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => moveCity(index, -1)} disabled={index === 0} aria-label={tr(`Move ${city.name} earlier`, `Đưa ${city.nameVi} lên trước`)}><ArrowUp className="h-3.5 w-3.5" /></IconButton>
-                      <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => moveCity(index, 1)} disabled={index === cityIds.length - 1} aria-label={tr(`Move ${city.name} later`, `Đưa ${city.nameVi} xuống sau`)}><ArrowDown className="h-3.5 w-3.5" /></IconButton>
-                      <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => removeCity(city.id)} disabled={cityIds.length === 1} aria-label={tr(`Remove ${city.name}`, `Xóa ${city.nameVi}`)}><X className="h-3.5 w-3.5" /></IconButton>
+          <form onSubmit={(event) => { event.preventDefault(); void buildPlan() }}>
+            <div className="mt-6 space-y-5">
+            <FormSection icon={Route} title={tr('Route', 'Lộ trình')} subtitle={tr('Start with one destination. Add stops only when they improve the trip.', 'Bắt đầu với một điểm đến. Chỉ thêm điểm dừng khi chuyến đi hợp lý hơn.')}>
+              <Field>
+                <FieldLabel htmlFor="primary-destination">{tr('Main destination', 'Điểm đến chính')}</FieldLabel>
+                <Combobox
+                  items={CITY_GROUPS}
+                  value={primaryCity}
+                  onValueChange={choosePrimaryCity}
+                  itemToStringLabel={(city: City) => tr(city.name, city.nameVi)}
+                  itemToStringValue={(city: City) => city.id}
+                  filter={cityMatchesSearch}
+                  autoHighlight
+                >
+                  <ComboboxInputGroup>
+                    <span className="ml-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">1</span>
+                    <ComboboxInput id="primary-destination" autoComplete="off" className="px-2" />
+                    <ComboboxTrigger aria-label={tr('Search destinations', 'Tìm điểm đến')} />
+                  </ComboboxInputGroup>
+                  <ComboboxContent>
+                    <ComboboxEmpty>{tr('No matching destination.', 'Không có điểm đến phù hợp.')}</ComboboxEmpty>
+                    <ComboboxList>
+                      {(group: CityGroup) => (
+                        <ComboboxGroup key={group.id} items={group.items}>
+                          <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
+                          {group.items.map((city) => (
+                            <ComboboxItem key={city.id} value={city}>
+                              <span className="flex flex-col items-start">
+                                <span className="font-semibold text-foreground">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span>
+                                <span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span>
+                              </span>
+                            </ComboboxItem>
+                          ))}
+                        </ComboboxGroup>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
+                <FieldDescription>{tr('Type a city, region, or airport code.', 'Nhập thành phố, khu vực hoặc mã sân bay.')}</FieldDescription>
+              </Field>
+
+              {selectedCities.length > 1 && (
+                <div className="mt-3 space-y-2" aria-label={tr('Additional route stops', 'Điểm dừng bổ sung')}>
+                  {selectedCities.slice(1).map((city, offset) => city && (
+                    <div key={city.id} data-testid="itinerary-route-stop" className="flex min-h-14 items-center gap-2 rounded-xl bg-tint px-3 py-2.5">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">{offset + 2}</span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-foreground">{tr(city.name, city.nameVi)}</span><span className="block text-2xs text-body">{city.airports.join(' / ')} · {city.recommendedDays}</span></span>
+                      <div className="flex shrink-0 items-center">
+                        <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => moveCity(offset + 1, -1)} aria-label={tr(`Move ${city.name} earlier`, `Đưa ${city.nameVi} lên trước`)}><ArrowUp className="h-3.5 w-3.5" /></IconButton>
+                        <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => moveCity(offset + 1, 1)} disabled={offset + 1 === cityIds.length - 1} aria-label={tr(`Move ${city.name} later`, `Đưa ${city.nameVi} xuống sau`)}><ArrowDown className="h-3.5 w-3.5" /></IconButton>
+                        <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => removeCity(city.id)} aria-label={tr(`Remove ${city.name}`, `Xóa ${city.nameVi}`)}><X className="h-3.5 w-3.5" /></IconButton>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-              {availableCities.length > 0 && cityIds.length < 6 && (
-                <div className="mt-3 flex gap-2">
-                  <Select value={cityToAdd} onValueChange={(value) => { if (typeof value === 'string') setCityToAdd(value as CityId) }}>
-                    <SelectTrigger aria-label={tr('Add another Vietnam destination', 'Thêm điểm đến Việt Nam')} className="min-w-0 flex-1 cursor-pointer border-line-strong bg-card"><Plus className="h-4 w-4" /><SelectValue>{tr(CITY_MAP.get(cityToAdd)?.name || '', CITY_MAP.get(cityToAdd)?.nameVi || '')}</SelectValue></SelectTrigger>
-                    <SelectContent align="start" className="max-h-80 min-w-[min(24rem,calc(100vw-2rem))]">
-                      {availableCities.map((city) => <SelectItem key={city.id} value={city.id}><span className="flex flex-col items-start"><span className="font-semibold">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span><span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span></span></SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Button type="button" variant="outline" size="sm" className="h-11" onClick={addCity}>{tr('Add', 'Thêm')}</Button>
+                  ))}
                 </div>
+              )}
+
+              {availableCityGroups.length > 0 && cityIds.length < 6 && (
+                <Field className="mt-3">
+                  <FieldLabel htmlFor="add-destination">{tr('Add another stop', 'Thêm điểm dừng')} <span className="font-normal text-ink-4">{tr('(optional)', '(không bắt buộc)')}</span></FieldLabel>
+                  <Combobox
+                    items={availableCityGroups}
+                    value={null}
+                    inputValue={citySearch}
+                    onInputValueChange={setCitySearch}
+                    onValueChange={addCity}
+                    itemToStringLabel={(city: City) => tr(city.name, city.nameVi)}
+                    itemToStringValue={(city: City) => city.id}
+                    filter={cityMatchesSearch}
+                    autoHighlight
+                  >
+                    <ComboboxInputGroup>
+                      {citySearch ? <Search className="ml-3 h-4 w-4 shrink-0 text-ink-4" /> : <Plus className="ml-3 h-4 w-4 shrink-0 text-ink-4" />}
+                      <ComboboxInput id="add-destination" autoComplete="off" className="px-2" placeholder={tr('Search city, region, or airport code', 'Tìm thành phố, khu vực hoặc mã sân bay')} />
+                      <ComboboxClear aria-label={tr('Clear destination search', 'Xóa tìm kiếm điểm đến')} />
+                      <ComboboxTrigger aria-label={tr('Show available destinations', 'Hiện các điểm đến')} />
+                    </ComboboxInputGroup>
+                    <ComboboxContent>
+                      <ComboboxEmpty>{tr('No matching destination.', 'Không có điểm đến phù hợp.')}</ComboboxEmpty>
+                      <ComboboxList>
+                        {(group: CityGroup) => (
+                          <ComboboxGroup key={group.id} items={group.items}>
+                            <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
+                            {group.items.map((city) => (
+                              <ComboboxItem key={city.id} value={city}>
+                                <span className="flex flex-col items-start">
+                                  <span className="font-semibold text-foreground">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span>
+                                  <span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span>
+                                </span>
+                              </ComboboxItem>
+                            ))}
+                          </ComboboxGroup>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                  <FieldDescription>{tr('Choose a result to add it instantly. Maximum six stops.', 'Chọn kết quả để thêm ngay. Tối đa sáu điểm.')}</FieldDescription>
+                </Field>
               )}
             </FormSection>
 
             <FormSection icon={CalendarDays} title={tr('Dates and travelers', 'Ngày và số khách')} subtitle={tr('Exact dates make flight and seasonal research useful.', 'Ngày chính xác giúp tìm chuyến bay và mùa phù hợp.')}>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field className="min-w-0"><FieldLabel htmlFor="trip-start">{tr('Start date', 'Ngày bắt đầu')}</FieldLabel><Input id="trip-start" variant="outline" type="date" min={minDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} className="min-w-0 px-3" /></Field>
-                <Field className="min-w-0"><FieldLabel>{tr('End date', 'Ngày kết thúc')}</FieldLabel><div className="flex h-[46px] min-w-0 items-center rounded-xl bg-tint px-3 text-sm font-semibold text-body">{endDate ? displayDate(endDate, lang) : tr('Choose start', 'Chọn ngày đầu')}</div></Field>
+                <Field className="min-w-0"><FieldLabel htmlFor="trip-start">{tr('Start date', 'Ngày bắt đầu')}</FieldLabel><Input id="trip-start" name="startDate" variant="outline" type="date" min={minDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} className="h-11 min-w-0 px-3 py-0" required /></Field>
+                <Field className="min-w-0"><FieldLabel>{tr('End date', 'Ngày kết thúc')}</FieldLabel><output htmlFor="trip-start" className="flex h-11 min-w-0 items-center rounded-xl bg-tint px-3 text-sm font-semibold text-body">{endDate ? displayDate(endDate, lang) : tr('Choose start', 'Chọn ngày đầu')}</output></Field>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={tr('Quick start dates', 'Ngày bắt đầu nhanh')}>
+                {quickStartDates.map((option) => (
+                  <Button key={option.value} type="button" variant="bare" size="none" aria-pressed={startDate === option.value} onClick={() => setStartDate(option.value)} className={cn('min-h-9 rounded-full border px-3 py-1.5 text-xs', startDate === option.value ? 'border-brand bg-accent font-bold text-accent-foreground' : 'border-border text-body hover:bg-tint')}>
+                    {option.label}<span className="hidden text-ink-4 min-[390px]:inline">· {displayDate(option.value, lang).replace(/,? \d{4}$/, '')}</span>
+                  </Button>
+                ))}
               </div>
               <div className="mt-4">
                 <div className="flex items-center justify-between gap-3"><p id="trip-days-label" className="text-sm font-medium text-foreground">{tr('Trip length', 'Thời lượng')}</p><Badge variant="brand" size="md">{days} {tr('days', 'ngày')}</Badge></div>
                 <div className="mt-3 flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <Slider value={days} min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} onChange={(value) => setDays(clampWholeNumber(value, MIN_TRIP_DAYS, MAX_TRIP_DAYS))} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} />
+                    <Slider value={days} min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} onChange={(value) => { daysCustomizedRef.current = true; setDays(clampWholeNumber(value, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) }} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} />
                     <div className="mt-1 flex justify-between text-2xs text-ink-4"><span>{MIN_TRIP_DAYS}</span><span>{MAX_TRIP_DAYS}</span></div>
                   </div>
-                  <Input aria-label={tr('Enter trip length in days', 'Nhập số ngày chuyến đi')} variant="outline" type="number" inputMode="numeric" min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} value={days} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) setDays(clampWholeNumber(event.currentTarget.valueAsNumber, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) }} onBlur={(event) => { event.currentTarget.value = String(days) }} className="h-11 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" />
+                  <Input aria-label={tr('Enter trip length in days', 'Nhập số ngày chuyến đi')} name="days" variant="outline" type="number" inputMode="numeric" min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} value={days} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) { daysCustomizedRef.current = true; setDays(clampWholeNumber(event.currentTarget.valueAsNumber, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) } }} onBlur={(event) => { event.currentTarget.value = String(days) }} className="h-11 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" />
                 </div>
               </div>
               <div className="mt-4">
@@ -692,7 +876,7 @@ export function ItineraryBuilder() {
                     <Slider value={Math.min(travelers, MAX_TRAVELER_SLIDER)} min={1} max={MAX_TRAVELER_SLIDER} onChange={(value) => setTravelers(clampWholeNumber(value, 1, MAX_TRAVELER_SLIDER))} aria-label={tr('Number of travelers', 'Số khách đi cùng')} />
                     <div className="mt-1 flex justify-between text-2xs text-ink-4"><span>1</span><span>{MAX_TRAVELER_SLIDER}</span></div>
                   </div>
-                  <Input aria-label={tr('Enter number of travelers', 'Nhập số khách')} variant="outline" type="number" inputMode="numeric" min={1} max={MAX_TRAVELERS} value={travelers} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) setTravelers(clampWholeNumber(event.currentTarget.valueAsNumber, 1, MAX_TRAVELERS)) }} onBlur={(event) => { event.currentTarget.value = String(travelers) }} className="h-11 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" />
+                  <Input aria-label={tr('Enter number of travelers', 'Nhập số khách')} name="travelers" variant="outline" type="number" inputMode="numeric" min={1} max={MAX_TRAVELERS} value={travelers} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) setTravelers(clampWholeNumber(event.currentTarget.valueAsNumber, 1, MAX_TRAVELERS)) }} onBlur={(event) => { event.currentTarget.value = String(travelers) }} className="h-11 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" />
                 </div>
               </div>
             </FormSection>
@@ -700,11 +884,40 @@ export function ItineraryBuilder() {
             <FormSection icon={Plane} title={tr('Flight research', 'Tìm chuyến bay')} subtitle={tr('eno checks viable routes and fare signals—not reserved inventory.', 'eno kiểm tra đường bay và tín hiệu giá—không phải chỗ đã giữ.')}>
               <Button type="button" variant="bare" size="none" aria-pressed={includeFlights} onClick={() => setIncludeFlights((value) => !value)} className={cn('h-auto w-full justify-start gap-3 rounded-xl border px-3 py-3 text-left', includeFlights ? 'border-brand bg-accent' : 'border-border bg-card')}>
                 <span className={cn('flex h-5 w-5 items-center justify-center rounded-md border', includeFlights ? 'border-brand bg-primary text-white' : 'border-line-strong')}>{includeFlights && <Check className="h-3 w-3" />}</span>
-                <span><span className="block text-sm font-bold text-foreground">{tr('Include flight options', 'Bao gồm lựa chọn chuyến bay')}</span><span className="mt-0.5 block text-xs text-body">{tr('International gateway and useful domestic legs', 'Cửa ngõ quốc tế và chặng nội địa hữu ích')}</span></span>
+                <span className="min-w-0"><span className="block text-sm font-bold text-foreground">{tr('Include flight options', 'Bao gồm lựa chọn chuyến bay')}</span><span className="mt-0.5 block whitespace-normal text-xs text-body">{tr('Optional—add this when you want international flight leads.', 'Không bắt buộc—thêm khi bạn muốn gợi ý chuyến bay quốc tế.')}</span></span>
               </Button>
               {includeFlights && (
                 <div className="mt-4 space-y-4">
-                  <Field><FieldLabel htmlFor="trip-origin">{tr('Flying from', 'Bay từ')}</FieldLabel><Input id="trip-origin" variant="outline" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder={tr('City or airport, e.g. Singapore (SIN)', 'Thành phố hoặc sân bay, ví dụ Singapore (SIN)')} /><FieldDescription>{tr('Add an airport code when you know it.', 'Thêm mã sân bay nếu bạn biết.')}</FieldDescription></Field>
+                  <Field>
+                    <FieldLabel htmlFor="trip-origin">{tr('Departure city or airport', 'Thành phố hoặc sân bay khởi hành')}</FieldLabel>
+                    <Combobox
+                      items={AIRPORT_GROUPS}
+                      value={origin || null}
+                      inputValue={origin}
+                      onValueChange={(value) => setOrigin(value || '')}
+                      onInputValueChange={setOrigin}
+                      autoHighlight
+                    >
+                      <ComboboxInputGroup>
+                        <Plane className="ml-3 h-4 w-4 shrink-0 text-ink-4" />
+                        <ComboboxInput id="trip-origin" name="origin" autoComplete="off" className="px-2" placeholder={tr('Start typing a city or airport code', 'Nhập thành phố hoặc mã sân bay')} required />
+                        <ComboboxClear aria-label={tr('Clear departure airport', 'Xóa sân bay khởi hành')} />
+                        <ComboboxTrigger aria-label={tr('Show suggested departure airports', 'Hiện sân bay khởi hành gợi ý')} />
+                      </ComboboxInputGroup>
+                      <ComboboxContent>
+                        <ComboboxEmpty>{tr('Keep your typed city or airport—we can still research it.', 'Giữ thành phố hoặc sân bay đã nhập—eno vẫn có thể tìm kiếm.')}</ComboboxEmpty>
+                        <ComboboxList>
+                          {(group: AirportGroup) => (
+                            <ComboboxGroup key={group.id} items={group.items}>
+                              <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
+                              {group.items.map((airport) => <ComboboxItem key={airport} value={airport}>{airport}</ComboboxItem>)}
+                            </ComboboxGroup>
+                          )}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                    <FieldDescription>{tr('Choose a suggestion or keep any city or airport you type.', 'Chọn gợi ý hoặc giữ bất kỳ thành phố hay sân bay nào bạn nhập.')}</FieldDescription>
+                  </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field><FieldLabel id="cabin-label">{tr('Cabin', 'Hạng ghế')}</FieldLabel><Select value={cabin} onValueChange={(value) => { if (typeof value === 'string') setCabin(value as CabinId) }}><SelectTrigger aria-labelledby="cabin-label" className="w-full cursor-pointer border-line-strong bg-card"><SelectValue>{cabin === 'premium_economy' ? tr('Premium economy', 'Phổ thông đặc biệt') : cabin === 'business' ? tr('Business', 'Thương gia') : tr('Economy', 'Phổ thông')}</SelectValue></SelectTrigger><SelectContent><SelectItem value="economy">{tr('Economy', 'Phổ thông')}</SelectItem><SelectItem value="premium_economy">{tr('Premium economy', 'Phổ thông đặc biệt')}</SelectItem><SelectItem value="business">{tr('Business', 'Thương gia')}</SelectItem></SelectContent></Select></Field>
                     <Field><FieldLabel id="stops-label">{tr('Stops', 'Điểm dừng')}</FieldLabel><Select value={maxStops} onValueChange={(value) => { if (typeof value === 'string') setMaxStops(value as StopsId) }}><SelectTrigger aria-labelledby="stops-label" className="w-full cursor-pointer border-line-strong bg-card"><SelectValue>{maxStops === 'direct' ? tr('Direct only', 'Chỉ bay thẳng') : maxStops === 'one_stop' ? tr('Up to 1 stop', 'Tối đa 1 điểm') : tr('Any viable', 'Mọi lựa chọn')}</SelectValue></SelectTrigger><SelectContent><SelectItem value="direct">{tr('Direct only', 'Chỉ bay thẳng')}</SelectItem><SelectItem value="one_stop">{tr('Up to 1 stop', 'Tối đa 1 điểm')}</SelectItem><SelectItem value="any">{tr('Any viable', 'Mọi lựa chọn')}</SelectItem></SelectContent></Select></Field>
@@ -731,24 +944,25 @@ export function ItineraryBuilder() {
             </FormSection>
 
             <FormSection icon={Info} title={tr('Anything we should know?', 'Điều gì cần lưu ý?')} subtitle={tr('Diet, mobility, children, celebrations, work calls, or hard no’s.', 'Ăn kiêng, di chuyển, trẻ em, dịp đặc biệt, công việc hoặc điều không muốn.')}>
-              <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={600} rows={3} size="compact" variant="outline" placeholder={tr('Example: vegetarian, avoid early mornings, one traveler has limited mobility…', 'Ví dụ: ăn chay, tránh sáng sớm, một khách hạn chế vận động…')} />
+              <Textarea name="notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={600} rows={3} size="compact" variant="outline" placeholder={tr('Example: vegetarian, avoid early mornings, one traveler has limited mobility…', 'Ví dụ: ăn chay, tránh sáng sớm, một khách hạn chế vận động…')} />
               <p className="mt-1 text-right text-2xs tabular-nums text-ink-4">{notes.length}/600</p>
             </FormSection>
-          </div>
+            </div>
 
-          <Button data-testid="build-itinerary" type="button" variant="cta" size="lg" className="mt-6 w-full" onClick={() => void buildPlan()} disabled={state === 'building'}>
-            {state === 'building' ? <Loader2 className="h-4 w-4 animate-spin" /> : result ? <RefreshCw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-            {state === 'building' ? tr('Researching the trip…', 'Đang nghiên cứu chuyến đi…') : result ? tr('Research a new version', 'Nghiên cứu phiên bản mới') : tr('Research and build itinerary', 'Nghiên cứu và tạo lịch trình')}
-          </Button>
-          <p className="mt-3 text-center text-2xs leading-relaxed text-ink-4">{user ? tr('Includes live web research. Up to 8 plans per account each hour.', 'Bao gồm nghiên cứu web trực tiếp. Tối đa 8 kế hoạch mỗi giờ.') : tr('A unified eno account is required before paid web research runs.', 'Cần tài khoản eno thống nhất trước khi chạy nghiên cứu web trả phí.')}</p>
+            <Button data-testid="build-itinerary" type="submit" variant="cta" size="lg" className="mt-6 w-full" disabled={state === 'building'}>
+              {state === 'building' ? <Loader2 className="h-4 w-4 animate-spin" /> : result ? <RefreshCw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+              {state === 'building' ? tr('Researching the trip…', 'Đang nghiên cứu chuyến đi…') : result ? tr('Research a new version', 'Nghiên cứu phiên bản mới') : tr('Research and build itinerary', 'Nghiên cứu và tạo lịch trình')}
+            </Button>
+            <p className="mt-3 text-center text-2xs leading-relaxed text-ink-4">{user ? tr('Includes live web research. Up to 8 plans per account each hour.', 'Bao gồm nghiên cứu web trực tiếp. Tối đa 8 kế hoạch mỗi giờ.') : tr('A unified eno account is required before paid web research runs.', 'Cần tài khoản eno thống nhất trước khi chạy nghiên cứu web trả phí.')}</p>
+          </form>
         </Card>
 
         <section aria-label={tr('Itinerary result', 'Kết quả lịch trình')} className={cn('lg:col-start-2', state === 'ready' ? 'lg:row-start-1' : 'lg:row-start-2')}>
           {state === 'empty' && (
             <Card className="min-h-[620px] items-center justify-center gap-0 px-5 py-12 text-center sm:px-10">
               <span className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-accent text-accent-foreground"><Map className="h-9 w-9" /><SearchCheck className="absolute -right-2 -top-2 h-6 w-6 text-brand" /></span>
-              <h2 className="mt-6 text-2xl font-bold text-foreground">{tr('From vague idea to researched plan', 'Từ ý tưởng đến kế hoạch đã nghiên cứu')}</h2>
-              <p className="mt-3 max-w-lg text-sm leading-relaxed text-body">{tr('Set your exact route, dates, flight constraints, pace, and preferences. The planner will search before it recommends.', 'Chọn lộ trình, ngày, yêu cầu chuyến bay, nhịp độ và sở thích. Trình lập kế hoạch sẽ tìm kiếm trước khi gợi ý.')}</p>
+              <h2 className="mt-6 text-2xl font-bold text-foreground">{tr('Start with one place. eno handles the details.', 'Bắt đầu với một nơi. eno lo phần chi tiết.')}</h2>
+              <p className="mt-3 max-w-lg text-sm leading-relaxed text-body">{tr('Choose a destination and date. Add flights or more stops only when you need them; eno researches the practical details.', 'Chọn điểm đến và ngày. Chỉ thêm chuyến bay hoặc điểm dừng khi cần; eno sẽ nghiên cứu các chi tiết thực tế.')}</p>
               <div className="mt-8 grid w-full max-w-xl gap-3 sm:grid-cols-3">
                 {[{ Icon: Plane, label: tr('Viable flight leads', 'Gợi ý chuyến bay') }, { Icon: Hotel, label: tr('Real stay candidates', 'Chỗ ở thực tế') }, { Icon: CalendarCheck, label: tr('Book-by timeline', 'Mốc thời gian đặt') }].map(({ Icon, label }) => <div key={label} className="flex items-center justify-center gap-2 rounded-xl bg-tint px-3 py-3 text-xs font-semibold text-body sm:flex-col"><Icon className="h-5 w-5 text-accent-foreground" />{label}</div>)}
               </div>

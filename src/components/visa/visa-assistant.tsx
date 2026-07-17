@@ -130,7 +130,7 @@ function uploadErrorCopy(error: unknown, tr: (en: string, vi: string) => string)
 
 function statusCopy(status: string, tr: (en: string, vi: string) => string) {
   const map: Record<string, [string, string, string, string]> = {
-    ready_for_review: ['Ready for review', 'Sẵn sàng xem xét', 'Your case is waiting for an eno specialist.', 'Hồ sơ đang chờ chuyên viên eno xem xét.'],
+    ready_for_review: ['Submitted for review', 'Đã gửi để xem xét', 'Your complete application and prefill permission are with an eno specialist. We will contact you only if something needs to change.', 'Hồ sơ hoàn chỉnh và quyền điền trước đã được gửi đến chuyên viên eno. Chúng tôi chỉ liên hệ nếu cần thay đổi.'],
     under_review: ['Being reviewed', 'Đang xem xét', 'We are comparing your answers with the source documents.', 'Chúng tôi đang đối chiếu câu trả lời với giấy tờ gốc.'],
     applicant_approval: ['Your final approval', 'Bạn cần duyệt lần cuối', 'Review the prepared case and authorize prefill only when every answer is correct.', 'Kiểm tra hồ sơ và chỉ cho phép điền trước khi mọi câu trả lời đều đúng.'],
     ready_to_submit: ['Ready for official prefill', 'Sẵn sàng điền hồ sơ chính thức', 'Your authorization is recorded. An operator will prepare the official form for human review.', 'Đã ghi nhận ủy quyền. Nhân viên sẽ chuẩn bị biểu mẫu chính thức để kiểm tra.'],
@@ -389,12 +389,12 @@ export function VisaAssistant() {
   }
 
   const submitForReview = async () => {
-    if (!application || !payload || !declaration) return
+    if (!application || !payload || !declaration || !authorization) return
     setBusy(true)
     try {
       await save(false)
-      const result = await forumApi<{ application: VisaApplication }>(`/api/visa/applications/${application.id}/submit`, { method: 'POST', body: JSON.stringify({ action: 'send_for_review', declarationAccepted: true }), auth: 'required', direct: true })
-      setApplication(result.application); setPayload(result.application.payload || payload); toast.success(tr('Sent to eno for review.', 'Đã gửi eno xem xét.'))
+      const result = await forumApi<{ application: VisaApplication }>(`/api/visa/applications/${application.id}/submit`, { method: 'POST', body: JSON.stringify({ action: 'send_for_review', declarationAccepted: true, prefillAuthorized: true }), auth: 'required', direct: true })
+      setApplication(result.application); setPayload(result.application.payload || payload); toast.success(tr('Complete application submitted to eno.', 'Đã gửi hồ sơ hoàn chỉnh đến eno.'))
     } catch (error) {
       if (error instanceof ForumApiError && error.code === 'application_incomplete') {
         const documents = application.documents.map((document) => ({ kind: document.kind, validation_status: document.validationStatus }))
@@ -453,7 +453,7 @@ export function VisaAssistant() {
         </div>
         <Card className="bg-card">
           <CardContent className="space-y-5 py-2">
-            {[['1', 'Passport + portrait', 'Hộ chiếu + ảnh chân dung'], ['2', 'Review extracted fields', 'Kiểm tra trường đã trích xuất'], ['3', 'eno human review', 'eno kiểm tra thủ công'], ['4', 'Track and download', 'Theo dõi và tải kết quả']].map(([number, en, vi]) => <div key={number} className="flex gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">{number}</span><p className="pt-1 text-sm font-semibold text-foreground">{tr(en, vi)}</p></div>)}
+            {[['1', 'Passport + portrait', 'Hộ chiếu + ảnh chân dung'], ['2', 'Review extracted fields', 'Kiểm tra trường đã trích xuất'], ['3', 'Submit once for eno review', 'Gửi một lần để eno xem xét'], ['4', 'Track and download', 'Theo dõi và tải kết quả']].map(([number, en, vi]) => <div key={number} className="flex gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-accent-foreground">{number}</span><p className="pt-1 text-sm font-semibold text-foreground">{tr(en, vi)}</p></div>)}
             <p className="border-t border-border pt-4 text-xs leading-relaxed text-body">{tr('eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities. Official fees and eno service fees are confirmed separately in writing before payment.', 'eno là dịch vụ hỗ trợ độc lập, không phải cơ quan nhà nước. Việc phê duyệt chỉ do cơ quan chức năng Việt Nam quyết định. Lệ phí chính thức và phí dịch vụ eno được xác nhận riêng bằng văn bản trước thanh toán.')}</p>
           </CardContent>
         </Card>
@@ -493,7 +493,7 @@ export function VisaAssistant() {
       <div className="mb-6">
         <Badge variant="brand"><LockKeyhole className="h-3.5 w-3.5" />{tr('Private application', 'Hồ sơ riêng tư')}</Badge>
         <h1 className="mt-3 text-3xl font-bold tracking-tight">{tr('Vietnam e-Visa assistance', 'Hỗ trợ E-Visa Việt Nam')}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-body">{tr('Four short stages. Save anytime. Nothing is submitted to the government until after your final approval and human review.', 'Bốn bước ngắn. Có thể lưu bất cứ lúc nào. Không nội dung nào được nộp cho cơ quan chức năng trước phê duyệt cuối cùng và kiểm tra thủ công.')}</p>
+        <p className="mt-2 max-w-3xl text-sm text-body">{tr('Four short stages. Submit once, then eno reviews and prepares the official form. Nothing is finally submitted to the government without a human accuracy check.', 'Bốn bước ngắn. Gửi một lần, sau đó eno xem xét và chuẩn bị biểu mẫu chính thức. Không hồ sơ nào được nộp chính thức cho cơ quan chức năng nếu chưa được kiểm tra thủ công.')}</p>
       </div>
       {application.status === 'needs_changes' && payload.adminMessage && <div className="mb-5 rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning"><strong>{tr('Changes requested:', 'Yêu cầu chỉnh sửa:')}</strong> {payload.adminMessage}</div>}
 
@@ -515,7 +515,9 @@ export function VisaAssistant() {
           <div className="space-y-5">
           <Card><CardHeader><CardTitle>{tr('Review everything', 'Kiểm tra mọi thông tin')}</CardTitle></CardHeader><CardContent><ReviewGrid payload={payload} tr={tr} /></CardContent></Card>
           <Consent checked={declaration} onChange={setDeclaration}>{tr('I confirm that every answer is complete, true, and accurate. I understand false information can cause refusal and legal consequences.', 'Tôi xác nhận mọi câu trả lời đầy đủ, trung thực và chính xác. Tôi hiểu thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý.')}</Consent>
-          <Button type="button" variant="cta" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration} onClick={() => void submitForReview()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}{tr('Send to eno for review', 'Gửi eno xem xét')}</Button>
+          <Consent checked={authorization} onChange={setAuthorization}>{tr('I authorize eno to transfer this approved snapshot and its images into a private hosted browser to prefill the official e-Visa form after eno review. A person must still compare the form and handle the declaration, CAPTCHA, payment, and submission.', 'Tôi cho phép eno chuyển bản thông tin đã duyệt và hình ảnh vào trình duyệt riêng để điền trước biểu mẫu E-Visa chính thức sau khi eno xem xét. Một người vẫn phải đối chiếu biểu mẫu và thực hiện xác nhận, CAPTCHA, thanh toán và nộp hồ sơ.')}</Consent>
+          <p className="text-xs leading-relaxed text-body">{tr('This is the only approval eno normally needs. We will contact you only if information or an image must be corrected.', 'Đây thường là lần phê duyệt duy nhất eno cần. Chúng tôi chỉ liên hệ nếu thông tin hoặc hình ảnh cần chỉnh sửa.')}</p>
+          <Button type="button" variant="cta" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration || !authorization} onClick={() => void submitForReview()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}{tr('Submit complete application', 'Gửi hồ sơ hoàn chỉnh')}</Button>
           </div>
         )}
       </div>

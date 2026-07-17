@@ -11,7 +11,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 const METHODS = 'POST, OPTIONS'
 const actionSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('send_for_review'), declarationAccepted: z.literal(true) }),
+  z.object({ action: z.literal('send_for_review'), declarationAccepted: z.literal(true), prefillAuthorized: z.literal(true) }),
   z.object({ action: z.literal('approve_for_prefill'), declarationAccepted: z.literal(true), prefillAuthorized: z.literal(true) }),
   z.object({ action: z.literal('cancel') }),
 ])
@@ -51,8 +51,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const now = new Date().toISOString()
   if (parsed.data.action === 'send_for_review') {
     if (!['draft', 'needs_changes'].includes(app.status)) return forumJson(request, { error: 'invalid_status_transition' }, { status: 409 }, METHODS)
-    const { data } = await db.from('visa_applications').update({ status: 'ready_for_review', checklist: [], applicant_confirmed_at: now, applicant_confirmation_version: VISA_DECLARATION_VERSION, applicant_snapshot_hash: snapshotHash, authorization_snapshot_hash: null, last_applicant_action_at: now, updated_at: now }).eq('id', id).select('*').single()
-    await recordVisaEvent(id, 'applicant', 'sent_for_review', user.id, { declarationVersion: VISA_DECLARATION_VERSION })
+    const { data } = await db.from('visa_applications').update({
+      status: 'ready_for_review',
+      checklist: [],
+      applicant_confirmed_at: now,
+      applicant_confirmation_version: VISA_DECLARATION_VERSION,
+      applicant_snapshot_hash: snapshotHash,
+      authorized_at: now,
+      authorization_version: VISA_AUTHORIZATION_VERSION,
+      authorization_snapshot_hash: snapshotHash,
+      last_applicant_action_at: now,
+      updated_at: now,
+    }).eq('id', id).select('*').single()
+    await recordVisaEvent(id, 'applicant', 'sent_for_review', user.id, {
+      declarationVersion: VISA_DECLARATION_VERSION,
+      authorizationVersion: VISA_AUTHORIZATION_VERSION,
+      officialPrefillAuthorized: true,
+    })
     return forumJson(request, { application: serializeVisa(data as VisaApplicationRow, docs) }, undefined, METHODS)
   }
   if (app.status !== 'applicant_approval') return forumJson(request, { error: 'invalid_status_transition' }, { status: 409 }, METHODS)

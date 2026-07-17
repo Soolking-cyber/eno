@@ -114,6 +114,32 @@ test.describe('eno.forum itinerary builder', () => {
     await expect(travelersInput).toHaveValue('1')
   })
 
+  test('starts simple and supports searchable, keyboard-first route entry', async ({ page }) => {
+    const primaryDestination = page.getByRole('combobox', { name: /^Main destination$/i })
+    const addDestination = page.getByRole('combobox', { name: /^Add another stop/i })
+    const daysInput = page.getByRole('spinbutton', { name: /Enter trip length in days/i })
+
+    await expect(primaryDestination).toHaveValue('Da Nang')
+    await expect(page.getByTestId('itinerary-route-stop')).toHaveCount(0)
+    await expect(daysInput).toHaveValue('4')
+    await expect(page.getByRole('combobox', { name: /Departure city or airport/i })).toHaveCount(0)
+
+    await addDestination.fill('HUI')
+    await addDestination.press('Enter')
+    await expect(page.getByTestId('itinerary-route-stop')).toContainText('Hue')
+    await expect(daysInput).toHaveValue('6')
+
+    await primaryDestination.fill('SGN')
+    await primaryDestination.press('Enter')
+    await expect(primaryDestination).toHaveValue('Ho Chi Minh City')
+
+    await page.getByRole('button', { name: /Include flight options/i }).click()
+    const origin = page.getByRole('combobox', { name: /Departure city or airport/i })
+    await origin.fill('SIN')
+    await origin.press('Enter')
+    await expect(origin).toHaveValue('Singapore (SIN)')
+  })
+
   test('builds a researched, responsive itinerary from granular controls', async ({ page }) => {
     await page.route('**/api/itineraries/generate', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockResult) })
@@ -125,8 +151,10 @@ test.describe('eno.forum itinerary builder', () => {
     await expect(paceOptions).toHaveCount(3)
     expect(await paceOptions.evaluateAll((options) => options.every((option) => option.scrollWidth <= option.clientWidth))).toBe(true)
 
-    await page.getByLabel(/Start date/i).fill('2026-09-10')
-    await page.getByLabel(/Flying from/i).fill('Singapore (SIN)')
+    await page.getByLabel(/^Start date$/i).fill('2026-09-10')
+    await page.getByRole('button', { name: /Include flight options/i }).click()
+    await page.getByRole('combobox', { name: /Departure city or airport/i }).fill('Singapore (SIN)')
+    await page.getByRole('combobox', { name: /Departure city or airport/i }).press('Enter')
     await page.getByRole('radio', { name: /Premium/i }).click()
     await page.getByRole('slider', { name: /Trip length/i }).press('Home')
     await page.getByRole('slider', { name: /Trip length/i }).press('ArrowRight')
@@ -168,8 +196,10 @@ test.describe('eno.forum itinerary builder', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...mockResult, sources: [] }) })
     })
 
-    await page.getByLabel(/Start date/i).fill('2026-09-10')
-    await page.getByLabel(/Flying from/i).fill('Singapore (SIN)')
+    await page.getByLabel(/^Start date$/i).fill('2026-09-10')
+    await page.getByRole('button', { name: /Include flight options/i }).click()
+    await page.getByRole('combobox', { name: /Departure city or airport/i }).fill('Singapore (SIN)')
+    await page.getByRole('combobox', { name: /Departure city or airport/i }).press('Enter')
     await page.getByRole('slider', { name: /Trip length/i }).press('Home')
     await page.getByRole('slider', { name: /Trip length/i }).press('ArrowRight')
     await page.getByTestId('build-itinerary').click()

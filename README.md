@@ -51,6 +51,7 @@ VISA_DATA_ENCRYPTION_KEY=<32 random bytes encoded as base64; server-only>
 VISA_ADMIN_EMAILS=<optional comma-separated additional trained operator emails; support@eno.forum is built in>
 BROWSERBASE_API_KEY=<server-only Browserbase API key>
 BROWSERBASE_PROJECT_ID=<Browserbase project ID; optional when inferred from the API key>
+BROWSERBASE_CONTEXT_ID=<private reusable context ID for official-site cookies/login state>
 CRON_SECRET=<random server-only retention-cron secret>
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=<same public site key as eno.vn>
 GEMINI_VERTEX_API_KEY=<server-only Vertex AI API key restricted to aiplatform.googleapis.com>

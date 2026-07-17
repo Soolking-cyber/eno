@@ -5,6 +5,7 @@ import { getVisaDb } from '@/lib/visa/db'
 import { recordVisaEvent } from '@/lib/visa/records'
 import { VISA_AUTHORIZATION_VERSION } from '@/lib/visa/schema'
 import { VISA_BUCKET } from '@/lib/visa/storage'
+import { isAdminPrefillableStatus, isAdminReviewStatus } from '@/lib/visa/workflow'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -60,15 +61,35 @@ async function activeSession(applicationId: string) {
   return session ? { ...session, warnings: stored.warnings } : null
 }
 
+async function approveReviewedApplication(applicationId: string, status: string, admin: string) {
+  if (!isAdminReviewStatus(status)) return false
+  const now = new Date().toISOString()
+  const { data, error } = await getVisaDb()
+    .from('visa_applications')
+    .update({ status: 'ready_to_submit', assigned_admin: admin, updated_at: now })
+    .eq('id', applicationId)
+    .eq('status', status)
+    .select('id')
+    .maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('application_status_changed')
+  await recordVisaEvent(applicationId, 'admin', 'admin_approved_for_prefill', admin, { previousStatus: status })
+  return true
+}
+
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const admin = await getVisaAdmin()
   if (!admin) return Response.json({ error: 'admin_required' }, { status: 403, headers })
   const { id } = await params
   const { data: application } = await getVisaDb().from('visa_applications').select('id').eq('id', id).maybeSingle()
   if (!application) return Response.json({ error: 'not_found' }, { status: 404, headers })
-  if (!process.env.BROWSERBASE_API_KEY?.trim()) return Response.json({ configured: false, session: null }, { headers })
+  if (!process.env.BROWSERBASE_API_KEY?.trim()) return Response.json({ configured: false, persistentLoginConfigured: false, session: null }, { headers })
   try {
-    return Response.json({ configured: true, session: await activeSession(id) }, { headers })
+    return Response.json({
+      configured: true,
+      persistentLoginConfigured: Boolean(process.env.BROWSERBASE_CONTEXT_ID?.trim()),
+      session: await activeSession(id),
+    }, { headers })
   } catch (error) {
     return browserError(error)
   }
@@ -86,7 +107,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   ])
   if (!application) return Response.json({ error: 'not_found' }, { status: 404, headers })
   if (
-    application.status !== 'ready_to_submit'
+    !isAdminPrefillableStatus(application.status)
     || !application.authorized_at
     || !application.authorization_snapshot_hash
     || application.authorization_version !== VISA_AUTHORIZATION_VERSION
@@ -102,7 +123,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   try {
     const existing = await activeSession(id)
-    if (existing) return Response.json({ session: existing, reused: true }, { headers })
+    if (existing) {
+      await approveReviewedApplication(id, application.status, admin)
+      return Response.json({ session: existing, reused: true }, { headers })
+    }
     const [passportDownload, portraitDownload] = await Promise.all([
       db.storage.from(VISA_BUCKET).download(passport.storage_path),
       db.storage.from(VISA_BUCKET).download(portrait.storage_path),
@@ -124,6 +148,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         name: 'portrait.jpg',
       },
     })
+    try {
+      await approveReviewedApplication(id, application.status, admin)
+    } catch (error) {
+      const { releaseHostedVisaPrefill } = await import('@/lib/visa/hosted-prefill')
+      await releaseHostedVisaPrefill(session.id).catch(() => undefined)
+      throw error
+    }
     await recordVisaEvent(id, 'admin', 'hosted_prefill_started', admin, {
       sessionId: session.id,
       expiresAt: session.expiresAt,
@@ -131,6 +162,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       provider: 'browserbase',
       recordingsDisabled: true,
       captchaAutomationDisabled: true,
+      persistentLogin: session.persistentLogin,
     })
     return Response.json({ session, reused: false }, { headers })
   } catch (error) {

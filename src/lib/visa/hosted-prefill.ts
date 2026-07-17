@@ -18,6 +18,7 @@ export type HostedPrefillSession = {
   liveViewUrl: string
   expiresAt: string
   warnings: string[]
+  persistentLogin: boolean
 }
 
 function browserbase() {
@@ -28,6 +29,10 @@ function browserbase() {
 
 function projectId() {
   return process.env.BROWSERBASE_PROJECT_ID?.trim() || undefined
+}
+
+function governmentContextId() {
+  return process.env.BROWSERBASE_CONTEXT_ID?.trim() || undefined
 }
 
 function errorCode(error: unknown) {
@@ -273,8 +278,10 @@ export async function createHostedVisaPrefill(input: {
   passport: HostedDocument
 }): Promise<HostedPrefillSession> {
   const bb = browserbase()
+  const contextId = governmentContextId()
   const session = await bb.sessions.create({
     browserSettings: {
+      ...(contextId ? { context: { id: contextId, persist: true } } : {}),
       logSession: false,
       recordSession: false,
       solveCaptchas: false,
@@ -294,7 +301,7 @@ export async function createHostedVisaPrefill(input: {
     const warnings = await fillOfficialForm(page, input.payload, input.portrait, input.passport)
     const liveView = await bb.sessions.debug(session.id)
     await browser.close()
-    return { id: session.id, liveViewUrl: liveView.debuggerFullscreenUrl, expiresAt: session.expiresAt, warnings }
+    return { id: session.id, liveViewUrl: liveView.debuggerFullscreenUrl, expiresAt: session.expiresAt, warnings, persistentLogin: Boolean(contextId) }
   } catch (error) {
     await bb.sessions.update(session.id, { status: 'REQUEST_RELEASE', projectId: projectId() }).catch(() => undefined)
     throw errorCode(error)
@@ -307,7 +314,7 @@ export async function resumeHostedVisaPrefill(sessionId: string): Promise<Hosted
     const session = await bb.sessions.retrieve(sessionId)
     if (!['PENDING', 'RUNNING'].includes(session.status) || new Date(session.expiresAt) <= new Date()) return null
     const liveView = await bb.sessions.debug(sessionId)
-    return { id: session.id, liveViewUrl: liveView.debuggerFullscreenUrl, expiresAt: session.expiresAt, warnings: [] }
+    return { id: session.id, liveViewUrl: liveView.debuggerFullscreenUrl, expiresAt: session.expiresAt, warnings: [], persistentLogin: Boolean(governmentContextId()) }
   } catch {
     return null
   }
