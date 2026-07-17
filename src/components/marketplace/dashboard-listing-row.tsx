@@ -37,14 +37,16 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // disowns — so it stays a bespoke span and carries the raw token pair in `cls`.
   const statusChip: { label: string; variant: 'warning' | 'brand' | 'neutral'; className: string; cls: string } =
     !listing.verified && status === 'active'
-      ? { label: tr('Held', 'Đang giữ'), variant: 'warning', className: 'text-3xs', cls: 'bg-warning/15 text-warning' }
+      ? { label: tr('Held', 'Đang giữ'), variant: 'warning', className: 'text-2xs', cls: 'bg-warning/15 text-warning' }
       : status === 'sold'
-        ? { label: tr('Sold', 'Đã bán'), variant: 'neutral', className: 'text-3xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
+        ? { label: tr('Sold', 'Đã bán'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
         : status === 'hidden'
-          ? { label: tr('Hidden', 'Đã ẩn'), variant: 'neutral', className: 'text-3xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
-          : { label: tr('Live', 'Đang hiển thị'), variant: 'brand', className: 'text-3xs', cls: 'bg-accent text-accent-foreground' }
+          ? { label: tr('Hidden', 'Đã ẩn'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
+          : { label: tr('Live', 'Đang hiển thị'), variant: 'brand', className: 'text-2xs', cls: 'bg-accent text-accent-foreground' }
 
-  const btn = 'inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer'
+  // Sizing matches the forum dashboard scale (owner 2026-07-17): text-sm labels + size-4 (16px) icons
+  // on the action buttons, up from the previous cramped text-xs / 12px.
+  const btn = 'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer'
 
   // Warm the listing page on hover/touch so opening it is instant.
   const prefetch = () => router.prefetch(`/listings/${listing.id}`)
@@ -84,11 +86,11 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   // Shared between the row + square-card layouts.
   const meta = (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-2xs text-muted-foreground">
-      <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{listing.views}</span>
-      <span className="inline-flex items-center gap-1"><MessageSquareText className="h-3 w-3" />{listing.contactCount} {tr('leads', 'liên hệ')}</span>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+      <span className="inline-flex items-center gap-1"><Eye className="size-4" />{listing.views}</span>
+      <span className="inline-flex items-center gap-1"><MessageSquareText className="size-4" />{listing.contactCount} {tr('leads', 'liên hệ')}</span>
       {listing.savedCount > 0 && (
-        <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" />{listing.savedCount} {tr('saved', 'đã lưu')}</span>
+        <span className="inline-flex items-center gap-1"><Heart className="size-4" />{listing.savedCount} {tr('saved', 'đã lưu')}</span>
       )}
       {/* Business tier only (series is fetched lazily for business dashboards and
           simply never passed otherwise) — the slot only exists once data arrived,
@@ -101,7 +103,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // One quiet line, one plain action (never a scold). Saves beat views as the signal.
   const showNudge = status === 'active' && listing.contactCount === 0 && (listing.savedCount >= 5 || listing.views > 50)
   const nudge = showNudge ? (
-    <p className="mt-0.5 text-xs text-warning">
+    <p className="mt-0.5 text-sm text-warning">
       {listing.savedCount >= 5
         ? tr(`${listing.savedCount} people saved this — a small price drop usually sells it`, `${listing.savedCount} người đã lưu tin này — giảm giá một chút thường sẽ bán được`)
         : tr('Lots of views but no contacts yet — a lower price usually fixes this', 'Nhiều lượt xem nhưng chưa có liên hệ — giảm giá thường sẽ bán được')}
@@ -111,7 +113,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         size="none"
         onClick={() => router.push(`/listings/${listing.id}/edit`)}
         onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)}
-        className="text-xs font-semibold underline underline-offset-2 transition-colors hover:text-foreground"
+        className="text-sm font-semibold underline underline-offset-2 transition-colors hover:text-foreground"
       >
         {tr('Edit price', 'Sửa giá')}
       </Button>
@@ -128,18 +130,18 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       {/* Availability confirmation lives in the daily review popup now — not here. */}
       {status === 'active' ? (
         <Button variant="bare" size="none" onClick={() => setStatus('sold')} className={btn}>
-          <CheckCircle2 className="h-3 w-3" /> {tr('Mark sold', 'Đã bán')}
+          <CheckCircle2 className="size-4" /> {tr('Mark sold', 'Đã bán')}
         </Button>
       ) : (
         <Button variant="bare" size="none" onClick={() => setStatus('active')} className={btn}>
-          <RotateCcw className="h-3 w-3" /> {tr('Relist', 'Đăng lại')}
+          <RotateCcw className="size-4" /> {tr('Relist', 'Đăng lại')}
         </Button>
       )}
       <Button variant="bare" size="none" onClick={() => router.push(`/listings/${listing.id}/edit`)} onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} className={btn}>
-        <Pencil className="h-3 w-3" /> {tr('Edit', 'Sửa')}
+        <Pencil className="size-4" /> {tr('Edit', 'Sửa')}
       </Button>
       <Button variant="bare" size="none" onClick={open} className={btn}>
-        <ExternalLink className="h-3 w-3" /> {tr('View', 'Xem')}
+        <ExternalLink className="size-4" /> {tr('View', 'Xem')}
       </Button>
       {/* Quick share — only meaningful for a LIVE listing (a held/sold one has no
           public page). Reuses the curated share popover from the detail page. */}
@@ -149,11 +151,11 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           title={title}
           price={listing.price}
           currency={listing.currency}
-          className="gap-1 rounded-lg px-2.5 py-1 text-xs [&_svg]:h-3 [&_svg]:w-3"
+          className="gap-1 rounded-lg px-3 py-1.5 text-sm [&_svg]:size-4"
         />
       )}
       <Button variant="bare" size="none" onClick={del} aria-label={tr('Delete listing', 'Xóa tin')} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 relative tap-44')}>
-        <Trash2 className="h-3 w-3" />
+        <Trash2 className="size-4" />
       </Button>
     </div>
   )
@@ -171,11 +173,11 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
             <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
           )}
           {selectable && <span className="absolute right-2 top-2">{checkbox}</span>}
-          <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-3xs font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
+          <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-2xs font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
         </button>
         <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
-          <p className="line-clamp-2 text-sm font-semibold text-foreground">{title}</p>
-          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-accent-foreground" />
+          <p className="line-clamp-2 text-base font-semibold text-foreground">{title}</p>
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-base font-bold text-accent-foreground" />
           {meta}
           {nudge}
           <div className="mt-auto pt-2">{actions}</div>
@@ -188,7 +190,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   return (
     <div className={cn('flex gap-3 rounded-2xl p-3 transition-colors', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch}>
       {selectable && <span className="self-center">{checkbox}</span>}
-      <Button variant="bare" size="none" onClick={open} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-tint active:scale-100" aria-label={title}>
+      <Button variant="bare" size="none" onClick={open} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint active:scale-100" aria-label={title}>
         {img && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -197,10 +199,10 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <p className="truncate text-sm font-semibold text-foreground">{title}</p>
+          <p className="truncate text-base font-semibold text-foreground">{title}</p>
           <Badge variant={statusChip.variant} className={statusChip.className}>{statusChip.label}</Badge>
         </div>
-        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-sm font-bold text-accent-foreground" />
+        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-base font-bold text-accent-foreground" />
         <div className="mt-0.5">{meta}</div>
         {nudge}
         <div className="mt-2">{actions}</div>
