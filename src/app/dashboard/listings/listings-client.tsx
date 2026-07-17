@@ -31,10 +31,20 @@ export function ListingsClient() {
     )
   }
 
+  // First name for the greeting (business name → display name → nothing).
+  const name = (dash?.profile.businessName || dash?.profile.displayName || '').trim().split(/\s+/)[0]
+
   return (
     <>
-      <h1 className="text-xl font-bold text-foreground">{tr('Listings', 'Tin đăng')}</h1>
-      <div className="mt-4">
+      {/* Gemini-style greeting hero — a light, crisp welcome that floats IN the dashboard bloom
+          (globals .dashboard-canvas) instead of a bold boxed title. */}
+      <div className="space-y-1">
+        <h1 className="h-greeting text-ink-2">
+          {tr('Hi', 'Chào')}{name ? ` ${name}` : ''}
+        </h1>
+        <p className="text-sm text-muted-foreground">{tr('Manage your listings', 'Quản lý tin đăng của bạn')}</p>
+      </div>
+      <div className="mt-6">
         {!dash ? (
           <div className="space-y-2.5">
             {Array.from({ length: 3 }).map((_, i) => (
