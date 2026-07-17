@@ -3,7 +3,7 @@ import { DEFAULT_EVISA_ENTRY_GATE } from '@/lib/visa/checkpoints'
 
 export const VISA_PAYLOAD_VERSION = '2026-07-16'
 export const VISA_DECLARATION_VERSION = 'evisa-applicant-declaration-2026-07-16'
-export const VISA_AUTHORIZATION_VERSION = 'eno-prefill-authorization-2026-07-16'
+export const VISA_AUTHORIZATION_VERSION = 'eno-hosted-prefill-authorization-2026-07-17'
 export const MAX_EVISA_VALIDITY_DAYS = 90
 
 export function visaEndDateFor90DayWindow(startDate: string) {
@@ -37,6 +37,7 @@ export const visaPayloadSchema = z.object({
   sex: z.enum(['', 'male', 'female']).default(''), nationality: short.default(''),
   identityNumber: short.default(''), email: z.string().trim().max(254).default(''),
   religion, placeOfBirth: short.default(''),
+  usedOtherPassportsForVietnam: commonNo, usedOtherPassportDetails: long.default(''),
   hasOtherNationalities: commonNo, otherNationalities: short.default(''),
   hasVietnamLawViolation: commonNo, vietnamLawViolationDetails: long.default(''),
   passportNumber: short.default(''), passportType: z.enum(['ordinary', 'official', 'diplomatic', 'other']).default('ordinary'),
@@ -49,11 +50,13 @@ export const visaPayloadSchema = z.object({
   purposeOfEntry: short.default('Tourism'), intendedEntryDate: date.default(''), stayLengthDays: z.number().int().min(0).max(90).default(90),
   currentlyOutsideVietnam: eligibleOutsideVietnam,
   temporaryAddress: long.default(''), temporaryProvince: short.default(''), temporaryWard: short.default(''),
-  entryGate: short.default(DEFAULT_EVISA_ENTRY_GATE), exitGate: short.default(DEFAULT_EVISA_ENTRY_GATE), localContactName: short.default(''), localContactAddress: long.default(''),
+  entryGate: short.default(DEFAULT_EVISA_ENTRY_GATE), exitGate: short.default(DEFAULT_EVISA_ENTRY_GATE),
+  localContactName: short.default(''), localContactAddress: long.default(''), localContactPhone: short.default(''),
   visitedVietnamLastYear: commonNo, previousVisitDetails: long.default(''),
   hasRelativesInVietnam: commonNo, relativesInVietnamDetails: long.default(''),
   estimatedExpenses: z.number().min(0).max(1_000_000_000).default(1000), expensesCurrency: z.string().trim().max(3).default('USD'),
-  expensesPayer: z.enum(['self', 'organization', 'other']).default('self'), payerDetails: long.default(''),
+  expensesPayer: z.enum(['self', 'organization', 'other']).default('self'), paymentMethod: z.enum(['cash', 'credit_card', 'travellers_cheques']).default('credit_card'),
+  payerName: short.default(''), payerAddress: long.default(''), payerPhone: short.default(''), payerDetails: long.default(''),
   hasTravelInsurance: commonNo, insuranceDetails: long.default(''),
   hasChildrenOnPassport: commonNo, childrenOnPassportDetails: long.default(''),
   applicantNotes: long.default(''), adminMessage: long.default(''),
@@ -66,6 +69,7 @@ export const emptyVisaPayload = (email = '') => visaPayloadSchema.parse({ email 
 const required: Array<[keyof VisaPayload, string]> = [
   ['surname', 'surname_required'], ['givenNames', 'given_names_required'], ['dateOfBirth', 'date_of_birth_required'],
   ['sex', 'sex_required'], ['nationality', 'nationality_required'], ['email', 'email_required'], ['placeOfBirth', 'place_of_birth_required'],
+  ['usedOtherPassportsForVietnam', 'previous_passport_answer_required'],
   ['hasOtherNationalities', 'other_nationalities_answer_required'], ['hasVietnamLawViolation', 'law_violation_answer_required'],
   ['passportNumber', 'passport_number_required'], ['passportIssuingAuthority', 'passport_authority_required'],
   ['passportIssueDate', 'passport_issue_date_required'], ['passportExpiryDate', 'passport_expiry_date_required'],
@@ -89,11 +93,22 @@ export function validateVisaForReview(payload: VisaPayload, documents: Array<str
   if (payload.visaValidFrom && payload.visaValidTo && payload.visaValidFrom > payload.visaValidTo) issues.push('visa_dates_invalid')
   if (payload.passportIssueDate && payload.passportExpiryDate && payload.passportIssueDate >= payload.passportExpiryDate) issues.push('passport_dates_invalid')
   if (payload.hasOtherPassports === 'yes' && !payload.otherPassportDetails) issues.push('other_passport_details_required')
+  if (payload.usedOtherPassportsForVietnam === 'yes' && !payload.usedOtherPassportDetails) issues.push('previous_passport_details_required')
   if (payload.hasOtherNationalities === 'yes' && !payload.otherNationalities) issues.push('other_nationalities_details_required')
   if (payload.hasVietnamLawViolation === 'yes' && !payload.vietnamLawViolationDetails) issues.push('law_violation_details_required')
   if (payload.visitedVietnamLastYear === 'yes' && !payload.previousVisitDetails) issues.push('previous_visit_details_required')
   if (payload.hasRelativesInVietnam === 'yes' && !payload.relativesInVietnamDetails) issues.push('relatives_details_required')
   if (payload.hasTravelInsurance === 'yes' && !payload.insuranceDetails) issues.push('insurance_details_required')
+  if (payload.expensesPayer !== 'self') {
+    if (!payload.payerName) issues.push('payer_name_required')
+    if (!payload.payerAddress) issues.push('payer_address_required')
+    if (!payload.payerPhone) issues.push('payer_phone_required')
+  }
+  if (payload.localContactName || payload.localContactAddress || payload.localContactPhone) {
+    if (!payload.localContactName) issues.push('local_contact_name_required')
+    if (!payload.localContactAddress) issues.push('local_contact_address_required')
+    if (!payload.localContactPhone) issues.push('local_contact_phone_required')
+  }
   if (payload.hasChildrenOnPassport === 'yes' && !payload.childrenOnPassportDetails) issues.push('children_details_required')
   if (payload.currentlyOutsideVietnam === 'no') issues.push('applicant_must_be_outside_vietnam')
   if (payload.visaValidFrom && payload.visaValidTo) {
@@ -116,6 +131,7 @@ const STEP_ISSUES: Record<0 | 1 | 2, Set<string>> = {
   1: new Set([
     'surname_required', 'given_names_required', 'date_of_birth_required', 'sex_required', 'nationality_required',
     'email_required', 'email_invalid', 'place_of_birth_required', 'other_nationalities_answer_required',
+    'previous_passport_answer_required', 'previous_passport_details_required',
     'other_nationalities_details_required', 'law_violation_answer_required', 'law_violation_details_required',
     'passport_number_required', 'passport_authority_required', 'passport_issue_date_required', 'passport_expiry_date_required',
     'passport_dates_invalid', 'other_passports_answer_required', 'other_passport_details_required', 'permanent_address_required',
@@ -127,6 +143,8 @@ const STEP_ISSUES: Record<0 | 1 | 2, Set<string>> = {
     'vietnam_address_required', 'vietnam_province_required', 'entry_gate_required', 'exit_gate_required',
     'previous_visits_answer_required', 'previous_visits_details_required', 'relatives_answer_required',
     'relatives_details_required', 'insurance_answer_required', 'insurance_details_required',
+    'payer_name_required', 'payer_address_required', 'payer_phone_required',
+    'local_contact_name_required', 'local_contact_address_required', 'local_contact_phone_required',
     'children_on_passport_answer_required', 'children_details_required',
   ]),
 }

@@ -12,8 +12,9 @@ The complete feature lives in the standalone `Soolking-cyber/eno-forum` reposito
 6. If eno finds missing information, it returns the case to the applicant rather than silently changing facts.
 7. The applicant reviews the final snapshot and explicitly authorizes official-site prefill.
 8. The approved applicant-only answers are fingerprinted. Any later change invalidates browser prefill until the applicant approves again.
-9. A trained admin creates a one-use, five-minute browser handoff. The visible browser fills known fields and stops before declaration, Next, CAPTCHA, payment, and submission.
-10. eno tracks the government code/status and privately delivers the issued PDF.
+9. A trained admin launches a temporary hosted browser from the case. The browser uploads the approved images and fills matching fields on the official website without requiring the repository or a designated trusted computer.
+10. Browser recording, session logs, and automatic CAPTCHA solving are disabled. The admin reviews every field and personally handles declarations, CAPTCHA, payment, and final submission.
+11. eno tracks the government code/status and privately delivers the issued PDF.
 
 The authority—not eno—decides approval. eno must never promise approval or present itself as a government service.
 
@@ -22,21 +23,25 @@ The authority—not eno—decides approval. eno must never promise approval or p
 - Apply `supabase/migrations/20260716150000_visa_assistance.sql` and `supabase/migrations/20260716234500_visa_document_validation.sql` to the shared Supabase project. They create RLS-enabled, deny-by-default tables, the private `visa-documents` bucket, and the image-quality submission gate.
 - Add `SUPABASE_SECRET_KEY` only to the forum Vercel server environment.
 - Generate `VISA_DATA_ENCRYPTION_KEY` with `openssl rand -base64 32`, keep a recovery copy in the organization password manager, and add it only to the forum server environment.
-- Set `VISA_ADMIN_EMAILS` to a comma-separated operator allowlist.
+- `support@eno.forum` is the primary built-in operator identity. Set `VISA_ADMIN_EMAILS` only when additional trained operator emails are required.
+- Create a Browserbase project on a paid plan that supports keep-alive sessions. Add `BROWSERBASE_API_KEY` to the forum server environment and, when the API key cannot infer it, add `BROWSERBASE_PROJECT_ID`.
+- Browser sessions run in `ap-southeast-1`, open the official `evisa.gov.vn` form, disable recording/logging/CAPTCHA automation, and expire after 30 minutes. Live-view URLs are sensitive and must never be copied into support tickets or logs.
 - Keep the existing Gemini server credentials for automatic image-quality checks and passport transcription. Upload copy must clearly disclose that processing starts when the applicant uploads.
 - Keep Upstash configured. Visa creation, upload, extraction, and submission routes fail closed when the security rate limiter is unavailable.
 - Publish the privacy notice, retention period, service price, refund policy, and separate government fee before accepting production applications.
 - Set `CRON_SECRET`. The Vercel cron calls `/api/cron/visa-retention` daily and removes private files plus database cases after `retention_until`.
 
-## Admin browser runner
+## Admin submission workflow
 
-Copy the one-use command from `/admin/visas/:id` and run it from this repository:
+1. Sign in to `https://www.eno.forum/admin/visas` as `support@eno.forum`.
+2. Review the applicant-approved answers and both verified images. Return incomplete or ambiguous cases to the applicant before continuing.
+3. Once the applicant has accepted the current hosted-browser disclosure, open the ready case and choose **Launch and prefill**.
+4. eno creates a private 30-minute Browserbase session, transfers the approved images directly from private storage, opens the official form, and fills all safely matched fields.
+5. Use the live browser to compare every value against the applicant-approved panel. The case lists selector drift and structured fields that still require manual completion instead of guessing.
+6. Personally complete the government declarations and CAPTCHA, continue to payment, submit, and copy the government registration code back into the eno case.
+7. Choose **End browser session** as soon as the official submission is complete. Mark the case submitted/processing and later upload the official result PDF for private delivery.
 
-```sh
-npm run visa:prefill -- https://www.eno.forum/api/visa/prefill/ONE_USE_TOKEN
-```
-
-The runner stores source images only in a mode-0600 temporary directory and removes it when the visible browser closes. Selector drift becomes a manual warning. It is never permission to guess, bypass a challenge, or submit.
+The previous repository-local Playwright runner is retained only for emergency development diagnostics; it is not the production operator workflow. Hosted prefill is never permission to guess facts, bypass a challenge, accept a declaration, pay, or submit without human review.
 
 Operators must check the live requirements and application form at `https://evisa.gov.vn/` for every case because the authority can change fields and rules without notice.
 

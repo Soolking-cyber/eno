@@ -91,10 +91,10 @@ test.describe('eno.forum visa assistance', () => {
   test('uses conservative common-tourist defaults without guessing identity fields', () => {
     const payload = emptyVisaPayload('traveler@example.com')
     expect(payload).toMatchObject({
-      religion: 'None', passportType: 'ordinary', hasOtherNationalities: 'no', hasVietnamLawViolation: 'no',
+      religion: 'None', passportType: 'ordinary', usedOtherPassportsForVietnam: 'no', hasOtherNationalities: 'no', hasVietnamLawViolation: 'no',
       hasOtherPassports: 'no', entryType: 'single', purposeOfEntry: 'Tourism', currentlyOutsideVietnam: 'yes',
       stayLengthDays: 90, visitedVietnamLastYear: 'no', hasRelativesInVietnam: 'no', estimatedExpenses: 1000,
-      expensesCurrency: 'USD', expensesPayer: 'self', hasTravelInsurance: 'no', hasChildrenOnPassport: 'no',
+      expensesCurrency: 'USD', expensesPayer: 'self', paymentMethod: 'credit_card', hasTravelInsurance: 'no', hasChildrenOnPassport: 'no',
     })
     expect(payload).toMatchObject({ surname: '', givenNames: '', passportNumber: '', permanentAddress: '', occupation: '', entryGate: DEFAULT_EVISA_ENTRY_GATE, exitGate: DEFAULT_EVISA_ENTRY_GATE })
   })

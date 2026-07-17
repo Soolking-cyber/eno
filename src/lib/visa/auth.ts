@@ -2,6 +2,8 @@ import 'server-only'
 import { createClient, type User } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 
+export const VISA_SUPPORT_ADMIN_EMAIL = 'support@eno.forum'
+
 export async function getVisaUser(request: Request): Promise<User | null> {
   const authorization = request.headers.get('authorization')
   const token = authorization?.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
@@ -18,7 +20,10 @@ export async function getVisaUser(request: Request): Promise<User | null> {
 }
 
 function adminEmails(): Set<string> {
-  return new Set((process.env.VISA_ADMIN_EMAILS || '').split(',').map((value) => value.trim().toLowerCase()).filter(Boolean))
+  return new Set([
+    VISA_SUPPORT_ADMIN_EMAIL,
+    ...(process.env.VISA_ADMIN_EMAILS || '').split(',').map((value) => value.trim().toLowerCase()).filter(Boolean),
+  ])
 }
 
 export async function getVisaAdmin(): Promise<string | null> {

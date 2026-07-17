@@ -15,7 +15,7 @@ const schema = z.object({
 const transitions: Record<string, string[]> = {
   draft: ['cancelled'], ready_for_review: ['under_review', 'needs_changes', 'applicant_approval', 'cancelled'],
   under_review: ['needs_changes', 'applicant_approval', 'cancelled'], needs_changes: ['under_review', 'cancelled'],
-  applicant_approval: ['under_review', 'needs_changes', 'cancelled'], ready_to_submit: ['submitted', 'payment_required', 'processing', 'needs_changes', 'cancelled'],
+  applicant_approval: ['under_review', 'needs_changes', 'cancelled'], ready_to_submit: ['applicant_approval', 'submitted', 'payment_required', 'processing', 'needs_changes', 'cancelled'],
   submitted: ['payment_required', 'processing', 'needs_changes', 'rejected', 'cancelled'], payment_required: ['submitted', 'processing', 'rejected', 'cancelled'],
   processing: ['approved', 'rejected', 'needs_changes', 'cancelled'], approved: [], rejected: [], cancelled: [],
 }
@@ -57,8 +57,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (parsed.data.governmentApplicationStatus !== undefined) payload.governmentApplicationStatus = parsed.data.governmentApplicationStatus
   const now = new Date()
   const final = ['approved', 'rejected', 'cancelled'].includes(next)
+  const authorizationRefresh = next === 'applicant_approval' && app.status === 'ready_to_submit'
   const { data, error } = await getVisaDb().from('visa_applications').update({
     status: next, encrypted_payload: encryptVisaPayload(payload), assigned_admin: app.assigned_admin || admin,
+    authorized_at: authorizationRefresh ? null : app.authorized_at,
+    authorization_version: authorizationRefresh ? null : app.authorization_version,
+    authorization_snapshot_hash: authorizationRefresh ? null : app.authorization_snapshot_hash,
     submitted_at: next === 'submitted' && !app.submitted_at ? now.toISOString() : app.submitted_at,
     resolved_at: final ? now.toISOString() : null, retention_until: final ? new Date(now.getTime() + 90 * 86400_000).toISOString() : app.retention_until,
     updated_at: now.toISOString(),

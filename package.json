@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@browserbasehq/sdk": "^2.16.0",
     "@google/genai": "^2.11.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
@@ -26,6 +27,7 @@
     "docx": "^9.7.1",
     "lucide-react": "^0.525.0",
     "next": "^16.2.10",
+    "playwright-core": "^1.61.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sharp": "^0.34.3",
