@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -36,7 +36,11 @@ const Ctx = createContext<{
   setOpen: (o: boolean) => void
   /** Open the nav rail. (Arg retained for back-compat with openTo('root') callers.) */
   openTo: (v?: PanelView) => void
-}>({ open: false, setOpen: () => {}, openTo: () => {} })
+  /** Desktop rail expanded (pinned via the toggle). Lifted to the shell so the content padding can
+   *  push the feed clear of the WIDE (280px) rail when open — otherwise the expansion overlaps it. */
+  expanded: boolean
+  setExpanded: Dispatch<SetStateAction<boolean>>
+}>({ open: false, setOpen: () => {}, openTo: () => {}, expanded: false, setExpanded: () => {} })
 export const useAccountPanel = () => useContext(Ctx)
 
 const FORUM_URL = process.env.NEXT_PUBLIC_FORUM_URL || '/forum'
@@ -45,6 +49,10 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
+  // Desktop rail expanded (toggle-pinned). Lives HERE (not in AccountPanel) so the content padding
+  // below can push the feed clear of the 280px expanded rail. Resets whenever the rail closes.
+  const [expanded, setExpanded] = useState(false)
+  useEffect(() => { if (!open) setExpanded(false) }, [open])
   // Lazy-mount: guests and users who never open the panel pay zero render cost.
   const [mounted, setMounted] = useState(false)
   if (open && !mounted) setMounted(true)
@@ -85,16 +93,19 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   }, [pathname, user])
 
   return (
-    <Ctx.Provider value={{ open, setOpen, openTo }}>
+    <Ctx.Provider value={{ open, setOpen, openTo, expanded, setExpanded }}>
       <div
         className={cn(
-          'transition-[padding] duration-300 motion-reduce:transition-none',
-          // Clear the collapsed rail with SYMMETRIC padding (--account-w = 72px BOTH sides), not a
-          // one-sided margin — a left-only margin pushed the centred content ~72px off-centre (more
-          // space on the left). Equal padding keeps max-w-7xl content centred in the VIEWPORT, so the
-          // page reads balanced with the rail. The hover/toggle expansion floats OVER this (see
-          // AccountPanel), so the padding never changes on expand and the page never reflows.
-          open && 'lg:px-[var(--account-w)]',
+          // duration-200 matches the rail's own width transition, so the push and the widen move in
+          // lockstep — the rail's right edge never runs ahead of the content clearing it.
+          'transition-[padding] duration-200 motion-reduce:transition-none',
+          // Clear the rail with padding so the content stays BALANCED (not shoved by a one-sided
+          // margin, which put it ~72px off-centre). COLLAPSED: symmetric 72px both sides → content
+          // centred in the viewport, rail in the left gutter. EXPANDED (toggle-pinned, 280px): push
+          // the feed right to clear the wide rail (pl-280) while keeping the same 72px right gutter,
+          // so it never overlaps and stays balanced beside the rail. Animates the push (transition
+          // padding). Only when open (desktop, signed-in) — guests get nothing.
+          open && (expanded ? 'lg:pl-[280px] lg:pr-[var(--account-w)]' : 'lg:px-[var(--account-w)]'),
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >
@@ -113,12 +124,11 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   // rail's stats/identity and the section pages never diverge or double-fetch.
   const { dash } = useDashboard()
 
-  // DESKTOP expand — now PINNED by a toggle button (Gemini "Open sidebar"), not hover: hovering a
-  // collapsed icon reveals its NAME as a tooltip instead (see renderNav). Desktop-only; on mobile
-  // the panel is a full-screen launcher with labels always shown, so every `expanded`-gated class is
-  // `lg:`-scoped and this stays inert. Resets to collapsed when the rail closes.
-  const [expanded, setExpanded] = useState(false)
-  useEffect(() => { if (!open) setExpanded(false) }, [open])
+  // DESKTOP expand — PINNED by a toggle button (Gemini "Open sidebar"), not hover: hovering a
+  // collapsed icon reveals its NAME as a tooltip instead (see renderNav). Desktop-only. State lives
+  // in the SHELL (via context) so the content padding can push the feed clear of the 280px rail;
+  // reset-on-close also lives there.
+  const { expanded, setExpanded } = useAccountPanel()
 
   // While open on MOBILE, freeze the page behind the overlay — without this the background keeps
   // scrolling under the panel (same body-lock recipe as the gallery lightbox). Desktop squeezes the

@@ -245,17 +245,17 @@ export function Header() {
     <header
       id="app-header"
       className={cn(
-        // MOBILE/tablet: a clean, FLUSH, OPAQUE app bar — no top gap, no translucency (the floating
-        // pill's gap + /85 blur let the category strip bleed through ABOVE and BEHIND it, which read
-        // as broken on a phone). DESKTOP (lg): the floating PILL, inset from the top + edges so it
-        // reads as its own surface and never butts up against the left nav rail.
-        'sticky top-0 z-40 pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none lg:px-3 lg:pt-[calc(env(safe-area-inset-top)+0.5rem)]',
+        // FLAT header (owner 2026-07-17): the SAME background as the page canvas, separated only by a
+        // hairline bottom LINE — NO shadow, no floating pill. The opaque bg covers content scrolling
+        // under it; the balanced content padding (AccountPanelShell) already insets it clear of the
+        // left nav rail, so it never needs a pill to avoid a collision.
+        'sticky top-0 z-40 border-b border-border/60 bg-background pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style on ALL sizes (incl. desktop): slide UP off-screen + fade out on
         // scroll-down, slide back down + fade in on scroll-up (near the top = always shown).
         hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 sm:gap-3 bg-card px-3 shadow-sm sm:px-6 lg:rounded-2xl lg:bg-card/85 lg:px-8 lg:shadow-md lg:backdrop-blur-md">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 sm:gap-3 px-3 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link
           href="/"
