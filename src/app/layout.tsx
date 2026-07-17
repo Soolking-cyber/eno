@@ -27,6 +27,7 @@ import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { VercelTelemetry } from "@/components/marketplace/vercel-telemetry";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
+import { NativePush } from "@/components/native/native-push";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -178,6 +179,8 @@ export default function RootLayout({
             <SkipLink />
             <CurrencyProvider>
             <AuthProvider>
+              {/* Native push registration — no-op on web + until the plugin is wired (dormant). */}
+              <NativePush />
               <NotificationsProvider>
                 <ChatProvider>
                   <FavoritesProvider>

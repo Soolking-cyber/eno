@@ -1,6 +1,7 @@
 import 'server-only'
 import webpush from 'web-push'
 import { db } from './db'
+import { sendNativePushToProfile } from './native-push'
 
 // Configure VAPID once per process. If the keys aren't set (e.g. local dev
 // without push configured), sending becomes a safe no-op rather than throwing.
@@ -24,6 +25,10 @@ export type PushPayload = { title: string; body?: string; url?: string; tag?: st
  * Returns the number of successful deliveries.
  */
 export async function sendPushToProfile(profileId: string, payload: PushPayload): Promise<number> {
+  // Fan out to NATIVE (Capacitor) devices too — a no-op until FCM/APNs is configured (see
+  // native-push.ts). Fire-and-forget so it never changes web-push latency or the return value,
+  // and so it still fires even when web push (VAPID) isn't configured.
+  void sendNativePushToProfile(profileId, payload).catch(() => {})
   if (!configured) return 0
   const subs = await db.pushSubscription.findMany({ where: { profileId } })
   if (subs.length === 0) return 0

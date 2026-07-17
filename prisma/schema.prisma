@@ -79,6 +79,7 @@ model Profile {
   notifications           Notification[]          @relation("RecipientNotifications")
   trustEvents             TrustEvent[]            @relation("SubjectTrustEvents")
   pushSubscriptions       PushSubscription[]
+  nativePushTokens        NativePushToken[]
   savedSearches           SavedSearch[]
   authoredReviews         Review[]                @relation("AuthoredReviews")
   enforcementActions      EnforcementAction[]     @relation("ProfileEnforcementActions")
@@ -151,6 +152,19 @@ model PushSubscription {
   p256dh    String
   auth      String
   userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+}
+
+// Native (Capacitor) push tokens — FCM (Android) / APNs (iOS) device tokens, separate from the
+// web-push PushSubscription above. One row per device token; sends fan out via src/lib/native-push.
+model NativePushToken {
+  id        String   @id @default(cuid())
+  profileId String   @db.Uuid
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String // 'ios' | 'android'
   createdAt DateTime @default(now())
 
   @@index([profileId])
