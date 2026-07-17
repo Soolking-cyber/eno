@@ -8,8 +8,8 @@ export function AdminHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-3 py-3 sm:px-6 lg:px-8">
+        {/* Logo removed (owner 2026-07-17) — the eno mark already lives in the rail's toggle. */}
         <Link href="/" className="flex items-center gap-2">
-          <img src="/logo-mark.svg" alt="eno.vn" width={36} height={36} className="h-9 w-9" />
           <span className="text-sm font-bold text-foreground">Admin</span>
         </Link>
         <Link href="/" className="text-sm font-semibold text-accent-foreground hover:underline">Back to site</Link>
