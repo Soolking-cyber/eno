@@ -295,11 +295,12 @@ export function Header() {
                 // fused silhouette is one consistent radius. The floating shadow is the standard
                 // popover treatment for a layer over content — not canvas elevation.
                 ? 'rounded-2xl bg-popover shadow-pop sm:rounded-b-none'
-                // Idle = maximally seamless: rounded-xl and PURE bg-tint — zero border, zero ring,
+                // Idle = maximally seamless: rounded-2xl (matches the hero search pill + the fused-open
+                // state, so there's no corner jump on open) and PURE bg-tint — zero border, zero ring,
                 // and NO bg swap on focus (a white focus fill would merge into the bg-card header).
                 // The only focus cue is the text caret. It's distinguished from the header solely by
                 // the tint, exactly as requested.
-                : 'rounded-xl bg-tint',
+                : 'rounded-2xl bg-tint',
             )}>
               <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" strokeWidth={STROKE} />
               <Input
