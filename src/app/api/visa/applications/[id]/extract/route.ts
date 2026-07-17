@@ -1,9 +1,9 @@
-import { Type } from '@google/genai'
+import { ThinkingLevel, Type } from '@google/genai'
 import { z } from 'zod'
+import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
-import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
+import { GEMINI_VISA_FALLBACK_MODEL, GEMINI_VISA_MODEL, getGemini } from '@/lib/gemini'
 import { rateLimit } from '@/lib/ratelimit'
-import { aiErrorStatus, withAiRetry } from '@/lib/visa/ai-retry'
 import { getVisaUser } from '@/lib/visa/auth'
 import { decryptVisaPayload, encryptVisaPayload } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
@@ -87,8 +87,8 @@ async function analyzeImage(
   responseSchema: typeof passportSchema | typeof portraitSchema,
 ) {
   const attempts = [
-    { model: GEMINI_MODEL, delay: 0 },
-    { model: GEMINI_MODEL_FALLBACK, delay: 0 },
+    { model: GEMINI_VISA_MODEL, delay: 0 },
+    { model: GEMINI_VISA_FALLBACK_MODEL, delay: 0 },
   ]
   return withAiRetry(attempts, async (attempt, index) => {
       const response = await ai.models.generateContent({
@@ -96,8 +96,10 @@ async function analyzeImage(
         contents,
         config: {
           temperature: 0,
+          maxOutputTokens: responseSchema === passportSchema ? 2_048 : 1_024,
           responseMimeType: 'application/json',
           responseSchema,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
           httpOptions: { timeout: 12_000, retryOptions: { attempts: 1 } },
         },
       })

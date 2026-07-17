@@ -11,6 +11,11 @@ export function isRetryableAiError(error: unknown) {
   return status === 429 || status === 408 || status === 500 || status === 502 || status === 503 || status === 504 || error instanceof SyntaxError
 }
 
+/**
+ * Runs only the explicit attempts supplied by the caller. Every Gemini request
+ * also disables the SDK's default five-attempt behavior, so this helper is the
+ * single source of truth for paid retries.
+ */
 export async function withAiRetry<T>(
   attempts: AiAttempt[],
   run: (attempt: AiAttempt, index: number) => Promise<T>,

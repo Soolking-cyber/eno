@@ -27,6 +27,7 @@ function adminEmails(): Set<string> {
 }
 
 export async function getVisaAdmin(): Promise<string | null> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return null
   const { data } = await (await createSupabaseServer()).auth.getUser()
   const email = data.user?.email?.toLowerCase() || null
   return email && adminEmails().has(email) ? email : null

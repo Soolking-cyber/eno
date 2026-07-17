@@ -54,6 +54,11 @@ BROWSERBASE_PROJECT_ID=<Browserbase project ID; optional when inferred from the 
 CRON_SECRET=<random server-only retention-cron secret>
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=<same public site key as eno.vn>
 GEMINI_VERTEX_API_KEY=<server-only Vertex AI API key restricted to aiplatform.googleapis.com>
+GEMINI_ITINERARY_MODEL=gemini-3.5-flash
+GEMINI_ITINERARY_FALLBACK_MODEL=gemini-3.1-flash-lite
+GEMINI_VISA_MODEL=gemini-3.1-flash-lite
+GEMINI_VISA_FALLBACK_MODEL=gemini-3.5-flash
+GEMINI_TRANSLATION_MODEL=gemini-3.1-flash-lite
 UPSTASH_REDIS_REST_URL=<server-only Upstash REST URL>
 UPSTASH_REDIS_REST_TOKEN=<server-only Upstash REST token>
 ```
@@ -72,7 +77,11 @@ http://127.0.0.1:3101/auth/callback
 
 Also add `eno.forum` to the allowed hostnames for the existing Cloudflare Turnstile widget; Cloudflare applies a root hostname entry to its subdomains, including `www`. Email magic-link sends use the same invisible bot check as the marketplace; Google OAuth does not need it.
 
-The forum uses the marketplace Supabase Auth project, so both apps resolve to the same `auth.users.id` and public `Profile`. Each domain keeps its own secure auth cookie because `.vn` and `.forum` cannot share cookies. The forum owns the Gemini itinerary generation route and keeps `GEMINI_VERTEX_API_KEY` server-only; `GEMINI_API_KEY` remains an optional Gemini Developer API fallback. Itinerary saves and all marketplace database access continue through the same-origin `/api/backend/*` proxy to eno.vn. Prisma and database credentials remain only in the marketplace backend. This also keeps Vercel preview URLs compatible with the marketplace's strict browser CORS policy.
+The forum uses the marketplace Supabase Auth project, so both apps resolve to the same `auth.users.id` and public `Profile`. Each domain keeps its own secure auth cookie because `.vn` and `.forum` cannot share cookies. The forum owns the Gemini itinerary and visa-analysis routes and keeps `GEMINI_VERTEX_API_KEY` server-only; `GEMINI_API_KEY` remains an optional Gemini Developer API fallback. The production Vertex AI key belongs to the billed `eno-translate` Google Cloud project owned by `support@eno.forum` and must remain restricted to `aiplatform.googleapis.com`. Itinerary research uses stable Gemini 3.5 Flash; passport/portrait analysis and cached translation use the lower-cost Gemini 3.1 Flash-Lite, with one explicit 3.5 fallback for visa analysis. Every request disables the SDK's five-attempt default so paid retries stay bounded. A signed-in `support@eno.forum` admin can inspect the resolved non-secret configuration at `/api/admin/ai-health` and run a small live check at `/api/admin/ai-health?probe=1`.
+
+After changing any Gemini environment variable, redeploy all Vercel environments that should receive it. Never put the API key in `NEXT_PUBLIC_*`, browser code, GitHub, logs, or support messages. The key name and model variables are safe to document; the key value is not.
+
+Itinerary saves and all marketplace database access continue through the same-origin `/api/backend/*` proxy to eno.vn. Prisma and database credentials remain only in the marketplace backend. This also keeps Vercel preview URLs compatible with the marketplace's strict browser CORS policy.
 
 The database migration remains in the private eno.vn marketplace repository at `supabase/migrations/20260715090000_unified_forum_itinerary.sql`. It is additive, reuses `Profile`, enables RLS on every new table, and keeps public Data API access deny-by-default. Forum image uploads use the `forum-media` bucket with owner-folder write policies.
 

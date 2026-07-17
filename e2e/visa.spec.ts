@@ -1,13 +1,19 @@
 import { expectNoA11yViolations, test, expect } from './helpers'
 import sharp from 'sharp'
 import { normalizeVisaImage } from '../src/lib/visa/image-normalization'
-import { withAiRetry } from '../src/lib/visa/ai-retry'
+import { withAiRetry } from '../src/lib/ai-retry'
 import { evaluatePassportImageQuality } from '../src/lib/visa/image-quality'
 import { parsePassportMrz } from '../src/lib/visa/mrz'
 import { emptyVisaPayload, validateVisaForReview, validateVisaStep, visaDateDefaultsForStart, visaEndDateFor90DayWindow, visaPayloadSchema } from '../src/lib/visa/schema'
 import { DEFAULT_EVISA_ENTRY_GATE, EVISA_CHECKPOINTS } from '../src/lib/visa/checkpoints'
 
 test.describe('eno.forum visa assistance', () => {
+  test('keeps Gemini diagnostics private to the support admin', async ({ request }) => {
+    const response = await request.get('/api/admin/ai-health?probe=1')
+    expect(response.status()).toBe(403)
+    expect(await response.json()).toEqual({ error: 'admin_required' })
+  })
+
   test('explains the safe guest flow and exposes the shared quick links', async ({ page }) => {
     await page.goto('/visa')
     await expect(page).toHaveTitle(/Vietnam e-Visa assistance/i)
@@ -145,5 +151,17 @@ test.describe('eno.forum visa assistance', () => {
     )
     expect(result).toBe('checked')
     expect(models).toEqual(['primary', 'fallback'])
+  })
+
+  test('does not spend a fallback request on permanent provider errors', async () => {
+    const models: string[] = []
+    await expect(withAiRetry(
+      [{ model: 'primary', delay: 0 }, { model: 'fallback', delay: 0 }],
+      async (attempt) => {
+        models.push(attempt.model)
+        throw Object.assign(new Error('invalid request'), { status: 400 })
+      },
+    )).rejects.toThrow('invalid request')
+    expect(models).toEqual(['primary'])
   })
 })

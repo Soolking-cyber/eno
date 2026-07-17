@@ -1,14 +1,15 @@
-import { Type } from '@google/genai'
+import { ThinkingLevel, Type } from '@google/genai'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
-import { GEMINI_MODEL, getGemini } from '@/lib/gemini'
+import { GEMINI_ITINERARY_FALLBACK_MODEL, GEMINI_ITINERARY_MODEL, getGemini } from '@/lib/gemini'
 import { languageName } from '@/lib/languages'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 90
 
 async function getAuthenticatedUserId(request: Request): Promise<string | null> {
   const authorization = request.headers.get('authorization')
@@ -348,21 +349,38 @@ Planning rules:
 11. The JSON must stand on its own without markdown or citations embedded in text; research sources are attached separately by the API.`
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: prompt,
-      config: {
-        temperature: 0.2,
-        maxOutputTokens: 32_000,
-        tools: [{ googleSearch: {} }],
-        responseMimeType: 'application/json',
-        responseSchema,
-      },
+    const attempts = Array.from(new Set([GEMINI_ITINERARY_MODEL, GEMINI_ITINERARY_FALLBACK_MODEL]))
+      .map((model) => ({ model, delay: 0 }))
+    const generated = await withAiRetry(attempts, async (attempt, index) => {
+      const response = await ai.models.generateContent({
+        model: attempt.model,
+        contents: prompt,
+        config: {
+          // Gemini 3 models are tuned around their default sampling values. Low
+          // thinking is enough for a structured trip while keeping latency and
+          // output-token cost predictable.
+          maxOutputTokens: Math.min(24_000, Math.max(6_000, 4_000 + input.days * 650)),
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          tools: [{ googleSearch: {} }],
+          responseMimeType: 'application/json',
+          responseSchema,
+          // The SDK otherwise retries a paid grounded request up to five times.
+          // Keep every attempt explicit and bounded by withAiRetry.
+          httpOptions: {
+            timeout: index === 0 ? 50_000 : 25_000,
+            retryOptions: { attempts: 1 },
+          },
+        },
+      })
+      try {
+        const plan = planSchema.parse(JSON.parse(cleanModelJson(response.text || '{}')))
+        if (plan.days.length !== input.days) throw new SyntaxError('itinerary_day_count_mismatch')
+        return { response, plan, model: attempt.model, attempts: index + 1 }
+      } catch {
+        throw new SyntaxError('itinerary_response_invalid')
+      }
     })
-    const plan = planSchema.parse(JSON.parse(cleanModelJson(response.text || '{}')))
-    if (plan.days.length !== input.days) {
-      return forumJson(request, { error: 'ai_incomplete' }, { status: 502 }, 'POST, OPTIONS')
-    }
+    const { response, plan } = generated
 
     plan.flights = plan.flights.map((flight) => ({ ...flight, url: safeUrl(flight.url) }))
     plan.stays = plan.stays.map((stay) => ({ ...stay, url: safeUrl(stay.url) }))
@@ -378,13 +396,22 @@ Planning rules:
 
     return forumJson(request, {
       plan,
-      model: GEMINI_MODEL,
+      model: generated.model,
       generatedAt,
       sources,
       searchQueries: (metadata?.webSearchQueries || []).slice(0, 20),
     }, undefined, 'POST, OPTIONS')
   } catch (error) {
-    console.error('[itineraries/generate]', (error as Error)?.message?.slice(0, 600))
-    return forumJson(request, { error: 'ai_failed' }, { status: 502 }, 'POST, OPTIONS')
+    const providerStatus = aiErrorStatus(error)
+    console.error('[itineraries/generate]', {
+      providerStatus,
+      model: GEMINI_ITINERARY_MODEL,
+      fallbackModel: GEMINI_ITINERARY_FALLBACK_MODEL,
+      message: (error as Error)?.message?.slice(0, 500),
+    })
+    const busy = providerStatus === 429 || providerStatus === 503
+    const response = forumJson(request, { error: busy ? 'ai_busy' : 'ai_failed' }, { status: busy ? 429 : 502 }, 'POST, OPTIONS')
+    if (busy) response.headers.set('Retry-After', '60')
+    return response
   }
 }

@@ -1,8 +1,9 @@
 import 'server-only'
 import { GoogleGenAI } from '@google/genai'
 
-// Vertex AI API-key mode is preferred when GEMINI_VERTEX_API_KEY is present. It
-// uses Cloud billing without requiring a service-account credential in Vercel.
+// Vertex AI Express API-key mode is preferred when GEMINI_VERTEX_API_KEY is
+// present. It uses Cloud billing without requiring a service-account credential
+// in Vercel.
 // The Gemini Developer API remains available through GEMINI_API_KEY, followed by
 // the service-account fallback used by existing deployments configured via:
 //   GOOGLE_VERTEX_PROJECT      — the GCP project id linked to billing
@@ -10,13 +11,20 @@ import { GoogleGenAI } from '@google/genai'
 //   GOOGLE_VERTEX_CREDENTIALS  — the service-account JSON key, as a single-line string
 // Lazy singleton; returns null when unconfigured so the AI routes degrade gracefully.
 
-// Keep the stable, region-robust model first for every live request. The eno-translate
-// project's 3.5 preview pool can return RESOURCE_EXHAUSTED while 2.5 remains healthy;
-// making 2.5 primary prevents itinerary and visa traffic from touching that exhausted
-// pool during normal operation. 3.5 remains an immediate secondary attempt where a
-// route explicitly uses GEMINI_MODEL_FALLBACK. The global endpoint supports both.
-export const GEMINI_MODEL = 'gemini-2.5-flash'
-export const GEMINI_MODEL_FALLBACK = 'gemini-3.5-flash'
+function configuredModel(name: string, fallback: string) {
+  return process.env[name]?.trim() || fallback
+}
+
+// Keep each workload on an explicit stable model. Itinerary generation benefits
+// from 3.5's stronger planning and search-grounded structured output. Passport
+// transcription and cached UI translation are bounded extraction tasks, so the
+// lower-cost Flash-Lite model is the sensible primary. A visa request can make
+// at most one fallback attempt on 3.5 when the provider returns a retryable error.
+export const GEMINI_ITINERARY_MODEL = configuredModel('GEMINI_ITINERARY_MODEL', 'gemini-3.5-flash')
+export const GEMINI_ITINERARY_FALLBACK_MODEL = configuredModel('GEMINI_ITINERARY_FALLBACK_MODEL', 'gemini-3.1-flash-lite')
+export const GEMINI_VISA_MODEL = configuredModel('GEMINI_VISA_MODEL', 'gemini-3.1-flash-lite')
+export const GEMINI_VISA_FALLBACK_MODEL = configuredModel('GEMINI_VISA_FALLBACK_MODEL', 'gemini-3.5-flash')
+export const GEMINI_TRANSLATION_MODEL = configuredModel('GEMINI_TRANSLATION_MODEL', 'gemini-3.1-flash-lite')
 
 let client: GoogleGenAI | null | undefined
 
@@ -83,8 +91,13 @@ export function geminiDiag() {
     }
   } catch { credServiceAccount = 'PARSE_ERROR' }
   return {
-    model: GEMINI_MODEL,
-    fallbackModel: GEMINI_MODEL_FALLBACK,
+    models: {
+      itinerary: GEMINI_ITINERARY_MODEL,
+      itineraryFallback: GEMINI_ITINERARY_FALLBACK_MODEL,
+      visa: GEMINI_VISA_MODEL,
+      visaFallback: GEMINI_VISA_FALLBACK_MODEL,
+      translation: GEMINI_TRANSLATION_MODEL,
+    },
     authSource: vertexApiKey ? 'GEMINI_VERTEX_API_KEY' : apiKey ? 'GEMINI_API_KEY' : gProj?.trim() || vProj?.trim() ? 'VERTEX_AI' : 'none',
     // `.trim() || fallback` so a present-but-EMPTY var falls through exactly like getGemini().
     project: (gProj?.trim() || vProj?.trim()) || null,
