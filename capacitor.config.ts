@@ -16,6 +16,10 @@ const config: CapacitorConfig = {
     cleartext: false,
     // First-party links stay in the WebView; everything else opens in the system browser.
     allowNavigation: ['eno.vn', 'www.eno.vn'],
+    // If the remote load FAILS (offline / dropped connection), show a branded offline page from the
+    // local webDir instead of a blank WebView. It auto-retries + offers a "Try again" button. The
+    // MainViewController watchdog still backstops the pure-blank (-1005) case.
+    errorPath: 'error.html',
   },
   ios: {
     // Edge-to-edge: the WebView runs under the status bar so the bg-card header fills behind it.

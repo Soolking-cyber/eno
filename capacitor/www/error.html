@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>eno</title>
+    <style>
+      :root { --bg:#ffffff; --fg:#111827; --sub:#6b7280; --brand:#0A66C2; --ring:#e5e7eb; }
+      @media (prefers-color-scheme: dark){ :root{ --bg:#1b1b1b; --fg:#f3f4f6; --sub:#9ca3af; --brand:#4c9aff; --ring:#333; } }
+      html, body { margin:0; height:100%; }
+      body {
+        display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+        padding:24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+        text-align:center; font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+        background:var(--bg); color:var(--fg); -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+      }
+      .logo { font-weight:800; font-size:42px; letter-spacing:-1.5px; color:var(--brand); }
+      h1 { font-size:19px; margin:0; font-weight:700; }
+      p { margin:0; color:var(--sub); max-width:300px; line-height:1.5; font-size:15px; }
+      .spin { width:22px; height:22px; border:2.5px solid var(--ring); border-top-color:var(--brand); border-radius:50%; animation:sp .8s linear infinite; }
+      @keyframes sp { to { transform:rotate(360deg); } }
+      button { margin-top:6px; border:0; border-radius:14px; background:var(--brand); color:#fff; font-size:16px; font-weight:600; padding:14px 30px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+      button:active { opacity:.85; }
+    </style>
+  </head>
+  <!--
+    Capacitor server.errorPath target. Shown when the remote load (https://eno.vn) fails — a branded
+    "offline" state instead of a blank WebView. Auto-retries in the background and when connectivity
+    returns; a manual button is always available. All self-contained (no network needed to render).
+  -->
+  <body>
+    <div class="logo">eno</div>
+    <h1>You're offline</h1>
+    <p>We can't reach eno right now. We'll keep trying — check your internet connection.</p>
+    <div class="spin" aria-hidden="true"></div>
+    <button id="retry" type="button">Try again</button>
+    <script>
+      var URL_ = 'https://eno.vn';
+      function retry() { location.href = URL_; }
+      document.getElementById('retry').addEventListener('click', retry);
+      // Recover the instant connectivity returns, and auto-retry periodically as a backstop
+      // (a failed retry just reloads this page, so the loop self-heals when the network is back).
+      window.addEventListener('online', retry);
+      setTimeout(retry, 6000);
+    </script>
+  </body>
+</html>
