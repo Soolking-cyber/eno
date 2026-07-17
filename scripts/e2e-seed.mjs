@@ -66,10 +66,11 @@ const CONV_ID = 'e2e-conv-1'
 const MSG_ID = 'e2e-offer-1'
 const sellerPid = ids['e2e-seller@eno.vn']
 const buyerPid = ids['e2e-buyer@eno.vn']
+// status='active' is reset on re-seed so a mark-sold/relist test is idempotent.
 await db.query(
-  `INSERT INTO "Listing" (id, title, description, price, location, city, images, "categoryId", "sellerId", negotiable, verified, "updatedAt")
-   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, true, false, now())
-   ON CONFLICT (id) DO UPDATE SET price=$4, negotiable=true, verified=false, "updatedAt"=now()`,
+  `INSERT INTO "Listing" (id, title, description, price, location, city, images, "categoryId", "sellerId", negotiable, verified, status, "updatedAt")
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, true, false, 'active', now())
+   ON CONFLICT (id) DO UPDATE SET price=$4, negotiable=true, verified=false, status='active', "updatedAt"=now()`,
   [LISTING_ID, 'E2E Test Item', 'Seeded listing for the authed offer/counter e2e.', 5_000_000, 'Bến Nghé', 'Thành phố Hồ Chí Minh', '["https://eno.vn/logo.svg"]', 'cmqubxrzh0005u3q4xuuwam5i', SELLER_ID_ROW],
 )
 await db.query(
