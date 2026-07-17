@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { decryptVisaPayload, visaApplicantSnapshotHash } from '@/lib/visa/crypto'
 import { getVisaAdmin } from '@/lib/visa/auth'
 import { getVisaDb } from '@/lib/visa/db'
-import { createHostedVisaPrefill, releaseHostedVisaPrefill, resumeHostedVisaPrefill } from '@/lib/visa/hosted-prefill'
 import { recordVisaEvent } from '@/lib/visa/records'
 import { VISA_AUTHORIZATION_VERSION } from '@/lib/visa/schema'
 import { VISA_BUCKET } from '@/lib/visa/storage'
@@ -56,6 +55,7 @@ function latestUnreleased(events: HostedEvent[]) {
 async function activeSession(applicationId: string) {
   const stored = latestUnreleased(await recentHostedEvents(applicationId))
   if (!stored) return null
+  const { resumeHostedVisaPrefill } = await import('@/lib/visa/hosted-prefill')
   const session = await resumeHostedVisaPrefill(stored.sessionId)
   return session ? { ...session, warnings: stored.warnings } : null
 }
@@ -110,6 +110,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     if (passportDownload.error || !passportDownload.data || portraitDownload.error || !portraitDownload.data) {
       return Response.json({ error: 'document_download_failed' }, { status: 500, headers })
     }
+    const { createHostedVisaPrefill } = await import('@/lib/visa/hosted-prefill')
     const session = await createHostedVisaPrefill({
       payload,
       passport: {
@@ -146,6 +147,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   try {
     const stored = latestUnreleased(await recentHostedEvents(id))
     if (!stored || stored.sessionId !== parsed.data.sessionId) return Response.json({ error: 'session_not_found' }, { status: 404, headers })
+    const { releaseHostedVisaPrefill } = await import('@/lib/visa/hosted-prefill')
     await releaseHostedVisaPrefill(parsed.data.sessionId)
     await recordVisaEvent(id, 'admin', 'hosted_prefill_released', admin, { sessionId: parsed.data.sessionId })
     return Response.json({ released: true }, { headers })
