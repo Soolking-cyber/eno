@@ -120,11 +120,11 @@
   --brand-deep: #1b4b76;
   --brand-deeper: #0c2b48;
 
-  /* Dashboard rail width (desktop). Lives on :root so the ONE value drives the panel
-     width, the main content's squeeze margin, the draggable seam, and the fixed
-     back-to-top offset together — the panel and the feed stay one continuous canvas as
-     you drag the seam. JS clamps + persists it; this is the SSR/first-paint default. */
-  --account-w: 440px;
+  /* Collapsed dashboard rail width (desktop). The LEFT nav rail is collapsed-by-default to this
+     narrow column of icons; hovering expands it to 280px FLOATING over the content (see
+     account-panel.tsx), so this value only ever drives the collapsed panel width and the main
+     content's left squeeze margin — locked, never resized, so the page never reflows on hover. */
+  --account-w: 72px;
 
   /* Surfaces — soft neutral canvas so white surfaces (cards, header, popovers)
      gain subtle Airbnb-style depth without reintroducing borders/boxes. */
