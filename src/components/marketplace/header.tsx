@@ -245,13 +245,17 @@ export function Header() {
     <header
       id="app-header"
       className={cn(
-        'sticky top-0 z-40 border-b border-border/60 bg-card/85 backdrop-blur-md pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        // Floating PILL header (owner 2026-07-17): borderless + detached from the top and edges so
+        // it reads as its own surface on the unified canvas and never butts up against the left nav
+        // rail. The bg / rounding / shadow move to the inner max-w-7xl bar; the <header> is now just
+        // the sticky, safe-area-aware, hide-on-scroll shell + the float gap.
+        'sticky top-0 z-40 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] sm:px-3 transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style on ALL sizes (incl. desktop): slide UP off-screen + fade out on
         // scroll-down, slide back down + fade in on scroll-up (near the top = always shown).
         hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 sm:gap-3 px-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 sm:gap-3 rounded-2xl bg-card/85 px-3 shadow-md backdrop-blur-md sm:px-6 lg:px-8">
         {/* Logo */}
         <Link
           href="/"

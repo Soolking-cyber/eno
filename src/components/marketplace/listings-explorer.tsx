@@ -1257,16 +1257,23 @@ export function ListingsExplorer({
         <div className="relative w-full space-y-8 sm:space-y-12">
 
           {/* HERO SEARCH AREA */}
-          <div className="pb-2 text-center">
+          <div className="relative pb-2 text-center">
             {/* The visible wordmark logo + "e-commerce with no drama" tagline were removed
                 (owner 2026-07-16) — the hero is just the search now. The <h1> stays sr-only so
                 the page keeps its real, exact SEO heading. */}
             {/* eslint-disable-next-line react/jsx-no-literals -- SEO brand phrase, intentionally EN */}
             <h1 className="sr-only">eno.vn — Trusted Expat Marketplace in Vietnam</h1>
 
+            {/* Gemini focal bloom — a soft brand-blue glow radiating from BEHIND the search pill.
+                A positioned sibling placed BEFORE the (also positioned) #eno-hero-search, so the
+                search + its suggestions panel paint above it with no isolate/z-index gymnastics.
+                Lives only here; it scrolls away with the hero. */}
+            <div aria-hidden className="hero-bloom pointer-events-none absolute left-1/2 top-1/2 h-[260px] w-[880px] max-w-[150vw] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80 blur-2xl" />
+
             {/* Centered Search Bar (the header reveals its own search once this
-                scrolls out of view — id is the IntersectionObserver target). */}
-            <div id="eno-hero-search" className="relative max-w-2xl w-full mx-auto select-none">
+                scrolls out of view — id is the IntersectionObserver target). Wider pill
+                (max-w-3xl) — owner asked for a longer bar. */}
+            <div id="eno-hero-search" className="relative max-w-3xl w-full mx-auto select-none">
               {/* One cohesive search pill that morphs into a seamless suggestions
                   panel on focus (Google-style): flat bottom + shared shadow/border. */}
               <div className={cn(
