@@ -7,6 +7,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
+import { PdpShopLink } from '@/components/marketplace/pdp-shop-link'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Footer } from '@/components/marketplace/footer'
@@ -358,6 +359,13 @@ export default async function ListingPage({ params }: Props) {
             <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
           </nav>
 
+          {/* Shop-on-top (Shopee): compact storefront link directly above the media, MOBILE.
+              order-2 (same slot as the gallery) + placed first in source so it sits just above it;
+              md:hidden — the desktop twin lives in the left column. */}
+          <div className="order-2 md:hidden">
+            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} isBusiness={listing.seller.isBusiness} href={sellerHref} />
+          </div>
+
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
               md:hidden. Its desktop twin lives in the left column below; the variant gates stop
               the hidden one from fetching images. Share/Save overlay the media (Shopee pattern);
@@ -489,6 +497,13 @@ export default async function ListingPage({ params }: Props) {
               the buy box in the DOM (reading order) but `lg:order-2` paints it on the LEFT at lg;
               `contents` on mobile flattens these into the shared order space. */}
           <div className="contents lg:order-2 lg:col-span-7 lg:flex lg:flex-col lg:gap-8">
+            {/* Shop-on-top (Shopee): storefront link above the media, DESKTOP/TABLET. order-1 so it
+                leads the left column at lg (above the gallery) and follows only the breadcrumb when
+                the layout is a single flattened column at md; hidden below md (mobile twin above). */}
+            <div className="order-1 hidden md:block">
+              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} isBusiness={listing.seller.isBusiness} href={sellerHref} />
+            </div>
+
             {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens) */}
             <div className="relative order-2 hidden md:block">
               <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />

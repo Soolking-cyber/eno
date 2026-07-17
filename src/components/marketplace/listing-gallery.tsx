@@ -495,9 +495,36 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             </IconButton>
           )}
 
-          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
-            {idx + 1} / {images.length}
-          </div>
+          {/* Thumbnail strip — "look through" the whole set without leaving the lightbox (Shopee
+              desktop quick-view pattern). Replaces the bare n/N counter: the highlighted thumb IS
+              the position. Hidden while zoomed so it never fights the pan gesture; stops click
+              propagation so tapping a thumb navigates instead of closing. Scrolls + centers when the
+              set overflows. */}
+          {images.length > 1 && !zoom && (
+            <div
+              className="absolute inset-x-0 bottom-4 flex justify-center px-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="scrollbar-none flex max-w-full gap-2 overflow-x-auto rounded-2xl bg-black/40 p-2 backdrop-blur-sm">
+                {images.map((img, i) => (
+                  <Button
+                    key={i}
+                    variant="bare"
+                    size="none"
+                    onClick={(e) => { e.stopPropagation(); goTo(i) }}
+                    aria-label={`${title} — photo ${i + 1}`}
+                    aria-current={i === idx ? 'true' : undefined}
+                    className={cn(
+                      'relative h-12 w-12 shrink-0 overflow-hidden rounded-lg transition-opacity duration-150 cursor-pointer active:scale-100',
+                      i === idx ? 'ring-2 ring-white' : 'opacity-60 hover:opacity-100',
+                    )}
+                  >
+                    <Image src={img} alt="" fill sizes="48px" quality={60} unoptimized={isMockImageUrl(img) || undefined} className="object-cover" />
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>
