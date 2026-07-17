@@ -44,9 +44,12 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           ? { label: tr('Hidden', 'Đã ẩn'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
           : { label: tr('Live', 'Đang hiển thị'), variant: 'brand', className: 'text-2xs', cls: 'bg-accent text-accent-foreground' }
 
-  // Sizing matches the forum dashboard scale (owner 2026-07-17): text-sm labels + size-4 (16px) icons
-  // on the action buttons, up from the previous cramped text-xs / 12px.
-  const btn = 'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer'
+  // Unified tinted action chips (owner 2026-07-17): every action is the SAME soft blue-tint chip with
+  // an accent-blue icon and even spacing — consistent, forum-scale (text-sm label + size-4 icon). The
+  // `border-transparent` + `[&_svg]:*` overrides also fold QuickDiscount (a warning chip) and
+  // ShareButton into the same look when this class is passed to them.
+  const chip =
+    'inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-tint px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-40 cursor-pointer [&_svg]:size-4 [&_svg]:text-accent-foreground'
 
   // Warm the listing page on hover/touch so opening it is instant.
   const prefetch = () => router.prefetch(`/listings/${listing.id}`)
@@ -121,26 +124,26 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   ) : null
 
   const actions = (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-2">
       {/* Obvious price-cut action (was buried in Edit). Only for a priced, LIVE
-          listing — a free/sold/hidden item can't be discounted. */}
+          listing — a free/sold/hidden item can't be discounted. Same chip as the rest. */}
       {status === 'active' && listing.price > 0 && (
-        <QuickDiscount listing={{ id: listing.id, price: listing.price, currency: listing.currency }} onChanged={onChanged} />
+        <QuickDiscount listing={{ id: listing.id, price: listing.price, currency: listing.currency }} onChanged={onChanged} className={chip} />
       )}
       {/* Availability confirmation lives in the daily review popup now — not here. */}
       {status === 'active' ? (
-        <Button variant="bare" size="none" onClick={() => setStatus('sold')} className={btn}>
+        <Button variant="bare" size="none" onClick={() => setStatus('sold')} className={chip}>
           <CheckCircle2 className="size-4" /> {tr('Mark sold', 'Đã bán')}
         </Button>
       ) : (
-        <Button variant="bare" size="none" onClick={() => setStatus('active')} className={btn}>
+        <Button variant="bare" size="none" onClick={() => setStatus('active')} className={chip}>
           <RotateCcw className="size-4" /> {tr('Relist', 'Đăng lại')}
         </Button>
       )}
-      <Button variant="bare" size="none" onClick={() => router.push(`/listings/${listing.id}/edit`)} onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} className={btn}>
+      <Button variant="bare" size="none" onClick={() => router.push(`/listings/${listing.id}/edit`)} onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} className={chip}>
         <Pencil className="size-4" /> {tr('Edit', 'Sửa')}
       </Button>
-      <Button variant="bare" size="none" onClick={open} className={btn}>
+      <Button variant="bare" size="none" onClick={open} className={chip}>
         <ExternalLink className="size-4" /> {tr('View', 'Xem')}
       </Button>
       {/* Quick share — only meaningful for a LIVE listing (a held/sold one has no
@@ -151,10 +154,11 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           title={title}
           price={listing.price}
           currency={listing.currency}
-          className="gap-1 rounded-lg px-3 py-1.5 text-sm [&_svg]:size-4"
+          className={chip}
         />
       )}
-      <Button variant="bare" size="none" onClick={del} aria-label={tr('Delete listing', 'Xóa tin')} className={cn(btn, 'hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 relative tap-44')}>
+      {/* Delete stays a chip but reads destructive: neutral trash icon → red on hover. */}
+      <Button variant="bare" size="none" onClick={del} aria-label={tr('Delete listing', 'Xóa tin')} className={cn(chip, 'relative tap-44 [&_svg]:text-ink-4 hover:bg-destructive/10 hover:text-destructive hover:[&_svg]:text-destructive')}>
         <Trash2 className="size-4" />
       </Button>
     </div>
