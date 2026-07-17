@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   X, Store, Settings, Scale, CircleHelp, LogOut,
   MessageSquareText, Heart, Upload, Code2, UsersRound, PanelLeft,
+  Flag, ShieldAlert, ClipboardList, Tags, Star, Home,
 } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
@@ -236,26 +237,39 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
     return <Tooltip key={it.href} content={expanded ? undefined : it.label} side="right">{el}</Tooltip>
   }
 
-  // MIDDLE — core routing. Settings + Help live in the BOTTOM cluster; the unread count rides
-  // Messages as a badge. Storefront + forum tail the list.
-  const NAV: { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean }[] = [
-    // "Dashboard" was removed (owner 2026-07-17): /dashboard just redirects to /dashboard/listings,
-    // so it duplicated "My listings" and led nowhere of its own.
-    { href: '/dashboard/listings', label: tr('My listings', 'Tin của tôi'), icon: Store },
-    { href: '/messages', label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: unread },
-    { href: '/saved', label: tr('Saved', 'Đã lưu'), icon: Heart },
-    { href: '/dashboard/disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
-    ...(isBusiness
-      ? [
-          { href: '/dashboard/bulk', label: tr('Bulk upload', 'Tải hàng loạt'), icon: Upload },
-          { href: '/dashboard/dev', label: tr('Developers', 'Lập trình'), icon: Code2 },
-        ]
-      : []),
-    ...(dash?.seller
-      ? [{ href: dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`, label: tr('View storefront', 'Xem gian hàng'), icon: Store, external: true }]
-      : []),
-    { href: FORUM_URL, label: tr('Community forum', 'Diễn đàn cộng đồng'), icon: UsersRound, external: true },
-  ]
+  // MIDDLE — core routing. On /admin/* the rail becomes a DEDICATED ADMIN dashboard (EN-only per
+  // convention — the admin chrome isn't localized) showing ONLY admin sections; everyone else gets
+  // the seller/user nav. Only admins can reach /admin (server-gated on every route), so keying off
+  // the path is safe. Settings + Help + Sign out stay in the bottom cluster for both.
+  const inAdmin = pathname?.startsWith('/admin') ?? false
+  const NAV: { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean }[] = inAdmin
+    ? [
+        { href: '/admin', label: 'Reports', icon: Flag, exact: true },
+        { href: '/admin/disputes', label: 'Disputes', icon: Scale },
+        { href: '/admin/enforcement', label: 'Enforcement', icon: ShieldAlert },
+        { href: '/admin/listings', label: 'Listings', icon: ClipboardList },
+        { href: '/admin/brands', label: 'Brands', icon: Tags },
+        { href: '/admin/feedback', label: 'Feedback', icon: Star },
+        { href: '/', label: 'Back to site', icon: Home, external: true },
+      ]
+    : [
+        // "Dashboard" was removed (owner 2026-07-17): /dashboard just redirects to /dashboard/listings,
+        // so it duplicated "My listings" and led nowhere of its own.
+        { href: '/dashboard/listings', label: tr('My listings', 'Tin của tôi'), icon: Store },
+        { href: '/messages', label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: unread },
+        { href: '/saved', label: tr('Saved', 'Đã lưu'), icon: Heart },
+        { href: '/dashboard/disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
+        ...(isBusiness
+          ? [
+              { href: '/dashboard/bulk', label: tr('Bulk upload', 'Tải hàng loạt'), icon: Upload },
+              { href: '/dashboard/dev', label: tr('Developers', 'Lập trình'), icon: Code2 },
+            ]
+          : []),
+        ...(dash?.seller
+          ? [{ href: dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`, label: tr('View storefront', 'Xem gian hàng'), icon: Store, external: true }]
+          : []),
+        { href: FORUM_URL, label: tr('Community forum', 'Diễn đàn cộng đồng'), icon: UsersRound, external: true },
+      ]
 
   return (
     <aside
