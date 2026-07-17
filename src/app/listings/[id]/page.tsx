@@ -30,7 +30,6 @@ import { Tr } from '@/context/language-context'
 import { LocalizedTitle, LocalizedText, ListingDescription, PostedAgo } from '@/components/marketplace/listing-content'
 import { cachedTranslations } from '@/lib/translate'
 import { cn } from '@/lib/utils'
-import { PdpSellerCard } from '@/components/marketplace/pdp-seller-card'
 import { ReviewsPreview } from '@/components/marketplace/reviews-preview'
 import { SameSellerShelf } from '@/components/marketplace/same-seller-shelf'
 import { SoldListing } from '@/components/marketplace/sold-listing'
@@ -363,7 +362,7 @@ export default async function ListingPage({ params }: Props) {
               order-2 (same slot as the gallery) + placed first in source so it sits just above it;
               md:hidden — the desktop twin lives in the left column. */}
           <div className="order-2 md:hidden">
-            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} isBusiness={listing.seller.isBusiness} href={sellerHref} />
+            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} isBusiness={listing.seller.isBusiness} href={sellerHref} metrics={sellerMetricsBundle} />
           </div>
 
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
@@ -462,14 +461,9 @@ export default async function ListingPage({ params }: Props) {
                 </p>
               )}
 
-              {/* 5 — Seller trust snippet (brought high so buyers see who they're dealing with) */}
-              <div className="order-5">
-                <PdpSellerCard
-                  seller={{ id: listing.seller.id, name: listing.seller.name, avatarColor: listing.seller.avatarColor, isBusiness: listing.seller.isBusiness }}
-                  metrics={sellerMetricsBundle}
-                  storefrontHref={sellerHref}
-                />
-              </div>
+              {/* Seller trust snippet REMOVED (owner 2026-07-17): it duplicated the shop-on-top link
+                  above the media, which now carries the full identity + trust (name, Business, trust
+                  score, Joined · rating · reviews) + the Shop jump. "Chat now" lives in ContactComposer. */}
 
               {/* 6 — Contact + offer (auth-gated; number never in this payload). The mobile action
                   bar mirrors these CTAs and scrolls here (#contact) for "Make offer". */}
@@ -501,7 +495,7 @@ export default async function ListingPage({ params }: Props) {
                 leads the left column at lg (above the gallery) and follows only the breadcrumb when
                 the layout is a single flattened column at md; hidden below md (mobile twin above). */}
             <div className="order-1 hidden md:block">
-              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} isBusiness={listing.seller.isBusiness} href={sellerHref} />
+              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} isBusiness={listing.seller.isBusiness} href={sellerHref} metrics={sellerMetricsBundle} />
             </div>
 
             {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens) */}

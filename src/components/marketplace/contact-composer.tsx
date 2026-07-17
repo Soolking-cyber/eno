@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tag, Send } from 'lucide-react'
+import { Tag, Send, MessageCircle } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -102,20 +102,34 @@ export function ContactComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canOffer, user, loading])
 
-  // Chat is the SellerCard's "Chat now" (it fires eno:chat-now → send() above), so
-  // this composer carries NO second chat button — only the offer flow + a safety line.
+  // "Chat now" is now this composer's OWN primary CTA (moved here 2026-07-17 when the seller card
+  // was consolidated into the shop-on-top link, which took over the identity/trust). chatNow() sends
+  // the canned opener straight to a thread and gates guests to sign-in; the composer still ALSO
+  // answers the eno:chat-now event (the mobile action bar).
   const safetyLine = (
     <p className="text-center text-xs text-muted-foreground">
       {tr('Request their number or Zalo once they reply.', 'Yêu cầu số điện thoại hoặc Zalo sau khi họ trả lời.')}
     </p>
   )
+  const chatButton = (
+    <Button
+      type="button"
+      variant="cta"
+      size="none"
+      onClick={chatNow}
+      className="press flex w-full items-center justify-center gap-1.5 py-2.5 active:scale-100 cursor-pointer"
+    >
+      <MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}
+    </Button>
+  )
 
-  // Fixed-price listing: nothing to offer → just the reminder under the seller's Chat now.
-  if (!canOffer) return safetyLine
+  // Fixed-price listing: no offer → Chat now + the safety reminder.
+  if (!canOffer) return <div className="space-y-2">{chatButton}{safetyLine}</div>
 
   if (!loading && !user) {
     return (
       <div className="space-y-2">
+        {chatButton}
         <Button
           type="button"
           variant="bare"
@@ -132,6 +146,7 @@ export function ContactComposer({
 
   return (
     <div className="space-y-2">
+      {chatButton}
       {/* The offer is always open on a negotiable listing (user decisions 2026-07-14:
           haggling is the norm here, so it opens at a default discount). There's no
           close ✕ and no "Make an offer" trigger — nothing to close it TO: leaving the

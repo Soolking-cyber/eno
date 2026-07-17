@@ -1,50 +1,76 @@
-import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
-import { Avatar } from '@/components/ui/avatar'
-import { Tr } from '@/context/language-context'
-import { cn } from '@/lib/utils'
+'use client'
 
-/** Shopee "shop on top": a compact storefront entry that sits directly ABOVE the product
- *  media, so a buyer who likes the item can jump to the seller's full shop in one tap
- *  (the "SHOP >" bar in Shopee's product header). It complements — never replaces — the
- *  fuller trust-metric SellerCard lower in the buy box: this one is just the quick jump.
- *
- *  Server component (no hooks) so it renders inside the SSR'd/ISR'd PDP with the media.
- *  Dual-mounted like the gallery — one instance above the mobile media, one above the
- *  desktop media — so it reads identically on web (desktop+mobile) and in the iOS/Android
- *  WebView. Borderless, tokens-only. The whole row is already a large (~48px) tap target, so
- *  it deliberately does NOT use `tap-44`: that helper's absolute ::before hit-area needs a
- *  positioned host, and on this un-`relative` full-width row it balloons to an ancestor and
- *  overlays neighbours (it swallowed the buy-box "Chat now" CTA — caught by guest e2e). */
-export function PdpShopLink({ name, avatarColor, isBusiness, href, className }: {
+import Link from 'next/link'
+import { ChevronRight, Building2 } from 'lucide-react'
+import { Avatar } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { TrustScore } from './trust-score'
+import { RatingValue, CountValue } from './rating-value'
+import { useLanguage } from '@/context/language-context'
+import { cn } from '@/lib/utils'
+import type { SellerMetrics } from '@/lib/seller-metrics'
+
+/** Shopee "shop on top": the SINGLE seller surface on the PDP, sitting directly above the media.
+ *  It carries the full seller identity + trust (name, Business badge, trust score, Joined · rating ·
+ *  reviews) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
+ *  buy box is gone (its "Chat now" lives on in the ContactComposer). The whole strip is a div (not
+ *  one anchor) so the trust chip and the Shop link can each be their own real link. */
+export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, href, metrics, className }: {
   name: string
   avatarColor?: string | null
+  avatarUrl?: string | null
   isBusiness?: boolean
   href: string
+  metrics: SellerMetrics
   className?: string
 }) {
+  const { tr } = useLanguage()
+  const { responseBucket, memberSinceYear, reviewCount, rating, trustScore } = metrics
+
+  // Honest metrics strip — only signals that exist (never zero-filled), joined with middots.
+  const strip: React.ReactNode[] = []
+  if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
+  strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
+  if (reviewCount > 0) {
+    strip.push(
+      <span key="reviews" className="inline-flex items-center gap-1">
+        <RatingValue value={rating} />★ · <CountValue value={reviewCount} /> {tr('reviews', 'đánh giá')}
+      </span>,
+    )
+  }
+
   return (
-    <Link
-      href={href}
-      className={cn(
-        'group flex items-center gap-2.5 rounded-2xl bg-secondary/40 px-3 py-2 transition-colors hover:bg-secondary',
-        className,
-      )}
-    >
-      <Avatar name={name} color={avatarColor} size="sm" />
-      <span className="flex min-w-0 flex-1 flex-col leading-tight">
-        <span className="truncate text-sm font-semibold text-foreground">{name}</span>
-        {/* text-ink-4 (not muted-foreground): this 11px meta sits on bg-secondary/40, where
-            muted-foreground (#737373) is only 4.23:1 — axe-failing. ink-4 (#616161) is the token
-            reserved for small meta on tint (~5.6:1, AA). */}
-        <span className="truncate text-2xs font-medium text-ink-4">
-          {isBusiness ? <Tr text="Official shop" /> : <Tr text="Visit storefront" />}
-        </span>
-      </span>
-      <span className="flex shrink-0 items-center gap-0.5 text-xs font-semibold text-accent-foreground">
-        <Tr text="Shop" />
+    <div className={cn('flex items-center gap-3', className)}>
+      <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate text-sm font-bold text-foreground">{name}</span>
+          {isBusiness && (
+            <Badge variant="neutral" className="px-1.5 py-0.5 font-semibold text-accent-foreground">
+              <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
+            </Badge>
+          )}
+          <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" />
+        </div>
+        {strip.length > 0 && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+            {strip.map((node, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5">
+                {i > 0 && <span aria-hidden className="text-border">·</span>}
+                {node}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <Link
+        href={href}
+        aria-label={tr('Visit shop', 'Vào gian hàng')}
+        className="group flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-secondary"
+      >
+        {tr('Shop', 'Gian hàng')}
         <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none" />
-      </span>
-    </Link>
+      </Link>
+    </div>
   )
 }
