@@ -5,11 +5,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   X, Store, Settings, Scale, CircleHelp, LogOut, LayoutDashboard,
-  MessageSquareText, Heart, Plus, Upload, Code2, UsersRound,
+  MessageSquareText, Heart, Upload, Code2, UsersRound,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { PreferencesInline } from './preferences-inline'
+// (useAuth is used by BOTH the shell — to keep the desktop rail permanent for signed-in users —
+//  and the panel body.)
 import { TrustScore } from './trust-score'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -40,6 +42,7 @@ const FORUM_URL = process.env.NEXT_PUBLIC_FORUM_URL || '/forum'
 
 export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
   // Lazy-mount: guests and users who never open the panel pay zero render cost.
   const [mounted, setMounted] = useState(false)
@@ -62,16 +65,20 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
     window.dispatchEvent(new CustomEvent('eno:account-open-change', { detail: open }))
   }, [open])
 
-  // Nav-driven open/close: the rail IS the dashboard nav, so its open state follows the route. On a
-  // /dashboard/* route DESKTOP shows the collapsed rail beside the section (and opens it on arrival);
-  // MOBILE has no room for a persistent sidebar, so navigating there CLOSES the rail to reveal the
-  // page — launcher on phones, sidebar on desktops. Leaving /dashboard always closes it. Runs on
-  // MOUNT too (no prev-path guard) so a DIRECT desktop load of /dashboard/* shows the rail at once.
+  // PERMANENT desktop rail (owner 2026-07-17). The collapsed 72px icon column is ALWAYS on the left
+  // for a signed-in user on desktop — on every page, not just /dashboard/* — mirroring Gmail/Discord.
+  // MOBILE has no room for a persistent sidebar, so it stays a LAUNCHER (closed by default; the
+  // bottom-nav Account tab opens it full-screen via eno:open-account). `sync` re-runs on every route
+  // change (which CLOSES the mobile launcher after a tap-navigate — desktop just stays open) and on
+  // the viewport crossing the lg breakpoint (resize/orientation), so the rail is correct without a
+  // reload. Guests get neither (user is null → open stays false → nothing mounts, no content margin).
   useEffect(() => {
-    const inDash = pathname?.startsWith('/dashboard') ?? false
-    const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 64rem)').matches
-    setOpen(inDash && isDesktop)
-  }, [pathname])
+    const mq = window.matchMedia('(min-width: 64rem)')
+    const sync = () => setOpen(mq.matches && !!user)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [pathname, user])
 
   return (
     <Ctx.Provider value={{ open, setOpen, openTo }}>
@@ -249,34 +256,20 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
       )}
       style={{ transitionTimingFunction: 'var(--ease-spring)' }}
     >
-      {/* TOP (sticky) — mobile close + the ONE primary action. Collapsed on desktop it's a circular
-          "+" icon pill; hovered it grows into the full "Post a listing" text pill (label reveals). */}
-      <div className="shrink-0 space-y-2 p-3">
-        <div className="flex justify-end lg:hidden">
-          <IconButton onClick={onClose} aria-label={tr('Close', 'Đóng')} size="sm" className="text-ink-4 transition-colors hover:bg-secondary hover:text-foreground">
-            <X className="h-5 w-5" />
-          </IconButton>
-        </div>
-        <Button
-          asChild
-          variant="cta"
-          size="none"
-          className={cn(
-            'flex w-full items-center justify-center gap-2 py-3 text-sm lg:transition-[border-radius]',
-            expanded ? 'rounded-2xl px-4 lg:rounded-2xl lg:px-4' : 'rounded-2xl px-4 lg:rounded-full lg:px-0',
-          )}
-        >
-          <Link href="/post" title={tr('Post a listing', 'Đăng tin')} onClick={closeOnMobile}>
-            <Plus className="h-5 w-5 shrink-0" strokeWidth={2.25} />
-            <span className={labelCls}>{tr('Post a listing', 'Đăng tin')}</span>
-          </Link>
-        </Button>
+      {/* TOP — MOBILE ONLY: close the full-screen launcher. The desktop rail is persistent (no
+          close). "Post a listing" was REMOVED here (owner 2026-07-17) — the header/bottom-nav Post
+          button is the single entry point, so the rail no longer duplicates it. */}
+      <div className="flex shrink-0 justify-end p-3 lg:hidden">
+        <IconButton onClick={onClose} aria-label={tr('Close', 'Đóng')} size="sm" className="text-ink-4 transition-colors hover:bg-secondary hover:text-foreground">
+          <X className="h-5 w-5" />
+        </IconButton>
       </div>
 
       {/* MIDDLE + BOTTOM share ONE scroll area so nothing is ever unreachable on a short viewport or
           under text zoom. The bottom cluster gets mt-auto — pinned to the bottom when there's room to
-          spare, scrolling with the rest when there isn't. The Post pill above stays sticky. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 pb-3">
+          spare, scrolling with the rest when there isn't. pt-3 gives the first nav item top air on the
+          desktop rail (whose mobile-only close row above collapses to nothing at lg). */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 pt-3 pb-3 lg:pt-4">
         {/* MIDDLE — the core routing */}
         <nav aria-label={tr('Dashboard', 'Bảng điều khiển')} className="space-y-1">
           {NAV.map(renderNav)}

@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Tooltip } from '@/components/ui/tooltip'
-import { AccountMenu } from './account-menu'
 import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
@@ -467,9 +466,10 @@ export function Header() {
             </>
           )}
           <NotificationBell />
-          {user ? (
-            <div className="hidden sm:block"><AccountMenu /></div>
-          ) : (
+          {/* Signed-in users reach their account via the persistent LEFT nav rail (desktop) / the
+              bottom-nav Account tab (mobile/tablet) — no header avatar (owner 2026-07-17). Guests
+              still get a Sign in link here. */}
+          {!user && (
             <Link
               href="/signin"
               className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-48 relative"
