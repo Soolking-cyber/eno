@@ -109,6 +109,14 @@ function detectDeviceLanguage(): Language {
   return 'en'
 }
 
+// True inside the Capacitor native shell (iOS/Android WebView). There, navigator.language can lag
+// the real DEVICE language (WKWebView especially), so we confirm the locale via @capacitor/device.
+function isNativePlatform(): boolean {
+  if (typeof window === 'undefined') return false
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
+  return !!cap?.isNativePlatform?.()
+}
+
 interface LanguageContextProps {
   lang: Language
   setLang: (lang: Language) => void
@@ -276,6 +284,22 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const detected = detectDeviceLanguage()
     writeLangCookie(detected)
     if (detected !== 'en') setLangState(detected)
+    // NATIVE apps: iOS WKWebView's navigator.language can report the app's locale, not the DEVICE
+    // language — so confirm via @capacitor/device (the real OS locale) and apply it. The dynamic
+    // import keeps the plugin out of the WEB bundle (isNativePlatform gates it). A saved preference
+    // already returned above, so this only refines the auto-detected default. NOT persisted
+    // (setLangState + cookie, no localStorage), so it keeps following the device on each launch —
+    // exactly like the web navigator path.
+    if (isNativePlatform()) {
+      void (async () => {
+        try {
+          const { Device } = await import('@capacitor/device')
+          const { value } = await Device.getLanguageTag()
+          const dev = matchLanguage(value)
+          if (dev) { writeLangCookie(dev); setLangState(dev) }
+        } catch { /* plugin missing / not synced — the navigator fallback already applied */ }
+      })()
+    }
   }, [])
 
   // Persist the chosen language to the signed-in user's Profile so SERVER-sent messages
