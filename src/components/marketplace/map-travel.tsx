@@ -2,6 +2,7 @@
 
 import { Navigation, Loader2 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { Button } from '@/components/ui/button'
 import { estimateTravel, formatTravel, type LatLng } from '@/lib/travel'
 
 // The Google Maps pin mark — a small inline SVG (lucide has no brand logos). Recognisable
@@ -79,13 +80,15 @@ export function MapTravel({
   }
 
   return (
-    <button
+    <Button
+      variant="bare"
+      size="none"
       type="button"
       onClick={(e) => { e.stopPropagation(); onRequest() }}
-      className={`inline-flex items-center gap-1.5 rounded-full ${compact ? 'text-2xs' : 'text-xs'} font-semibold text-accent-foreground transition-colors hover:underline cursor-pointer`}
+      className={`inline-flex items-center gap-1.5 rounded-full ${compact ? 'text-2xs' : 'text-xs'} font-semibold text-accent-foreground transition-colors hover:underline`}
     >
       {state === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Navigation className="h-3.5 w-3.5" />}
       {tr('Travel time from me', 'Thời gian từ chỗ tôi')}
-    </button>
+    </Button>
   )
 }

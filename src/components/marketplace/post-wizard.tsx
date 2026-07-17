@@ -834,7 +834,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => { e.preventDefault(); setDragOver(false); addPhotos(e.dataTransfer.files) }}
-              className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'ring-2 ring-brand/40', err.photo && 'p-2 -m-2 ring-2 ring-destructive/60')}
+              className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'bg-brand/5 ring-2 ring-brand/40', err.photo && 'p-2 -m-2 ring-2 ring-destructive/60')}
             >
               {photos.map((p, i) => (
                 <div

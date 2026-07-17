@@ -93,12 +93,14 @@ export function AdminListingsClient() {
 
   const columns = useMemo<ColumnDef<Row>[]>(() => {
     const sortBtn = (label: string) => ({ column }: { column: { toggleSorting: (d?: boolean) => void; getIsSorted: () => false | 'asc' | 'desc' } }) => (
-      <button
-        className="inline-flex cursor-pointer items-center gap-1 font-semibold hover:text-foreground"
+      <Button
+        variant="bare"
+        size="none"
+        className="inline-flex items-center gap-1 font-semibold hover:text-foreground"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
       >
         {label} <ArrowUpDown className="h-3 w-3" />
-      </button>
+      </Button>
     )
     return [
       {

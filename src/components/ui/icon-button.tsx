@@ -1,5 +1,7 @@
 'use client'
 
+import * as React from 'react'
+import { Button as ButtonPrimitive } from '@base-ui/react/button'
 import { cn } from '@/lib/utils'
 
 // Shared icon-button SHELL — the round, centered, 44px-tap-target box that's hand-rolled
@@ -66,9 +68,17 @@ export function IconButton({
   /** false = no 44px ::before. Under the a11y minimum — dense clusters only. See header. */
   tapTarget?: boolean
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  // Base UI's Button primitive (was a raw <button>): same rendered <button>, but consistent
+  // focus-visible / disabled / keyboard-activation semantics with the rest of the ui/* controls.
+  // The class list is byte-for-byte the original shell, so appearance + `className`-last precedence
+  // (caller overrides `relative`→`absolute`, `rounded-full`, the shadow, etc.) are unchanged. No
+  // press-scale is baked in on purpose: many IconButtons are floating-ui anchors (bell, overflow),
+  // and scaling a popup's anchor would shift the open popup (see custom-select). Callers still opt
+  // into their own `active:scale-*` via className exactly as before.
   return (
-    <button
+    <ButtonPrimitive
       type={type}
+      data-slot="icon-button"
       className={cn(
         'relative flex shrink-0 cursor-pointer items-center justify-center rounded-full',
         tapTarget && 'tap-44',
@@ -79,6 +89,6 @@ export function IconButton({
       {...props}
     >
       {children}
-    </button>
+    </ButtonPrimitive>
   )
 }

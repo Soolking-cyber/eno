@@ -152,16 +152,18 @@ export function QuickDiscount({
       {/* Distinct warm "deal" chip so the discount action is findable at a glance
           among the neutral row actions (user ask 2026-07-07). Amber, not the red
           drop-badge / report red, and not the blue primary CTA. */}
-      <button
+      <Button
+        variant="bare"
+        size="none"
         type="button"
         onClick={openDialog}
         className={cn(
-          'inline-flex items-center gap-1 rounded-lg border border-warning/30 bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning transition-colors hover:bg-warning/15 cursor-pointer',
+          'inline-flex items-center gap-1 rounded-lg border border-warning/30 bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning transition-colors hover:bg-warning/15',
           className,
         )}
       >
         <TrendingDown className="h-3 w-3" /> {tr('Discount', 'Giảm giá')}
-      </button>
+      </Button>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
         <DialogContent className="bg-card rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
