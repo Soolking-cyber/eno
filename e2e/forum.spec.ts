@@ -2,6 +2,29 @@ import { expectNoA11yViolations, test, expect } from './helpers'
 import { canDeleteForumPost } from '../src/lib/forum-api'
 import { INITIAL_FORUM_POSTS } from '../src/components/forum/forum-data'
 
+function mockEnoSessionCookie() {
+  const now = Math.floor(Date.now() / 1000)
+  const user = {
+    id: 'e2e-support-user',
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: 'support@eno.forum',
+    email_confirmed_at: new Date().toISOString(),
+    phone: '',
+    confirmed_at: new Date().toISOString(),
+    last_sign_in_at: new Date().toISOString(),
+    app_metadata: { provider: 'email', providers: ['email'] },
+    user_metadata: { full_name: 'Test Support' },
+    identities: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    is_anonymous: false,
+  }
+  const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  const accessToken = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ aud: 'authenticated', sub: user.id, email: user.email, exp: now + 86_400 })}.e2e-signature`
+  return `base64-${encode({ access_token: accessToken, refresh_token: 'e2e-refresh-token', expires_in: 86_400, expires_at: now + 86_400, token_type: 'bearer', user })}`
+}
+
 test.describe('eno.forum standalone', () => {
   test('offers deletion only for the signed-in owner of a live post', () => {
     const livePost = { ...INITIAL_FORUM_POSTS[0], id: 'live-owned-post', live: true, authorId: 'owner-id' }
@@ -100,6 +123,71 @@ test.describe('eno.forum standalone', () => {
     await expect(page.getByText(/itineraries, visa applications, forum activity, and marketplace tools/i)).toBeVisible()
     await page.locator('main').getByRole('button', { name: /Sign in to eno/i }).click()
     await expect(page.getByRole('dialog').getByRole('heading', { name: /One eno account, everywhere/i })).toBeVisible()
+  })
+
+  test('uses one responsive eno dashboard rail across forum services', async ({ page }) => {
+    test.skip(Boolean(process.env.E2E_BASE), 'The signed-in shell fixture is local-only.')
+    await page.context().addCookies([{
+      name: 'sb-127-auth-token',
+      value: mockEnoSessionCookie(),
+      url: 'http://127.0.0.1:3101',
+    }])
+    await page.reload()
+
+    const panel = page.getByTestId('eno-account-panel')
+    const mobile = (page.viewportSize()?.width || 0) < 1024
+    if (mobile) {
+      await expect(panel).not.toBeVisible()
+      await page.getByRole('button', { name: /^Account$/i }).click()
+      await expect(panel).toBeVisible()
+      await expect(panel).toHaveAttribute('role', 'dialog')
+    } else {
+      await expect(panel).toBeVisible()
+      await expect(panel).toHaveAttribute('data-expanded', 'false')
+      const collapsedBox = await panel.boundingBox()
+      expect(collapsedBox).not.toBeNull()
+      expect(collapsedBox!.width).toBeCloseTo(72, 0)
+      await expect(panel.locator('img[src="/logo-mark.svg"]')).toBeVisible()
+      await page.getByRole('button', { name: /Expand sidebar/i }).click()
+      await expect(panel).toHaveAttribute('data-expanded', 'true')
+      await expect.poll(async () => (await panel.boundingBox())?.width).toBeCloseTo(280, 0)
+      await page.setViewportSize({ width: 1024, height: 800 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    }
+
+    await expect(panel.getByRole('link', { name: /^Dashboard$/i })).toHaveAttribute('href', '/dashboard')
+    await expect(panel.getByRole('link', { name: /^Community forum$/i })).toHaveAttribute('href', '/')
+    await expect(panel.getByRole('link', { name: /^Itinerary planner$/i })).toHaveAttribute('href', '/itinerary')
+    await expect(panel.getByRole('link', { name: /^Vietnam e-Visa$/i })).toHaveAttribute('href', '/visa')
+    await expect(panel.getByRole('link', { name: /^eno marketplace$/i })).toHaveAttribute('href', 'https://eno.vn')
+    await expect(panel.getByRole('link', { name: /^My listings$/i })).toHaveAttribute('href', 'https://eno.vn/dashboard/listings')
+    await expect(panel.getByRole('link', { name: /^Messages$/i })).toHaveAttribute('href', 'https://eno.vn/messages')
+    await expect(panel.getByRole('link', { name: /^Saved$/i })).toHaveAttribute('href', 'https://eno.vn/saved')
+    await expect(panel.getByText('Test Support')).toBeVisible()
+    await expect(panel.getByText('support@eno.forum')).toBeVisible()
+    expect(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await expectNoA11yViolations(page, 'unified eno account rail')
+
+    if (mobile) {
+      await panel.getByRole('button', { name: /Close account menu/i }).click()
+      await expect(panel).not.toBeVisible()
+    } else {
+      await page.getByRole('button', { name: /Collapse sidebar/i }).click()
+      await expect(panel).toHaveAttribute('data-expanded', 'false')
+    }
+
+    await page.goto('/itinerary')
+    await expect(page.locator('main[data-hydrated]')).toHaveAttribute('data-hydrated', 'true')
+    if (mobile) await page.getByRole('button', { name: /Open eno dashboard/i }).click()
+    await expect(panel).toBeVisible()
+    await expect(panel.getByRole('link', { name: /^Itinerary planner$/i })).toHaveAttribute('aria-current', 'page')
+    if (mobile) await panel.getByRole('button', { name: /Close account menu/i }).click()
+
+    await page.goto('/visa')
+    await expect(page.getByRole('heading', { level: 1, name: /One guided application/i })).toBeVisible()
+    if (mobile) await page.getByRole('button', { name: /Open eno dashboard/i }).click()
+    await expect(panel).toBeVisible()
+    await expect(panel.getByRole('link', { name: /^Vietnam e-Visa$/i })).toHaveAttribute('aria-current', 'page')
   })
 
   test('shares the 11-language preference across forum, itinerary, and visa pages', async ({ page }) => {

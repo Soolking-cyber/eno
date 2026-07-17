@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function DashboardPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="dashboard-canvas flex min-h-screen flex-col">
       <ForumHeader />
       <EnoDashboard />
       <ForumFooter />

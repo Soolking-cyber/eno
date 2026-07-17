@@ -36,6 +36,7 @@ import { toast } from 'sonner'
 import { Tr, useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { ForumFooter } from '@/components/forum/forum-footer'
+import { useEnoAccountShell } from '@/components/dashboard/eno-account-shell'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -354,7 +355,7 @@ function MobileForumNav({
   onSaved: () => void
 }) {
   const { tr } = useLanguage()
-  const { user, openSignIn } = useAuth()
+  const { openAccount } = useEnoAccountShell()
   const { open: keyboardOpen } = useVirtualKeyboard()
   const itemClass = 'relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-3xs font-semibold'
 
@@ -389,9 +390,9 @@ function MobileForumNav({
           </span>
           <span>{tr('Saved', 'Đã lưu')}</span>
         </Button>
-        <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={() => user ? window.location.assign('/dashboard') : openSignIn()}>
+        <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={openAccount}>
           <UserRound className="h-5 w-5" />
-          <span>{user ? tr('Account', 'Tài khoản') : tr('Sign in', 'Đăng nhập')}</span>
+          <span>{tr('Account', 'Tài khoản')}</span>
         </Button>
       </div>
     </nav>

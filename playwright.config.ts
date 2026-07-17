@@ -18,7 +18,7 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 5'] } },
   ],
   webServer: process.env.E2E_BASE ? undefined : {
-    command: 'FORUM_E2E_PREVIEW=1 npm run dev',
+    command: 'FORUM_E2E_PREVIEW=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=e2e-public-key npm run dev',
     url: baseURL,
     reuseExistingServer: true,
   },

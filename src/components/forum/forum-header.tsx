@@ -1,16 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { Check, LayoutDashboard, LogOut, Languages, Plus, Search, Store, UserRound } from 'lucide-react'
+import { Check, Languages, Plus, Search, UserRound } from 'lucide-react'
 import { LANGUAGES, useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
+import { useEnoAccountShell } from '@/components/dashboard/eno-account-shell'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -25,7 +25,8 @@ export function ForumHeader({
   onCreatePost?: () => void
 }) {
   const { tr, lang, setLang } = useLanguage()
-  const { user, loading, openSignIn, signOut } = useAuth()
+  const { user, loading, openSignIn } = useAuth()
+  const { openAccount } = useEnoAccountShell()
   const searchEnabled = typeof query === 'string' && Boolean(onQueryChange)
 
   return (
@@ -36,7 +37,7 @@ export function ForumHeader({
         </Link>
 
         {searchEnabled ? (
-          <div className="mx-auto hidden max-w-xl flex-1 sm:block">
+          <div className="mx-auto hidden min-w-0 max-w-xl flex-1 sm:block">
             <div className="flex items-center rounded-2xl bg-tint transition-all focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30">
               <Search className="ml-4 h-5 w-5 shrink-0 text-ink-4" />
               <Input
@@ -78,29 +79,10 @@ export function ForumHeader({
           </DropdownMenu>
 
           {!loading && (user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger render={
-                <Button type="button" variant="outline" size="sm" className="h-10 gap-2 px-2 sm:px-3" aria-label={tr('Open your eno account menu', 'Mở menu tài khoản eno')}>
-                  <Avatar name={user.user_metadata?.full_name || user.email || 'eno member'} url={user.user_metadata?.avatar_url} size="sm" className="h-6 w-6 text-3xs" />
-                  <span className="hidden max-w-24 truncate sm:inline">{user.user_metadata?.full_name || user.email?.split('@')[0] || tr('Account', 'Tài khoản')}</span>
-                </Button>
-              } />
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem render={<Link href="/dashboard" />}>
-                  <LayoutDashboard className="h-4 w-4" />
-                  {tr('Your eno dashboard', 'Bảng điều khiển eno')}
-                </DropdownMenuItem>
-                <DropdownMenuItem render={<a href={`${(process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn').replace(/\/$/, '')}/dashboard`} />}>
-                  <Store className="h-4 w-4" />
-                  {tr('Marketplace account', 'Tài khoản chợ')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => void signOut()}>
-                  <LogOut className="h-4 w-4" />
-                  {tr('Sign out', 'Đăng xuất')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button type="button" variant="outline" size="sm" className="h-10 gap-2 px-2 sm:px-3" aria-label={tr('Open eno dashboard', 'Mở bảng điều khiển eno')} onClick={openAccount}>
+              <Avatar name={user.user_metadata?.full_name || user.email || 'eno member'} url={user.user_metadata?.avatar_url} size="sm" className="h-6 w-6 text-3xs" />
+              <span className="hidden max-w-24 truncate sm:inline">{user.user_metadata?.full_name || user.email?.split('@')[0] || tr('Account', 'Tài khoản')}</span>
+            </Button>
           ) : (
             <Button type="button" variant="outline" size="sm" className="h-10 px-2 sm:px-3" onClick={openSignIn} aria-label={tr('Sign in to eno', 'Đăng nhập eno')}>
               <UserRound className="h-4 w-4" />
