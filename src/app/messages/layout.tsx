@@ -44,7 +44,7 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
       <div className="mx-auto flex w-full max-w-7xl flex-1 overflow-hidden px-0 sm:px-6 lg:px-8">
         {/* List pane — full width on mobile (hidden when a thread is open); fixed
             sidebar on desktop, always visible. */}
-        <aside className={cn('w-full shrink-0 lg:w-[380px] lg:border-r lg:border-border', inThread && 'hidden lg:block')}>
+        <aside className={cn('w-full shrink-0 lg:w-[380px]', inThread && 'hidden lg:block')}>
           <ConversationList />
         </aside>
         {/* Thread / right pane — hidden on mobile unless a thread is open. Carries

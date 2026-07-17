@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  X, Store, Settings, Scale, CircleHelp, LogOut, LayoutDashboard,
+  X, Store, Settings, Scale, CircleHelp, LogOut,
   MessageSquareText, Heart, Upload, Code2, UsersRound, PanelLeft,
 } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -214,7 +214,8 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   // MIDDLE — core routing. Settings + Help live in the BOTTOM cluster; the unread count rides
   // Messages as a badge. Storefront + forum tail the list.
   const NAV: { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean }[] = [
-    { href: '/dashboard', label: tr('Dashboard', 'Tổng quan'), icon: LayoutDashboard, exact: true },
+    // "Dashboard" was removed (owner 2026-07-17): /dashboard just redirects to /dashboard/listings,
+    // so it duplicated "My listings" and led nowhere of its own.
     { href: '/dashboard/listings', label: tr('My listings', 'Tin của tôi'), icon: Store },
     { href: '/messages', label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: unread },
     { href: '/saved', label: tr('Saved', 'Đã lưu'), icon: Heart },
@@ -281,9 +282,20 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
             onClick={() => setExpanded((e) => !e)}
             aria-label={expanded ? tr('Collapse sidebar', 'Thu gọn thanh bên') : tr('Expand sidebar', 'Mở rộng thanh bên')}
             aria-expanded={expanded}
-            className={cn(navItem(false), 'text-ink-4 hover:text-foreground')}
+            className={cn(navItem(false), 'group/toggle text-ink-4 hover:text-foreground')}
           >
-            <PanelLeft className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+            {/* Collapsed: the eno MARK sits here as the brand — hovering morphs it into the sidebar
+                toggle icon (its affordance), a press expands. Expanded: it's just the collapse icon. */}
+            <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+              {!expanded && (
+                <img src="/logo-mark.svg" alt="" aria-hidden className="absolute inset-0 h-5 w-5 transition-opacity duration-150 group-hover/toggle:opacity-0" />
+              )}
+              <PanelLeft
+                strokeWidth={2}
+                aria-hidden
+                className={cn('h-5 w-5 transition-opacity duration-150', expanded ? 'opacity-100' : 'absolute inset-0 opacity-0 group-hover/toggle:opacity-100')}
+              />
+            </span>
             <span className={labelCls}>{tr('Collapse', 'Thu gọn')}</span>
           </Button>
         </Tooltip>
