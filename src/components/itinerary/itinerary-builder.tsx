@@ -88,6 +88,7 @@ import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { ForumApiError, forumApi } from '@/lib/api'
 import { localeForLanguage, type Language } from '@/lib/languages'
+import { buildItinerarySavePayload } from '@/lib/itinerary-save'
 import { cn } from '@/lib/utils'
 import {
   addDays,
@@ -489,21 +490,21 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
         </div>
         <div className="space-y-3">
           {resourceGroups.map((group) => (
-            <Card key={group.id} className="gap-0 border-line-strong p-4 sm:p-5">
+            <Card data-testid="itinerary-resource-group" key={group.id} className="gap-0 border-line-strong p-4 sm:p-5">
               <div>
                 <h3 className="text-sm font-bold text-foreground">{tr(group.title, group.titleVi)}</h3>
                 <p className="mt-1 text-xs leading-relaxed text-body">{tr(group.description, group.descriptionVi)}</p>
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-4 grid auto-rows-fr gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {group.resources.map((resource) => {
                   const ResourceIcon = RESOURCE_ICONS[resource.kind]
                   const opensNewTab = resource.url.startsWith('http')
                   return (
-                    <a key={resource.url} href={resource.url} target={opensNewTab ? '_blank' : undefined} rel={opensNewTab ? 'noreferrer' : undefined} className={buttonVariants({ variant: 'bare', size: 'none', className: 'h-full min-h-24 w-full items-start justify-start gap-3 whitespace-normal rounded-2xl border border-line-strong bg-card px-4 py-3 text-left hover:bg-tint' })}>
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tint text-accent-foreground"><ResourceIcon className="h-4 w-4" /></span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-start justify-between gap-2 text-xs font-bold text-foreground"><span>{tr(resource.title, resource.titleVi)}</span><ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-4" /></span>
-                          <span className="mt-1 block text-2xs leading-relaxed text-body">{tr(resource.description, resource.descriptionVi)}</span>
+                    <a data-testid="itinerary-resource-link" key={resource.url} href={resource.url} target={opensNewTab ? '_blank' : undefined} rel={opensNewTab ? 'noreferrer' : undefined} className={buttonVariants({ variant: 'bare', size: 'none', className: 'group/resource h-full min-h-28 min-w-0 w-full items-start justify-start gap-3 overflow-hidden whitespace-normal rounded-2xl border border-line-strong bg-card px-4 py-4 text-left hover:border-brand/40 hover:bg-tint' })}>
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tint text-accent-foreground transition-colors group-hover/resource:bg-accent"><ResourceIcon className="h-4 w-4" /></span>
+                        <span className="min-w-0 flex-1 overflow-hidden">
+                          <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 text-xs font-bold leading-5 text-foreground"><span className="min-w-0 break-words">{tr(resource.title, resource.titleVi)}</span><ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-4" /></span>
+                          <span className="mt-1.5 block min-w-0 break-words text-2xs leading-relaxed text-body [overflow-wrap:anywhere]">{tr(resource.description, resource.descriptionVi)}</span>
                         </span>
                     </a>
                   )
@@ -562,11 +563,6 @@ export function ItineraryBuilder() {
   })).filter((group) => group.items.length > 0), [cityIds])
   const endDate = addDays(startDate, days - 1)
   const minDate = useMemo(() => dateInputValueFromToday(0), [])
-  const quickStartDates = useMemo(() => [
-    { label: tr('In 2 weeks', 'Sau 2 tuần'), value: dateInputValueFromToday(14) },
-    { label: tr('In 1 month', 'Sau 1 tháng'), value: dateInputValueFromToday(30) },
-    { label: tr('In 3 months', 'Sau 3 tháng'), value: dateInputValueFromToday(90) },
-  ], [tr])
   const budget = BUDGETS.find((item) => item.id === budgetId) || BUDGETS[1]
 
   const toggleInterest = (id: InterestId) => setInterests((current) => {
@@ -655,6 +651,7 @@ export function ItineraryBuilder() {
       setResult(response)
       setState('ready')
       window.requestAnimationFrame(() => resultRef.current?.focus())
+      if (user) void persistPlan(response, true)
     } catch (error) {
       if (error instanceof ForumApiError && error.status === 401) {
         setState('empty')
@@ -669,58 +666,30 @@ export function ItineraryBuilder() {
     }
   }
 
-  const savePlan = async () => {
-    if (!result) return
-    if (!user) { openSignIn(); return }
+  const persistPlan = async (nextResult: GeneratedItineraryResponse, announce: boolean) => {
+    if (!user) return null
     setSaving(true)
-    const plan = result.plan
     try {
       const { itinerary } = await forumApi<{ itinerary: { id: string } }>('/api/itineraries', {
         method: 'POST',
         auth: 'required',
-        body: JSON.stringify({
-          title: plan.title,
-          destinationId: cityIds[0],
-          days,
-          budgetId,
-          interests: Array.from(interests),
-          status: 'ready',
-          estimatedBudget: plan.budget.groupHighVnd,
-          currency: 'VND',
-          generatedAt: result.generatedAt,
-          dayPlans: plan.days.map((day) => ({
-            dayNumber: day.dayNumber,
-            area: day.city,
-            areaVi: null,
-            title: day.title,
-            titleVi: null,
-            morning: `${day.morning.time} · ${day.morning.title} — ${day.morning.details}`.slice(0, 1000),
-            morningVi: null,
-            afternoon: `${day.afternoon.time} · ${day.afternoon.title} — ${day.afternoon.details}`.slice(0, 1000),
-            afternoonVi: null,
-            evening: `${day.evening.time} · ${day.evening.title} — ${day.evening.details}`.slice(0, 1000),
-            eveningVi: null,
-          })),
-          stays: plan.stays.map((stay, index) => ({
-            position: index,
-            name: stay.name,
-            nameVi: null,
-            area: `${stay.city} · ${stay.area}`.slice(0, 120),
-            areaVi: null,
-            note: stay.why,
-            noteVi: null,
-            estimatedNightly: stay.nightlyLowVnd,
-            currency: 'VND',
-          })),
-        }),
+        body: JSON.stringify(buildItinerarySavePayload({ result: nextResult, cityIds, days, budgetId, interests })),
       })
       setSavedId(itinerary.id)
-      toast.success(tr('Itinerary saved to your eno account.', 'Lịch trình đã được lưu vào tài khoản eno.'))
+      if (announce) toast.success(tr('Itinerary saved automatically to your eno dashboard.', 'Lịch trình đã tự động lưu vào bảng điều khiển eno.'))
+      return itinerary.id
     } catch {
       toast.error(tr('Your itinerary could not be saved.', 'Không thể lưu lịch trình của bạn.'))
+      return null
     } finally {
       setSaving(false)
     }
+  }
+
+  const savePlan = async () => {
+    if (!result) return
+    if (!user) { openSignIn(); return }
+    await persistPlan(result, true)
   }
 
   return (
@@ -742,13 +711,13 @@ export function ItineraryBuilder() {
 
         <Card className="gap-0 overflow-visible p-5 sm:p-6 lg:sticky lg:top-24 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain">
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground"><MapPinned className="h-5 w-5" /></span>
-            <div><h2 className="text-lg font-bold text-foreground">{tr('Design the brief', 'Thiết kế yêu cầu')}</h2><p className="mt-1 text-xs leading-relaxed text-body">{tr('Specific inputs produce a plan you can actually use.', 'Thông tin cụ thể tạo ra kế hoạch thực sự hữu ích.')}</p></div>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground"><Route className="h-5 w-5" /></span>
+            <div><h2 className="text-lg font-bold text-foreground">{tr('Design the route', 'Thiết kế lộ trình')}</h2><p className="mt-1 text-xs leading-relaxed text-body">{tr('Start with one destination. Add stops only when useful.', 'Bắt đầu với một điểm đến. Chỉ thêm điểm dừng khi cần.')}</p></div>
           </div>
 
           <form onSubmit={(event) => { event.preventDefault(); void buildPlan() }}>
-            <div className="mt-6 space-y-5">
-            <FormSection icon={Route} title={tr('Route', 'Lộ trình')} subtitle={tr('Start with one destination. Add stops only when they improve the trip.', 'Bắt đầu với một điểm đến. Chỉ thêm điểm dừng khi chuyến đi hợp lý hơn.')}>
+            <div className="mt-4 space-y-5">
+            <div>
               <Field>
                 <FieldLabel htmlFor="primary-destination">{tr('Main destination', 'Điểm đến chính')}</FieldLabel>
                 <Combobox
@@ -845,39 +814,20 @@ export function ItineraryBuilder() {
                   <FieldDescription>{tr('Choose a result to add it instantly. Maximum six stops.', 'Chọn kết quả để thêm ngay. Tối đa sáu điểm.')}</FieldDescription>
                 </Field>
               )}
-            </FormSection>
+            </div>
 
             <FormSection icon={CalendarDays} title={tr('Dates and travelers', 'Ngày và số khách')} subtitle={tr('Exact dates make flight and seasonal research useful.', 'Ngày chính xác giúp tìm chuyến bay và mùa phù hợp.')}>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field className="min-w-0"><FieldLabel htmlFor="trip-start">{tr('Start date', 'Ngày bắt đầu')}</FieldLabel><Input id="trip-start" name="startDate" variant="outline" type="date" min={minDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} className="h-11 min-w-0 px-3 py-0" required /></Field>
                 <Field className="min-w-0"><FieldLabel>{tr('End date', 'Ngày kết thúc')}</FieldLabel><output htmlFor="trip-start" className="flex h-11 min-w-0 items-center rounded-xl bg-tint px-3 text-sm font-semibold text-body">{endDate ? displayDate(endDate, lang) : tr('Choose start', 'Chọn ngày đầu')}</output></Field>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={tr('Quick start dates', 'Ngày bắt đầu nhanh')}>
-                {quickStartDates.map((option) => (
-                  <Button key={option.value} type="button" variant="bare" size="none" aria-pressed={startDate === option.value} onClick={() => setStartDate(option.value)} className={cn('min-h-9 rounded-full border px-3 py-1.5 text-xs', startDate === option.value ? 'border-brand bg-accent font-bold text-accent-foreground' : 'border-border text-body hover:bg-tint')}>
-                    {option.label}<span className="hidden text-ink-4 min-[390px]:inline">· {displayDate(option.value, lang).replace(/,? \d{4}$/, '')}</span>
-                  </Button>
-                ))}
+              <div className="mt-4">
+                <div className="flex items-center justify-between gap-3"><p id="trip-days-label" className="text-sm font-medium text-foreground">{tr('Trip length', 'Thời lượng')}</p><Input aria-label={tr('Enter trip length in days', 'Nhập số ngày chuyến đi')} name="days" variant="outline" type="number" inputMode="numeric" min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} value={days} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) { daysCustomizedRef.current = true; setDays(clampWholeNumber(event.currentTarget.valueAsNumber, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) } }} onBlur={(event) => { event.currentTarget.value = String(days) }} className="h-10 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" /></div>
+                <div className="mt-3"><Slider value={days} min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} onChange={(value) => { daysCustomizedRef.current = true; setDays(clampWholeNumber(value, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) }} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} /><div className="mt-1 flex justify-between text-2xs text-ink-4"><span>{MIN_TRIP_DAYS}</span><span>{MAX_TRIP_DAYS}</span></div></div>
               </div>
               <div className="mt-4">
-                <p id="trip-days-label" className="text-sm font-medium text-foreground">{tr('Trip length', 'Thời lượng')}</p>
-                <div className="mt-3 flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <Slider value={days} min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} onChange={(value) => { daysCustomizedRef.current = true; setDays(clampWholeNumber(value, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) }} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} />
-                    <div className="mt-1 flex justify-between text-2xs text-ink-4"><span>{MIN_TRIP_DAYS}</span><span>{MAX_TRIP_DAYS}</span></div>
-                  </div>
-                  <Input aria-label={tr('Enter trip length in days', 'Nhập số ngày chuyến đi')} name="days" variant="outline" type="number" inputMode="numeric" min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} value={days} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) { daysCustomizedRef.current = true; setDays(clampWholeNumber(event.currentTarget.valueAsNumber, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) } }} onBlur={(event) => { event.currentTarget.value = String(days) }} className="h-11 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" />
-                </div>
-              </div>
-              <div className="mt-4">
-                <p id="travelers-label" className="text-sm font-medium text-foreground">{tr('Travelers', 'Số khách')}</p>
-                <div className="mt-3 flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <Slider value={Math.min(travelers, MAX_TRAVELER_SLIDER)} min={1} max={MAX_TRAVELER_SLIDER} onChange={(value) => setTravelers(clampWholeNumber(value, 1, MAX_TRAVELER_SLIDER))} aria-label={tr('Number of travelers', 'Số khách đi cùng')} />
-                    <div className="mt-1 flex justify-between text-2xs text-ink-4"><span>1</span><span>{MAX_TRAVELER_SLIDER}</span></div>
-                  </div>
-                  <Input aria-label={tr('Enter number of travelers', 'Nhập số khách')} name="travelers" variant="outline" type="number" inputMode="numeric" min={1} max={MAX_TRAVELERS} value={travelers} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) setTravelers(clampWholeNumber(event.currentTarget.valueAsNumber, 1, MAX_TRAVELERS)) }} onBlur={(event) => { event.currentTarget.value = String(travelers) }} className="h-11 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" />
-                </div>
+                <div className="flex items-center justify-between gap-3"><p id="travelers-label" className="text-sm font-medium text-foreground">{tr('Travelers', 'Số khách')}</p><Input aria-label={tr('Enter number of travelers', 'Nhập số khách')} name="travelers" variant="outline" type="number" inputMode="numeric" min={1} max={MAX_TRAVELERS} value={travelers} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) setTravelers(clampWholeNumber(event.currentTarget.valueAsNumber, 1, MAX_TRAVELERS)) }} onBlur={(event) => { event.currentTarget.value = String(travelers) }} className="h-10 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" /></div>
+                <div className="mt-3"><Slider value={Math.min(travelers, MAX_TRAVELER_SLIDER)} min={1} max={MAX_TRAVELER_SLIDER} onChange={(value) => setTravelers(clampWholeNumber(value, 1, MAX_TRAVELER_SLIDER))} aria-label={tr('Number of travelers', 'Số khách đi cùng')} /><div className="mt-1 flex justify-between text-2xs text-ink-4"><span>1</span><span>{MAX_TRAVELER_SLIDER}</span></div></div>
               </div>
             </FormSection>
 

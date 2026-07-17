@@ -358,7 +358,7 @@ function MobileForumNav({
   onSaved: () => void
 }) {
   const { tr } = useLanguage()
-  const { user, openSignIn, signOut } = useAuth()
+  const { user, openSignIn } = useAuth()
   const { open: keyboardOpen } = useVirtualKeyboard()
   const itemClass = 'relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-3xs font-semibold'
 
@@ -393,7 +393,7 @@ function MobileForumNav({
           </span>
           <span>{tr('Saved', 'Đã lưu')}</span>
         </Button>
-        <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={() => user ? void signOut() : openSignIn()}>
+        <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={() => user ? window.location.assign('/dashboard') : openSignIn()}>
           <UserRound className="h-5 w-5" />
           <span>{user ? tr('Account', 'Tài khoản') : tr('Sign in', 'Đăng nhập')}</span>
         </Button>
