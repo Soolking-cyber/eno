@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload, X } from 'lucide-react'
+import { Children, isValidElement, useCallback, useEffect, useRef, useState } from 'react'
+import { Check, ChevronLeft, ChevronRight, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -10,7 +10,9 @@ import { validateVisaStep, visaDateDefaultsForStart, visaEndDateFor90DayWindow, 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Combobox, ComboboxClear, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxGroupLabel, ComboboxInput, ComboboxInputGroup, ComboboxItem, ComboboxList, ComboboxTrigger } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { DEFAULT_EVISA_ENTRY_GATE, EVISA_CHECKPOINT_GROUPS } from '@/lib/visa/checkpoints'
@@ -43,6 +45,7 @@ type VisaAnalysis = {
 
 const STEPS = ['Documents', 'Your details', 'Vietnam trip', 'Review'] as const
 const EDITABLE = new Set(['draft', 'needs_changes'])
+const EVISA_COMBOBOX_GROUPS = EVISA_CHECKPOINT_GROUPS.map((group) => ({ ...group, items: group.options }))
 const MAX_BROWSER_IMAGE_BYTES = 3_700_000
 const MAX_INTAKE_IMAGE_BYTES = 15 * 1024 * 1024
 
@@ -196,14 +199,21 @@ function issueFieldId(issue: string) {
   return STEP_ISSUE_COPY[issue]?.[2] || ''
 }
 
-const control = 'h-11 w-full rounded-xl border border-line-strong bg-card px-3 text-sm text-foreground outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-ring/30 disabled:opacity-50'
-
 function FormField({ id, label, required, children }: { id: string; label: string; required?: boolean; children: React.ReactNode }) {
   return <label htmlFor={id} className="flex min-w-0 flex-col gap-1.5 text-sm font-medium text-foreground">{label}{required && <span className="sr-only"> required</span>}{children}</label>
 }
 
 function VisaSelect({ id, value, onChange, children }: { id: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  return <select id={id} value={value} onChange={(event) => onChange(event.target.value)} className={control}>{children}</select>
+  const options = Children.toArray(children).flatMap((child) => {
+    if (!isValidElement<{ value?: string; children?: React.ReactNode }>(child)) return []
+    return [{ value: child.props.value || '', label: child.props.children }]
+  })
+  const placeholder = options.find((option) => option.value === '')?.label
+
+  return <Select value={value || null} onValueChange={(next) => onChange(next || '')}>
+    <SelectTrigger id={id} className="w-full bg-card"><SelectValue placeholder={placeholder} /></SelectTrigger>
+    <SelectContent>{options.filter((option) => option.value).map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+  </Select>
 }
 
 export function VisaAssistant() {
@@ -493,20 +503,22 @@ export function VisaAssistant() {
       </div>
 
       <ol className="mb-6 grid grid-cols-4 gap-2" aria-label={tr('Application progress', 'Tiến trình hồ sơ')}>
-        {STEPS.map((label, index) => <li key={label}><button type="button" disabled={index > step} onClick={() => { if (index < step) { setStepIssues([]); setStep(index) } }} className={cn('flex h-11 w-full items-center justify-center rounded-xl border px-2 text-xs font-bold transition-colors disabled:cursor-not-allowed', index === step ? 'border-brand bg-accent text-accent-foreground' : index < step ? 'border-line-strong bg-card text-foreground' : 'border-border bg-tint text-body')}><span className="sm:hidden">{index + 1}</span><span className="hidden sm:inline">{index + 1}. {tr(label, ['Giấy tờ', 'Thông tin', 'Chuyến đi', 'Kiểm tra'][index])}</span></button></li>)}
+        {STEPS.map((label, index) => <li key={label}><Button type="button" variant="bare" size="none" aria-current={index === step ? 'step' : undefined} disabled={index > step} onClick={() => { if (index < step) { setStepIssues([]); setStep(index) } }} className={cn('flex h-11 w-full items-center justify-center rounded-xl border px-2 text-xs font-bold transition-[border-color,background-color,color,box-shadow,transform] duration-200 disabled:cursor-not-allowed', index === step ? 'border-brand bg-accent text-accent-foreground shadow-[inset_0_0_0_1px_var(--brand)]' : index < step ? 'border-line-strong bg-card text-foreground hover:border-brand/60 hover:bg-accent/30' : 'border-border bg-tint text-body')}><span className="sm:hidden">{index + 1}</span><span className="hidden sm:inline">{index + 1}. {tr(label, ['Giấy tờ', 'Thông tin', 'Chuyến đi', 'Kiểm tra'][index])}</span></Button></li>)}
       </ol>
 
       {stepIssues.length > 0 && <StepIssues issues={stepIssues} tr={tr} />}
-      {step === 0 && <DocumentsStep application={application} upload={upload} retry={retryImageAnalysis} busy={busy} tr={tr} />}
-      {step === 1 && <PersonalStep payload={payload} set={set} tr={tr} />}
-      {step === 2 && <TripStep payload={payload} set={set} tr={tr} />}
-      {step === 3 && (
-        <div className="space-y-5">
+      <div key={step} className="animate-in fade-in slide-in-from-bottom-1 duration-200">
+        {step === 0 && <DocumentsStep application={application} upload={upload} retry={retryImageAnalysis} busy={busy} tr={tr} />}
+        {step === 1 && <PersonalStep payload={payload} set={set} tr={tr} />}
+        {step === 2 && <TripStep payload={payload} set={set} tr={tr} />}
+        {step === 3 && (
+          <div className="space-y-5">
           <Card><CardHeader><CardTitle>{tr('Review everything', 'Kiểm tra mọi thông tin')}</CardTitle></CardHeader><CardContent><ReviewGrid payload={payload} tr={tr} /></CardContent></Card>
           <Consent checked={declaration} onChange={setDeclaration}>{tr('I confirm that every answer is complete, true, and accurate. I understand false information can cause refusal and legal consequences.', 'Tôi xác nhận mọi câu trả lời đầy đủ, trung thực và chính xác. Tôi hiểu thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý.')}</Consent>
           <Button type="button" variant="cta" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration} onClick={() => void submitForReview()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}{tr('Send to eno for review', 'Gửi eno xem xét')}</Button>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       <div className="mt-6 flex items-center justify-between gap-3 border-t border-border pt-5">
         <Button type="button" variant="outline" className="h-11" disabled={busy || step === 0} onClick={() => { setStepIssues([]); setStep((value) => Math.max(0, value - 1)) }}><ChevronLeft className="h-4 w-4" />{tr('Back', 'Quay lại')}</Button>
@@ -524,7 +536,7 @@ function Consent({ checked, onChange, children }: { checked: boolean; onChange: 
 }
 
 function StepIssues({ issues, tr }: { issues: string[]; tr: (en: string, vi: string) => string }) {
-  return <div role="alert" className="mb-5 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+  return <div role="alert" className="mb-5 animate-in fade-in slide-in-from-top-1 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 duration-200">
     <p className="text-sm font-bold text-destructive">{tr('Complete this page to continue', 'Hoàn thành trang này để tiếp tục')}</p>
     <ul className="mt-2 grid gap-1.5 text-sm text-destructive sm:grid-cols-2">{issues.map((issue) => <li key={issue}>• {stepIssueCopy(issue, tr)}</li>)}</ul>
   </div>
@@ -592,15 +604,15 @@ function UploadCard({ kind, title, detail, document, busy, onFile, onRetry, tr }
         receiveFile(event.dataTransfer.files?.[0] || null)
       }}
       className={cn(
-        'border transition-colors',
+        'border transition-[border-color,background-color,box-shadow,transform,opacity] duration-200',
         ready ? 'border-success/40' : failed ? 'border-destructive/40' : unavailable ? 'border-warning/40' : 'border-line-strong',
-        dragging && 'border-brand bg-accent/40 ring-2 ring-brand/20',
+        dragging && '-translate-y-0.5 border-brand bg-accent/40 shadow-md ring-2 ring-brand/20',
         busy && 'opacity-60',
       )}
     >
       <CardContent className="flex h-full flex-col gap-4 py-1">
         <div className="flex items-start justify-between gap-3">
-          <span className={cn('flex h-11 w-11 items-center justify-center rounded-xl', ready ? 'bg-success/15 text-success' : failed ? 'bg-destructive/10 text-destructive' : unavailable ? 'bg-warning/15 text-warning' : 'bg-accent text-accent-foreground')}>{ready ? <Check className="h-5 w-5" /> : <FileImage className="h-5 w-5" />}</span>
+          <span className={cn('flex h-11 w-11 items-center justify-center rounded-xl transition-[background-color,color,transform] duration-200', dragging && 'scale-105', ready ? 'bg-success/15 text-success' : failed ? 'bg-destructive/10 text-destructive' : unavailable ? 'bg-warning/15 text-warning' : 'bg-accent text-accent-foreground')}>{ready ? <Check className="h-5 w-5 animate-in zoom-in-50 duration-300" /> : <FileImage className="h-5 w-5" />}</span>
           {ready && <Badge variant="success">{tr('Verified', 'Đã xác minh')}</Badge>}
           {failed && <Badge variant="destructive">{tr('New image needed', 'Cần ảnh mới')}</Badge>}
           {unavailable && <Badge variant="warning">{tr('Check interrupted', 'Kiểm tra bị gián đoạn')}</Badge>}
@@ -613,8 +625,8 @@ function UploadCard({ kind, title, detail, document, busy, onFile, onRetry, tr }
           {warnings.length > 0 && <div className="mt-3 rounded-xl bg-warning/10 p-3 text-xs leading-relaxed text-warning"><p className="font-bold">{tr('Accepted with a review note', 'Đã chấp nhận, cần lưu ý khi xem xét')}</p><ul className="mt-1 space-y-1">{warnings.map((warning) => <li key={warning}>• {imageIssueCopy(warning, tr)}</li>)}</ul></div>}
           {ready && corrections.length > 0 && <p className="mt-3 text-xs leading-relaxed text-success">{tr('Automatically prepared:', 'Đã tự động chuẩn bị:')} {tr('JPG, correct orientation, official dimensions, metadata removed, under 2 MB.', 'JPG, đúng chiều, kích thước chính thức, xóa siêu dữ liệu, dưới 2 MB.')}</p>}
         </div>
-        <label className={cn('flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-xl border border-dashed border-line-strong bg-background px-4 py-3 text-center text-sm text-foreground transition-colors hover:border-brand focus-within:border-brand focus-within:ring-2 focus-within:ring-ring/30', busy && 'cursor-not-allowed')}>
-          <Upload className="h-5 w-5 shrink-0 text-brand" />
+        <label className={cn('flex min-h-20 cursor-pointer items-center justify-center gap-3 rounded-xl border border-dashed border-line-strong bg-background px-4 py-3 text-center text-sm text-foreground transition-[border-color,background-color,box-shadow,transform] duration-200 hover:border-brand focus-within:border-brand focus-within:ring-2 focus-within:ring-ring/30 active:scale-[0.99]', dragging && 'border-brand bg-accent/30', busy && 'cursor-not-allowed')}>
+          <Upload className={cn('h-5 w-5 shrink-0 text-brand transition-transform duration-200', dragging && '-translate-y-1 scale-110')} />
           <span>
             <span className="block font-bold">{dragging ? tr('Drop image to upload', 'Thả ảnh để tải lên') : ready ? tr('Replace image', 'Thay ảnh') : tr('Choose image', 'Chọn ảnh')}</span>
             <span className="mt-0.5 block text-xs font-normal text-body">{tr('or drag and drop it here', 'hoặc kéo và thả ảnh vào đây')}</span>
@@ -737,31 +749,32 @@ function Text({ id, label, value, onChange, type = 'text', min, max }: { id: str
 }
 
 function CheckpointCombobox({ id, label, value, onChange, tr }: { id: string; label: string; value: string; onChange: (value: string) => void; tr: (en: string, vi: string) => string }) {
-  const input = useRef<HTMLInputElement>(null)
-  const listId = `${id}-approved-checkpoints`
-  const openPicker = () => {
-    input.current?.focus()
-    try { input.current?.showPicker() } catch { /* Typing still opens the native suggestions. */ }
-  }
-
   return <FormField id={id} label={label}>
-    <div className="relative">
-      <input
-        ref={input}
-        id={id}
-        list={listId}
-        value={value}
-        autoComplete="off"
-        placeholder={tr('Type or choose a checkpoint', 'Nhập hoặc chọn cửa khẩu')}
-        onChange={(event) => onChange(event.target.value)}
-        className={`${control} appearance-none pr-20 [&::-webkit-calendar-picker-indicator]:hidden`}
-      />
-      <datalist id={listId}>
-        {EVISA_CHECKPOINT_GROUPS.flatMap((group) => group.options.map((checkpoint) => <option key={`${group.id}-${checkpoint}`} value={checkpoint} />))}
-      </datalist>
-      {value && <button type="button" aria-label={tr(`Clear ${label}`, `Xóa ${label}`)} onClick={() => { onChange(''); input.current?.focus() }} className="absolute right-10 top-1/2 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg text-body transition-colors hover:bg-tint hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"><X className="h-4 w-4" /></button>}
-      <button type="button" aria-label={tr(`Open ${label} options`, `Mở lựa chọn ${label}`)} onClick={openPicker} className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg text-body transition-colors hover:bg-tint hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"><ChevronDown className="h-4 w-4" /></button>
-    </div>
+    <Combobox
+      items={EVISA_COMBOBOX_GROUPS}
+      value={value || null}
+      inputValue={value}
+      onValueChange={(next) => onChange(next || '')}
+      onInputValueChange={(next) => onChange(next)}
+      autoHighlight
+    >
+      <ComboboxInputGroup>
+        <ComboboxInput id={id} autoComplete="off" placeholder={tr('Type or choose a checkpoint', 'Nhập hoặc chọn cửa khẩu')} />
+        <ComboboxClear aria-label={tr(`Clear ${label}`, `Xóa ${label}`)} />
+        <ComboboxTrigger aria-label={tr(`Open ${label} options`, `Mở lựa chọn ${label}`)} />
+      </ComboboxInputGroup>
+      <ComboboxContent>
+        <ComboboxEmpty>{tr('No matching checkpoint. You can keep your typed value.', 'Không có cửa khẩu phù hợp. Bạn có thể giữ giá trị đã nhập.')}</ComboboxEmpty>
+        <ComboboxList>
+          {(group: (typeof EVISA_COMBOBOX_GROUPS)[number]) => (
+            <ComboboxGroup key={group.id} items={group.items}>
+              <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
+              {group.items.map((checkpoint) => <ComboboxItem key={checkpoint} value={checkpoint}>{checkpoint}</ComboboxItem>)}
+            </ComboboxGroup>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   </FormField>
 }
 
