@@ -88,6 +88,7 @@ import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { ForumApiError, forumApi } from '@/lib/api'
 import { localeForLanguage, type Language } from '@/lib/languages'
+import { buildItinerarySavePayload } from '@/lib/itinerary-save'
 import { cn } from '@/lib/utils'
 import {
   addDays,
@@ -562,11 +563,6 @@ export function ItineraryBuilder() {
   })).filter((group) => group.items.length > 0), [cityIds])
   const endDate = addDays(startDate, days - 1)
   const minDate = useMemo(() => dateInputValueFromToday(0), [])
-  const quickStartDates = useMemo(() => [
-    { label: tr('In 2 weeks', 'Sau 2 tuần'), value: dateInputValueFromToday(14) },
-    { label: tr('In 1 month', 'Sau 1 tháng'), value: dateInputValueFromToday(30) },
-    { label: tr('In 3 months', 'Sau 3 tháng'), value: dateInputValueFromToday(90) },
-  ], [tr])
   const budget = BUDGETS.find((item) => item.id === budgetId) || BUDGETS[1]
 
   const toggleInterest = (id: InterestId) => setInterests((current) => {
@@ -655,6 +651,7 @@ export function ItineraryBuilder() {
       setResult(response)
       setState('ready')
       window.requestAnimationFrame(() => resultRef.current?.focus())
+      if (user) void persistPlan(response, true)
     } catch (error) {
       if (error instanceof ForumApiError && error.status === 401) {
         setState('empty')
@@ -669,58 +666,30 @@ export function ItineraryBuilder() {
     }
   }
 
-  const savePlan = async () => {
-    if (!result) return
-    if (!user) { openSignIn(); return }
+  const persistPlan = async (nextResult: GeneratedItineraryResponse, announce: boolean) => {
+    if (!user) return null
     setSaving(true)
-    const plan = result.plan
     try {
       const { itinerary } = await forumApi<{ itinerary: { id: string } }>('/api/itineraries', {
         method: 'POST',
         auth: 'required',
-        body: JSON.stringify({
-          title: plan.title,
-          destinationId: cityIds[0],
-          days,
-          budgetId,
-          interests: Array.from(interests),
-          status: 'ready',
-          estimatedBudget: plan.budget.groupHighVnd,
-          currency: 'VND',
-          generatedAt: result.generatedAt,
-          dayPlans: plan.days.map((day) => ({
-            dayNumber: day.dayNumber,
-            area: day.city,
-            areaVi: null,
-            title: day.title,
-            titleVi: null,
-            morning: `${day.morning.time} · ${day.morning.title} — ${day.morning.details}`.slice(0, 1000),
-            morningVi: null,
-            afternoon: `${day.afternoon.time} · ${day.afternoon.title} — ${day.afternoon.details}`.slice(0, 1000),
-            afternoonVi: null,
-            evening: `${day.evening.time} · ${day.evening.title} — ${day.evening.details}`.slice(0, 1000),
-            eveningVi: null,
-          })),
-          stays: plan.stays.map((stay, index) => ({
-            position: index,
-            name: stay.name,
-            nameVi: null,
-            area: `${stay.city} · ${stay.area}`.slice(0, 120),
-            areaVi: null,
-            note: stay.why,
-            noteVi: null,
-            estimatedNightly: stay.nightlyLowVnd,
-            currency: 'VND',
-          })),
-        }),
+        body: JSON.stringify(buildItinerarySavePayload({ result: nextResult, cityIds, days, budgetId, interests })),
       })
       setSavedId(itinerary.id)
-      toast.success(tr('Itinerary saved to your eno account.', 'Lịch trình đã được lưu vào tài khoản eno.'))
+      if (announce) toast.success(tr('Itinerary saved automatically to your eno dashboard.', 'Lịch trình đã tự động lưu vào bảng điều khiển eno.'))
+      return itinerary.id
     } catch {
       toast.error(tr('Your itinerary could not be saved.', 'Không thể lưu lịch trình của bạn.'))
+      return null
     } finally {
       setSaving(false)
     }
+  }
+
+  const savePlan = async () => {
+    if (!result) return
+    if (!user) { openSignIn(); return }
+    await persistPlan(result, true)
   }
 
   return (
@@ -852,32 +821,13 @@ export function ItineraryBuilder() {
                 <Field className="min-w-0"><FieldLabel htmlFor="trip-start">{tr('Start date', 'Ngày bắt đầu')}</FieldLabel><Input id="trip-start" name="startDate" variant="outline" type="date" min={minDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} className="h-11 min-w-0 px-3 py-0" required /></Field>
                 <Field className="min-w-0"><FieldLabel>{tr('End date', 'Ngày kết thúc')}</FieldLabel><output htmlFor="trip-start" className="flex h-11 min-w-0 items-center rounded-xl bg-tint px-3 text-sm font-semibold text-body">{endDate ? displayDate(endDate, lang) : tr('Choose start', 'Chọn ngày đầu')}</output></Field>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={tr('Quick start dates', 'Ngày bắt đầu nhanh')}>
-                {quickStartDates.map((option) => (
-                  <Button key={option.value} type="button" variant="bare" size="none" aria-pressed={startDate === option.value} onClick={() => setStartDate(option.value)} className={cn('min-h-9 rounded-full border px-3 py-1.5 text-xs', startDate === option.value ? 'border-brand bg-accent font-bold text-accent-foreground' : 'border-border text-body hover:bg-tint')}>
-                    {option.label}<span className="hidden text-ink-4 min-[390px]:inline">· {displayDate(option.value, lang).replace(/,? \d{4}$/, '')}</span>
-                  </Button>
-                ))}
+              <div className="mt-4">
+                <div className="flex items-center justify-between gap-3"><p id="trip-days-label" className="text-sm font-medium text-foreground">{tr('Trip length', 'Thời lượng')}</p><Input aria-label={tr('Enter trip length in days', 'Nhập số ngày chuyến đi')} name="days" variant="outline" type="number" inputMode="numeric" min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} value={days} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) { daysCustomizedRef.current = true; setDays(clampWholeNumber(event.currentTarget.valueAsNumber, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) } }} onBlur={(event) => { event.currentTarget.value = String(days) }} className="h-10 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" /></div>
+                <div className="mt-3"><Slider value={days} min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} onChange={(value) => { daysCustomizedRef.current = true; setDays(clampWholeNumber(value, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) }} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} /><div className="mt-1 flex justify-between text-2xs text-ink-4"><span>{MIN_TRIP_DAYS}</span><span>{MAX_TRIP_DAYS}</span></div></div>
               </div>
               <div className="mt-4">
-                <p id="trip-days-label" className="text-sm font-medium text-foreground">{tr('Trip length', 'Thời lượng')}</p>
-                <div className="mt-3 flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <Slider value={days} min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} onChange={(value) => { daysCustomizedRef.current = true; setDays(clampWholeNumber(value, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) }} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} />
-                    <div className="mt-1 flex justify-between text-2xs text-ink-4"><span>{MIN_TRIP_DAYS}</span><span>{MAX_TRIP_DAYS}</span></div>
-                  </div>
-                  <Input aria-label={tr('Enter trip length in days', 'Nhập số ngày chuyến đi')} name="days" variant="outline" type="number" inputMode="numeric" min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} value={days} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) { daysCustomizedRef.current = true; setDays(clampWholeNumber(event.currentTarget.valueAsNumber, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) } }} onBlur={(event) => { event.currentTarget.value = String(days) }} className="h-11 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" />
-                </div>
-              </div>
-              <div className="mt-4">
-                <p id="travelers-label" className="text-sm font-medium text-foreground">{tr('Travelers', 'Số khách')}</p>
-                <div className="mt-3 flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <Slider value={Math.min(travelers, MAX_TRAVELER_SLIDER)} min={1} max={MAX_TRAVELER_SLIDER} onChange={(value) => setTravelers(clampWholeNumber(value, 1, MAX_TRAVELER_SLIDER))} aria-label={tr('Number of travelers', 'Số khách đi cùng')} />
-                    <div className="mt-1 flex justify-between text-2xs text-ink-4"><span>1</span><span>{MAX_TRAVELER_SLIDER}</span></div>
-                  </div>
-                  <Input aria-label={tr('Enter number of travelers', 'Nhập số khách')} name="travelers" variant="outline" type="number" inputMode="numeric" min={1} max={MAX_TRAVELERS} value={travelers} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) setTravelers(clampWholeNumber(event.currentTarget.valueAsNumber, 1, MAX_TRAVELERS)) }} onBlur={(event) => { event.currentTarget.value = String(travelers) }} className="h-11 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" />
-                </div>
+                <div className="flex items-center justify-between gap-3"><p id="travelers-label" className="text-sm font-medium text-foreground">{tr('Travelers', 'Số khách')}</p><Input aria-label={tr('Enter number of travelers', 'Nhập số khách')} name="travelers" variant="outline" type="number" inputMode="numeric" min={1} max={MAX_TRAVELERS} value={travelers} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) setTravelers(clampWholeNumber(event.currentTarget.valueAsNumber, 1, MAX_TRAVELERS)) }} onBlur={(event) => { event.currentTarget.value = String(travelers) }} className="h-10 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" /></div>
+                <div className="mt-3"><Slider value={Math.min(travelers, MAX_TRAVELER_SLIDER)} min={1} max={MAX_TRAVELER_SLIDER} onChange={(value) => setTravelers(clampWholeNumber(value, 1, MAX_TRAVELER_SLIDER))} aria-label={tr('Number of travelers', 'Số khách đi cùng')} /><div className="mt-1 flex justify-between text-2xs text-ink-4"><span>1</span><span>{MAX_TRAVELER_SLIDER}</span></div></div>
               </div>
             </FormSection>
 

@@ -1,5 +1,7 @@
 import { expectNoA11yViolations, test, expect } from './helpers'
 import { readFile } from 'node:fs/promises'
+import type { GeneratedItineraryResponse } from '../src/components/itinerary/itinerary-data'
+import { buildItinerarySavePayload } from '../src/lib/itinerary-save'
 
 const activity = (title: string, place: string) => ({
   time: '09:00', title, place, details: `A researched visit to ${place} with enough time to enjoy it.`,
@@ -53,6 +55,31 @@ const mockResult = {
 }
 
 test.describe('eno.forum itinerary builder', () => {
+  test('builds the complete owner-only record used for automatic saves', () => {
+    const payload = buildItinerarySavePayload({
+      result: mockResult as GeneratedItineraryResponse,
+      cityIds: ['danang'],
+      days: 4,
+      budgetId: 'comfort',
+      interests: ['food', 'culture'],
+    })
+
+    expect(payload).toMatchObject({
+      title: mockResult.plan.title,
+      destinationId: 'danang',
+      days: 4,
+      budgetId: 'comfort',
+      interests: ['food', 'culture'],
+      status: 'ready',
+      estimatedBudget: 24_000_000,
+    })
+    expect(payload.dayPlans).toHaveLength(4)
+    expect(payload.dayPlans[0].morning).toContain('A calm local start')
+    expect(payload.stays).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Hoi An Central Boutique', estimatedNightly: 1_600_000 }),
+    ]))
+  })
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/itinerary')
     await expect(page.locator('main[data-hydrated]')).toHaveAttribute('data-hydrated', 'true')
@@ -90,6 +117,14 @@ test.describe('eno.forum itinerary builder', () => {
       && Math.min(startDateBox!.y + startDateBox!.height, endDateBox!.y + endDateBox!.height) > Math.max(startDateBox!.y, endDateBox!.y)
     expect(dateControlsOverlap).toBe(false)
     if ((page.viewportSize()?.width || 0) < 640) expect(endDateBox!.y).toBeGreaterThan(startDateBox!.y + startDateBox!.height)
+
+    await expect(page.getByRole('group', { name: /Quick start dates/i })).toHaveCount(0)
+    const daysInputBox = await daysInput.boundingBox()
+    const travelersInputBox = await travelersInput.boundingBox()
+    expect(daysInputBox).not.toBeNull()
+    expect(travelersInputBox).not.toBeNull()
+    expect(daysInputBox!.x).toBeCloseTo(travelersInputBox!.x, 0)
+    expect(daysInputBox!.width).toBeCloseTo(travelersInputBox!.width, 0)
 
     await expect(daysSlider).toHaveAttribute('min', '1')
     await expect(daysSlider).toHaveAttribute('max', '30')

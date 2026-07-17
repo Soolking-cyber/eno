@@ -92,6 +92,14 @@ test.describe('eno.forum standalone', () => {
     await expect(dialog.getByLabel('Email address')).toBeVisible()
   })
 
+  test('provides a private eno service dashboard from the shared header', async ({ page }) => {
+    await page.goto('/dashboard')
+    await expect(page.getByRole('heading', { level: 1, name: /Your eno dashboard/i })).toBeVisible()
+    await expect(page.getByText(/itineraries, visa applications, forum activity, and marketplace tools/i)).toBeVisible()
+    await page.locator('main').getByRole('button', { name: /Sign in to eno/i }).click()
+    await expect(page.getByRole('dialog').getByRole('heading', { name: /One eno account, everywhere/i })).toBeVisible()
+  })
+
   test('shares the 11-language preference across forum, itinerary, and visa pages', async ({ page }) => {
     const french: Record<string, string> = {
       'Vietnam feels easier together.': 'Le Vietnam devient plus simple ensemble.',

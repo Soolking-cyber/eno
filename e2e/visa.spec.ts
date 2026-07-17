@@ -15,17 +15,18 @@ test.describe('eno.forum visa assistance', () => {
     expect(await response.json()).toEqual({ error: 'admin_required' })
   })
 
-  test('explains the safe guest flow and exposes the shared quick links', async ({ page }) => {
+  test('explains the safe guest flow and uses the shared eno.vn footer', async ({ page }) => {
     await page.goto('/visa')
     await expect(page).toHaveTitle(/Vietnam e-Visa assistance/i)
     await expect(page.getByRole('heading', { level: 1, name: /One guided application/i })).toBeVisible()
     await expect(page.getByRole('link', { name: /Official e-Visa website/i })).toHaveAttribute('href', 'https://evisa.gov.vn/')
     await expect(page.locator('header img[src="/logo.svg"]')).toBeVisible()
     const footer = page.locator('footer')
-    await expect(footer.getByRole('link', { name: 'Forum', exact: true })).toBeVisible()
-    await expect(footer.getByRole('link', { name: 'Itinerary', exact: true })).toBeVisible()
-    await expect(footer.getByRole('link', { name: /Vietnam e-Visa/i })).toBeVisible()
-    await expect(footer.getByRole('link', { name: /Marketplace/i })).toBeVisible()
+    await expect(footer.getByRole('link', { name: /Help center/i })).toHaveAttribute('href', 'https://eno.vn/help')
+    await expect(footer.getByRole('link', { name: /About us/i })).toHaveAttribute('href', 'https://eno.vn/about')
+    await expect(footer.getByRole('link', { name: /Post a listing/i })).toHaveAttribute('href', 'https://eno.vn/post')
+    await expect(footer.getByRole('link', { name: /^Terms$/i })).toHaveAttribute('href', 'https://eno.vn/terms')
+    await expect(footer.getByRole('link', { name: /Forum|Itinerary|Vietnam e-Visa|Marketplace/i })).toHaveCount(0)
     await expectNoA11yViolations(page, 'visa assistance guest page')
   })
 
