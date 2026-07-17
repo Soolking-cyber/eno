@@ -88,11 +88,13 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
     <Ctx.Provider value={{ open, setOpen, openTo }}>
       <div
         className={cn(
-          'transition-[margin] duration-300 motion-reduce:transition-none',
-          // Squeeze the content by the COLLAPSED rail width only (--account-w = 72px). The
-          // hover-expansion floats OVER the content (see AccountPanel), so this margin never changes
-          // on hover and the page never reflows — max breathing room, no jarring shift.
-          open && 'lg:ml-[var(--account-w)]',
+          'transition-[padding] duration-300 motion-reduce:transition-none',
+          // Clear the collapsed rail with SYMMETRIC padding (--account-w = 72px BOTH sides), not a
+          // one-sided margin — a left-only margin pushed the centred content ~72px off-centre (more
+          // space on the left). Equal padding keeps max-w-7xl content centred in the VIEWPORT, so the
+          // page reads balanced with the rail. The hover/toggle expansion floats OVER this (see
+          // AccountPanel), so the padding never changes on expand and the page never reflows.
+          open && 'lg:px-[var(--account-w)]',
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >
