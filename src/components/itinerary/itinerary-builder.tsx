@@ -490,21 +490,21 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
         </div>
         <div className="space-y-3">
           {resourceGroups.map((group) => (
-            <Card key={group.id} className="gap-0 border-line-strong p-4 sm:p-5">
+            <Card data-testid="itinerary-resource-group" key={group.id} className="gap-0 border-line-strong p-4 sm:p-5">
               <div>
                 <h3 className="text-sm font-bold text-foreground">{tr(group.title, group.titleVi)}</h3>
                 <p className="mt-1 text-xs leading-relaxed text-body">{tr(group.description, group.descriptionVi)}</p>
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-4 grid auto-rows-fr gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {group.resources.map((resource) => {
                   const ResourceIcon = RESOURCE_ICONS[resource.kind]
                   const opensNewTab = resource.url.startsWith('http')
                   return (
-                    <a key={resource.url} href={resource.url} target={opensNewTab ? '_blank' : undefined} rel={opensNewTab ? 'noreferrer' : undefined} className={buttonVariants({ variant: 'bare', size: 'none', className: 'h-full min-h-24 w-full items-start justify-start gap-3 whitespace-normal rounded-2xl border border-line-strong bg-card px-4 py-3 text-left hover:bg-tint' })}>
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tint text-accent-foreground"><ResourceIcon className="h-4 w-4" /></span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-start justify-between gap-2 text-xs font-bold text-foreground"><span>{tr(resource.title, resource.titleVi)}</span><ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-4" /></span>
-                          <span className="mt-1 block text-2xs leading-relaxed text-body">{tr(resource.description, resource.descriptionVi)}</span>
+                    <a data-testid="itinerary-resource-link" key={resource.url} href={resource.url} target={opensNewTab ? '_blank' : undefined} rel={opensNewTab ? 'noreferrer' : undefined} className={buttonVariants({ variant: 'bare', size: 'none', className: 'group/resource h-full min-h-28 min-w-0 w-full items-start justify-start gap-3 overflow-hidden whitespace-normal rounded-2xl border border-line-strong bg-card px-4 py-4 text-left hover:border-brand/40 hover:bg-tint' })}>
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tint text-accent-foreground transition-colors group-hover/resource:bg-accent"><ResourceIcon className="h-4 w-4" /></span>
+                        <span className="min-w-0 flex-1 overflow-hidden">
+                          <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 text-xs font-bold leading-5 text-foreground"><span className="min-w-0 break-words">{tr(resource.title, resource.titleVi)}</span><ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-4" /></span>
+                          <span className="mt-1.5 block min-w-0 break-words text-2xs leading-relaxed text-body [overflow-wrap:anywhere]">{tr(resource.description, resource.descriptionVi)}</span>
                         </span>
                     </a>
                   )
@@ -711,13 +711,13 @@ export function ItineraryBuilder() {
 
         <Card className="gap-0 overflow-visible p-5 sm:p-6 lg:sticky lg:top-24 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain">
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground"><MapPinned className="h-5 w-5" /></span>
-            <div><h2 className="text-lg font-bold text-foreground">{tr('Design the brief', 'Thiết kế yêu cầu')}</h2><p className="mt-1 text-xs leading-relaxed text-body">{tr('Specific inputs produce a plan you can actually use.', 'Thông tin cụ thể tạo ra kế hoạch thực sự hữu ích.')}</p></div>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground"><Route className="h-5 w-5" /></span>
+            <div><h2 className="text-lg font-bold text-foreground">{tr('Design the route', 'Thiết kế lộ trình')}</h2><p className="mt-1 text-xs leading-relaxed text-body">{tr('Start with one destination. Add stops only when useful.', 'Bắt đầu với một điểm đến. Chỉ thêm điểm dừng khi cần.')}</p></div>
           </div>
 
           <form onSubmit={(event) => { event.preventDefault(); void buildPlan() }}>
-            <div className="mt-6 space-y-5">
-            <FormSection icon={Route} title={tr('Route', 'Lộ trình')} subtitle={tr('Start with one destination. Add stops only when they improve the trip.', 'Bắt đầu với một điểm đến. Chỉ thêm điểm dừng khi chuyến đi hợp lý hơn.')}>
+            <div className="mt-4 space-y-5">
+            <div>
               <Field>
                 <FieldLabel htmlFor="primary-destination">{tr('Main destination', 'Điểm đến chính')}</FieldLabel>
                 <Combobox
@@ -814,7 +814,7 @@ export function ItineraryBuilder() {
                   <FieldDescription>{tr('Choose a result to add it instantly. Maximum six stops.', 'Chọn kết quả để thêm ngay. Tối đa sáu điểm.')}</FieldDescription>
                 </Field>
               )}
-            </FormSection>
+            </div>
 
             <FormSection icon={CalendarDays} title={tr('Dates and travelers', 'Ngày và số khách')} subtitle={tr('Exact dates make flight and seasonal research useful.', 'Ngày chính xác giúp tìm chuyến bay và mùa phù hợp.')}>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

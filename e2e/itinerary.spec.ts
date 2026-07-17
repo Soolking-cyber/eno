@@ -1,7 +1,12 @@
 import { expectNoA11yViolations, test, expect } from './helpers'
+import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
+import { promisify } from 'node:util'
 import type { GeneratedItineraryResponse } from '../src/components/itinerary/itinerary-data'
 import { buildItinerarySavePayload } from '../src/lib/itinerary-save'
+import { DOCX_PAGE_CONTENT_WIDTH } from '../src/lib/itinerary-docx'
+
+const execFileAsync = promisify(execFile)
 
 const activity = (title: string, place: string) => ({
   time: '09:00', title, place, details: `A researched visit to ${place} with enough time to enjoy it.`,
@@ -154,6 +159,9 @@ test.describe('eno.forum itinerary builder', () => {
     const addDestination = page.getByRole('combobox', { name: /^Add another stop/i })
     const daysInput = page.getByRole('spinbutton', { name: /Enter trip length in days/i })
 
+    await expect(page.getByRole('heading', { level: 2, name: /Design the route/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /^Route$/i })).toHaveCount(0)
+    await expect(page.getByText(/Specific inputs produce/i)).toHaveCount(0)
     await expect(primaryDestination).toHaveValue('Da Nang')
     await expect(page.getByTestId('itinerary-route-stop')).toHaveCount(0)
     await expect(daysInput).toHaveValue('4')
@@ -210,6 +218,10 @@ test.describe('eno.forum itinerary builder', () => {
     const wordFile = await readFile(downloadPath!)
     expect(wordFile.subarray(0, 2).toString()).toBe('PK')
     expect(wordFile.byteLength).toBeGreaterThan(5_000)
+    const { stdout: documentXml } = await execFileAsync('unzip', ['-p', downloadPath!, 'word/document.xml'], { encoding: 'utf8' })
+    expect(documentXml).toMatch(/<w:pgSz[^>]*w:w="11906"[^>]*w:h="16838"/)
+    expect(documentXml).toContain(`<w:gridCol w:w="${DOCX_PAGE_CONTENT_WIDTH}"/>`)
+    expect(documentXml).not.toContain('<w:gridCol w:w="100"/>')
     await expect(page.getByRole('heading', { name: /Researched flight options/i })).toBeVisible()
     await expect(page.getByRole('heading', { name: /Searched stay shortlist/i })).toBeVisible()
     await expect(page.getByRole('heading', { name: /^Day-by-day plan$/i })).toBeVisible()
@@ -223,6 +235,17 @@ test.describe('eno.forum itinerary builder', () => {
     await expect(page.getByRole('link', { name: /Han River/i })).toHaveAttribute('href', /google\.com\/maps\/search/)
     await expect(page.getByRole('heading', { name: /^Hoi An Central Boutique$/i })).toBeVisible()
     await expect(page.getByTestId('itinerary-day')).toHaveCount(4)
+    const resourceLinks = page.getByTestId('itinerary-resource-link')
+    expect(await resourceLinks.count()).toBeGreaterThan(10)
+    expect(await resourceLinks.evaluateAll((links) => links.every((link) => link.scrollWidth <= link.clientWidth))).toBe(true)
+    if ((page.viewportSize()?.width || 0) >= 640) {
+      const firstGroupLinks = page.getByTestId('itinerary-resource-group').first().getByTestId('itinerary-resource-link')
+      const firstBox = await firstGroupLinks.nth(0).boundingBox()
+      const secondBox = await firstGroupLinks.nth(1).boundingBox()
+      expect(firstBox).not.toBeNull()
+      expect(secondBox).not.toBeNull()
+      expect(firstBox!.height).toBeCloseTo(secondBox!.height, 0)
+    }
     await expectNoA11yViolations(page, 'advanced itinerary result')
   })
 
