@@ -9,6 +9,7 @@ import {
   MessageCircle,
   Reply,
   Share2,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage, useTr } from '@/context/language-context'
@@ -136,6 +137,8 @@ export function ThreadDialog({
   comments: liveComments,
   onAddReply,
   onCommentVote,
+  canDelete = false,
+  onDelete,
 }: {
   post: ForumPost | null
   community: ForumCommunity | null
@@ -147,6 +150,8 @@ export function ThreadDialog({
   comments?: ForumComment[] | null
   onAddReply?: (body: string, parentId: string | null) => Promise<ForumComment>
   onCommentVote?: (comment: ForumComment, value: -1 | 0 | 1) => Promise<CommentVoteResult>
+  canDelete?: boolean
+  onDelete?: () => void
 }) {
   const { tr } = useLanguage()
   const [reply, setReply] = useState('')
@@ -285,7 +290,11 @@ export function ThreadDialog({
               <MessageCircle className="h-4 w-4" />
               {post.commentCount + addedComments.length}
             </span>
-            <Button type="button" variant="soft" size="sm" className="ml-auto text-body" onClick={share} aria-label={tr('Share post', 'Chia sẻ bài viết')}>
+            {canDelete && <Button type="button" variant="soft" size="sm" className="ml-auto text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={onDelete} aria-label={tr('Delete post', 'Xóa bài viết')}>
+              <Trash2 className="h-4 w-4" />
+              <span className="hidden sm:inline">{tr('Delete', 'Xóa')}</span>
+            </Button>}
+            <Button type="button" variant="soft" size="sm" className={cn('text-body', !canDelete && 'ml-auto')} onClick={share} aria-label={tr('Share post', 'Chia sẻ bài viết')}>
               <Share2 className="h-4 w-4" />
               <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>
             </Button>

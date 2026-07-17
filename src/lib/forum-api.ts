@@ -96,6 +96,10 @@ export function mapForumPost(post: ForumPostResponse): ForumPost {
   }
 }
 
+export function canDeleteForumPost(post: ForumPost, viewerId: string | null | undefined) {
+  return Boolean(post.live && viewerId && post.authorId === viewerId)
+}
+
 export function mapForumComment(comment: ForumCommentResponse): ForumComment {
   return {
     id: comment.id,

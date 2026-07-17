@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   Pin,
   Share2,
+  Trash2,
   UserRoundX,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -41,6 +42,8 @@ export function ForumPostCard({
   onOpen,
   onBlock,
   onReport,
+  canDelete,
+  onDelete,
 }: {
   post: ForumPost
   community: ForumCommunity
@@ -51,6 +54,8 @@ export function ForumPostCard({
   onOpen: () => void
   onBlock: () => void
   onReport: () => void
+  canDelete: boolean
+  onDelete: () => void
 }) {
   const { tr } = useLanguage()
   const score = post.score + vote
@@ -119,15 +124,20 @@ export function ForumPostCard({
                 </IconButton>
               } />
               <DropdownMenuContent align="end" className="min-w-44">
-                <DropdownMenuItem onClick={onBlock}>
-                  <UserRoundX />
-                  {tr('Block this member', 'Chặn thành viên này')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onClick={onReport}>
-                  <Flag />
-                  {tr('Report post', 'Báo cáo bài viết')}
-                </DropdownMenuItem>
+                {canDelete ? <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                  <Trash2 />
+                  {tr('Delete post', 'Xóa bài viết')}
+                </DropdownMenuItem> : <>
+                  <DropdownMenuItem onClick={onBlock}>
+                    <UserRoundX />
+                    {tr('Block this member', 'Chặn thành viên này')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={onReport}>
+                    <Flag />
+                    {tr('Report post', 'Báo cáo bài viết')}
+                  </DropdownMenuItem>
+                </>}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

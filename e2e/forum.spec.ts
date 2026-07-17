@@ -1,6 +1,16 @@
 import { expectNoA11yViolations, test, expect } from './helpers'
+import { canDeleteForumPost } from '../src/lib/forum-api'
+import { INITIAL_FORUM_POSTS } from '../src/components/forum/forum-data'
 
 test.describe('eno.forum standalone', () => {
+  test('offers deletion only for the signed-in owner of a live post', () => {
+    const livePost = { ...INITIAL_FORUM_POSTS[0], id: 'live-owned-post', live: true, authorId: 'owner-id' }
+    expect(canDeleteForumPost(livePost, 'owner-id')).toBe(true)
+    expect(canDeleteForumPost(livePost, 'another-member')).toBe(false)
+    expect(canDeleteForumPost({ ...livePost, live: false }, 'owner-id')).toBe(false)
+    expect(canDeleteForumPost(livePost, null)).toBe(false)
+  })
+
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       const state = window as typeof window & { __enoForumFeedFetches: number }

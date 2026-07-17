@@ -18,6 +18,7 @@ import {
   Home,
   House,
   Languages,
+  Loader2,
   MapPin,
   MessageCircleQuestion,
   MessageSquareText,
@@ -26,6 +27,7 @@ import {
   SearchX,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UserRound,
   Users,
   Waves,
@@ -41,6 +43,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -52,6 +55,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { forumApi } from '@/lib/api'
 import {
+  canDeleteForumPost,
   mapForumComment,
   mapForumPost,
   type ForumCommentResponse,
@@ -408,6 +412,8 @@ function FeedList({
   onOpen,
   onBlock,
   onReport,
+  viewerId,
+  onDelete,
   onReset,
 }: {
   posts: ForumPost[]
@@ -419,6 +425,8 @@ function FeedList({
   onOpen: (id: string) => void
   onBlock: (post: ForumPost) => void
   onReport: (post: ForumPost) => void
+  viewerId: string | null
+  onDelete: (post: ForumPost) => void
   onReset: () => void
 }) {
   const { tr } = useLanguage()
@@ -451,6 +459,8 @@ function FeedList({
             onOpen={() => onOpen(post.id)}
             onBlock={() => onBlock(post)}
             onReport={() => onReport(post)}
+            canDelete={canDeleteForumPost(post, viewerId)}
+            onDelete={() => onDelete(post)}
           />
         )
       })}
@@ -481,6 +491,8 @@ export function ForumClient({
   const [saved, setSaved] = useState<Set<string>>(() => new Set())
   const [createOpen, setCreateOpen] = useState(false)
   const [openPostId, setOpenPostId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ForumPost | null>(null)
+  const [deletingPost, setDeletingPost] = useState(false)
   const [threadComments, setThreadComments] = useState<Record<string, ForumComment[]>>({})
   const fetchedAuthenticatedViewer = useRef(false)
 
@@ -693,6 +705,35 @@ export function ForumClient({
     window.history.replaceState({}, '', url)
   }
 
+  const requestDeletePost = (post: ForumPost) => {
+    if (!user) { openSignIn(); return }
+    if (!canDeleteForumPost(post, user.id)) {
+      toast.error(tr('Only the post owner can delete this discussion.', 'Chỉ chủ bài viết mới có thể xóa thảo luận này.'))
+      return
+    }
+    setDeleteTarget(post)
+  }
+
+  const deletePost = async () => {
+    if (!deleteTarget || !user || !canDeleteForumPost(deleteTarget, user.id)) return
+    const id = deleteTarget.id
+    setDeletingPost(true)
+    try {
+      await forumApi<{ ok: true }>(`/api/forum/posts/${encodeURIComponent(id)}`, { method: 'DELETE', auth: 'required' })
+      setPosts((current) => current.filter((post) => post.id !== id))
+      setSaved((current) => { const next = new Set(current); next.delete(id); return next })
+      setVotes((current) => { const next = { ...current }; delete next[id]; return next })
+      setThreadComments((current) => { const next = { ...current }; delete next[id]; return next })
+      if (openPostId === id) closeThread()
+      setDeleteTarget(null)
+      toast.success(tr('Your post was deleted.', 'Bài viết của bạn đã được xóa.'))
+    } catch {
+      toast.error(tr('Your post could not be deleted.', 'Không thể xóa bài viết của bạn.'))
+    } finally {
+      setDeletingPost(false)
+    }
+  }
+
   const addThreadReply = async (body: string, parentId: string | null) => {
     if (!activePost) throw new Error('post_not_found')
     const { comment } = await forumApi<{ comment: ForumCommentResponse }>('/api/forum/comments', {
@@ -895,6 +936,8 @@ export function ForumClient({
                       onOpen={openThread}
                       onBlock={blockPostAuthor}
                       onReport={reportPost}
+                      viewerId={user?.id || null}
+                      onDelete={requestDeletePost}
                       onReset={resetFilters}
                     />
                   )}
@@ -937,7 +980,24 @@ export function ForumClient({
         comments={activePost?.live ? threadComments[activePost.id] || [] : null}
         onAddReply={addThreadReply}
         onCommentVote={voteThreadComment}
+        canDelete={Boolean(activePost && canDeleteForumPost(activePost, user?.id))}
+        onDelete={() => { if (activePost) requestDeletePost(activePost) }}
       />
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deletingPost) setDeleteTarget(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" /></span>
+            <DialogTitle className="text-lg font-bold">{tr('Delete this post?', 'Xóa bài viết này?')}</DialogTitle>
+            <DialogDescription>{tr('This removes the discussion from the forum. This action cannot be undone.', 'Thao tác này sẽ xóa thảo luận khỏi diễn đàn và không thể hoàn tác.')}</DialogDescription>
+          </DialogHeader>
+          {deleteTarget && <p className="line-clamp-2 rounded-xl bg-tint px-4 py-3 text-sm font-semibold text-foreground">{deleteTarget.title}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" className="h-11" disabled={deletingPost} onClick={() => setDeleteTarget(null)}>{tr('Keep post', 'Giữ bài viết')}</Button>
+            <Button type="button" variant="destructive" className="h-11" disabled={deletingPost} onClick={() => void deletePost()}>{deletingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}{tr('Delete post', 'Xóa bài viết')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -860,7 +860,7 @@ export function ItineraryBuilder() {
                 ))}
               </div>
               <div className="mt-4">
-                <div className="flex items-center justify-between gap-3"><p id="trip-days-label" className="text-sm font-medium text-foreground">{tr('Trip length', 'Thời lượng')}</p><Badge variant="brand" size="md">{days} {tr('days', 'ngày')}</Badge></div>
+                <p id="trip-days-label" className="text-sm font-medium text-foreground">{tr('Trip length', 'Thời lượng')}</p>
                 <div className="mt-3 flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <Slider value={days} min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} onChange={(value) => { daysCustomizedRef.current = true; setDays(clampWholeNumber(value, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) }} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} />
@@ -870,7 +870,7 @@ export function ItineraryBuilder() {
                 </div>
               </div>
               <div className="mt-4">
-                <div className="flex items-center justify-between gap-3"><p id="travelers-label" className="text-sm font-medium text-foreground">{tr('Travelers', 'Số khách')}</p><Badge variant="neutral" size="md"><Users className="h-3.5 w-3.5" />{travelers}</Badge></div>
+                <p id="travelers-label" className="text-sm font-medium text-foreground">{tr('Travelers', 'Số khách')}</p>
                 <div className="mt-3 flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <Slider value={Math.min(travelers, MAX_TRAVELER_SLIDER)} min={1} max={MAX_TRAVELER_SLIDER} onChange={(value) => setTravelers(clampWholeNumber(value, 1, MAX_TRAVELER_SLIDER))} aria-label={tr('Number of travelers', 'Số khách đi cùng')} />
