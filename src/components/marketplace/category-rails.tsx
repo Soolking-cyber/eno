@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
@@ -8,6 +8,7 @@ import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
 import { RAIL_CARD_W, RAIL_SCROLLER } from './shelf'
 import { useLanguage, Tr } from '@/context/language-context'
+import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { Button } from '@/components/ui/button'
 
@@ -22,11 +23,12 @@ type Rail = { slug: string; listings: SerializedListingCard[] }
 function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; listings: SerializedListingCard[]; onCategory: (slug: string) => void }) {
   const { lang, tr } = useLanguage()
   const router = useRouter()
-  const rowRef = useRef<HTMLDivElement>(null)
+  // The scroller ref is shared: the hook drives the ← / → arrows AND the lazy-mount IntersectionObserver.
+  const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]' })
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    const el = rowRef.current
+    const el = scrollerRef.current
     if (!el || show) return
     const io = new IntersectionObserver(
       (entries) => { if (entries[0].isIntersecting) { setShow(true); io.disconnect() } },
@@ -52,21 +54,24 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
         </Button>
       </div>
       {/* Cards pixel-match the feed grid (gap-2 / sm:gap-4; one card == one grid column) + snap. */}
-      <div ref={rowRef} className={RAIL_SCROLLER}>
-        {show
-          ? listings.map((l) => (
-              <div key={l.id} className={RAIL_CARD_W}>
-                <ListingCard
-                  listing={l}
-                  onOpen={(x) => router.push(`/listings/${x.id}`)}
-                  onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
-                />
-              </div>
-            ))
-          : // Same-size skeletons hold the row height until it mounts (no images, no shift).
-            Array.from({ length: Math.min(listings.length, 4) }).map((_, i) => (
-              <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
-            ))}
+      <div className="relative">
+        <div ref={scrollerRef} className={RAIL_SCROLLER}>
+          {show
+            ? listings.map((l) => (
+                <div key={l.id} className={RAIL_CARD_W}>
+                  <ListingCard
+                    listing={l}
+                    onOpen={(x) => router.push(`/listings/${x.id}`)}
+                    onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
+                  />
+                </div>
+              ))
+            : // Same-size skeletons hold the row height until it mounts (no images, no shift).
+              Array.from({ length: Math.min(listings.length, 4) }).map((_, i) => (
+                <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
+              ))}
+        </div>
+        <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
       </div>
     </section>
   )

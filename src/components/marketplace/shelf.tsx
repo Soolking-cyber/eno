@@ -51,8 +51,9 @@ export function Shelf({
   ) : null
 
   // Desktop ← / → scroll arrows (see useScrollArrows): a mouse wheel scrolls only vertically and the
-  // rail hides its scrollbar, so pointer users can't page it without a trackpad.
-  const { scrollerRef, canLeft, canRight, page } = useScrollArrows()
+  // rail hides its scrollbar, so pointer users can't page it without a trackpad. Centre them on the
+  // card PHOTO (data-rail-media), not the full card, so they sit level with the image.
+  const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]' })
 
   return (
     <section className={sectionClassName}>
@@ -67,7 +68,7 @@ export function Shelf({
       </div>
       <div className="relative">
         <div ref={scrollerRef} className={RAIL_SCROLLER}>{children}</div>
-        <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} />
+        <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
       </div>
     </section>
   )
