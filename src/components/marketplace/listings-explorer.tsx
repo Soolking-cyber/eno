@@ -48,6 +48,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Mascot } from './mascot'
+import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { SearchSuggest, buildSuggestItems, suggestOptionId, type SuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
@@ -157,6 +158,8 @@ export function ListingsExplorer({
 }: Props) {
   const { lang, t, tr } = useLanguage()
   const { openSignIn } = useAuth()
+  // Desktop ← / → arrows for the horizontally-scrollable category grid (same primitive as the rails).
+  const { scrollerRef: catScrollerRef, canLeft: catCanLeft, canRight: catCanRight, page: catPage } = useScrollArrows()
   const [activeCategory, setActiveCategory] = useState('all')
   const [query, setQuery] = useState('')
   // Loose (any-word) text match — set by visual search so a photo-derived phrase
@@ -1250,8 +1253,11 @@ export function ListingsExplorer({
     const heroActiveOptionId = heroListOpen && heroActiveIdx >= 0 && heroActiveIdx < heroSuggestItems.length
       ? suggestOptionId(SUGGEST_ID, heroActiveIdx)
       : undefined
+    // overflow-hidden clips the hero-bloom's 150vw glow on narrow screens; lifted on desktop (pc:)
+    // so the rails' / category-grid ← / → gutter arrows aren't clipped at the content edge (on
+    // desktop the bloom is a fixed 880px inside the content box, so nothing overflows there).
     return (
-      <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pt-2 pb-5 sm:pt-3 sm:pb-8">
+      <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pc:overflow-visible pt-2 pb-5 sm:pt-3 sm:pb-8">
         {/* Width + edge gutter are owned by the parent page <main> (canonical
             max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
         <div className="relative w-full space-y-8 sm:space-y-12">
@@ -1493,8 +1499,10 @@ export function ListingsExplorer({
           <div className="space-y-4">
             {/* Two fixed rows — big tiles. mx-auto + w-fit + max-w-full centers the row
                 when it fits and scrolls it from the start (no cut-off) when it doesn't.
-                Free & Wanted are intent tiles at the end. */}
-            <div className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-x-auto scrollbar-none snap-x px-3">
+                Free & Wanted are intent tiles at the end. The relative wrapper hosts the
+                desktop ← / → arrows (only appear once the row overflows). */}
+            <div className="relative">
+            <div ref={catScrollerRef} className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-x-auto scrollbar-none snap-x px-3">
               {categories.map((cat) => {
                 const cc = CATEGORY_COLOR_CLASSES[cat.color] ?? CATEGORY_COLOR_CLASSES.brand
                 const hex = cc.text.match(/#[0-9a-fA-F]{6}/)?.[0] ?? 'var(--brand)'
@@ -1542,6 +1550,8 @@ export function ListingsExplorer({
                   </span>
                 </Button>
               ))}
+            </div>
+            <ScrollArrows canLeft={catCanLeft} canRight={catCanRight} page={catPage} />
             </div>
           </div>
 

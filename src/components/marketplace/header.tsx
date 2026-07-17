@@ -249,13 +249,15 @@ export function Header() {
         // hairline bottom LINE — NO shadow, no floating pill. The opaque bg covers content scrolling
         // under it; the balanced content padding (AccountPanelShell) already insets it clear of the
         // left nav rail, so it never needs a pill to avoid a collision.
-        'sticky top-0 z-40 border-b border-border/60 bg-background pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        // The hairline lives on the inner max-w-7xl bar (below), not here — so it's cut to the
+        // navbar's own length (owner 2026-07-17) instead of bleeding edge-to-edge across the viewport.
+        'sticky top-0 z-40 bg-background pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style on ALL sizes (incl. desktop): slide UP off-screen + fade out on
         // scroll-down, slide back down + fade in on scroll-up (near the top = always shown).
         hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 sm:gap-3 px-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 sm:gap-3 border-b border-border/60 px-3 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link
           href="/"
