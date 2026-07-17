@@ -245,17 +245,17 @@ export function Header() {
     <header
       id="app-header"
       className={cn(
-        // Floating PILL header (owner 2026-07-17): borderless + detached from the top and edges so
-        // it reads as its own surface on the unified canvas and never butts up against the left nav
-        // rail. The bg / rounding / shadow move to the inner max-w-7xl bar; the <header> is now just
-        // the sticky, safe-area-aware, hide-on-scroll shell + the float gap.
-        'sticky top-0 z-40 px-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] sm:px-3 transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        // MOBILE/tablet: a clean, FLUSH, OPAQUE app bar — no top gap, no translucency (the floating
+        // pill's gap + /85 blur let the category strip bleed through ABOVE and BEHIND it, which read
+        // as broken on a phone). DESKTOP (lg): the floating PILL, inset from the top + edges so it
+        // reads as its own surface and never butts up against the left nav rail.
+        'sticky top-0 z-40 pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none lg:px-3 lg:pt-[calc(env(safe-area-inset-top)+0.5rem)]',
         // Facebook-style on ALL sizes (incl. desktop): slide UP off-screen + fade out on
         // scroll-down, slide back down + fade in on scroll-up (near the top = always shown).
         hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 sm:gap-3 rounded-2xl bg-card/85 px-3 shadow-md backdrop-blur-md sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 sm:gap-3 bg-card px-3 shadow-sm sm:px-6 lg:rounded-2xl lg:bg-card/85 lg:px-8 lg:shadow-md lg:backdrop-blur-md">
         {/* Logo */}
         <Link
           href="/"
@@ -278,13 +278,12 @@ export function Header() {
             onSubmit={(e) => { e.preventDefault(); submitSearch(searchVal); setShowSuggestions(false) }}
             className="relative min-w-0 flex-1 animate-in fade-in duration-200"
           >
-            {/* Width cap + positioning context for the whole search component. The form stays
-                `flex-1` so it reserves the middle of the header (keeping the action icons pinned
-                right), but the visible input window AND its fused dropdown are capped at max-w-xl
-                and centered here — otherwise a 3-item "Recent" list sprawls across the full
-                ~810px bar on desktop. `relative` makes THIS the offset parent for the
-                `sm:absolute sm:inset-x-0` panels below, so they inherit this 576px width. */}
-            <div className="relative mx-auto w-full max-w-xl">
+            {/* Positioning context for the whole search component. The form is `flex-1`, so the bar
+                now stretches END TO END — from the eno wordmark to the action icons (owner 2026-07-17:
+                dropped the old max-w-xl cap that centred it at 576px). `relative` makes THIS the offset
+                parent for the `sm:absolute sm:inset-x-0` panels below, so the fused dropdown inherits
+                this full width and the bar + panel read as one continuous rectangle. */}
+            <div className="relative w-full">
             {/* Morphing search "window": a rounded pill when idle that flattens its
                 bottom and fuses with the suggestions panel into one continuous white
                 window when open (Google-style monolith). */}

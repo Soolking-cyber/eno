@@ -156,6 +156,19 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   }, [open])
   const trapRef = useFocusTrap<HTMLElement>(modalThisOpen)
 
+  // Click/tap OUTSIDE the EXPANDED desktop rail collapses it (drawer behaviour). Desktop-only —
+  // `expanded` is never set on mobile. pointerdown so it lands before a link navigation; the
+  // expanding toggle is inside the aside, so it never self-closes.
+  useEffect(() => {
+    if (!expanded) return
+    const onDown = (e: PointerEvent) => {
+      const node = trapRef.current
+      if (node && !node.contains(e.target as Node)) setExpanded(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [expanded, trapRef])
+
   if (!user) return null
   const initial = (user.email || user.phone || '?').charAt(0).toUpperCase()
   const isBusiness = dash?.tier === 'business'
@@ -244,14 +257,15 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         // bleed through. left-0 + w-full, so the L/R move is moot on phones. overflow-hidden clips
         // the label reveal on desktop; the inner div owns the y-scroll.
         'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 z-50 flex w-full flex-col overflow-hidden bg-background motion-reduce:transition-none lg:bottom-0',
-        // DESKTOP: a LEFT rail. BORDERLESS — no divider. Collapsed = 72px of icons over a whisper
-        // tint (lg:bg-muted/10); on hover it expands to 280px and FLOATS over the content, lifting off
-        // the canvas with a soft blur + very diffuse shadow. Width/colour/shadow/transform all ease
-        // together; the panel is position:fixed so the width change floats and never reflows the page.
-        'lg:transition-[width,background-color,box-shadow,transform] lg:duration-200',
+        // DESKTOP: a LEFT rail. BORDERLESS + SHADOWLESS — no divider, no edge shadow (owner
+        // 2026-07-17). Collapsed = 72px of icons over a whisper tint (lg:bg-muted/10); toggled open it
+        // expands to 280px and FLOATS over the content on an OPAQUE bg-background (so the content
+        // behind is cleanly covered without needing a shadow). Click-outside collapses it. Width /
+        // colour / transform ease together; position:fixed so the width change never reflows the page.
+        'lg:transition-[width,background-color,transform] lg:duration-200',
         expanded
-          ? 'lg:w-[280px] lg:bg-background/95 lg:shadow-xl lg:backdrop-blur'
-          : 'lg:w-[var(--account-w)] lg:bg-muted/10 lg:shadow-none',
+          ? 'lg:w-[280px] lg:bg-background'
+          : 'lg:w-[var(--account-w)] lg:bg-muted/10',
         // Entrance is SPLIT by breakpoint: MOBILE fades like a page (opacity+visibility,
         // transition-discrete so the fade-out finishes before it leaves the a11y tree; max-lg:starting
         // gives the first lazy-mount fade WITHOUT slowing desktop); DESKTOP slides in from the LEFT.

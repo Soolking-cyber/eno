@@ -39,9 +39,11 @@ export function Footer() {
   ]
 
   return (
-    <footer className="mt-auto bg-card pt-12 pb-8 text-muted-foreground">
+    <footer className="mt-auto pt-8 pb-8 text-muted-foreground">
       <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+        {/* Blends into the page canvas (no bg-card). The divider is on the GRID, so it spans the
+            CONTENT width inset by the gutter — a contained hairline, NOT the full-viewport edge. */}
+        <div className="grid grid-cols-2 gap-8 border-t border-border/60 pt-12 md:grid-cols-4">
           {/* Brand column */}
           <div className="col-span-2 md:col-span-1 space-y-3">
             <img src="/logo-mark.svg" alt="eno.vn" width={36} height={36} className="h-9 w-9" />
