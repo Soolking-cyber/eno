@@ -12,6 +12,15 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
+// Non-sensitive readiness probe for deployment monitoring. It does not call a
+// model or reveal which credential, project, or models are configured.
+export function HEAD() {
+  return new Response(null, {
+    status: getGemini() ? 204 : 503,
+    headers: { 'Cache-Control': 'no-store' },
+  })
+}
+
 export async function GET(request: Request) {
   const admin = await getVisaAdmin()
   if (!admin) return Response.json({ error: 'admin_required' }, { status: 403 })
