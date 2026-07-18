@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { markVisaPaidAndHandoff, verifyStripeSignature } from '@/lib/visa/payments'
+import { markVisaPaidAndHandoff, stripeEventModeOk, verifyStripeSignature } from '@/lib/visa/payments'
 
 // Stripe → eno. The HMAC signature over the RAW body is the auth (same posture as
 // the Supabase send-sms Standard-Webhooks hook); there is no cookie session here.
@@ -22,9 +22,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_signature' }, { status: 400 })
   }
 
-  let event: { type?: string; data?: { object?: Record<string, unknown> } }
+  let event: { type?: string; livemode?: unknown; data?: { object?: Record<string, unknown> } }
   try { event = JSON.parse(rawBody) as typeof event } catch { return NextResponse.json({ error: 'invalid_payload' }, { status: 400 }) }
   if (event.type !== 'checkout.session.completed') return NextResponse.json({ received: true })
+  // Mode pin: a test-mode event can never satisfy a live deployment (or vice versa).
+  if (!stripeEventModeOk(event.livemode)) return NextResponse.json({ received: true })
 
   const session = event.data?.object || {}
   const metadata = (session.metadata || {}) as Record<string, string>
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await markVisaPaidAndHandoff({
+    const result = await markVisaPaidAndHandoff({
       applicationId,
       provider: 'stripe',
       providerRef: session.id,
@@ -42,6 +44,10 @@ export async function POST(request: Request) {
       currency: typeof session.currency === 'string' ? session.currency.toUpperCase() : 'USD',
       actorRef: 'stripe-webhook',
     })
+    // Non-retryable rejections (no checkout row for this ref, amount below the row's)
+    // are acknowledged — retrying an invalid payment can never make it valid. They are
+    // logged for the audit trail; genuine persistence failures THROW below instead.
+    if (!result.ok) console.error('[payments/stripe/webhook] rejected', result.error, session.id)
   } catch (error) {
     // 500 → Stripe retries with backoff; the operation is idempotent so that's safe.
     console.error('[payments/stripe/webhook]', (error as Error)?.message?.slice(0, 300))

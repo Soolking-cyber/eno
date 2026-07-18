@@ -51,6 +51,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const now = new Date().toISOString()
   if (parsed.data.action === 'send_for_review') {
     if (!['draft', 'needs_changes'].includes(app.status)) return forumJson(request, { error: 'invalid_status_transition' }, { status: 409 }, METHODS)
+    // Pay-before-review gate — MIRROR of eno.vn's (the visa tables are shared, so an
+    // ungated submit HERE would bypass the fee entirely; caught in review 2026-07-18).
+    // The forum never runs checkout: the gate keys on VISA_SERVICE_FEE_USD alone and
+    // 402s toward eno.vn, where payment + the server-completed handoff live. ⚠️ The
+    // owner must set VISA_SERVICE_FEE_USD on BOTH Vercel projects when activating.
+    const fee = Number.parseFloat(process.env.VISA_SERVICE_FEE_USD || '')
+    if (Number.isFinite(fee) && fee > 0 && !app.paid_at) {
+      return forumJson(request, { error: 'payment_required_first' }, { status: 402 }, METHODS)
+    }
     const { data } = await db.from('visa_applications').update({
       status: 'ready_for_review',
       checklist: [],

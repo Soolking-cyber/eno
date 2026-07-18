@@ -7,6 +7,9 @@ export type VisaApplicationRow = {
   applicant_snapshot_hash: string | null; authorization_version: string | null; authorized_at: string | null
   authorization_snapshot_hash: string | null; assigned_admin: string | null
   submitted_at: string | null; resolved_at: string | null; retention_until: string | null
+  // Service-fee stamp written by eno.vn's payment path (shared tables; columns added by
+  // eno.vn scripts/visa-payment-setup.mjs). Optional: absent from rows predating it.
+  paid_at?: string | null; payment_provider?: string | null; payment_ref?: string | null
   created_at: string; updated_at: string
 }
 export type VisaDocumentRow = {

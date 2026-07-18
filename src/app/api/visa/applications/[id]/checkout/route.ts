@@ -6,7 +6,7 @@ import { decryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '
 import { getVisaDb } from '@/lib/visa/db'
 import { paypalCreateOrder, stripeCreateCheckout, visaPaymentsConfig } from '@/lib/visa/payments'
 import type { VisaApplicationRow, VisaDocumentRow } from '@/lib/visa/records'
-import { validateVisaForReview } from '@/lib/visa/schema'
+import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview } from '@/lib/visa/schema'
 
 // Start a service-fee checkout for a COMPLETE application. The declaration +
 // prefill-authorization consents are required here (the same literals the submit
@@ -74,6 +74,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       status: 'created',
       consent_snapshot_hash: snapshotHash,
       consent_at: new Date().toISOString(),
+      // The exact consent versions ACCEPTED at this click — the handoff stamps these,
+      // never whatever constants are current at payment time (review #8).
+      consent_declaration_version: VISA_DECLARATION_VERSION,
+      consent_authorization_version: VISA_AUTHORIZATION_VERSION,
     })
     if (error) throw new Error(`visa_payment_insert_failed:${error.message}`)
 

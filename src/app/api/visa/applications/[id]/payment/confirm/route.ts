@@ -34,15 +34,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-  // Ownership first — a foreign application id must 404 before any provider call.
+  // Ownership + local checkout row FIRST — before any provider call (review #5: a
+  // leaked foreign PayPal order id must never even reach capture). The row proves OUR
+  // checkout minted this exact (provider, ref) for THIS application and THIS user.
   const db = getVisaDb()
-  const { data: owned } = await db.from('visa_applications').select('id').eq('id', id).eq('user_id', userId).maybeSingle()
+  const [{ data: owned }, { data: paymentRow }] = await Promise.all([
+    db.from('visa_applications').select('id').eq('id', id).eq('user_id', userId).maybeSingle(),
+    db.from('visa_payments').select('application_id, user_id').eq('provider', parsed.data.provider).eq('provider_ref', parsed.data.ref).maybeSingle(),
+  ])
   if (!owned) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  const row = paymentRow as { application_id?: string; user_id?: string } | null
+  if (!row || row.application_id !== id || row.user_id !== userId) {
+    return NextResponse.json({ error: 'reference_mismatch' }, { status: 400 })
+  }
 
   try {
     const state = parsed.data.provider === 'stripe'
       ? await stripeRetrieveSession(parsed.data.ref)
-      : await paypalCaptureOrder(parsed.data.ref)
+      : await paypalCaptureOrder(parsed.data.ref, id)
     // The provider reference must belong to THIS application (metadata/custom_id was
     // set at checkout) — a mismatched ref is an attack or a stale link, never a pay.
     if (state.applicationId !== id) return NextResponse.json({ error: 'reference_mismatch' }, { status: 400 })
@@ -56,7 +65,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       currency: state.currency,
       actorRef: userId,
     })
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 404 })
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.error === 'not_found' ? 404 : 400 })
+    }
     return NextResponse.json({
       application: serializeVisa(result.application as VisaApplicationRow, result.documents as VisaDocumentRow[]),
       handedOff: result.handedOff,

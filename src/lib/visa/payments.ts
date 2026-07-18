@@ -36,9 +36,20 @@ export function visaPaymentsConfig(): VisaPaymentsConfig | null {
   if (!Number.isFinite(feeCents) || feeCents <= 0) return null
   const providers: VisaPaymentProvider[] = []
   if (process.env.STRIPE_SECRET_KEY) providers.push('stripe')
-  if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET) providers.push('paypal')
+  // PayPal requires an EXPLICIT mode — a typo'd PAYPAL_ENV ("prod", "production")
+  // must fail closed as unconfigured, never silently fall back to sandbox where
+  // play-money orders would satisfy real payment state (review #2).
+  if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET
+    && ['live', 'sandbox'].includes(process.env.PAYPAL_ENV || '')) providers.push('paypal')
   if (!providers.length) return null
   return { providers, feeCents, currency: 'USD' }
+}
+
+/** True when the Stripe key is a live-mode key. Every Stripe object we accept must
+ *  carry a matching livemode flag — a test-mode session/event can never satisfy a
+ *  live deployment (and vice versa; review #2). */
+function stripeLiveMode(): boolean {
+  return (process.env.STRIPE_SECRET_KEY || '').startsWith('sk_live')
 }
 
 /** The canonical public origin — checkout return URLs must land on the real site,
@@ -113,11 +124,17 @@ export async function stripeRetrieveSession(sessionId: string): Promise<StripeSe
   const metadata = (session.metadata || {}) as Record<string, string>
   return {
     id: String(session.id),
-    paid: session.payment_status === 'paid',
+    // livemode must match the key's mode — a test session can never read as paid here.
+    paid: session.payment_status === 'paid' && session.livemode === stripeLiveMode(),
     amountCents: typeof session.amount_total === 'number' ? session.amount_total : 0,
     currency: typeof session.currency === 'string' ? session.currency.toUpperCase() : 'USD',
     applicationId: metadata.application_id || null,
   }
+}
+
+/** Webhook-side mode check: the event's livemode must match the configured key. */
+export function stripeEventModeOk(livemode: unknown): boolean {
+  return livemode === stripeLiveMode()
 }
 
 /** Stripe webhook signature (their `t=...,v1=...` scheme): HMAC-SHA256 of
@@ -149,7 +166,11 @@ export function verifyStripeSignature(rawBody: string, signatureHeader: string |
 // ── PayPal (REST; Orders v2) ───────────────────────────────────────────────────────
 
 function paypalBase(): string {
-  return process.env.PAYPAL_ENV === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com'
+  // visaPaymentsConfig() already refuses to enable PayPal without an explicit valid
+  // mode; this second check makes a direct caller with a typo'd env fail closed too.
+  const env = process.env.PAYPAL_ENV
+  if (env !== 'live' && env !== 'sandbox') throw new PaymentProviderError('paypal', 'env_not_configured')
+  return env === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com'
 }
 
 async function paypalToken(): Promise<string> {
@@ -238,9 +259,20 @@ function paypalOrderState(order: Record<string, unknown>): PaypalCaptureState {
   }
 }
 
-/** Capture an approved order. An already-captured order (double confirm, refresh of
- *  the return URL) is NOT an error — re-read it and report its real state. */
-export async function paypalCaptureOrder(orderId: string): Promise<PaypalCaptureState> {
+/** Capture an approved order — but VERIFY FIRST: the order is read and its custom_id
+ *  checked against the expected application BEFORE any capture (review #5: capturing
+ *  a leaked foreign order id and only then noticing the mismatch would still take the
+ *  money). An already-captured order (double confirm, return-URL refresh) is NOT an
+ *  error — re-read it and report its real state. */
+export async function paypalCaptureOrder(orderId: string, expectedApplicationId: string): Promise<PaypalCaptureState> {
+  const pre = await paypalApi(`/v2/checkout/orders/${encodeURIComponent(orderId)}`, 'GET')
+  if (pre.status >= 400) throw new PaymentProviderError('paypal', `order_read_${pre.status}`)
+  const preState = paypalOrderState(pre.json)
+  if (preState.applicationId !== expectedApplicationId) {
+    // Never capture an order that was not minted for this application.
+    return { ...preState, paid: false }
+  }
+  if (preState.paid) return preState // already captured — idempotent
   const capture = await paypalApi(`/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, 'POST', {})
   if (capture.status < 400) return paypalOrderState(capture.json)
   const already = ((capture.json.details || []) as Array<{ issue?: string }>).some((d) => d.issue === 'ORDER_ALREADY_CAPTURED')
@@ -254,19 +286,40 @@ export async function paypalCaptureOrder(orderId: string): Promise<PaypalCapture
 
 export type MarkPaidResult =
   | { ok: true; application: VisaApplicationRow; documents: VisaDocumentRow[]; handedOff: boolean; alreadyPaid: boolean }
-  | { ok: false; error: 'not_found' }
+  | { ok: false; error: 'not_found' | 'payment_row_missing' | 'amount_mismatch' }
+
+type VisaPaymentRow = {
+  application_id: string
+  user_id: string
+  status: string
+  amount_cents: number
+  currency: string
+  paid_at: string | null
+  consent_snapshot_hash: string | null
+  consent_declaration_version: string | null
+  consent_authorization_version: string | null
+}
 
 /** Record a verified payment and, when the applicant's checkout-time consent still
  *  matches the payload, complete the send_for_review handoff SERVER-side — so a paid
  *  case reaches the admin even if the buyer never returns from the provider.
  *
- *  Idempotent at two layers: the visa_payments (provider, provider_ref) unique index
- *  makes replayed webhooks/confirms record nothing new, and the application update is
- *  guarded on paid_at IS NULL. Consent integrity: the handoff only auto-fires when
- *  visaApplicantSnapshotHash(current payload) equals the hash stamped at checkout —
- *  an edit made between checkout and payment voids the recorded consent, the case
- *  stays editable (still paid), and the applicant re-submits manually (the submit
- *  route's payment gate passes because paid_at is set). */
+ *  Hardened per the 2026-07-18 external review (codex + gemini, cross-confirmed):
+ *  · a CHECKOUT-TIME visa_payments row for exactly this (provider, ref, application)
+ *    is REQUIRED — a provider object that our checkout never minted records nothing;
+ *  · the provider-verified amount/currency must cover that row's immutable
+ *    amount_cents/currency (local truth, set from config at checkout) — a cheaper or
+ *    foreign-currency payment is rejected before any write;
+ *  · every Supabase write is error-checked (a failed query THROWS so the webhook 500s
+ *    and Stripe retries — a zero-row compare-and-set is the only benign "miss");
+ *  · the paid-stamp race loser CONTINUES into the idempotent handoff instead of
+ *    returning (if the winner crashed post-stamp, the loser completes the transition);
+ *  · the transition is additionally guarded on updated_at (the extract-route idiom),
+ *    so a payload PATCH racing the handoff voids it rather than shipping consent
+ *    stamps for a payload the applicant never confirmed;
+ *  · the consent versions stamped are the ones RECORDED AT CHECKOUT, not whatever
+ *    constants are current at payment time;
+ *  · the payment row flips created→paid at most once (replays never move paid_at). */
 export async function markVisaPaidAndHandoff(input: {
   applicationId: string
   provider: VisaPaymentProvider
@@ -276,69 +329,94 @@ export async function markVisaPaidAndHandoff(input: {
   actorRef: string
 }): Promise<MarkPaidResult> {
   const db = getVisaDb()
-  const [{ data: application }, { data: documents }] = await Promise.all([
+  const [appRes, docsRes, payRes] = await Promise.all([
     db.from('visa_applications').select('*').eq('id', input.applicationId).maybeSingle(),
     db.from('visa_documents').select('*').eq('application_id', input.applicationId),
+    db.from('visa_payments').select('*').eq('provider', input.provider).eq('provider_ref', input.providerRef).maybeSingle(),
   ])
-  if (!application) return { ok: false, error: 'not_found' }
-  let app = application as VisaApplicationRow
-  const docs = (documents || []) as VisaDocumentRow[]
+  if (appRes.error) throw new Error(`visa_paid_read_failed:${appRes.error.message}`)
+  if (docsRes.error) throw new Error(`visa_paid_read_failed:${docsRes.error.message}`)
+  if (payRes.error) throw new Error(`visa_paid_read_failed:${payRes.error.message}`)
+  if (!appRes.data) return { ok: false, error: 'not_found' }
+  let app = appRes.data as VisaApplicationRow
+  const docs = (docsRes.data || []) as VisaDocumentRow[]
+  const paymentRow = payRes.data as VisaPaymentRow | null
+
+  // Local checkout row is the authorization to record anything at all — and it must
+  // belong to THIS application (a leaked ref for another case must not cross-credit).
+  if (!paymentRow || paymentRow.application_id !== input.applicationId) {
+    return { ok: false, error: 'payment_row_missing' }
+  }
+  // Provider truth must cover the checkout-time local truth. (A session minted before
+  // a fee raise still honors its own amount — bounded by provider session expiry.)
+  if (input.amountCents < paymentRow.amount_cents || input.currency.toUpperCase() !== paymentRow.currency.toUpperCase()) {
+    return { ok: false, error: 'amount_mismatch' }
+  }
+
   const now = new Date().toISOString()
 
-  // Payment row — flip the checkout-time 'created' row to paid; the unique
-  // (provider, provider_ref) index means a replay updates the same row again (no-op).
-  await db.from('visa_payments')
+  // Flip the checkout row created→paid AT MOST ONCE (replays keep the original audit
+  // timestamps; the amounts written are the provider-verified ones from that first flip).
+  const payFlip = await db.from('visa_payments')
     .update({ status: 'paid', paid_at: now, amount_cents: input.amountCents, currency: input.currency })
-    .eq('provider', input.provider).eq('provider_ref', input.providerRef)
+    .eq('provider', input.provider).eq('provider_ref', input.providerRef).eq('status', 'created')
+  if (payFlip.error) throw new Error(`visa_payment_update_failed:${payFlip.error.message}`)
 
   const alreadyPaid = !!app.paid_at
   if (!alreadyPaid) {
-    const { data: stamped } = await db.from('visa_applications')
+    const stampRes = await db.from('visa_applications')
       .update({ paid_at: now, payment_provider: input.provider, payment_ref: input.providerRef, updated_at: now })
       .eq('id', input.applicationId).is('paid_at', null)
       .select('*').maybeSingle()
-    if (stamped) {
-      app = stamped as VisaApplicationRow
+    if (stampRes.error) throw new Error(`visa_paid_stamp_failed:${stampRes.error.message}`)
+    if (stampRes.data) {
+      app = stampRes.data as VisaApplicationRow
       await recordVisaEvent(input.applicationId, 'system', 'payment_recorded', input.actorRef, {
         provider: input.provider, amountCents: input.amountCents, currency: input.currency,
       })
     } else {
-      // Lost the race to a concurrent webhook/confirm — re-read; the winner handles handoff.
-      const { data: fresh } = await db.from('visa_applications').select('*').eq('id', input.applicationId).maybeSingle()
-      if (fresh) app = fresh as VisaApplicationRow
-      return { ok: true, application: app, documents: docs, handedOff: app.status === 'ready_for_review', alreadyPaid: true }
+      // Lost the paid-stamp race to a concurrent webhook/confirm. Re-read and FALL
+      // THROUGH to the handoff — if the winner crashed after stamping, this request
+      // completes the transition; if the winner finished, the status guard no-ops.
+      const freshRes = await db.from('visa_applications').select('*').eq('id', input.applicationId).maybeSingle()
+      if (freshRes.error) throw new Error(`visa_paid_read_failed:${freshRes.error.message}`)
+      if (freshRes.data) app = freshRes.data as VisaApplicationRow
     }
   }
 
   // Handoff — only from an applicant-editable state, only with intact checkout consent.
   let handedOff = false
   if (['draft', 'needs_changes'].includes(app.status)) {
-    const { data: paymentRow } = await db.from('visa_payments')
-      .select('consent_snapshot_hash, consent_at')
-      .eq('provider', input.provider).eq('provider_ref', input.providerRef).maybeSingle()
-    const consentHash = (paymentRow as { consent_snapshot_hash?: string | null } | null)?.consent_snapshot_hash || null
+    const consentHash = paymentRow.consent_snapshot_hash
     const payload = decryptVisaPayload(app.encrypted_payload)
     const snapshotHash = visaApplicantSnapshotHash(payload)
     const issues = validateVisaForReview(payload, docs)
     if (consentHash && consentHash === snapshotHash && issues.length === 0) {
-      const { data: transitioned } = await db.from('visa_applications').update({
+      const declarationVersion = paymentRow.consent_declaration_version || VISA_DECLARATION_VERSION
+      const authorizationVersion = paymentRow.consent_authorization_version || VISA_AUTHORIZATION_VERSION
+      const transitionRes = await db.from('visa_applications').update({
         status: 'ready_for_review',
         checklist: [],
         applicant_confirmed_at: now,
-        applicant_confirmation_version: VISA_DECLARATION_VERSION,
+        applicant_confirmation_version: declarationVersion,
         applicant_snapshot_hash: snapshotHash,
         authorized_at: now,
-        authorization_version: VISA_AUTHORIZATION_VERSION,
+        authorization_version: authorizationVersion,
         authorization_snapshot_hash: snapshotHash,
         last_applicant_action_at: now,
         updated_at: now,
-      }).eq('id', input.applicationId).eq('status', app.status).select('*').maybeSingle()
-      if (transitioned) {
-        app = transitioned as VisaApplicationRow
+      // updated_at guard (the extract-route optimistic idiom): a payload PATCH racing
+      // this handoff bumps updated_at, the compare-and-set misses, and the case stays
+      // an editable paid draft — never a review case whose consent stamp is for a
+      // different payload than the one it carries.
+      }).eq('id', input.applicationId).eq('status', app.status).eq('updated_at', app.updated_at).select('*').maybeSingle()
+      if (transitionRes.error) throw new Error(`visa_handoff_failed:${transitionRes.error.message}`)
+      if (transitionRes.data) {
+        app = transitionRes.data as VisaApplicationRow
         handedOff = true
         await recordVisaEvent(input.applicationId, 'applicant', 'sent_for_review', input.actorRef, {
-          declarationVersion: VISA_DECLARATION_VERSION,
-          authorizationVersion: VISA_AUTHORIZATION_VERSION,
+          declarationVersion,
+          authorizationVersion,
           officialPrefillAuthorized: true,
           paidVia: input.provider,
         })

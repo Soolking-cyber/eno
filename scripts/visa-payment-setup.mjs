@@ -35,8 +35,12 @@ const stmts = [
   // Consent-at-checkout stamps (idempotent for tables created before these existed):
   // the applicant's declaration/authorization is recorded on the PAYMENT row, never
   // inside the encrypted payload (whose shape is a cross-app contract with the forum).
+  // The VERSION identifiers are stored too, so the handoff stamps exactly what the
+  // applicant accepted — not whatever constant is current at payment time (review #8).
   `alter table public.visa_payments add column if not exists consent_snapshot_hash text;`,
   `alter table public.visa_payments add column if not exists consent_at timestamptz;`,
+  `alter table public.visa_payments add column if not exists consent_declaration_version text;`,
+  `alter table public.visa_payments add column if not exists consent_authorization_version text;`,
   `create unique index if not exists visa_payments_provider_ref_key on public.visa_payments (provider, provider_ref);`,
   `create index if not exists visa_payments_application_idx on public.visa_payments (application_id);`,
   `alter table public.visa_applications add column if not exists paid_at timestamptz;`,
