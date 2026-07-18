@@ -156,13 +156,13 @@ export function MobileNav() {
     go(href)
   }
 
-  // Hidden on the full-screen sign-in page, and on the listing detail page — the PDP shows
-  // its OWN fixed bottom action bar (Chat / Make offer via <PdpMobileBar>), and two stacked
-  // fixed bottom bars would collide. In a chat thread the nav stays put when the keyboard is
+  // Hidden only on the full-screen sign-in page. (The PDP used to hide it and show its own fixed
+  // Chat / Make-offer bar instead; owner reverted that 2026-07-18 — the tab-nav stays on the PDP and
+  // buyers use the in-page contact composer.) In a chat thread the nav stays put when the keyboard is
   // CLOSED (composer sits right above it, no gap — the existing good state); when the keyboard
   // OPENS it's hidden reliably by `html.kb-open .mobile-nav` (globals.css), driven by the
   // frame-accurate kb-open class — not the old laggy React boolean that let it wedge above it.
-  if (pathname?.startsWith('/signin') || pathname?.startsWith('/listings/')) return null
+  if (pathname?.startsWith('/signin')) return null
 
   // Gate auth-only tabs once auth has resolved logged-out. During the brief boot
   // window (loading) leave them as Links so a logged-in user is never flashed the

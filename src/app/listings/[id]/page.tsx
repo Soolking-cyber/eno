@@ -48,7 +48,6 @@ import { getEnforcement } from '@/lib/enforcement'
 import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
 import { SafetyStrip } from '@/components/marketplace/safety-strip'
-import { PdpMobileBar } from '@/components/marketplace/pdp-mobile-bar'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -309,7 +308,7 @@ export default async function ListingPage({ params }: Props) {
   )
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
+    <div className="flex min-h-screen flex-col blob-bg pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
       {/* JSON-LD — indexable listings only (no rich snippets for hidden/sold/pending) */}
       {indexable && (
         <>
@@ -566,10 +565,6 @@ export default async function ListingPage({ params }: Props) {
 
       <Footer />
 
-      {/* Mobile-only fixed action bar — the always-reachable primary CTAs. "Chat" fires the
-          shared eno:chat-now event; "Make offer" scrolls the #contact offer slider into view.
-          <main> reserves bottom padding for it, and the global tab-nav hides on the PDP. */}
-      <PdpMobileBar canOffer={listing.price > 0 && listing.negotiable !== false} />
     </div>
   )
 }
