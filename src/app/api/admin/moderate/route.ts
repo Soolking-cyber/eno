@@ -70,6 +70,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
+    case 'append-note': {
+      // ATOMIC append (audit P2): the AI panel used to read the note from a PROP and
+      // send the full concatenation — a stale read-modify-write that dropped whatever a
+      // NoteEditor save, a second admin, or an earlier AI save wrote in between. One
+      // SQL statement appends server-side; the 2000-char cap is enforced in the SET.
+      const line = String(body.note ?? '').slice(0, 500)
+      if (line) {
+        await db.$executeRaw`UPDATE "Report" SET "internalNote" = left(coalesce("internalNote" || E'\n', '') || ${line}, 2000) WHERE id = ${id}`.catch(() => {})
+      }
+      return NextResponse.json({ ok: true })
+    }
+
     case 'dismiss-target': {
       // Clear a pile-on: dismiss EVERY open report sharing this report's target identity.
       const report = await db.report.findUnique({ where: { id }, select: { targetProfileId: true, targetSellerId: true, listingId: true } })

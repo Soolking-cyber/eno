@@ -241,7 +241,9 @@ function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
     const stamp = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
     const line = `[AI ${stamp}] ${review.outcome} (${Math.round(review.confidence * 100)}%)${review.reasoning[0] ? ` — ${review.reasoning[0]}` : ''}`
     try {
-      await post({ action: 'set-note', id: caseId, note: `${internalNote ? internalNote + '\n' : ''}${line}`.slice(0, 2000) })
+      // append-note is ATOMIC server-side (audit P2) — the old client-side concat from
+      // the internalNote PROP overwrote concurrent NoteEditor / second-admin saves.
+      await post({ action: 'append-note', id: caseId, note: line })
       setNoteState('saved')
       refresh()
     } catch { setNoteState('idle') }
