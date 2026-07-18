@@ -16,7 +16,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { FieldControl } from '@/components/ui/field'
 import { RadioGroup, Radio } from '@/components/ui/radio-group'
 import { haptic } from '@/lib/haptics'
-import { isNativeApp } from '@/lib/native-auth'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { containsPhoneNumber } from '@/lib/phone'
@@ -507,40 +506,6 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       return next
     })
   const { bind: bindPhoto, dragging: draggingPhoto } = usePointerReorder(movePhoto)
-  // Native camera/gallery (Capacitor): tap "Add" in the app → a native action sheet (Take Photo /
-  // Choose from Library) → @capacitor/camera returns image(s) we turn into Files and feed to the
-  // SAME addPhotos pipeline (HEIC→JPEG compress, preview, upload). Falls through to the web file
-  // input on the web. Camera + photo-library usage strings live in Info.plist / AndroidManifest.
-  const pickNativePhotos = async () => {
-    const remaining = 6 - photos.length
-    if (remaining <= 0) return
-    const toFile = async (webPath: string, i: number): Promise<File> => {
-      const blob = await (await fetch(webPath)).blob()
-      return new File([blob], `photo-${Date.now()}-${i}.jpg`, { type: blob.type || 'image/jpeg' })
-    }
-    try {
-      const [{ ActionSheet, ActionSheetButtonStyle }, { Camera, CameraResultType, CameraSource }] = await Promise.all([
-        import('@capacitor/action-sheet'),
-        import('@capacitor/camera'),
-      ])
-      const choice = await ActionSheet.showActions({
-        title: t('Thêm ảnh', 'Add photos'),
-        options: [
-          { title: t('Chụp ảnh', 'Take Photo') },
-          { title: t('Chọn từ thư viện', 'Choose from Library') },
-          { title: t('Hủy', 'Cancel'), style: ActionSheetButtonStyle.Cancel },
-        ],
-      })
-      if (choice.index === 0) {
-        const photo = await Camera.getPhoto({ source: CameraSource.Camera, resultType: CameraResultType.Uri, quality: 90 })
-        if (photo.webPath) await addPhotos([await toFile(photo.webPath, 0)])
-      } else if (choice.index === 1) {
-        const res = await Camera.pickImages({ quality: 90, limit: remaining })
-        const files = await Promise.all(res.photos.map((p, i) => toFile(p.webPath as string, i)))
-        if (files.length) await addPhotos(files)
-      }
-    } catch { /* cancelled / permission denied / plugin missing */ }
-  }
 
   const addPhotos = async (files: FileList | File[] | null) => {
     if (!files) return
@@ -896,11 +861,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 </div>
               ))}
               {photos.length < 6 && (
-                <label
-                  // In the native app, tap → native camera/gallery action sheet instead of the web
-                  // file picker (preventDefault stops the hidden input from also opening).
-                  onClick={(e) => { if (isNativeApp()) { e.preventDefault(); void pickNativePhotos() } }}
-                  className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
+                <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
                   {converting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}
                   <span className="text-3xs font-semibold">{converting ? t('Đang xử lý…', 'Processing…') : t('Thêm ảnh', 'Add')}</span>
                   <input type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
