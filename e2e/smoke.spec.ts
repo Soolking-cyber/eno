@@ -37,7 +37,7 @@ async function mockGeo(page: Page) {
 }
 
 test.describe.serial('Golden path · seller posts → buyer finds & chats → seller manages', () => {
-  test.skip(!process.env.E2E_AUTHED_BASE, 'requires the standalone server + seeded seller & buyer sessions (E2E_AUTHED_BASE, E2E_BUYER_EMAIL)')
+  test.skip(!process.env.E2E_AUTHED_BASE || !HAVE_SESSIONS, 'requires the standalone server + seeded seller & buyer sessions (E2E_AUTHED_BASE, E2E_BUYER_EMAIL)')
   // This is a STATEFUL create flow — a retry would re-post the same title and trip the duplicate
   // guard (409) instead of reproducing the original failure. Never retry it.
   test.describe.configure({ retries: 0 })

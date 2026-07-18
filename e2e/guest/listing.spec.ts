@@ -1,19 +1,39 @@
 import { test, expect } from '../helpers'
 
-// Listing detail as a logged-out guest, against prod. READ-ONLY: we may click the contact
-// gate / carousel arrow to assert behaviour, but never log in or mutate anything.
-const LISTING = '/listings/cmqumj6t7000104kzyqt17n3c'
+// Listing detail as a logged-out guest. READ-ONLY: we may click the contact gate /
+// carousel arrow to assert behaviour, but never log in or mutate anything.
+//
+// The target listing is resolved LIVE from the home feed (audit Phase 0): the old
+// hardcoded cuid died on every reseed/wipe, silently skipping the whole suite's
+// subject. First card wins; its accessible name is the listing title.
+let LISTING = ''
+let TITLE_RE = /./
 
-test.describe('Guest · listing detail (BMW XM SUV)', () => {
-  test.beforeEach(async ({ page }) => { await page.goto(LISTING) })
+test.describe('Guest · listing detail (first live listing)', () => {
+  test.beforeEach(async ({ page }) => {
+    if (!LISTING) {
+      await page.goto('/')
+      const card = page.locator('a[data-card-link]').first()
+      await card.waitFor({ timeout: 20_000 })
+      LISTING = new URL((await card.getAttribute('href'))!, page.url()).pathname
+      const label = (await card.getAttribute('aria-label')) || (await card.textContent()) || ''
+      // Escape each word FIRST, then join with \s+ — escaping after joining would
+      // mangle the joiner's own `+` into a literal.
+      const words = label.trim().split(/\s+/).slice(0, 3)
+        .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('\\s+')
+      TITLE_RE = new RegExp(words, 'i')
+    }
+    await page.goto(LISTING)
+  })
 
   test('shows title and price area', async ({ page }) => {
-    await expect(page.getByRole('heading', { level: 1, name: /BMW XM SUV/i })).toBeVisible()
-    await expect(page).toHaveTitle(/BMW XM SUV/)
+    await expect(page.getByRole('heading', { level: 1, name: TITLE_RE })).toBeVisible()
+    await expect(page).toHaveTitle(TITLE_RE)
   })
 
   test('main image actually renders (broken-image guard)', async ({ page }) => {
-    await expect(page.getByRole('heading', { level: 1, name: /BMW XM SUV/i })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: TITLE_RE })).toBeVisible()
     // Largest visible <img> = the hero photo; a broken image reports naturalWidth === 0.
     const naturalWidth = await page.evaluate(() => {
       const vis = [...document.querySelectorAll('img')].filter((i) => { const r = i.getBoundingClientRect(); return r.width > 80 && r.height > 80 })
@@ -29,7 +49,7 @@ test.describe('Guest · listing detail (BMW XM SUV)', () => {
     // full-width swipe carousel opens it by tapping the photo itself. Either way it
     // must open a modal that FREEZES the page behind it so swipes don't scroll the
     // background.
-    await expect(page.getByRole('heading', { level: 1, name: /BMW XM SUV/i })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: TITLE_RE })).toBeVisible()
     const viewAll = page.getByRole('button', { name: /View all photos/i })
     if (await viewAll.isVisible()) await viewAll.click()
     else await page.getByRole('button', { name: /photo 1/i }).first().click()

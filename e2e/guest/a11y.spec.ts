@@ -17,7 +17,12 @@ test.describe('Guest · accessibility', () => {
   })
 
   test('listing page has no serious/critical violations', async ({ page }) => {
-    await page.goto('/listings/cmqumj6t7000104kzyqt17n3c')
+    // Resolve a live listing from the home feed (audit Phase 0 — no hardcoded cuid).
+    await page.goto('/')
+    const card = page.locator('a[data-card-link]').first()
+    await card.waitFor({ timeout: 20_000 })
+    const href = new URL((await card.getAttribute('href'))!, page.url()).pathname
+    await page.goto(href)
     await dismissOverlays(page)
     await expectNoA11yViolations(page, 'listing')
   })

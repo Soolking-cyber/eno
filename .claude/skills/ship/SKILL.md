@@ -99,7 +99,7 @@ Prefer a bounded poll loop (e.g. check every 20s, give up after ~5 min and repor
 ## 6. Prod smoke
 
 ```bash
-npx playwright test --project=guest-desktop --project=guest-mobile
+E2E_BASE=https://eno.vn npx playwright test --project=guest-desktop --project=guest-mobile
 ```
 
 Defaults to `https://eno.vn`. All 44 must pass. If one fails, re-run just that spec once — the ISR race is the usual culprit and it never fails twice in a row. A repeat failure is real: revert (`git revert`) and pause.

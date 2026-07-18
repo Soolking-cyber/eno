@@ -62,6 +62,11 @@ await db.query(
 // authed "Counter" spec has something to act on. verified=false keeps the listing OFF the public feed
 // (public needs verified=true AND status='active'); it's only reachable inside the conversation.
 const LISTING_ID = 'e2e-listing-1'
+// Resolve the category at runtime (audit Phase 0): the old hardcoded cuid died on
+// every reseed — Category ids are generated, only slugs are stable.
+const catRow = await db.query(`SELECT id FROM "Category" WHERE slug = $1 OR slug = $2 ORDER BY slug = $1 DESC LIMIT 1`, ['community-events', 'other'])
+const categoryId = catRow.rows[0]?.id ?? (await db.query(`SELECT id FROM "Category" LIMIT 1`)).rows[0]?.id
+if (!categoryId) { console.error('No Category rows exist — run the category sync first.'); process.exit(1) }
 const CONV_ID = 'e2e-conv-1'
 const MSG_ID = 'e2e-offer-1'
 const sellerPid = ids['e2e-seller@eno.vn']
@@ -71,7 +76,7 @@ await db.query(
   `INSERT INTO "Listing" (id, title, description, price, location, city, images, "categoryId", "sellerId", negotiable, verified, status, "updatedAt")
    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, true, false, 'active', now())
    ON CONFLICT (id) DO UPDATE SET price=$4, negotiable=true, verified=false, status='active', "updatedAt"=now()`,
-  [LISTING_ID, 'E2E Test Item', 'Seeded listing for the authed offer/counter e2e.', 5_000_000, 'Bến Nghé', 'Thành phố Hồ Chí Minh', '["https://eno.vn/logo.svg"]', 'cmqubxrzh0005u3q4xuuwam5i', SELLER_ID_ROW],
+  [LISTING_ID, 'E2E Test Item', 'Seeded listing for the authed offer/counter e2e.', 5_000_000, 'Bến Nghé', 'Thành phố Hồ Chí Minh', '["https://eno.vn/logo.svg"]', categoryId, SELLER_ID_ROW],
 )
 await db.query(
   `INSERT INTO "Conversation" (id, "listingId", "buyerProfileId", "sellerId", "sellerProfileId", "lastMessageText")
