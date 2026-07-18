@@ -15,6 +15,12 @@ test.describe('eno.forum visa assistance', () => {
     expect(await response.json()).toEqual({ error: 'admin_required' })
   })
 
+  test('keeps application deletion private to the application owner', async ({ request }) => {
+    const response = await request.delete('/api/visa/applications/00000000-0000-0000-0000-000000000000')
+    expect(response.status()).toBe(401)
+    expect(await response.json()).toEqual({ error: 'auth_required' })
+  })
+
   test('explains the safe guest flow and uses the shared eno.vn footer', async ({ page }) => {
     await page.goto('/visa')
     await expect(page).toHaveTitle(/Vietnam e-Visa assistance/i)

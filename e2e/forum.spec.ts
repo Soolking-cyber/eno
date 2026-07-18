@@ -34,6 +34,12 @@ test.describe('eno.forum standalone', () => {
     expect(canDeleteForumPost(livePost, null)).toBe(false)
   })
 
+  test('keeps the forum-owned delete endpoint private', async ({ request }) => {
+    const response = await request.delete('/api/forum/posts/not-a-real-post')
+    expect(response.status()).toBe(401)
+    expect(await response.json()).toEqual({ error: 'auth_required' })
+  })
+
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       const state = window as typeof window & { __enoForumFeedFetches: number }

@@ -6,10 +6,11 @@ import { encryptVisaPayload } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
 import { recordVisaEvent, serializeVisa, type VisaApplicationRow, type VisaDocumentRow, type VisaEventRow } from '@/lib/visa/records'
 import { visaPayloadSchema } from '@/lib/visa/schema'
+import { removeVisaFiles } from '@/lib/visa/storage'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-const METHODS = 'GET, PATCH, OPTIONS'
+const METHODS = 'GET, PATCH, DELETE, OPTIONS'
 const updateSchema = z.object({ payload: visaPayloadSchema })
 
 export function OPTIONS(request: Request) { return forumPreflight(request, METHODS) }
@@ -56,4 +57,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (error) throw error
   await recordVisaEvent(id, 'applicant', 'answers_saved', user.id)
   return forumJson(request, { application: serializeVisa(data as VisaApplicationRow, loaded.documents) }, undefined, METHODS)
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!isAllowedForumOrigin(request)) return forumJson(request, { error: 'origin_not_allowed' }, { status: 403 }, METHODS)
+  const user = await getVisaUser(request)
+  if (!user) return forumJson(request, { error: 'auth_required' }, { status: 401 }, METHODS)
+  const limit = await rateLimit('visa-delete', user.id, 10, '24 h', { strict: true })
+  if (!limit.success) return forumJson(request, { error: 'rate_limited' }, { status: 429 }, METHODS)
+  const { id } = await params
+  const loaded = await load(id, user.id)
+  if (!loaded.application) return forumJson(request, { error: 'not_found' }, { status: 404 }, METHODS)
+
+  try {
+    await removeVisaFiles(loaded.documents.map((document) => document.storage_path), { strict: true })
+    const { error } = await getVisaDb().from('visa_applications').delete().eq('id', id).eq('user_id', user.id)
+    if (error) throw error
+    return forumJson(request, { deleted: true, id }, undefined, METHODS)
+  } catch {
+    return forumJson(request, { error: 'application_delete_failed' }, { status: 500 }, METHODS)
+  }
 }

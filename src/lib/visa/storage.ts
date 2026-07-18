@@ -37,6 +37,9 @@ export async function signVisaFile(path: string, ttl = 300) {
   return data.signedUrl
 }
 
-export async function removeVisaFiles(paths: string[]) {
-  if (paths.length) await getVisaDb().storage.from(VISA_BUCKET).remove(paths)
+export async function removeVisaFiles(paths: string[], options: { strict?: boolean } = {}) {
+  if (!paths.length) return true
+  const { error } = await getVisaDb().storage.from(VISA_BUCKET).remove(paths)
+  if (error && options.strict) throw new Error(`visa_storage_remove_failed:${error.message}`)
+  return !error
 }

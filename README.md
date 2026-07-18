@@ -9,6 +9,48 @@ Independent Next.js application for the eno.forum community experience and Vietn
 > monorepo does not deploy `eno.forum`. Always port forum changes here, validate
 > this repository, and push this repository's `main` branch.
 
+## Hackathon submission
+
+- **Code repository:** [github.com/Soolking-cyber/eno-forum](https://github.com/Soolking-cyber/eno-forum)
+- **Live application:** [www.eno.forum](https://www.eno.forum)
+- **Primary Codex `/feedback` session:** `019f68b8-0579-72d1-8d47-83bf3ac34fb5`
+
+eno.forum is a travel-focused community product that brings together a public
+forum, a research-grounded Vietnam itinerary builder with Word export and
+concierge handoff, and a guided Vietnam e-Visa assistance workflow. The apps
+share one account and dashboard, work across 11 interface languages, and link
+travelers to the wider eno marketplace when they need local services.
+
+### How Codex and GPT-5.6 were used
+
+Codex running GPT-5.6 was the development collaborator for the majority of this
+project. The product owner supplied the requirements, screenshots, service
+configuration, and release decisions; Codex translated that direction into
+implementation, inspected the resulting UI and behavior, and iterated from the
+owner's feedback.
+
+Codex and GPT-5.6 helped to:
+
+- define and preserve the standalone repository, authentication, data, and
+  Vercel deployment boundaries between `eno.forum` and `eno.vn`;
+- implement and refine the forum, itinerary builder, DOCX export, e-Visa user
+  flow and operator dashboard, shared navigation, localization, and responsive
+  interactions;
+- diagnose OAuth redirects, image-processing retry loops, provider rate limits,
+  responsive date overlap, uneven controls, feed layout shifts, and malformed
+  Word output using source inspection, logs, screenshots, and focused tests;
+- improve safety and reliability with server-only credentials, bounded AI
+  retries, private document access, explicit human review, and clear operator
+  handoffs before government submission or payment; and
+- validate changes with TypeScript, ESLint, production builds, Playwright tests
+  on desktop and mobile, visual checks, Git diff review, and monitored GitHub /
+  Vercel releases when authorized by the owner.
+
+AI-generated changes were reviewed in the working tree and tested before being
+accepted or deployed. Codex and GPT-5.6 were used for **development**, not as a
+hidden runtime dependency: production itinerary, document-reading, and
+translation requests use the configured Gemini models documented below.
+
 ## Local development
 
 ```bash
@@ -46,7 +88,7 @@ NEXT_PUBLIC_MARKETPLACE_URL=https://eno.vn
 MARKETPLACE_API_URL=https://eno.vn
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<same publishable key as eno.vn>
-SUPABASE_SECRET_KEY=<server-only secret key used by the forum visa routes>
+SUPABASE_SECRET_KEY=<server-only key used by protected forum and visa routes>
 VISA_DATA_ENCRYPTION_KEY=<32 random bytes encoded as base64; server-only>
 VISA_ADMIN_EMAILS=<optional comma-separated additional trained operator emails; support@eno.forum is built in>
 BROWSERBASE_API_KEY=<server-only Browserbase API key>

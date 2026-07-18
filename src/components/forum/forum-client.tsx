@@ -54,7 +54,7 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { forumApi } from '@/lib/api'
+import { forumApi, ForumApiError } from '@/lib/api'
 import {
   canDeleteForumPost,
   mapForumComment,
@@ -716,7 +716,7 @@ export function ForumClient({
     const id = deleteTarget.id
     setDeletingPost(true)
     try {
-      await forumApi<{ ok: true }>(`/api/forum/posts/${encodeURIComponent(id)}`, { method: 'DELETE', auth: 'required' })
+      await forumApi<{ ok: true }>(`/api/forum/posts/${encodeURIComponent(id)}`, { method: 'DELETE', auth: 'required', direct: true })
       setPosts((current) => current.filter((post) => post.id !== id))
       setSaved((current) => { const next = new Set(current); next.delete(id); return next })
       setVotes((current) => { const next = { ...current }; delete next[id]; return next })
@@ -724,8 +724,16 @@ export function ForumClient({
       if (openPostId === id) closeThread()
       setDeleteTarget(null)
       toast.success(tr('Your post was deleted.', 'Bài viết của bạn đã được xóa.'))
-    } catch {
-      toast.error(tr('Your post could not be deleted.', 'Không thể xóa bài viết của bạn.'))
+    } catch (error) {
+      const code = error instanceof ForumApiError ? error.code : 'post_delete_failed'
+      const copy: Record<string, [string, string]> = {
+        forbidden: ['Only the post owner can delete this discussion.', 'Chỉ chủ bài viết mới có thể xóa thảo luận này.'],
+        not_found: ['This post was already removed.', 'Bài viết này đã được xóa.'],
+        rate_limited: ['Too many delete attempts. Please wait and try again.', 'Có quá nhiều lần xóa. Vui lòng chờ rồi thử lại.'],
+        forum_delete_not_configured: ['Post deletion is temporarily unavailable. Please contact support.', 'Tính năng xóa bài tạm thời chưa khả dụng. Vui lòng liên hệ hỗ trợ.'],
+      }
+      const message = copy[code] || ['Your post could not be deleted. Please retry.', 'Không thể xóa bài viết của bạn. Vui lòng thử lại.']
+      toast.error(tr(message[0], message[1]))
     } finally {
       setDeletingPost(false)
     }

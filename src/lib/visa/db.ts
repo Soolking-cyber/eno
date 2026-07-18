@@ -1,13 +1,8 @@
 import 'server-only'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-
-let client: SupabaseClient | null = null
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
 export function getVisaDb(): SupabaseClient {
-  if (client) return client
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SECRET_KEY
-  if (!url || !key) throw new Error('visa_database_not_configured')
-  client = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
-  return client
+  try { return getSupabaseAdmin() }
+  catch { throw new Error('visa_database_not_configured') }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { Children, isValidElement, useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Combobox, ComboboxClear, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxGroupLabel, ComboboxInput, ComboboxInputGroup, ComboboxItem, ComboboxList, ComboboxTrigger } from '@/components/ui/combobox'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -227,6 +228,7 @@ export function VisaAssistant() {
   const [stepIssues, setStepIssues] = useState<string[]>([])
   const [declaration, setDeclaration] = useState(false)
   const [authorization, setAuthorization] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const analysisInFlight = useRef(new Map<string, Promise<VisaAnalysis>>())
   const analysisAttempted = useRef(new Set<string>())
 
@@ -277,8 +279,51 @@ export function VisaAssistant() {
     try {
       const result = await forumApi<{ application: VisaApplication }>('/api/visa/applications', { method: 'POST', auth: 'required', direct: true })
       setApplication(result.application); setPayload(result.application.payload || null)
+      setStep(0); setStepIssues([]); setDeclaration(false); setAuthorization(false)
     } catch (error) { toast.error((error as Error).message.replaceAll('_', ' ')) } finally { setBusy(false) }
   }
+
+  const deleteAndRestart = async () => {
+    if (!application) return
+    const applicationId = application.id
+    let deleted = false
+    setBusy(true)
+    try {
+      await forumApi<{ deleted: true; id: string }>(`/api/visa/applications/${applicationId}`, { method: 'DELETE', auth: 'required', direct: true })
+      deleted = true
+      analysisInFlight.current.clear()
+      analysisAttempted.current.clear()
+      setApplication(null); setPayload(null); setStep(0); setStepIssues([])
+      setDeclaration(false); setAuthorization(false); setDeleteOpen(false)
+      const result = await forumApi<{ application: VisaApplication }>('/api/visa/applications', { method: 'POST', auth: 'required', direct: true })
+      setApplication(result.application); setPayload(result.application.payload || null)
+      toast.success(tr('Old application deleted. Your new blank application is ready.', 'Đã xóa hồ sơ cũ. Hồ sơ mới trống đã sẵn sàng.'))
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (error) {
+      if (deleted) {
+        toast.error(tr('The old application was deleted, but a new one could not be started. Use “Start private application” to try again.', 'Hồ sơ cũ đã được xóa nhưng chưa thể tạo hồ sơ mới. Hãy dùng “Bắt đầu hồ sơ riêng tư” để thử lại.'))
+      } else {
+        toast.error(tr('Could not finish deleting this application. Please retry.', 'Chưa thể hoàn tất việc xóa hồ sơ này. Vui lòng thử lại.'))
+      }
+    } finally { setBusy(false) }
+  }
+
+  const deleteDialog = application ? (
+    <Dialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open) }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" /></span>
+          <DialogTitle className="text-lg font-bold">{tr('Delete and start over?', 'Xóa và bắt đầu lại?')}</DialogTitle>
+          <DialogDescription>{tr('This permanently removes this application, its answers, uploaded documents, and case history from eno. A new blank application will open. This cannot be undone.', 'Thao tác này xóa vĩnh viễn hồ sơ, câu trả lời, giấy tờ đã tải lên và lịch sử xử lý khỏi eno. Một hồ sơ mới trống sẽ mở ra. Không thể hoàn tác.')}</DialogDescription>
+        </DialogHeader>
+        {['submitted', 'payment_required', 'processing', 'approved'].includes(application.status) && <p className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-xs leading-relaxed text-warning">{tr('Deleting eno’s copy does not withdraw or erase an application already sent to the Vietnamese authority.', 'Việc xóa bản lưu tại eno không rút lại hoặc xóa hồ sơ đã gửi đến cơ quan chức năng Việt Nam.')}</p>}
+        <DialogFooter>
+          <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => setDeleteOpen(false)}>{tr('Keep application', 'Giữ hồ sơ')}</Button>
+          <Button type="button" variant="destructive" className="h-11" data-testid="delete-visa-application-confirm" disabled={busy} onClick={() => void deleteAndRestart()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}{tr('Delete and start over', 'Xóa và bắt đầu lại')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  ) : null
 
   const set = <K extends keyof VisaPayload>(key: K, value: VisaPayload[K]) => {
     setStepIssues([])
@@ -481,19 +526,26 @@ export function VisaAssistant() {
             </CardContent>
           </Card>
         )}
-        {result && <Button type="button" variant="cta" size="lg" className="mt-6" onClick={() => void downloadResult()}><Download className="h-4 w-4" />{tr('Download official e-Visa PDF', 'Tải PDF E-Visa chính thức')}</Button>}
-        {['approved', 'rejected', 'cancelled'].includes(application.status) && <Button type="button" variant="outline" size="lg" className="mt-6 sm:ml-2" disabled={busy} onClick={() => void create()}>{tr('Start a new application', 'Bắt đầu hồ sơ mới')}</Button>}
+        <div className="mt-6 flex flex-wrap gap-2">
+          {result && <Button type="button" variant="cta" size="lg" onClick={() => void downloadResult()}><Download className="h-4 w-4" />{tr('Download official e-Visa PDF', 'Tải PDF E-Visa chính thức')}</Button>}
+          {['approved', 'rejected', 'cancelled'].includes(application.status) && <Button type="button" variant="outline" size="lg" disabled={busy} onClick={() => void create()}>{tr('Start a new application', 'Bắt đầu hồ sơ mới')}</Button>}
+          <Button type="button" variant="outline" size="lg" className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 className="h-4 w-4" />{tr('Delete application', 'Xóa hồ sơ')}</Button>
+        </div>
         <Card className="mt-6"><CardHeader><CardTitle>{tr('Case timeline', 'Tiến trình hồ sơ')}</CardTitle></CardHeader><CardContent><ol className="space-y-4">{(application.events || []).map((event) => <li key={event.id} className="flex items-start justify-between gap-4 border-l-2 border-brand/30 pl-3"><span className="text-sm font-medium capitalize text-foreground">{event.event.replaceAll('_', ' ')}</span><time className="shrink-0 text-xs text-ink-4">{new Date(event.createdAt).toLocaleDateString()}</time></li>)}</ol></CardContent></Card>
+        {deleteDialog}
       </main>
     )
   }
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6">
-        <Badge variant="brand"><LockKeyhole className="h-3.5 w-3.5" />{tr('Private application', 'Hồ sơ riêng tư')}</Badge>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight">{tr('Vietnam e-Visa assistance', 'Hỗ trợ E-Visa Việt Nam')}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-body">{tr('Four short stages. Submit once, then eno reviews and prepares the official form. Nothing is finally submitted to the government without a human accuracy check.', 'Bốn bước ngắn. Gửi một lần, sau đó eno xem xét và chuẩn bị biểu mẫu chính thức. Không hồ sơ nào được nộp chính thức cho cơ quan chức năng nếu chưa được kiểm tra thủ công.')}</p>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <Badge variant="brand"><LockKeyhole className="h-3.5 w-3.5" />{tr('Private application', 'Hồ sơ riêng tư')}</Badge>
+          <h1 className="mt-3 text-3xl font-bold tracking-tight">{tr('Vietnam e-Visa assistance', 'Hỗ trợ E-Visa Việt Nam')}</h1>
+          <p className="mt-2 max-w-3xl text-sm text-body">{tr('Four short stages. Submit once, then eno reviews and prepares the official form. Nothing is finally submitted to the government without a human accuracy check.', 'Bốn bước ngắn. Gửi một lần, sau đó eno xem xét và chuẩn bị biểu mẫu chính thức. Không hồ sơ nào được nộp chính thức cho cơ quan chức năng nếu chưa được kiểm tra thủ công.')}</p>
+        </div>
+        <Button type="button" variant="outline" className="h-11 shrink-0 border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" data-testid="delete-visa-application" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 className="h-4 w-4" />{tr('Delete application', 'Xóa hồ sơ')}</Button>
       </div>
       {application.status === 'needs_changes' && payload.adminMessage && <div className="mb-5 rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning"><strong>{tr('Changes requested:', 'Yêu cầu chỉnh sửa:')}</strong> {payload.adminMessage}</div>}
 
@@ -529,6 +581,7 @@ export function VisaAssistant() {
           {step < 3 && <Button type="button" variant="cta" className="h-11" disabled={busy} onClick={() => void next()}>{tr('Save and continue', 'Lưu và tiếp tục')}<ChevronRight className="h-4 w-4" /></Button>}
         </div>
       </div>
+      {deleteDialog}
     </main>
   )
 }
