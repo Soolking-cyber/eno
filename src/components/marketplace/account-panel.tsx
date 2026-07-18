@@ -11,6 +11,8 @@ import {
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { useChat } from '@/context/chat-context'
+import { useFavorites } from '@/context/favorites-context'
 import { PreferencesInline } from './preferences-inline'
 // (useAuth is used by BOTH the shell — to keep the desktop rail permanent for signed-in users —
 //  and the panel body.)
@@ -124,6 +126,10 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   // ONE shared cache-first source, identical to what the /dashboard/* pages read — so the
   // rail's stats/identity and the section pages never diverge or double-fetch.
   const { dash } = useDashboard()
+  // Live counters for the Messages + Saved rail items — same sources the (now-removed) header
+  // icons used, so the counts stay real-time and consistent.
+  const { unread } = useChat()
+  const { count: savedCount } = useFavorites()
 
   // DESKTOP expand — PINNED by a toggle button (Gemini "Open sidebar"), not hover: hovering a
   // collapsed icon reveals its NAME as a tooltip instead (see renderNav). Desktop-only. State lives
@@ -185,7 +191,6 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   if (!user) return null
   const initial = (user.email || user.phone || '?').charAt(0).toUpperCase()
   const isBusiness = dash?.tier === 'business'
-  const unread = dash?.stats?.unreadMessages ?? 0
   const displayName = dash?.profile.businessName || dash?.profile.displayName || user.email || user.phone
 
   // On mobile the rail is a launcher — tapping an item navigates and the rail must close (a route
@@ -217,13 +222,22 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   const renderNav = (it: { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean }) => {
     const Icon = it.icon
     const isOn = active(it.href, it.exact)
+    const badgeLabel = it.badge && it.badge > 0 ? (it.badge > 9 ? '9+' : String(it.badge)) : null
     const inner = (
       <>
-        <Icon className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+        <span className="relative shrink-0">
+          <Icon className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          {/* Collapsed desktop rail (icon-only): the count overlaps the icon's corner like the bottom
+              nav — so Messages/Saved counters stay visible without expanding. Hidden on mobile + when
+              expanded, where the inline pill below shows instead. */}
+          {badgeLabel && (
+            <span className={cn('absolute -right-1.5 -top-1.5 hidden h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-3xs font-bold text-white', expanded ? 'lg:hidden' : 'lg:flex')}>{badgeLabel}</span>
+          )}
+        </span>
         <span className={labelCls}>{it.label}</span>
-        {it.badge ? (
-          <span className={cn('ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-2xs font-bold text-white', expanded ? 'lg:flex' : 'lg:hidden')}>{it.badge > 9 ? '9+' : it.badge}</span>
-        ) : null}
+        {badgeLabel && (
+          <span className={cn('ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-2xs font-bold text-white', expanded ? 'lg:flex' : 'lg:hidden')}>{badgeLabel}</span>
+        )}
       </>
     )
     const el = it.external ? (
@@ -257,7 +271,7 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         // so it duplicated "My listings" and led nowhere of its own.
         { href: '/dashboard/listings', label: tr('My listings', 'Tin của tôi'), icon: Store },
         { href: '/messages', label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: unread },
-        { href: '/saved', label: tr('Saved', 'Đã lưu'), icon: Heart },
+        { href: '/saved', label: tr('Saved', 'Đã lưu'), icon: Heart, badge: savedCount },
         { href: '/dashboard/disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
         ...(isBusiness
           ? [

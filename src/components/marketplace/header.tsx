@@ -3,18 +3,14 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { User, Search, MapPin, Clock, Heart, MessageSquare, X } from 'lucide-react'
+import { User, Search, MapPin, Clock, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
-import { useChat } from '@/context/chat-context'
-import { useFavorites } from '@/context/favorites-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
-import { Tooltip } from '@/components/ui/tooltip'
 import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
@@ -36,8 +32,6 @@ const STROKE = 2.25
 export function Header() {
   const { t, tr, lang } = useLanguage()
   const { user } = useAuth()
-  const { unread } = useChat()
-  const { count: savedCount } = useFavorites()
   const pathname = usePathname()
   const router = useRouter()
   // Roll the bar up on scroll-down, back down on scroll-up (mobile only — desktop
@@ -81,8 +75,6 @@ export function Header() {
   // our search/district custom events. Elsewhere we navigate to the home explorer.
   const isExplorerPage = pathname === '/' || (pathname?.startsWith('/c/') ?? false)
   // Active-page indicator for the desktop header icons (mirrors the mobile bottom nav).
-  const savedActive = pathname === '/saved'
-  const msgActive = pathname?.startsWith('/messages') ?? false
 
   // Chợ Tốt-style: the in-header search + area selector appear once the big hero
   // search pill scrolls out of view (or immediately on any page without a hero).
@@ -450,27 +442,8 @@ export function Header() {
         {/* Actions. The notification bell shows on ALL sizes (top-right, per the
             Chợ Tốt pattern); account + Post are desktop-only (mobile uses the bottom nav). */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          {/* Desktop quick actions (mobile uses the bottom nav): Saved · Messages · Bell */}
-          {user && (
-            <>
-              <Tooltip content={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} side="bottom">
-                <Link href="/saved" aria-label={tr('Saved listings & searches', 'Tin & tìm kiếm đã lưu')} aria-current={savedActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-48">
-                  <Heart className={cn('h-6 w-6 sm:h-7 sm:w-7', savedCount > 0 ? 'fill-brand text-brand' : savedActive && 'text-brand')} strokeWidth={STROKE} />
-                  {savedCount > 0 && (
-                    <Badge variant="counter" size="count" className="absolute right-1 top-1">{savedCount > 9 ? '9+' : savedCount}</Badge>
-                  )}
-                  {savedActive && <span aria-hidden className="absolute -bottom-0.5 left-1/2 h-0.5 w-7 -translate-x-1/2 rounded-full bg-brand" />}
-                </Link>
-              </Tooltip>
-              <Link href="/messages" aria-label={tr('Messages', 'Tin nhắn')} aria-current={msgActive ? 'page' : undefined} className="relative hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90 cursor-pointer tap-48">
-                <MessageSquare className={cn('h-6 w-6 sm:h-7 sm:w-7', unread > 0 ? 'fill-brand text-brand' : msgActive && 'text-brand')} strokeWidth={STROKE} />
-                {unread > 0 && (
-                  <Badge variant="counter" size="count" className="absolute right-1 top-1">{unread > 9 ? '9+' : unread}</Badge>
-                )}
-                {msgActive && <span aria-hidden className="absolute -bottom-0.5 left-1/2 h-0.5 w-7 -translate-x-1/2 rounded-full bg-brand" />}
-              </Link>
-            </>
-          )}
+          {/* Saved + Messages live in the LEFT nav rail (desktop) / bottom nav (mobile) for signed-in
+              users — removed from here (owner 2026-07-18) so the top bar doesn't duplicate them. */}
           <NotificationBell />
           {/* Signed-in users reach their account via the persistent LEFT nav rail (desktop) / the
               bottom-nav Account tab (mobile/tablet) — no header avatar (owner 2026-07-17). Guests
