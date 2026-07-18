@@ -1,11 +1,13 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { Spinner } from '@/components/ui/spinner'
-import { fetchForumVisaApplications } from '@/lib/forum-visa'
-import { VisaClient } from './visa-client'
+import { VisaApplyClient } from './apply-client'
 
-// Per-user data behind a cookie session — must never be statically cached; the
-// loaders catch broadly, which would swallow Next's dynamic bailout during build.
+// /dashboard/visa — the e-Visa ASSISTANT opens directly (owner 2026-07-18: no
+// list-first hop; the retired list page proxied eno.forum for data the local
+// /api/visa/applications now serves). The assistant self-manages every state —
+// landing hero, wizard, read-only status, payment return — and renders the
+// account's previous applications as a history feed beneath itself.
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
@@ -13,16 +15,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-// SERVER fetch (unlike the other client-fetching dashboard sections): the Bearer token
-// comes from the httpOnly session cookie, so the proxy call must happen here — the
-// browser never sees the token in markup and no client visa endpoint exists on eno.vn.
-async function VisaSection() {
-  const initial = await fetchForumVisaApplications()
-  return <VisaClient initial={initial} />
-}
-
 export default function VisaPage() {
   return (
+    // Suspense: the client reads useSearchParams for the payment-return params.
     <Suspense
       fallback={
         <div role="status" className="flex min-h-[50vh] items-center justify-center">
@@ -30,7 +25,7 @@ export default function VisaPage() {
         </div>
       }
     >
-      <VisaSection />
+      <VisaApplyClient />
     </Suspense>
   )
 }

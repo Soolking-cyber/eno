@@ -35,7 +35,7 @@ export default function RegulationsPage() {
       eyebrow="Legal"
       title="Operating Regulations (Quy chế hoạt động)"
       meta={<p className="mt-2 text-xs text-ink-4"><Tr text="Last updated: July 2026 · Changes are announced to users at least 5 days before taking effect." /></p>}
-      intro={<Tr text="These regulations govern how the eno.vn e-commerce platform operates, per Vietnamese e-commerce law (Decree 52/2013/ND-CP as amended, and the Law on E-commerce 122/2025/QH15). eno.vn is a classifieds marketplace: sellers and buyers deal with each other directly; eno.vn is not a party to any transaction and processes no payments." />}
+      intro={<Tr text="These regulations govern how the eno.vn e-commerce platform operates, per Vietnamese e-commerce law (Decree 52/2013/ND-CP as amended, and the Law on E-commerce 122/2025/QH15). eno.vn is a classifieds marketplace: sellers and buyers deal with each other directly; eno.vn is not a party to any transaction and processes no payments between buyers and sellers." />}
       sections={sections}
     >
       <ContentSection id="general" title="1. General principles">
@@ -50,7 +50,7 @@ export default function RegulationsPage() {
       </ContentSection>
 
       <ContentSection id="process" title="3. How transactions work on eno.vn">
-        <p className="text-sm leading-relaxed text-body"><Tr text="1) A seller creates an account (phone or email verified), posts a listing with photos, description and a price in Vietnamese dong (VND, tax inclusive). 2) The listing goes live after automated checks (prohibited-goods filter, photo requirement, contact-in-text scan). 3) A buyer finds the listing via search or browsing and contacts the seller through the on-platform chat (or makes an offer). 4) Buyer and seller agree terms and complete the exchange directly — typically meeting in person. eno.vn provides no ordering, delivery or payment function and holds no money at any point." /></p>
+        <p className="text-sm leading-relaxed text-body"><Tr text="1) A seller creates an account (phone or email verified), posts a listing with photos, description and a price in Vietnamese dong (VND, tax inclusive). 2) The listing goes live after automated checks (prohibited-goods filter, photo requirement, contact-in-text scan). 3) A buyer finds the listing via search or browsing and contacts the seller through the on-platform chat (or makes an offer). 4) Buyer and seller agree terms and complete the exchange directly — typically meeting in person. eno.vn provides no ordering, delivery or payment function for these transactions and holds no buyer-or-seller money at any point." /></p>
       </ContentSection>
 
       <ContentSection id="rights-operator" title="4. Rights and responsibilities of eno.vn">
@@ -67,7 +67,7 @@ export default function RegulationsPage() {
       </ContentSection>
 
       <ContentSection id="fees" title="7. Fees & payment">
-        <p className="text-sm leading-relaxed text-body"><Tr text="Posting and browsing on eno.vn are currently free. eno.vn processes no payments between buyers and sellers and holds no escrow. If paid services for sellers (for example subscriptions or promoted listings) are introduced, they will be announced at least 5 days in advance with clear pricing in VND, and paid placement will always be visibly labeled." /></p>
+        <p className="text-sm leading-relaxed text-body"><Tr text="Posting and browsing on eno.vn are currently free. eno.vn processes no payments between buyers and sellers and holds no escrow. If paid services for sellers (for example subscriptions or promoted listings) are introduced, they will be announced at least 5 days in advance with clear pricing in VND, and paid placement will always be visibly labeled. Separately, optional assistance services offered by eno itself (for example the assisted e-Visa application service) may carry a clearly displayed service fee, paid to eno in advance through our payment providers (such as Stripe or PayPal); such fees are for eno's own service and are never a payment between buyers and sellers." /></p>
       </ContentSection>
 
       <ContentSection id="privacy" title="8. Personal information">

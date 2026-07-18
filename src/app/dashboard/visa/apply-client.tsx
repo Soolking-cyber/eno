@@ -2,8 +2,8 @@
 
 import { Children, isValidElement, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Check, ChevronLeft, ChevronRight, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Trash2, Upload } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Check, ChevronLeft, ChevronRight, CreditCard, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Trash2, Upload, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -58,8 +58,12 @@ type VisaEvent = { id: string; actorType: string; event: string; metadata: Recor
 type VisaApplication = {
   id: string; status: string; payload?: VisaPayload; checklist: string[]; applicantConfirmedAt: string | null;
   authorizedAt: string | null; assignedAdmin: string | null; submittedAt: string | null; resolvedAt: string | null;
+  paidAt: string | null; paymentProvider?: string | null;
   createdAt: string; updatedAt: string; documents: VisaDocument[]; events?: VisaEvent[]
 }
+// The service-fee gate the list GET reports — null while payments are dormant
+// (no provider/fee env), in which case submit works without payment as before.
+type VisaPaymentsInfo = { providers: Array<'stripe' | 'paypal'>; feeCents: number; currency: string } | null
 type VisaAnalysis = {
   document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>
   payload?: VisaPayload
@@ -269,7 +273,9 @@ export function VisaApplyClient() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [application, setApplication] = useState<VisaApplication | null>(null)
+  const [applications, setApplications] = useState<VisaApplication[]>([])
   const [payload, setPayload] = useState<VisaPayload | null>(null)
+  const [payments, setPayments] = useState<VisaPaymentsInfo>(null)
   const [loading, setLoading] = useState(true)
   const [notConfigured, setNotConfigured] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -283,7 +289,7 @@ export function VisaApplyClient() {
 
   // Sibling dashboard sections' auth gate — signed-out users go to sign-in and back.
   useEffect(() => {
-    if (!authLoading && !user) router.replace('/signin?next=/dashboard/visa/apply')
+    if (!authLoading && !user) router.replace('/signin?next=/dashboard/visa')
   }, [authLoading, user, router])
 
   const analyzeDocument = useCallback((applicationId: string, kind: 'portrait' | 'passport', documentId: string) => {
@@ -305,9 +311,11 @@ export function VisaApplyClient() {
     if (!user) { setApplication(null); setPayload(null); setLoading(false); return }
     if (!background) setLoading(true)
     try {
-      const list = await visaApi<{ applications: VisaApplication[]; encryptionReady?: boolean }>('/api/visa/applications')
+      const list = await visaApi<{ applications: VisaApplication[]; encryptionReady?: boolean; payments?: VisaPaymentsInfo }>('/api/visa/applications')
+      setPayments(list.payments ?? null)
       if (list.encryptionReady === false) { setNotConfigured(true); setApplication(null); setPayload(null); return }
       setNotConfigured(false)
+      setApplications(list.applications)
       const active = list.applications.find((item) => !['cancelled'].includes(item.status)) || list.applications[0]
       if (!active) { setApplication(null); setPayload(null); return }
       const detail = await visaApi<{ application: VisaApplication }>(`/api/visa/applications/${active.id}`)
@@ -493,6 +501,20 @@ export function VisaApplyClient() {
     } finally { setBusy(false) }
   }
 
+  // Server said application_incomplete → jump to the first failing step and focus its
+  // field (shared by direct submit and checkout — both validate server-side first).
+  const jumpToIncompleteStep = () => {
+    if (!application || !payload) return
+    const documents = application.documents.map((document) => ({ kind: document.kind, validation_status: document.validationStatus }))
+    const incompleteStep = ([0, 1, 2] as const).find((candidate) => validateVisaStep(payload, documents, candidate).length)
+    if (incompleteStep !== undefined) {
+      const issues = validateVisaStep(payload, documents, incompleteStep)
+      setStep(incompleteStep); setStepIssues(issues)
+      window.requestAnimationFrame(() => document.getElementById(issueFieldId(issues[0]))?.focus())
+    }
+    toast.error(tr('One earlier page needs attention.', 'Một trang trước đó cần được kiểm tra.'))
+  }
+
   const submitForReview = async () => {
     if (!application || !payload || !declaration || !authorization) return
     setBusy(true)
@@ -501,21 +523,77 @@ export function VisaApplyClient() {
       const result = await visaApi<{ application: VisaApplication }>(`/api/visa/applications/${application.id}/submit`, { method: 'POST', body: JSON.stringify({ action: 'send_for_review', declarationAccepted: true, prefillAuthorized: true }) })
       setApplication(result.application); setPayload(result.application.payload || payload); toast.success(tr('Complete application submitted to eno.', 'Đã gửi hồ sơ hoàn chỉnh đến eno.'))
     } catch (error) {
-      if (error instanceof VisaApiError && error.code === 'application_incomplete') {
-        const documents = application.documents.map((document) => ({ kind: document.kind, validation_status: document.validationStatus }))
-        const incompleteStep = ([0, 1, 2] as const).find((candidate) => validateVisaStep(payload, documents, candidate).length)
-        if (incompleteStep !== undefined) {
-          const issues = validateVisaStep(payload, documents, incompleteStep)
-          setStep(incompleteStep); setStepIssues(issues)
-          window.requestAnimationFrame(() => document.getElementById(issueFieldId(issues[0]))?.focus())
-        }
-        toast.error(tr('One earlier page needs attention.', 'Một trang trước đó cần được kiểm tra.'))
-      }
+      if (error instanceof VisaApiError && error.code === 'application_incomplete') jumpToIncompleteStep()
       else toast.error((error as Error).message.replaceAll('_', ' '))
       const detail = await visaApi<{ application: VisaApplication }>(`/api/visa/applications/${application.id}`).catch(() => null)
       if (detail) setApplication(detail.application)
     } finally { setBusy(false) }
   }
+
+  // Pay-and-submit: save the draft, open the provider's hosted checkout, and let the
+  // SERVER complete the review handoff once the provider confirms payment (webhook or
+  // the confirm-on-return effect below). Consents are required here exactly like the
+  // direct submit — they are stamped server-side onto the payment row at checkout.
+  const startCheckout = async (provider: 'stripe' | 'paypal') => {
+    if (!application || !payload || !declaration || !authorization) return
+    setBusy(true)
+    try {
+      await save(false)
+      const result = await visaApi<{ url: string }>(`/api/visa/applications/${application.id}/checkout`, {
+        method: 'POST', body: JSON.stringify({ provider, declarationAccepted: true, prefillAuthorized: true }),
+      })
+      // Leaving for the provider — keep busy=true so the CTA can't double-fire.
+      window.location.assign(result.url)
+    } catch (error) {
+      if (error instanceof VisaApiError && error.code === 'application_incomplete') jumpToIncompleteStep()
+      else if (error instanceof VisaApiError && error.code === 'already_paid') {
+        toast.message(tr('Your service fee is already paid — submit the application below.', 'Phí dịch vụ đã được thanh toán — hãy gửi hồ sơ bên dưới.'))
+        await loadApplication(true).catch(() => undefined)
+      }
+      else toast.error(tr('The payment page could not be opened. Please try again.', 'Không thể mở trang thanh toán. Vui lòng thử lại.'))
+      setBusy(false)
+    }
+  }
+
+  // Back from Stripe/PayPal: ?paid=<provider>&aid=<application>&sid|token=<ref>.
+  // The provider is re-verified SERVER-side (confirm route) — these params only tell
+  // the client which confirmation to ask for. Runs once, then cleans the URL. The
+  // Stripe webhook makes this a fallback: whichever lands first wins, idempotently.
+  const search = useSearchParams()
+  const returnHandled = useRef(false)
+  useEffect(() => {
+    if (authLoading || !user || returnHandled.current) return
+    const paid = search.get('paid')
+    const cancelled = search.get('pay') === 'cancelled'
+    if (!paid && !cancelled) return
+    returnHandled.current = true
+    const aid = search.get('aid') || ''
+    const ref = paid === 'stripe' ? search.get('sid') : search.get('token')
+    router.replace('/dashboard/visa')
+    if (cancelled) {
+      toast.message(tr('Payment cancelled — your application is unchanged.', 'Đã hủy thanh toán — hồ sơ của bạn không thay đổi.'))
+      return
+    }
+    if ((paid !== 'stripe' && paid !== 'paypal') || !aid || !ref) return
+    void (async () => {
+      const toastId = 'visa-pay-confirm'
+      toast.loading(tr('Confirming your payment…', 'Đang xác nhận thanh toán…'), { id: toastId })
+      try {
+        const result = await visaApi<{ application: VisaApplication; handedOff: boolean }>(`/api/visa/applications/${aid}/payment/confirm`, {
+          method: 'POST', body: JSON.stringify({ provider: paid, ref }),
+        })
+        setApplication(result.application)
+        if (result.application.payload) setPayload(result.application.payload)
+        toast.success(result.handedOff
+          ? tr('Payment received — your application is now with eno for review.', 'Đã nhận thanh toán — hồ sơ của bạn đang được eno xem xét.')
+          : tr('Payment received.', 'Đã nhận thanh toán.'), { id: toastId })
+        await loadApplication(true).catch(() => undefined)
+      } catch {
+        toast.error(tr('Payment could not be confirmed yet. If you completed it, it will be recorded automatically in a moment.', 'Chưa thể xác nhận thanh toán. Nếu bạn đã hoàn tất, hệ thống sẽ tự động ghi nhận trong giây lát.'), { id: toastId })
+        await loadApplication(true).catch(() => undefined)
+      }
+    })()
+  }, [authLoading, user, search, router, loadApplication, tr])
 
   const approvePrefill = async () => {
     if (!application || !declaration || !authorization) return
@@ -542,8 +620,9 @@ export function VisaApplyClient() {
     }
   }
 
-  // Native stack-nav title bar (mobile only) — this is a SUB-page of /dashboard/visa.
-  const sectionHeader = <SectionHeader title={tr('Vietnam e-Visa', 'E-Visa Việt Nam')} fallbackHref="/dashboard/visa" />
+  // Native stack-nav title bar (mobile only) — this IS the /dashboard/visa section
+  // (the assistant opens directly, owner 2026-07-18), so Back falls to the default.
+  const sectionHeader = <SectionHeader title={tr('Vietnam e-Visa', 'E-Visa Việt Nam')} />
 
   if (authLoading || !user || (loading && user)) {
     return (
@@ -573,7 +652,7 @@ export function VisaApplyClient() {
             )}
             action={
               <Button variant="outline" asChild>
-                <Link href="/dashboard/visa">{tr('Back to your applications', 'Quay lại hồ sơ của bạn')}</Link>
+                <Link href="/dashboard">{tr('Back to your dashboard', 'Quay lại bảng điều khiển')}</Link>
               </Button>
             }
           />
@@ -603,6 +682,7 @@ export function VisaApplyClient() {
             </CardContent>
           </Card>
         </div>
+        <PastApplications applications={applications} activeId={null} tr={tr} />
       </div>
     </>
   )
@@ -614,7 +694,7 @@ export function VisaApplyClient() {
       <>
         {sectionHeader}
         <div className="mx-auto w-full max-w-4xl">
-          <div className="flex flex-wrap items-center gap-2"><Badge variant={application.status === 'approved' ? 'success' : application.status === 'rejected' ? 'destructive' : 'brand'}>{copy.title}</Badge><span className="text-xs text-ink-4">{application.id.slice(0, 8)}</span></div>
+          <div className="flex flex-wrap items-center gap-2"><Badge variant={application.status === 'approved' ? 'success' : application.status === 'rejected' ? 'destructive' : 'brand'}>{copy.title}</Badge>{application.paidAt && <Badge variant="success"><Check className="h-3 w-3" />{tr('Service fee paid', 'Đã thanh toán phí dịch vụ')}</Badge>}<span className="text-xs text-ink-4">{application.id.slice(0, 8)}</span></div>
           <h1 className="mt-4 text-2xl font-bold tracking-tight text-foreground">{copy.title}</h1><p className="mt-2 text-body">{copy.detail}</p>
           {payload.adminMessage && <Card className="mt-6"><CardHeader><CardTitle>{tr('Private update from eno', 'Cập nhật riêng từ eno')}</CardTitle></CardHeader><CardContent><p className="whitespace-pre-wrap text-sm leading-relaxed text-body">{payload.adminMessage}</p></CardContent></Card>}
           {application.status === 'applicant_approval' && (
@@ -635,6 +715,7 @@ export function VisaApplyClient() {
             <Button type="button" variant="outline" size="lg" className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 className="h-4 w-4" />{tr('Delete application', 'Xóa hồ sơ')}</Button>
           </div>
           <Card className="mt-6"><CardHeader><CardTitle>{tr('Case timeline', 'Tiến trình hồ sơ')}</CardTitle></CardHeader><CardContent><ol className="space-y-4">{(application.events || []).map((event) => <li key={event.id} className="flex items-start justify-between gap-4 border-l-2 border-brand/30 pl-3"><span className="text-sm font-medium capitalize text-foreground">{event.event.replaceAll('_', ' ')}</span><time className="shrink-0 text-xs text-ink-4">{new Date(event.createdAt).toLocaleDateString()}</time></li>)}</ol></CardContent></Card>
+          <PastApplications applications={applications} activeId={application.id} tr={tr} />
           {deleteDialog}
         </div>
       </>
@@ -675,7 +756,34 @@ export function VisaApplyClient() {
             <Consent checked={declaration} onChange={setDeclaration}>{tr('I confirm that every answer is complete, true, and accurate. I understand false information can cause refusal and legal consequences.', 'Tôi xác nhận mọi câu trả lời đầy đủ, trung thực và chính xác. Tôi hiểu thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý.')}</Consent>
             <Consent checked={authorization} onChange={setAuthorization}>{tr('I authorize eno to transfer this approved snapshot and its images into a private hosted browser to prefill the official e-Visa form after eno review. A person must still compare the form and handle the declaration, CAPTCHA, payment, and submission.', 'Tôi cho phép eno chuyển bản thông tin đã duyệt và hình ảnh vào trình duyệt riêng để điền trước biểu mẫu E-Visa chính thức sau khi eno xem xét. Một người vẫn phải đối chiếu biểu mẫu và thực hiện xác nhận, CAPTCHA, thanh toán và nộp hồ sơ.')}</Consent>
             <p className="text-xs leading-relaxed text-body">{tr('This is the only approval eno normally needs. We will contact you only if information or an image must be corrected.', 'Đây thường là lần phê duyệt duy nhất eno cần. Chúng tôi chỉ liên hệ nếu thông tin hoặc hình ảnh cần chỉnh sửa.')}</p>
-            <Button type="button" variant="cta" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration || !authorization} onClick={() => void submitForReview()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}{tr('Submit complete application', 'Gửi hồ sơ hoàn chỉnh')}</Button>
+            {payments && !application.paidAt ? (
+              // Pay-before-review gate: the case reaches eno review only after the
+              // service fee is paid. Checkout is the provider's HOSTED page (redirect);
+              // the server verifies payment and completes the handoff itself.
+              <div className="rounded-2xl border border-brand/20 bg-accent/40 p-4">
+                <p className="text-sm font-bold text-foreground">
+                  {tr('eno service fee', 'Phí dịch vụ eno')}: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(payments.feeCents / 100)}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-body">{tr('Paid once, securely, on the provider’s own page. Your application reaches eno review right after payment. Government e-Visa fees are separate and paid to the authority.', 'Thanh toán một lần, an toàn, trên trang của nhà cung cấp. Hồ sơ được chuyển cho eno xem xét ngay sau khi thanh toán. Lệ phí e-Visa của nhà nước là khoản riêng, nộp cho cơ quan chức năng.')}</p>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  {payments.providers.includes('stripe') && (
+                    <Button type="button" variant="cta" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration || !authorization} onClick={() => void startCheckout('stripe')}>
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}{tr('Pay by card & submit', 'Thanh toán thẻ & gửi hồ sơ')}
+                    </Button>
+                  )}
+                  {payments.providers.includes('paypal') && (
+                    <Button type="button" variant="outline" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration || !authorization} onClick={() => void startCheckout('paypal')}>
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}{tr('Pay with PayPal & submit', 'Thanh toán PayPal & gửi hồ sơ')}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="button" variant="cta" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration || !authorization} onClick={() => void submitForReview()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}{tr('Submit complete application', 'Gửi hồ sơ hoàn chỉnh')}</Button>
+                {application.paidAt && <Badge variant="success"><Check className="h-3 w-3" />{tr('Service fee paid', 'Đã thanh toán phí dịch vụ')}</Badge>}
+              </div>
+            )}
             </div>
           )}
         </div>
@@ -687,9 +795,65 @@ export function VisaApplyClient() {
             {step < 3 && <Button type="button" variant="cta" className="h-11" disabled={busy} onClick={() => void next()}>{tr('Save and continue', 'Lưu và tiếp tục')}<ChevronRight className="h-4 w-4" /></Button>}
           </div>
         </div>
+        <PastApplications applications={applications} activeId={application.id} tr={tr} />
         {deleteDialog}
       </div>
     </>
+  )
+}
+
+// Status → badge tone for the history rows below the assistant. Keys are the statuses
+// the visa routes actually write; anything unrecognized falls back to a neutral chip
+// showing the raw word, so a NEW status degrades to ugly-but-honest instead of crashing.
+// (Ported from the retired /dashboard/visa list client, 2026-07-18.)
+const HISTORY_STATUS: Record<string, { en: string; vi: string; variant: 'neutral' | 'brand' | 'success' | 'warning' | 'destructive' }> = {
+  draft: { en: 'Draft', vi: 'Bản nháp', variant: 'neutral' },
+  needs_changes: { en: 'Changes requested', vi: 'Cần chỉnh sửa', variant: 'warning' },
+  ready_for_review: { en: 'In review', vi: 'Đang xem xét', variant: 'brand' },
+  under_review: { en: 'In review', vi: 'Đang xem xét', variant: 'warning' },
+  applicant_approval: { en: 'Awaiting your approval', vi: 'Chờ bạn duyệt', variant: 'warning' },
+  ready_to_submit: { en: 'Ready to submit', vi: 'Sẵn sàng nộp', variant: 'brand' },
+  processing: { en: 'Processing', vi: 'Đang xử lý', variant: 'warning' },
+  submitted: { en: 'Submitted', vi: 'Đã nộp', variant: 'brand' },
+  payment_required: { en: 'Payment needed', vi: 'Cần thanh toán', variant: 'warning' },
+  approved: { en: 'Approved', vi: 'Đã duyệt', variant: 'success' },
+  rejected: { en: 'Rejected', vi: 'Bị từ chối', variant: 'destructive' },
+  cancelled: { en: 'Cancelled', vi: 'Đã hủy', variant: 'neutral' },
+}
+
+/** Compact history of the account's OTHER applications (the active one renders above
+ *  as the assistant itself) — the trips-section "saved feed" idiom. Rows are static:
+ *  there is no per-application page; the assistant always resumes the active case. */
+function PastApplications({ applications, activeId, tr }: {
+  applications: VisaApplication[]
+  activeId: string | null
+  tr: (en: string, vi: string) => string
+}) {
+  const rows = applications.filter((item) => item.id !== activeId)
+  if (!rows.length) return null
+  return (
+    <section aria-labelledby="visa-history-title" className="mt-10 border-t border-border pt-6">
+      <h2 id="visa-history-title" className="text-base font-bold text-foreground">{tr('Previous applications', 'Hồ sơ trước đây')}</h2>
+      <ul className="mt-3 space-y-2">
+        {rows.map((item) => {
+          const s = HISTORY_STATUS[item.status]
+          return (
+            <li key={item.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tint"><FileCheck2 className="h-4 w-4 text-ink-4" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={s?.variant ?? 'neutral'}>{s ? tr(s.en, s.vi) : item.status}</Badge>
+                  {item.paidAt && <Badge variant="success">{tr('Fee paid', 'Đã trả phí')}</Badge>}
+                </div>
+                <p className="mt-1 text-xs text-ink-4">
+                  {tr('Updated', 'Cập nhật')} {new Date(item.updatedAt).toLocaleDateString()} · {item.documents.length} {tr('documents', 'tài liệu')} · {item.id.slice(0, 8)}
+                </p>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 

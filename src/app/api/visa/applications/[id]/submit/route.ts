@@ -4,6 +4,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { decryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
+import { visaPaymentsConfig } from '@/lib/visa/payments'
 import { recordVisaEvent, serializeVisa, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
 import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview } from '@/lib/visa/schema'
 
@@ -54,6 +55,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const now = new Date().toISOString()
   if (parsed.data.action === 'send_for_review') {
     if (!['draft', 'needs_changes'].includes(app.status)) return NextResponse.json({ error: 'invalid_status_transition' }, { status: 409 })
+    // Pay-before-admin gate (owner 2026-07-18): with payments configured, the handoff
+    // to ready_for_review requires the service fee to be PAID — the normal path is the
+    // checkout route + server-side handoff on confirmation, and this direct action only
+    // serves ALREADY-paid cases (e.g. consent voided by a post-checkout edit, or a
+    // needs_changes resubmit — both already paid). Dormant (no env) keeps today's flow.
+    if (visaPaymentsConfig() && !app.paid_at) {
+      return NextResponse.json({ error: 'payment_required_first' }, { status: 402 })
+    }
     const { data } = await db.from('visa_applications').update({
       status: 'ready_for_review',
       checklist: [],

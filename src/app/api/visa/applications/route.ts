@@ -4,6 +4,7 @@ import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { encryptVisaPayload, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb, visaTableMissing } from '@/lib/visa/db'
+import { visaPaymentsConfig } from '@/lib/visa/payments'
 import { serializeVisa, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
 import { emptyVisaPayload } from '@/lib/visa/schema'
 
@@ -35,6 +36,9 @@ export async function GET() {
       // …and this flag tells the dashboard client UP FRONT whether payload routes will work,
       // so the "not configured on this host yet" state renders without a doomed write.
       encryptionReady: visaCryptoReady(),
+      // Service-fee gate state: null while dormant (client shows the direct submit),
+      // otherwise the providers + fee the Review step renders as "Pay & submit".
+      payments: visaPaymentsConfig(),
     })
   } catch (error) {
     const code = (error as { code?: string }).code

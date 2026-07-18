@@ -78,9 +78,10 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
         <div className="mt-5 space-y-5">
           <Card>
             <CardHeader><CardTitle>Safety gate</CardTitle></CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-3">
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Info label="Applicant declaration" value={application.applicant_confirmed_at ? new Date(application.applicant_confirmed_at).toLocaleString('en-GB') : 'Not confirmed'} />
               <Info label="Prefill authorization" value={application.authorized_at ? new Date(application.authorized_at).toLocaleString('en-GB') : 'Not authorized'} />
+              <Info label="Service fee" value={application.paid_at ? `Paid ${new Date(application.paid_at).toLocaleString('en-GB')} · ${application.payment_provider}` : 'Not paid'} />
               <Info label="Assigned admin" value={application.assigned_admin || 'Unassigned'} />
             </CardContent>
           </Card>

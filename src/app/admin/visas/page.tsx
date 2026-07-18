@@ -52,7 +52,9 @@ export default async function AdminVisasPage() {
   const rows = data.applications
   const docs = data.documents
   const active = rows.filter((item) => !ACTIVE_EXCLUDED.includes(item.status))
-  const drafts = rows.filter((item) => ['draft', 'needs_changes'].includes(item.status))
+  // Drafts never reach this queue (listVisaAdminCases excludes them — an applicant's
+  // private, unpaid work); this group holds only cases sent back for changes.
+  const changes = rows.filter((item) => item.status === 'needs_changes')
   const closed = rows.filter((item) => ['approved', 'rejected', 'cancelled'].includes(item.status))
 
   const CaseRow = ({ item }: { item: VisaApplicationRow }) => {
@@ -64,6 +66,7 @@ export default async function AdminVisasPage() {
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-mono text-sm font-bold text-foreground">{item.id.slice(0, 8)}</span>
             <Badge variant={visaStatusVariant(item.status)} className="capitalize">{visaStatusLabel(item.status)}</Badge>
+            {item.paid_at && <Badge variant="success">Fee paid · {item.payment_provider}</Badge>}
           </div>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">{kinds.join(', ') || 'No documents'} · applicant {item.user_id.slice(0, 8)}</p>
         </div>
@@ -89,8 +92,8 @@ export default async function AdminVisasPage() {
     <>
       <h2 className="text-sm font-bold uppercase tracking-wide text-ink-4">Active · {active.length}</h2>
       <div className="mt-2">{renderList(active)}</div>
-      <h2 className="mt-10 text-sm font-bold uppercase tracking-wide text-ink-4">Drafts and changes · {drafts.length}</h2>
-      <div className="mt-2">{renderList(drafts)}</div>
+      <h2 className="mt-10 text-sm font-bold uppercase tracking-wide text-ink-4">Changes requested · {changes.length}</h2>
+      <div className="mt-2">{renderList(changes)}</div>
       <h2 className="mt-10 text-sm font-bold uppercase tracking-wide text-ink-4">Closed · {closed.length}</h2>
       <div className="mt-2 opacity-80">{renderList(closed)}</div>
     </>,

@@ -27,6 +27,9 @@ export type VisaApplicationRow = {
   applicant_snapshot_hash: string | null; authorization_version: string | null; authorized_at: string | null
   authorization_snapshot_hash: string | null; assigned_admin: string | null
   submitted_at: string | null; resolved_at: string | null; retention_until: string | null
+  // Service-fee payment stamp (scripts/visa-payment-setup.mjs) — null until the
+  // eno service fee is paid; the pay-before-admin gate + queue badges read these.
+  paid_at: string | null; payment_provider: string | null; payment_ref: string | null
   created_at: string; updated_at: string
 }
 export type VisaDocumentRow = {
@@ -64,11 +67,15 @@ function visaDb(): SupabaseClient | null {
 
 export type VisaQueueData = { applications: VisaApplicationRow[]; documents: VisaDocumentRow[] }
 
-/** All cases for the queue page, newest activity first. `null` = tables/env not provisioned here. */
+/** All cases for the queue page, newest activity first. `null` = tables/env not provisioned here.
+ *  DRAFTS ARE EXCLUDED (owner 2026-07-18): a draft is the applicant's private local work —
+ *  the admin first sees a case when it reaches ready_for_review, which (with payments
+ *  configured) happens only after the service fee is paid. needs_changes stays visible:
+ *  by then the admin has already engaged with the case. */
 export async function listVisaAdminCases(): Promise<VisaQueueData | null> {
   const db = visaDb()
   if (!db) return null
-  const apps = await db.from('visa_applications').select('*').order('updated_at', { ascending: false }).limit(200)
+  const apps = await db.from('visa_applications').select('*').neq('status', 'draft').order('updated_at', { ascending: false }).limit(200)
   if (tableMissing(apps.error)) return null
   if (apps.error) throw new Error(`visa_queue_failed:${apps.error.message}`)
   // Documents scoped to the fetched cases — an unfiltered read walks the WHOLE table
