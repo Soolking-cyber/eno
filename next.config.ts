@@ -17,6 +17,9 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: '/forum', destination: '/', permanent: true }]
   },
+  async rewrites() {
+    return [{ source: '/.well-known/apple-app-site-association', destination: '/api/well-known/aasa' }]
+  },
   async headers() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://*.supabase.co'
     const csp = [

@@ -22,13 +22,11 @@ import {
   MapPin,
   MessageCircleQuestion,
   MessageSquareText,
-  Plus,
   Search,
   SearchX,
   ShieldCheck,
   Sparkles,
   Trash2,
-  UserRound,
   Users,
   Waves,
 } from 'lucide-react'
@@ -36,8 +34,6 @@ import { toast } from 'sonner'
 import { Tr, useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { ForumFooter } from '@/components/forum/forum-footer'
-import { useEnoAccountShell } from '@/components/dashboard/eno-account-shell'
-import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -72,6 +68,7 @@ import {
   type ForumPost,
 } from './forum-data'
 import { ForumHeader } from './forum-header'
+import { MobileForumNav } from './mobile-forum-nav'
 import { ForumPostCard } from './forum-post-card'
 import { ThreadDialog } from './thread-dialog'
 import { ForumTrustBadgeIcon } from './trust-badge'
@@ -334,68 +331,6 @@ function ForumRightRail({ communities, posts, helpers, onOpenPost }: { communiti
         </Card>
       </div>
     </aside>
-  )
-}
-
-function MobileForumNav({
-  mode,
-  sort,
-  savedCount,
-  onHome,
-  onPopular,
-  onCreate,
-  onSaved,
-}: {
-  mode: FeedMode
-  sort: ForumSort
-  savedCount: number
-  onHome: () => void
-  onPopular: () => void
-  onCreate: () => void
-  onSaved: () => void
-}) {
-  const { tr } = useLanguage()
-  const { openAccount } = useEnoAccountShell()
-  const { open: keyboardOpen } = useVirtualKeyboard()
-  const itemClass = 'relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-3xs font-semibold'
-
-  return (
-    <nav
-      inert={keyboardOpen}
-      className={cn(
-        'fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] lg:hidden',
-        keyboardOpen && 'pointer-events-none translate-y-full opacity-0',
-      )}
-      aria-label={tr('Forum mobile navigation', 'Điều hướng diễn đàn trên di động')}
-    >
-      <div className="flex h-16 items-stretch">
-        <Button type="button" variant="bare" size="none" aria-pressed={mode === 'all' && sort === 'best'} className={cn(itemClass, mode === 'all' && sort === 'best' ? 'text-accent-foreground' : 'text-body')} onClick={onHome}>
-          <Home className="h-5 w-5" />
-          <span>{tr('Home', 'Trang chủ')}</span>
-        </Button>
-        <Button type="button" variant="bare" size="none" aria-pressed={mode === 'all' && sort === 'top'} className={cn(itemClass, mode === 'all' && sort === 'top' ? 'text-accent-foreground' : 'text-body')} onClick={onPopular}>
-          <Flame className="h-5 w-5" />
-          <span>{tr('Popular', 'Phổ biến')}</span>
-        </Button>
-        <Button type="button" variant="bare" size="none" className={itemClass} onClick={onCreate} aria-label={tr('Start a post', 'Tạo bài viết')}>
-          <span className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-card">
-            <Plus className="h-6 w-6" />
-          </span>
-          <span className="-mt-0.5 text-body">{tr('Post', 'Đăng')}</span>
-        </Button>
-        <Button type="button" variant="bare" size="none" aria-pressed={mode === 'saved'} className={cn(itemClass, mode === 'saved' ? 'text-accent-foreground' : 'text-body')} onClick={onSaved}>
-          <span className="relative">
-            <Bookmark className={cn('h-5 w-5', mode === 'saved' && 'fill-current')} />
-            {savedCount > 0 && <Badge variant="counter-brand" size="count" className="absolute -right-3 -top-2">{savedCount}</Badge>}
-          </span>
-          <span>{tr('Saved', 'Đã lưu')}</span>
-        </Button>
-        <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={openAccount}>
-          <UserRound className="h-5 w-5" />
-          <span>{tr('Account', 'Tài khoản')}</span>
-        </Button>
-      </div>
-    </nav>
   )
 }
 

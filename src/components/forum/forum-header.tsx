@@ -30,8 +30,8 @@ export function ForumHeader({
   const searchEnabled = typeof query === 'string' && Boolean(onQueryChange)
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
+    <header id="app-header" className="sticky top-0 z-40 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 border-b border-border/60 px-3 sm:gap-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex shrink-0 items-center rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50" aria-label={tr('eno.forum home', 'Trang chủ eno.forum')}>
           <img src="/logo.svg" alt="eno" width={1200} height={300} className="h-8 w-auto" />
         </Link>

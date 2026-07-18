@@ -17,14 +17,6 @@
 @custom-variant data-horizontal (&[data-orientation="horizontal"]);
 @custom-variant data-vertical (&[data-orientation="vertical"]);
 
-/* The forum has its own mobile navigation. Hide the marketplace tab bar and its
-   reserved spacer whenever the forum route is mounted, so two app shells never
-   compete for the same bottom edge. :has() is supported by the app's browser floor. */
-body:has([data-forum-page]) .mobile-nav,
-body:has([data-forum-page]) .bottom-nav-spacer {
-  display: none;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -460,6 +452,52 @@ html.kb-open .mobile-nav {
   pointer-events: none;
 }
 html.kb-open .bottom-nav-spacer { display: none; }
+
+/* The native eno app owns navigation and safe areas while eno.forum remains a separate browser
+   origin. These rules match the eno.vn shell; .native is stamped pre-paint by the layout head
+   script (UA token 'EnoNativeApp' — the signal present on BOTH platforms; Android forum pages
+   never get window.Capacitor) and re-asserted by ForumNativeBridge. */
+/* Dedicated apps carry no web footer; the legal/company block lives on eno.vn surfaces in-app. */
+html.native #app-footer {
+  display: none;
+}
+html.native {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html.native input,
+html.native textarea,
+html.native [contenteditable]:not([contenteditable="false"]),
+html.native .allow-select {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+/* iOS pull-to-refresh needs the web overscroll the base <html> rule turns off — restore it in
+   the app. Android keeps `none`: its PTR is a native SwipeRefreshLayout around the WebView. */
+html.native-ios {
+  overscroll-behavior-y: auto;
+}
+/* Android has TWO safe-area delivery paths under Capacitor's edge-to-edge handling
+   (Android 15/16): on WebView ≥ 140, env(safe-area-inset-*) passes real values
+   through; on WebView < 140, the shell pads the WebView parent and injects
+   --safe-area-inset-* custom properties instead — env() reads 0 there.
+   max(env(X), var(--X, 0px)) serves both: on the passthrough path both operands are
+   equal (no double-pad), on the padded path env() is 0 and the var wins. Scoped to
+   .native so web/PWA rules keep plain env(). iOS always has env() passthrough; the
+   var is undefined there, so these are exact no-ops. */
+html.native #app-header {
+  padding-top: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px));
+}
+html.native .mobile-nav {
+  padding-bottom: max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
+}
+html.native .bottom-nav-spacer {
+  height: calc(4rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)));
+}
 
 @media (max-width: 1023px) {
   /* (1) DOCUMENT LOCK while inside a thread. touch-action:none on <body> is what actually

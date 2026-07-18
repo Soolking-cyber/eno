@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "vn.eno.app",
+      "sha256_cert_fingerprints": [
+        "C1:1F:54:9B:41:2B:BD:C6:99:2D:2B:1C:02:F3:18:DB:3B:81:3A:B2:68:EB:3C:E2:85:A9:05:23:11:D8:3D:C6"
+      ]
+    }
+  }
+]

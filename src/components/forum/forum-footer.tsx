@@ -39,7 +39,7 @@ export function ForumFooter() {
   ]
 
   return (
-    <footer className="mt-auto pb-8 pt-8 text-body">
+    <footer id="app-footer" className="mt-auto pb-8 pt-8 text-body">
       <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-8 border-t border-border/60 pt-12 md:grid-cols-4">
           <div className="col-span-2 space-y-3 md:col-span-1">

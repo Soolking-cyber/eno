@@ -86,6 +86,8 @@ Set these production environment variables:
 NEXT_PUBLIC_FORUM_URL=https://www.eno.forum
 NEXT_PUBLIC_MARKETPLACE_URL=https://eno.vn
 MARKETPLACE_API_URL=https://eno.vn
+APPLE_TEAM_ID=<Apple Developer team ID used by the eno iOS target>
+APPLE_BUNDLE_ID=com.mk1e3.enovn
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<same publishable key as eno.vn>
 SUPABASE_SECRET_KEY=<server-only key used by protected forum and visa routes>
@@ -105,6 +107,13 @@ GEMINI_TRANSLATION_MODEL=gemini-3.1-flash-lite
 UPSTASH_REDIS_REST_URL=<server-only Upstash REST URL>
 UPSTASH_REDIS_REST_TOKEN=<server-only Upstash REST token>
 ```
+
+The forum is also prepared to run as a first-party surface inside the single eno
+iOS/Android application. eno.vn remains the owner of the Capacitor, Xcode, and
+Android projects; this repository intentionally contains no second native app.
+The required release sequence, verified-link setup, secure cross-origin session
+handoff, and native test matrix are documented in
+[`docs/UNIFIED_MOBILE_APP.md`](docs/UNIFIED_MOBILE_APP.md).
 
 The custom domain is attached to this forum project. The apex `https://eno.forum` redirects to the canonical `https://www.eno.forum`. In the marketplace Vercel project, set `NEXT_PUBLIC_FORUM_URL=https://eno.forum` and redeploy. `FORUM_DEV_ORIGINS` is optional and should contain only comma-separated local forum origins used for local production-mode testing.
 

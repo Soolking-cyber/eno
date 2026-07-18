@@ -90,7 +90,15 @@ function onFocusOut() {
 /** Wire the single shared VisualViewport listener (idempotent). Safe to call from any
  *  always-mounted client component to keep the --vvh/--vvt vars live app-wide. */
 export function ensureKeyboardWired() {
-  if (wired || typeof window === 'undefined' || !window.visualViewport) return
+  if (wired || typeof window === 'undefined') return
+  // In the shared Capacitor shell the native keyboard plugin is authoritative. VisualViewport
+  // varies between iOS overlay mode and Android WebView resize mode and would double-apply the
+  // keyboard inset when eno.forum is opened inside the eno app.
+  if ((window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) {
+    wired = true
+    return
+  }
+  if (!window.visualViewport) return
   wired = true
   const vv = window.visualViewport
   vv.addEventListener('resize', onViewportChange)
@@ -101,6 +109,20 @@ export function ensureKeyboardWired() {
   window.addEventListener('orientationchange', () => { maxVvh = 0; onViewportChange() })
   syncVars() // initial — no keyboard animation in flight
   recompute()
+}
+
+/** Bridge @capacitor/keyboard into the same store used by the browser VisualViewport path. */
+export function setNativeKeyboard(open: boolean, height: number) {
+  if (typeof window === 'undefined') return
+  const visibleHeight = open ? Math.max(0, window.innerHeight - height) : window.innerHeight
+  const root = document.documentElement
+  root.style.setProperty('--vvh', `${visibleHeight}px`)
+  root.style.setProperty('--vvt', '0px')
+  root.classList.toggle('kb-open', open)
+  const next: KB = open ? { open: true, height: visibleHeight } : CLOSED
+  if (next.open === current.open && next.height === current.height) return
+  current = next
+  subscribers.forEach((notify) => notify(current))
 }
 
 /** `open` = keyboard up; `height` = visible viewport height while open. Positioning is

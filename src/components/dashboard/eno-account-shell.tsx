@@ -12,12 +12,16 @@ import {
   Languages,
   LayoutDashboard,
   LogOut,
-  MapPinned,
+  ListChecks,
   MessageSquareText,
+  Monitor,
+  Moon,
+  Route,
   PanelLeft,
+  Scale,
   Settings,
-  ShoppingBag,
   Store,
+  Sun,
   UsersRound,
   X,
   type LucideIcon,
@@ -36,6 +40,7 @@ import {
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useFocusTrap } from '@/lib/use-focus-trap'
+import { useTheme, type Theme } from '@/context/theme-context'
 
 const MARKETPLACE_URL = (process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn').replace(/\/$/, '')
 const EXPANDED_STORAGE_KEY = 'eno-account-sidebar-expanded'
@@ -144,6 +149,7 @@ function EnoAccountPanel({
   const pathname = usePathname()
   const { user, signOut } = useAuth()
   const { tr, lang, setLang } = useLanguage()
+  const { theme, setTheme } = useTheme()
   const panelRef = useFocusTrap<HTMLElement>(mobileOpen)
 
   useEffect(() => {
@@ -194,15 +200,33 @@ function EnoAccountPanel({
     expanded ? 'lg:max-w-[180px] lg:opacity-100' : 'lg:max-w-0 lg:opacity-0',
   )
 
-  const nav: NavItem[] = [
-    { href: '/dashboard', label: tr('Dashboard', 'Bảng điều khiển'), icon: LayoutDashboard, exact: true },
-    { href: '/', label: tr('Community forum', 'Diễn đàn cộng đồng'), icon: UsersRound, exact: true },
-    { href: '/itinerary', label: tr('Itinerary planner', 'Lập lịch trình'), icon: MapPinned },
-    { href: '/visa', label: tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2 },
-    { href: MARKETPLACE_URL, label: tr('eno marketplace', 'Chợ eno'), icon: ShoppingBag, external: true },
-    { href: `${MARKETPLACE_URL}/dashboard/listings`, label: tr('My listings', 'Tin của tôi'), icon: Store, external: true },
-    { href: `${MARKETPLACE_URL}/messages`, label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, external: true },
-    { href: `${MARKETPLACE_URL}/saved`, label: tr('Saved', 'Đã lưu'), icon: Heart, external: true },
+  // Unified rail hierarchy — the SAME two groups, same order, on both eno.vn and eno.forum;
+  // here Marketplace links are absolute eno.vn URLs and Community links are internal.
+  const navGroups: Array<{ caption: string; items: NavItem[] }> = [
+    {
+      caption: tr('Marketplace', 'Chợ eno'),
+      items: [
+        { href: `${MARKETPLACE_URL}/dashboard/listings`, label: tr('My listings', 'Tin của tôi'), icon: Store, external: true },
+        { href: `${MARKETPLACE_URL}/messages`, label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, external: true },
+        { href: `${MARKETPLACE_URL}/saved`, label: tr('Saved', 'Đã lưu'), icon: Heart, external: true },
+        { href: `${MARKETPLACE_URL}/dashboard/availability`, label: tr('Availability review', 'Xác nhận còn hàng'), icon: ListChecks, external: true },
+        { href: `${MARKETPLACE_URL}/dashboard/disputes`, label: tr('Disputes', 'Khiếu nại'), icon: Scale, external: true },
+      ],
+    },
+    {
+      caption: tr('Community', 'Cộng đồng'),
+      items: [
+        { href: '/', label: tr('Forum', 'Diễn đàn'), icon: UsersRound, exact: true },
+        { href: '/itinerary', label: tr('Itinerary planner', 'Lập lịch trình'), icon: Route },
+        { href: '/visa', label: tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2 },
+        { href: '/dashboard', label: tr('Trips & visa dashboard', 'Chuyến đi & visa'), icon: LayoutDashboard, exact: true },
+      ],
+    },
+  ]
+  const themes: Array<{ value: Theme; label: string; icon: LucideIcon }> = [
+    { value: 'system', label: tr('System', 'Hệ thống'), icon: Monitor },
+    { value: 'light', label: tr('Light', 'Sáng'), icon: Sun },
+    { value: 'dark', label: tr('Dark', 'Tối'), icon: Moon },
   ]
 
   const renderNav = (item: NavItem) => {
@@ -276,8 +300,16 @@ function EnoAccountPanel({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 pb-3 pt-3 lg:pt-2">
-        <nav aria-label={tr('eno services', 'Dịch vụ eno')} className="space-y-1">
-          {nav.map(renderNav)}
+        <nav aria-label={tr('eno services', 'Dịch vụ eno')} className="space-y-4">
+          {navGroups.map((group) => (
+            <div key={group.caption}>
+              {/* Captions hide on the collapsed desktop rail; space-y-4 still separates the groups. */}
+              <p className={cn('px-3.5 pb-1 text-2xs font-bold uppercase tracking-wider text-ink-4', expanded ? 'lg:block' : 'lg:hidden')}>
+                {group.caption}
+              </p>
+              <div className="space-y-1">{group.items.map(renderNav)}</div>
+            </div>
+          ))}
         </nav>
 
         <div className="mt-auto space-y-1 pt-3">
@@ -308,6 +340,26 @@ function EnoAccountPanel({
                     {lang === language.code && <Check className="ml-auto h-4 w-4 text-accent-foreground" />}
                   </DropdownMenuItem>
                 ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={
+                <Button type="button" variant="bare" size="none" className="flex h-11 w-full items-center justify-between rounded-xl px-3 text-sm text-body hover:bg-muted" aria-label={tr('Choose display theme', 'Chọn giao diện')}>
+                  <span className="flex items-center gap-2"><Sun className="h-4 w-4" />{tr('Display', 'Giao diện')}</span>
+                  <span className="text-xs font-bold">{themes.find((item) => item.value === theme)?.label}</span>
+                </Button>
+              } />
+              <DropdownMenuContent align="start" className="w-56">
+                {themes.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <DropdownMenuItem key={item.value} onClick={() => setTheme(item.value)}>
+                      <Icon className="h-4 w-4 text-ink-4" />
+                      <span className="min-w-0 flex-1">{item.label}</span>
+                      {theme === item.value && <Check className="ml-auto h-4 w-4 text-accent-foreground" />}
+                    </DropdownMenuItem>
+                  )
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

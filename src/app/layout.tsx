@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { ForumProviders } from '@/components/forum/forum-providers'
+import { AppForumNav } from '@/components/forum/mobile-forum-nav'
 import './globals.css'
 
 const inter = Inter({
@@ -53,9 +54,23 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Native stamp ONLY — web theming stays exactly as ThemeProvider always did it.
+            (An OS-dark pre-paint script here changed WEB behavior; reverted per review.) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var u=navigator.userAgent;var C=window.Capacitor;var cap=!!(C&&C.isNativePlatform&&C.isNativePlatform());if(cap||u.indexOf('EnoNativeApp')>-1||window.EnoNative){var dc=document.documentElement.classList;dc.add('native');dc.add('native-'+(cap?(C.getPlatform&&C.getPlatform()==='android'?'android':'ios'):(window.EnoNative||/android/i.test(u)?'android':'ios')));}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} bg-background font-sans text-foreground antialiased`}>
-        <ForumProviders>{children}</ForumProviders>
+        <ForumProviders>
+          {children}
+          {/* App-mode only (renders nothing on the web): the shared bottom nav on every
+              main surface, so forum/itinerary/visa feel like one app inside the shell. */}
+          <AppForumNav />
+        </ForumProviders>
       </body>
     </html>
   )
