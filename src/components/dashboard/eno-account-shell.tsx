@@ -219,7 +219,7 @@ function EnoAccountPanel({
         { href: '/', label: tr('Forum', 'Diễn đàn'), icon: UsersRound, exact: true },
         { href: '/itinerary', label: tr('Itinerary planner', 'Lập lịch trình'), icon: Route },
         { href: '/visa', label: tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2 },
-        { href: '/dashboard', label: tr('Trips & visa dashboard', 'Chuyến đi & visa'), icon: LayoutDashboard, exact: true },
+        { href: `${MARKETPLACE_URL}/dashboard`, label: tr('Dashboard', 'Bảng điều khiển'), icon: LayoutDashboard, external: true },
       ],
     },
   ]
