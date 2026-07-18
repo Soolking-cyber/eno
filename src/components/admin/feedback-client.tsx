@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { toast } from 'sonner'
 
 export type FeedbackItem = {
   id: string
@@ -32,13 +33,17 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
     setBusy(it.id)
     setItems((arr) => arr.map((x) => (x.id === it.id ? { ...x, status: next } : x)))
     try {
-      await fetch('/api/feedback', {
+      const res = await fetch('/api/feedback', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: it.id, status: next }),
       })
+      // fetch resolves on 4xx/5xx (audit P2): an expired session or server error left
+      // the optimistic flip on screen while the row never changed server-side.
+      if (!res.ok) throw new Error(String(res.status))
     } catch {
       setItems((arr) => arr.map((x) => (x.id === it.id ? { ...x, status: it.status } : x)))
+      toast.error('Could not update — status restored.')
     } finally {
       setBusy(null)
     }

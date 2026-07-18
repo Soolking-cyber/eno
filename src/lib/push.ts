@@ -28,7 +28,10 @@ export async function sendPushToProfile(profileId: string, payload: PushPayload)
   // Fan out to NATIVE (Capacitor) devices too — a no-op until FCM/APNs is configured (see
   // native-push.ts). Fire-and-forget so it never changes web-push latency or the return value,
   // and so it still fires even when web push (VAPID) isn't configured.
-  void sendNativePushToProfile(profileId, payload).catch(() => {})
+  // Part of the AWAITED work (audit P2): callers run this inside after(), which only
+  // keeps the lambda alive until the returned promise settles — a detached native
+  // branch was frozen mid-flight on serverless whenever web-push finished first.
+  const native = sendNativePushToProfile(profileId, payload).catch(() => {})
   if (!configured) return 0
   const subs = await db.pushSubscription.findMany({ where: { profileId } })
   if (subs.length === 0) return 0
@@ -52,5 +55,6 @@ export async function sendPushToProfile(profileId: string, payload: PushPayload)
   // Scope the prune to THIS profile's rows so a concurrent re-home of the same
   // endpoint to another account isn't clobbered by our stale 410.
   if (dead.length) await db.pushSubscription.deleteMany({ where: { profileId, endpoint: { in: dead } } })
+  await native
   return sent
 }

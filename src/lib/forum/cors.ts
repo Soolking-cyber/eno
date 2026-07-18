@@ -5,6 +5,15 @@ const productionForumOrigin = process.env.NEXT_PUBLIC_FORUM_URL || 'https://eno.
 
 function allowedOrigins(): Set<string> {
   const origins = new Set([productionForumOrigin])
+  // Browsers send the CANONICAL origin (www.eno.forum — the apex 308s there), so both
+  // host variants of the configured production origin are allowed (audit P2: with
+  // NEXT_PUBLIC_FORUM_URL unset/apex, every real forum fetch was CORS-rejected).
+  try {
+    const u = new URL(productionForumOrigin)
+    const bare = u.hostname.replace(/^www\./, '')
+    origins.add(`${u.protocol}//${bare}`)
+    origins.add(`${u.protocol}//www.${bare}`)
+  } catch { /* malformed env — keep the literal */ }
   for (const origin of (process.env.FORUM_DEV_ORIGINS || '').split(',')) {
     if (origin.trim()) origins.add(origin.trim())
   }

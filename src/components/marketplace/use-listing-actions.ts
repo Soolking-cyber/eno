@@ -47,17 +47,26 @@ export function useListingActions(
   const del = () => {
     setGone(true)
     let undone = false
-    const commit = setTimeout(() => {
-      if (undone) return
-      fetch(`/api/listings/${listing.id}`, { method: 'DELETE' })
+    let committed = false
+    // Commit path shared by the undo-window timer AND pagehide (audit P2): closing the
+    // tab / killing the app / hard-navigating inside the 5s window used to drop the
+    // timer, silently resurrecting a listing the seller watched get "deleted".
+    // keepalive lets the DELETE survive page teardown.
+    const commitNow = () => {
+      if (undone || committed) return
+      committed = true
+      window.removeEventListener('pagehide', commitNow)
+      fetch(`/api/listings/${listing.id}`, { method: 'DELETE', keepalive: true })
         .then((res) => { if (!res.ok) throw new Error('failed'); onChanged() })
         .catch(() => { setGone(false); toast.error(tr('Could not delete — listing restored.', 'Không xóa được — đã khôi phục tin.')); onChanged() })
-    }, 5000)
+    }
+    const commit = setTimeout(commitNow, 5000)
+    window.addEventListener('pagehide', commitNow)
     toast(tr('Listing deleted', 'Đã xóa tin'), {
       duration: 5000,
       action: {
         label: tr('Undo', 'Hoàn tác'),
-        onClick: () => { undone = true; clearTimeout(commit); setGone(false) },
+        onClick: () => { undone = true; clearTimeout(commit); window.removeEventListener('pagehide', commitNow); setGone(false) },
       },
     })
   }
