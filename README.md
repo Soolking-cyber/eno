@@ -1,17 +1,17 @@
 # eno.forum
 
-Independent Next.js application for the eno.forum community experience and Vietnam itinerary builder. It has its own Git repository, dependencies, build, tests, environment variables, and Vercel project while sharing identity and backend data with eno.vn.
+Deployable Next.js workspace for the eno.forum community, Vietnam itinerary builder, concierge entry points, and e-Visa assistant. It lives in the `Soolking-cyber/eno` monorepo while retaining its own dependencies, build, tests, environment variables, Vercel project, and browser domains.
 
 > [!IMPORTANT]
-> **Deployment ownership:** forum and itinerary changes ship from this repository,
-> `Soolking-cyber/eno-forum`, to the separate `eno-forum` Vercel project. The
-> `apps/forum` directory in `Soolking-cyber/eno` is only a mirror; pushing that
-> monorepo does not deploy `eno.forum`. Always port forum changes here, validate
-> this repository, and push this repository's `main` branch.
+> **Deployment ownership:** `Soolking-cyber/eno/apps/forum` is the prepared forum
+> source of truth. During cutover, the existing `eno-forum` Vercel project must be
+> re-pointed here with Root Directory `apps/forum`; the root `eno` project continues
+> to deploy eno.vn. Archive `Soolking-cyber/eno-forum` only after production checks
+> pass, then keep it as read-only migration history.
 
 ## Hackathon submission
 
-- **Code repository:** [github.com/Soolking-cyber/eno-forum](https://github.com/Soolking-cyber/eno-forum)
+- **Code repository:** [github.com/Soolking-cyber/eno/tree/main/apps/forum](https://github.com/Soolking-cyber/eno/tree/main/apps/forum)
 - **Live application:** [www.eno.forum](https://www.eno.forum)
 - **Primary Codex `/feedback` session:** `019f68b8-0579-72d1-8d47-83bf3ac34fb5`
 
@@ -31,7 +31,7 @@ owner's feedback.
 
 Codex and GPT-5.6 helped to:
 
-- define and preserve the standalone repository, authentication, data, and
+- define and preserve the monorepo directory, authentication, data, and two
   Vercel deployment boundaries between `eno.forum` and `eno.vn`;
 - implement and refine the forum, itinerary builder, DOCX export, e-Visa user
   flow and operator dashboard, shared navigation, localization, and responsive
@@ -70,15 +70,15 @@ The forum runs at `http://localhost:3101`. The marketplace remains on port 3000.
 
 ## Vercel project
 
-Import the `Soolking-cyber/eno-forum` repository into its dedicated Vercel project with these settings:
+Connect the existing `eno-forum` Vercel project to `Soolking-cyber/eno` with these settings:
 
-- Root Directory: `.`
+- Root Directory: `apps/forum`
 - Framework Preset: Next.js
 - Build Command: `npm run build`
 - Install Command: `npm install`
 - Node.js: 24.x
 
-The Vercel project is connected to this repository. Pushes to `main` create production deployments, while pull requests and non-production branches create previews.
+The forum and marketplace projects connect to the same repository but retain independent domains, environment variables, build roots, and deployment histories. Pushes to `main` create production deployments for the affected project; pull requests and non-production branches create previews.
 
 Set these production environment variables:
 
@@ -109,11 +109,13 @@ UPSTASH_REDIS_REST_TOKEN=<server-only Upstash REST token>
 ```
 
 The forum is also prepared to run as a first-party surface inside the single eno
-iOS/Android application. eno.vn remains the owner of the Capacitor, Xcode, and
-Android projects; this repository intentionally contains no second native app.
+iOS/Android application. The monorepo root owns the Capacitor, Xcode, and Android
+projects; `apps/forum` intentionally contains no second native app.
 The required release sequence, verified-link setup, secure cross-origin session
 handoff, and native test matrix are documented in
 [`docs/UNIFIED_MOBILE_APP.md`](docs/UNIFIED_MOBILE_APP.md).
+The Vercel re-point, scoped-build checks, rollback, and repository archive sequence
+are documented in [`docs/MONOREPO_CUTOVER.md`](docs/MONOREPO_CUTOVER.md).
 
 The custom domain is attached to this forum project. The apex `https://eno.forum` redirects to the canonical `https://www.eno.forum`. In the marketplace Vercel project, set `NEXT_PUBLIC_FORUM_URL=https://eno.forum` and redeploy. `FORUM_DEV_ORIGINS` is optional and should contain only comma-separated local forum origins used for local production-mode testing.
 
@@ -135,6 +137,6 @@ After changing any Gemini environment variable, redeploy all Vercel environments
 
 Itinerary saves and all marketplace database access continue through the same-origin `/api/backend/*` proxy to eno.vn. Prisma and database credentials remain only in the marketplace backend. This also keeps Vercel preview URLs compatible with the marketplace's strict browser CORS policy.
 
-The database migration remains in the private eno.vn marketplace repository at `supabase/migrations/20260715090000_unified_forum_itinerary.sql`. It is additive, reuses `Profile`, enables RLS on every new table, and keeps public Data API access deny-by-default. Forum image uploads use the `forum-media` bucket with owner-folder write policies.
+The shared marketplace migration lives at `../../supabase/migrations/20260715090000_unified_forum_itinerary.sql`. It is additive, reuses `Profile`, enables RLS on every new table, and keeps public Data API access deny-by-default. Forum image uploads use the `forum-media` bucket with owner-folder write policies.
 
-The e-Visa assistance feature is different: its complete application and admin code lives in this standalone repository. Its forum-owned database migration is `supabase/migrations/20260716150000_visa_assistance.sql`; deployment and safety workflow are documented in `docs/VISA_ASSISTANCE.md`.
+The e-Visa application, admin UI, and server routes live entirely in this workspace. Its forum-owned database migration is `supabase/migrations/20260716150000_visa_assistance.sql`; deployment and safety workflow are documented in `docs/VISA_ASSISTANCE.md`.

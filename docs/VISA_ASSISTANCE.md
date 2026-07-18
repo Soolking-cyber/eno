@@ -1,6 +1,6 @@
 # eno.forum Vietnam e-Visa assistance
 
-The complete feature lives in the standalone `Soolking-cyber/eno-forum` repository and the standalone `eno-forum` Vercel deployment. Do not implement or deploy its application code from `eno.vn`.
+The complete feature lives in `Soolking-cyber/eno/apps/forum` and deploys through the independent `eno-forum` Vercel project with Root Directory `apps/forum`. Do not place its server routes, private credentials, or operator workflow in the repository-root eno.vn application.
 
 ## Applicant workflow
 

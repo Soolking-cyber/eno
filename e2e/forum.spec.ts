@@ -25,7 +25,7 @@ function mockEnoSessionCookie() {
   return `base64-${encode({ access_token: accessToken, refresh_token: 'e2e-refresh-token', expires_in: 86_400, expires_at: now + 86_400, token_type: 'bearer', user })}`
 }
 
-test.describe('eno.forum standalone', () => {
+test.describe('eno.forum deployable workspace', () => {
   test('offers deletion only for the signed-in owner of a live post', () => {
     const livePost = { ...INITIAL_FORUM_POSTS[0], id: 'live-owned-post', live: true, authorId: 'owner-id' }
     expect(canDeleteForumPost(livePost, 'owner-id')).toBe(true)
@@ -62,7 +62,7 @@ test.describe('eno.forum standalone', () => {
     })
     // Keep the guest-flow suite deterministic. Production forum data can replace the
     // seeded preview between a locator resolving and its click, which tests the remote
-    // dataset's timing instead of this standalone UI.
+    // dataset's timing instead of this forum UI.
     await page.route('**/api/backend/api/forum/**', async (route) => {
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'e2e_preview' }) })
     })
@@ -77,7 +77,7 @@ test.describe('eno.forum standalone', () => {
     await expect(page.getByRole('tablist')).toBeVisible()
     await page.waitForTimeout(500)
     expect(await page.evaluate(() => (window as typeof window & { __enoForumFeedFetches: number }).__enoForumFeedFetches)).toBe(0)
-    await expectNoA11yViolations(page, 'standalone forum feed')
+    await expectNoA11yViolations(page, 'forum feed')
   })
 
   test('uses comfortably spaced selects and action menus', async ({ page }) => {
@@ -197,6 +197,12 @@ test.describe('eno.forum standalone', () => {
     await expect(panel.getByRole('link', { name: /^Itinerary planner$/i })).toHaveAttribute('aria-current', 'page')
     if (mobile) await panel.getByRole('button', { name: /Close account menu/i }).click()
 
+    // Keep this navigation-shell assertion focused on the shell. The local
+    // signed-in cookie is synthetic, so the visa API cannot validate it against
+    // a real Supabase process during this test.
+    await page.route('**/api/visa/applications', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ applications: [] }) })
+    })
     await page.goto('/visa')
     await expect(page.getByRole('heading', { level: 1, name: /One guided application/i })).toBeVisible()
     if (mobile) await page.getByRole('button', { name: /Open eno dashboard/i }).click()

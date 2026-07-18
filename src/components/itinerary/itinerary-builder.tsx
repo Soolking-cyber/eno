@@ -54,7 +54,7 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useLanguage } from '@/context/language-context'
+import { requestTranslations, useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -89,6 +89,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ForumApiError, forumApi } from '@/lib/api'
 import { localeForLanguage, type Language } from '@/lib/languages'
 import { buildItinerarySavePayload } from '@/lib/itinerary-save'
+import { itineraryDocxTranslationSources } from '@/lib/itinerary-docx-copy'
 import { cn } from '@/lib/utils'
 import {
   addDays,
@@ -326,8 +327,26 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
   const downloadWordFile = async () => {
     setDownloading(true)
     try {
-      const { downloadItineraryDocx } = await import('@/lib/itinerary-docx')
-      await downloadItineraryDocx(result, travelers, lang)
+      const translations = lang === 'en' || lang === 'vi'
+        ? {}
+        : await requestTranslations(itineraryDocxTranslationSources(result), lang)
+      const response = await fetch('/api/itineraries/docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result, travelers, lang, translations }),
+      })
+      if (!response.ok) throw new Error(`DOCX request failed (${response.status})`)
+      const blob = await response.blob()
+      const disposition = response.headers.get('content-disposition') || ''
+      const filename = disposition.match(/filename="([^"]+)"/i)?.[1] || 'eno-itinerary.docx'
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
       toast.message(tr('Your styled Word itinerary is ready.', 'Lịch trình Word đã sẵn sàng.'))
     } catch (error) {
       console.error('[itinerary/docx]', error)

@@ -11,9 +11,7 @@ const nextConfig: NextConfig = {
     inlineCss: true,
     optimizePackageImports: ['lucide-react'],
   },
-  turbopack: {
-    root: __dirname,
-  },
+  turbopack: { root: __dirname },
   async redirects() {
     return [{ source: '/forum', destination: '/', permanent: true }]
   },
