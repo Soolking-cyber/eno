@@ -74,7 +74,8 @@ export async function GET(request: Request) {
     return forumJson(request, {
       itineraries: itineraries.map((item) => ({
         ...item,
-        interests: JSON.parse(item.interests) as string[],
+        // Legacy rows may hold 'null'/non-array JSON — always ship an array.
+        interests: ((v) => (Array.isArray(v) ? (v as string[]) : []))(JSON.parse(item.interests)),
       })),
     }, undefined, 'GET, POST, OPTIONS')
   } catch (error) {

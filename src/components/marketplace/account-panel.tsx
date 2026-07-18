@@ -7,7 +7,7 @@ import {
   X, Store, Settings, Scale, CircleHelp, LogOut,
   MessageSquareText, Heart, Upload, Code2, UsersRound, PanelLeft,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Home,
-  ListChecks, Route, FileCheck2, LayoutDashboard,
+  ListChecks, Route, FileCheck2, ExternalLink,
 } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
@@ -273,7 +273,8 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   // the path is safe. Settings + Help + Sign out stay in the bottom cluster for both.
   const inAdmin = pathname?.startsWith('/admin') ?? false
   // UNIFIED RAIL HIERARCHY (owner): the SAME two groups, same order, mirrored on eno.forum's rail —
-  // Marketplace (internal here) then Community (cross-site to eno.forum, via goToForum). Group
+  // Marketplace then Community. Community sections are INTERNAL dashboard pages now (owner
+  // 2026-07-18); only the trailing "Open eno.forum" row crosses sites (via goToForum). Group
   // visibility is identical on web and native; only the navigation mechanics differ.
   const GROUPS: { caption?: string; items: RailItem[] }[] = inAdmin
     ? [
@@ -293,8 +294,10 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         {
           caption: tr('Marketplace', 'Chợ eno'),
           items: [
-            // "Dashboard" was removed (owner 2026-07-17): /dashboard just redirects to /dashboard/listings,
-            // so it duplicated "My listings" and led nowhere of its own.
+            // /dashboard is a real HOME again (owner 2026-07-18: one cross-property dashboard on
+            // the forum's card design). EXACT match only — every section also lives under
+            // /dashboard/, so prefix matching would light this row on /dashboard/listings etc.
+            { href: '/dashboard', label: tr('Dashboard', 'Bảng điều khiển'), icon: Home, exact: true },
             { href: '/dashboard/listings', label: tr('My listings', 'Tin của tôi'), icon: Store },
             { href: '/messages', label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: unread },
             { href: '/saved', label: tr('Saved', 'Đã lưu'), icon: Heart, badge: savedCount },
@@ -314,11 +317,14 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         },
         {
           caption: tr('Community', 'Cộng đồng'),
+          // Community DATA sections are dashboard pages here (owner 2026-07-18) — the forum's
+          // posts/itineraries/visa state renders in <main> like every marketplace section. Only the
+          // final row leaves for eno.forum itself (via the goToForum SSO handoff).
           items: [
-            { href: `${FORUM_URL}/`, label: tr('Forum', 'Diễn đàn'), icon: UsersRound, forumPath: '/' },
-            { href: `${FORUM_URL}/itinerary`, label: tr('Itinerary planner', 'Lập lịch trình'), icon: Route, forumPath: '/itinerary' },
-            { href: `${FORUM_URL}/visa`, label: tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2, forumPath: '/visa' },
-            { href: `${FORUM_URL}/dashboard`, label: tr('Trips & visa dashboard', 'Chuyến đi & visa'), icon: LayoutDashboard, forumPath: '/dashboard' },
+            { href: '/dashboard/forum', label: tr('Forum activity', 'Hoạt động diễn đàn'), icon: UsersRound },
+            { href: '/dashboard/trips', label: tr('Itineraries', 'Lịch trình'), icon: Route },
+            { href: '/dashboard/visa', label: tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2 },
+            { href: `${FORUM_URL}/`, label: tr('Open eno.forum', 'Mở eno.forum'), icon: ExternalLink, forumPath: '/' },
           ],
         },
       ]

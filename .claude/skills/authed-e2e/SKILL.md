@@ -12,14 +12,24 @@ The guest suite (`/ship`) is read-only and runs against prod. The authed suite *
 
 Everything below runs from `/Users/mk1e3/eno.vn`.
 
-## 1. Seed the ephemeral users
+## 1. Seed users AND fixtures
 
 ```bash
 set -a; . ./.env; set +a
-npx tsx .claude/skills/authed-e2e/seed-users.ts
+node scripts/e2e-seed.mjs
 ```
 
-Creates `e2e-seller@eno.vn` (business Profile + a Seller storefront) and `e2e-admin@eno.vn` (individual Profile), reusing them if they already exist. It prints the exports you need next.
+⚠️ Use `scripts/e2e-seed.mjs`, NOT the older `seed-users.ts` here: several specs
+(listing-lifecycle's "E2E Test Item", offer-counter's `e2e-conv-1` pending-offer
+conversation) need the FULL fixture set — seller + admin + buyer users PLUS the
+owner-only listing and the seeded conversation/offer. `seed-users.ts` creates only
+the users; a suite run without the fixtures fails 3 specs with "element not found"
+that look exactly like app regressions (cost a debugging detour on 2026-07-18).
+⚠️ `seed-users.ts --cleanup` cascades away the fixture listing/conversation too —
+after any cleanup, re-run `scripts/e2e-seed.mjs`, and `rm -rf e2e/.auth` so the
+setup project mints sessions for the recreated user ids.
+Note (Node 25): `npx tsx` chokes on seed-users.ts' top-level await (CJS detect) —
+copy to `.mts` first if you must run it.
 
 Why a Seller row: the seller dashboard resolves the storefront by `ownerId` and 404s without it. Why `email_confirm: true`: no inbox round-trip.
 
