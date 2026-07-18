@@ -1,20 +1,8 @@
-import type { Metadata } from 'next'
-import { Suspense } from 'react'
-import { PlanClient } from './plan-client'
+import { redirect } from 'next/navigation'
 
-// Per-user planner behind a cookie session — never statically cached (the same
-// posture as the parent /dashboard/trips section).
-export const dynamic = 'force-dynamic'
-
-export const metadata: Metadata = {
-  title: 'Itinerary planner | eno.vn',
-  robots: { index: false, follow: false },
-}
-
-export default function TripPlanPage() {
-  return (
-    <Suspense>
-      <PlanClient />
-    </Suspense>
-  )
+// The planner used to live at its own /dashboard/trips/plan sub-page; it now opens
+// directly inside the Itineraries section (owner 2026-07-18). Keep this path as a
+// permanent redirect so old bookmarks and deep links still land on the builder.
+export default function TripPlanRedirect() {
+  redirect('/dashboard/trips')
 }

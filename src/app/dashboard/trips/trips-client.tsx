@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState, useRef, useTransition } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { RefreshCw, Route } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
@@ -11,14 +10,14 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { SectionHeader } from '@/components/marketplace/section-header'
+import { ItineraryBuilder } from './plan/itinerary-builder'
 import { TripCard, type SavedItinerary } from './trip-card'
 
-/** /dashboard/trips — saved itineraries as a full in-<main> dashboard section.
- *  The DATA is eno.vn's own (Itinerary tables via /api/itineraries, which accepts the
- *  cookie session when no bearer token is sent) — and since 2026-07-18 trip PLANNING
- *  is native too: the "Plan a new trip" CTA opens /dashboard/trips/plan, the ported
- *  itinerary builder, right inside this section (owner: no hop to eno.forum). The
- *  planner has no per-itinerary URL, so saved items keep expanding in place here. */
+/** /dashboard/trips — the Itineraries section opens straight into the planner (owner
+ *  2026-07-18: no list-first hop, no /plan sub-page), with the user's saved-itinerary
+ *  HISTORY as a feed beneath the builder. Each saved item can be re-downloaded as a
+ *  styled Word file. Data is eno.vn's own (Itinerary tables via /api/itineraries); a new
+ *  build auto-saves and the feed refreshes in place via the builder's onSaved callback. */
 export function TripsClient() {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
@@ -34,7 +33,6 @@ export function TripsClient() {
     if (user?.id && lastUid.current && user.id !== lastUid.current) startSwitch(() => router.refresh())
     if (user?.id) lastUid.current = user.id
   }, [user?.id, router])
-
 
   const [trips, setTrips] = useState<SavedItinerary[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -74,66 +72,59 @@ export function TripsClient() {
     )
   }
 
+  // The saved feed stays out of the way on first run (the builder's own empty state
+  // already invites the first plan); it appears while loading, on error, or once there
+  // is at least one saved itinerary.
+  const showFeed = trips === null || failed || trips.length > 0
+
   return (
     <>
       {/* Native stack-nav title bar (mobile only) — same established title string. */}
       <SectionHeader title={tr('Itineraries', 'Lịch trình')} />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          {/* h1 stays for the outline; the SectionHeader carries the visible mobile title. */}
-          <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Itineraries', 'Lịch trình')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {tr('Trips you research with the eno planner, saved to your account.', 'Chuyến đi bạn nghiên cứu cùng công cụ lập lịch trình eno, lưu vào tài khoản của bạn.')}
-          </p>
-        </div>
-        <PlanTripCta />
-      </div>
+      {/* The planner opens directly (onSaved refreshes the history feed below). */}
+      <ItineraryBuilder onSaved={load} />
 
-      <div className="mt-6">
-        {failed ? (
-          <EmptyState
-            icon={Route}
-            title={tr('Itineraries could not be loaded.', 'Không thể tải lịch trình.')}
-            action={
-              <Button variant="outline" onClick={load}>
-                <RefreshCw className="h-4 w-4" />
-                {tr('Try again', 'Thử lại')}
-              </Button>
-            }
-          />
-        ) : trips === null ? (
-          <div className="space-y-2.5">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-[76px] rounded-2xl" />
-            ))}
+      {showFeed && (
+        <section aria-labelledby="saved-itineraries-title" className="mt-4 border-t border-border pt-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 id="saved-itineraries-title" className="text-xl font-bold text-foreground">
+                {tr('Your saved itineraries', 'Lịch trình đã lưu')}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {tr('Every plan you build is saved here — expand one to review it or download the Word file.', 'Mỗi kế hoạch bạn tạo được lưu tại đây — mở rộng để xem lại hoặc tải tệp Word.')}
+              </p>
+            </div>
           </div>
-        ) : trips.length === 0 ? (
-          <EmptyState
-            icon={Route}
-            title={tr('No saved itinerary yet', 'Chưa có lịch trình đã lưu')}
-            subtitle={tr('Plan your first trip and the finished plan appears here automatically.', 'Lên kế hoạch chuyến đi đầu tiên và kế hoạch hoàn tất sẽ tự động xuất hiện tại đây.')}
-            action={<PlanTripCta />}
-          />
-        ) : (
-          <div className="space-y-2.5">
-            {trips.map((trip) => (
-              <TripCard key={trip.id} trip={trip} />
-            ))}
+
+          <div className="mt-5">
+            {failed ? (
+              <EmptyState
+                icon={Route}
+                title={tr('Itineraries could not be loaded.', 'Không thể tải lịch trình.')}
+                action={
+                  <Button variant="outline" onClick={load}>
+                    <RefreshCw className="h-4 w-4" />
+                    {tr('Try again', 'Thử lại')}
+                  </Button>
+                }
+              />
+            ) : trips === null ? (
+              <div className="space-y-2.5">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[76px] rounded-2xl" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {trips.map((trip) => (
+                  <TripCard key={trip.id} trip={trip} />
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </section>
+      )}
     </>
-  )
-}
-
-/** Internal CTA — the planner is a native sub-page of this section (2026-07-18;
- *  it used to ride the goToForum SSO bridge to eno.forum/itinerary).
- *  No className on the asChild child — it would concatenate, not merge. */
-function PlanTripCta() {
-  const { tr } = useLanguage()
-  return (
-    <Button variant="cta" asChild>
-      <Link href="/dashboard/trips/plan">{tr('Plan a new trip', 'Lên kế hoạch mới')}</Link>
-    </Button>
   )
 }

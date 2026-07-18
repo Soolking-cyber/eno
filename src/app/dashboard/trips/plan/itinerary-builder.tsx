@@ -620,7 +620,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
   )
 }
 
-export function ItineraryBuilder() {
+export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
   const { tr, lang } = useLanguage()
   const { user, openSignIn } = useAuth()
   const [hydrated, setHydrated] = useState(false)
@@ -796,6 +796,7 @@ export function ItineraryBuilder() {
       setState('ready')
       window.requestAnimationFrame(() => resultRef.current?.focus())
       if (response.savedItineraryId) {
+        onSaved?.() // refresh the saved-history feed rendered beneath the builder
         toast.success(tr('Itinerary saved automatically to your eno dashboard.', 'Lịch trình đã tự động lưu vào bảng điều khiển eno.'))
       }
     } catch (error) {
@@ -819,6 +820,7 @@ export function ItineraryBuilder() {
       const { itinerary } = await postJson<{ itinerary: { id: string } }>('/api/itineraries',
         buildItinerarySavePayload({ result: nextResult, cityIds, days, budgetId, interests }))
       setSavedId(itinerary.id)
+      onSaved?.() // refresh the saved-history feed rendered beneath the builder
       if (announce) toast.success(tr('Itinerary saved automatically to your eno dashboard.', 'Lịch trình đã tự động lưu vào bảng điều khiển eno.'))
       return itinerary.id
     } catch {

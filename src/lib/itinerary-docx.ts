@@ -371,3 +371,179 @@ export async function createItineraryDocx(
   const blob = await Packer.toBlob(document)
   return { blob, filename: `eno-itinerary-${fileSlug(plan.title)}.docx` }
 }
+
+// ── Saved-itinerary Word export ──────────────────────────────────────────────
+// A dashboard-saved itinerary keeps a REDUCED projection (title, day-by-day, stay
+// shortlist, budget) — not the full research response the live results held (flights,
+// practical brief, sources are not persisted). Rather than force that thin data through
+// createItineraryDocx and leave empty sections, this builds a clean, self-contained Word
+// file from exactly what was saved. Works for EVERY saved row (no snapshot column needed),
+// and reuses the same brand styling helpers above so it reads as one document family.
+
+export type SavedItineraryDocxInput = {
+  title: string
+  destinationLabel: string
+  days: number
+  estimatedBudget: number | null
+  interests: string[]
+  updatedAt: string
+  dayPlans: Array<{
+    dayNumber: number
+    area: string; areaVi: string | null
+    title: string; titleVi: string | null
+    morning: string; morningVi: string | null
+    afternoon: string; afternoonVi: string | null
+    evening: string; eveningVi: string | null
+  }>
+  stays: Array<{
+    name: string; nameVi: string | null
+    area: string; areaVi: string | null
+    note: string | null; noteVi: string | null
+    estimatedNightly: number | null
+  }>
+}
+
+const INTEREST_DOCX_LABELS: Record<string, [string, string]> = {
+  food: ['Food', 'Ẩm thực'], culture: ['Culture', 'Văn hóa'], nature: ['Nature', 'Thiên nhiên'],
+  beaches: ['Beaches', 'Biển'], adventure: ['Adventure', 'Phiêu lưu'], nightlife: ['Nightlife', 'Về đêm'],
+  wellness: ['Wellness', 'Nghỉ dưỡng'], family: ['Family', 'Gia đình'],
+}
+
+export async function createSavedItineraryDocx(input: SavedItineraryDocxInput, lang: Language) {
+  const tr = (english: string, vietnamese: string) => (lang === 'vi' ? vietnamese : english)
+  const vi = lang === 'vi'
+  const loc = (en: string, viText: string | null | undefined) => (vi && viText ? viText : en)
+  const interestLine = input.interests
+    .map((id) => { const l = INTEREST_DOCX_LABELS[id]; return l ? (vi ? l[1] : l[0]) : id })
+    .join('  •  ')
+  const children: Array<Paragraph | Table> = []
+
+  // Cover
+  children.push(
+    new Table({
+      width: { size: DOCX_PAGE_CONTENT_WIDTH, type: WidthType.DXA },
+      columnWidths: [DOCX_PAGE_CONTENT_WIDTH],
+      layout: TableLayoutType.FIXED,
+      borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder },
+      rows: [new TableRow({ children: [new TableCell({
+        width: { size: DOCX_PAGE_CONTENT_WIDTH, type: WidthType.DXA },
+        shading: { fill: BRAND_DEEP, type: ShadingType.CLEAR, color: 'auto' },
+        margins: { top: 420, bottom: 420, left: 420, right: 420 },
+        borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
+        children: [
+          new Paragraph({ spacing: { after: 150 }, children: [docRun({ text: 'eno', bold: true, color: WHITE, size: 24 }), docRun({ text: `.vn  /  ${tr('Vietnam itinerary', 'Lịch trình Việt Nam').toUpperCase()}`, bold: true, color: 'B8D9F7', size: 17, characterSpacing: 30 })] }),
+          new Paragraph({ spacing: { after: 150 }, children: [docRun({ text: input.title, bold: true, color: WHITE, size: 42 })] }),
+          new Paragraph({ children: [docRun({ text: `${input.destinationLabel}  •  ${input.days} ${tr('days', 'ngày')}`, bold: true, color: 'E7F1FA', size: 21 })] }),
+          ...(interestLine ? [new Paragraph({ spacing: { before: 120 }, children: [docRun({ text: interestLine, color: 'B8D9F7', size: 18 })] })] : []),
+        ],
+      })] })],
+    }),
+    new Paragraph({ spacing: { after: 160 } }),
+    new Table({
+      width: { size: DOCX_PAGE_CONTENT_WIDTH, type: WidthType.DXA },
+      columnWidths: DOCX_METRIC_COLUMN_WIDTHS,
+      layout: TableLayoutType.FIXED,
+      borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder },
+      rows: [new TableRow({ children: [
+        metricCell(tr('Destination', 'Điểm đến'), input.destinationLabel, DOCX_METRIC_COLUMN_WIDTHS[0]),
+        metricCell(tr('Days', 'Số ngày'), String(input.days), DOCX_METRIC_COLUMN_WIDTHS[1], WHITE),
+        metricCell(tr('Budget estimate', 'Ước tính'), input.estimatedBudget ? money(input.estimatedBudget, lang) : '—', DOCX_METRIC_COLUMN_WIDTHS[2]),
+        metricCell(tr('Stays', 'Chỗ ở'), String(input.stays.length), DOCX_METRIC_COLUMN_WIDTHS[3], WHITE),
+      ] })],
+    }),
+    new Paragraph({ spacing: { after: 180 } }),
+    new Table({
+      width: { size: DOCX_PAGE_CONTENT_WIDTH, type: WidthType.DXA },
+      columnWidths: [DOCX_PAGE_CONTENT_WIDTH],
+      layout: TableLayoutType.FIXED,
+      borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder },
+      rows: [new TableRow({ children: [new TableCell({
+        width: { size: DOCX_PAGE_CONTENT_WIDTH, type: WidthType.DXA },
+        shading: { fill: PALE_BLUE, type: ShadingType.CLEAR, color: 'auto' },
+        margins: { top: 220, bottom: 220, left: 240, right: 240 },
+        borders: { top: noBorder, bottom: noBorder, left: { style: BorderStyle.SINGLE, size: 14, color: BRAND }, right: noBorder },
+        children: [
+          new Paragraph({ spacing: { after: 70 }, children: [docRun({ text: tr('Want eno to handle the bookings?', 'Bạn muốn eno lo việc đặt chỗ?'), bold: true, color: BRAND_DEEP, size: 23 })] }),
+          new Paragraph({ spacing: { after: 70 }, children: [docRun({ text: tr('eno Concierge can arrange stays and activities and coordinate the details. The service fee is 10% of the bookings we arrange; you approve every cost first.', 'eno Concierge có thể đặt chỗ ở và hoạt động và điều phối chi tiết. Phí dịch vụ là 10% giá trị đặt chỗ do eno sắp xếp; bạn duyệt mọi chi phí trước.'), color: BODY, size: 19 })] }),
+          new Paragraph({ children: [new ExternalHyperlink({ link: `mailto:support@eno.vn?subject=${encodeURIComponent(`eno Concierge — ${input.title}`)}`, children: [docRun({ text: 'support@eno.vn', bold: true, color: BRAND, underline: {} })] })] }),
+        ],
+      })] })],
+    }),
+  )
+
+  // Stay shortlist
+  if (input.stays.length) {
+    children.push(sectionHeading(tr('Stay shortlist', 'Danh sách chỗ ở')))
+    children.push(new Table({
+      width: { size: DOCX_PAGE_CONTENT_WIDTH, type: WidthType.DXA }, columnWidths: [DOCX_LABEL_COLUMN_WIDTH, DOCX_VALUE_COLUMN_WIDTH], layout: TableLayoutType.FIXED, borders: tableBorders,
+      rows: input.stays.map((stay) => new TableRow({ cantSplit: true, children: [
+        labelCell(loc(stay.area, stay.areaVi)),
+        valueCell([
+          new Paragraph({ spacing: { after: stay.estimatedNightly || stay.note ? 45 : 0 }, children: [docRun({ text: loc(stay.name, stay.nameVi), bold: true, color: INK, size: 20 })] }),
+          ...(stay.estimatedNightly ? [new Paragraph({ spacing: { after: stay.note ? 45 : 0 }, children: [docRun({ text: `${money(stay.estimatedNightly, lang)}${tr('/night', '/đêm')}`, bold: true, color: BRAND_DEEP, size: 18 })] })] : []),
+          ...(stay.note ? [textParagraph(loc(stay.note, stay.noteVi), { after: 0, size: 18 })] : []),
+        ]),
+      ] })),
+    }))
+  }
+
+  // Day-by-day
+  children.push(sectionHeading(tr('Day-by-day plan', 'Kế hoạch từng ngày')))
+  for (const day of input.dayPlans) {
+    children.push(new Paragraph({
+      heading: HeadingLevel.HEADING_2, keepNext: true,
+      spacing: { before: 280, after: 70 },
+      children: [docRun({ text: `${tr('Day', 'Ngày')} ${day.dayNumber}`, bold: true, color: BRAND, size: 18 }), docRun({ text: `  ${loc(day.title, day.titleVi)}`, bold: true, color: INK, size: 27 })],
+    }))
+    children.push(textParagraph(loc(day.area, day.areaVi), { bold: true, color: MUTED, after: 90, size: 17 }))
+    children.push(new Table({
+      width: { size: DOCX_PAGE_CONTENT_WIDTH, type: WidthType.DXA }, columnWidths: [DOCX_LABEL_COLUMN_WIDTH, DOCX_VALUE_COLUMN_WIDTH], layout: TableLayoutType.FIXED, borders: tableBorders,
+      rows: [
+        new TableRow({ cantSplit: true, children: [labelCell(tr('Morning', 'Buổi sáng')), valueCell([textParagraph(loc(day.morning, day.morningVi), { after: 0, size: 18 })])] }),
+        new TableRow({ cantSplit: true, children: [labelCell(tr('Afternoon', 'Buổi chiều')), valueCell([textParagraph(loc(day.afternoon, day.afternoonVi), { after: 0, size: 18 })])] }),
+        new TableRow({ cantSplit: true, children: [labelCell(tr('Evening', 'Buổi tối')), valueCell([textParagraph(loc(day.evening, day.eveningVi), { after: 0, size: 18 })])] }),
+      ],
+    }))
+  }
+
+  children.push(textParagraph(tr(
+    'This plan is a travel aid, not confirmed inventory. Rooms, opening hours, visa rules, and weather can change. Confirm important details before paying, or ask eno Concierge to arrange them for you.',
+    'Kế hoạch này hỗ trợ chuyến đi, không phải tình trạng chỗ đã xác nhận. Phòng, giờ mở cửa, quy định thị thực và thời tiết có thể thay đổi. Hãy xác nhận trước khi thanh toán hoặc nhờ eno Concierge sắp xếp.',
+  ), { before: 300, after: 0, color: MUTED, size: 16 }))
+
+  const document = new Document({
+    creator: 'eno',
+    title: input.title,
+    subject: tr('Vietnam itinerary', 'Lịch trình Việt Nam'),
+    description: tr('A Vietnam itinerary saved on eno.', 'Lịch trình Việt Nam đã lưu trên eno.'),
+    styles: {
+      default: {
+        document: { run: { font: 'Arial', color: BODY, size: 20 }, paragraph: { spacing: { line: 290 } } },
+        heading1: { run: { font: 'Arial', bold: true, color: BRAND_DEEP, size: 30 }, paragraph: { spacing: { before: 300, after: 140 } } },
+        heading2: { run: { font: 'Arial', bold: true, color: INK, size: 25 }, paragraph: { spacing: { before: 220, after: 90 } } },
+        hyperlink: { run: { color: BRAND, underline: {} } },
+      },
+    },
+    sections: [{
+      properties: {
+        titlePage: true,
+        page: {
+          size: { width: DOCX_PAGE_WIDTH, height: DOCX_PAGE_HEIGHT, orientation: PageOrientation.PORTRAIT },
+          margin: { top: 850, right: DOCX_PAGE_MARGIN_X, bottom: 850, left: DOCX_PAGE_MARGIN_X, header: 420, footer: 420 },
+        },
+      },
+      headers: { default: new Header({ children: [new Paragraph({
+        border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: LINE } }, spacing: { after: 100 },
+        children: [docRun({ text: 'eno', bold: true, color: BRAND, size: 19 }), docRun({ text: '.vn  •  ', bold: true, color: INK, size: 17 }), docRun({ text: `${input.destinationLabel} · ${input.days} ${tr('days', 'ngày')}`, color: MUTED, size: 16 })],
+      })] }) },
+      footers: { default: new Footer({ children: [new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [docRun({ children: ['www.eno.vn  •  ', PageNumber.CURRENT], color: MUTED, size: 15 })],
+      })] }) },
+      children,
+    }],
+  })
+
+  const blob = await Packer.toBlob(document)
+  return { blob, filename: `eno-itinerary-${fileSlug(input.title)}.docx` }
+}

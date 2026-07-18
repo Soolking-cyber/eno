@@ -1,7 +1,9 @@
 'use client'
 
-import { CalendarDays, ChevronDown } from 'lucide-react'
+import { useState } from 'react'
+import { CalendarDays, ChevronDown, Download, Loader2 } from 'lucide-react'
 import { Collapsible } from '@base-ui/react/collapsible'
+import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -102,6 +104,39 @@ function money(amount: number, currency: string, locale: 'en' | 'vi'): string {
 export function TripCard({ trip }: { trip: SavedItinerary }) {
   const { lang, tr } = useLanguage()
   const vi = lang === 'vi'
+  const [downloading, setDownloading] = useState(false)
+
+  // Word export of the saved plan — server-side assembly from the persisted day plans
+  // and stay shortlist (POST /api/itineraries/[id]/docx). Same blob-download pattern as
+  // the live planner results; failures surface a toast, never a broken button.
+  const downloadWord = async () => {
+    setDownloading(true)
+    try {
+      const response = await fetch(`/api/itineraries/${trip.id}/docx`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang }),
+      })
+      if (!response.ok) throw new Error(`DOCX request failed (${response.status})`)
+      const blob = await response.blob()
+      const disposition = response.headers.get('content-disposition') || ''
+      const filename = disposition.match(/filename="([^"]+)"/i)?.[1] || 'eno-itinerary.docx'
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
+      toast.message(tr('Your Word itinerary is ready.', 'Lịch trình Word đã sẵn sàng.'))
+    } catch (error) {
+      console.error('[trip-card/docx]', error)
+      toast.error(tr('The Word file could not be created. Please try again.', 'Không thể tạo tệp Word. Vui lòng thử lại.'))
+    } finally {
+      setDownloading(false)
+    }
+  }
   // Day/stay copy is bilingual DATA (columns), not UI strings: vi column when the UI is
   // Vietnamese and the column is filled; English text otherwise (also the MT-language case).
   const loc = (en: string, viText: string | null | undefined) => (vi && viText ? viText : en)
@@ -202,6 +237,13 @@ export function TripCard({ trip }: { trip: SavedItinerary }) {
             </ul>
           </div>
         )}
+
+        <div className="mt-5 flex justify-end border-t border-border pt-4">
+          <Button type="button" variant="outline" onClick={downloadWord} disabled={downloading}>
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {downloading ? tr('Creating Word file…', 'Đang tạo tệp Word…') : tr('Download Word file', 'Tải tệp Word')}
+          </Button>
+        </div>
       </Collapsible.Panel>
     </Collapsible.Root>
   )
