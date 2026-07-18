@@ -12,12 +12,21 @@ import 'server-only'
 export type ChannelResult = { ok: boolean; noApp?: boolean }
 
 // Supabase usually delivers user.phone without a leading '+', but tolerate both
-// shapes. All providers here expect the 84-prefixed digits-only form.
+// shapes. Providers here expect digits-only; VN forms are canonicalized to the
+// 84-prefix. ⚠️ A number that already carries its OWN country code must pass
+// through untouched (audit P2): the old blanket 84-prefix turned every foreign
+// sign-up (+1…, +44… — the expat audience) into a bogus VN number, so the OTP
+// was dispatched to a nonexistent recipient on every channel.
 export function normalizePhoneVN(raw: string): string {
-  let d = (raw || '').replace(/\D/g, '')
-  if (d.startsWith('0')) d = '84' + d.slice(1)
-  else if (!d.startsWith('84')) d = '84' + d
-  return d
+  const trimmed = (raw || '').trim()
+  const hadPlus = trimmed.startsWith('+')
+  let d = trimmed.replace(/\D/g, '')
+  if (d.startsWith('0')) return '84' + d.slice(1) // local VN form
+  if (d.startsWith('84')) return d                // already canonical VN
+  if (hadPlus) return d                            // explicit E.164 → its own country code
+  // Bare digits: a 9-digit VN mobile typed without the leading 0 gets the prefix;
+  // anything longer is a full international number delivered without '+'.
+  return d.length === 9 ? '84' + d : d
 }
 
 const TIMEOUT_MS = 3000

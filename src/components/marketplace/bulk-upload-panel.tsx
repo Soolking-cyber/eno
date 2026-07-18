@@ -7,6 +7,7 @@ import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { parseVnd } from '@/lib/vnd'
 
 type Cat = { slug: string; name: string }
 type Raw = { category_slug?: string; title?: string; description?: string; price?: string; district?: string; condition?: string; image_urls?: string }
@@ -42,7 +43,10 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
   const validate = (r: Raw, i: number): ParsedRow => {
     const slug = (r.category_slug || '').trim()
     const title = (r.title || '').trim()
-    const priceNum = Number((r.price || '').toString().replace(/[^\d.]/g, ''))
+    // parseVnd (audit P2): Vietnamese sellers write dot-thousands — '9.500' means
+    // 9,500 đ. The old parse kept the dot, read 9.5, and silently created a listing
+    // a thousand times cheaper. VND has no decimals: digits-only is always right.
+    const priceNum = parseVnd((r.price || '').toString())
     let err: string | null = null
     if (!slug || !slugSet.has(slug)) err = tr(`Unknown category "${slug}"`, `Danh mục không hợp lệ "${slug}"`)
     else if (title.length < 3) err = tr('Title too short', 'Tiêu đề quá ngắn')

@@ -15,6 +15,7 @@ import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { storeListingImage, IMG_MAX_BYTES } from '@/lib/core/media'
 import { browseRankScore } from '@/lib/ranking'
+import { parseVnd } from '@/lib/vnd'
 
 // Bulk-import core (Phase 0). The business-tier bulk CSV importer, decoupled from auth:
 // takes the ALREADY-RESOLVED seller + the rows and returns per-row results. Reused by the
@@ -96,7 +97,9 @@ export async function bulkImportCore(
       const description = String(r.description || '').trim().slice(0, 5000)
       const district = r.district ? String(r.district).trim().slice(0, 80) : null
       const condition = r.condition ? String(r.condition).trim().slice(0, 60) : null
-      const price = Number(r.price)
+      // Numbers (API JSON) pass through; STRINGS (CSV) parse via the canonical
+      // digits-only parseVnd — '9.500' is 9,500 đ dot-thousands, never 9.5 (audit P2).
+      const price = typeof r.price === 'number' ? r.price : parseVnd(String(r.price ?? ''))
       const cat = catBySlug.get(categorySlug)
 
       if (!cat) { results.push({ row: rowNo, error: `Unknown category "${categorySlug}"` }); continue }
