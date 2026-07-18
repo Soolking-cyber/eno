@@ -283,7 +283,9 @@ export function MobileNav() {
         // Logged in → open the rail. Still resolving auth (user not yet known) → fall back to
         // navigating /dashboard, which gates correctly once auth lands, rather than popping an
         // empty rail. (Logged-out is already handled by `gate` → openSignIn.)
-        onNavigate={() => user ? window.dispatchEvent(new Event('eno:open-account')) : go('/dashboard')}
+        // TOGGLE (owner 2026-07-18): the launcher has no Close button — re-tapping Account
+        // closes it (CustomEvent detail:false), any other tab still closes it on navigate.
+        onNavigate={() => user ? window.dispatchEvent(new CustomEvent('eno:open-account', { detail: !accountOpen })) : go('/dashboard')}
         icon={<User className="h-7 w-7" strokeWidth={STROKE} />}
       />
       </div>

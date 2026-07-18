@@ -3,7 +3,7 @@
 import { createContext, Fragment, useCallback, useContext, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { X, Settings, CircleHelp, LogOut, PanelLeft } from 'lucide-react'
+import { Settings, CircleHelp, LogOut, PanelLeft } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -321,12 +321,6 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
       {/* TOP — MOBILE ONLY: close the full-screen launcher. The desktop rail is persistent (no
           close). "Post a listing" was REMOVED here (owner 2026-07-17) — the header/bottom-nav Post
           button is the single entry point, so the rail no longer duplicates it. */}
-      <div className="flex shrink-0 justify-end p-3 lg:hidden">
-        <IconButton onClick={onClose} aria-label={tr('Close', 'Đóng')} size="sm" className="text-ink-4 transition-colors hover:bg-secondary hover:text-foreground">
-          <X className="h-5 w-5" />
-        </IconButton>
-      </div>
-
       {/* DESKTOP toggle — PIN the rail expanded (labels) / collapsed (icons only). This is the
           Gemini "Open sidebar" control: it replaces whole-rail hover-expand (hover now reveals a
           per-icon tooltip instead, see renderNav). Desktop-only. */}
