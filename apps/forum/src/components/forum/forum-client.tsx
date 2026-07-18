@@ -427,6 +427,8 @@ export function ForumClient({
   const [deletingPost, setDeletingPost] = useState(false)
   const [threadComments, setThreadComments] = useState<Record<string, ForumComment[]>>({})
   const fetchedAuthenticatedViewer = useRef(false)
+  // Monotonic per-action request ids — the reconciliation guard for rapid toggles.
+  const actionSeq = useRef<Record<string, number>>({})
 
   const communityMap = useMemo(() => new Map(communities.map((item) => [item.slug, item])), [communities])
 
@@ -451,8 +453,15 @@ export function ForumClient({
           const live = liveById.get(post.id)
           return live ? { ...post, score: live.score - live.viewerVote } : post
         }))
-        setVotes(Object.fromEntries(livePosts.map((post) => [post.id, post.viewerVote])))
-        setSaved(new Set(livePosts.filter((post) => post.saved).map((post) => post.id)))
+        // MERGE, never replace (audit P2): a `?post=` deep link outside the top-50
+        // feed keeps its viewer vote/bookmark state — wholesale replacement erased it
+        // whenever this feed refresh landed after the deep-linked post's own fetch.
+        setVotes((current) => ({ ...current, ...Object.fromEntries(livePosts.map((post) => [post.id, post.viewerVote])) }))
+        setSaved((current) => {
+          const next = new Set(current)
+          for (const post of livePosts) { if (post.saved) next.add(post.id); else next.delete(post.id) }
+          return next
+        })
         fetchedAuthenticatedViewer.current = Boolean(user)
       })
       .catch(() => {})
@@ -540,14 +549,20 @@ export function ForumClient({
     const next = previous === direction ? 0 : direction
     setVotes((current) => ({ ...current, [id]: next }))
     if (!post?.live) return
+    // Per-post request seq (audit P2): rapid toggle puts two POSTs in flight; only the
+    // LATEST request may reconcile state, else out-of-order responses re-show a vote
+    // the user removed and drift the score until remount.
+    const seq = (actionSeq.current[`vote:${id}`] = (actionSeq.current[`vote:${id}`] || 0) + 1)
     void forumApi<{ score: number; viewerVote: -1 | 0 | 1 }>(`/api/forum/posts/${encodeURIComponent(id)}/vote`, {
       method: 'POST',
       auth: 'required',
       body: JSON.stringify({ value: next }),
     }).then((result) => {
+      if (actionSeq.current[`vote:${id}`] !== seq) return
       setVotes((current) => ({ ...current, [id]: result.viewerVote }))
       setPosts((current) => current.map((item) => item.id === id ? { ...item, score: result.score - result.viewerVote } : item))
     }).catch(() => {
+      if (actionSeq.current[`vote:${id}`] !== seq) return
       setVotes((current) => ({ ...current, [id]: previous }))
       toast.error(tr('Your vote could not be saved.', 'Không thể lưu bình chọn của bạn.'))
     })
@@ -569,11 +584,13 @@ export function ForumClient({
       return next
     })
     if (!post?.live) return
+    const seq = (actionSeq.current[`save:${id}`] = (actionSeq.current[`save:${id}`] || 0) + 1)
     void forumApi<{ saved: boolean }>(`/api/forum/posts/${encodeURIComponent(id)}/bookmark`, {
       method: 'POST',
       auth: 'required',
       body: JSON.stringify({ saved: !wasSaved }),
     }).then((result) => {
+      if (actionSeq.current[`save:${id}`] !== seq) return
       setSaved((current) => {
         const next = new Set(current)
         if (result.saved) next.add(id)
@@ -581,6 +598,7 @@ export function ForumClient({
         return next
       })
     }).catch(() => {
+      if (actionSeq.current[`save:${id}`] !== seq) return
       setSaved((current) => {
         const next = new Set(current)
         if (wasSaved) next.add(id)

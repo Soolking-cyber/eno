@@ -56,14 +56,20 @@ function ThreadComment({
   const translatedBody = useTr(comment.body)
   const translatedRole = useTr(comment.authorRole)
 
+  // Monotonic request id — rapid toggle reconciliation (audit: out-of-order responses
+  // settled the UI on the FIRST request's result).
+  const voteSeq = useRef(0)
   const voteComment = (direction: -1 | 1) => {
     const previous = vote
     const next = vote === direction ? 0 : direction
     setVote(next)
+    const seq = ++voteSeq.current
     void onVote(comment, next).then((result) => {
+      if (voteSeq.current !== seq) return
       setVote(result.viewerVote)
       setBaseScore(result.score - result.viewerVote)
     }).catch(() => {
+      if (voteSeq.current !== seq) return
       setVote(previous)
       toast.error(tr('Your vote could not be saved.', 'Không thể lưu bình chọn của bạn.'))
     })
@@ -355,7 +361,7 @@ export function ThreadDialog({
                   key={comment.id}
                   comment={comment}
                   onReply={startReply}
-                  onVote={onCommentVote || (async (_item, value) => ({ score: comment.score + value, viewerVote: value }))}
+                  onVote={onCommentVote || (async (item, value) => ({ score: item.score + value, viewerVote: value }))}
                 />
               ))}
             </div>
