@@ -12,6 +12,21 @@ Run these in order. **Stop at the first failure** and report it — never push t
 
 Work from `/Users/mk1e3/eno.vn`. Use absolute paths for anything that starts a server — another project's `next-server` has stolen port 3000 before, producing phantom 404s.
 
+## 0. Pick up the Codex handoff
+
+Before running gates, and again immediately before staging, run:
+
+```bash
+git status --short -- apps/forum
+git diff -- apps/forum
+```
+
+Any pending `apps/forum/**` files are a Codex handoff. Read the current conversation
+for the exact files and validation Codex reported. If those forum gates are green,
+include the handoff files in the commit. If readiness is unclear, rerun the relevant
+checks from `apps/forum` or stop and report the exact pending files. **Never push a
+commit while silently leaving validated Codex changes under `apps/forum/**` unstaged.**
+
 ## 1. Gates (fast, local)
 
 ```bash
@@ -59,6 +74,9 @@ For authed (seller/admin) flows, use `/authed-e2e` instead — it needs a seeded
 ## 4. Commit + push
 
 Stage only what belongs to this change (`git add -p` mentally — don't sweep in another agent's half-finished tree; that has broken `origin/main` before by shipping an import whose export was still uncommitted). Include any regenerated `src/generated/ui-strings.ts`.
+
+Repeat `git status --short -- apps/forum` before committing. Every validated Codex
+handoff file must be staged; otherwise stop and explain why it is being deferred.
 
 Commit message: a plain sentence saying what changed and why, in the repo's existing voice. End with:
 

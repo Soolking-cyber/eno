@@ -6,3 +6,4 @@
 - Do not modify the marketplace or other monorepo directories for a forum request unless the owner explicitly assigns a cross-app contract or native-shell change.
 - Keep the `eno-forum` Vercel project: it owns the forum domains and environment variables while deploying this monorepo's `apps/forum` root.
 - Codex only edits and validates `apps/forum/**`. Do not commit, push, trigger a deployment, or run the shipping workflow; Claude owns the whole-monorepo commit and push, and Vercel deploys automatically from that push.
+- At handoff, Codex must name the changed `apps/forum/**` files and the validation gates it ran. Pending changes there are intentional shared-worktree output for Claude, not disposable dirt.

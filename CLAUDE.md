@@ -71,4 +71,11 @@ it owns the forum domains and environment variables, but it now deploys
 `apps/forum/**`; it must not commit, push, trigger Vercel, or run the shipping workflow.
 Claude owns the whole-monorepo commit and push, after which Vercel builds automatically.
 
+**Mandatory Codex pickup (owner, 2026-07-18):** At the start of every shipping pass
+and immediately before staging, Claude must run `git status --short -- apps/forum` and
+inspect `git diff -- apps/forum`. Pending files there are a Codex handoff. If Codex
+reported the relevant forum gates green, include those files in the same commit; if
+their readiness is unclear, rerun the forum gates or stop and report the exact files.
+Never push while silently leaving validated Codex work under `apps/forum/**` unstaged.
+
 `/ship` runs the ritual: `tsc --noEmit` → design-lint → `npm run build` → local guest e2e (44 tests, server on **port 3100** — 3000 has been squatted by another project) → commit → push → poll `npx vercel ls` until Ready → prod guest suite. Stop at the first red gate. If a push breaks prod, revert to the last known-good commit and pause — don't stack fix-on-fix.
