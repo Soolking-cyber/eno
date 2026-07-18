@@ -233,7 +233,7 @@ const STEP_ISSUE_COPY: Record<string, [string, string, string?]> = {
   vietnam_province_required: ['Enter the Vietnam province or city.', 'Nhập tỉnh hoặc thành phố tại Việt Nam.', 'province'],
   entry_gate_required: ['Choose the entry checkpoint.', 'Chọn cửa khẩu nhập cảnh.', 'entryGate'],
   exit_gate_required: ['Choose the exit checkpoint.', 'Chọn cửa khẩu xuất cảnh.', 'exitGate'],
-  previous_visits_details_required: ['Add the previous visit details.', 'Thêm thông tin lần đến trước.', 'previousVisits'],
+  previous_visit_details_required: ['Add the previous visit details.', 'Thêm thông tin lần đến trước.', 'previousVisits'],
   relatives_details_required: ['Add the relative details.', 'Thêm thông tin người thân.', 'relativeDetails'],
   insurance_details_required: ['Add the travel insurance details.', 'Thêm thông tin bảo hiểm du lịch.', 'insuranceDetails'],
   children_details_required: ['Add each accompanying child’s details.', 'Thêm thông tin của từng trẻ đi kèm.', 'childrenDetails'],

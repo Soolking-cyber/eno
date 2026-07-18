@@ -45,4 +45,19 @@ describe('normalizePhone', () => {
   it('empty stays empty', () => {
     expect(normalizePhone('')).toBe('')
   })
+
+  // Characterization (audit Phase 0): non-VN input must pass through as its own E.164,
+  // never be mangled into +84 — an expat's US/EU number is a real sign-up path.
+  it('international numbers keep their own country code', () => {
+    expect(normalizePhone('+1 555 010 0000')).toBe('+15550100000')
+    expect(normalizePhone('+44 20 7946 0958')).toBe('+442079460958')
+  })
+
+  it('digits-only foreign numbers are not force-prefixed with +84', () => {
+    expect(normalizePhone('15550100000')).toBe('+15550100000')
+  })
+
+  it('the 84 prefix wins only when it IS the country code position', () => {
+    expect(normalizePhone('+84 84 123 4567')).toBe('+84841234567') // VN mobile starting 84…
+  })
 })

@@ -80,12 +80,19 @@ export async function escalatingCooldown(
   const untilKey = `cd:${name}:${key}:until`
   const countKey = `cd:${name}:${key}:n`
   try {
-    const ttl = await redis.ttl(untilKey)
-    if (ttl > 0) return { allowed: false, retryAfterSec: ttl }
+    // Atomic claim (audit P2 #14): the old ttl-check → set was a race — N concurrent
+    // requests all saw ttl<=0 and were ALL admitted (N paid deliveries). SET NX is the
+    // one-winner gate; the loser reads the ttl for an honest retry-after.
+    const claimed = await redis.set(untilKey, '1', { nx: true, ex: stepsSec[0] ?? 60 })
+    if (claimed === null) {
+      const ttl = await redis.ttl(untilKey)
+      return { allowed: false, retryAfterSec: ttl > 0 ? ttl : (stepsSec[0] ?? 60) }
+    }
     const n = await redis.incr(countKey)
     if (n === 1) await redis.expire(countKey, 86400)
     const cooldown = stepsSec[Math.min(n - 1, stepsSec.length - 1)] ?? 60
-    await redis.set(untilKey, '1', { ex: cooldown })
+    // Stretch the claim to this attempt's real step length (NX seeded the first step).
+    if (cooldown !== (stepsSec[0] ?? 60)) await redis.expire(untilKey, cooldown)
     return { allowed: true, retryAfterSec: 0 }
   } catch (e) {
     console.error('[ratelimit] cooldown backend error for', name, e)

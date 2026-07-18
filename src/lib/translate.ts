@@ -188,8 +188,10 @@ export async function translateBatch(texts: string[], target: Lang): Promise<str
     } else {
       for (const chunk of chunkTexts(misses)) {
         const translated = await translateChunk(chunk, target)
-        if (!translated) {
-          for (const t of chunk) out.set(t, t) // hard failure → source fallback
+        // A response with a DIFFERENT length than the request is misaligned — pairing
+        // translated[i] with chunk[i] would cache wrong translations forever (audit).
+        if (!translated || translated.length !== chunk.length) {
+          for (const t of chunk) out.set(t, t) // failure/misalignment → source fallback
           continue
         }
         await Promise.all(

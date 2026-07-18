@@ -75,10 +75,22 @@ describe('forgery rejection', () => {
   })
 
   it('rejects a wrong issuer even if signed correctly', () => {
-    // Re-sign with the real test key but a foreign issuer → must fail the iss check.
-    const tok = issueAccessToken(claims, NOW)!
-    const verified = verifyAccessToken(tok, NOW)
-    expect(verified).not.toBeNull() // sanity: the real one passes
+    // ACTUALLY forge one (audit: this test previously never constructed a wrong-issuer
+    // token — the suite stayed green with the iss check deleted). Re-derive the signing
+    // key exactly as oauth.ts does and mint a correctly-signed token whose only flaw is
+    // a foreign issuer: the signature check passes, the iss check must be what rejects.
+    const key = Buffer.from(crypto.hkdfSync('sha256', Buffer.from(process.env.SUPABASE_SECRET_KEY!), Buffer.from('eno-oauth-v1'), Buffer.from('partner-api-access-token'), 32))
+    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    const header = b64({ alg: 'HS256', typ: 'JWT' })
+    const payload = b64({ iss: 'https://evil.example', sub: 'key_1', sid: 'shop_1', pid: 'prof_1', scope: 'listings:read', exp: NOW + 900 })
+    const sig = crypto.createHmac('sha256', key).update(`${header}.${payload}`).digest('base64url')
+    const forged = `${header}.${payload}.${sig}`
+    // Sanity: the signature itself is valid for our key (same-issuer variant verifies)…
+    const goodPayload = b64({ iss: 'https://eno.vn', sub: 'key_1', sid: 'shop_1', pid: 'prof_1', scope: 'listings:read', exp: NOW + 900 })
+    const goodSig = crypto.createHmac('sha256', key).update(`${header}.${goodPayload}`).digest('base64url')
+    expect(verifyAccessToken(`${header}.${goodPayload}.${goodSig}`, NOW)).not.toBeNull()
+    // …so the ONLY thing rejecting the forgery is the issuer check.
+    expect(verifyAccessToken(forged, NOW)).toBeNull()
   })
 })
 

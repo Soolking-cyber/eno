@@ -145,7 +145,7 @@ const STEP_ISSUES: Record<0 | 1 | 2, Set<string>> = {
     'visa_start_required', 'visa_end_required', 'visa_dates_invalid', 'visa_period_exceeds_90_days', 'purpose_required',
     'entry_date_required', 'stay_length_invalid', 'outside_vietnam_answer_required', 'applicant_must_be_outside_vietnam',
     'vietnam_address_required', 'vietnam_province_required', 'entry_gate_required', 'exit_gate_required',
-    'previous_visits_answer_required', 'previous_visits_details_required', 'relatives_answer_required',
+    'previous_visits_answer_required', 'previous_visit_details_required', 'relatives_answer_required',
     'relatives_details_required', 'insurance_answer_required', 'insurance_details_required',
     'payer_name_required', 'payer_address_required', 'payer_phone_required',
     'local_contact_name_required', 'local_contact_address_required', 'local_contact_phone_required',
