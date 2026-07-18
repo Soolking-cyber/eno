@@ -36,8 +36,8 @@ export function ListingsClient() {
 
   return (
     <>
-      {/* Gemini-style greeting hero — a light, crisp welcome that floats IN the dashboard bloom
-          (globals .dashboard-canvas) instead of a bold boxed title. */}
+      {/* Gemini-style greeting hero — a light, crisp welcome that floats on the flat dashboard
+          canvas (globals .dashboard-canvas) instead of a bold boxed title. */}
       <div className="space-y-1">
         <h1 className="h-greeting text-ink-2">
           {tr('Hi', 'Chào')}{name ? ` ${name}` : ''}

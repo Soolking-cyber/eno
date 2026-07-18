@@ -1253,9 +1253,8 @@ export function ListingsExplorer({
     const heroActiveOptionId = heroListOpen && heroActiveIdx >= 0 && heroActiveIdx < heroSuggestItems.length
       ? suggestOptionId(SUGGEST_ID, heroActiveIdx)
       : undefined
-    // overflow-hidden clips the hero-bloom's 150vw glow on narrow screens; lifted on desktop (pc:)
-    // so the rails' / category-grid ← / → gutter arrows aren't clipped at the content edge (on
-    // desktop the bloom is a fixed 880px inside the content box, so nothing overflows there).
+    // overflow-hidden guards against horizontal spill on narrow screens; lifted on desktop (pc:) so
+    // the rails' / category-grid ← / → gutter arrows aren't clipped at the content edge.
     return (
       <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pc:overflow-visible pt-2 pb-5 sm:pt-3 sm:pb-8">
         {/* Width + edge gutter are owned by the parent page <main> (canonical
@@ -1269,12 +1268,6 @@ export function ListingsExplorer({
                 the page keeps its real, exact SEO heading. */}
             {/* eslint-disable-next-line react/jsx-no-literals -- SEO brand phrase, intentionally EN */}
             <h1 className="sr-only">eno.vn — Trusted Expat Marketplace in Vietnam</h1>
-
-            {/* Gemini focal bloom — a soft brand-blue glow radiating from BEHIND the search pill.
-                A positioned sibling placed BEFORE the (also positioned) #eno-hero-search, so the
-                search + its suggestions panel paint above it with no isolate/z-index gymnastics.
-                Lives only here; it scrolls away with the hero. */}
-            <div aria-hidden className="hero-bloom pointer-events-none absolute left-1/2 top-1/2 h-[260px] w-[880px] max-w-[150vw] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80 blur-2xl" />
 
             {/* Centered Search Bar (the header reveals its own search once this
                 scrolls out of view — id is the IntersectionObserver target). Wider pill
