@@ -8,9 +8,10 @@ import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { EnoSlider } from './eno-slider'
 import { Button } from '@/components/ui/button'
+import { stashCompose } from '@/lib/quick-contact'
 
 const MAX_DISCOUNT = 50 // % off the asking price the slider allows
-export const COMPOSE_KEY = 'eno-compose' // sessionStorage handoff → /messages/pending
+export { COMPOSE_KEY } from '@/lib/quick-contact' // re-export: the key + writer live in the lib
 
 /**
  * Unified contact + offer on the listing detail. No typing required: the SellerCard's
@@ -59,17 +60,9 @@ export function ContactComposer({
     // (which would 401-bounce). Prompt only once we know they're truly logged out.
     if (!user) { if (!loading) openSignIn({ listingTitle, listingImage, sellerName }); return }
     const offerAmount = opts.offerAmount ?? null
-    try {
-      sessionStorage.setItem(COMPOSE_KEY, JSON.stringify({
-        listingId,
-        body: (opts.body ?? '').trim(),
-        offerAmount,
-        listingTitle: listingTitle ?? '',
-        listingImage: listingImage ?? null,
-        trackPrice: offerAmount ?? (price ?? null),
-        currency,
-      }))
-    } catch { /* storage blocked — the pending page falls back to /messages */ }
+    // Shared single writer (src/lib/quick-contact) — a stash failure is deliberately
+    // ignored here: the pending page falls back to /messages.
+    stashCompose({ listingId, body: opts.body, offerAmount, listingTitle, listingImage, price, currency })
     router.push('/messages/pending')
   }
 

@@ -1,5 +1,8 @@
 import type { SerializedListingCard } from '@/lib/types'
-import { COMPOSE_KEY } from '@/components/marketplace/contact-composer'
+
+/** sessionStorage handoff → /messages/pending. Defined HERE, the one writer module
+ *  (audit Phase 1: the composer carried a second inline writer of the same key). */
+export const COMPOSE_KEY = 'eno-compose'
 
 /**
  * Shared handoff for the card/row quick actions (grid hover bar + compact rows):
@@ -13,18 +16,41 @@ export function stashQuickCompose(
   l: Pick<SerializedListingCard, 'id' | 'title' | 'images' | 'price' | 'currency'>,
   opts: { body?: string; offerAmount?: number | null },
 ): boolean {
+  return stashCompose({
+    listingId: l.id,
+    body: opts.body,
+    offerAmount: opts.offerAmount ?? null,
+    listingTitle: l.title,
+    listingImage: l.images[0] ?? null,
+    price: l.price || null,
+    currency: l.currency,
+  })
+}
+
+/** The ONE writer of the COMPOSE_KEY payload — the PDP composer and the card quick
+ *  actions both come through here, so /messages/pending reads one field contract. */
+export function stashCompose(payload: {
+  listingId: string
+  body?: string | null
+  offerAmount?: number | null
+  listingTitle?: string | null
+  listingImage?: string | null
+  price?: number | null
+  currency: string
+}): boolean {
+  const offerAmount = payload.offerAmount ?? null
   try {
     sessionStorage.setItem(COMPOSE_KEY, JSON.stringify({
-      listingId: l.id,
-      body: opts.body?.trim() ?? '',
-      offerAmount: opts.offerAmount ?? null,
-      listingTitle: l.title,
-      listingImage: l.images[0] ?? null,
-      trackPrice: opts.offerAmount ?? (l.price || null),
-      currency: l.currency,
+      listingId: payload.listingId,
+      body: (payload.body ?? '').trim(),
+      offerAmount,
+      listingTitle: payload.listingTitle ?? '',
+      listingImage: payload.listingImage ?? null,
+      trackPrice: offerAmount ?? (payload.price ?? null),
+      currency: payload.currency,
     }))
     return true
   } catch {
-    return false // storage blocked — caller falls back to the listing page
+    return false // storage blocked — caller decides the fallback
   }
 }
