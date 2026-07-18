@@ -6,6 +6,7 @@ import { useTheme } from '@/context/theme-context'
 import { useLanguage } from '@/context/language-context'
 import { setNativeKeyboard } from '@/hooks/use-virtual-keyboard'
 import { hapticTap } from '@/lib/haptics'
+import { canonicalAppPath } from '@/lib/deep-link'
 
 // The status bar sits over the bg-card header, so it must match it. Read the LIVE --card token
 // (which already flips light/dark) at runtime — no hardcoded colour, always in sync with the theme.
@@ -231,25 +232,12 @@ export function NativeBootstrap() {
             }
             raw = u.searchParams.get('path') // searchParams already URL-decodes once
           }
-          if (!raw || !raw.startsWith('/')) return
-          // Canonicalize BEFORE validating. Resolving against the app origin catches the
-          // protocol-relative escapes (`//evil.com`, and `/\evil.com` — the URL parser
-          // treats \ as / in special schemes). Decoding the pathname to a fixpoint stops
-          // double-encoding (`/%2561uth/…`) from slipping past the prefix checks below,
-          // since Next decodes whatever the router is handed.
-          const resolved = new URL(raw, 'https://eno.vn')
-          if (resolved.origin !== 'https://eno.vn') return
-          let probe = resolved.pathname
-          for (let i = 0; i < 3; i++) {
-            let dec: string
-            try { dec = decodeURIComponent(probe) } catch { break }
-            if (dec === probe) break
-            probe = dec
-          }
-          // /auth + /signin rejected so a crafted link can't drive the OAuth/sign-in
-          // routes (auth flows only ever enter via enovn://auth-callback below).
-          if (probe.startsWith('/auth') || probe.startsWith('/signin')) return
-          router.push(resolved.pathname + resolved.search + resolved.hash)
+          // Canonicalize-then-validate via the SHARED helper (src/lib/deep-link.ts) —
+          // the same discipline native-push now uses; the inline copy this replaces
+          // was the reference implementation.
+          const path = canonicalAppPath(raw, { blockAuthPaths: true })
+          if (!path) return
+          router.push(path)
         } catch { /* unparseable URL — ignore */ }
       }
 

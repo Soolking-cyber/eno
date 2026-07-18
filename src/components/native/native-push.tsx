@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useAuth } from '@/context/auth-context'
+import { canonicalAppPath } from '@/lib/deep-link'
 
 // Native push registration (Capacitor). Mounted inside AuthProvider so it registers only for a
 // signed-in user (the token endpoint is auth-gated). DORMANT until @capacitor/push-notifications is
@@ -49,7 +50,10 @@ export function NativePush() {
         // Tapping a notification deep-links into the app.
         adopt(await PushNotifications.addListener('pushNotificationActionPerformed', (a) => {
           const url = (a.notification?.data as { url?: string } | undefined)?.url
-          if (typeof url === 'string' && url.startsWith('/')) window.location.assign(url)
+          // Canonicalize-then-validate (audit Phase 1): the old bare startsWith('/')
+          // accepted `//evil.com` and navigated the trusted native shell to it.
+          const path = typeof url === 'string' ? canonicalAppPath(url, { blockAuthPaths: true }) : null
+          if (path) window.location.assign(path)
         }))
 
         if (!disposed) await PushNotifications.register()
