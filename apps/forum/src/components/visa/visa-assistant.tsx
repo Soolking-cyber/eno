@@ -231,6 +231,9 @@ export function VisaAssistant() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const analysisInFlight = useRef(new Map<string, Promise<VisaAnalysis>>())
   const analysisAttempted = useRef(new Set<string>())
+  // Latest tr for callbacks that must NOT re-mint on language change (see loadApplication).
+  const trRef = useRef(tr)
+  trRef.current = tr
 
   const analyzeDocument = useCallback((applicationId: string, kind: 'portrait' | 'passport', documentId: string) => {
     const existing = analysisInFlight.current.get(documentId)
@@ -262,9 +265,14 @@ export function VisaAssistant() {
         exitGate: loadedPayload.exitGate || DEFAULT_EVISA_ENTRY_GATE,
       } : null)
     } catch (error) {
-      if (!(error instanceof ForumApiError && error.status === 401)) toast.error(tr('Could not load visa assistance.', 'Không thể tải dịch vụ hỗ trợ visa.'))
+      if (!(error instanceof ForumApiError && error.status === 401)) toast.error(trRef.current('Could not load visa assistance.', 'Không thể tải dịch vụ hỗ trợ visa.'))
     } finally { if (!background) setLoading(false) }
-  }, [tr, user])
+  // ⚠️ tr is deliberately consumed via a ref: the language context re-mints tr on
+  // every language/dictionary change, and having it in the deps re-fired the mount
+  // effect below as a FOREGROUND load that replaced the in-memory payload with the
+  // last-saved server copy — silently discarding unsaved answers on a long
+  // government form whenever the user switched language (audit P1 #5).
+  }, [user])
 
   useEffect(() => { if (!authLoading) void loadApplication() }, [authLoading, loadApplication])
   useEffect(() => {
