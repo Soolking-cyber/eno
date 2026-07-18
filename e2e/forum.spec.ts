@@ -40,6 +40,14 @@ test.describe('eno.forum standalone', () => {
     expect(await response.json()).toEqual({ error: 'auth_required' })
   })
 
+  test('publishes a crawlable fixed-size search favicon', async ({ request, page }) => {
+    const favicon = await request.get('/favicon.ico')
+    expect(favicon.status()).toBe(200)
+    expect(favicon.headers()['content-type']).toContain('image/x-icon')
+    await page.goto('/')
+    await expect(page.locator('link[rel="icon"][href="/favicon.ico"]')).toHaveCount(1)
+  })
+
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       const state = window as typeof window & { __enoForumFeedFetches: number }

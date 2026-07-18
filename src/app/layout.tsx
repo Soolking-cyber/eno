@@ -28,7 +28,15 @@ export const metadata: Metadata = {
   applicationName: 'eno.forum',
   alternates: { canonical: '/' },
   manifest: '/manifest.webmanifest',
-  icons: { icon: '/logo-mark.svg', apple: '/logo-mark.svg' },
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '48x48', type: 'image/x-icon' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/logo-mark.svg', sizes: 'any', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+  },
   openGraph: {
     title: 'eno.forum — Vietnam, figured out together',
     description: 'Current, firsthand help from people who live in Vietnam.',
