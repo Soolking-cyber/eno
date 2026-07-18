@@ -133,7 +133,7 @@ export function NotificationBell() {
             </div>
           ) : (
             sorted.map((n) => {
-              const href = n.url ? n.url : n.type === 'reminder' ? '/dashboard' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
+              const href = n.url ? n.url : n.type === 'reminder' ? '/dashboard/availability' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
               const Icon = n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
               return (
                 // Unread = brand-tinted with a left rail + dot; read = plain. Opening

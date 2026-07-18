@@ -29,7 +29,7 @@ function bearerOk(header: string | null, secret: string): boolean {
 // Daily reminder job (Vercel Cron → see vercel.json). Guarded by CRON_SECRET:
 // Vercel attaches `Authorization: Bearer $CRON_SECRET` to scheduled invocations.
 // For every seller with ≥1 stale LIVE listing who hasn't opted out, drops one
-// in-app notification (type 'reminder' → deep-links to /dashboard) and sends a
+// in-app notification (type 'reminder' → deep-links to /dashboard/availability) and sends a
 // Web Push to their devices. One notification per seller per run (collapsed).
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
           const body = 'Tap to refresh availability — fresh listings rise back to the top.'
           try {
             await db.notification.create({ data: { recipientId: p.id, type: 'reminder', title, body, actorName: null } })
-            const sent = await sendPushToProfile(p.id, { title, body, url: '/dashboard', tag: 'eno-availability' })
+            const sent = await sendPushToProfile(p.id, { title, body, url: '/dashboard/availability', tag: 'eno-availability' })
             return { notified: 1, pushed: sent }
           } catch (e) {
             console.error('[cron] reminder failed for', p.id, e)
