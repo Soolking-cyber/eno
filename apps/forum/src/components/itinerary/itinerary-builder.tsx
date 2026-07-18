@@ -551,6 +551,7 @@ export function ItineraryBuilder() {
   const { user, openSignIn } = useAuth()
   const [hydrated, setHydrated] = useState(false)
   const [cityIds, setCityIds] = useState<CityId[]>(['danang'])
+  const [cityDays, setCityDays] = useState<Partial<Record<CityId, number>>>({})
   const [citySearch, setCitySearch] = useState('')
   const [origin, setOrigin] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -576,6 +577,9 @@ export function ItineraryBuilder() {
 
   const selectedCities = cityIds.map((id) => CITY_MAP.get(id)).filter((city) => Boolean(city))
   const primaryCity = CITY_MAP.get(cityIds[0]) || CITIES[0]
+  const allocatedCityDays = cityIds.reduce((total, id) => total + (cityDays[id] || 0), 0)
+  const allCityDaysSet = cityIds.every((id) => cityDays[id] != null)
+  const flexibleCityCount = cityIds.filter((id) => cityDays[id] == null).length
   const availableCityGroups = useMemo<CityGroup[]>(() => CITY_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((city) => !cityIds.includes(city.id)),
@@ -583,6 +587,14 @@ export function ItineraryBuilder() {
   const endDate = addDays(startDate, days - 1)
   const minDate = useMemo(() => dateInputValueFromToday(0), [])
   const budget = BUDGETS.find((item) => item.id === budgetId) || BUDGETS[1]
+
+  useEffect(() => {
+    if (!allCityDaysSet) return
+    const total = cityIds.reduce((sum, id) => sum + (cityDays[id] || 0), 0)
+    if (total < MIN_TRIP_DAYS || total > MAX_TRIP_DAYS) return
+    daysCustomizedRef.current = true
+    setDays(total)
+  }, [allCityDaysSet, cityDays, cityIds])
 
   const toggleInterest = (id: InterestId) => setInterests((current) => {
     const next = new Set(current)
@@ -598,11 +610,19 @@ export function ItineraryBuilder() {
   const choosePrimaryCity = (city: City | null) => {
     if (!city) return
     const existingIndex = cityIds.indexOf(city.id)
+    const previousPrimary = cityIds[0]
     const next = [...cityIds]
     if (existingIndex > 0) {
       ;[next[0], next[existingIndex]] = [next[existingIndex], next[0]]
     } else {
       next[0] = city.id
+      if (previousPrimary !== city.id) {
+        setCityDays((current) => {
+          const updated = { ...current }
+          delete updated[previousPrimary]
+          return updated
+        })
+      }
     }
     setCityIds(next)
     updateSuggestedDays(next)
@@ -620,7 +640,29 @@ export function ItineraryBuilder() {
     if (cityIds.length === 1) return
     const next = cityIds.filter((cityId) => cityId !== id)
     setCityIds(next)
+    setCityDays((current) => {
+      const updated = { ...current }
+      delete updated[id]
+      return updated
+    })
     updateSuggestedDays(next)
+  }
+
+  const updateCityDays = (id: CityId, value: string) => {
+    if (value === '') {
+      setCityDays((current) => {
+        const updated = { ...current }
+        delete updated[id]
+        return updated
+      })
+      return
+    }
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return
+    setCityDays((current) => ({
+      ...current,
+      [id]: clampWholeNumber(parsed, 1, MAX_TRIP_DAYS),
+    }))
   }
 
   const moveCity = (index: number, direction: -1 | 1) => {
@@ -645,6 +687,15 @@ export function ItineraryBuilder() {
       document.getElementById('trip-origin')?.focus()
       return
     }
+    if (allocatedCityDays + flexibleCityCount > days) {
+      toast.error(tr(
+        'Destination days need room inside the total trip length. Increase the total below or lower an entered city value.',
+        'Số ngày tại các điểm đến cần nằm trong tổng thời lượng chuyến đi. Hãy tăng tổng số ngày bên dưới hoặc giảm số ngày đã nhập.',
+      ))
+      const firstAllocatedCity = cityIds.find((id) => cityDays[id] != null)
+      document.getElementById(`city-days-${firstAllocatedCity || cityIds[0]}`)?.focus()
+      return
+    }
     setState('building')
     setSavedId(null)
     try {
@@ -659,6 +710,9 @@ export function ItineraryBuilder() {
           days,
           travelers,
           cityIds,
+          cityDays: cityIds.flatMap((cityId) => cityDays[cityId] == null
+            ? []
+            : [{ cityId, days: cityDays[cityId] as number }]),
           budgetId,
           pace,
           interests: Array.from(interests),
@@ -737,43 +791,62 @@ export function ItineraryBuilder() {
           <form onSubmit={(event) => { event.preventDefault(); void buildPlan() }}>
             <div className="mt-4 space-y-5">
             <div>
-              <Field>
-                <FieldLabel htmlFor="primary-destination">{tr('Main destination', 'Điểm đến chính')}</FieldLabel>
-                <Combobox
-                  items={CITY_GROUPS}
-                  value={primaryCity}
-                  onValueChange={choosePrimaryCity}
-                  itemToStringLabel={(city: City) => tr(city.name, city.nameVi)}
-                  itemToStringValue={(city: City) => city.id}
-                  filter={cityMatchesSearch}
-                  autoHighlight
-                >
-                  <ComboboxInputGroup>
-                    <span className="ml-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">1</span>
-                    <ComboboxInput id="primary-destination" autoComplete="off" className="px-2" />
-                    <ComboboxTrigger aria-label={tr('Search destinations', 'Tìm điểm đến')} />
-                  </ComboboxInputGroup>
-                  <ComboboxContent>
-                    <ComboboxEmpty>{tr('No matching destination.', 'Không có điểm đến phù hợp.')}</ComboboxEmpty>
-                    <ComboboxList>
-                      {(group: CityGroup) => (
-                        <ComboboxGroup key={group.id} items={group.items}>
-                          <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
-                          {group.items.map((city) => (
-                            <ComboboxItem key={city.id} value={city}>
-                              <span className="flex flex-col items-start">
-                                <span className="font-semibold text-foreground">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span>
-                                <span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span>
-                              </span>
-                            </ComboboxItem>
-                          ))}
-                        </ComboboxGroup>
-                      )}
-                    </ComboboxList>
-                  </ComboboxContent>
-                </Combobox>
-                <FieldDescription>{tr('Type a city, region, or airport code.', 'Nhập thành phố, khu vực hoặc mã sân bay.')}</FieldDescription>
-              </Field>
+              <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] items-start gap-2">
+                <Field className="min-w-0">
+                  <FieldLabel htmlFor="primary-destination">{tr('Main destination', 'Điểm đến chính')}</FieldLabel>
+                  <Combobox
+                    items={CITY_GROUPS}
+                    value={primaryCity}
+                    onValueChange={choosePrimaryCity}
+                    itemToStringLabel={(city: City) => tr(city.name, city.nameVi)}
+                    itemToStringValue={(city: City) => city.id}
+                    filter={cityMatchesSearch}
+                    autoHighlight
+                  >
+                    <ComboboxInputGroup>
+                      <span className="ml-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">1</span>
+                      <ComboboxInput id="primary-destination" autoComplete="off" className="px-2" />
+                      <ComboboxTrigger aria-label={tr('Search destinations', 'Tìm điểm đến')} />
+                    </ComboboxInputGroup>
+                    <ComboboxContent>
+                      <ComboboxEmpty>{tr('No matching destination.', 'Không có điểm đến phù hợp.')}</ComboboxEmpty>
+                      <ComboboxList>
+                        {(group: CityGroup) => (
+                          <ComboboxGroup key={group.id} items={group.items}>
+                            <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
+                            {group.items.map((city) => (
+                              <ComboboxItem key={city.id} value={city}>
+                                <span className="flex flex-col items-start">
+                                  <span className="font-semibold text-foreground">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span>
+                                  <span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span>
+                                </span>
+                              </ComboboxItem>
+                            ))}
+                          </ComboboxGroup>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                  <FieldDescription>{tr('Type a city, region, or airport code.', 'Nhập thành phố, khu vực hoặc mã sân bay.')}</FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`city-days-${primaryCity.id}`}>{tr('Days', 'Số ngày')}</FieldLabel>
+                  <Input
+                    id={`city-days-${primaryCity.id}`}
+                    aria-label={tr(`Days in ${primaryCity.name}`, `Số ngày ở ${primaryCity.nameVi}`)}
+                    variant="outline"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={MAX_TRIP_DAYS}
+                    value={cityDays[primaryCity.id] ?? ''}
+                    placeholder={tr('Auto', 'Tự động')}
+                    onChange={(event) => updateCityDays(primaryCity.id, event.currentTarget.value)}
+                    className="h-11 px-2 py-0 text-center font-bold tabular-nums"
+                  />
+                  <FieldDescription>{tr('Optional', 'Tùy chọn')}</FieldDescription>
+                </Field>
+              </div>
 
               {selectedCities.length > 1 && (
                 <div className="mt-3 space-y-2" aria-label={tr('Additional route stops', 'Điểm dừng bổ sung')}>
@@ -781,6 +854,22 @@ export function ItineraryBuilder() {
                     <div key={city.id} data-testid="itinerary-route-stop" className="flex min-h-14 items-center gap-2 rounded-xl bg-tint px-3 py-2.5">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">{offset + 2}</span>
                       <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-foreground">{tr(city.name, city.nameVi)}</span><span className="block text-2xs text-body">{city.airports.join(' / ')} · {city.recommendedDays}</span></span>
+                      <label className="flex w-16 shrink-0 flex-col gap-1 text-3xs font-semibold text-body">
+                        <span className="text-center">{tr('Days', 'Số ngày')}</span>
+                        <Input
+                          id={`city-days-${city.id}`}
+                          aria-label={tr(`Days in ${city.name}`, `Số ngày ở ${city.nameVi}`)}
+                          variant="outline"
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          max={MAX_TRIP_DAYS}
+                          value={cityDays[city.id] ?? ''}
+                          placeholder={tr('Auto', 'Tự động')}
+                          onChange={(event) => updateCityDays(city.id, event.currentTarget.value)}
+                          className="h-8 w-16 px-1 py-0 text-center text-xs font-bold tabular-nums"
+                        />
+                      </label>
                       <div className="flex shrink-0 items-center">
                         <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => moveCity(offset + 1, -1)} aria-label={tr(`Move ${city.name} earlier`, `Đưa ${city.nameVi} lên trước`)}><ArrowUp className="h-3.5 w-3.5" /></IconButton>
                         <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => moveCity(offset + 1, 1)} disabled={offset + 1 === cityIds.length - 1} aria-label={tr(`Move ${city.name} later`, `Đưa ${city.nameVi} xuống sau`)}><ArrowDown className="h-3.5 w-3.5" /></IconButton>
@@ -790,6 +879,21 @@ export function ItineraryBuilder() {
                   ))}
                 </div>
               )}
+
+              <p className="mt-3 text-xs leading-relaxed text-body">
+                {tr(
+                  'Optional: enter days for each destination. Leave any box empty if you are unsure, then choose the total trip length below and eno will distribute the remaining days.',
+                  'Tùy chọn: nhập số ngày cho từng điểm đến. Nếu chưa chắc, hãy để trống và chọn tổng thời lượng chuyến đi bên dưới; eno sẽ phân bổ số ngày còn lại.',
+                )}
+                {allocatedCityDays > 0 && (
+                  <span className={cn('mt-1 block font-semibold', allocatedCityDays + flexibleCityCount > days ? 'text-destructive' : 'text-foreground')}>
+                    {tr(`${allocatedCityDays} of ${days} total days assigned.`, `Đã phân bổ ${allocatedCityDays} trong tổng số ${days} ngày.`)}
+                    {allCityDaysSet && allocatedCityDays <= MAX_TRIP_DAYS
+                      ? ` ${tr('The total trip length updates automatically.', 'Tổng thời lượng được cập nhật tự động.')}`
+                      : ''}
+                  </span>
+                )}
+              </p>
 
               {availableCityGroups.length > 0 && cityIds.length < 6 && (
                 <Field className="mt-3">

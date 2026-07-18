@@ -57,6 +57,10 @@ const requestSchema = z.object({
   days: z.number().int().min(1).max(30),
   travelers: z.number().int().min(1).max(100),
   cityIds: z.array(z.enum(cityIds)).min(1).max(6),
+  cityDays: z.array(z.object({
+    cityId: z.enum(cityIds),
+    days: z.number().int().min(1).max(30),
+  })).max(6).default([]),
   budgetId: z.enum(['smart', 'comfort', 'premium']),
   pace: z.enum(['slow', 'balanced', 'full']),
   interests: z.array(z.enum(['food', 'culture', 'nature', 'beaches', 'adventure', 'nightlife', 'wellness', 'family'])).min(1).max(8),
@@ -83,6 +87,20 @@ const requestSchema = z.object({
   }
   if (new Set(value.cityIds).size !== value.cityIds.length) {
     context.addIssue({ code: 'custom', path: ['cityIds'], message: 'Cities must be unique' })
+  }
+  const allocatedCityIds = value.cityDays.map(({ cityId }) => cityId)
+  if (new Set(allocatedCityIds).size !== allocatedCityIds.length) {
+    context.addIssue({ code: 'custom', path: ['cityDays'], message: 'City day allocations must be unique' })
+  }
+  for (const [index, allocation] of value.cityDays.entries()) {
+    if (!value.cityIds.includes(allocation.cityId)) {
+      context.addIssue({ code: 'custom', path: ['cityDays', index, 'cityId'], message: 'Allocated city must be in the selected route' })
+    }
+  }
+  const allocatedDays = value.cityDays.reduce((sum, allocation) => sum + allocation.days, 0)
+  const flexibleCities = value.cityIds.filter((cityId) => !allocatedCityIds.includes(cityId)).length
+  if (allocatedDays + flexibleCities > value.days) {
+    context.addIssue({ code: 'custom', path: ['cityDays'], message: 'City day allocations exceed the total trip length' })
   }
   if (value.flight.include && value.origin.length < 2) {
     context.addIssue({ code: 'custom', path: ['origin'], message: 'Origin is required for flight research' })
@@ -305,7 +323,12 @@ export async function POST(request: Request) {
   if (!ai) return forumJson(request, { error: 'ai_unavailable' }, { status: 503 }, 'POST, OPTIONS')
 
   const input = parsed.data
-  const cities = input.cityIds.map((id) => ({ id, ...CITY_CATALOG[id] }))
+  const requestedDays = new Map(input.cityDays.map(({ cityId, days }) => [cityId, days]))
+  const cities = input.cityIds.map((id) => ({
+    id,
+    ...CITY_CATALOG[id],
+    requestedDays: requestedDays.get(id) ?? null,
+  }))
   const start = new Date(`${input.startDate}T00:00:00.000Z`)
   const end = new Date(start)
   end.setUTCDate(end.getUTCDate() + input.days - 1)
@@ -337,16 +360,17 @@ ${JSON.stringify({
 
 Planning rules:
 1. Produce exactly ${input.days} numbered day objects with the correct consecutive dates from ${input.startDate} through ${end.toISOString().slice(0, 10)}.
-2. Respect the selected city order unless changing it materially reduces backtracking; explain any change in routeRationale. Do not force every city if the trip is too short—identify the least disruptive omission in assumptions.
-3. Keep arrival and transfer days lighter. Account for airport buffers, hotel check-in, traffic, heat, rain, and recovery time.
-4. Each morning/afternoon/evening block must name a real place or clearly described flexible activity, include travel time from the prior stop, an honest VND cost estimate, and actionable booking advice.
-5. Recommend one or two strong hotels per city and no more than six total, matching the accommodation style and budget. URLs must be direct official hotel/operator/airline pages or reputable search pages found during research; use an empty string when uncertain.
-6. Flight options are research leads, not inventory. If flights are requested, search the requested dates and return no more than four useful options total, including only essential domestic legs. Never claim a seat or fare is available. Use 0 for a fare you cannot verify and say why in fareNote. If flights are not requested, return an empty flights array.
-7. Prices must be ranges, not false precision. Budget totals must distinguish whether researched flights are included.
-8. Prefer official tourism sites, airports, airlines, rail/bus operators, hotels, and attraction operators as sources. Avoid SEO itinerary farms when a primary source exists.
-9. Do not recommend unsafe, illegal, exploitative, or animal-harm activities. Mention material mobility or safety limitations plainly.
-10. Be concise and avoid repeating facts across fields. Keep summary, routeRationale, budget.note, practical items, checklist reasons, fare notes, stay reasons, and booking advice to one short sentence each. Activity details may use at most two short sentences. Return three to six bookingChecklist items and no more than four material assumptions.
-11. The JSON must stand on its own without markdown or citations embedded in text; research sources are attached separately by the API.`
+2. Respect the selected city order unless changing it materially reduces backtracking; explain any change in routeRationale. Include every selected city.
+3. A city's requestedDays value is the traveler's fixed allocation: assign exactly that many numbered days to that city. Distribute all remaining days sensibly among cities whose requestedDays is null. Count a transfer day toward the city where the traveler spends most of that day.
+4. Keep arrival and transfer days lighter. Account for airport buffers, hotel check-in, traffic, heat, rain, and recovery time.
+5. Each morning/afternoon/evening block must name a real place or clearly described flexible activity, include travel time from the prior stop, an honest VND cost estimate, and actionable booking advice.
+6. Recommend one or two strong hotels per city and no more than six total, matching the accommodation style and budget. URLs must be direct official hotel/operator/airline pages or reputable search pages found during research; use an empty string when uncertain.
+7. Flight options are research leads, not inventory. If flights are requested, search the requested dates and return no more than four useful options total, including only essential domestic legs. Never claim a seat or fare is available. Use 0 for a fare you cannot verify and say why in fareNote. If flights are not requested, return an empty flights array.
+8. Prices must be ranges, not false precision. Budget totals must distinguish whether researched flights are included.
+9. Prefer official tourism sites, airports, airlines, rail/bus operators, hotels, and attraction operators as sources. Avoid SEO itinerary farms when a primary source exists.
+10. Do not recommend unsafe, illegal, exploitative, or animal-harm activities. Mention material mobility or safety limitations plainly.
+11. Be concise and avoid repeating facts across fields. Keep summary, routeRationale, budget.note, practical items, checklist reasons, fare notes, stay reasons, and booking advice to one short sentence each. Activity details may use at most two short sentences. Return three to six bookingChecklist items and no more than four material assumptions.
+12. The JSON must stand on its own without markdown or citations embedded in text; research sources are attached separately by the API.`
 
   try {
     const attempts = Array.from(new Set([GEMINI_ITINERARY_MODEL, GEMINI_ITINERARY_FALLBACK_MODEL]))

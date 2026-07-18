@@ -401,8 +401,19 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
           {renderNav({ href: '/dashboard/help', label: tr('Help', 'Trợ giúp'), icon: CircleHelp })}
 
           {/* Language + theme — quiet device prefs. Only meaningful expanded (a horizontal control has
-              no collapsed icon form), so it's hidden on the collapsed desktop rail; full on mobile. */}
-          <div className={cn('px-1 pt-1', expanded ? 'lg:block' : 'lg:hidden')}><PreferencesInline compact className="w-full" /></div>
+              no collapsed icon form), so it's hidden on the collapsed desktop rail; full on mobile.
+              MOBILE (owner 2026-07-18): sign-out rides THIS row, right of the theme toggle — the
+              full-width destructive row below is desktop-only. */}
+          <div className={cn('flex items-center gap-2 px-1 pt-1 lg:block', expanded ? 'lg:block' : 'lg:hidden')}>
+            <PreferencesInline compact className="min-w-0 flex-1 lg:w-full" />
+            <IconButton
+              onClick={() => { onClose(); signOut() }}
+              aria-label={tr('Sign out', 'Đăng xuất')}
+              className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive lg:hidden"
+            >
+              <LogOut className="h-5 w-5" strokeWidth={2} />
+            </IconButton>
+          </div>
 
           <Tooltip content={expanded ? undefined : tr('Sign out', 'Đăng xuất')} side="right">
             <Button
@@ -410,7 +421,7 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
               size="none"
               onClick={() => { onClose(); signOut() }}
               aria-label={tr('Sign out', 'Đăng xuất')}
-              className={cn(navItem(false), 'text-destructive hover:bg-destructive/10 hover:text-destructive')}
+              className={cn(navItem(false), 'max-lg:hidden text-destructive hover:bg-destructive/10 hover:text-destructive')}
             >
               <LogOut className="h-5 w-5 shrink-0" strokeWidth={2} />
               <span className={labelCls}>{tr('Sign out', 'Đăng xuất')}</span>

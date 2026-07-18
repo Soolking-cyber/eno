@@ -165,12 +165,24 @@ test.describe('eno.forum itinerary builder', () => {
     await expect(primaryDestination).toHaveValue('Da Nang')
     await expect(page.getByTestId('itinerary-route-stop')).toHaveCount(0)
     await expect(daysInput).toHaveValue('4')
+    await expect(page.getByRole('spinbutton', { name: /Days in Da Nang/i })).toHaveValue('')
     await expect(page.getByRole('combobox', { name: /Departure city or airport/i })).toHaveCount(0)
 
     await addDestination.fill('HUI')
     await addDestination.press('Enter')
     await expect(page.getByTestId('itinerary-route-stop')).toContainText('Hue')
     await expect(daysInput).toHaveValue('6')
+    const daNangDays = page.getByRole('spinbutton', { name: /Days in Da Nang/i })
+    const hueDays = page.getByRole('spinbutton', { name: /Days in Hue/i })
+    await expect(hueDays).toHaveValue('')
+    await daNangDays.fill('2')
+    await expect(daysInput).toHaveValue('6')
+    await hueDays.fill('3')
+    await expect(daysInput).toHaveValue('5')
+    await expect(page.getByText(/5 of 5 total days assigned/i)).toBeVisible()
+    await expect(page.getByText(/total trip length updates automatically/i)).toBeVisible()
+    await hueDays.fill('')
+    await expect(daysInput).toHaveValue('5')
 
     await primaryDestination.fill('SGN')
     await primaryDestination.press('Enter')
@@ -184,7 +196,9 @@ test.describe('eno.forum itinerary builder', () => {
   })
 
   test('builds a researched, responsive itinerary from granular controls', async ({ page }) => {
+    let generationPayload: { cityDays?: Array<{ cityId: string; days: number }> } | undefined
     await page.route('**/api/itineraries/generate', async (route) => {
+      generationPayload = route.request().postDataJSON() as typeof generationPayload
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockResult) })
     })
 
@@ -199,9 +213,12 @@ test.describe('eno.forum itinerary builder', () => {
     await page.getByRole('combobox', { name: /Departure city or airport/i }).fill('Singapore (SIN)')
     await page.getByRole('combobox', { name: /Departure city or airport/i }).press('Enter')
     await page.getByRole('radio', { name: /Premium/i }).click()
+    await page.getByRole('spinbutton', { name: /Days in Da Nang/i }).fill('2')
+    await expect(page.getByRole('spinbutton', { name: /Enter trip length in days/i })).toHaveValue('2')
     await page.getByRole('slider', { name: /Trip length/i }).press('Home')
     await page.getByRole('slider', { name: /Trip length/i }).press('ArrowRight')
     await page.getByTestId('build-itinerary').click()
+    expect(generationPayload?.cityDays).toEqual([{ cityId: 'danang', days: 2 }])
 
     await expect(page.getByRole('heading', { name: /Four thoughtful days/i })).toBeVisible()
     await expect(page.getByRole('heading', { level: 1, name: /A Vietnam itinerary that survives reality/i })).toHaveCount(0)

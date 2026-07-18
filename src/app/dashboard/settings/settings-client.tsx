@@ -16,7 +16,6 @@ import { ChangeEmailForm } from '@/components/marketplace/change-email-form'
 import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switcher'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { DeleteAccount } from '@/components/marketplace/delete-account'
-import { PreferencesInline } from '@/components/marketplace/preferences-inline'
 import { SectionHeader } from '@/components/marketplace/section-header'
 
 /** /dashboard/settings — the full account settings, one section per area (identical set
@@ -91,11 +90,6 @@ export function SettingsClient() {
           <section>
             <h2 className="text-sm font-bold text-foreground">{tr('Reminders', 'Nhắc nhở')}</h2>
             <div className="mt-3"><ReminderSettings /></div>
-          </section>
-
-          <section>
-            <h2 className="text-sm font-bold text-foreground">{tr('Device preferences', 'Tùy chọn thiết bị')}</h2>
-            <div className="mt-3"><PreferencesInline /></div>
           </section>
 
           {/* Consent withdrawal (PDPL): the footer's "Cookie settings" link is the other
