@@ -2,6 +2,7 @@ import { PrismaClient, type Prisma } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { TAXONOMY, categoryHasBrand, type CategoryDef, type ListingType } from '../src/lib/taxonomy'
 import { buildSearchText } from '../src/lib/fold'
+import { rankScoreExprSql } from '../src/lib/ranking-formula'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MOCK SEED — builds the full taxonomy (15 categories) and HUNDREDS of mock
@@ -382,12 +383,11 @@ async function main() {
   // ranks identically to production (the feed sorts on Listing.sellerTrustScore, a
   // local column — see src/lib/trust.ts for the live dual-write).
   await db.$executeRawUnsafe(`UPDATE "Listing" l SET "sellerTrustScore" = s."trustScore" FROM "Seller" s WHERE l."sellerId" = s.id`)
-  // Then compute the balanced feed rankScore (trust⊕recency blend) — mirror of the SQL in
-  // src/lib/ranking.ts so a fresh seed has the same ORDER BY rankScore the API uses.
-  await db.$executeRawUnsafe(`UPDATE "Listing" SET "rankScore" =
-     0.5 * LEAST(GREATEST(("sellerTrustScore"::float - 40) / 120, 0), 1)
-     + 0.5 * EXP(- GREATEST(EXTRACT(EPOCH FROM (now() - "postedAt")), 0) / 86400.0 / 14)
-     + CASE WHEN "featured" THEN 0.15 ELSE 0 END`)
+  // Then compute the balanced feed rankScore from the SINGLE-SOURCE expression
+  // (src/lib/ranking-formula.ts — audit Phase 1: this block had drifted to the
+  // ancient 0.5/0.5 trust+recency blend with no demand term and the retired
+  // floor-40/span-120 calibration; a fresh seed ranked differently than the API).
+  await db.$executeRawUnsafe(`UPDATE "Listing" SET "rankScore" = ${rankScoreExprSql()}`)
 
   console.log(`Done. ${TAXONOMY.length} categories, ${uniqBrands.size} brands, ${sellerSeeds.length} sellers, ${rows.length} listings.`)
 }
