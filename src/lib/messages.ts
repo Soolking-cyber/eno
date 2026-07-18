@@ -71,8 +71,11 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       const senderName = sender?.displayName || maskEmailHandle(sender?.email) || 'Someone'
       // Offer bodies are empty (the offer line is derived from offerAmount at render
       // time) — build the notification text from the structured amount + any note.
+      // Persisted copy is BILINGUAL-composite (the price-drop.ts idiom): notification
+      // and push bodies are stored server-side, where tr() can't run at render time —
+      // an EN-only string violated the i18n invariant on a money surface (audit P1 #6).
       const notifText = opts?.offerAmount != null
-        ? `Offered ${formatMoneyFull(opts.offerAmount, '₫')}${text ? ` — ${text}` : ''}`
+        ? `Trả giá · Offered ${formatMoneyFull(opts.offerAmount, '₫')}${text ? ` — ${text}` : ''}`
         : text
       await db.notification.create({
         data: {
@@ -129,7 +132,11 @@ export async function actOnOffer(
 
   // Confirmation line in the timeline (plain text → broadcasts to both sides).
   const amt = offer.offerAmount != null ? formatMoneyFull(offer.offerAmount, '₫') : ''
-  const text = action === 'accept' ? `✅ Offer accepted${amt ? ` — ${amt}` : ''}` : `❌ Offer declined${amt ? ` — ${amt}` : ''}`
+  // Bilingual composite — this line PERSISTS into Message.body (and the bell/push
+  // below), so it can't be tr()'d at display time (audit P1 #6).
+  const text = action === 'accept'
+    ? `✅ Đã chấp nhận · Offer accepted${amt ? ` — ${amt}` : ''}`
+    : `❌ Đã từ chối · Offer declined${amt ? ` — ${amt}` : ''}`
   await insertMessage(convo, actorId, text)
 
   // Notify the offerer of the outcome (offers are high-signal → bell + push).
