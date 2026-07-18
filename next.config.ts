@@ -100,12 +100,17 @@ const nextConfig: NextConfig = {
       // main post-XSS exfiltration brake, and a wildcard would let stolen data POST to any
       // attacker-owned Supabase project. *.googleusercontent.com = Google account avatars
       // (OAuth sign-in) — without it they render as a broken-image icon.
-      "img-src 'self' data: blob: https://xihiryllwmjoouipkyhw.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com",
+      "img-src 'self' capacitor: data: blob: https://xihiryllwmjoouipkyhw.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com",
       // <video> sources for listing videos: our public bucket + blob: (the wizard's
       // client-side preview object URL). Without this, default-src 'self' blocks playback.
       "media-src 'self' blob: https://xihiryllwmjoouipkyhw.supabase.co",
       "font-src 'self' data:",
-      "connect-src 'self' https://xihiryllwmjoouipkyhw.supabase.co wss://xihiryllwmjoouipkyhw.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
+      // `capacitor:` (img+connect): the iOS shell's Camera picker returns capacitor://
+      // webPaths that the post wizard fetch()es into Files — without the scheme the CSP
+      // silently killed every picked photo IN-APP on iOS (Android rides the same-origin
+      // /_capacitor_file_/ path, hence 'self' sufficed there). Browsers can't reach the
+      // scheme, so the web surface is unchanged.
+      "connect-src 'self' capacitor: https://xihiryllwmjoouipkyhw.supabase.co wss://xihiryllwmjoouipkyhw.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
       "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com",
       "worker-src 'self' blob:",
       "manifest-src 'self'",
