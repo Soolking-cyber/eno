@@ -2,6 +2,7 @@ import 'server-only'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { bulkImportCore, rehostListingImage, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
+import { bulkPostingBudget } from '@/lib/enforcement'
 import { updateListingCore, setStatusCore } from '@/lib/core/listings'
 import { removeFromIndex } from '@/lib/listing-index'
 import { dispatchListingEventsBatch } from '@/lib/webhooks'
@@ -32,10 +33,23 @@ const VALID_STATUS = new Set(['active', 'sold', 'hidden'])
 const cleanExt = (v: unknown) => (v != null ? String(v).trim().slice(0, 128) : '')
 
 export async function syncListingsCore(
-  seller: { id: string; trustTier: string; trustScore: number },
+  seller: { id: string; ownerId?: string | null; trustTier: string; trustScore: number },
   rows: SyncRow[],
   mode: 'partial' | 'full',
 ): Promise<{ created: number; updated: number; retired: number; failed: number; results: SyncRowResult[] }> {
+  // Enforcement ladder in the core (audit P0 #3): a held/suspended seller must not
+  // create, re-activate, or otherwise manage listings through sync — from ANY caller
+  // (route, MCP, future). Creations additionally inherit the probation create-budget
+  // via bulkImportCore below (seller.ownerId passes through).
+  if (seller.ownerId) {
+    const budget = await bulkPostingBudget(seller.ownerId, seller.id)
+    if (budget.blocked) {
+      return {
+        created: 0, updated: 0, retired: 0, failed: rows.length,
+        results: rows.map((row) => ({ external_id: cleanExt(row.externalId ?? row.external_id) || null, action: 'failed' as const, error: budget.blocked!.error })),
+      }
+    }
+  }
   const results: SyncRowResult[] = []
 
   // Every row must carry an externalId (the upsert key, camelCase or snake_case). Rows

@@ -6,6 +6,7 @@ import { containsContactInfo, findBannedWord, MIN_IMAGE_ANGLES } from '@/lib/pub
 import { countDistinctAngles } from '@/lib/image-hash-url'
 import { buildSearchText, fold } from '@/lib/fold'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
+import { bulkPostingBudget } from '@/lib/enforcement'
 import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { safeFetch } from '@/lib/ssrf'
@@ -48,9 +49,29 @@ async function rehost(url: string): Promise<string | null> {
 }
 
 export async function bulkImportCore(
-  seller: { id: string; trustTier: string; trustScore: number },
+  seller: { id: string; ownerId?: string | null; trustTier: string; trustScore: number },
   rows: BulkRow[],
 ): Promise<{ created: number; failed: number; results: BulkRowResult[]; imageBudgetReached: boolean }> {
+  // Enforcement ladder lives IN the core (audit P0 #3 + review): every caller — the
+  // session route, /api/v1, the MCP tools, anything future — is covered here, not just
+  // the routes. Held/suspended → the whole batch fails with the stable code; probation
+  // → only the remaining active-listing budget may be created (cap enforced per-row
+  // below, so a 7-active probation account can't bulk 200 past the cap of 8).
+  let createBudget = Infinity
+  if (seller.ownerId) {
+    const budget = await bulkPostingBudget(seller.ownerId, seller.id)
+    if (budget.blocked) {
+      return {
+        created: 0,
+        failed: rows.length,
+        results: rows.map((_, i) => ({ row: i + 1, error: budget.blocked!.error })),
+        imageBudgetReached: false,
+      }
+    }
+    if (budget.maxNewActive != null) createBudget = budget.maxNewActive
+  }
+  let createdCount = 0
+
   // Resolve all referenced categories once.
   const slugs = [...new Set(rows.map((r) => String(r.category_slug || '').trim()).filter(Boolean))]
   const cats = await db.category.findMany({ where: { slug: { in: slugs } }, select: { id: true, slug: true, name: true, nameVi: true } })
@@ -122,6 +143,11 @@ export async function bulkImportCore(
       if (countDistinctAngles(hosted) < MIN_IMAGE_ANGLES) {
         results.push({ row: rowNo, error: `Needs at least ${MIN_IMAGE_ANGLES} photos from different angles` }); continue
       }
+      // Probation cap: creations beyond the remaining active-listing budget fail with
+      // the same stable code the single-create gate uses.
+      if (createdCount >= createBudget) {
+        results.push({ row: rowNo, error: 'probation_listing_cap' }); continue
+      }
       const listing = await db.listing.create({
         data: {
           title, description, price, priceUnit: 'VND', currency: '₫', negotiable: true,
@@ -135,6 +161,7 @@ export async function bulkImportCore(
         select: { id: true },
       })
       results.push({ row: rowNo, id: listing.id, ...(r.external_id ? { external_id: String(r.external_id).trim() } : {}) })
+      createdCount++
       warm.push(title, description)
     } catch {
       results.push({ row: rowNo, error: 'Failed to create' })

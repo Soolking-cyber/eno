@@ -611,6 +611,27 @@ export async function postingGate(profileId: string, sellerId: string): Promise<
 }
 
 /**
+ * Batch variant for the bulk/sync cores (audit P0 #3 follow-through): the single
+ * postingGate is a preflight, so a probation seller at 7 active could still bulk-create
+ * 200. This returns the remaining CREATE budget so the cores can cap inside the loop —
+ * and, living in the cores, it covers every caller (routes, MCP tools, future API).
+ * maxNewActive null = uncapped (not probation).
+ */
+export async function bulkPostingBudget(profileId: string, sellerId: string): Promise<{ blocked: GateError | null; maxNewActive: number | null }> {
+  const { state } = await getEnforcement(profileId)
+  if (blocksPosting(state)) {
+    return { blocked: { error: state === 'suspended' ? 'account_suspended' : 'account_held' }, maxNewActive: 0 }
+  }
+  const profile = await db.profile.findUnique({ where: { id: profileId }, select: { createdAt: true } })
+  if (!profile) return { blocked: null, maxNewActive: null }
+  const ageDays = (Date.now() - profile.createdAt.getTime()) / DAY_MS
+  if (ageDays >= ENFORCEMENT.PROBATION.MIN_ACCOUNT_AGE_DAYS) return { blocked: null, maxNewActive: null }
+  if (!isProbation(ageDays, await sellerTransactionCount(sellerId))) return { blocked: null, maxNewActive: null }
+  const active = await db.listing.count({ where: { sellerId, status: 'active' } })
+  return { blocked: null, maxNewActive: Math.max(0, ENFORCEMENT.PROBATION.MAX_ACTIVE_LISTINGS - active) }
+}
+
+/**
  * Gate for POST /api/conversations: suspended blocks all conversation activity;
  * a probation account may INITIATE at most 15 new conversations per day (the route
  * exempts existing threads — the cap is on new outreach, not on replying).

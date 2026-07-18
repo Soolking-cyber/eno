@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { bulkImportCore, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
+import { postingGate } from '@/lib/enforcement'
 import { dispatchListingEventsBatch } from '@/lib/webhooks'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
@@ -41,8 +42,15 @@ export async function POST(req: NextRequest) {
     if (!raw || raw.length === 0) return { status: 422, body: { error: { code: 'invalid_input', message: 'Provide a non-empty `listings` array.' } } }
     if (raw.length > BULK_MAX_ROWS) return { status: 422, body: { error: { code: 'too_many_rows', message: `At most ${BULK_MAX_ROWS} listings per call.` } } }
 
-    const seller = await db.seller.findUnique({ where: { id: r.auth.sellerId }, select: { id: true, trustTier: true, trustScore: true } })
+    const seller = await db.seller.findUnique({ where: { id: r.auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
     if (!seller) return { status: 404, body: { error: { code: 'not_found', message: 'Shop not found.' } } }
+
+    // Enforcement ladder — the same gate single-listing POST runs (audit P0 #3: without
+    // it a held/suspended seller could mass-restore their pulled catalog via the API).
+    if (seller.ownerId) {
+      const gate = await postingGate(seller.ownerId, seller.id)
+      if (gate) return { status: 403, body: { error: { code: gate.error, message: 'Posting is blocked for this account right now.' } } }
+    }
 
     const rows = raw.map((x) => toBulkRow((x ?? {}) as Record<string, unknown>))
     const result = await bulkImportCore(seller, rows)

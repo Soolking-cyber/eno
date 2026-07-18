@@ -11,6 +11,7 @@ import { createListingCore, updateListingCore, setStatusCore, deleteListingCore 
 import { bulkImportCore, rehostListingImage, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
 import { syncListingsCore, SYNC_MAX_ROWS, type SyncRow } from '@/lib/core/sync'
 import { updateSellerCore } from '@/lib/core/seller'
+import { postingGate } from '@/lib/enforcement'
 import { getListingAnalytics } from '@/lib/listing-analytics'
 import { dispatchListingEventsBatch, generateWebhookSecret } from '@/lib/webhooks'
 import { after } from 'next/server'
@@ -122,8 +123,14 @@ export const TOOLS: McpTool[] = [
       if (containsPhoneNumber(title) || containsPhoneNumber(String(args.description || ''))) throw new ToolError('no_phone_in_listing', 'Phone numbers are not allowed in the title or description.')
       const category = await db.category.findUnique({ where: { slug: String(args.categorySlug || '') }, select: { id: true, slug: true, name: true, nameVi: true } })
       if (!category) throw new ToolError('unknown_category', `Unknown category "${args.categorySlug}".`)
-      const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, trustTier: true, trustScore: true, phone: true } })
+      const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true, phone: true } })
       if (!seller) throw new ToolError('not_found', 'Shop not found.')
+      // Enforcement ladder — same gate as POST /api/listings (audit P0 #3: the MCP
+      // path called createListingCore ungated, so a held seller could post here).
+      if (seller.ownerId) {
+        const gate = await postingGate(seller.ownerId, seller.id)
+        if (gate) throw new ToolError(gate.error, 'Posting is blocked for this account right now.')
+      }
       const images = await rehostAll(args.images as string[] | undefined)
       const body = { description: args.description, images, district: args.district, condition: args.condition, negotiable: args.negotiable, listingType: args.listingType, brand: args.brand, model: args.model }
       const created = await createListingCore({ seller, category, title, price, body, headers: new Headers() })
@@ -177,7 +184,7 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:write',
     input: z.object({ listings: z.array(listingItem).min(1).max(BULK_MAX_ROWS) }),
     handler: async (auth, args) => {
-      const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, trustTier: true, trustScore: true } })
+      const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
       if (!seller) throw new ToolError('not_found', 'Shop not found.')
       const rows: BulkRow[] = (args.listings as z.infer<typeof listingItem>[]).map((x) => ({
         category_slug: x.categorySlug, title: x.title, description: x.description, price: x.price, district: x.district, condition: x.condition,
@@ -195,7 +202,7 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:write',
     input: z.object({ mode: z.enum(['partial', 'full']).optional(), listings: z.array(listingItem.extend({ externalId: z.string(), status: z.enum(['active', 'sold', 'hidden']).optional() })).min(1).max(SYNC_MAX_ROWS) }),
     handler: async (auth, args) => {
-      const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, trustTier: true, trustScore: true } })
+      const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
       if (!seller) throw new ToolError('not_found', 'Shop not found.')
       const mode = args.mode === 'full' ? 'full' : 'partial'
       return syncListingsCore(seller, args.listings as SyncRow[], mode)

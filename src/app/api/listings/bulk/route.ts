@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
+import { postingGate } from '@/lib/enforcement'
 import { rateLimit } from '@/lib/ratelimit'
 import { bulkImportCore, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
 
@@ -21,8 +22,15 @@ export async function POST(req: NextRequest) {
   const rl = await rateLimit('bulk-import', profile.id, 10, '1 h')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
-  const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, trustTier: true, trustScore: true } })
+  const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
   if (!seller) return NextResponse.json({ error: 'no_storefront' }, { status: 403 })
+
+  // Enforcement ladder — same gate as single-listing POST (stable codes the wizard
+  // already maps: account_held | account_suspended | probation_listing_cap). Without
+  // it, a scam-held/suspended seller could mass-restore their pulled catalog through
+  // bulk import, defeating the exact scenario the ladder exists for (audit P0 #3).
+  const gate = await postingGate(profile.id, seller.id)
+  if (gate) return NextResponse.json(gate, { status: 403 })
 
   let body: { rows?: BulkRow[] }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
