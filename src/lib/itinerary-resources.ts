@@ -32,6 +32,15 @@ export type ItineraryResourceGroup = {
   resources: ItineraryResource[]
 }
 
+// Render-layer scheme allowlist (audit Phase 1 defense-in-depth): every AI-origin
+// url (flights/stays/sources) is safeUrl'd at generation time, but THIS builder is
+// the last gate before <a href> — a javascript:/data: url must never survive it,
+// whatever upstream produced.
+const SAFE_SCHEMES = /^(https?:|mailto:)/i
+function safeHrefOnly(resources: ItineraryResource[]) {
+  return resources.filter((resource) => SAFE_SCHEMES.test(resource.url.trim()))
+}
+
 function uniqueResources(resources: ItineraryResource[]) {
   const seen = new Set<string>()
   return resources.filter((resource) => {
@@ -137,7 +146,7 @@ export function buildItineraryResourceGroups(result: GeneratedItineraryResponse)
     },
   ]
 
-  const planResources = uniqueResources([
+  const planResources = uniqueResources(safeHrefOnly([
     ...plan.flights.filter((flight) => flight.url).map((flight): ItineraryResource => ({
       title: flight.label,
       titleVi: flight.label,
@@ -154,7 +163,7 @@ export function buildItineraryResourceGroups(result: GeneratedItineraryResponse)
       url: stay.url,
       kind: 'stay',
     })),
-  ])
+  ]))
 
   const places = uniqueResources(plan.days.flatMap((day) => [day.morning, day.afternoon, day.evening]).flatMap((activity) => {
     const place = activity.place.trim()
@@ -169,14 +178,14 @@ export function buildItineraryResourceGroups(result: GeneratedItineraryResponse)
     }]
   }))
 
-  const sources = uniqueResources(result.sources.map((source): ItineraryResource => ({
+  const sources = uniqueResources(safeHrefOnly(result.sources.map((source): ItineraryResource => ({
     title: source.title || source.domain,
     titleVi: source.title || source.domain,
     description: source.domain,
     descriptionVi: source.domain,
     url: source.url,
     kind: 'source',
-  })))
+  }))))
 
   return [
     {
