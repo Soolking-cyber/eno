@@ -199,8 +199,17 @@ export async function updateListingCore(
   // rejected edit (banned word, failed transaction).
   let evictOldVideo: string | null = null
   if (body.video !== undefined) {
-    data.video = isCanonicalVideoUrl(body.video) ? body.video : null
-    if (current.video && current.video !== data.video) evictOldVideo = current.video
+    // Contract (comment above): invalid values are IGNORED, not persisted. The old
+    // ternary treated a malformed/foreign url as an EXPLICIT CLEAR — a partner-API
+    // typo silently deleted (and evicted!) the listing's live clip (audit P2).
+    // null/'' remain the explicit clear.
+    if (body.video === null || body.video === '') {
+      data.video = null
+      if (current.video) evictOldVideo = current.video
+    } else if (isCanonicalVideoUrl(body.video)) {
+      data.video = body.video
+      if (current.video && current.video !== data.video) evictOldVideo = current.video
+    }
   }
 
   // Subcategory — must belong to the listing's (unchanged) category.
