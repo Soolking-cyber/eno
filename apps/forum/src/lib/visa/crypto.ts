@@ -2,15 +2,36 @@ import 'server-only'
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 import { visaPayloadSchema, type VisaPayload } from '@/lib/visa/schema'
 
+// AES-256-GCM envelopes keyed by VISA_DATA_ENCRYPTION_KEY. The envelope format AND the
+// AAD string below are a cross-app contract — eno.vn decrypts these rows too.
+
 type Envelope = { v: 1; alg: 'A256GCM'; iv: string; tag: string; ciphertext: string }
+// ⚠️ INTEROP: this AAD is baked into every existing ciphertext. It says "eno-forum"
+// because the forum wrote the first envelopes — do NOT "rebrand" it to eno.vn or every
+// stored payload becomes undecryptable.
 const AAD = Buffer.from('eno-forum:visa-payload:v1')
 
-function key(): Buffer {
+function keyOrNull(): Buffer | null {
   const raw = process.env.VISA_DATA_ENCRYPTION_KEY?.trim()
-  if (!raw) throw new Error('visa_encryption_not_configured')
+  if (!raw) return null
   const result = /^[0-9a-f]{64}$/i.test(raw) ? Buffer.from(raw, 'hex') : Buffer.from(raw, 'base64')
-  if (result.length !== 32) throw new Error('visa_encryption_key_invalid')
+  return result.length === 32 ? result : null
+}
+
+function key(): Buffer {
+  const result = keyOrNull()
+  if (!result) {
+    // Distinguish absent from malformed only in the thrown code; both fail closed.
+    if (!process.env.VISA_DATA_ENCRYPTION_KEY?.trim()) throw new Error('visa_encryption_not_configured')
+    throw new Error('visa_encryption_key_invalid')
+  }
   return result
+}
+
+/** True when a usable 32-byte key is present — the env gate every payload route checks
+ *  BEFORE touching a ciphertext, so the UI can render the honest unconfigured state. */
+export function visaCryptoReady(): boolean {
+  return keyOrNull() !== null
 }
 
 export function encryptVisaPayload(payload: VisaPayload): string {
