@@ -3,6 +3,10 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  // Playwright's canonical local base URL uses 127.0.0.1 while Next binds the
+  // dev server as localhost. Allow that loopback host so the development HMR
+  // request cannot block client hydration during the browser suite.
+  allowedDevOrigins: ['127.0.0.1'],
   experimental: {
     inlineCss: true,
     optimizePackageImports: ['lucide-react'],
@@ -12,6 +16,9 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [{ source: '/forum', destination: '/', permanent: true }]
+  },
+  async rewrites() {
+    return [{ source: '/.well-known/apple-app-site-association', destination: '/api/well-known/aasa' }]
   },
   async headers() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://*.supabase.co'

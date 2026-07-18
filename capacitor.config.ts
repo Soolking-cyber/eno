@@ -9,13 +9,18 @@ const config: CapacitorConfig = {
   appId: 'vn.eno.app',
   appName: 'eno',
   webDir: 'capacitor/www',
+  // The cross-origin app-mode signal — Android does not inject Capacitor into non-server origins,
+  // so eno.forum detects the app via UA, server- and client-side.
+  appendUserAgent: 'EnoNativeApp/1',
   server: {
     // The one URL the app renders. For LOCAL native dev, override to your machine's LAN IP
     // (http://192.168.x.x:3100 + cleartext:true) — a dev-only change, never committed.
     url: 'https://eno.vn',
     cleartext: false,
     // First-party links stay in the WebView; everything else opens in the system browser.
-    allowNavigation: ['eno.vn', 'www.eno.vn'],
+    // First-party only — iOS injects the full Capacitor bridge into every allowNavigation origin,
+    // so NEVER add third-party hosts.
+    allowNavigation: ['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum'],
     // If the remote load FAILS (offline / dropped connection), show a branded offline page from the
     // local webDir instead of a blank WebView. It auto-retries + offers a "Try again" button. The
     // MainViewController watchdog still backstops the pure-blank (-1005) case.

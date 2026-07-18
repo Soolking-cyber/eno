@@ -1,12 +1,13 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { createContext, Fragment, useCallback, useContext, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   X, Store, Settings, Scale, CircleHelp, LogOut,
   MessageSquareText, Heart, Upload, Code2, UsersRound, PanelLeft,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Home,
+  ListChecks, Route, FileCheck2, LayoutDashboard,
 } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
@@ -22,6 +23,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { useDashboard } from '@/hooks/use-dashboard'
+import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 
 // LEFT account/dashboard NAV RAIL — Gemini "collapsed-by-default, expand-on-hover" model
 // (owner 2026-07-17). DESKTOP: a narrow 72px column of crisp icons on the LEFT edge; hovering
@@ -45,8 +47,6 @@ const Ctx = createContext<{
   setExpanded: Dispatch<SetStateAction<boolean>>
 }>({ open: false, setOpen: () => {}, openTo: () => {}, expanded: false, setExpanded: () => {} })
 export const useAccountPanel = () => useContext(Ctx)
-
-const FORUM_URL = process.env.NEXT_PUBLIC_FORUM_URL || '/forum'
 
 export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -219,7 +219,8 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
 
   // Plain render fn (NOT a nested component — that would remount the subtree each render). Reused
   // for the middle routing AND the Settings/Help rows in the bottom cluster.
-  const renderNav = (it: { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean }) => {
+  type RailItem = { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean; forumPath?: string }
+  const renderNav = (it: RailItem) => {
     const Icon = it.icon
     const isOn = active(it.href, it.exact)
     const badgeLabel = it.badge && it.badge > 0 ? (it.badge > 9 ? '9+' : String(it.badge)) : null
@@ -240,7 +241,22 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         )}
       </>
     )
-    const el = it.external ? (
+    const el = it.forumPath !== undefined ? (
+      // Cross-site (eno.forum) row. The href stays a REAL plain URL for a11y / middle-click /
+      // cmd-click; a normal left-click is intercepted so goToForum can route natives through the
+      // single-use SSO handoff (web just location.assigns the same URL). Never prefetched.
+      <a
+        href={it.href}
+        aria-label={it.label}
+        onClick={(e) => {
+          if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+          e.preventDefault()
+          closeOnMobile()
+          void goToForum(it.forumPath!)
+        }}
+        className={navItem(false)}
+      >{inner}</a>
+    ) : it.external ? (
       <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={it.label} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</a>
     ) : (
       <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={it.label} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</Link>
@@ -256,33 +272,55 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   // the seller/user nav. Only admins can reach /admin (server-gated on every route), so keying off
   // the path is safe. Settings + Help + Sign out stay in the bottom cluster for both.
   const inAdmin = pathname?.startsWith('/admin') ?? false
-  const NAV: { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean }[] = inAdmin
+  // UNIFIED RAIL HIERARCHY (owner): the SAME two groups, same order, mirrored on eno.forum's rail —
+  // Marketplace (internal here) then Community (cross-site to eno.forum, via goToForum). Group
+  // visibility is identical on web and native; only the navigation mechanics differ.
+  const GROUPS: { caption?: string; items: RailItem[] }[] = inAdmin
     ? [
-        { href: '/admin', label: 'Reports', icon: Flag, exact: true },
-        { href: '/admin/disputes', label: 'Disputes', icon: Scale },
-        { href: '/admin/enforcement', label: 'Enforcement', icon: ShieldAlert },
-        { href: '/admin/listings', label: 'Listings', icon: ClipboardList },
-        { href: '/admin/brands', label: 'Brands', icon: Tags },
-        { href: '/admin/feedback', label: 'Feedback', icon: Star },
-        { href: '/', label: 'Back to site', icon: Home, external: true },
+        {
+          items: [
+            { href: '/admin', label: 'Reports', icon: Flag, exact: true },
+            { href: '/admin/disputes', label: 'Disputes', icon: Scale },
+            { href: '/admin/enforcement', label: 'Enforcement', icon: ShieldAlert },
+            { href: '/admin/listings', label: 'Listings', icon: ClipboardList },
+            { href: '/admin/brands', label: 'Brands', icon: Tags },
+            { href: '/admin/feedback', label: 'Feedback', icon: Star },
+            { href: '/', label: 'Back to site', icon: Home, external: true },
+          ],
+        },
       ]
     : [
-        // "Dashboard" was removed (owner 2026-07-17): /dashboard just redirects to /dashboard/listings,
-        // so it duplicated "My listings" and led nowhere of its own.
-        { href: '/dashboard/listings', label: tr('My listings', 'Tin của tôi'), icon: Store },
-        { href: '/messages', label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: unread },
-        { href: '/saved', label: tr('Saved', 'Đã lưu'), icon: Heart, badge: savedCount },
-        { href: '/dashboard/disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
-        ...(isBusiness
-          ? [
-              { href: '/dashboard/bulk', label: tr('Bulk upload', 'Tải hàng loạt'), icon: Upload },
-              { href: '/dashboard/dev', label: tr('Developers', 'Lập trình'), icon: Code2 },
-            ]
-          : []),
-        ...(dash?.seller
-          ? [{ href: dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`, label: tr('View storefront', 'Xem gian hàng'), icon: Store, external: true }]
-          : []),
-        { href: FORUM_URL, label: tr('Community forum', 'Diễn đàn cộng đồng'), icon: UsersRound, external: true },
+        {
+          caption: tr('Marketplace', 'Chợ eno'),
+          items: [
+            // "Dashboard" was removed (owner 2026-07-17): /dashboard just redirects to /dashboard/listings,
+            // so it duplicated "My listings" and led nowhere of its own.
+            { href: '/dashboard/listings', label: tr('My listings', 'Tin của tôi'), icon: Store },
+            { href: '/messages', label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: unread },
+            { href: '/saved', label: tr('Saved', 'Đã lưu'), icon: Heart, badge: savedCount },
+            // Label matches the page's own name ("Availability review" / "còn hàng").
+            { href: '/dashboard/availability', label: tr('Availability review', 'Xác nhận còn hàng'), icon: ListChecks },
+            { href: '/dashboard/disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
+            ...(isBusiness
+              ? [
+                  { href: '/dashboard/bulk', label: tr('Bulk upload', 'Tải hàng loạt'), icon: Upload },
+                  { href: '/dashboard/dev', label: tr('Developers', 'Lập trình'), icon: Code2 },
+                ]
+              : []),
+            ...(dash?.seller
+              ? [{ href: dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`, label: tr('View storefront', 'Xem gian hàng'), icon: Store, external: true }]
+              : []),
+          ],
+        },
+        {
+          caption: tr('Community', 'Cộng đồng'),
+          items: [
+            { href: `${FORUM_URL}/`, label: tr('Forum', 'Diễn đàn'), icon: UsersRound, forumPath: '/' },
+            { href: `${FORUM_URL}/itinerary`, label: tr('Itinerary planner', 'Lập lịch trình'), icon: Route, forumPath: '/itinerary' },
+            { href: `${FORUM_URL}/visa`, label: tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2, forumPath: '/visa' },
+            { href: `${FORUM_URL}/dashboard`, label: tr('Trips & visa dashboard', 'Chuyến đi & visa'), icon: LayoutDashboard, forumPath: '/dashboard' },
+          ],
+        },
       ]
 
   return (
@@ -362,7 +400,20 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 pt-3 pb-3 lg:pt-2">
         {/* MIDDLE — the core routing */}
         <nav aria-label={tr('Dashboard', 'Bảng điều khiển')} className="space-y-1">
-          {NAV.map(renderNav)}
+          {GROUPS.map((g, gi) => (
+            <Fragment key={g.caption ?? gi}>
+              {/* Group caption (mobile + expanded desktop): the small-caps idiom the filter panels
+                  use. The COLLAPSED 72px rail has no room for text — a hairline separator marks the
+                  group break there instead (between groups only, so gi > 0). */}
+              {g.caption && (
+                <>
+                  <div className={cn('px-3.5 pb-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground', gi > 0 && 'pt-3', expanded ? 'lg:block' : 'lg:hidden')}>{g.caption}</div>
+                  {gi > 0 && <div aria-hidden className={cn('mx-4 my-2 hidden h-px bg-border', !expanded && 'lg:block')} />}
+                </>
+              )}
+              {g.items.map(renderNav)}
+            </Fragment>
+          ))}
         </nav>
 
         {/* BOTTOM — the account: identity snippet, then Settings · Help · prefs · Sign out. */}

@@ -193,16 +193,42 @@ export function NativeBootstrap() {
         else App.minimizeApp()
       }))
 
-      // Deep-link router (App Links + app shortcuts + share targets). Two shapes:
+      // Deep-link router (App Links + app shortcuts + share targets). Three shapes:
       //   · https://eno.vn/... | https://www.eno.vn/... → route the path in the SPA
+      //   · https://eno.forum/... | https://www.eno.forum/... → full-page navigate (cross-origin)
       //   · enovn://open?path=<url-encoded app path>    → route the decoded path
+      // ⚠️ Known limitation: a deep link that arrives while the WebView sits ON eno.forum is
+      // queued-not-acted — this file's JS (eno.vn's bundle) isn't running there, so nothing
+      // handles the event until the WebView returns to eno.vn. No native-side fix attempted here.
       const routeDeepLink = (url: string) => {
         try {
           const u = new URL(url)
           let raw: string | null = null
+          if (u.protocol === 'https:' && (u.hostname === 'eno.forum' || u.hostname === 'www.eno.forum')) {
+            // Same canonicalize-then-validate discipline as the eno.vn branch: resolving the path
+            // against the forum origin catches the protocol-relative escapes (`//evil.com`,
+            // `/\evil.com`). Cross-origin, so the Next router can't take it — full-page assign;
+            // allowNavigation keeps it inside the WebView.
+            const fr = u.pathname + u.search + u.hash
+            if (!fr.startsWith('/')) return
+            const forumResolved = new URL(fr, 'https://eno.forum')
+            if (forumResolved.origin !== 'https://eno.forum') return
+            window.location.assign(forumResolved.toString())
+            return
+          }
           if (u.protocol === 'https:' && (u.hostname === 'eno.vn' || u.hostname === 'www.eno.vn')) {
             raw = u.pathname + u.search + u.hash
           } else if (u.protocol === 'enovn:' && u.host === 'open') {
+            // Two forms (docs/UNIFIED_MOBILE_APP.md in the forum repo):
+            //   ?path=<url-encoded eno.vn app path>
+            //   ?url=<url-encoded absolute FIRST-PARTY https url> — cross-surface links
+            //     (e.g. a forum shortcut) that must re-enter the full router above.
+            const abs = u.searchParams.get('url')
+            if (abs) {
+              // https only — forbids enovn-in-enovn nesting (unbounded recursion).
+              if (abs.startsWith('https://')) routeDeepLink(abs)
+              return
+            }
             raw = u.searchParams.get('path') // searchParams already URL-decodes once
           }
           if (!raw || !raw.startsWith('/')) return
@@ -266,8 +292,21 @@ export function NativeBootstrap() {
       // Cold start (see the platform asymmetry above). A replayed stale auth code (activity
       // recreation with the old intent) just fails the exchange benignly; dropping a FRESH
       // one would break Android cold-start sign-in outright.
+      // ⚠️ getLaunchUrl returns the RETAINED launch URL for the app's whole life, and every
+      // cross-origin hop (forum ↔ market) boots a fresh document whose in-memory dedupe is
+      // empty — without a persistent marker, launching from a forum link would re-bounce the
+      // user to the forum on EVERY return to eno.vn. sessionStorage is per-origin and
+      // survives same-origin navigations: consume each launch URL exactly once per app run.
       const launch = await App.getLaunchUrl().catch(() => undefined)
-      if (!disposed && launch?.url) dispatch(launch.url)
+      if (!disposed && launch?.url) {
+        const KEY = 'eno:launch-url-handled'
+        let handled: string | null = null
+        try { handled = sessionStorage.getItem(KEY) } catch { /* storage unavailable */ }
+        if (handled !== launch.url) {
+          try { sessionStorage.setItem(KEY, launch.url) } catch { /* storage unavailable */ }
+          dispatch(launch.url)
+        }
+      }
     })()
 
     return () => {

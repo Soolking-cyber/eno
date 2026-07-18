@@ -17,14 +17,6 @@
 @custom-variant data-horizontal (&[data-orientation="horizontal"]);
 @custom-variant data-vertical (&[data-orientation="vertical"]);
 
-/* The forum has its own mobile navigation. Hide the marketplace tab bar and its
-   reserved spacer whenever the forum route is mounted, so two app shells never
-   compete for the same bottom edge. :has() is supported by the app's browser floor. */
-body:has([data-forum-page]) .mobile-nav,
-body:has([data-forum-page]) .bottom-nav-spacer {
-  display: none;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -128,11 +120,9 @@ body:has([data-forum-page]) .bottom-nav-spacer {
   --brand-deep: #1b4b76;
   --brand-deeper: #0c2b48;
 
-  /* Dashboard rail width (desktop). Lives on :root so the ONE value drives the panel
-     width, the main content's squeeze margin, the draggable seam, and the fixed
-     back-to-top offset together — the panel and the feed stay one continuous canvas as
-     you drag the seam. JS clamps + persists it; this is the SSR/first-paint default. */
-  --account-w: 440px;
+  /* Shared eno account rail width on desktop. The forum matches the marketplace's
+     72px collapsed shell; its explicit expanded state grows to 280px in the component. */
+  --account-w: 72px;
 
   /* Surfaces — soft neutral canvas so white surfaces (cards, header, popovers)
      gain subtle Airbnb-style depth without reintroducing borders/boxes. */
@@ -386,6 +376,17 @@ body:has([data-forum-page]) .bottom-nav-spacer {
   background-color: var(--background);
 }
 
+.dashboard-canvas {
+  background-color: var(--background);
+  background-image: radial-gradient(
+    72% 58% at 50% 62%,
+    color-mix(in oklab, var(--brand) 13%, transparent) 0%,
+    transparent 72%
+  );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
 /* ============================================================
    TYPOGRAPHY SCALE — reusable semantic headings
    ============================================================ */
@@ -451,6 +452,52 @@ html.kb-open .mobile-nav {
   pointer-events: none;
 }
 html.kb-open .bottom-nav-spacer { display: none; }
+
+/* The native eno app owns navigation and safe areas while eno.forum remains a separate browser
+   origin. These rules match the eno.vn shell; .native is stamped pre-paint by the layout head
+   script (UA token 'EnoNativeApp' — the signal present on BOTH platforms; Android forum pages
+   never get window.Capacitor) and re-asserted by ForumNativeBridge. */
+/* Dedicated apps carry no web footer; the legal/company block lives on eno.vn surfaces in-app. */
+html.native #app-footer {
+  display: none;
+}
+html.native {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html.native input,
+html.native textarea,
+html.native [contenteditable]:not([contenteditable="false"]),
+html.native .allow-select {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+/* iOS pull-to-refresh needs the web overscroll the base <html> rule turns off — restore it in
+   the app. Android keeps `none`: its PTR is a native SwipeRefreshLayout around the WebView. */
+html.native-ios {
+  overscroll-behavior-y: auto;
+}
+/* Android has TWO safe-area delivery paths under Capacitor's edge-to-edge handling
+   (Android 15/16): on WebView ≥ 140, env(safe-area-inset-*) passes real values
+   through; on WebView < 140, the shell pads the WebView parent and injects
+   --safe-area-inset-* custom properties instead — env() reads 0 there.
+   max(env(X), var(--X, 0px)) serves both: on the passthrough path both operands are
+   equal (no double-pad), on the padded path env() is 0 and the var wins. Scoped to
+   .native so web/PWA rules keep plain env(). iOS always has env() passthrough; the
+   var is undefined there, so these are exact no-ops. */
+html.native #app-header {
+  padding-top: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px));
+}
+html.native .mobile-nav {
+  padding-bottom: max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
+}
+html.native .bottom-nav-spacer {
+  height: calc(4rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)));
+}
 
 @media (max-width: 1023px) {
   /* (1) DOCUMENT LOCK while inside a thread. touch-action:none on <body> is what actually

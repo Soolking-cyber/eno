@@ -28,7 +28,9 @@ public class MainActivity extends BridgeActivity {
     /**
      * JS bridge (window.EnoNative). addJavascriptInterface is safe here: minSdk 24 (>= 17, so only
      * @JavascriptInterface methods are exposed) and allowNavigation pins in-WebView navigation to
-     * eno.vn — no third-party page can ever run in this WebView.
+     * eno.vn + eno.forum — both first-party, no third-party page can ever run in this WebView.
+     * Note the interface is injected into EVERY origin in the WebView, so forum pages get it too;
+     * on Android it is the forum pages' ONLY native channel, and it carries just setPtrEnabled.
      */
     private class EnoNativeBridge {
         @JavascriptInterface

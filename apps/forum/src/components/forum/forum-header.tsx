@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Languages, LogOut, Plus, Route, Search, Store, UserRound } from 'lucide-react'
-import { useLanguage } from '@/context/language-context'
+import { Check, Languages, Plus, Search, UserRound } from 'lucide-react'
+import { LANGUAGES, useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { useEnoAccountShell } from '@/components/dashboard/eno-account-shell'
+import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -13,11 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
-
-const MARKETPLACE_URL = process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn'
 
 export function ForumHeader({
   query,
@@ -29,24 +25,19 @@ export function ForumHeader({
   onCreatePost?: () => void
 }) {
   const { tr, lang, setLang } = useLanguage()
-  const { user, loading, openSignIn, signOut } = useAuth()
-  const pathname = usePathname()
+  const { user, loading, openSignIn } = useAuth()
+  const { openAccount } = useEnoAccountShell()
   const searchEnabled = typeof query === 'string' && Boolean(onQueryChange)
-  const itineraryActive = pathname === '/itinerary'
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex shrink-0 items-center gap-2 rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50" aria-label={tr('eno.forum home', 'Trang chủ eno.forum')}>
-          <img src="/logo-mark.svg" alt="" width={44} height={44} className="h-11 w-11" />
-          <span className="hidden leading-none min-[390px]:block">
-            <span className="block text-lg font-bold tracking-tight text-foreground">{tr('eno.forum', 'eno.forum')}</span>
-            <span className="mt-1 block text-3xs font-semibold uppercase tracking-wider text-body">{tr('by eno.vn', 'bởi eno.vn')}</span>
-          </span>
+    <header id="app-header" className="sticky top-0 z-40 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 border-b border-border/60 px-3 sm:gap-4 sm:px-6 lg:px-8">
+        <Link href="/" className="flex shrink-0 items-center rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50" aria-label={tr('eno.forum home', 'Trang chủ eno.forum')}>
+          <img src="/logo.svg" alt="eno" width={1200} height={300} className="h-8 w-auto" />
         </Link>
 
         {searchEnabled ? (
-          <div className="mx-auto hidden max-w-xl flex-1 sm:block">
+          <div className="mx-auto hidden min-w-0 max-w-xl flex-1 sm:block">
             <div className="flex items-center rounded-2xl bg-tint transition-all focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/30">
               <Search className="ml-4 h-5 w-5 shrink-0 text-ink-4" />
               <Input
@@ -63,77 +54,47 @@ export function ForumHeader({
         ) : <div className="flex-1" />}
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <IconButton
-            size="lg"
-            className="text-body hover:bg-tint hover:text-foreground"
-            aria-label={lang === 'en' ? 'Chuyển sang tiếng Việt' : 'Switch to English'}
-            onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
-          >
-            <Languages className="h-5 w-5" />
-          </IconButton>
-
-          <Link
-            href="/itinerary"
-            className={cn(buttonVariants({ variant: 'soft', size: 'icon' }), 'text-body', itineraryActive && 'bg-accent text-accent-foreground')}
-            aria-label={tr('Plan a Vietnam itinerary', 'Lập lịch trình Việt Nam')}
-            title={tr('Plan a Vietnam itinerary', 'Lập lịch trình Việt Nam')}
-            aria-current={itineraryActive ? 'page' : undefined}
-          >
-            <Route className="h-5 w-5" />
-          </Link>
-
-          <a href={MARKETPLACE_URL} className={cn(buttonVariants({ variant: 'soft', size: 'sm' }), 'hidden text-body lg:inline-flex')}>
-            <Store className="h-4 w-4" />
-            {tr('Marketplace', 'Chợ mua bán')}
-          </a>
-
-          <a
-            href={MARKETPLACE_URL}
-            className={cn(buttonVariants({ variant: 'soft', size: 'icon' }), 'text-body sm:hidden')}
-            aria-label={tr('Open the eno.vn marketplace', 'Mở chợ eno.vn')}
-          >
-            <Store className="h-5 w-5" />
-          </a>
+          <DropdownMenu>
+            <DropdownMenuTrigger render={
+              <Button
+                type="button"
+                variant="bare"
+                size="sm"
+                className="h-11 gap-1.5 px-2.5 text-body hover:bg-tint hover:text-foreground"
+                aria-label={tr('Choose language', 'Chọn ngôn ngữ')}
+              >
+                <Languages className="h-5 w-5" />
+                <span className="text-xs font-bold">{LANGUAGES.find((item) => item.code === lang)?.label}</span>
+              </Button>
+            } />
+            <DropdownMenuContent align="end" className="w-56">
+              {LANGUAGES.map((language) => (
+                <DropdownMenuItem key={language.code} onClick={() => setLang(language.code)}>
+                  <span className="w-7 text-xs font-bold text-ink-4">{language.label}</span>
+                  <span className="min-w-0 flex-1 truncate">{language.native}</span>
+                  {lang === language.code && <Check className="ml-auto h-4 w-4 text-accent-foreground" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {!loading && (user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger render={
-                <Button type="button" variant="outline" size="sm" className="hidden gap-2 sm:inline-flex">
-                  <Avatar name={user.user_metadata?.full_name || user.email || 'eno member'} url={user.user_metadata?.avatar_url} size="sm" className="h-6 w-6 text-3xs" />
-                  <span className="max-w-24 truncate">{user.user_metadata?.full_name || user.email?.split('@')[0] || tr('Account', 'Tài khoản')}</span>
-                </Button>
-              } />
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => void signOut()}>
-                  <LogOut className="h-4 w-4" />
-                  {tr('Sign out', 'Đăng xuất')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button type="button" variant="outline" size="sm" className="h-10 gap-2 px-2 sm:px-3" aria-label={tr('Open eno dashboard', 'Mở bảng điều khiển eno')} onClick={openAccount}>
+              <Avatar name={user.user_metadata?.full_name || user.email || 'eno member'} url={user.user_metadata?.avatar_url} size="sm" className="h-6 w-6 text-3xs" />
+              <span className="hidden max-w-24 truncate sm:inline">{user.user_metadata?.full_name || user.email?.split('@')[0] || tr('Account', 'Tài khoản')}</span>
+            </Button>
           ) : (
-            <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" onClick={openSignIn}>
+            <Button type="button" variant="outline" size="sm" className="h-10 px-2 sm:px-3" onClick={openSignIn} aria-label={tr('Sign in to eno', 'Đăng nhập eno')}>
               <UserRound className="h-4 w-4" />
-              {tr('Sign in', 'Đăng nhập')}
+              <span className="hidden sm:inline">{tr('Sign in', 'Đăng nhập')}</span>
             </Button>
           ))}
 
           {onCreatePost && (
-            <>
-              <Button data-testid="forum-create" type="button" variant="cta" size="sm" onClick={onCreatePost} className="hidden sm:inline-flex">
-                <Plus className="h-4 w-4" />
-                {tr('Start a post', 'Tạo bài viết')}
-              </Button>
-
-              <IconButton
-                data-testid="forum-create"
-                size="lg"
-                className="bg-primary text-white shadow-sm sm:hidden"
-                aria-label={tr('Start a post', 'Tạo bài viết')}
-                onClick={onCreatePost}
-              >
-                <Plus className="h-5 w-5" />
-              </IconButton>
-            </>
+            <Button data-testid="forum-create" type="button" variant="cta" size="sm" onClick={onCreatePost} className="hidden sm:inline-flex">
+              <Plus className="h-4 w-4" />
+              {tr('Start a post', 'Tạo bài viết')}
+            </Button>
           )}
         </div>
       </div>

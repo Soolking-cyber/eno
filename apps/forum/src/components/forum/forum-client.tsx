@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Bookmark,
@@ -18,28 +18,29 @@ import {
   Home,
   House,
   Languages,
+  Loader2,
   MapPin,
   MessageCircleQuestion,
   MessageSquareText,
-  Plus,
   Search,
   SearchX,
   ShieldCheck,
   Sparkles,
-  UserRound,
+  Trash2,
   Users,
   Waves,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useLanguage } from '@/context/language-context'
+import { Tr, useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
-import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
+import { ForumFooter } from '@/components/forum/forum-footer'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -49,8 +50,9 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { forumApi } from '@/lib/api'
+import { forumApi, ForumApiError } from '@/lib/api'
 import {
+  canDeleteForumPost,
   mapForumComment,
   mapForumPost,
   type ForumCommentResponse,
@@ -66,12 +68,23 @@ import {
   type ForumPost,
 } from './forum-data'
 import { ForumHeader } from './forum-header'
+import { MobileForumNav } from './mobile-forum-nav'
 import { ForumPostCard } from './forum-post-card'
 import { ThreadDialog } from './thread-dialog'
 import { ForumTrustBadgeIcon } from './trust-badge'
 
 type ForumSort = 'best' | 'latest' | 'top'
 type FeedMode = 'all' | 'saved'
+export type ForumHelper = {
+  author: {
+    name: string
+    avatarUrl: string | null
+    avatarColor: string | null
+    trustScore: number | null
+    badge: import('./forum-data').ForumTrustBadge | null
+  }
+  helpfulAnswers: number
+}
 
 const COMMUNITY_ICONS: Record<string, LucideIcon> = {
   'vietnam-101': Compass,
@@ -194,23 +207,11 @@ function ForumLeftRail({
   )
 }
 
-function ForumRightRail({ communities, posts, onOpenPost, onCreatePost }: { communities: ForumCommunity[]; posts: ForumPost[]; onOpenPost: (id: string) => void; onCreatePost: () => void }) {
+function ForumRightRail({ communities, posts, helpers, onOpenPost }: { communities: ForumCommunity[]; posts: ForumPost[]; helpers: ForumHelper[]; onOpenPost: (id: string) => void }) {
   const { tr } = useLanguage()
-  const [helpers, setHelpers] = useState<Array<{
-    author: { name: string; avatarUrl: string | null; avatarColor: string | null; trustScore: number | null; badge: import('./forum-data').ForumTrustBadge | null }
-    helpfulAnswers: number
-  }>>([])
   const totalMembers = communities.reduce((sum, community) => sum + community.members, 0)
   const online = communities.reduce((sum, community) => sum + community.online, 0)
   const popular = posts.slice().sort((a, b) => b.score - a.score).slice(0, 3)
-
-  useEffect(() => {
-    let active = true
-    forumApi<{ helpers: typeof helpers }>('/api/forum/helpers')
-      .then((result) => { if (active) setHelpers(result.helpers) })
-      .catch(() => {})
-    return () => { active = false }
-  }, [])
 
   return (
     <aside
@@ -245,10 +246,6 @@ function ForumRightRail({ communities, posts, onOpenPost, onCreatePost }: { comm
                 <p className="text-2xs text-body">{tr('online now', 'đang trực tuyến')}</p>
               </div>
             </div>
-            <Button type="button" variant="cta" className="mt-4 w-full" onClick={onCreatePost}>
-              <Plus className="h-4 w-4" />
-              {tr('Start a post', 'Tạo bài viết')}
-            </Button>
           </CardContent>
         </Card>
 
@@ -293,7 +290,7 @@ function ForumRightRail({ communities, posts, onOpenPost, onCreatePost }: { comm
               >
                 <span className="mt-0.5 text-sm font-bold tabular-nums text-ink-4">{index + 1}</span>
                 <span className="min-w-0">
-                  <span className="line-clamp-2 text-xs font-semibold leading-snug text-foreground">{post.title}</span>
+                  <span className="line-clamp-2 text-xs font-semibold leading-snug text-foreground"><Tr text={post.title} /></span>
                   <span className="mt-1 block text-2xs text-body">{post.commentCount} {tr('replies', 'phản hồi')}</span>
                 </span>
               </Button>
@@ -337,68 +334,6 @@ function ForumRightRail({ communities, posts, onOpenPost, onCreatePost }: { comm
   )
 }
 
-function MobileForumNav({
-  mode,
-  sort,
-  savedCount,
-  onHome,
-  onPopular,
-  onCreate,
-  onSaved,
-}: {
-  mode: FeedMode
-  sort: ForumSort
-  savedCount: number
-  onHome: () => void
-  onPopular: () => void
-  onCreate: () => void
-  onSaved: () => void
-}) {
-  const { tr } = useLanguage()
-  const { user, openSignIn, signOut } = useAuth()
-  const { open: keyboardOpen } = useVirtualKeyboard()
-  const itemClass = 'relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-3xs font-semibold'
-
-  return (
-    <nav
-      inert={keyboardOpen}
-      className={cn(
-        'fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] lg:hidden',
-        keyboardOpen && 'pointer-events-none translate-y-full opacity-0',
-      )}
-      aria-label={tr('Forum mobile navigation', 'Điều hướng diễn đàn trên di động')}
-    >
-      <div className="flex h-16 items-stretch">
-        <Button type="button" variant="bare" size="none" aria-pressed={mode === 'all' && sort === 'best'} className={cn(itemClass, mode === 'all' && sort === 'best' ? 'text-accent-foreground' : 'text-body')} onClick={onHome}>
-          <Home className="h-5 w-5" />
-          <span>{tr('Home', 'Trang chủ')}</span>
-        </Button>
-        <Button type="button" variant="bare" size="none" aria-pressed={mode === 'all' && sort === 'top'} className={cn(itemClass, mode === 'all' && sort === 'top' ? 'text-accent-foreground' : 'text-body')} onClick={onPopular}>
-          <Flame className="h-5 w-5" />
-          <span>{tr('Popular', 'Phổ biến')}</span>
-        </Button>
-        <Button type="button" variant="bare" size="none" className={itemClass} onClick={onCreate} aria-label={tr('Start a post', 'Tạo bài viết')}>
-          <span className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-card">
-            <Plus className="h-6 w-6" />
-          </span>
-          <span className="-mt-0.5 text-body">{tr('Post', 'Đăng')}</span>
-        </Button>
-        <Button type="button" variant="bare" size="none" aria-pressed={mode === 'saved'} className={cn(itemClass, mode === 'saved' ? 'text-accent-foreground' : 'text-body')} onClick={onSaved}>
-          <span className="relative">
-            <Bookmark className={cn('h-5 w-5', mode === 'saved' && 'fill-current')} />
-            {savedCount > 0 && <Badge variant="counter-brand" size="count" className="absolute -right-3 -top-2">{savedCount}</Badge>}
-          </span>
-          <span>{tr('Saved', 'Đã lưu')}</span>
-        </Button>
-        <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={() => user ? void signOut() : openSignIn()}>
-          <UserRound className="h-5 w-5" />
-          <span>{user ? tr('Account', 'Tài khoản') : tr('Sign in', 'Đăng nhập')}</span>
-        </Button>
-      </div>
-    </nav>
-  )
-}
-
 function FeedList({
   posts,
   communityMap,
@@ -409,6 +344,8 @@ function FeedList({
   onOpen,
   onBlock,
   onReport,
+  viewerId,
+  onDelete,
   onReset,
 }: {
   posts: ForumPost[]
@@ -420,6 +357,8 @@ function FeedList({
   onOpen: (id: string) => void
   onBlock: (post: ForumPost) => void
   onReport: (post: ForumPost) => void
+  viewerId: string | null
+  onDelete: (post: ForumPost) => void
   onReset: () => void
 }) {
   const { tr } = useLanguage()
@@ -452,6 +391,8 @@ function FeedList({
             onOpen={() => onOpen(post.id)}
             onBlock={() => onBlock(post)}
             onReport={() => onReport(post)}
+            canDelete={canDeleteForumPost(post, viewerId)}
+            onDelete={() => onDelete(post)}
           />
         )
       })}
@@ -459,12 +400,20 @@ function FeedList({
   )
 }
 
-export function ForumClient() {
+export function ForumClient({
+  initialPosts = INITIAL_FORUM_POSTS,
+  initialCommunities = FORUM_COMMUNITIES,
+  initialHelpers = [],
+}: {
+  initialPosts?: ForumPost[]
+  initialCommunities?: ForumCommunity[]
+  initialHelpers?: ForumHelper[]
+}) {
   const { tr } = useLanguage()
-  const { user, openSignIn } = useAuth()
+  const { user, loading: authLoading, openSignIn } = useAuth()
   const [hydrated, setHydrated] = useState(false)
-  const [posts, setPosts] = useState<ForumPost[]>(INITIAL_FORUM_POSTS)
-  const [communities, setCommunities] = useState<ForumCommunity[]>(FORUM_COMMUNITIES)
+  const [posts, setPosts] = useState<ForumPost[]>(initialPosts)
+  const [communities] = useState<ForumCommunity[]>(initialCommunities)
   const [query, setQuery] = useState('')
   const [community, setCommunity] = useState<string | null>(null)
   const [location, setLocation] = useState('all')
@@ -474,7 +423,10 @@ export function ForumClient() {
   const [saved, setSaved] = useState<Set<string>>(() => new Set())
   const [createOpen, setCreateOpen] = useState(false)
   const [openPostId, setOpenPostId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ForumPost | null>(null)
+  const [deletingPost, setDeletingPost] = useState(false)
   const [threadComments, setThreadComments] = useState<Record<string, ForumComment[]>>({})
+  const fetchedAuthenticatedViewer = useRef(false)
 
   const communityMap = useMemo(() => new Map(communities.map((item) => [item.slug, item])), [communities])
 
@@ -485,34 +437,27 @@ export function ForumClient() {
   }, [])
 
   useEffect(() => {
+    if (authLoading) return
+    // The public feed was already fetched before first paint. Only fetch again
+    // when viewer-specific vote/bookmark state is needed, or after that viewer
+    // signs out. Never replace the visible post array during page hydration.
+    if (!user && !fetchedAuthenticatedViewer.current) return
     let active = true
     forumApi<{ posts: ForumPostResponse[] }>('/api/forum/posts?limit=50')
       .then(({ posts: livePosts }) => {
-        if (!active || livePosts.length === 0) return
-        setPosts(livePosts.map(mapForumPost))
+        if (!active) return
+        const liveById = new Map(livePosts.map((post) => [post.id, post]))
+        setPosts((current) => current.map((post) => {
+          const live = liveById.get(post.id)
+          return live ? { ...post, score: live.score - live.viewerVote } : post
+        }))
         setVotes(Object.fromEntries(livePosts.map((post) => [post.id, post.viewerVote])))
         setSaved(new Set(livePosts.filter((post) => post.saved).map((post) => post.id)))
-      })
-      // The static discussions are a deliberate empty-database/development
-      // fallback, so a backend outage never leaves the community home blank.
-      .catch(() => {})
-    return () => { active = false }
-  }, [user?.id])
-
-  useEffect(() => {
-    let active = true
-    forumApi<{ communities: Array<Omit<ForumCommunity, 'members' | 'online'> & { memberCount: number }> }>('/api/forum/communities')
-      .then(({ communities: rows }) => {
-        if (!active || rows.length === 0) return
-        const bySlug = new Map(rows.map((row) => [row.slug, row]))
-        setCommunities(FORUM_COMMUNITIES.map((fallback) => {
-          const live = bySlug.get(fallback.slug)
-          return live ? { ...fallback, ...live, members: live.memberCount, online: 0 } : fallback
-        }))
+        fetchedAuthenticatedViewer.current = Boolean(user)
       })
       .catch(() => {})
     return () => { active = false }
-  }, [])
+  }, [authLoading, user])
 
   useEffect(() => {
     if (!openPostId) return
@@ -561,7 +506,9 @@ export function ForumClient() {
     return (b.score + b.commentCount * 1.5) - (a.score + a.commentCount * 1.5)
   })
 
-  const activePost = posts.find((post) => post.id === openPostId) || null
+  const activePost = posts.find((post) => post.id === openPostId)
+    || INITIAL_FORUM_POSTS.find((post) => post.id === openPostId)
+    || null
   const activePostCommunity = activePost ? communityMap.get(activePost.community) || null : null
   const locationLabel = location === 'hcmc'
     ? tr('Ho Chi Minh City', 'TP. Hồ Chí Minh')
@@ -690,6 +637,43 @@ export function ForumClient() {
     window.history.replaceState({}, '', url)
   }
 
+  const requestDeletePost = (post: ForumPost) => {
+    if (!user) { openSignIn(); return }
+    if (!canDeleteForumPost(post, user.id)) {
+      toast.error(tr('Only the post owner can delete this discussion.', 'Chỉ chủ bài viết mới có thể xóa thảo luận này.'))
+      return
+    }
+    setDeleteTarget(post)
+  }
+
+  const deletePost = async () => {
+    if (!deleteTarget || !user || !canDeleteForumPost(deleteTarget, user.id)) return
+    const id = deleteTarget.id
+    setDeletingPost(true)
+    try {
+      await forumApi<{ ok: true }>(`/api/forum/posts/${encodeURIComponent(id)}`, { method: 'DELETE', auth: 'required', direct: true })
+      setPosts((current) => current.filter((post) => post.id !== id))
+      setSaved((current) => { const next = new Set(current); next.delete(id); return next })
+      setVotes((current) => { const next = { ...current }; delete next[id]; return next })
+      setThreadComments((current) => { const next = { ...current }; delete next[id]; return next })
+      if (openPostId === id) closeThread()
+      setDeleteTarget(null)
+      toast.success(tr('Your post was deleted.', 'Bài viết của bạn đã được xóa.'))
+    } catch (error) {
+      const code = error instanceof ForumApiError ? error.code : 'post_delete_failed'
+      const copy: Record<string, [string, string]> = {
+        forbidden: ['Only the post owner can delete this discussion.', 'Chỉ chủ bài viết mới có thể xóa thảo luận này.'],
+        not_found: ['This post was already removed.', 'Bài viết này đã được xóa.'],
+        rate_limited: ['Too many delete attempts. Please wait and try again.', 'Có quá nhiều lần xóa. Vui lòng chờ rồi thử lại.'],
+        forum_delete_not_configured: ['Post deletion is temporarily unavailable. Please contact support.', 'Tính năng xóa bài tạm thời chưa khả dụng. Vui lòng liên hệ hỗ trợ.'],
+      }
+      const message = copy[code] || ['Your post could not be deleted. Please retry.', 'Không thể xóa bài viết của bạn. Vui lòng thử lại.']
+      toast.error(tr(message[0], message[1]))
+    } finally {
+      setDeletingPost(false)
+    }
+  }
+
   const addThreadReply = async (body: string, parentId: string | null) => {
     if (!activePost) throw new Error('post_not_found')
     const { comment } = await forumApi<{ comment: ForumCommentResponse }>('/api/forum/comments', {
@@ -814,10 +798,6 @@ export function ForumClient() {
                   {tr('Ask what search results cannot answer. Get current, firsthand help from people who live here.', 'Hỏi những điều khó tìm trên mạng. Nhận chia sẻ cập nhật từ những người đang sống tại đây.')}
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="cta" onClick={openCreatePost}>
-                    <Plus className="h-4 w-4" />
-                    {tr('Ask the community', 'Hỏi cộng đồng')}
-                  </Button>
                   <Button type="button" variant="soft" className="text-body" onClick={() => openThread('new-to-vietnam-checklist')}>
                     <CircleHelp className="h-4 w-4" />
                     {tr('Newcomer guide', 'Hướng dẫn người mới')}
@@ -892,6 +872,8 @@ export function ForumClient() {
                       onOpen={openThread}
                       onBlock={blockPostAuthor}
                       onReport={reportPost}
+                      viewerId={user?.id || null}
+                      onDelete={requestDeletePost}
                       onReset={resetFilters}
                     />
                   )}
@@ -900,9 +882,11 @@ export function ForumClient() {
             </Tabs>
           </div>
 
-          <ForumRightRail communities={communities} posts={posts} onOpenPost={openThread} onCreatePost={openCreatePost} />
+          <ForumRightRail communities={communities} posts={posts} helpers={initialHelpers} onOpenPost={openThread} />
         </div>
       </main>
+
+      <ForumFooter />
 
       <MobileForumNav
         mode={mode}
@@ -932,7 +916,24 @@ export function ForumClient() {
         comments={activePost?.live ? threadComments[activePost.id] || [] : null}
         onAddReply={addThreadReply}
         onCommentVote={voteThreadComment}
+        canDelete={Boolean(activePost && canDeleteForumPost(activePost, user?.id))}
+        onDelete={() => { if (activePost) requestDeletePost(activePost) }}
       />
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deletingPost) setDeleteTarget(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" /></span>
+            <DialogTitle className="text-lg font-bold">{tr('Delete this post?', 'Xóa bài viết này?')}</DialogTitle>
+            <DialogDescription>{tr('This removes the discussion from the forum. This action cannot be undone.', 'Thao tác này sẽ xóa thảo luận khỏi diễn đàn và không thể hoàn tác.')}</DialogDescription>
+          </DialogHeader>
+          {deleteTarget && <p className="line-clamp-2 rounded-xl bg-tint px-4 py-3 text-sm font-semibold text-foreground">{deleteTarget.title}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" className="h-11" disabled={deletingPost} onClick={() => setDeleteTarget(null)}>{tr('Keep post', 'Giữ bài viết')}</Button>
+            <Button type="button" variant="destructive" className="h-11" disabled={deletingPost} onClick={() => void deletePost()}>{deletingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}{tr('Delete post', 'Xóa bài viết')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
