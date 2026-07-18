@@ -42,7 +42,9 @@ export type VisaEventRow = {
 }
 
 // Private storage bucket the forum writes documents into (apps/forum/src/lib/visa/storage.ts).
-const VISA_BUCKET = 'visa-documents'
+// Exported: the applicant-side upload path (src/lib/visa/storage.ts) writes the SAME bucket
+// with byte-identical object paths so both surfaces stay interoperable.
+export const VISA_BUCKET = 'visa-documents'
 
 // Missing-table fail-soft (the P2021 idiom from src/app/dashboard/page.tsx, in
 // PostgREST dialect): 42P01 = postgres undefined_table, PGRST205 = table absent

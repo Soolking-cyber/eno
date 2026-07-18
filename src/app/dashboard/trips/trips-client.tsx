@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState, useRef, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { RefreshCw, Route } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -15,9 +15,10 @@ import { TripCard, type SavedItinerary } from './trip-card'
 
 /** /dashboard/trips — saved itineraries as a full in-<main> dashboard section.
  *  The DATA is eno.vn's own (Itinerary tables via /api/itineraries, which accepts the
- *  cookie session when no bearer token is sent) — only trip PLANNING lives on eno.forum,
- *  so the sole cross-site hop here is the "Plan a new trip" CTA. The forum has no
- *  per-itinerary URL (its dashboard expands them in place), so items expand here too. */
+ *  cookie session when no bearer token is sent) — and since 2026-07-18 trip PLANNING
+ *  is native too: the "Plan a new trip" CTA opens /dashboard/trips/plan, the ported
+ *  itinerary builder, right inside this section (owner: no hop to eno.forum). The
+ *  planner has no per-itinerary URL, so saved items keep expanding in place here. */
 export function TripsClient() {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
@@ -82,7 +83,7 @@ export function TripsClient() {
           {/* h1 stays for the outline; the SectionHeader carries the visible mobile title. */}
           <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Itineraries', 'Lịch trình')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {tr('Trips you researched on the forum planner, saved to your account.', 'Chuyến đi bạn đã nghiên cứu trên công cụ lập lịch trình, lưu vào tài khoản của bạn.')}
+            {tr('Trips you research with the eno planner, saved to your account.', 'Chuyến đi bạn nghiên cứu cùng công cụ lập lịch trình eno, lưu vào tài khoản của bạn.')}
           </p>
         </div>
         <PlanTripCta />
@@ -110,7 +111,7 @@ export function TripsClient() {
           <EmptyState
             icon={Route}
             title={tr('No saved itinerary yet', 'Chưa có lịch trình đã lưu')}
-            subtitle={tr('Plan your first trip on the forum and the finished plan appears here automatically.', 'Lên kế hoạch chuyến đi đầu tiên trên diễn đàn và kế hoạch hoàn tất sẽ tự động xuất hiện tại đây.')}
+            subtitle={tr('Plan your first trip and the finished plan appears here automatically.', 'Lên kế hoạch chuyến đi đầu tiên và kế hoạch hoàn tất sẽ tự động xuất hiện tại đây.')}
             action={<PlanTripCta />}
           />
         ) : (
@@ -125,23 +126,14 @@ export function TripsClient() {
   )
 }
 
-/** Cross-site CTA. Real href for a11y / middle- and cmd-click; a plain left-click is
- *  intercepted so natives ride the goToForum SSO bridge (web assigns the same URL).
+/** Internal CTA — the planner is a native sub-page of this section (2026-07-18;
+ *  it used to ride the goToForum SSO bridge to eno.forum/itinerary).
  *  No className on the asChild child — it would concatenate, not merge. */
 function PlanTripCta() {
   const { tr } = useLanguage()
   return (
     <Button variant="cta" asChild>
-      <a
-        href={`${FORUM_URL}/itinerary`}
-        onClick={(e) => {
-          if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-          e.preventDefault()
-          goToForum('/itinerary')
-        }}
-      >
-        {tr('Plan a new trip', 'Lên kế hoạch mới')}
-      </a>
+      <Link href="/dashboard/trips/plan">{tr('Plan a new trip', 'Lên kế hoạch mới')}</Link>
     </Button>
   )
 }

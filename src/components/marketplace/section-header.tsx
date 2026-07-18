@@ -31,11 +31,16 @@ let inAppNavCount = 0
  *
  *  Desktop is untouched by design — at lg+ the section renders beside the account
  *  nav rail with its own h1, so this whole bar is display:none there. */
-export function SectionHeader({ title, action }: {
+export function SectionHeader({ title, action, fallbackHref = '/dashboard/listings' }: {
   /** The section's established page title — callers pass their EXISTING tr() string. */
   title: React.ReactNode
   /** Optional right-side action (a compact Button/IconButton). */
   action?: React.ReactNode
+  /** Where Back lands when there is no in-app history to pop (deep link / fresh
+   *  tab / cold native start). Section SUB-pages pass their parent section
+   *  (e.g. /dashboard/trips/plan → /dashboard/trips); top-level sections keep
+   *  the dashboard-home default. */
+  fallbackHref?: string
 }) {
   const { tr } = useLanguage()
   const router = useRouter()
@@ -55,7 +60,7 @@ export function SectionHeader({ title, action }: {
     // arrival would never satisfy it). An in-app client-navigation counter is the
     // truth: >1 means the previous history entry is ours.
     if (window.history.length > 1 && (inAppNavCount > 1 || document.referrer.startsWith(window.location.origin))) router.back()
-    else router.push('/dashboard/listings')
+    else router.push(fallbackHref)
   }
 
   return (

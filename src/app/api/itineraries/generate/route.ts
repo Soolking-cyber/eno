@@ -1,13 +1,22 @@
-import { Type } from '@google/genai'
+import { ThinkingLevel, Type } from '@google/genai'
+import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
-import { getForumAuth } from '@/lib/forum/auth'
-import { GEMINI_MODEL, getGemini } from '@/lib/gemini'
+import { aiGuard } from '@/lib/ai-guard'
+import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
+import { db } from '@/lib/db'
+import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
+import { buildItinerarySavePayload } from '@/lib/itinerary-save'
+import { languageName } from '@/lib/languages'
 import { rateLimit } from '@/lib/ratelimit'
 
+// The dashboard itinerary planner's research call (ported from the forum planner,
+// 2026-07-18 — the planner is now NATIVE to eno.vn at /dashboard/trips/plan).
+// Auth is the app's cookie session (aiGuard → getCurrentProfileId): this route is
+// same-origin only. The forum serves its own copy of this route from apps/forum,
+// so no forum CORS handling lives here anymore.
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 90
 
 const CITY_CATALOG = {
   hanoi: { name: 'Hanoi', region: 'Northern Vietnam', airports: ['HAN'] },
@@ -35,14 +44,19 @@ const CITY_CATALOG = {
 
 type CityId = keyof typeof CITY_CATALOG
 const cityIds = Object.keys(CITY_CATALOG) as [CityId, ...CityId[]]
+const MAX_ROUTE_CITIES = 15
 
 const requestSchema = z.object({
-  locale: z.enum(['en', 'vi']).default('en'),
+  locale: z.enum(['en', 'vi', 'zh-Hans', 'ko', 'ja', 'ru', 'km', 'ms', 'th', 'fr', 'hi']).default('en'),
   origin: z.string().trim().max(120).default(''),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  days: z.number().int().min(3).max(21),
-  travelers: z.number().int().min(1).max(8),
-  cityIds: z.array(z.enum(cityIds)).min(1).max(6),
+  days: z.number().int().min(1).max(30),
+  travelers: z.number().int().min(1).max(100),
+  cityIds: z.array(z.enum(cityIds)).min(1).max(MAX_ROUTE_CITIES),
+  cityDays: z.array(z.object({
+    cityId: z.enum(cityIds),
+    days: z.number().int().min(1).max(30),
+  })).max(MAX_ROUTE_CITIES).default([]),
   budgetId: z.enum(['smart', 'comfort', 'premium']),
   pace: z.enum(['slow', 'balanced', 'full']),
   interests: z.array(z.enum(['food', 'culture', 'nature', 'beaches', 'adventure', 'nightlife', 'wellness', 'family'])).min(1).max(8),
@@ -69,6 +83,20 @@ const requestSchema = z.object({
   }
   if (new Set(value.cityIds).size !== value.cityIds.length) {
     context.addIssue({ code: 'custom', path: ['cityIds'], message: 'Cities must be unique' })
+  }
+  const allocatedCityIds = value.cityDays.map(({ cityId }) => cityId)
+  if (new Set(allocatedCityIds).size !== allocatedCityIds.length) {
+    context.addIssue({ code: 'custom', path: ['cityDays'], message: 'City day allocations must be unique' })
+  }
+  for (const [index, allocation] of value.cityDays.entries()) {
+    if (!value.cityIds.includes(allocation.cityId)) {
+      context.addIssue({ code: 'custom', path: ['cityDays', index, 'cityId'], message: 'Allocated city must be in the selected route' })
+    }
+  }
+  const allocatedDays = value.cityDays.reduce((sum, allocation) => sum + allocation.days, 0)
+  const flexibleCities = value.cityIds.filter((cityId) => !allocatedCityIds.includes(cityId)).length
+  if (allocatedDays + flexibleCities > value.days) {
+    context.addIssue({ code: 'custom', path: ['cityDays'], message: 'City day allocations exceed the total trip length' })
   }
   if (value.flight.include && value.origin.length < 2) {
     context.addIssue({ code: 'custom', path: ['origin'], message: 'Origin is required for flight research' })
@@ -104,7 +132,7 @@ const planSchema = z.object({
     mode: z.string().min(1).max(100),
     duration: z.string().min(1).max(100),
     advice: z.string().min(1).max(500),
-  })).max(10),
+  })).max(20),
   flights: z.array(z.object({
     direction: z.enum(['outbound', 'return', 'domestic']),
     label: z.string().min(1).max(180),
@@ -128,9 +156,9 @@ const planSchema = z.object({
     nightlyLowVnd: z.number().int().min(0).max(1_000_000_000),
     nightlyHighVnd: z.number().int().min(0).max(1_000_000_000),
     url: z.string().max(1000),
-  })).min(1).max(12),
+  })).min(1).max(MAX_ROUTE_CITIES),
   days: z.array(z.object({
-    dayNumber: z.number().int().min(1).max(21),
+    dayNumber: z.number().int().min(1).max(30),
     date: z.string().min(1).max(40),
     city: z.string().min(1).max(120),
     title: z.string().min(1).max(180),
@@ -141,7 +169,7 @@ const planSchema = z.object({
     evening: activitySchema,
     foodNote: z.string().min(1).max(500),
     estimatedDailyCostVnd: z.number().int().min(0).max(2_000_000_000),
-  })).min(3).max(21),
+  })).min(1).max(30),
   practical: z.object({
     arrival: z.string().min(1).max(700),
     localTransport: z.string().min(1).max(700),
@@ -265,41 +293,42 @@ function cleanModelJson(value: string): string {
   return trimmed.startsWith('```') ? trimmed.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim() : trimmed
 }
 
-export function OPTIONS(request: Request) {
-  return forumPreflight(request, 'POST, OPTIONS')
-}
-
 export async function POST(request: Request) {
-  if (!isAllowedForumOrigin(request)) return forumJson(request, { error: 'origin_not_allowed' }, { status: 403 }, 'POST, OPTIONS')
-  const auth = await getForumAuth(request)
-  if (!auth) return forumJson(request, { error: 'auth_required' }, { status: 401 }, 'POST, OPTIONS')
-
-  const [accountLimit, globalLimit] = await Promise.all([
-    rateLimit('itinerary-gemini-account', auth.profile.id, 8, '1 h', { strict: true }),
-    rateLimit('itinerary-gemini-global', 'global', 400, '1 d', { strict: true }),
-  ])
-  if (!accountLimit.success || !globalLimit.success) {
-    return forumJson(request, { error: 'rate_limited' }, { status: 429 }, 'POST, OPTIONS')
+  // Cost breakers, the app's standard shape (see classify/rephrase): aiGuard =
+  // login-only + per-account hourly cap (8/h, the planner's forum-tuned limit) +
+  // the shared global daily AI ceiling — all strict (fail-closed). On top, the
+  // planner keeps its own dedicated daily ceiling (grounded search calls are the
+  // most expensive Gemini path in the app), same knob the forum route used.
+  const gate = await aiGuard('itinerary', 8)
+  if (!gate.ok) return gate.res
+  const globalLimit = await rateLimit('itinerary-gemini-global', 'global', 400, '1 d', { strict: true })
+  if (!globalLimit.success) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   }
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
-    return forumJson(request, { error: 'invalid_trip', issues: parsed.error.issues }, { status: 400 }, 'POST, OPTIONS')
+    return NextResponse.json({ error: 'invalid_trip', issues: parsed.error.issues }, { status: 400 })
   }
 
   const ai = getGemini()
-  if (!ai) return forumJson(request, { error: 'ai_unavailable' }, { status: 503 }, 'POST, OPTIONS')
+  if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })
 
   const input = parsed.data
-  const cities = input.cityIds.map((id) => ({ id, ...CITY_CATALOG[id] }))
+  const requestedDays = new Map(input.cityDays.map(({ cityId, days }) => [cityId, days]))
+  const cities = input.cityIds.map((id) => ({
+    id,
+    ...CITY_CATALOG[id],
+    requestedDays: requestedDays.get(id) ?? null,
+  }))
   const start = new Date(`${input.startDate}T00:00:00.000Z`)
   const end = new Date(start)
   end.setUTCDate(end.getUTCDate() + input.days - 1)
   const dailyBudget = input.budgetId === 'smart' ? 1_200_000 : input.budgetId === 'premium' ? 5_000_000 : 2_500_000
-  const language = input.locale === 'vi' ? 'Vietnamese' : 'English'
+  const language = languageName(input.locale)
   const generatedAt = new Date().toISOString()
 
-  const prompt = `Build a meticulous, realistic Vietnam itinerary in ${language}. Use Google Search extensively before answering.
+  const prompt = `Build a concise, realistic Vietnam itinerary in ${language}. Research current information thoroughly before answering.
 
 Research current, viable options as of ${generatedAt.slice(0, 10)}:
 - international and domestic flight routes relevant to the supplied airports and dates;
@@ -323,32 +352,53 @@ ${JSON.stringify({
 
 Planning rules:
 1. Produce exactly ${input.days} numbered day objects with the correct consecutive dates from ${input.startDate} through ${end.toISOString().slice(0, 10)}.
-2. Respect the selected city order unless changing it materially reduces backtracking; explain any change in routeRationale. Do not force every city if the trip is too short—identify the least disruptive omission in assumptions.
-3. Keep arrival and transfer days lighter. Account for airport buffers, hotel check-in, traffic, heat, rain, and recovery time.
-4. Each morning/afternoon/evening block must name a real place or clearly described flexible activity, include travel time from the prior stop, an honest VND cost estimate, and actionable booking advice.
-5. Recommend multiple specific hotels across the requested route, matching the accommodation style and budget. URLs must be direct official hotel/operator/airline pages or reputable search pages found during research; use an empty string when uncertain.
-6. Flight options are research leads, not inventory. If flights are requested, search the requested dates and return up to four viable outbound/return options plus genuinely useful domestic legs. Never claim a seat or fare is available. Use 0 for a fare you cannot verify and say why in fareNote. If flights are not requested, return an empty flights array.
-7. Prices must be ranges, not false precision. Budget totals must distinguish whether researched flights are included.
-8. Prefer official tourism sites, airports, airlines, rail/bus operators, hotels, and attraction operators as sources. Avoid SEO itinerary farms when a primary source exists.
-9. Do not recommend unsafe, illegal, exploitative, or animal-harm activities. Mention material mobility or safety limitations plainly.
-10. The JSON must stand on its own without markdown or citations embedded in text; grounding sources are attached separately by the API.`
+2. Respect the selected city order unless changing it materially reduces backtracking; explain any change in routeRationale. Include every selected city.
+3. A city's requestedDays value is the traveler's fixed allocation: assign exactly that many numbered days to that city. Distribute all remaining days sensibly among cities whose requestedDays is null. Count a transfer day toward the city where the traveler spends most of that day.
+4. Keep arrival and transfer days lighter. Account for airport buffers, hotel check-in, traffic, heat, rain, and recovery time.
+5. Each morning/afternoon/evening block must name a real place or clearly described flexible activity, include travel time from the prior stop, an honest VND cost estimate, and actionable booking advice.
+6. Recommend one strong hotel per visited city and no more than ${MAX_ROUTE_CITIES} total, matching the accommodation style and budget. URLs must be direct official hotel/operator/airline pages or reputable search pages found during research; use an empty string when uncertain.
+7. Flight options are research leads, not inventory. If flights are requested, search the requested dates and return no more than four useful options total, including only essential domestic legs. Never claim a seat or fare is available. Use 0 for a fare you cannot verify and say why in fareNote. If flights are not requested, return an empty flights array.
+8. Prices must be ranges, not false precision. Budget totals must distinguish whether researched flights are included.
+9. Prefer official tourism sites, airports, airlines, rail/bus operators, hotels, and attraction operators as sources. Avoid SEO itinerary farms when a primary source exists.
+10. Do not recommend unsafe, illegal, exploitative, or animal-harm activities. Mention material mobility or safety limitations plainly.
+11. Be concise and avoid repeating facts across fields. Keep summary, routeRationale, budget.note, practical items, checklist reasons, fare notes, stay reasons, and booking advice to one short sentence each. Activity details may use at most two short sentences. Return three to six bookingChecklist items and no more than four material assumptions.
+12. The JSON must stand on its own without markdown or citations embedded in text; research sources are attached separately by the API.`
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: prompt,
-      config: {
-        temperature: 0.2,
-        maxOutputTokens: 20_000,
-        tools: [{ googleSearch: {} }],
-        responseMimeType: 'application/json',
-        responseSchema,
-      },
+    const attempts = Array.from(new Set([GEMINI_MODEL, GEMINI_MODEL_FALLBACK]))
+      .map((model) => ({ model, delay: 0 }))
+    const generated = await withAiRetry(attempts, async (attempt, index) => {
+      const response = await ai.models.generateContent({
+        model: attempt.model,
+        contents: prompt,
+        config: {
+          // Gemini 3 models are tuned around their default sampling values. Low
+          // thinking is enough for a structured trip while keeping latency and
+          // output-token cost predictable. The 2.5-flash fallback predates
+          // thinkingLevel (it budgets thinking in tokens), so only send the knob
+          // to 3.x models.
+          maxOutputTokens: Math.min(24_000, Math.max(6_000, 4_000 + input.days * 650)),
+          ...(attempt.model.startsWith('gemini-3') ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+          tools: [{ googleSearch: {} }],
+          responseMimeType: 'application/json',
+          responseSchema,
+          // The SDK otherwise retries a paid grounded request up to five times.
+          // Keep every attempt explicit and bounded by withAiRetry.
+          httpOptions: {
+            timeout: index === 0 ? 50_000 : 25_000,
+            retryOptions: { attempts: 1 },
+          },
+        },
+      })
+      try {
+        const plan = planSchema.parse(JSON.parse(cleanModelJson(response.text || '{}')))
+        if (plan.days.length !== input.days) throw new SyntaxError('itinerary_day_count_mismatch')
+        return { response, plan, model: attempt.model, attempts: index + 1 }
+      } catch {
+        throw new SyntaxError('itinerary_response_invalid')
+      }
     })
-    const plan = planSchema.parse(JSON.parse(cleanModelJson(response.text || '{}')))
-    if (plan.days.length !== input.days) {
-      return forumJson(request, { error: 'ai_incomplete' }, { status: 502 }, 'POST, OPTIONS')
-    }
+    const { response, plan } = generated
 
     plan.flights = plan.flights.map((flight) => ({ ...flight, url: safeUrl(flight.url) }))
     plan.stays = plan.stays.map((stay) => ({ ...stay, url: safeUrl(stay.url) }))
@@ -360,17 +410,57 @@ Planning rules:
       if (!url || seen.has(url)) return []
       seen.add(url)
       return [{ title: (chunk.web?.title || new URL(url).hostname).slice(0, 180), url, domain: new URL(url).hostname.replace(/^www\./, '') }]
-    }).slice(0, 30)
+    }).slice(0, 10)
+    const searchQueries = (metadata?.webSearchQueries || []).slice(0, 20)
+    const result = { plan, model: generated.model, generatedAt, sources, searchQueries }
 
-    return forumJson(request, {
-      plan,
-      model: GEMINI_MODEL,
-      generatedAt,
-      sources,
-      searchQueries: (metadata?.webSearchQueries || []).slice(0, 20),
-    }, undefined, 'POST, OPTIONS')
+    // Save-on-complete (the forum planner auto-saved every signed-in run; here the
+    // session is server-side, so the save is too — same Itinerary tables, same
+    // payload shape as POST /api/itineraries). A save failure must not cost the
+    // user their researched plan: return it with savedItineraryId null and let the
+    // client's Save button retry through POST /api/itineraries.
+    let savedItineraryId: string | null = null
+    try {
+      const payload = buildItinerarySavePayload({
+        result,
+        cityIds: input.cityIds,
+        days: input.days,
+        budgetId: input.budgetId,
+        interests: input.interests,
+      })
+      const itinerary = await db.itinerary.create({
+        data: {
+          profileId: gate.profileId,
+          title: payload.title,
+          destinationId: payload.destinationId,
+          days: payload.days,
+          budgetId: payload.budgetId,
+          interests: JSON.stringify(payload.interests),
+          status: payload.status,
+          estimatedBudget: payload.estimatedBudget ?? null,
+          currency: payload.currency,
+          generatedAt: payload.generatedAt ? new Date(payload.generatedAt) : null,
+          dayPlans: { create: payload.dayPlans },
+          stays: { create: payload.stays },
+        },
+      })
+      savedItineraryId = itinerary.id
+    } catch (error) {
+      console.error('[itineraries/generate] auto-save failed', (error as Error)?.message?.slice(0, 300))
+    }
+
+    return NextResponse.json({ ...result, savedItineraryId })
   } catch (error) {
-    console.error('[itineraries/generate]', (error as Error)?.message?.slice(0, 600))
-    return forumJson(request, { error: 'ai_failed' }, { status: 502 }, 'POST, OPTIONS')
+    const providerStatus = aiErrorStatus(error)
+    console.error('[itineraries/generate]', {
+      providerStatus,
+      model: GEMINI_MODEL,
+      fallbackModel: GEMINI_MODEL_FALLBACK,
+      message: (error as Error)?.message?.slice(0, 500),
+    })
+    const busy = providerStatus === 429 || providerStatus === 503
+    const response = NextResponse.json({ error: busy ? 'ai_busy' : 'ai_failed' }, { status: busy ? 429 : 502 })
+    if (busy) response.headers.set('Retry-After', '60')
+    return response
   }
 }

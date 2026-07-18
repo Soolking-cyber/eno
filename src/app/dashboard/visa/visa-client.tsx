@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronRight, CloudOff, FileCheck2 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
@@ -10,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
 import { SectionHeader } from '@/components/marketplace/section-header'
-import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import type { ForumVisaResult } from '@/lib/forum-visa'
 
 // Status → badge tone. Keys are the statuses the forum route actually writes
@@ -31,9 +31,10 @@ export const STATUS: Record<string, { en: string; vi: string; variant: 'neutral'
 }
 
 /** /dashboard/visa — the user's Vietnam e-Visa applications, rendered in <main> like every
- *  other dashboard section. Data arrives pre-fetched from the server page (forum proxy);
- *  this component only gates auth and renders. Editing/continuing an application happens
- *  on eno.forum, so every row and CTA crosses sites via the goToForum SSO handoff. */
+ *  other dashboard section. Data arrives pre-fetched from the server page (forum proxy —
+ *  still valid: both sites share the visa tables); this component only gates auth and
+ *  renders. The ASSISTANT now runs IN-HUB at /dashboard/visa/apply (2026-07-18 port), so
+ *  every row and CTA is an internal Link — no goToForum handoff, no cross-site hop. */
 export function VisaClient({ initial }: { initial: ForumVisaResult }) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
@@ -63,20 +64,10 @@ export function VisaClient({ initial }: { initial: ForumVisaResult }) {
     )
   }
 
-  // Real anchor (a11y / middle- and cmd-click keep the plain URL); left-click rides
-  // the native SSO bridge — the account-panel cross-site idiom.
+  // Internal navigation — the assistant is a dashboard sub-page now.
   const openAssistant = (
     <Button variant="cta" asChild>
-      <a
-        href={`${FORUM_URL}/visa`}
-        onClick={(e) => {
-          if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
-          e.preventDefault()
-          goToForum('/visa')
-        }}
-      >
-        {tr('Open e-Visa assistant', 'Mở trợ lý e-Visa')}
-      </a>
+      <Link href="/dashboard/visa/apply">{tr('Open e-Visa assistant', 'Mở trợ lý e-Visa')}</Link>
     </Button>
   )
 
@@ -87,7 +78,7 @@ export function VisaClient({ initial }: { initial: ForumVisaResult }) {
       {/* h1 stays for the outline; the SectionHeader carries the visible mobile title. */}
       <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Vietnam e-Visa', 'E-Visa Việt Nam')}</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        {tr('Your e-Visa applications from the eno.forum assistant.', 'Hồ sơ e-Visa của bạn từ trợ lý trên eno.forum.')}
+        {tr('Your Vietnam e-Visa applications, prepared with the guided assistant.', 'Hồ sơ e-Visa Việt Nam của bạn, được chuẩn bị cùng trợ lý hướng dẫn.')}
       </p>
       <div className="mt-6">
         {initial.state !== 'ok' ? (
@@ -95,10 +86,10 @@ export function VisaClient({ initial }: { initial: ForumVisaResult }) {
           // server cookie was stale): both are honest "can't show your applications right now".
           <EmptyState
             icon={CloudOff}
-            title={tr("Can't reach the e-Visa assistant right now", 'Hiện chưa kết nối được trợ lý e-Visa')}
+            title={tr("Can't load your e-Visa applications right now", 'Hiện chưa tải được hồ sơ e-Visa của bạn')}
             subtitle={tr(
-              'Your applications are safe on eno.forum — open the assistant to view them.',
-              'Hồ sơ của bạn vẫn an toàn trên eno.forum — mở trợ lý để xem.',
+              'Your applications are safe — open the assistant to view and continue them.',
+              'Hồ sơ của bạn vẫn an toàn — mở trợ lý để xem và tiếp tục.',
             )}
             action={openAssistant}
           />
@@ -107,21 +98,12 @@ export function VisaClient({ initial }: { initial: ForumVisaResult }) {
             icon={FileCheck2}
             title={tr('No visa applications yet', 'Chưa có hồ sơ visa nào')}
             subtitle={tr(
-              'The step-by-step assistant on eno.forum prepares your Vietnam e-Visa application and checks your documents.',
-              'Trợ lý từng bước trên eno.forum giúp bạn chuẩn bị hồ sơ e-Visa Việt Nam và kiểm tra giấy tờ.',
+              'The step-by-step assistant prepares your Vietnam e-Visa application and checks your documents.',
+              'Trợ lý từng bước giúp bạn chuẩn bị hồ sơ e-Visa Việt Nam và kiểm tra giấy tờ.',
             )}
             action={
               <Button variant="cta" asChild>
-                <a
-                  href={`${FORUM_URL}/visa`}
-                  onClick={(e) => {
-                    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
-                    e.preventDefault()
-                    goToForum('/visa')
-                  }}
-                >
-                  {tr('Start an application', 'Bắt đầu hồ sơ')}
-                </a>
+                <Link href="/dashboard/visa/apply">{tr('Start an application', 'Bắt đầu hồ sơ')}</Link>
               </Button>
             }
           />
@@ -132,15 +114,10 @@ export function VisaClient({ initial }: { initial: ForumVisaResult }) {
                 const s = STATUS[a.status]
                 return (
                   <li key={a.id}>
-                    {/* Real href for a11y / middle-click / cmd-click; a plain left-click routes
-                        through goToForum so natives get the SSO handoff (account-panel idiom). */}
-                    <a
-                      href={`${FORUM_URL}/visa`}
-                      onClick={(e) => {
-                        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-                        e.preventDefault()
-                        void goToForum('/visa')
-                      }}
+                    {/* Internal Link: the in-hub assistant at /dashboard/visa/apply opens the
+                        user's active application (there is one case per user in practice). */}
+                    <Link
+                      href="/dashboard/visa/apply"
                       // press = the native-row tactile treatment (its base transition keeps
                       // hover:bg-muted animating); the row is already one full-row anchor.
                       className="press flex items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-muted"
@@ -166,7 +143,7 @@ export function VisaClient({ initial }: { initial: ForumVisaResult }) {
                         </p>
                       </div>
                       <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" />
-                    </a>
+                    </Link>
                   </li>
                 )
               })}

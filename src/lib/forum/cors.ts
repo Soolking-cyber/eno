@@ -8,18 +8,37 @@ function allowedOrigins(): Set<string> {
   for (const origin of (process.env.FORUM_DEV_ORIGINS || '').split(',')) {
     if (origin.trim()) origins.add(origin.trim())
   }
-  if (process.env.NODE_ENV !== 'production') {
-    origins.add('http://localhost:3101')
-    origins.add('http://127.0.0.1:3101')
+  // Loopback origins are always allowed: a prod attacker can never make a victim's
+  // browser send Origin: http://localhost (and SameSite=Lax already blocks cross-site
+  // POST), while dev/standalone-start (NODE_ENV=production) still needs them.
+  for (const port of ['3100', '3101']) {
+    origins.add(`http://localhost:${port}`)
+    origins.add(`http://127.0.0.1:${port}`)
   }
   return origins
 }
 
 export function isAllowedForumOrigin(request: Request): boolean {
   const origin = request.headers.get('origin')
-  // Server-to-server and same-origin requests commonly omit Origin. Authentication
-  // and authorization still apply; CORS only gates browser cross-origin access.
-  return !origin || allowedOrigins().has(origin)
+  // Server-to-server requests omit Origin; browsers omit it on same-origin GETs.
+  // Authentication and authorization still apply; CORS only gates browser
+  // cross-origin access.
+  if (!origin) return true
+  // ⚠️ Browsers send Origin on every non-GET fetch — including SAME-ORIGIN ones —
+  // so the app's own pages must be recognised here too (the /dashboard/trips/plan
+  // planner POSTs /api/itineraries from eno.vn itself; 2026-07-18). Same-origin is
+  // decided against NEXT_PUBLIC_APP_URL — a TRUSTED, env-fixed value — NOT against a
+  // request host header: x-forwarded-host/host are attacker-settable behind a
+  // mis-set proxy or a direct-to-node hit, and matching Origin to a spoofed host
+  // would wave through any cross-site origin. (Local dev covered by the :3100/:3101
+  // allowlist entries below.)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (appUrl) {
+    try {
+      if (origin === new URL(appUrl).origin) return true
+    } catch { /* malformed env — fall through to the allowlist */ }
+  }
+  return allowedOrigins().has(origin)
 }
 
 export function withForumCors(request: Request, response: NextResponse, methods = 'GET, POST, PATCH, DELETE, OPTIONS') {
