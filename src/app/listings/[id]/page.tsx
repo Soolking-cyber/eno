@@ -372,7 +372,7 @@ export default async function ListingPage({ params }: Props) {
             <ListingGallery variant="mobile" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
             <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
               <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
-              <SaveListingButton id={listing.id} compact className="h-9 w-9 border-0 bg-card/80 backdrop-blur" />
+              <SaveListingButton id={listing.id} compact />
             </div>
           </div>
 
@@ -502,7 +502,7 @@ export default async function ListingPage({ params }: Props) {
               <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
               <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
                 <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
-                <SaveListingButton id={listing.id} compact className="h-9 w-9 border-0 bg-card/80 backdrop-blur" />
+                <SaveListingButton id={listing.id} compact />
               </div>
             </div>
 

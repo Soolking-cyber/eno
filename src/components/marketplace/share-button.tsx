@@ -64,21 +64,18 @@ export function ShareButton({ url, title, price, currency, className, compact = 
       {/* Base UI supplies toggle-on-click + aria-expanded/haspopup on the rendered button. */}
       <PopoverTrigger
         render={
-          // compact: icon-only circle for overlaying media (mirrors SaveListingButton's
-          // compact mode) — sized/tinted for the gallery's top-right corner. That shell IS
-          // <IconButton size="md">, so use the primitive. The labelled (non-compact) variant
-          // is a padded pill with text, so it owns its own box: <Button size="none">.
+          // compact: icon-only, OVER MEDIA (mirrors SaveListingButton's compact mode) — NO circle
+          // background; the `overlay` variant is a white glyph + baked drop-shadow that reads on any
+          // photo, light or dark (our over-media icon aesthetic). That shell IS <IconButton>, so use
+          // the primitive. The labelled (non-compact) variant is a padded pill with text.
           compact ? (
             <IconButton
               size="md"
+              variant="overlay"
               aria-label={tr('Share', 'Chia sẻ')}
-              className={cn(
-                'bg-card/80 backdrop-blur transition-colors active:scale-95',
-                open ? 'text-accent-foreground' : 'text-body',
-                className,
-              )}
+              className={cn('transition-transform active:scale-95', className)}
             >
-              <Share2 className="h-4 w-4" />
+              <Share2 className="h-5 w-5" />
             </IconButton>
           ) : (
             <Button

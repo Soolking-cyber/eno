@@ -18,6 +18,9 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
   const label = saved ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')
 
   if (compact) {
+    // Over-media treatment (our icon aesthetic, matching ListingCard's overlay controls): NO circle
+    // background — a white glyph + baked drop-shadow reads on any photo (light OR dark), and the
+    // unsaved heart carries a translucent-black fill so it stays visible on bright images too.
     return (
       <Button
         variant="bare"
@@ -27,12 +30,11 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
         aria-pressed={saved}
         aria-label={label}
         className={cn(
-          'flex h-11 w-11 rounded-full border transition-colors active:scale-90',
-          saved ? 'border-brand text-accent-foreground' : 'border-border text-body',
+          'flex h-9 w-9 items-center justify-center text-white transition-transform active:scale-90 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]',
           className,
         )}
       >
-        <Heart className={cn('h-5 w-5', saved && 'fill-brand')} />
+        <Heart className={cn('h-5 w-5', saved ? 'fill-brand' : 'fill-black/25')} />
       </Button>
     )
   }
