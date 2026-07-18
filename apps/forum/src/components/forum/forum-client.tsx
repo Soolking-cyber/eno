@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
 import {
   Bookmark,
@@ -13,26 +12,21 @@ import {
   CircleHelp,
   Coffee,
   Compass,
-  ExternalLink,
-  FileCheck2,
   FileText,
   Flame,
   HeartHandshake,
   Home,
   House,
   Languages,
-  LayoutDashboard,
   Loader2,
   MapPin,
   MessageCircleQuestion,
   MessageSquareText,
-  Route,
   Search,
   SearchX,
   ShieldCheck,
   Sparkles,
   Trash2,
-  UserRound,
   Users,
   Waves,
 } from 'lucide-react'
@@ -56,7 +50,6 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { ENO_DASHBOARD_URL } from '@/lib/eno-dashboard'
 import { forumApi, ForumApiError } from '@/lib/api'
 import {
   canDeleteForumPost,
@@ -140,7 +133,6 @@ function ForumLeftRail({
   onNavigate: (mode: FeedMode, sort: ForumSort) => void
 }) {
   const { tr } = useLanguage()
-  const { user, loading: authLoading, openSignIn } = useAuth()
   const nav = [
     { id: 'home', label: tr('Home', 'Trang chủ'), icon: Home, active: mode === 'all' && sort === 'best' && !activeCommunity, action: () => { onSelectCommunity(null); onNavigate('all', 'best') } },
     { id: 'popular', label: tr('Popular', 'Phổ biến'), icon: Flame, active: mode === 'all' && sort === 'top', action: () => onNavigate('all', 'top') },
@@ -179,69 +171,6 @@ function ForumLeftRail({
             )
           })}
         </nav>
-
-        {/* Forum-owned tools stay on this domain and surface in the SITE sidebar.
-            Icons match the canonical eno.vn dashboard choices for these surfaces. */}
-        <div>
-          <p className="mb-2 px-3 text-xs font-bold uppercase tracking-wider text-ink-4">{tr('Tools', 'Công cụ')}</p>
-          <nav aria-label={tr('Forum tools', 'Công cụ diễn đàn')} className="space-y-1">
-            {[
-              { href: '/itinerary', label: tr('Itinerary planner', 'Lập lịch trình'), icon: Route },
-              { href: '/visa', label: tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2 },
-            ].map((item) => {
-              const Icon = item.icon
-              return (
-                <Button
-                  key={item.href}
-                  asChild
-                  variant="bare"
-                  size="none"
-                  className="h-10 w-full justify-start gap-3 rounded-xl px-3 text-sm font-semibold text-body hover:bg-tint hover:text-foreground"
-                >
-                  <Link href={item.href}>
-                    <Icon className="h-5 w-5" />
-                    <span>{item.label}</span>
-                  </Link>
-                </Button>
-              )
-            })}
-          </nav>
-        </div>
-
-        {/* The ONE eno dashboard lives on eno.vn — this is a labeled cross-site
-            handoff, never a second dashboard mounted here. Guests get the sign-in
-            affordance that used to live in the header. Kept OUTSIDE #app-header:
-            the e2e spec asserts the header carries no account controls. */}
-        <div>
-          <p className="mb-2 px-3 text-xs font-bold uppercase tracking-wider text-ink-4">{tr('Account', 'Tài khoản')}</p>
-          <nav aria-label={tr('Account', 'Tài khoản')} className="space-y-1">
-            {!authLoading && (user ? (
-              <Button
-                asChild
-                variant="bare"
-                size="none"
-                className="h-10 w-full justify-start gap-3 rounded-xl px-3 text-sm font-semibold text-body hover:bg-tint hover:text-foreground"
-              >
-                <a href={ENO_DASHBOARD_URL}>
-                  <LayoutDashboard className="h-5 w-5" />
-                  <span className="min-w-0 flex-1 truncate text-left">{tr('Open eno dashboard', 'Mở bảng điều khiển eno')}</span>
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-ink-4" aria-hidden />
-                </a>
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="bare"
-                size="none"
-                onClick={openSignIn}
-                className="h-10 w-full justify-start gap-3 rounded-xl px-3 text-sm font-semibold text-body hover:bg-tint hover:text-foreground"
-              >
-                <UserRound className="h-5 w-5" />
-                <span>{tr('Sign in', 'Đăng nhập')}</span>
-              </Button>
-            ))}
-          </nav>
-        </div>
 
         <div>
           <div className="mb-2 flex items-center justify-between px-3">
