@@ -544,10 +544,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const hasHevcTrack = async (f: File): Promise<boolean> => {
     const EDGE = 2 * 1024 * 1024
     const edges = f.size <= 2 * EDGE ? [f] : [f.slice(0, EDGE), f.slice(f.size - EDGE)]
-    const dec = new TextDecoder('latin1')
     for (const part of edges) {
-      const text = dec.decode(await part.arrayBuffer())
-      if (text.includes('hvc1') || text.includes('hev1')) return true
+      const arr = new Uint8Array(await part.arrayBuffer())
+      for (let i = 0; i < arr.length - 3; i++) {
+        // 'hvc1' = 104, 118, 99, 49
+        // 'hev1' = 104, 101, 118, 49
+        if (arr[i] === 104) {
+          if (arr[i+1] === 118 && arr[i+2] === 99 && arr[i+3] === 49) return true
+          if (arr[i+1] === 101 && arr[i+2] === 118 && arr[i+3] === 49) return true
+        }
+      }
     }
     return false
   }
