@@ -47,6 +47,10 @@ export default function PendingComposePage() {
             : error === 'account_suspended' ? tr('Your account is suspended — messaging is paused while we review it. Details are in your dashboard.', 'Tài khoản của bạn đang tạm ngưng — nhắn tin tạm dừng trong khi chúng tôi xem xét. Xem chi tiết trong trang quản lý.')
             : error === 'probation_conversation_cap' ? tr('New accounts can start up to 15 chats a day — please try again tomorrow.', 'Tài khoản mới có thể bắt đầu tối đa 15 cuộc trò chuyện mỗi ngày — hãy thử lại vào ngày mai.')
             : tr('Could not send. Try again.', 'Không gửi được. Thử lại.'))
+          // Re-stash the draft before bouncing (audit P2): removeItem ran up front,
+          // so without this a transient failure silently DISCARDED the typed message
+          // or structured offer the user composed.
+          try { sessionStorage.setItem(COMPOSE_KEY, JSON.stringify(d)) } catch { /* ignore */ }
           router.replace(`/listings/${d.listingId}`)
           return
         }
@@ -61,7 +65,11 @@ export default function PendingComposePage() {
         if (created) trackContactSeller({ id: d.listingId, title: d.listingTitle, price: d.trackPrice ?? undefined, currency: currencyCode(d.currency) })
         router.replace(`/messages/${id}`)
       })
-      .catch(() => { toast.error(tr('Could not send. Try again.', 'Không gửi được. Thử lại.')); router.replace(`/listings/${d.listingId}`) })
+      .catch(() => {
+        try { sessionStorage.setItem(COMPOSE_KEY, JSON.stringify(d)) } catch { /* ignore */ }
+        toast.error(tr('Could not send. Try again.', 'Không gửi được. Thử lại.'))
+        router.replace(`/listings/${d.listingId}`)
+      })
   }, [router, cacheThread, user, tr])
 
   // Thread skeleton while the conversation resolves.

@@ -159,14 +159,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       issues: ['automatic_image_check_rate_limited'],
       analyzedAt: new Date().toISOString(),
     }
-    await db.from('visa_documents').update({ validation_status: 'unavailable', validation_report: validationReport }).eq('id', document.id)
+    await db.from('visa_documents').update({ validation_status: 'unavailable', validation_report: validationReport }).eq('id', document.id).neq('validation_status', 'passed')
     const response = NextResponse.json({ error: 'image_analysis_rate_limited' }, { status: 429 })
     response.headers.set('Retry-After', '300')
     return response
   }
   const ai = getGemini()
   if (!ai) {
-    await db.from('visa_documents').update({ validation_status: 'unavailable' }).eq('id', document.id)
+    await db.from('visa_documents').update({ validation_status: 'unavailable' }).eq('id', document.id).neq('validation_status', 'passed')
     return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })
   }
   const { data: blob, error: downloadError } = await db.storage.from(VISA_BUCKET).download(document.storage_path)
@@ -237,8 +237,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const previousChecklist = Array.isArray(application.checklist) ? application.checklist : []
       const imageIssueCodes = new Set(PASSPORT_IMAGE_CODES)
       const checklist = [...new Set([...previousChecklist.filter((item: string) => !imageIssueCodes.has(item)), 'ai_extraction_needs_review', ...issues])]
-      const applicationUpdate = await db.from('visa_applications').update({ encrypted_payload: encryptVisaPayload(payload), checklist, updated_at: now, last_applicant_action_at: now }).eq('id', id).eq('user_id', userId).eq('updated_at', application.updated_at)
+      const applicationUpdate = await db.from('visa_applications').update({ encrypted_payload: encryptVisaPayload(payload), checklist, updated_at: now, last_applicant_action_at: now }).eq('id', id).eq('user_id', userId).eq('updated_at', application.updated_at).select('id').maybeSingle()
       if (applicationUpdate.error) throw applicationUpdate.error
+      // 0-row CAS miss is NOT success (audit P2 #10): a concurrent save raced this
+      // merge — without the 409 the client got a success event + merged payload that
+      // was never persisted, and the wizard showed fields the server doesn't have.
+      if (!applicationUpdate.data) return NextResponse.json({ error: 'application_changed_retry' }, { status: 409 })
     }
     await recordVisaEvent(id, 'system', passport ? 'passport_analyzed_and_extracted' : 'portrait_analyzed', undefined, { documentId: document.id, status: finalStatus, issues, fieldsSuggested: Object.keys(suggestions).length, model: analysis.model, attempts: analysis.attempts })
     return NextResponse.json({
@@ -253,7 +257,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     console.error('[visa-image-analysis] failed', { kind: parsed.data.kind, name: failure.name || 'Error', status, message: error instanceof Error ? error.message.slice(0, 300) : null })
     const issue = capacityBusy ? 'automatic_image_check_busy' : 'automatic_image_check_failed'
     const validationReport = { ...existingReport, version: VISA_IMAGE_RULES_VERSION, status: 'unavailable', issues: [issue], analyzedAt: new Date().toISOString() }
-    await db.from('visa_documents').update({ validation_status: 'unavailable', validation_report: validationReport }).eq('id', document.id)
+    await db.from('visa_documents').update({ validation_status: 'unavailable', validation_report: validationReport }).eq('id', document.id).neq('validation_status', 'passed')
     const response = NextResponse.json({ error: capacityBusy ? 'image_analysis_busy' : 'image_analysis_failed' }, { status: capacityBusy ? 429 : 502 })
     if (capacityBusy) response.headers.set('Retry-After', '60')
     return response

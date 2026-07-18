@@ -40,9 +40,30 @@ export async function withIdempotency(
   const cached = await redis.get<Outcome>(cacheKey).catch(() => null)
   if (cached) return NextResponse.json(cached.body, { status: cached.status, headers: headers(rate, true) })
 
-  const r = await run()
-  if (r.status >= 200 && r.status < 300) {
-    await redis.set(cacheKey, { status: r.status, body: r.body } satisfies Outcome, { ex: TTL_SECONDS }).catch(() => {})
+  // In-progress claim (audit P2 #15): without it, a client that TIMES OUT and retries
+  // while the first run is still executing sees a cache miss and double-executes — the
+  // exact scenario idempotency exists for. SET NX = one runner; the loser replays the
+  // finished result if it just landed, else gets an honest 409 to retry shortly.
+  // Redis blip on the claim fails OPEN (runs) — availability over strictness here,
+  // matching the header-absent path.
+  const progressKey = `${cacheKey}:running`
+  const claimed = await redis.set(progressKey, '1', { nx: true, ex: 120 }).catch(() => 'OK' as const)
+  if (claimed === null) {
+    const done = await redis.get<Outcome>(cacheKey).catch(() => null)
+    if (done) return NextResponse.json(done.body, { status: done.status, headers: headers(rate, true) })
+    return NextResponse.json(
+      { error: { code: 'idempotency_in_progress', message: 'A request with this Idempotency-Key is still processing. Retry shortly.' } },
+      { status: 409, headers: headers(rate) },
+    )
   }
-  return NextResponse.json(r.body, { status: r.status, headers: headers(rate) })
+
+  try {
+    const r = await run()
+    if (r.status >= 200 && r.status < 300) {
+      await redis.set(cacheKey, { status: r.status, body: r.body } satisfies Outcome, { ex: TTL_SECONDS }).catch(() => {})
+    }
+    return NextResponse.json(r.body, { status: r.status, headers: headers(rate) })
+  } finally {
+    await redis.del(progressKey).catch(() => {})
+  }
 }
