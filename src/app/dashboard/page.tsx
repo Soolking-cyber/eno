@@ -7,7 +7,8 @@ import { fetchForumVisaApplications } from '@/lib/forum-visa'
 import type { ForumActivity } from './forum/forum-client'
 import { loadForumActivity } from './forum/load-activity'
 import { redirect } from 'next/navigation'
-import { HomeClient, type HomeTrip } from './home-client'
+import type { SavedItinerary } from './trips/trip-card'
+import { HomeClient } from './home-client'
 
 export const metadata: Metadata = {
   title: 'Dashboard | eno.vn',
@@ -19,27 +20,93 @@ export const dynamic = 'force-dynamic'
 
 /** /dashboard is the dashboard HOME again (owner 2026-07-18): ONE dashboard for both eno
  *  properties, on the eno.forum card design. This server page loads the cross-property
- *  snapshots (forum activity, itineraries, visa) and hands them to HomeClient; the
- *  marketplace card reads the shared client store instead (same source as the nav rail).
+ *  snapshots (forum activity, itineraries, visa) plus the seller-saves aggregate and
+ *  hands them to HomeClient; the rest of the marketplace card reads the shared client
+ *  store (same source as the nav rail).
  *  DashboardRedirect stays mounted only to honor legacy `?tab=` deep links. */
 
-// Compact itinerary rows for the home card (title · days · updated) — the FULL trips
-// experience (expansion, day plans) stays on /dashboard/trips, which client-fetches
-// /api/itineraries. Filters mirror that route's GET (owner-scoped, non-archived,
-// newest first).
-async function loadTrips(profileId: string): Promise<HomeTrip[] | null> {
+// Full itinerary rows for the home card — the SAME shape the /api/itineraries GET
+// serializer ships (trip-card's SavedItinerary), because the canonical dashboard's
+// itinerary rows EXPAND in place to day plans + stay shortlist on both properties
+// (owner 2026-07-18), reusing TripCard. Filters mirror that route's GET (owner-scoped,
+// non-archived, newest first); take 5 for the home.
+async function loadTrips(profileId: string): Promise<SavedItinerary[] | null> {
   try {
     const rows = await db.itinerary.findMany({
       where: { profileId, status: { not: 'archived' } },
       orderBy: { updatedAt: 'desc' },
       take: 5,
-      select: { id: true, title: true, days: true, updatedAt: true },
+      include: {
+        dayPlans: { orderBy: { dayNumber: 'asc' } },
+        stays: { orderBy: { position: 'asc' } },
+      },
     })
-    return rows.map((r) => ({ id: r.id, title: r.title, days: r.days, updatedAt: r.updatedAt.toISOString() }))
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      destinationId: r.destinationId,
+      days: r.days,
+      budgetId: r.budgetId,
+      // Legacy rows may hold 'null'/non-array/bad JSON — always ship an array (the
+      // API route carries the same guard).
+      interests: ((): string[] => {
+        try {
+          const v = JSON.parse(r.interests) as unknown
+          return Array.isArray(v) ? (v as string[]) : []
+        } catch {
+          return []
+        }
+      })(),
+      status: r.status,
+      estimatedBudget: r.estimatedBudget,
+      currency: r.currency,
+      updatedAt: r.updatedAt.toISOString(),
+      dayPlans: r.dayPlans.map((d) => ({
+        id: d.id,
+        dayNumber: d.dayNumber,
+        area: d.area,
+        areaVi: d.areaVi,
+        title: d.title,
+        titleVi: d.titleVi,
+        morning: d.morning,
+        morningVi: d.morningVi,
+        afternoon: d.afternoon,
+        afternoonVi: d.afternoonVi,
+        evening: d.evening,
+        eveningVi: d.eveningVi,
+      })),
+      stays: r.stays.map((s) => ({
+        id: s.id,
+        position: s.position,
+        name: s.name,
+        nameVi: s.nameVi,
+        area: s.area,
+        areaVi: s.areaVi,
+        note: s.note,
+        noteVi: s.noteVi,
+        estimatedNightly: s.estimatedNightly,
+        currency: s.currency,
+      })),
+    }))
   } catch (error) {
     // P2021 = itinerary tables not migrated here — honest empty, like the API's 503 soft path.
     if ((error as { code?: string }).code === 'P2021') return []
     return null // anything else: the card renders its could-not-load body, never crashes the home
+  }
+}
+
+// 'Saves on your listings' — the SERVER-side sum of the user's listings' savedCount.
+// Deliberately NOT the device-local favorites count: that is a buyer metric that cannot
+// cross origins; the canonical dashboard shows the SELLER's demand signal on both sites.
+async function loadSaves(profileId: string): Promise<number | null> {
+  try {
+    const agg = await db.listing.aggregate({
+      where: { seller: { ownerId: profileId } },
+      _sum: { savedCount: true },
+    })
+    return agg._sum.savedCount ?? 0 // no storefront / no listings = an honest zero
+  } catch {
+    return null // fail-soft: the tile shows an em dash, never crashes the home
   }
 }
 
@@ -48,14 +115,15 @@ async function HomeBody() {
   // failed source degrades to that card's empty/unavailable body. The signed-out VIEW
   // is owned by the client useAuth gate in HomeClient, exactly like the other sections.
   const profile = await getCurrentProfile().catch(() => null)
-  if (!profile) return <HomeClient forum={null} trips={null} visa={{ state: 'signed-out' }} />
-  const [forum, trips, visa] = await Promise.all([
+  if (!profile) return <HomeClient forum={null} trips={null} visa={{ state: 'signed-out' }} saves={null} />
+  const [forum, trips, visa, saves] = await Promise.all([
     loadForumActivity(profile.id).catch((): ForumActivity | null => null),
     loadTrips(profile.id),
     // Cannot reject by contract (every path returns a state) — belt only.
     fetchForumVisaApplications().catch((): Awaited<ReturnType<typeof fetchForumVisaApplications>> => ({ state: 'unavailable' })),
+    loadSaves(profile.id),
   ])
-  return <HomeClient forum={forum} trips={trips} visa={visa} />
+  return <HomeClient forum={forum} trips={trips} visa={visa} saves={saves} />
 }
 
 // Legacy `?tab=` deep links (notifications, old mobile nav) — resolved SERVER-side so a

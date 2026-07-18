@@ -9,19 +9,17 @@ import type { MouseEvent } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowBigUp,
-  CalendarDays,
   FileCheck2,
+  MapPinned,
   MessageCircle,
   MessageCircleQuestion,
   Route,
   Sparkles,
   Store,
-  Upload,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
-import { useFavorites } from '@/context/favorites-context'
 import { useDashboard } from '@/hooks/use-dashboard'
 import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import type { ForumVisaResult } from '@/lib/forum-visa'
@@ -33,18 +31,17 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import type { ForumActivity } from './forum/forum-client'
+import { TripCard, type SavedItinerary } from './trips/trip-card'
 import { STATUS as VISA_STATUS } from './visa/visa-client'
 
-/** /dashboard HOME — ONE dashboard for both eno properties (owner 2026-07-18), a faithful
- *  port of the eno.forum card dashboard design: welcome header + "eno services" grid + the
- *  1.45fr/.75fr content grid of Cards. Marketplace data reads the SAME shared store the nav
- *  rail uses (useDashboard/useChat/useFavorites); forum/trips/visa arrive server-loaded from
- *  page.tsx and fail soft into each card's empty body. The full experiences stay on their
- *  own sections (/dashboard/listings·forum·trips·visa) — every card is a doorway, so rows
- *  here are compact and expansion-free by design. */
-
-// Compact itinerary row shape the server loader in page.tsx produces for the home card.
-export type HomeTrip = { id: string; title: string; days: number; updatedAt: string }
+/** /dashboard HOME — THE canonical dashboard, rendered identically on both eno properties
+ *  (owner 2026-07-18): welcome header + the canonical FOUR "eno services" cards + the
+ *  1.45fr/.75fr content grid — LEFT Marketplace then Saved itineraries (TripCard's
+ *  EXPANDABLE rows, same as the forum dashboard), RIGHT Visa applications then Forum
+ *  activity. Marketplace data reads the SAME shared store the nav rail uses
+ *  (useDashboard/useChat) plus the server-loaded saves aggregate; forum/trips/visa arrive
+ *  server-loaded from page.tsx and fail soft into each card's empty body. The full
+ *  experiences stay on their own sections (/dashboard/listings·forum·trips·visa). */
 
 // Canonical forum thread URL shape — same as forum-client (the forum routes threads off
 // the ?post query param, not a path segment).
@@ -131,10 +128,11 @@ function TintEmpty({ icon: Icon, title, subtitle, action }: {
   )
 }
 
-export function HomeClient({ forum, trips, visa }: {
+export function HomeClient({ forum, trips, visa, saves }: {
   forum: ForumActivity | null
-  trips: HomeTrip[] | null
+  trips: SavedItinerary[] | null
   visa: ForumVisaResult
+  saves: number | null
 }) {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -151,7 +149,6 @@ export function HomeClient({ forum, trips, visa }: {
     if (user?.id) lastUid.current = user.id
   }, [user?.id, router])
   const { unread } = useChat()
-  const { count: savedCount } = useFavorites()
   const locale = moneyLocale(lang)
 
   // Auth race gate, like every other section (client auth may still be resolving).
@@ -210,13 +207,10 @@ export function HomeClient({ forum, trips, visa }: {
 
       <section aria-labelledby="eno-services" className="mt-7">
         <h2 id="eno-services" className="text-lg font-bold">{tr('eno services', 'Dịch vụ eno')}</h2>
+        {/* The canonical FOUR, canonical order (both properties): forum · planner · visa
+            · marketplace. Each opens the TOOL on its home site — here the first three
+            cross to the forum; the marketplace card is this site's own front page. */}
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ServiceCard
-            href="/post"
-            icon={Upload}
-            title={tr('Post a listing', 'Đăng tin')}
-            detail={tr('Sell or rent out anything on the eno marketplace.', 'Đăng bán hoặc cho thuê mọi thứ trên chợ eno.')}
-          />
           <ServiceCard
             forumPath="/"
             icon={MessageCircleQuestion}
@@ -235,11 +229,17 @@ export function HomeClient({ forum, trips, visa }: {
             title={tr('Vietnam e-Visa', 'E-Visa Việt Nam')}
             detail={tr('Prepare, review, and track your private application.', 'Chuẩn bị, kiểm tra và theo dõi hồ sơ riêng tư.')}
           />
+          <ServiceCard
+            href="/"
+            icon={Store}
+            title={tr('eno marketplace', 'Chợ eno')}
+            detail={tr('Find local products and services across Vietnam.', 'Tìm sản phẩm và dịch vụ địa phương trên khắp Việt Nam.')}
+          />
         </div>
       </section>
 
       <div className="mt-7 grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
-        {/* LEFT — the host property first: marketplace, then the user's forum life. */}
+        {/* LEFT (wide) — canonical order: marketplace, then saved itineraries. */}
         <div className="space-y-5">
           <Card>
             <CardHeader>
@@ -269,7 +269,15 @@ export function HomeClient({ forum, trips, visa }: {
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <StatTile href="/dashboard/listings" value={activeCount} label={tr('Active listings', 'Tin đang đăng')} />
                     <StatTile href="/messages" value={unread} label={tr('Unread messages', 'Tin nhắn chưa đọc')} />
-                    <StatTile href="/saved" value={savedCount} label={tr('Saved', 'Đã lưu')} />
+                    {/* Saves ON the user's listings — the SERVER sum of their savedCount
+                        (page.tsx aggregate), NOT the device-local favorites count: that
+                        one can't cross origins and is a buyer metric, not a seller one.
+                        null = aggregate failed → honest em dash, tile stays a doorway. */}
+                    <StatTile
+                      href="/dashboard/listings"
+                      value={saves === null ? '—' : formatCount(saves, locale)}
+                      label={tr('Saves', 'Lượt lưu')}
+                    />
                     <StatTile
                       href="/dashboard/listings"
                       value={`${formatCount(dash.stats.totalViews, locale)} / ${formatCount(dash.stats.totalLeads, locale)}`}
@@ -335,6 +343,85 @@ export function HomeClient({ forum, trips, visa }: {
 
           <Card>
             <CardHeader>
+              <CardTitle>{tr('Saved itineraries', 'Lịch trình đã lưu')}</CardTitle>
+              <CardDescription className="text-xs">
+                {tr('Completed research appears here automatically.', 'Nghiên cứu hoàn tất sẽ tự động xuất hiện tại đây.')}
+              </CardDescription>
+              {/* 'New plan' opens the planner on its home site (the forum) — same
+                  cross-site anchor idiom as the service cards. */}
+              <CardAction>
+                <Button asChild variant="outline" size="sm">
+                  <a href={`${FORUM_URL}/itinerary`} onClick={forumClick('/itinerary')}>
+                    <MapPinned className="h-4 w-4" />
+                    {tr('New plan', 'Kế hoạch mới')}
+                  </a>
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              {trips === null ? (
+                <p className="rounded-xl bg-tint px-4 py-5 text-center text-xs text-body">
+                  {tr('Itineraries could not be loaded right now.', 'Hiện chưa tải được lịch trình.')}
+                </p>
+              ) : trips.length === 0 ? (
+                <TintEmpty
+                  icon={Route}
+                  title={tr('No saved itinerary yet', 'Chưa có lịch trình đã lưu')}
+                  subtitle={tr('Research your first trip and it will appear here.', 'Nghiên cứu chuyến đi đầu tiên và lịch trình sẽ tự động xuất hiện tại đây.')}
+                />
+              ) : (
+                <div className="space-y-2.5">
+                  {/* The trips section's EXPANDABLE rows, reused as-is: summary line
+                      opening in place to day plans + stay shortlist (canonical parity
+                      with the forum dashboard). */}
+                  {trips.map((trip) => (
+                    <TripCard key={trip.id} trip={trip} />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* RIGHT — canonical order: visa applications, then the user's forum life. */}
+        <div className="space-y-5">
+          <Card>
+            <CardHeader>
+              <CardTitle>{tr('Visa applications', 'Hồ sơ visa')}</CardTitle>
+              <OpenButton href="/dashboard/visa" label={tr('Open', 'Mở')} />
+            </CardHeader>
+            <CardContent>
+              {visa.state !== 'ok' ? (
+                // Covers 'unavailable' AND the server-saw-no-session edge — both are an
+                // honest "can't show your applications right now", never a crash.
+                <p className="rounded-xl bg-tint px-4 py-5 text-center text-xs text-body">
+                  {tr(
+                    "Can't reach the e-Visa assistant right now — your applications are safe on eno.forum.",
+                    'Hiện chưa kết nối được trợ lý e-Visa — hồ sơ của bạn vẫn an toàn trên eno.forum.',
+                  )}
+                </p>
+              ) : visa.applications.length === 0 ? (
+                <p className="rounded-xl bg-tint px-4 py-5 text-center text-xs text-body">
+                  {tr('No visa application yet.', 'Chưa có hồ sơ visa.')}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {visa.applications.slice(0, 5).map((a) => {
+                    const s = VISA_STATUS[a.status]
+                    return (
+                      <div key={a.id} className="flex items-center justify-between gap-3 rounded-xl bg-tint px-3 py-3 text-sm">
+                        <span className="font-mono text-xs text-body">{a.id.slice(0, 8)}</span>
+                        <Badge variant={s?.variant ?? 'neutral'}>{s ? tr(s.en, s.vi) : a.status}</Badge>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>{tr('Forum activity', 'Hoạt động diễn đàn')}</CardTitle>
               <OpenButton href="/dashboard/forum" label={tr('Open', 'Mở')} />
             </CardHeader>
@@ -384,85 +471,6 @@ export function HomeClient({ forum, trips, visa }: {
                     </div>
                   )}
                 </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* RIGHT — the travel-side snapshots. */}
-        <div className="space-y-5">
-          <Card>
-            <CardHeader>
-              <CardTitle>{tr('Saved itineraries', 'Lịch trình đã lưu')}</CardTitle>
-              <OpenButton href="/dashboard/trips" label={tr('Open', 'Mở')} />
-            </CardHeader>
-            <CardContent>
-              {trips === null ? (
-                <p className="rounded-xl bg-tint px-4 py-5 text-center text-xs text-body">
-                  {tr('Itineraries could not be loaded right now.', 'Hiện chưa tải được lịch trình.')}
-                </p>
-              ) : trips.length === 0 ? (
-                <TintEmpty
-                  icon={Route}
-                  title={tr('No saved itinerary yet', 'Chưa có lịch trình đã lưu')}
-                  subtitle={tr('Research your first trip and it will appear here.', 'Nghiên cứu chuyến đi đầu tiên và lịch trình sẽ tự động xuất hiện tại đây.')}
-                />
-              ) : (
-                <div className="space-y-2">
-                  {/* Compact rows only — expansion (day plans, stays) lives on /dashboard/trips. */}
-                  {trips.map((t) => (
-                    <Link
-                      key={t.id}
-                      href="/dashboard/trips"
-                      className="flex items-center gap-3 rounded-xl bg-tint px-3 py-2.5 transition-colors hover:bg-muted"
-                    >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                        <CalendarDays className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-foreground">{t.title}</span>
-                        <span className="mt-0.5 block text-xs text-body">
-                          {t.days} {tr('days', 'ngày')} · {timeAgo(t.updatedAt, lang)}
-                        </span>
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{tr('Visa applications', 'Hồ sơ visa')}</CardTitle>
-              <OpenButton href="/dashboard/visa" label={tr('Open', 'Mở')} />
-            </CardHeader>
-            <CardContent>
-              {visa.state !== 'ok' ? (
-                // Covers 'unavailable' AND the server-saw-no-session edge — both are an
-                // honest "can't show your applications right now", never a crash.
-                <p className="rounded-xl bg-tint px-4 py-5 text-center text-xs text-body">
-                  {tr(
-                    "Can't reach the e-Visa assistant right now — your applications are safe on eno.forum.",
-                    'Hiện chưa kết nối được trợ lý e-Visa — hồ sơ của bạn vẫn an toàn trên eno.forum.',
-                  )}
-                </p>
-              ) : visa.applications.length === 0 ? (
-                <p className="rounded-xl bg-tint px-4 py-5 text-center text-xs text-body">
-                  {tr('No visa application yet.', 'Chưa có hồ sơ visa.')}
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {visa.applications.slice(0, 5).map((a) => {
-                    const s = VISA_STATUS[a.status]
-                    return (
-                      <div key={a.id} className="flex items-center justify-between gap-3 rounded-xl bg-tint px-3 py-3 text-sm">
-                        <span className="font-mono text-xs text-body">{a.id.slice(0, 8)}</span>
-                        <Badge variant={s?.variant ?? 'neutral'}>{s ? tr(s.en, s.vi) : a.status}</Badge>
-                      </div>
-                    )
-                  })}
-                </div>
               )}
             </CardContent>
           </Card>

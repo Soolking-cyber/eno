@@ -20,7 +20,6 @@ import {
   PanelLeft,
   Scale,
   Settings,
-  ShoppingBag,
   Store,
   Sun,
   UsersRound,
@@ -207,7 +206,6 @@ function EnoAccountPanel({
     {
       caption: tr('Marketplace', 'Chợ eno'),
       items: [
-        { href: MARKETPLACE_URL, label: tr('eno marketplace', 'Chợ eno'), icon: ShoppingBag, external: true },
         { href: `${MARKETPLACE_URL}/dashboard/listings`, label: tr('My listings', 'Tin của tôi'), icon: Store, external: true },
         { href: `${MARKETPLACE_URL}/messages`, label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, external: true },
         { href: `${MARKETPLACE_URL}/saved`, label: tr('Saved', 'Đã lưu'), icon: Heart, external: true },
@@ -218,10 +216,10 @@ function EnoAccountPanel({
     {
       caption: tr('Community', 'Cộng đồng'),
       items: [
-        { href: '/', label: tr('Community forum', 'Diễn đàn cộng đồng'), icon: UsersRound, exact: true },
+        { href: '/', label: tr('Forum', 'Diễn đàn'), icon: UsersRound, exact: true },
         { href: '/itinerary', label: tr('Itinerary planner', 'Lập lịch trình'), icon: Route },
         { href: '/visa', label: tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2 },
-        { href: '/dashboard', label: tr('Dashboard', 'Bảng điều khiển'), icon: LayoutDashboard, exact: true },
+        { href: `${MARKETPLACE_URL}/dashboard`, label: tr('Dashboard', 'Bảng điều khiển'), icon: LayoutDashboard, external: true },
       ],
     },
   ]
