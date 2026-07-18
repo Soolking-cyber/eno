@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { useLatestRequest } from '@/hooks/use-latest-request'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { ItineraryBuilder } from './plan/itinerary-builder'
 import { TripCard, type SavedItinerary } from './trip-card'
@@ -41,27 +42,28 @@ export function TripsClient() {
     if (!loading && !user) router.replace('/signin?next=/dashboard/trips')
   }, [loading, user, router])
 
+  // Stale-async guard via the shared hook (audit Phase 2): the old per-call alive
+  // flag handled unmount but not ORDER — a slow first load resolving after a fast
+  // onSaved refresh would clobber the fresh feed with stale rows.
+  const latest = useLatestRequest()
   const load = useCallback(() => {
     setTrips(null)
     setFailed(false)
-    let alive = true
-    fetch('/api/itineraries')
+    const req = latest.begin()
+    fetch('/api/itineraries', { signal: req.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d) => {
-        if (!alive) return
+        if (!req.isCurrent()) return
         if (Array.isArray(d.itineraries)) setTrips(d.itineraries)
         else setFailed(true)
       })
       .catch(() => {
-        if (alive) setFailed(true)
+        if (req.isCurrent()) setFailed(true)
       })
-    return () => {
-      alive = false
-    }
-  }, [])
+  }, [latest])
 
   useEffect(() => {
-    if (user) return load()
+    if (user) load()
   }, [user, load])
 
   if (loading || switching || !user) {
