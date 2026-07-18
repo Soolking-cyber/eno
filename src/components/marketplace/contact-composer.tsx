@@ -146,12 +146,13 @@ export function ContactComposer({
 
   return (
     <div className="space-y-2">
-      {chatButton}
       {/* The offer is always open on a negotiable listing (user decisions 2026-07-14:
           haggling is the norm here, so it opens at a default discount). There's no
           close ✕ and no "Make an offer" trigger — nothing to close it TO: leaving the
-          slider untouched already costs the buyer nothing, and Chat now sits right
-          above for anyone who doesn't want to haggle. */}
+          slider untouched already costs the buyer nothing, and Chat now sits beside
+          Send offer (owner 2026-07-18: one 70/30 row) for anyone who doesn't want
+          to haggle. The standalone full-width Chat now remains for fixed-price and
+          signed-out listings above. */}
       <div className="rounded-2xl bg-accent p-3">
         <span className="text-xs font-semibold text-body">{tr('Your offer', 'Giá đề nghị')}</span>
         <div className="mt-1 flex items-baseline gap-2">
@@ -170,14 +171,26 @@ export function ContactComposer({
           <span>{tr('Asking', 'Giá rao')}: {formatMoneyFull(price!, currency, locale)}</span>
           <span>−{MAX_DISCOUNT}%</span>
         </div>
-        <Button
-          variant="cta"
-          size="none"
-          onClick={sendOffer}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 cursor-pointer"
-        >
-          <Send className="h-4 w-4" /> {tr('Send offer', 'Gửi đề nghị')} · {formatMoneyFull(offerPrice, currency, locale)}
-        </Button>
+        <div className="mt-3 flex gap-2">
+          <Button
+            variant="cta"
+            size="none"
+            onClick={sendOffer}
+            className="flex min-w-0 basis-[70%] items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 cursor-pointer"
+          >
+            <Send className="h-4 w-4 shrink-0" />
+            <span className="truncate">{tr('Send offer', 'Gửi đề nghị')} · {formatMoneyFull(offerPrice, currency, locale)}</span>
+          </Button>
+          <Button
+            type="button"
+            variant="bare"
+            size="none"
+            onClick={chatNow}
+            className="press flex min-w-0 basis-[30%] items-center justify-center gap-1.5 rounded-xl bg-card py-2.5 text-sm font-bold text-accent-foreground hover:bg-tint active:scale-100 cursor-pointer"
+          >
+            <MessageCircle className="h-4 w-4 shrink-0" /> <span className="truncate">{tr('Chat now', 'Chat ngay')}</span>
+          </Button>
+        </div>
       </div>
 
       {safetyLine}
