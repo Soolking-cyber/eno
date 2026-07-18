@@ -421,7 +421,7 @@ export default function ThreadPage() {
       ) : (
         <div className="flex h-full w-full flex-col overflow-hidden">
           {/* Thread header (back arrow only on mobile — the list is always shown on desktop) */}
-          <div className="flex items-center gap-3 bg-card px-4 py-3">
+          <div className="flex items-center gap-3 bg-background px-4 py-3">
             <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" /></Link>
             <Avatar name={thread?.counterpart.name} url={thread?.counterpart.avatarUrl} color={thread?.counterpart.avatarColor} size="sm" />
             <div className="min-w-0 flex-1 cursor-pointer">
@@ -451,7 +451,7 @@ export default function ThreadPage() {
           {/* Contact is requested IN-CHAT, and only once the seller has replied —
               this is what gets sellers logging in daily to answer + keep listings fresh. */}
           {thread && !thread.iAmSeller && (
-            <div className="flex items-center gap-2 border-t border-border bg-card px-4 py-2">
+            <div className="flex items-center gap-2 border-t border-border bg-background px-4 py-2">
               {contact ? (
                 <>
                   <a href={contact.telHref} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors">
@@ -629,7 +629,7 @@ export default function ThreadPage() {
           {/* Composer — the Tag toggle flips this same bar between a message field
               and the offer-amount field (no separate input bar). In offer mode the
               field shows an inline +000 chip and Send submits the offer. */}
-          <div className="chat-composer flex items-end gap-2 bg-card px-4 pt-3 pb-3">
+          <div className="chat-composer flex items-end gap-2 bg-background px-4 pt-3 pb-3">
             {/* Offer control only on negotiable listings — a fixed-price seller takes
                 no offers (buyers just ask availability + buy). Undefined = older cached
                 thread → allow (server still enforces). */}

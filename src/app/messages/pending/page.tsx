@@ -67,7 +67,7 @@ export default function PendingComposePage() {
   // Thread skeleton while the conversation resolves.
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
+      <div className="flex items-center gap-3 border-b border-border bg-background px-4 py-3">
         <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
         <Skeleton className="h-4 w-32" />
       </div>

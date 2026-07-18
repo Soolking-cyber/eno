@@ -127,7 +127,7 @@ export default function AiThreadPage() {
     // shell, content strands at the top, and a white void opens above the composer.
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
       {/* Header — matches the thread page; back arrow only on mobile. */}
-      <div className="flex items-center gap-3 bg-card px-4 py-3">
+      <div className="flex items-center gap-3 bg-background px-4 py-3">
         <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" /></Link>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-white"><Sparkles className="h-5 w-5" /></span>
         <div className="min-w-0 flex-1">
@@ -173,7 +173,7 @@ export default function AiThreadPage() {
           iOS keyboard. Same wiring as the regular thread (messages/[id]). */}
       <div ref={footerRef} className="chat-footer shrink-0">
       {user ? (
-        <div className="chat-composer flex items-end gap-2 bg-card px-4 pt-3 pb-3">
+        <div className="chat-composer flex items-end gap-2 bg-background px-4 pt-3 pb-3">
           {/* Photo search lives IN the assistant now (the search bars' camera icon
               folded in here) — recognize the item, then ask as a normal message.
               Same auth + hourly limits as typed messages, so no extra credit burn. */}
@@ -204,7 +204,7 @@ export default function AiThreadPage() {
           />
         </div>
       ) : (
-        <div className="chat-composer bg-card px-4 pt-3 pb-3">
+        <div className="chat-composer bg-background px-4 pt-3 pb-3">
           <Button
             variant="cta"
             size="none"

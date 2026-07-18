@@ -9,7 +9,7 @@ export default function ThreadLoading() {
     <div className="flex h-full w-full flex-col bg-background">
       <div className="flex h-full w-full flex-col overflow-hidden">
         {/* Thread header (no border — bg-card only, like the real one) */}
-        <div className="flex items-center gap-3 bg-card px-4 py-3">
+        <div className="flex items-center gap-3 bg-background px-4 py-3">
           <Skeleton className="h-5 w-5 lg:hidden" />
           <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
           <div className="min-w-0 flex-1 space-y-1">
@@ -29,7 +29,7 @@ export default function ThreadLoading() {
         </div>
 
         {/* Composer — offer toggle · input (py-2.5 text-sm rows=1 → 42px) · send */}
-        <div className="flex items-end gap-2 bg-card px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+        <div className="flex items-end gap-2 bg-background px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
           <Skeleton className="h-[42px] flex-1 rounded-2xl" />
           <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
