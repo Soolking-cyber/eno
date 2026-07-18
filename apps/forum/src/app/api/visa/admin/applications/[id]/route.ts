@@ -66,8 +66,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     submitted_at: next === 'submitted' && !app.submitted_at ? now.toISOString() : app.submitted_at,
     resolved_at: final ? now.toISOString() : null, retention_until: final ? new Date(now.getTime() + 90 * 86400_000).toISOString() : app.retention_until,
     updated_at: now.toISOString(),
-  }).eq('id', id).select('*').single()
+  // CAS on status AND updated_at (audit P1 #4): this update RE-ENCRYPTS a payload
+  // decrypted from the read above — without the guard, a concurrent applicant PATCH
+  // (or another admin) lands between read and write and is silently clobbered, and
+  // the write can complete a transition that was validated against a stale status.
+  }).eq('id', id).eq('status', app.status).eq('updated_at', app.updated_at).select('*').maybeSingle()
   if (error) throw error
+  if (!data) return Response.json({ error: 'case_changed_reload' }, { status: 409 })
   await recordVisaEvent(id, 'admin', next === app.status ? 'case_details_updated' : 'status_changed', admin, next === app.status ? {} : { from: app.status, to: next })
   return Response.json({ application: serializeVisa(data as VisaApplicationRow, loaded.documents, loaded.events) }, { headers: { 'Cache-Control': 'no-store' } })
 }

@@ -63,7 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (visaPaymentsConfig() && !app.paid_at) {
       return NextResponse.json({ error: 'payment_required_first' }, { status: 402 })
     }
-    const { data } = await db.from('visa_applications').update({
+    const sfr = await db.from('visa_applications').update({
       status: 'ready_for_review',
       checklist: [],
       applicant_confirmed_at: now,
@@ -74,7 +74,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       authorization_snapshot_hash: snapshotHash,
       last_applicant_action_at: now,
       updated_at: now,
-    }).eq('id', id).select('*').single()
+    // CAS on status + updated_at (audit P1 #4): the stamped snapshot hash must
+    // describe the payload actually under review — a racing payload PATCH or
+    // concurrent transition voids this write instead of being mis-stamped.
+    }).eq('id', id).eq('status', app.status).eq('updated_at', app.updated_at).select('*').maybeSingle()
+    if (sfr.error) throw sfr.error
+    if (!sfr.data) return NextResponse.json({ error: 'application_status_changed' }, { status: 409 })
+    const data = sfr.data
     await recordVisaEvent(id, 'applicant', 'sent_for_review', userId, {
       declarationVersion: VISA_DECLARATION_VERSION,
       authorizationVersion: VISA_AUTHORIZATION_VERSION,
@@ -83,7 +89,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ application: serializeVisa(data as VisaApplicationRow, docs) })
   }
   if (app.status !== 'applicant_approval') return NextResponse.json({ error: 'invalid_status_transition' }, { status: 409 })
-  const { data } = await db.from('visa_applications').update({ status: 'ready_to_submit', applicant_confirmed_at: now, applicant_confirmation_version: VISA_DECLARATION_VERSION, applicant_snapshot_hash: snapshotHash, authorized_at: now, authorization_version: VISA_AUTHORIZATION_VERSION, authorization_snapshot_hash: snapshotHash, last_applicant_action_at: now, updated_at: now }).eq('id', id).select('*').single()
+  const approve = await db.from('visa_applications').update({ status: 'ready_to_submit', applicant_confirmed_at: now, applicant_confirmation_version: VISA_DECLARATION_VERSION, applicant_snapshot_hash: snapshotHash, authorized_at: now, authorization_version: VISA_AUTHORIZATION_VERSION, authorization_snapshot_hash: snapshotHash, last_applicant_action_at: now, updated_at: now }).eq('id', id).eq('status', app.status).eq('updated_at', app.updated_at).select('*').maybeSingle()
+  if (approve.error) throw approve.error
+  if (!approve.data) return NextResponse.json({ error: 'application_status_changed' }, { status: 409 })
+  const data = approve.data
   await recordVisaEvent(id, 'applicant', 'prefill_authorized', userId, { declarationVersion: VISA_DECLARATION_VERSION, authorizationVersion: VISA_AUTHORIZATION_VERSION })
   return NextResponse.json({ application: serializeVisa(data as VisaApplicationRow, docs) })
 }

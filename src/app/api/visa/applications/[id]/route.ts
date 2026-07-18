@@ -60,8 +60,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     applicant_confirmed_at: null, applicant_confirmation_version: null, authorized_at: null, authorization_version: null,
     applicant_snapshot_hash: null, authorization_snapshot_hash: null,
     last_applicant_action_at: now,
-  }).eq('id', id).eq('user_id', userId).select('*').single()
+  }).eq('id', id).eq('user_id', userId).in('status', ['draft', 'needs_changes']).select('*').maybeSingle()
   if (error) throw error
+  // CAS (audit P1 #4): the JS status pre-check above is not a guard — if the case
+  // left the editable states between read and write (admin picked it up, payment
+  // handoff fired), the save must MISS, never overwrite an under-review payload
+  // and null its consent stamps.
+  if (!data) return NextResponse.json({ error: 'application_locked' }, { status: 409 })
   await recordVisaEvent(id, 'applicant', 'answers_saved', userId)
   return NextResponse.json({ application: serializeVisa(data as VisaApplicationRow, loaded.documents) })
 }

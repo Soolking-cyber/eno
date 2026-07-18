@@ -27,7 +27,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (error) throw error
     if (old?.length) { await db.from('visa_documents').delete().in('id', old.map((item) => item.id)); await removeVisaFiles(old.map((item) => item.storage_path)) }
     const now = new Date()
-    await db.from('visa_applications').update({ status: 'approved', assigned_admin: application.assigned_admin || admin, resolved_at: now.toISOString(), retention_until: new Date(now.getTime() + 90 * 86400_000).toISOString(), updated_at: now.toISOString() }).eq('id', id)
+    // CAS on status (audit P1 #4): the JS pre-check above is not a guard — a
+    // concurrent cancel/transition between read and write must not be overwritten
+    // by an unconditional flip to approved.
+    const flip = await db.from('visa_applications').update({ status: 'approved', assigned_admin: application.assigned_admin || admin, resolved_at: now.toISOString(), retention_until: new Date(now.getTime() + 90 * 86400_000).toISOString(), updated_at: now.toISOString() }).eq('id', id).eq('status', application.status).select('id').maybeSingle()
+    if (flip.error) throw flip.error
+    if (!flip.data) return Response.json({ error: 'case_changed_reload' }, { status: 409 })
     await recordVisaEvent(id, 'admin', 'result_uploaded', admin)
     return Response.json({ status: 'approved', document: { id: document.id, kind: 'result' } }, { status: 201 })
   } catch (error) {
