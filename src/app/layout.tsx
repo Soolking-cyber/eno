@@ -106,10 +106,15 @@ export default function RootLayout({
       <head>
         {/* Set the theme class BEFORE paint to avoid a flash of the wrong scheme —
             reads the persisted System/Light/Dark choice + the OS preference. Kept
-            in sync with ThemeProvider. */}
+            in sync with ThemeProvider. Also sets the native + native-<platform>
+            classes pre-paint (Capacitor injects window.Capacitor at documentStart
+            in remote-server mode): the html.native-ios overscroll rule (iOS
+            pull-to-refresh reachability) must hold from first paint, not from
+            hydration. native-bootstrap re-adds the same classes later —
+            idempotent, kept as the fallback. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');}catch(e){}try{var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){document.documentElement.classList.add('native');}else if(!window.scrollY){document.documentElement.classList.add('page-at-top');}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');}catch(e){}try{var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){var dc=document.documentElement.classList;dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));}else if(!window.scrollY){document.documentElement.classList.add('page-at-top');}}catch(e){}})();`,
           }}
         />
         {/* Warm up TCP/TLS to the image origin so above-the-fold listing photos

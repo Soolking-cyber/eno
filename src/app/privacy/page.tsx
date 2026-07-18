@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
+import { CookieSettingsButton } from '@/components/marketplace/cookie-settings-button'
 import { COMPANY } from '@/lib/site-legal'
 
 export const metadata: Metadata = { title: 'Privacy Policy | eno.vn' }
@@ -104,6 +105,9 @@ export default function PrivacyPage() {
           </div>
         </ContentSection>
       ))}
+      <div className="pt-2">
+        <CookieSettingsButton />
+      </div>
     </ContentPage>
   )
 }

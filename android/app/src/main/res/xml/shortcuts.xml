@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Static launcher shortcuts. They deep-link via the enovn:// scheme (works regardless of App
+     Links verification); the web-side router maps enovn://open?path=X to an in-app navigation.
+     Icons: no dedicated action drawables exist in this project yet, so all three use the launcher
+     mipmap — swap in per-action icons if they're ever added. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="post"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_post">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="enovn://open?path=/post"
+            android:targetPackage="vn.eno.app"
+            android:targetClass="vn.eno.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="messages"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_messages">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="enovn://open?path=/messages"
+            android:targetPackage="vn.eno.app"
+            android:targetClass="vn.eno.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="saved"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_saved">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="enovn://open?path=/saved"
+            android:targetPackage="vn.eno.app"
+            android:targetClass="vn.eno.app.MainActivity" />
+    </shortcut>
+</shortcuts>

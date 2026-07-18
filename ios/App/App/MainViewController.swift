@@ -15,6 +15,7 @@ class MainViewController: CAPBridgeViewController {
     private var reloadAttempts = 0
     private var watchdogGeneration = 0
     private let refreshControl = UIRefreshControl()
+    private var foregroundObserver: NSObjectProtocol?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -25,6 +26,22 @@ class MainViewController: CAPBridgeViewController {
         // backstop). Idempotent — object_setClass to the same subclass is a no-op.
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.removeKeyboardAccessoryBar() }
         DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in self?.removeKeyboardAccessoryBar() }
+        // UIKit does NOT call viewDidAppear on background→foreground, so the blank-page re-check
+        // must hang off the app lifecycle. Foregrounding is also when a killed web process comes
+        // back — a fresh WKContentView without our runtime subclass — so re-apply the accessory
+        // removal too.
+        foregroundObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.scheduleWatchdog(after: 1.5)
+            self?.removeKeyboardAccessoryBar()
+        }
+    }
+
+    deinit {
+        if let foregroundObserver {
+            NotificationCenter.default.removeObserver(foregroundObserver)
+        }
     }
 
     /// Make the WebView behave like a native iOS app instead of a page in a browser.
@@ -90,8 +107,7 @@ class MainViewController: CAPBridgeViewController {
         object_setClass(contentView, subclass)
     }
 
-    // Re-check whenever the app returns to the foreground — the blank state is most visible on
-    // relaunch, and a page that failed while backgrounded should recover on return.
+    // First presentation only (foreground returns are covered by the didBecomeActive observer).
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         scheduleWatchdog(after: 1.5)

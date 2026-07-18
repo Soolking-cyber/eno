@@ -116,8 +116,10 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
           </section>
         )}
 
-        {/* Editorial / keyword sections — wide container, readable measure */}
-        <div className="mt-14 max-w-3xl space-y-8">
+        {/* Editorial / keyword sections — wide container, readable measure.
+            web-only: long-form SEO prose for Google, hidden in the native apps
+            (html.native .web-only in globals.css); the listings grid stays. */}
+        <div className="web-only mt-14 max-w-3xl space-y-8">
           {content.sections.map((s, i) => (
             <section key={i}>
               <h2 className="h-section text-foreground mb-2">{s.title}</h2>
@@ -137,9 +139,10 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
           </p>
         </div>
 
-        {/* FAQ */}
+        {/* FAQ — web-only, same reasoning as the editorial sections (the FAQPage
+            JSON-LD above is what Google reads either way). */}
         {content.faqs.length > 0 && (
-          <section className="mt-12">
+          <section className="web-only mt-12">
             <h2 className="h-section text-foreground mb-4">Frequently asked questions</h2>
             <div className="grid gap-x-14 gap-y-5 lg:grid-cols-2">
               {content.faqs.map((f, i) => (

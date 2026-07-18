@@ -13,10 +13,21 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- On Android 15+ edge-to-edge, any system-bar strip Capacitor pads shows the WINDOW
+             background — keep it on the card surface so it matches the web chrome. -->
+        <item name="android:windowBackground">@color/card</item>
     </style>
 
 
+    <!-- Cold-start splash (Android 12+ system splash; core-splashscreen compat below). The icon is
+         the full adaptive launcher icon — NOT the bare foreground, whose white mark would vanish
+         on the light card background — so the system masks it into the brand-blue circle.
+         postSplashScreenTheme only takes effect via installSplashScreen() in MainActivity.
+         ⚠️ values-night/styles.xml redeclares this style (styles don't merge across resource
+         qualifiers) — mirror any change there. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/card</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

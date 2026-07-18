@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Cookie } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useDashboard } from '@/hooks/use-dashboard'
@@ -87,6 +89,23 @@ export function SettingsClient() {
           <section>
             <h2 className="text-sm font-bold text-foreground">{tr('Device preferences', 'Tùy chọn thiết bị')}</h2>
             <div className="mt-3"><PreferencesInline /></div>
+          </section>
+
+          {/* Consent withdrawal (PDPL): the footer's "Cookie settings" link is the other
+              entry point, but the footer is hidden in the native app — this row must exist
+              so withdrawing consent stays as easy as giving it, on every platform. */}
+          <section>
+            <h2 className="text-sm font-bold text-foreground">{tr('Privacy', 'Quyền riêng tư')}</h2>
+            <div className="mt-3">
+              <Button
+                variant="ghost"
+                size="none"
+                onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))}
+                className="px-4 py-2 font-semibold text-body hover:bg-muted hover:text-body"
+              >
+                <Cookie className="h-4 w-4" /> {tr('Cookie settings', 'Cài đặt cookie')}
+              </Button>
+            </div>
           </section>
 
           <section>

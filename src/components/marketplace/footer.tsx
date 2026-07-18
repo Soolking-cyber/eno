@@ -39,7 +39,7 @@ export function Footer() {
   ]
 
   return (
-    <footer className="mt-auto pt-8 pb-8 text-muted-foreground">
+    <footer id="app-footer" className="mt-auto pt-8 pb-8 text-muted-foreground">
       <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
         {/* Blends into the page canvas (no bg-card). The divider is on the GRID, so it spans the
             CONTENT width inset by the gutter — a contained hairline, NOT the full-viewport edge. */}

@@ -1,16 +1,22 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- allowBackup=false: remote-server shell — the only local state is the WebView cookie jar,
+         and session tokens must not ride cloud backups or D2D transfer to another device. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <!-- Portrait-designed UI; Android 16 ignores the lock on large screens, which is fine. -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
+            android:screenOrientation="portrait"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
             android:exported="true">
@@ -28,6 +34,24 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="enovn" />
             </intent-filter>
+
+            <!-- App Links (verified against https://eno.vn/.well-known/assetlinks.json): open shared
+                 content links directly in the app. Deliberately scoped to content paths ONLY —
+                 /auth is excluded so App Links can never steal the OAuth callback redirect (that
+                 flow returns via enovn://auth-callback through the scheme filter above). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="eno.vn" />
+                <data android:host="www.eno.vn" />
+                <data android:pathPrefix="/listings" />
+                <data android:pathPrefix="/c" />
+                <data android:pathPrefix="/brands" />
+            </intent-filter>
+
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
         <provider

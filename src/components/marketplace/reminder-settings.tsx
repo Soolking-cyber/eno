@@ -24,12 +24,18 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 export function ReminderSettings() {
   const { tr } = useLanguage()
   const [pushState, setPushState] = useState<'unsupported' | 'default' | 'granted' | 'denied'>('default')
+  // Capacitor WebView: serviceWorker/PushManager are absent there, so the web-push row
+  // would falsely read "unsupported". Native push exists but is dormant (native-push.tsx,
+  // env-gated server side) — hide the row entirely; it returns as a native-push toggle
+  // once FCM/APNs activates. State (not inline read) so SSR/first paint match.
+  const [native, setNative] = useState(false)
   const [busy, setBusy] = useState(false)
   // Weekly marketing digest opt-in (null = not yet loaded / not signed in → hide the row).
   const [digest, setDigest] = useState<boolean | null>(null)
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !VAPID) {
+    if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) { setNative(true); return }
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !VAPID) {
       setPushState('unsupported')
     } else {
       setPushState(Notification.permission === 'granted' ? 'granted' : Notification.permission === 'denied' ? 'denied' : 'default')
@@ -84,11 +90,14 @@ export function ReminderSettings() {
           day. Browser push is the optional extra reach. */}
       <div>
         <p className="text-sm font-bold text-foreground">{tr('Daily availability check', 'Kiểm tra hằng ngày')}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{tr('Once a day we’ll ask you to confirm what’s still available — it keeps your offers fresh at the top. Turn on browser notifications to be reminded even when eno.vn is closed.', 'Mỗi ngày chúng tôi sẽ nhắc bạn xác nhận món còn hàng — giúp tin luôn mới và lên đầu. Bật thông báo trình duyệt để được nhắc cả khi không mở eno.vn.')}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {tr('Once a day we’ll ask you to confirm what’s still available — it keeps your offers fresh at the top.', 'Mỗi ngày chúng tôi sẽ nhắc bạn xác nhận món còn hàng — giúp tin luôn mới và lên đầu.')}
+          {!native && <> {tr('Turn on browser notifications to be reminded even when eno.vn is closed.', 'Bật thông báo trình duyệt để được nhắc cả khi không mở eno.vn.')}</>}
+        </p>
       </div>
 
-      {/* Browser push */}
-      <div className="mt-4">
+      {/* Browser push — hidden in the native app (see the `native` state comment above). */}
+      {!native && <div className="mt-4">
         {pushState === 'unsupported' ? (
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><BellOff className="h-4 w-4 shrink-0" />{tr('Browser notifications aren’t available here. On iPhone, add eno.vn to your Home Screen first.', 'Thông báo trình duyệt không khả dụng. Trên iPhone, hãy thêm eno.vn vào Màn hình chính trước.')}</p>
         ) : pushState === 'granted' ? (
@@ -100,7 +109,7 @@ export function ReminderSettings() {
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />} {tr('Get reminders on this device', 'Nhận nhắc nhở trên thiết bị này')}
           </Button>
         )}
-      </div>
+      </div>}
 
       {/* Weekly digest email (all accounts) — the email footer also has a one-click
           unsubscribe, this is the in-app control. Hidden until the pref loads. */}

@@ -289,6 +289,13 @@ function VideoFeedItem({
   }
   const share = useCallback(async () => {
     const url = `${window.location.origin}/listings/${listing.id}`
+    // Capacitor shell first: Android's WebView has neither navigator.share nor a reliable
+    // navigator.clipboard, but @capacitor/share IS synced on both platforms (mirrors
+    // native-bootstrap's long-press sheet).
+    if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) {
+      try { const { Share } = await import('@capacitor/share'); await Share.share({ title, url }) } catch { /* dismissed */ }
+      return
+    }
     try {
       if (navigator.share) await navigator.share({ title, url })
       else { await navigator.clipboard.writeText(url); toast.success(tr('Link copied', 'Đã sao chép liên kết')) }

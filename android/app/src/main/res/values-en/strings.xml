@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- English overrides only — identifiers (app_name, package_name, custom_url_scheme) stay in the
+     default values/strings.xml. -->
+<resources>
+    <string name="shortcut_post">Post</string>
+    <string name="shortcut_messages">Messages</string>
+    <string name="shortcut_saved">Saved</string>
+</resources>

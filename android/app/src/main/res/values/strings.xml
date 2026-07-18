@@ -1,7 +1,12 @@
 <?xml version='1.0' encoding='utf-8'?>
+<!-- Default resources are VIETNAMESE (the app's primary language); values-en/ carries English.
+     Matches res/xml/locales_config.xml. -->
 <resources>
     <string name="app_name">eno</string>
     <string name="title_activity_main">eno</string>
     <string name="package_name">vn.eno.app</string>
-    <string name="custom_url_scheme">vn.eno.app</string>
+    <string name="custom_url_scheme">enovn</string>
+    <string name="shortcut_post">Đăng tin</string>
+    <string name="shortcut_messages">Tin nhắn</string>
+    <string name="shortcut_saved">Tin đã lưu</string>
 </resources>

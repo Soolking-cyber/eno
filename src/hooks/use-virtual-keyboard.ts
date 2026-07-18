@@ -115,7 +115,12 @@ export function ensureKeyboardWired() {
  *  events call this to drive the SAME store the web path uses — so mobile-nav's `off =
  *  keyboardOpen` slides the bar away, and the chat composer's --vvh/--vvt geometry tracks the
  *  real native keyboard. `height` is the plugin's keyboardHeight (px); 0 on hide. Wired from
- *  src/components/native/native-bootstrap.tsx (native only). */
+ *  src/components/native/native-bootstrap.tsx (native only).
+ *  ⚠️ ANDROID passes height 0 even on OPEN (by design, not a bug): Capacitor's SystemBars
+ *  insets listener already shrinks the WebView by the IME inset there, so innerHeight is the
+ *  post-keyboard height and `innerHeight - 0` below is already the visible area — adding the
+ *  keyboard height again would double-compensate. iOS overlays (resize:'none' honored) and
+ *  passes the real height. height==0 is safe here: it only ever widens --vvh to innerHeight. */
 export function setNativeKeyboard(open: boolean, height: number) {
   if (typeof window === 'undefined') return
   const root = document.documentElement

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- eno brand tokens (src/app/globals.css :root). styles.xml referenced these names before
+         this file existed, so they silently resolved to the Capacitor library's Indigo defaults.
+         Dark values live in values-night/colors.xml — keep both files in sync with globals.css. -->
+    <color name="colorPrimary">#0a66c2</color><!-- brand -->
+    <color name="colorPrimaryDark">#034078</color><!-- brand-dark -->
+    <color name="colorAccent">#0a66c2</color><!-- brand -->
+    <!-- card: the web chrome surface. Used as splash + window background so cold start and any
+         system-bar strip the window paints match the page instead of flashing white/black. -->
+    <color name="card">#ffffff</color>
+</resources>

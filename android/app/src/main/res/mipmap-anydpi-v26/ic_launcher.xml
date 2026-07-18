@@ -6,4 +6,9 @@
     <foreground>
         <inset android:drawable="@mipmap/ic_launcher_foreground" android:inset="16.7%" />
     </foreground>
+    <!-- Android 13+ themed icon: the system tints via the ALPHA channel, and the foreground PNGs
+         are a clean white-mark-on-transparent silhouette, so they double as the tint mask. -->
+    <monochrome>
+        <inset android:drawable="@mipmap/ic_launcher_foreground" android:inset="16.7%" />
+    </monochrome>
 </adaptive-icon>

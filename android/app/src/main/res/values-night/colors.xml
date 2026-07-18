@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- eno brand tokens, dark theme (src/app/globals.css .dark block). -->
+    <color name="colorPrimary">#3b8ee6</color><!-- brand, brightened for dark surfaces -->
+    <color name="colorPrimaryDark">#0c2b48</color><!-- brand-deeper -->
+    <color name="colorAccent">#3b8ee6</color><!-- brand -->
+    <color name="card">#242424</color><!-- card -->
+</resources>

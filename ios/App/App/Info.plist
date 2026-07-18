@@ -30,13 +30,11 @@
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
@@ -48,11 +46,64 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>eno uses the camera so you can photograph the items you're listing.</string>
+	<string>eno dùng máy ảnh để bạn chụp ảnh và quay video món đồ mình đăng bán. / eno uses the camera so you can photograph and film the items you're listing.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>eno accesses your photos so you can add them to your listings.</string>
+	<string>eno truy cập thư viện ảnh để bạn chọn ảnh và video cho tin đăng. / eno accesses your photo library so you can add photos and videos to your listings.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>eno saves photos to your library when you choose to.</string>
+	<string>eno lưu ảnh vào thư viện khi bạn chọn tải về. / eno saves photos to your library when you choose to.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>eno dùng micro khi bạn quay video cho tin đăng. / eno uses the microphone when you record a listing video.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>eno dùng vị trí của bạn để tìm tin đăng gần bạn và gợi ý khu vực khi đăng tin. / eno uses your location to find listings near you and suggest your area when you post.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>vi</string>
+		<string>en</string>
+	</array>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>vn.eno.app.shortcut.post</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Đăng tin / Post</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>plus.circle</string>
+			<key>UIApplicationShortcutItemUserInfo</key>
+			<dict>
+				<key>path</key>
+				<string>/post</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>vn.eno.app.shortcut.messages</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Tin nhắn / Messages</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>bubble.left</string>
+			<key>UIApplicationShortcutItemUserInfo</key>
+			<dict>
+				<key>path</key>
+				<string>/messages</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>vn.eno.app.shortcut.saved</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Tin đã lưu / Saved</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>heart</string>
+			<key>UIApplicationShortcutItemUserInfo</key>
+			<dict>
+				<key>path</key>
+				<string>/saved</string>
+			</dict>
+		</dict>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

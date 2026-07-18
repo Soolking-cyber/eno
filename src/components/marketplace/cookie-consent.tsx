@@ -65,6 +65,12 @@ export function CookieConsent() {
   const save = () => { setConsent(ads ? 'all' : perso ? 'personalized' : 'essential'); close() }
   const decline = () => { setConsent('essential'); close() }
 
+  // Native copy branch is PRESENTATION-ONLY: same trigger, choices, storage and events —
+  // the WebView shares the site's tracking signals, so PDPL consent semantics are identical;
+  // only the browser-cookie framing is swapped for app wording. Safe to read inline because
+  // the dialog never renders before mount (show starts false).
+  const isNative = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+
   const primary = 'rounded-lg px-4 py-1.5 text-sm transition-colors active:scale-95 cursor-pointer'
   const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-body active:scale-95 cursor-pointer'
 
@@ -80,12 +86,21 @@ export function CookieConsent() {
         <div className="min-w-0 flex-1 pr-0.5">
           {view === 'ask' ? (
             <>
-              <h2 className="text-base font-bold leading-tight text-foreground">{tr('Want results made for you?', 'Muốn kết quả dành riêng cho bạn?')}</h2>
+              <h2 className="text-base font-bold leading-tight text-foreground">
+                {isNative
+                  ? tr('Personalize your experience?', 'Cá nhân hoá trải nghiệm của bạn?')
+                  : tr('Want results made for you?', 'Muốn kết quả dành riêng cho bạn?')}
+              </h2>
               <p className="mt-1 text-sm leading-snug text-muted-foreground">
-                {tr(
-                  'Allow cookies and we’ll put the most relevant products first — and keep you signed in. ',
-                  'Cho phép cookie để chúng tôi đưa sản phẩm phù hợp nhất lên đầu — và giữ bạn đăng nhập. ',
-                )}
+                {isNative
+                  ? tr(
+                      'Allow us to put the most relevant products first and to measure what works, so the app keeps getting better for you. ',
+                      'Cho phép chúng tôi đưa sản phẩm phù hợp nhất lên đầu và đo lường hiệu quả, để ứng dụng ngày càng hợp với bạn hơn. ',
+                    )
+                  : tr(
+                      'Allow cookies and we’ll put the most relevant products first — and keep you signed in. ',
+                      'Cho phép cookie để chúng tôi đưa sản phẩm phù hợp nhất lên đầu — và giữ bạn đăng nhập. ',
+                    )}
                 <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2.5">

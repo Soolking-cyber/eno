@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from '@/context/theme-context'
 import { useLanguage } from '@/context/language-context'
 import { setNativeKeyboard } from '@/hooks/use-virtual-keyboard'
@@ -31,6 +31,7 @@ const isNative = () => !!cap()?.isNativePlatform?.()
 export function NativeBootstrap() {
   const { resolved } = useTheme()
   const router = useRouter()
+  const pathname = usePathname()
   const { tr } = useLanguage()
 
   // Native pull-to-refresh: MainViewController's UIRefreshControl fires `eno:native-refresh` on pull;
@@ -72,8 +73,14 @@ export function NativeBootstrap() {
           ],
         })
         if (res.index === 0) { const { Share } = await import('@capacitor/share'); await Share.share({ url, title }) }
-        else if (res.index === 1) { try { await navigator.clipboard.writeText(url) } catch { /* ignore */ } }
-        else if (res.index === 2) { window.location.assign(href) }
+        else if (res.index === 1) {
+          // Android WebView has no navigator.clipboard — copyText falls back to execCommand.
+          // Only confirm a copy that actually landed; a silent fake "copied" would be a lie.
+          const [{ copyText }, { toast }] = await Promise.all([import('@/lib/copy-text'), import('sonner')])
+          if (await copyText(url)) toast.success(tr('Link copied', 'Đã sao chép liên kết'))
+          else toast.error(tr("Couldn't copy the link", 'Không sao chép được liên kết'))
+        }
+        else if (res.index === 2) { router.push(href) } // href is app-relative by construction — stay in the SPA
       } catch { /* plugin missing / dismissed */ }
       setTimeout(() => { suppressClick = false }, 700)
     }
@@ -110,7 +117,7 @@ export function NativeBootstrap() {
       document.removeEventListener('touchcancel', clear)
       document.removeEventListener('click', onClickCapture, true)
     }
-  }, [tr])
+  }, [tr, router])
 
   // One-time native wiring: platform class, splash, keyboard bridge, hardware back.
   useEffect(() => {
@@ -119,6 +126,13 @@ export function NativeBootstrap() {
     const cleanups: Array<() => void> = []
     document.documentElement.classList.add('native', `native-${cap()?.getPlatform?.() ?? 'ios'}`)
 
+    // Listener handles resolve AFTER awaits: if the cleanup already ran mid-await, pushing the
+    // handle into `cleanups` would orphan a live listener. Adopt-or-remove instead.
+    const adopt = (handle: { remove: () => void | Promise<void> }) => {
+      if (disposed) void handle.remove()
+      else cleanups.push(() => { void handle.remove() })
+    }
+
     void (async () => {
       const [{ SplashScreen }, { Keyboard }, { App }] = await Promise.all([
         import('@capacitor/splash-screen'),
@@ -126,53 +140,155 @@ export function NativeBootstrap() {
         import('@capacitor/app'),
       ])
       if (disposed) return
+      const android = cap()?.getPlatform?.() === 'android'
 
-      // Painted → reveal the app.
-      SplashScreen.hide().catch(() => {})
+      // Painted → reveal the app (crossfade, not a hard cut).
+      SplashScreen.hide({ fadeOutDuration: 200 }).catch(() => {})
 
       // Native keyboard → the SAME store the web VisualViewport path drives.
-      const onShow = await Keyboard.addListener('keyboardWillShow', (info) =>
-        setNativeKeyboard(true, info.keyboardHeight),
-      )
-      const onHide = await Keyboard.addListener('keyboardWillHide', () => setNativeKeyboard(false, 0))
-      cleanups.push(() => { onShow.remove(); onHide.remove() })
+      // ⚠️ Platform asymmetry: the config's Keyboard resize:'none' is honored on iOS ONLY. On
+      // Android, Capacitor's SystemBars insets listener independently pads the WebView parent by
+      // the IME inset — the native resize owns the geometry, and passing keyboardHeight through
+      // would DOUBLE-compensate (composer floats a keyboard-height too high). So Android reports
+      // height 0 (`open` still hides mobile-nav; setNativeKeyboard then derives --vvh from the
+      // already-shrunk innerHeight). iOS stays byte-identical.
+      // Baseline viewport height while the IME is CLOSED. Captured out-of-band (not at
+      // keyboardWillShow — Capacitor emits that from WindowInsetsAnimation.onStart, AFTER
+      // the end-state insets have resized the WebView, so a same-tick capture would read
+      // the already-shrunk viewport and defeat the check below).
+      let kbOpen = false
+      let closedInnerHeight = window.innerHeight
+      const refreshKbBaseline = () => { if (!kbOpen) closedInnerHeight = window.innerHeight }
+      window.addEventListener('resize', refreshKbBaseline)
+      cleanups.push(() => window.removeEventListener('resize', refreshKbBaseline))
+      adopt(await Keyboard.addListener('keyboardWillShow', (info) => {
+        kbOpen = true
+        setNativeKeyboard(true, android ? 0 : info.keyboardHeight)
+      }))
+      // Android escape hatch: some setups never resize the WebView (floating/split keyboards,
+      // ROM quirks) — there height 0 would trap the composer under the IME. Once the IME
+      // settles, if the viewport never shrank from its closed-state baseline by ~the keyboard,
+      // fall back to the reported height like iOS. (A truly floating keyboard reports ~0
+      // height, so the fallback can't over-pad it.)
+      if (android) {
+        adopt(await Keyboard.addListener('keyboardDidShow', (info) => {
+          requestAnimationFrame(() => {
+            const shrunk = closedInnerHeight - window.innerHeight
+            if (info.keyboardHeight > 0 && shrunk < info.keyboardHeight / 2) {
+              setNativeKeyboard(true, info.keyboardHeight)
+            }
+          })
+        }))
+      }
+      adopt(await Keyboard.addListener('keyboardWillHide', () => {
+        kbOpen = false
+        setNativeKeyboard(false, 0)
+      }))
 
-      // Android hardware back: navigate back if we can, else let the OS background the app.
-      const onBack = await App.addListener('backButton', ({ canGoBack }) => {
+      // Android hardware back: navigate back if we can, else background the app. minimizeApp
+      // (moveTaskToBack) keeps the process warm — exitApp() would kill it and force a cold
+      // reload of the remote WebView on the next launch.
+      adopt(await App.addListener('backButton', ({ canGoBack }) => {
         if (canGoBack) window.history.back()
-        else App.exitApp()
-      })
-      cleanups.push(() => { onBack.remove() })
+        else App.minimizeApp()
+      }))
+
+      // Deep-link router (App Links + app shortcuts + share targets). Two shapes:
+      //   · https://eno.vn/... | https://www.eno.vn/... → route the path in the SPA
+      //   · enovn://open?path=<url-encoded app path>    → route the decoded path
+      const routeDeepLink = (url: string) => {
+        try {
+          const u = new URL(url)
+          let raw: string | null = null
+          if (u.protocol === 'https:' && (u.hostname === 'eno.vn' || u.hostname === 'www.eno.vn')) {
+            raw = u.pathname + u.search + u.hash
+          } else if (u.protocol === 'enovn:' && u.host === 'open') {
+            raw = u.searchParams.get('path') // searchParams already URL-decodes once
+          }
+          if (!raw || !raw.startsWith('/')) return
+          // Canonicalize BEFORE validating. Resolving against the app origin catches the
+          // protocol-relative escapes (`//evil.com`, and `/\evil.com` — the URL parser
+          // treats \ as / in special schemes). Decoding the pathname to a fixpoint stops
+          // double-encoding (`/%2561uth/…`) from slipping past the prefix checks below,
+          // since Next decodes whatever the router is handed.
+          const resolved = new URL(raw, 'https://eno.vn')
+          if (resolved.origin !== 'https://eno.vn') return
+          let probe = resolved.pathname
+          for (let i = 0; i < 3; i++) {
+            let dec: string
+            try { dec = decodeURIComponent(probe) } catch { break }
+            if (dec === probe) break
+            probe = dec
+          }
+          // /auth + /signin rejected so a crafted link can't drive the OAuth/sign-in
+          // routes (auth flows only ever enter via enovn://auth-callback below).
+          if (probe.startsWith('/auth') || probe.startsWith('/signin')) return
+          router.push(resolved.pathname + resolved.search + resolved.hash)
+        } catch { /* unparseable URL — ignore */ }
+      }
 
       // Google OAuth deep-link return. Google blocks OAuth in the app's WebView, so the sign-in
       // button opens it in a real in-app browser tab; on success Supabase redirects to
       // `enovn://auth-callback?code=…`, which reopens the app HERE. Forward that code to the SAME
-      // server /auth/callback route the web uses — it runs in THIS WebView, reads the PKCE verifier
-      // cookie set by signInWithOAuth, exchanges it, provisions + onboards, session lands in-app.
-      const onUrl = await App.addListener('appUrlOpen', ({ url }) => {
-        if (!url.includes('://auth-callback')) return
-        const query = url.split('?')[1] ?? ''
-        void import('@capacitor/browser').then(({ Browser }) => Browser.close().catch(() => {}))
-        window.location.assign(`/auth/callback${query ? `?${query}` : ''}`)
-      })
-      cleanups.push(() => { onUrl.remove() })
+      // server /auth/callback route the web uses — it runs in THIS WebView's cookie jar, reads the
+      // PKCE verifier cookie set by signInWithOAuth, exchanges it, provisions + onboards.
+      // Precise match — a substring test would also hit a legitimate App Link that merely
+      // CONTAINS "://auth-callback" in a query param and hijack it into the auth flow.
+      const isAuthCallback = (url: string) => {
+        try {
+          const u = new URL(url)
+          return u.protocol === 'enovn:' && u.host === 'auth-callback'
+        } catch { return false }
+      }
+      // ONE dispatch path for both deliveries. Platform asymmetry: iOS fires a RETAINED
+      // appUrlOpen for the launching URL AND returns it from getLaunchUrl (double delivery);
+      // Android fires appUrlOpen only from onNewIntent (warm), so a cold-start URL arrives
+      // ONLY via getLaunchUrl — including a fresh OAuth callback when the shell was killed
+      // behind the Custom Tab. The short dedupe window collapses the iOS double delivery
+      // without blocking a deliberately repeated link (same shortcut tapped again later).
+      let lastUrl = ''
+      let lastAt = 0
+      const dispatch = (url: string) => {
+        const now = Date.now()
+        if (url === lastUrl && now - lastAt < 5000) return
+        lastUrl = url
+        lastAt = now
+        if (isAuthCallback(url)) {
+          const query = url.split('?')[1] ?? ''
+          void import('@capacitor/browser').then(({ Browser }) => Browser.close().catch(() => {}))
+          window.location.assign(`/auth/callback${query ? `?${query}` : ''}`)
+          return
+        }
+        routeDeepLink(url)
+      }
+      adopt(await App.addListener('appUrlOpen', ({ url }) => dispatch(url)))
+
+      // Cold start (see the platform asymmetry above). A replayed stale auth code (activity
+      // recreation with the old intent) just fails the exchange benignly; dropping a FRESH
+      // one would break Android cold-start sign-in outright.
+      const launch = await App.getLaunchUrl().catch(() => undefined)
+      if (!disposed && launch?.url) dispatch(launch.url)
     })()
 
     return () => {
       disposed = true
       cleanups.forEach((c) => c())
     }
-  }, [])
+  }, [router]) // stable identity — effectively mount-once
 
   // Status bar follows the in-app theme: dark text on the light card, light text on the dark card.
   useEffect(() => {
     if (!isNative()) return
     void (async () => {
       const { StatusBar, Style } = await import('@capacitor/status-bar')
+      // useTheme().resolved is 'light' until hydration, but the pre-paint head script has already
+      // stamped `.dark` on <html> — read THAT for the style so the first frames of a dark launch
+      // get the right icon contrast. `resolved` stays the dependency: theme flips re-run this.
+      const dark = document.documentElement.classList.contains('dark')
       // ⚠️ Capacitor's Style enum is named for the BACKGROUND, not the text: Style.Dark = LIGHT
       // text (use on a DARK ui); Style.Light = DARK text (use on a LIGHT ui). So follow the theme
       // directly — dark theme → Style.Dark (light text), light theme → Style.Light (dark text).
-      StatusBar.setStyle({ style: resolved === 'dark' ? Style.Dark : Style.Light }).catch(() => {})
+      StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {})
       // Android draws its own status-bar background; iOS shows the WebView (the bg-card header)
       // behind a transparent bar, so it only needs the style above.
       const color = cardColor()
@@ -181,6 +297,50 @@ export function NativeBootstrap() {
       }
     })()
   }, [resolved])
+
+  // Android pull-to-refresh gating. MainActivity's SwipeRefreshLayout already blocks the pull
+  // while the WebView is scrolled, but on surfaces whose scrolling is INTERNAL the document sits
+  // at scrollY 0 and the layout steals every downward drag: the chat thread (html.chat-locked /
+  // /messages), the map view, and the fullscreen video feed. Publish "PTR allowed" over the
+  // EnoNative bridge (addJavascriptInterface — the call is synchronous, so a touchstart-time
+  // write lands before SwipeRefreshLayout passes touch slop on the following move). No-op on
+  // web + iOS (bridge only exists on Android; effect exits early elsewhere).
+  useEffect(() => {
+    if (cap()?.getPlatform?.() !== 'android') return
+    type PtrBridge = { setPtrEnabled?: (enabled: boolean) => void }
+    const bridge = () => (window as unknown as { EnoNative?: PtrBridge }).EnoNative
+    const recompute = () => {
+      // location.search read directly — useSearchParams would force a Suspense boundary.
+      const mapView =
+        new URLSearchParams(window.location.search).get('view') === 'map' ||
+        // The map tab toggles in-page WITHOUT touching the URL; Leaflet stamps this class on
+        // its container the moment the map view mounts (and only then — it's lazy).
+        !!document.querySelector('.leaflet-container')
+      const videoOpen =
+        (window.history.state as { takeover?: string } | null)?.takeover === 'video'
+      const enabled = !(
+        document.documentElement.classList.contains('chat-locked') ||
+        window.location.pathname.startsWith('/messages') ||
+        mapView ||
+        videoOpen
+      )
+      bridge()?.setPtrEnabled?.(enabled)
+    }
+    recompute()
+    // chat-locked flips via the <html> class; map/video open with NO route change and pushState
+    // fires no event — the class observer + popstate + a passive touchstart recompute (cheap:
+    // two class checks + one query) together cover every entry/exit path.
+    const obs = new MutationObserver(recompute)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    window.addEventListener('popstate', recompute)
+    document.addEventListener('touchstart', recompute, { passive: true, capture: true })
+    return () => {
+      obs.disconnect()
+      window.removeEventListener('popstate', recompute)
+      document.removeEventListener('touchstart', recompute, true)
+      bridge()?.setPtrEnabled?.(true) // never leave PTR stuck off across remounts
+    }
+  }, [pathname]) // re-run on route change — pathname feeds the /messages check
 
   return null
 }

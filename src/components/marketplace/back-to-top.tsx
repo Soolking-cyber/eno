@@ -55,7 +55,11 @@ export function BackToTop() {
       <div
         className={cn(
           'fixed z-[60] flex flex-col items-center gap-2.5',
-          'bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-6', // clear the mobile bottom-nav
+          // Clear the mobile bottom-nav. The max(env, var) pairing covers Android
+          // WebView < 140, where Capacitor injects --safe-area-inset-* vars instead
+          // of env() passthrough (see the Android safe-area note in globals.css);
+          // everywhere else the var is undefined → 0px, so this equals plain env().
+          'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] lg:bottom-6',
           // The account rail now lives on the LEFT (a 72px collapsed column, owner 2026-07-17), so
           // the bottom-RIGHT controls no longer overlap it and need no --account-w offset — they
           // stay pinned to the right edge. Below lg the panel owns the whole screen when open, so
@@ -86,8 +90,11 @@ export function BackToTop() {
           aria-hidden={!show || undefined}
           tabIndex={show ? undefined : -1}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          // back-to-top-chevron is a stable hook for globals.css: native iOS hides
+          // ONLY this button (status-bar tap already scrolls to top there); the
+          // Help "?" below is untouched, and Android keeps the chevron.
           className={cn(
-            'relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-90 tap-44',
+            'back-to-top-chevron relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-90 tap-44',
             show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
           )}
         >

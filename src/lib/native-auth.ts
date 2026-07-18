@@ -40,5 +40,10 @@ export async function nativeGoogleSignIn(supabase: SupabaseClient, next: string)
   })
   if (error) throw error
   if (!data?.url) throw new Error('No OAuth URL returned')
-  await Browser.open({ url: data.url })
+  // Brand the Custom Tab / SFSafariViewController toolbar with the LIVE --card token (the same
+  // surface the in-app header uses, already theme-flipped). The token is authored as hex in
+  // globals.css; Browser.open accepts hex only, so pass it through only if it still is —
+  // a retokenized non-hex value just falls back to the default toolbar rather than erroring.
+  const card = getComputedStyle(document.documentElement).getPropertyValue('--card').trim()
+  await Browser.open({ url: data.url, ...(card.startsWith('#') ? { toolbarColor: card } : {}) })
 }

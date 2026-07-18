@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { PRELAUNCH } from "./src/lib/site-legal";
 
 const nextConfig: NextConfig = {
   // Standalone server output for local `npm start` / self-hosting. NOT on Vercel:
@@ -63,6 +62,18 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: false,
+  // iOS Universal Links: the app router ignores dot-folders, so
+  // /.well-known/apple-app-site-association is served by a route handler (which
+  // env-gates on APPLE_TEAM_ID — 404 until the paid Apple team exists). Android's
+  // assetlinks.json needs no rewrite: it's a static file under public/.well-known.
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/apple-app-site-association",
+        destination: "/api/well-known/aasa",
+      },
+    ];
+  },
   // Baseline security headers on every response. CSP is ENFORCING and was TIGHTENED
   // 2026-07-10: Supabase pinned to the exact project host (not *.supabase.co — connect-src
   // is the post-XSS exfiltration brake), Leaflet self-hosted (unpkg dropped), browser Meta
@@ -116,16 +127,12 @@ const nextConfig: NextConfig = {
           // Named endpoint group for the CSP `report-to` directive (Reporting API).
           { key: "Reporting-Endpoints", value: 'csp-endpoint="/api/csp-report"' },
           { key: "Content-Security-Policy", value: csp },
-          // PRE-LAUNCH: keep the whole site OUT of search indexes while it is in test
-          // operation with seed/mock inventory. This is set sitewide as a header (not
-          // per-page metadata) so it ALSO covers the mock listing pages that set
-          // `robots: undefined` (indexable) — nothing leaks into Google until we flip
-          // PRELAUNCH=false with real inventory. robots.txt stays crawlable ON PURPOSE
-          // so Googlebot can fetch each page, SEE this noindex, and drop already-indexed
-          // seed URLs. Flipping PRELAUNCH is a rebuild+redeploy (i.e. the launch itself),
-          // at which point this header disappears. `nofollow` too so seed link-graph
-          // isn't followed. See src/lib/site-legal.ts and src/app/sitemap.xml/route.ts.
-          ...(PRELAUNCH ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] : []),
+          // Indexing was decoupled from PRELAUNCH (owner, 2026-07-18): the site is
+          // indexable while the MoIT test-operation notice still shows. The old
+          // sitewide `X-Robots-Tag: noindex, nofollow` prelaunch header is gone;
+          // per-page robots metadata (auth/dashboard/admin noindex) is the only
+          // robots control now. See src/app/sitemap.xml/route.ts (un-gated the
+          // same day).
         ],
       },
     ];

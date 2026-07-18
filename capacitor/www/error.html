@@ -1,13 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <title>eno</title>
     <style>
-      :root { --bg:#ffffff; --fg:#111827; --sub:#6b7280; --brand:#0A66C2; --ring:#e5e7eb; }
-      @media (prefers-color-scheme: dark){ :root{ --bg:#1b1b1b; --fg:#f3f4f6; --sub:#9ca3af; --brand:#4c9aff; --ring:#333; } }
+      /* --brand values mirror the canon tokens in docs/design-language.md / globals.css
+         (#0a66c2 light, #3b8ee6 dark) — this page is self-contained and can't import them. */
+      :root { --bg:#ffffff; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; }
+      @media (prefers-color-scheme: dark){ :root{ --bg:#1b1b1b; --fg:#f3f4f6; --sub:#9ca3af; --brand:#3b8ee6; --ring:#333; } }
       html, body { margin:0; height:100%; }
       body {
         display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
@@ -17,6 +19,7 @@
       }
       .logo { font-weight:800; font-size:42px; letter-spacing:-1.5px; color:var(--brand); }
       h1 { font-size:19px; margin:0; font-weight:700; }
+      .en { display:block; margin-top:4px; font-size:13px; font-weight:500; color:var(--sub); }
       p { margin:0; color:var(--sub); max-width:300px; line-height:1.5; font-size:15px; }
       .spin { width:22px; height:22px; border:2.5px solid var(--ring); border-top-color:var(--brand); border-radius:50%; animation:sp .8s linear infinite; }
       @keyframes sp { to { transform:rotate(360deg); } }
@@ -31,10 +34,10 @@
   -->
   <body>
     <div class="logo">eno</div>
-    <h1>You're offline</h1>
-    <p>We can't reach eno right now. We'll keep trying — check your internet connection.</p>
+    <h1>Không có kết nối mạng<span class="en" lang="en">You're offline</span></h1>
+    <p>Chưa kết nối được với eno. Chúng tôi sẽ tự thử lại — bạn kiểm tra lại mạng giúp nhé.</p>
     <div class="spin" aria-hidden="true"></div>
-    <button id="retry" type="button">Try again</button>
+    <button id="retry" type="button">Thử lại</button>
     <script>
       var URL_ = 'https://eno.vn';
       function retry() { location.href = URL_; }

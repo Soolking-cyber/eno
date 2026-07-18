@@ -675,6 +675,12 @@ summary:focus-visible {
 html.native #prelaunch-banner {
   display: none;
 }
+/* Dedicated mobile apps don't have web-page footers — navigation lives in the bottom
+   tab bar, and the legal/company identity block is a WEB (Decree 52) surface. Same
+   pre-paint `native` class, so the footer never flashes in. */
+html.native #app-footer {
+  display: none;
+}
 html.page-at-top:not(.native) body:has(#prelaunch-banner) #app-header {
   padding-top: 0;
 }
@@ -702,13 +708,53 @@ html.native .allow-select {
   user-select: text;
   -webkit-touch-callout: default;
 }
+/* Breadcrumb rows are SEO furniture — the app has a tab bar + swipe-back, so a
+   "Home / Category / Item" trail is pure web chrome there. Case-insensitive match
+   covers both spellings in use (PDP nav aria-label="Breadcrumb", ui/breadcrumb
+   "breadcrumb"). JSON-LD breadcrumbs are untouched, and Googlebot never carries
+   html.native, so SEO is unaffected. */
+html.native nav[aria-label="breadcrumb" i] {
+  display: none;
+}
+/* Opt-out hook for long-form SEO prose (keyword sections, FAQ text on landing
+   pages) — written for Google, not app screens. Tag the block .web-only. */
+html.native .web-only {
+  display: none;
+}
+/* iOS taps the status bar to scroll to top (MainViewController sets scrollsToTop),
+   so the floating back-to-top chevron is redundant there — hide ONLY the chevron;
+   the co-located Help "?" stays. Android has no status-bar-tap equivalent and
+   keeps the chevron. */
+html.native-ios .back-to-top-chevron {
+  display: none;
+}
 /* iOS native pull-to-refresh (UIRefreshControl, wired in MainViewController) needs the WebView to
    over-scroll past the top — which the base `overscroll-behavior-y: none` (the grey-band fix)
    suppresses. Re-allow it on native iOS ONLY: the <html> background is var(--card), so the bounce
    reveals the SAME colour as the header/nav (still seamless, no grey band), while letting the native
-   refresh spinner appear. Android keeps `none` until it gets a SwipeRefreshLayout. */
+   refresh spinner appear. Android keeps `none` on purpose: its PTR is a native-view-level
+   SwipeRefreshLayout wrapping the WebView (MainActivity), so it never needs web overscroll. */
 html.native-ios {
   overscroll-behavior-y: auto;
+}
+
+/* Android has TWO safe-area delivery paths under Capacitor's edge-to-edge handling
+   (Android 15/16): on WebView ≥ 140, env(safe-area-inset-*) passes real values
+   through; on WebView < 140, Capacitor core pads the WebView parent and injects
+   --safe-area-inset-* custom properties instead — env() reads 0 there.
+   max(env(X), var(--X, 0px)) serves both: on the passthrough path both operands are
+   equal (no double-pad), on the padded path env() is 0 and the var wins. Applied
+   only to the insets that matter on NATIVE (header top, bottom-nav bottom + its
+   spacer) and scoped to .native so web/PWA rules keep plain env(). iOS always has
+   env() passthrough; the var is undefined there, so these are exact no-ops. */
+html.native #app-header {
+  padding-top: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px));
+}
+html.native .mobile-nav {
+  padding-bottom: max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
+}
+html.native .bottom-nav-spacer {
+  height: calc(4rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)));
 }
 
 /* Favorite-button burst — the save confirmation IS the animation. Two one-shot,

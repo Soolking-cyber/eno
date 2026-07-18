@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Dark-theme cold start: @color/card resolves to the dark card (#242424) here, so the splash
+         no longer flashes white. Full redeclaration of the values/ style because styles do NOT
+         merge across resource qualifiers — a partial override would drop the icon and
+         postSplashScreenTheme. Keep in sync with values/styles.xml. -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/card</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>
+</resources>

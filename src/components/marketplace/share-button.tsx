@@ -7,7 +7,9 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { copyText } from '@/lib/copy-text'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 // Brand glyphs (single-path, 24² viewBox). Rendered white on a brand-colour chip.
 function WhatsAppIcon(props: { className?: string }) {
@@ -51,13 +53,25 @@ export function ShareButton({ url, title, price, currency, className, compact = 
   ]
 
   const copy = async () => {
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1800) } catch { /* blocked */ }
+    // copyText falls back to execCommand where navigator.clipboard is absent (Android WebView).
+    // "Link copied" only on a copy that actually landed — a failed copy says so instead.
+    if (await copyText(url)) { setCopied(true); setTimeout(() => setCopied(false), 1800) }
+    else toast.error(tr("Couldn't copy the link", 'Không sao chép được liên kết'))
   }
+  // The Capacitor shell's WebView (Android especially) ships WITHOUT navigator.share, but the
+  // @capacitor/share plugin is synced on both platforms — route the OS sheet through it there.
+  const isNativeShell =
+    typeof window !== 'undefined' &&
+    !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
   const nativeShare = async () => {
     setOpen(false)
+    if (isNativeShell) {
+      try { const { Share } = await import('@capacitor/share'); await Share.share({ title: shareText, url }) } catch { /* dismissed */ }
+      return
+    }
     try { await navigator.share?.({ title: shareText, url }) } catch { /* dismissed */ }
   }
-  const hasNative = typeof navigator !== 'undefined' && !!navigator.share
+  const hasNative = isNativeShell || (typeof navigator !== 'undefined' && !!navigator.share)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

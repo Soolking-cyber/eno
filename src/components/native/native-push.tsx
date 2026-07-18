@@ -18,7 +18,14 @@ export function NativePush() {
   useEffect(() => {
     if (!user || started.current || !cap()?.isNativePlatform?.()) return
     started.current = true
-    let cleanup: (() => void) | undefined
+    let disposed = false
+    const cleanups: Array<() => void> = []
+    // Listener handles resolve AFTER awaits: if the cleanup already ran mid-await, pushing the
+    // handle would orphan a live listener. Adopt-or-remove instead (mirrors native-bootstrap).
+    const adopt = (handle: { remove: () => void | Promise<void> }) => {
+      if (disposed) void handle.remove()
+      else cleanups.push(() => { void handle.remove() })
+    }
 
     void (async () => {
       try {
@@ -32,25 +39,24 @@ export function NativePush() {
         if (status !== 'granted') return
 
         // Token arrives async → POST it to the auth-gated endpoint.
-        const onReg = await PushNotifications.addListener('registration', (t) => {
+        adopt(await PushNotifications.addListener('registration', (t) => {
           void fetch('/api/push/native-subscribe', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ token: t.value, platform }),
           }).catch(() => {})
-        })
+        }))
         // Tapping a notification deep-links into the app.
-        const onTap = await PushNotifications.addListener('pushNotificationActionPerformed', (a) => {
+        adopt(await PushNotifications.addListener('pushNotificationActionPerformed', (a) => {
           const url = (a.notification?.data as { url?: string } | undefined)?.url
           if (typeof url === 'string' && url.startsWith('/')) window.location.assign(url)
-        })
+        }))
 
-        await PushNotifications.register()
-        cleanup = () => { onReg.remove(); onTap.remove() }
+        if (!disposed) await PushNotifications.register()
       } catch { /* plugin not wired / permission denied — dormant */ }
     })()
 
-    return () => cleanup?.()
+    return () => { disposed = true; cleanups.forEach((c) => c()) }
   }, [user])
 
   return null
