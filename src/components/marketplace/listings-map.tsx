@@ -8,7 +8,6 @@ import { TrustScore } from './trust-score'
 import { MapTravel, MapsDirectionsButton } from './map-travel'
 import type { LatLng } from '@/lib/travel'
 import type { SerializedListingCard } from '@/lib/types'
-import { formatPrice } from '@/lib/types'
 import { formatMoneyFull, compactPrice, moneyLocale, type MoneyLocale } from '@/lib/vnd'
 import { useCurrency } from '@/context/currency-context'
 import type { Language } from '@/context/language-context'
@@ -29,7 +28,9 @@ import { IconButton } from '@/components/ui/icon-button'
 // symbol-prefixed format.
 function pinLabel(l: SerializedListingCard, locale: MoneyLocale): string {
   if (l.currency === '₫') return compactPrice(l.price, locale)
-  return formatPrice(l.price, l.currency, l.priceUnit)
+  // Rare non-₫ listing: same canonical vnd.ts formatter the popup one tap away uses
+  // (the old local formatPrice hardcoded Intl en-US — audit P1 #9; it's deleted).
+  return formatMoneyFull(l.price, l.currency, locale)
 }
 
 type Props = {

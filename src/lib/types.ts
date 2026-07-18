@@ -162,14 +162,6 @@ export type Stats = {
 
 export type VerificationMethod = 'in-person' | 'video-call' | 'document-check' | 'agent-visit'
 
-export function formatPrice(price: number, currency: string, priceUnit: string): string {
-  const formatted = new Intl.NumberFormat('en-US').format(price)
-  if (priceUnit === 'VND') return `${currency}${formatted}`
-  const suffix = priceUnit.replace(/^VND\/?/, '').trim()
-  return suffix ? `${currency}${formatted} / ${suffix}` : `${currency}${formatted}`
-}
-
-
 export function timeAgo(iso: string, lang: string = 'vi'): string {
   const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
   const h = Math.floor(m / 60), d = Math.floor(h / 24), mo = Math.floor(d / 30), y = Math.floor(mo / 12)
