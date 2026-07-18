@@ -296,7 +296,7 @@ export function Header() {
                 // suggestions panel it fuses with at sm+ (bottom flattened where they join), so the
                 // fused silhouette is one consistent radius. The floating shadow is the standard
                 // popover treatment for a layer over content — not canvas elevation.
-                ? 'rounded-2xl bg-popover shadow-pop sm:rounded-b-none'
+                ? 'rounded-2xl bg-card shadow-pop sm:rounded-b-none'
                 // Idle = maximally seamless: rounded-2xl (matches the hero search pill + the fused-open
                 // state, so there's no corner jump on open) and PURE bg-tint — zero border, zero ring,
                 // and NO bg swap on focus (a white focus fill would merge into the bg-card header).
@@ -370,7 +370,7 @@ export function Header() {
             {/* Recent searches + recent locations — flush bottom of the same window */}
             {suggestOpen && (
               <>
-                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 space-y-4 rounded-2xl bg-popover p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 space-y-4 rounded-2xl bg-card p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -429,7 +429,7 @@ export function Header() {
 
             {/* Instant matches — live listings + categories as you type (≥2 chars) */}
             {instantOpen && (
-              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-popover p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-card p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                 <SearchSuggest
                   items={suggestItems}
                   loading={live.loading}
