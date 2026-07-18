@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SectionHeader } from '@/components/marketplace/section-header'
 
 export type ForumThreadItem = {
   id: string
@@ -62,7 +63,9 @@ function ThreadAnchor({ postId, children }: { postId: string; children: React.Re
     <a
       href={FORUM_URL + path}
       onClick={forumClick(path)}
-      className="block rounded-2xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted"
+      // press = the native-row tactile treatment (its base transition keeps the
+      // hover:bg-muted colour animating); the whole row is already one full-row anchor.
+      className="press block rounded-2xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted"
     >
       {children}
     </a>
@@ -187,8 +190,12 @@ export function ForumClient({ activity }: { activity: ForumActivity | null }) {
 
   return (
     <>
+      {/* Native stack-nav title bar (mobile only) — same established title string. */}
+      <SectionHeader title={tr('Forum activity', 'Hoạt động diễn đàn')} />
       <div className="space-y-1">
-        <h1 className="text-xl font-bold text-foreground">{tr('Forum activity', 'Hoạt động diễn đàn')}</h1>
+        {/* The h1 stays for the document outline; on mobile the SectionHeader shows the
+            visible title, so it drops to sr-only there (max-lg pairs with its lg:hidden). */}
+        <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Forum activity', 'Hoạt động diễn đàn')}</h1>
         <p className="text-sm text-muted-foreground">
           {tr('Your posts, comments and saved threads on eno.forum', 'Bài viết, bình luận và chủ đề đã lưu của bạn trên eno.forum')}
         </p>

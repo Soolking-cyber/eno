@@ -58,11 +58,17 @@ These carry invariants recorded in their own comments. Read the comments before 
 
 ## Shipping
 
-**Forum/itinerary deployment boundary:** `eno.forum` is deployed only from the separate
-`Soolking-cyber/eno-forum` repository (local checkout: `/Users/mk1e3/eno-forum`) through
-its own `eno-forum` Vercel project. `apps/forum` in this monorepo is a mirror; pushing
-`Soolking-cyber/eno` does not deploy the forum. For every forum or itinerary change,
-port and validate the change in the standalone repository, then push that repository's
-`main` branch. Never report a forum deployment from a monorepo-only push.
+**Forum/itinerary deployment boundary — cutover complete (owner, 2026-07-18):**
+`/Users/mk1e3/eno.vn/apps/forum` is the only source of truth for `eno.forum`, including
+the forum, itinerary, concierge, and Vietnam e-Visa surfaces. Make all such changes
+only under `apps/forum/**`. The former `/Users/mk1e3/eno-forum` checkout and
+`Soolking-cyber/eno-forum` repository are retired migration history: never edit, push,
+or deploy from them. The existing `eno-forum` Vercel project remains separate because
+it owns the forum domains and environment variables, but it now deploys
+`Soolking-cyber/eno` with Root Directory `apps/forum`.
+
+**Codex handoff boundary (owner, 2026-07-18):** Codex only edits and validates
+`apps/forum/**`; it must not commit, push, trigger Vercel, or run the shipping workflow.
+Claude owns the whole-monorepo commit and push, after which Vercel builds automatically.
 
 `/ship` runs the ritual: `tsc --noEmit` → design-lint → `npm run build` → local guest e2e (44 tests, server on **port 3100** — 3000 has been squatted by another project) → commit → push → poll `npx vercel ls` until Ready → prod guest suite. Stop at the first red gate. If a push breaks prod, revert to the last known-good commit and pause — don't stack fix-on-fix.

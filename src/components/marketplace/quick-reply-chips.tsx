@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { X } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { LoaderCircle, LocateFixed, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { toast } from 'sonner'
@@ -38,6 +38,7 @@ export function QuickReplyChips({
   availabilityConfirmedAt,
   onInsert,
   onSend,
+  composerText,
   className,
 }: {
   isSeller: boolean
@@ -47,11 +48,49 @@ export function QuickReplyChips({
   onInsert: (text: string) => void
   /** Send a complete reply immediately (falls back to onInsert when absent). */
   onSend?: (text: string) => void
+  /** Live composer value — lets the meet chip auto-complete the location ONLY while
+   *  the composer still holds the untouched template (never clobbers typing). */
+  composerText?: string
   className?: string
 }) {
   const { tr, lang } = useLanguage()
   // Inline "seller already confirmed" note (buyer side) — dismissable, session-only.
   const [note, setNote] = useState<'hidden' | 'shown' | 'dismissed'>('hidden')
+  const [locating, setLocating] = useState(false)
+  // Latest composer value for the async geolocation callback — a stale closure would
+  // compare against the value at tap time and overwrite what the seller typed since.
+  const composerRef = useRef(composerText)
+  composerRef.current = composerText
+
+  // "Can meet in …" + the locate glyph: tap inserts the template SYNCHRONOUSLY (iOS only
+  // opens the keyboard for focus inside the tap's call stack — same invariant as the
+  // composer's insert()), then geolocation → /api/reverse-geocode fills the place in —
+  // unless the seller already typed, in which case their words win. Failures stay
+  // silent: the template is already in the composer, exactly the pre-icon behaviour.
+  const meetTemplate = tr('Can meet in ', 'Có thể gặp ở ')
+  const locateMeet = () => {
+    onInsert(meetTemplate)
+    if (locating || typeof navigator === 'undefined' || !navigator.geolocation) return
+    setLocating(true)
+    haptic()
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const r = await fetch(`/api/reverse-geocode?lat=${coords.latitude}&lng=${coords.longitude}&lang=${lang}`)
+          const d = r.ok ? await r.json().catch(() => ({})) : {}
+          const place = [d.ward || d.wardCandidates?.[0], d.district, d.province]
+            .filter((p: unknown): p is string => typeof p === 'string' && p.length > 0)
+            .slice(0, 2)
+            .join(', ')
+          if (place && composerRef.current === meetTemplate) onInsert(meetTemplate + place)
+        } finally {
+          setLocating(false)
+        }
+      },
+      () => setLocating(false),
+      { timeout: 8000, maximumAge: 60000 },
+    )
+  }
 
   const confirmedFresh =
     !!availabilityConfirmedAt && Date.now() - new Date(availabilityConfirmedAt).getTime() < 7 * 864e5
@@ -105,10 +144,15 @@ export function QuickReplyChips({
               key={c.label}
               variant="soft"
               size="none"
-              onClick={() => (c.complete ? fire(c.text) : onInsert(c.text))}
+              onClick={() => (c.text === meetTemplate ? locateMeet() : c.complete ? fire(c.text) : onInsert(c.text))}
               className={chipCls}
             >
               {c.label}
+              {c.text === meetTemplate &&
+                /* size-* class is REQUIRED: ui/button inflates unclassed svgs to size-4. */
+                (locating
+                  ? <LoaderCircle className="ml-1 size-3.5 animate-spin text-accent-foreground" />
+                  : <LocateFixed className="ml-1 size-3.5 text-accent-foreground" />)}
             </Button>
           ))
         ) : (

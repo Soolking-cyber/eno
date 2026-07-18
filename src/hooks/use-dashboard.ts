@@ -33,6 +33,10 @@ export type Dash = {
   } | null
   stats: { unreadMessages: number; staleCount: number; totalViews: number; totalLeads: number }
   listings: SerializedListing[]
+  /** Server-computed (ADMIN_EMAILS) role flag for the nav rail's admin group. Display-only —
+   *  every admin surface still enforces getAdmin() server-side. Legacy cached payloads may
+   *  lack the field; load() defaults it to false until revalidate overwrites. */
+  isAdmin: boolean
 }
 
 const CACHE_KEY = 'eno-dashboard'
@@ -91,7 +95,12 @@ function load(uid: string) {
     let cached: Dash | null = null
     try {
       const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')
-      if (c?.userId === uid && c.dashboard) cached = c.dashboard
+      // isAdmin default-first: caches written before the field existed lack it — paint
+      // false (a brief non-admin flash for admins) and let revalidate() correct it.
+      // isAdmin is FORCED false from cache: a revoked admin must never see the Admin
+      // rail group replayed from localStorage (offline, or before revalidate lands).
+      // Real admins get it back one fetch later — the safe direction to flash.
+      if (c?.userId === uid && c.dashboard) cached = { ...c.dashboard, isAdmin: false }
     } catch { /* corrupt cache — ignore */ }
     set({ userId: uid, dash: cached, loading: !cached })
   }

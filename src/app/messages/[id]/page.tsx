@@ -622,6 +622,7 @@ export default function ThreadPage() {
               availabilityConfirmedAt={thread.listing.availabilityConfirmedAt}
               onInsert={insertQuickReply}
               onSend={(t) => send(t)}
+              composerText={text}
               className="px-4 pt-1.5"
             />
           )}

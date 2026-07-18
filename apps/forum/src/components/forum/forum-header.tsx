@@ -1,20 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { Check, Languages, Plus, Search, UserRound } from 'lucide-react'
-import { LANGUAGES, useLanguage } from '@/context/language-context'
-import { useAuth } from '@/context/auth-context'
-import { useEnoAccountShell } from '@/components/dashboard/eno-account-shell'
+import { Plus, Search } from 'lucide-react'
+import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { Avatar } from '@/components/ui/avatar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 
+/**
+ * Minimal forum header: logo, search, and the create action on the forum home.
+ * Account, language, and dashboard controls live in the ONE eno dashboard on
+ * eno.vn (and in the forum's own left rail for entry) — never here. The e2e
+ * spec asserts #app-header carries ZERO buttons on /itinerary and /visa.
+ */
 export function ForumHeader({
   query,
   onQueryChange,
@@ -24,9 +21,7 @@ export function ForumHeader({
   onQueryChange?: (value: string) => void
   onCreatePost?: () => void
 }) {
-  const { tr, lang, setLang } = useLanguage()
-  const { user, loading, openSignIn } = useAuth()
-  const { openAccount } = useEnoAccountShell()
+  const { tr } = useLanguage()
   const searchEnabled = typeof query === 'string' && Boolean(onQueryChange)
 
   return (
@@ -53,50 +48,14 @@ export function ForumHeader({
           </div>
         ) : <div className="flex-1" />}
 
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger render={
-              <Button
-                type="button"
-                variant="bare"
-                size="sm"
-                className="h-11 gap-1.5 px-2.5 text-body hover:bg-tint hover:text-foreground"
-                aria-label={tr('Choose language', 'Chọn ngôn ngữ')}
-              >
-                <Languages className="h-5 w-5" />
-                <span className="text-xs font-bold">{LANGUAGES.find((item) => item.code === lang)?.label}</span>
-              </Button>
-            } />
-            <DropdownMenuContent align="end" className="w-56">
-              {LANGUAGES.map((language) => (
-                <DropdownMenuItem key={language.code} onClick={() => setLang(language.code)}>
-                  <span className="w-7 text-xs font-bold text-ink-4">{language.label}</span>
-                  <span className="min-w-0 flex-1 truncate">{language.native}</span>
-                  {lang === language.code && <Check className="ml-auto h-4 w-4 text-accent-foreground" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {!loading && (user ? (
-            <Button type="button" variant="outline" size="sm" className="h-10 gap-2 px-2 sm:px-3" aria-label={tr('Open eno dashboard', 'Mở bảng điều khiển eno')} onClick={openAccount}>
-              <Avatar name={user.user_metadata?.full_name || user.email || 'eno member'} url={user.user_metadata?.avatar_url} size="sm" className="h-6 w-6 text-3xs" />
-              <span className="hidden max-w-24 truncate sm:inline">{user.user_metadata?.full_name || user.email?.split('@')[0] || tr('Account', 'Tài khoản')}</span>
-            </Button>
-          ) : (
-            <Button type="button" variant="outline" size="sm" className="h-10 px-2 sm:px-3" onClick={openSignIn} aria-label={tr('Sign in to eno', 'Đăng nhập eno')}>
-              <UserRound className="h-4 w-4" />
-              <span className="hidden sm:inline">{tr('Sign in', 'Đăng nhập')}</span>
-            </Button>
-          ))}
-
-          {onCreatePost && (
+        {onCreatePost && (
+          <div className="ml-auto flex items-center">
             <Button data-testid="forum-create" type="button" variant="cta" size="sm" onClick={onCreatePost} className="hidden sm:inline-flex">
               <Plus className="h-4 w-4" />
               {tr('Start a post', 'Tạo bài viết')}
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </header>
   )

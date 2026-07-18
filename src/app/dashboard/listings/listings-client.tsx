@@ -7,6 +7,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useDashboard } from '@/hooks/use-dashboard'
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
+import { SectionHeader } from '@/components/marketplace/section-header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
@@ -36,6 +37,10 @@ export function ListingsClient() {
 
   return (
     <>
+      {/* Native stack-nav title bar (mobile only). Title = this section's established nav
+          name (dashboard-nav's tr('My listings','Tin của tôi')); the greeting h1 below is a
+          hero, not a duplicate of it, so it stays visible on every size. */}
+      <SectionHeader title={tr('My listings', 'Tin của tôi')} />
       {/* Gemini-style greeting hero — a light, crisp welcome that floats on the flat dashboard
           canvas (globals .dashboard-canvas) instead of a bold boxed title. */}
       <div className="space-y-1">

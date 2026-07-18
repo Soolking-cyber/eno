@@ -17,6 +17,7 @@ import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switc
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { DeleteAccount } from '@/components/marketplace/delete-account'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
+import { SectionHeader } from '@/components/marketplace/section-header'
 
 /** /dashboard/settings — the full account settings, one section per area (identical set
  *  to what the account panel used to drill into: profile, handle, email, account type,
@@ -46,8 +47,14 @@ export function SettingsClient() {
   const isBusiness = dash?.tier === 'business'
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-xl font-bold text-foreground">{tr('Settings', 'Cài đặt')}</h1>
+    // SectionHeader sits OUTSIDE the max-w-2xl column: its gutter bleed (-mx-3/sm:-mx-6)
+    // must be measured from the layout's full-width main, not the capped text column.
+    <>
+      {/* Native stack-nav title bar (mobile only) — same established title string. */}
+      <SectionHeader title={tr('Settings', 'Cài đặt')} />
+      <div className="max-w-2xl">
+        {/* h1 stays for the outline; the SectionHeader carries the visible mobile title. */}
+        <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Settings', 'Cài đặt')}</h1>
 
       {!dash ? (
         <div className="mt-6 space-y-3">
@@ -114,6 +121,7 @@ export function SettingsClient() {
           </section>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

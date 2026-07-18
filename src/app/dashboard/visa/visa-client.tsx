@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
+import { SectionHeader } from '@/components/marketplace/section-header'
 import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import type { ForumVisaResult } from '@/lib/forum-visa'
 
@@ -81,7 +82,10 @@ export function VisaClient({ initial }: { initial: ForumVisaResult }) {
 
   return (
     <>
-      <h1 className="text-xl font-bold text-foreground">{tr('Vietnam e-Visa', 'E-Visa Việt Nam')}</h1>
+      {/* Native stack-nav title bar (mobile only) — same established title string. */}
+      <SectionHeader title={tr('Vietnam e-Visa', 'E-Visa Việt Nam')} />
+      {/* h1 stays for the outline; the SectionHeader carries the visible mobile title. */}
+      <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Vietnam e-Visa', 'E-Visa Việt Nam')}</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         {tr('Your e-Visa applications from the eno.forum assistant.', 'Hồ sơ e-Visa của bạn từ trợ lý trên eno.forum.')}
       </p>
@@ -137,7 +141,9 @@ export function VisaClient({ initial }: { initial: ForumVisaResult }) {
                         e.preventDefault()
                         void goToForum('/visa')
                       }}
-                      className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-muted"
+                      // press = the native-row tactile treatment (its base transition keeps
+                      // hover:bg-muted animating); the row is already one full-row anchor.
+                      className="press flex items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-muted"
                     >
                       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-tint">
                         <FileCheck2 className="h-5 w-5 text-ink-4" />

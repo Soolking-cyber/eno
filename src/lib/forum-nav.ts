@@ -1,4 +1,8 @@
-// Cross-site navigation to eno.forum. WEB: a plain same-tab cross-domain hop (sessions are
+// Cross-site navigation to eno.forum. SCOPE (owner one-dashboard spec, 2026-07-18): this is
+// for EXPLICIT tool handoffs only — the "Open the forum / planner / assistant" CTAs inside
+// dashboard sections and deep links into forum content (threads, the planner). Core dashboard
+// navigation (the rail in dashboard-nav.tsx and the home's service cards) is fully internal
+// and must never route through here. WEB: a plain same-tab cross-domain hop (sessions are
 // per-origin cookies — the forum mints its own). NATIVE (the one Capacitor app): route
 // through the forum's /auth/bridge, which nonce-binds this browser and bounces through
 // eno.vn's minting endpoint so the forum origin gets its own session without re-login

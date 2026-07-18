@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentProfile } from '@/lib/admin'
+import { getAdmin, getCurrentProfile } from '@/lib/admin'
 import { computeTrustV2 } from '@/lib/trust'
 import { FLAG_REASONS, getEnforcement } from '@/lib/enforcement'
 import { dashboardStatsCore } from '@/lib/core/dashboard'
@@ -87,6 +87,14 @@ export async function GET() {
   return NextResponse.json({
     dashboard: {
       ...dashboard,
+      // Role flag for the nav rail's admin group. Server-computed against ADMIN_EMAILS;
+      // profile.email is the auth session email (ensureProfile mirrors it), so this
+      // matches getAdmin()'s verdict without a second auth round-trip. Display-only:
+      // every /admin page + API still enforces getAdmin() server-side.
+      // Session email, not Profile.email — an email change resyncs the JWT immediately
+      // but existing Profile rows are not re-synced, and the rail must agree with the
+      // server's own getAdmin() verdict.
+      isAdmin: !!(await getAdmin()),
       enforcement,
       trustProgress: i
         ? {

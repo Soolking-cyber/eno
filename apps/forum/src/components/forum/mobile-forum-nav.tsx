@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Bookmark, Flame, Home, Plus, Store, UserRound } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
-import { useEnoAccountShell } from '@/components/dashboard/eno-account-shell'
+import { ENO_DASHBOARD_URL } from '@/lib/eno-dashboard'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { isEnoApp } from '@/components/native/forum-native-bridge'
 import { Badge } from '@/components/ui/badge'
@@ -34,7 +34,6 @@ export function MobileForumNav({
   onSaved: () => void
 }) {
   const { tr } = useLanguage()
-  const { openAccount } = useEnoAccountShell()
   const { open: keyboardOpen } = useVirtualKeyboard()
   // App-mode is decided after mount (UA/bridge globals are client-only) so the
   // server markup — and therefore the web experience — stays the 5-tab nav.
@@ -81,10 +80,13 @@ export function MobileForumNav({
           </span>
           <span>{tr('Saved', 'Đã lưu')}</span>
         </Button>
-        <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={openAccount}>
+        {/* Plain external link on purpose: the ONE eno dashboard lives on eno.vn.
+            Inside the native app the WebView keeps eno.vn in-app (allowNavigation)
+            and the eno.vn side owns reverse-SSO. */}
+        <a href={ENO_DASHBOARD_URL} className={cn(itemClass, 'text-body')}>
           <UserRound className="h-5 w-5" />
           <span>{tr('Account', 'Tài khoản')}</span>
-        </Button>
+        </a>
       </div>
     </nav>
   )
@@ -100,7 +102,6 @@ export function AppForumNav() {
   const router = useRouter()
   const pathname = usePathname()
   const { tr } = useLanguage()
-  const { openAccount } = useEnoAccountShell()
   const { open: keyboardOpen } = useVirtualKeyboard()
   const [app, setApp] = useState(false)
   useEffect(() => { setApp(isEnoApp()) }, [])
@@ -131,10 +132,11 @@ export function AppForumNav() {
             <Store className="h-5 w-5" />
             <span>{tr('Market', 'Chợ')}</span>
           </a>
-          <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={openAccount}>
+          {/* Plain external link on purpose: the ONE eno dashboard lives on eno.vn. */}
+          <a href={ENO_DASHBOARD_URL} className={cn(itemClass, 'text-body')}>
             <UserRound className="h-5 w-5" />
             <span>{tr('Account', 'Tài khoản')}</span>
-          </Button>
+          </a>
         </div>
       </nav>
     </>

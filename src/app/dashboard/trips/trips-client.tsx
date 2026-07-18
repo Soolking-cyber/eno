@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { SectionHeader } from '@/components/marketplace/section-header'
 import { TripCard, type SavedItinerary } from './trip-card'
 
 /** /dashboard/trips — saved itineraries as a full in-<main> dashboard section.
@@ -74,9 +75,12 @@ export function TripsClient() {
 
   return (
     <>
+      {/* Native stack-nav title bar (mobile only) — same established title string. */}
+      <SectionHeader title={tr('Itineraries', 'Lịch trình')} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-foreground">{tr('Itineraries', 'Lịch trình')}</h1>
+          {/* h1 stays for the outline; the SectionHeader carries the visible mobile title. */}
+          <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Itineraries', 'Lịch trình')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {tr('Trips you researched on the forum planner, saved to your account.', 'Chuyến đi bạn đã nghiên cứu trên công cụ lập lịch trình, lưu vào tài khoản của bạn.')}
           </p>

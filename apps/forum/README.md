@@ -3,11 +3,16 @@
 Deployable Next.js workspace for the eno.forum community, Vietnam itinerary builder, concierge entry points, and e-Visa assistant. It lives in the `Soolking-cyber/eno` monorepo while retaining its own dependencies, build, tests, environment variables, Vercel project, and browser domains.
 
 > [!IMPORTANT]
-> **Deployment ownership:** `Soolking-cyber/eno/apps/forum` is the prepared forum
-> source of truth. During cutover, the existing `eno-forum` Vercel project must be
-> re-pointed here with Root Directory `apps/forum`; the root `eno` project continues
-> to deploy eno.vn. Archive `Soolking-cyber/eno-forum` only after production checks
-> pass, then keep it as read-only migration history.
+> **Deployment ownership — cutover complete:** `Soolking-cyber/eno/apps/forum` is the
+> sole forum source of truth. The existing `eno-forum` Vercel project deploys this
+> directory with Root Directory `apps/forum`; the root `eno` project continues to
+> deploy eno.vn. The former `Soolking-cyber/eno-forum` repository and local
+> `/Users/mk1e3/eno-forum` checkout are retired migration history and must never be
+> edited, pushed, or used as a deployment source.
+
+Codex works locally inside `apps/forum/**` and hands validated changes back without
+committing, pushing, or triggering a deployment. Claude owns the monorepo-wide commit
+and push; the connected Vercel projects then build automatically.
 
 ## Hackathon submission
 

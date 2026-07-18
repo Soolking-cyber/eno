@@ -120,10 +120,6 @@
   --brand-deep: #1b4b76;
   --brand-deeper: #0c2b48;
 
-  /* Shared eno account rail width on desktop. The forum matches the marketplace's
-     72px collapsed shell; its explicit expanded state grows to 280px in the component. */
-  --account-w: 72px;
-
   /* Surfaces — soft neutral canvas so white surfaces (cards, header, popovers)
      gain subtle Airbnb-style depth without reintroducing borders/boxes. */
   --background: #fafafa;
@@ -374,17 +370,6 @@
 
 .blob-bg {
   background-color: var(--background);
-}
-
-.dashboard-canvas {
-  background-color: var(--background);
-  background-image: radial-gradient(
-    72% 58% at 50% 62%,
-    color-mix(in oklab, var(--brand) 13%, transparent) 0%,
-    transparent 72%
-  );
-  background-attachment: fixed;
-  background-repeat: no-repeat;
 }
 
 /* ============================================================

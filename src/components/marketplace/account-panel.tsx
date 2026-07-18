@@ -3,12 +3,7 @@
 import { createContext, Fragment, useCallback, useContext, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  X, Store, Settings, Scale, CircleHelp, LogOut,
-  MessageSquareText, Heart, Upload, Code2, UsersRound, PanelLeft,
-  Flag, ShieldAlert, ClipboardList, Tags, Star, Home,
-  ListChecks, Route, FileCheck2, ExternalLink,
-} from 'lucide-react'
+import { X, Settings, CircleHelp, LogOut, PanelLeft } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -23,7 +18,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { useDashboard } from '@/hooks/use-dashboard'
-import { FORUM_URL, goToForum } from '@/lib/forum-nav'
+import { DASHBOARD_NAV, type NavItem, type NavRole } from './dashboard-nav'
 
 // LEFT account/dashboard NAV RAIL — Gemini "collapsed-by-default, expand-on-hover" model
 // (owner 2026-07-17). DESKTOP: a narrow 72px column of crisp icons on the LEFT edge; hovering
@@ -191,6 +186,10 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   if (!user) return null
   const initial = (user.email || user.phone || '?').charAt(0).toUpperCase()
   const isBusiness = dash?.tier === 'business'
+  // Admin-ness comes from the SERVER (isAdminEmail over the session email, shipped as
+  // `isAdmin` on the /api/dashboard payload) — the client never decides it. False while the
+  // payload hasn't loaded, when signed out, or when the user simply isn't an admin.
+  const isAdmin = dash?.isAdmin === true
   const displayName = dash?.profile.businessName || dash?.profile.displayName || user.email || user.phone
 
   // On mobile the rail is a launcher — tapping an item navigates and the rail must close (a route
@@ -219,7 +218,7 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
 
   // Plain render fn (NOT a nested component — that would remount the subtree each render). Reused
   // for the middle routing AND the Settings/Help rows in the bottom cluster.
-  type RailItem = { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean; forumPath?: string }
+  type RailItem = { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean }
   const renderNav = (it: RailItem) => {
     const Icon = it.icon
     const isOn = active(it.href, it.exact)
@@ -241,22 +240,7 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         )}
       </>
     )
-    const el = it.forumPath !== undefined ? (
-      // Cross-site (eno.forum) row. The href stays a REAL plain URL for a11y / middle-click /
-      // cmd-click; a normal left-click is intercepted so goToForum can route natives through the
-      // single-use SSO handoff (web just location.assigns the same URL). Never prefetched.
-      <a
-        href={it.href}
-        aria-label={it.label}
-        onClick={(e) => {
-          if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-          e.preventDefault()
-          closeOnMobile()
-          void goToForum(it.forumPath!)
-        }}
-        className={navItem(false)}
-      >{inner}</a>
-    ) : it.external ? (
+    const el = it.external ? (
       <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={it.label} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</a>
     ) : (
       <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={it.label} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</Link>
@@ -267,67 +251,41 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
     return <Tooltip key={it.href} content={expanded ? undefined : it.label} side="right">{el}</Tooltip>
   }
 
-  // MIDDLE — core routing. On /admin/* the rail becomes a DEDICATED ADMIN dashboard (EN-only per
-  // convention — the admin chrome isn't localized) showing ONLY admin sections; everyone else gets
-  // the seller/user nav. Only admins can reach /admin (server-gated on every route), so keying off
-  // the path is safe. Settings + Help + Sign out stay in the bottom cluster for both.
-  const inAdmin = pathname?.startsWith('/admin') ?? false
-  // UNIFIED RAIL HIERARCHY (owner): the SAME two groups, same order, mirrored on eno.forum's rail —
-  // Marketplace then Community. Community sections are INTERNAL dashboard pages now (owner
-  // 2026-07-18); only the trailing "Open eno.forum" row crosses sites (via goToForum). Group
-  // visibility is identical on web and native; only the navigation mechanics differ.
-  const GROUPS: { caption?: string; items: RailItem[] }[] = inAdmin
-    ? [
-        {
-          items: [
-            { href: '/admin', label: 'Reports', icon: Flag, exact: true },
-            { href: '/admin/disputes', label: 'Disputes', icon: Scale },
-            { href: '/admin/enforcement', label: 'Enforcement', icon: ShieldAlert },
-            { href: '/admin/listings', label: 'Listings', icon: ClipboardList },
-            { href: '/admin/brands', label: 'Brands', icon: Tags },
-            { href: '/admin/feedback', label: 'Feedback', icon: Star },
-            { href: '/', label: 'Back to site', icon: Home, external: true },
-          ],
-        },
-      ]
-    : [
-        {
-          caption: tr('Marketplace', 'Chợ eno'),
-          items: [
-            // /dashboard is a real HOME again (owner 2026-07-18: one cross-property dashboard on
-            // the forum's card design). EXACT match only — every section also lives under
-            // /dashboard/, so prefix matching would light this row on /dashboard/listings etc.
-            { href: '/dashboard', label: tr('Dashboard', 'Bảng điều khiển'), icon: Home, exact: true },
-            { href: '/dashboard/listings', label: tr('My listings', 'Tin của tôi'), icon: Store },
-            { href: '/messages', label: tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: unread },
-            { href: '/saved', label: tr('Saved', 'Đã lưu'), icon: Heart, badge: savedCount },
-            // Label matches the page's own name ("Availability review" / "còn hàng").
-            { href: '/dashboard/availability', label: tr('Availability review', 'Xác nhận còn hàng'), icon: ListChecks },
-            { href: '/dashboard/disputes', label: tr('Disputes', 'Khiếu nại'), icon: Scale },
-            ...(isBusiness
-              ? [
-                  { href: '/dashboard/bulk', label: tr('Bulk upload', 'Tải hàng loạt'), icon: Upload },
-                  { href: '/dashboard/dev', label: tr('Developers', 'Lập trình'), icon: Code2 },
-                ]
-              : []),
-            ...(dash?.seller
-              ? [{ href: dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`, label: tr('View storefront', 'Xem gian hàng'), icon: Store, external: true }]
-              : []),
-          ],
-        },
-        {
-          caption: tr('Community', 'Cộng đồng'),
-          // Community DATA sections are dashboard pages here (owner 2026-07-18) — the forum's
-          // posts/itineraries/visa state renders in <main> like every marketplace section. Only the
-          // final row leaves for eno.forum itself (via the goToForum SSO handoff).
-          items: [
-            { href: '/dashboard/forum', label: tr('Forum activity', 'Hoạt động diễn đàn'), icon: UsersRound },
-            { href: '/dashboard/trips', label: tr('Itineraries', 'Lịch trình'), icon: Route },
-            { href: '/dashboard/visa', label: tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2 },
-            { href: `${FORUM_URL}/`, label: tr('Open eno.forum', 'Mở eno.forum'), icon: ExternalLink, forumPath: '/' },
-          ],
-        },
-      ]
+  // MIDDLE — core routing, rendered from THE single navigation configuration (dashboard-nav.tsx;
+  // owner spec: one config for desktop + mobile + every role — eno.forum carries no rail at all,
+  // this is THE one dashboard).
+  // Visibility is ROLE-gated, never path-switched: admins see the Admin group appended on EVERY
+  // page (the old /admin pathname fork — and its 'Back to site' row — is gone; the regular
+  // Marketplace/Community groups are always present to navigate back with). Settings + Help +
+  // Sign out stay in the bottom cluster.
+  const roleOk = (role: NavRole = 'all') =>
+    role === 'all' || (role === 'business' ? isBusiness : role === 'seller' ? !!dash?.seller : isAdmin)
+  // Config item → concrete rail row: resolve the storefront href for THIS seller, localize the
+  // label (vi absent → EN verbatim, the admin-chrome convention), bind the live badge counters.
+  const toRail = (it: NavItem): RailItem | null => {
+    let href = it.href
+    if (it.dynamic === 'storefront') {
+      if (!dash?.seller) return null // role-gated already; belt-and-braces so the placeholder href never renders
+      href = dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`
+    }
+    return {
+      href,
+      label: it.vi ? tr(it.en, it.vi) : it.en,
+      icon: it.icon,
+      exact: it.exact,
+      external: it.external,
+      badge: it.badge === 'unread' ? unread : it.badge === 'saved' ? savedCount : undefined,
+    }
+  }
+  const GROUPS: { caption?: string; items: RailItem[] }[] = DASHBOARD_NAV
+    .filter((g) => roleOk(g.role))
+    .map((g) => ({
+      // Caption tolerates vi-less groups (Admin renders its EN caption verbatim).
+      caption: g.vi ? tr(g.en, g.vi) : g.en,
+      items: g.items
+        .filter((it) => roleOk(it.role))
+        .flatMap((it) => { const r = toRail(it); return r ? [r] : [] }),
+    }))
 
   return (
     <aside

@@ -2,7 +2,7 @@ import { ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 // The one access-denied state for every admin page (rendered inside admin/layout.tsx,
-// which already provides the AdminHeader). Admin surfaces are EN-only by convention.
+// whose chrome is the standard site Header — the rail's role-gated Admin group owns section nav). Admin surfaces are EN-only by convention.
 export function AdminDenied() {
   return (
     <main id="main" tabIndex={-1} className="flex flex-1 items-center justify-center px-3">
