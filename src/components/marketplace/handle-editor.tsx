@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Field, FieldControl, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { HANDLE_RE } from '@/lib/handle-format'
+import { useLatestRequest } from '@/hooks/use-latest-request'
 
 // Telegram-style @handle editor — shared by the user handle (Dashboard → Settings)
 // and the shop handle (business profile editor) via `target`. Live availability
@@ -24,6 +25,7 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latest = useLatestRequest()
 
   // Parent may hydrate `initial` late (cache-first dashboards).
   useEffect(() => { setCurrent(initial); setValue(initial || '') }, [initial])
@@ -37,13 +39,18 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
     if (!dirty) { setState('idle'); return }
     if (!HANDLE_RE.test(normalized)) { setState('invalid'); return }
     setState('checking')
+    // Stale-async guard (audit Phase 2): type 'ab' (fetch fires) → 'abc' (returns
+    // first) → the slow 'ab' response would set 'available' for a value the input no
+    // longer holds, and Save is gated ONLY on that state — a wrong-handle save path.
+    const req = latest.begin()
     timer.current = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/handle/check?h=${encodeURIComponent(normalized)}`)
+        const r = await fetch(`/api/handle/check?h=${encodeURIComponent(normalized)}`, { signal: req.signal })
         const d = await r.json().catch(() => ({}))
+        if (!req.isCurrent()) return
         if (!r.ok) { setState('idle'); return }
         setState(d.available ? 'available' : d.reason === 'reserved' ? 'reserved' : d.reason === 'invalid' ? 'invalid' : 'taken')
-      } catch { setState('idle') }
+      } catch { if (req.isCurrent()) setState('idle') }
     }, 400)
     return () => { if (timer.current) clearTimeout(timer.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps

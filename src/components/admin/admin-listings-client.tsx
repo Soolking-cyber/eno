@@ -21,6 +21,7 @@ import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { shortDate } from '@/lib/dates'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { useLatestRequest } from '@/hooks/use-latest-request'
 
 type Row = {
   id: string; title: string; price: number; currency: string; image: string | null
@@ -54,16 +55,21 @@ export function AdminListingsClient() {
   const lastDelete = useRef<string[]>([])
   if (pendingDelete) lastDelete.current = pendingDelete
 
+  // Stale-async guard (audit Phase 2): typing 'iph' → 'iphone' (or a filter switch
+  // during a slow query) put two requests in flight; the EARLIER response landing
+  // last overwrote rows/total for the current filters — and cleared the selection.
+  const latest = useLatestRequest()
   const load = useCallback(() => {
     setLoading(true)
+    const req = latest.begin()
     const p = new URLSearchParams({ status, verified, limit: '80' })
     if (q.trim()) p.set('q', q.trim())
-    fetch(`/api/admin/listings?${p}`)
+    fetch(`/api/admin/listings?${p}`, { signal: req.signal })
       .then((r) => r.json())
-      .then((d) => { setRows(d.listings || []); setTotal(d.total || 0); setSel(new Set()) })
-      .catch(() => toast.error('Could not load listings'))
-      .finally(() => setLoading(false))
-  }, [q, status, verified])
+      .then((d) => { if (!req.isCurrent()) return; setRows(d.listings || []); setTotal(d.total || 0); setSel(new Set()) })
+      .catch(() => { if (req.isCurrent()) toast.error('Could not load listings') })
+      .finally(() => { if (req.isCurrent()) setLoading(false) })
+  }, [q, status, verified, latest])
   useEffect(() => { const t = setTimeout(load, 200); return () => clearTimeout(t) }, [load])
 
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
