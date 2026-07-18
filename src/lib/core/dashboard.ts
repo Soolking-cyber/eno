@@ -36,6 +36,9 @@ export async function dashboardStatsCore(profile: Profile) {
     hiddenCount: listings.filter((l) => l.status === 'hidden').length,
     heldCount: listings.filter((l) => !l.verified && l.status === 'active').length, // failed auto-publish on a live listing
     staleCount: stale.length,
+    // Buyer saves ACROSS the owner's listings — the seller-side metric (device-local
+    // favorites are a buyer count and can't cross origins/devices).
+    saves: listings.reduce((n, l) => n + (l.savedCount ?? 0), 0),
     unreadMessages,
   }
 

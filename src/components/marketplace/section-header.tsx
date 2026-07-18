@@ -55,7 +55,7 @@ export function SectionHeader({ title, action }: {
     // arrival would never satisfy it). An in-app client-navigation counter is the
     // truth: >1 means the previous history entry is ours.
     if (window.history.length > 1 && (inAppNavCount > 1 || document.referrer.startsWith(window.location.origin))) router.back()
-    else router.push('/dashboard')
+    else router.push('/dashboard/listings')
   }
 
   return (

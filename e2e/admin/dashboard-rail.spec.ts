@@ -32,7 +32,6 @@ test.describe('admin dashboard rail', () => {
 
     // The regular Marketplace/Community groups stay present (role-gated, not path-switched):
     // the admin group is appended to the one rail, not swapped in for it.
-    await expect(rail.locator('a[href="/dashboard"]')).toHaveCount(1)
     await expect(rail.locator('a[href="/dashboard/forum"]')).toHaveCount(1)
 
     // The 'Admin' caption exists in the rail (visible once the rail is expanded — the

@@ -154,6 +154,7 @@ const PACES: Array<{ id: PaceId; label: string; labelVi: string; detail: string;
 
 const MIN_TRIP_DAYS = 1
 const MAX_TRIP_DAYS = 30
+const MAX_ROUTE_CITIES = 15
 const MAX_TRAVELER_SLIDER = 10
 const MAX_TRAVELERS = 100
 
@@ -629,7 +630,7 @@ export function ItineraryBuilder() {
   }
 
   const addCity = (city: City | null) => {
-    if (!city || cityIds.includes(city.id) || cityIds.length >= 6) return
+    if (!city || cityIds.includes(city.id) || cityIds.length >= MAX_ROUTE_CITIES) return
     const next = [...cityIds, city.id]
     setCityIds(next)
     setCitySearch('')
@@ -895,10 +896,11 @@ export function ItineraryBuilder() {
                 )}
               </p>
 
-              {availableCityGroups.length > 0 && cityIds.length < 6 && (
+              {availableCityGroups.length > 0 && cityIds.length < MAX_ROUTE_CITIES && (
                 <Field className="mt-3">
                   <FieldLabel htmlFor="add-destination">{tr('Add another stop', 'Thêm điểm dừng')} <span className="font-normal text-ink-4">{tr('(optional)', '(không bắt buộc)')}</span></FieldLabel>
                   <Combobox
+                    key={cityIds.join('-')}
                     items={availableCityGroups}
                     value={null}
                     inputValue={citySearch}
@@ -934,7 +936,7 @@ export function ItineraryBuilder() {
                       </ComboboxList>
                     </ComboboxContent>
                   </Combobox>
-                  <FieldDescription>{tr('Choose a result to add it instantly. Maximum six stops.', 'Chọn kết quả để thêm ngay. Tối đa sáu điểm.')}</FieldDescription>
+                  <FieldDescription>{tr(`Choose a result to add it instantly. Maximum ${MAX_ROUTE_CITIES} destinations.`, `Chọn kết quả để thêm ngay. Tối đa ${MAX_ROUTE_CITIES} điểm đến.`)}</FieldDescription>
                 </Field>
               )}
             </div>

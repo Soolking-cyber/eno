@@ -31,7 +31,7 @@ export type Dash = {
     idNumber?: string | null
     taxCode?: string | null
   } | null
-  stats: { unreadMessages: number; staleCount: number; totalViews: number; totalLeads: number }
+  stats: { unreadMessages: number; staleCount: number; totalViews: number; totalLeads: number; activeCount?: number; saves?: number }
   listings: SerializedListing[]
   /** Server-computed (ADMIN_EMAILS) role flag for the nav rail's admin group. Display-only —
    *  every admin surface still enforces getAdmin() server-side. Legacy cached payloads may

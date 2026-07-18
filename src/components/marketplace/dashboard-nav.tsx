@@ -13,7 +13,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  Home, Store, MessageSquareText, Heart, ListChecks, Scale, Upload, Code2,
+  Store, MessageSquareText, Heart, Scale, Upload, Code2,
   UsersRound, Route, FileCheck2,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp,
 } from 'lucide-react'
@@ -67,12 +67,10 @@ export const DASHBOARD_NAV: NavGroup[] = [
       // /dashboard is a real HOME (owner 2026-07-18: one cross-property dashboard on the
       // forum's card design). EXACT match only — every section also lives under /dashboard/,
       // so prefix matching would light this row on /dashboard/listings etc.
-      { href: '/dashboard', ...tr('Dashboard', 'Bảng điều khiển'), icon: Home, exact: true },
       { href: '/dashboard/listings', ...tr('My listings', 'Tin của tôi'), icon: Store },
       { href: '/messages', ...tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: 'unread' },
       { href: '/saved', ...tr('Saved', 'Đã lưu'), icon: Heart, badge: 'saved' },
       // Label matches the page's own name ("Availability review" / "còn hàng").
-      { href: '/dashboard/availability', ...tr('Availability review', 'Xác nhận còn hàng'), icon: ListChecks },
       { href: '/dashboard/disputes', ...tr('Disputes', 'Khiếu nại'), icon: Scale },
       { href: '/dashboard/bulk', ...tr('Bulk upload', 'Tải hàng loạt'), icon: Upload, role: 'business' },
       { href: '/dashboard/dev', ...tr('Developers', 'Lập trình'), icon: Code2, role: 'business' },

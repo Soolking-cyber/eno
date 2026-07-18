@@ -49,6 +49,7 @@ const CITY_CATALOG = {
 
 type CityId = keyof typeof CITY_CATALOG
 const cityIds = Object.keys(CITY_CATALOG) as [CityId, ...CityId[]]
+const MAX_ROUTE_CITIES = 15
 
 const requestSchema = z.object({
   locale: z.enum(['en', 'vi', 'zh-Hans', 'ko', 'ja', 'ru', 'km', 'ms', 'th', 'fr', 'hi']).default('en'),
@@ -56,11 +57,11 @@ const requestSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   days: z.number().int().min(1).max(30),
   travelers: z.number().int().min(1).max(100),
-  cityIds: z.array(z.enum(cityIds)).min(1).max(6),
+  cityIds: z.array(z.enum(cityIds)).min(1).max(MAX_ROUTE_CITIES),
   cityDays: z.array(z.object({
     cityId: z.enum(cityIds),
     days: z.number().int().min(1).max(30),
-  })).max(6).default([]),
+  })).max(MAX_ROUTE_CITIES).default([]),
   budgetId: z.enum(['smart', 'comfort', 'premium']),
   pace: z.enum(['slow', 'balanced', 'full']),
   interests: z.array(z.enum(['food', 'culture', 'nature', 'beaches', 'adventure', 'nightlife', 'wellness', 'family'])).min(1).max(8),
@@ -136,7 +137,7 @@ const planSchema = z.object({
     mode: z.string().min(1).max(100),
     duration: z.string().min(1).max(100),
     advice: z.string().min(1).max(500),
-  })).max(10),
+  })).max(20),
   flights: z.array(z.object({
     direction: z.enum(['outbound', 'return', 'domestic']),
     label: z.string().min(1).max(180),
@@ -160,7 +161,7 @@ const planSchema = z.object({
     nightlyLowVnd: z.number().int().min(0).max(1_000_000_000),
     nightlyHighVnd: z.number().int().min(0).max(1_000_000_000),
     url: z.string().max(1000),
-  })).min(1).max(12),
+  })).min(1).max(MAX_ROUTE_CITIES),
   days: z.array(z.object({
     dayNumber: z.number().int().min(1).max(30),
     date: z.string().min(1).max(40),
@@ -364,7 +365,7 @@ Planning rules:
 3. A city's requestedDays value is the traveler's fixed allocation: assign exactly that many numbered days to that city. Distribute all remaining days sensibly among cities whose requestedDays is null. Count a transfer day toward the city where the traveler spends most of that day.
 4. Keep arrival and transfer days lighter. Account for airport buffers, hotel check-in, traffic, heat, rain, and recovery time.
 5. Each morning/afternoon/evening block must name a real place or clearly described flexible activity, include travel time from the prior stop, an honest VND cost estimate, and actionable booking advice.
-6. Recommend one or two strong hotels per city and no more than six total, matching the accommodation style and budget. URLs must be direct official hotel/operator/airline pages or reputable search pages found during research; use an empty string when uncertain.
+6. Recommend one strong hotel per visited city and no more than ${MAX_ROUTE_CITIES} total, matching the accommodation style and budget. URLs must be direct official hotel/operator/airline pages or reputable search pages found during research; use an empty string when uncertain.
 7. Flight options are research leads, not inventory. If flights are requested, search the requested dates and return no more than four useful options total, including only essential domestic legs. Never claim a seat or fare is available. Use 0 for a fare you cannot verify and say why in fareNote. If flights are not requested, return an empty flights array.
 8. Prices must be ranges, not false precision. Budget totals must distinguish whether researched flights are included.
 9. Prefer official tourism sites, airports, airlines, rail/bus operators, hotels, and attraction operators as sources. Avoid SEO itinerary farms when a primary source exists.

@@ -763,6 +763,20 @@ html.native .bottom-nav-spacer {
    listing-card ONLY when a listing becomes saved (never on unsave). Under
    prefers-reduced-motion the global kill switch (below) collapses the pop, and
    the ring is removed outright — the blue colour flip is the feedback. */
+/* Availability-review nudge — a small periodic hop on the My-listings button when the
+   seller hasn't confirmed availability for 3+ days. Compositor-only (transform) and
+   OFF under reduced motion via the global kill switch. Two quick hops, long rest. */
+@keyframes availability-jump {
+  0%, 78%, 100% { transform: translateY(0); }
+  82% { transform: translateY(-4px); }
+  86% { transform: translateY(0); }
+  90% { transform: translateY(-2px); }
+  94% { transform: translateY(0); }
+}
+.availability-overdue {
+  animation: availability-jump 3.2s var(--ease-bounce, ease-out) infinite;
+}
+
 @keyframes heart-pop {
   0% { transform: scale(1); }
   40% { transform: scale(1.35); }

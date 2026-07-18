@@ -11,9 +11,10 @@ test.describe('seller dashboard', () => {
   test('/dashboard is the unified home behind the nav rail', async ({ page }) => {
     await page.goto('/dashboard')
     await expect(page).not.toHaveURL(/\/signin/)
-    // The home STAYS on /dashboard and greets the account (no redirect to a section).
-    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/)
-    await expect(page.locator('h1')).toContainText(/Welcome|Chào/)
+    // No dedicated home (owner 2026-07-18): /dashboard lands on the listings section,
+    // which carries the greeting + marketplace stats + the availability button.
+    await expect(page).toHaveURL(/\/dashboard\/listings/)
+    await expect(page.locator('h1')).toContainText(/Hi|Chào/)
     // The persistent account rail (a non-modal dialog on desktop) links to the sections.
     const rail = page.locator('aside[role="dialog"]')
     await expect(rail).toBeVisible()
@@ -46,8 +47,8 @@ test.describe('seller dashboard', () => {
 const RAIL = 'aside[role="dialog"]'
 // Every core rail row a plain seller must have, by exact href (dashboard-nav.tsx).
 const CORE_HREFS = [
-  '/dashboard', '/dashboard/listings', '/messages', '/saved',
-  '/dashboard/availability', '/dashboard/disputes',
+  '/dashboard/listings', '/messages', '/saved',
+  '/dashboard/disputes',
   '/dashboard/forum', '/dashboard/trips', '/dashboard/visa',
   '/dashboard/settings', '/dashboard/help',
 ]
@@ -59,7 +60,7 @@ test.describe('one dashboard — rail integrity', () => {
   const BASE = (process.env.E2E_AUTHED_BASE || 'http://localhost:3100').replace(/\/$/, '')
 
   test('exactly one rail; every core link is internal; no retired-repo targets', async ({ page }) => {
-    await page.goto('/dashboard')
+    await page.goto('/dashboard/listings')
     const rail = page.locator(RAIL)
     // ONE rail implementation, mounted once.
     await expect(rail).toHaveCount(1)
@@ -91,7 +92,7 @@ test.describe('one dashboard — rail integrity', () => {
   })
 
   test('Forum activity → Itineraries → Visa change the right pane, never the shell', async ({ page }) => {
-    await page.goto('/dashboard')
+    await page.goto('/dashboard/listings')
     const rail = page.locator(RAIL)
     await expect(rail).toBeVisible()
     // Stamp the LIVE rail DOM node. A client-side route change keeps the node (stamp survives);
@@ -119,7 +120,7 @@ test.describe('one dashboard — rail integrity', () => {
   })
 
   test('a seller never receives the Admin rail group', async ({ page }) => {
-    await page.goto('/dashboard')
+    await page.goto('/dashboard/listings')
     const rail = page.locator(RAIL)
     await expect(rail).toBeVisible()
     // Let the role-gated rows settle (the dashboard payload drives seller/business/admin rows):
@@ -138,7 +139,7 @@ test.describe('one dashboard — rail integrity', () => {
     try {
       // Desktop: rail is persistent — collect its row labels once role rows have settled.
       const dPage = await desktop.newPage()
-      await dPage.goto('/dashboard')
+      await dPage.goto('/dashboard/listings')
       const dRail = dPage.locator(RAIL)
       await expect(dRail).toBeVisible()
       await expect(dRail.getByRole('link', { name: /View storefront|Xem gian hàng/ })).toHaveCount(1)
@@ -146,10 +147,10 @@ test.describe('one dashboard — rail integrity', () => {
 
       // Mobile: closed by default; the bottom-nav Account tab opens it full-screen (eno:open-account).
       const mPage = await mobile.newPage()
-      await mPage.goto('/dashboard')
+      await mPage.goto('/dashboard/listings')
       // Wait for auth to resolve (the home greets the account) so the tab opens the rail
       // rather than falling back to a plain /dashboard navigation.
-      await expect(mPage.locator('#main h1').filter({ hasText: /Welcome|Chào/ })).toBeVisible()
+      await expect(mPage.locator('#main h1').filter({ hasText: /Hi|Chào/ })).toBeVisible()
       const mRail = mPage.locator(RAIL)
       await expect(mRail).toHaveCount(0) // launcher model: nothing mounted until opened
       await mPage.getByRole('link', { name: /^(Account|Tài khoản)$/ }).click()

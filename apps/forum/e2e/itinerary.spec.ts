@@ -195,6 +195,37 @@ test.describe('eno.forum itinerary builder', () => {
     await expect(origin).toHaveValue('Singapore (SIN)')
   })
 
+  test('supports routes with up to 15 destinations', async ({ page }) => {
+    const destinations = [
+      'Hue',
+      'Hanoi',
+      'Sa Pa',
+      'Ha Giang',
+      'Cao Bang',
+      'Pu Luong & Mai Chau',
+      'Hoi An',
+      'Phong Nha',
+      'Quy Nhon',
+      'Nha Trang',
+      'Da Lat',
+      'Buon Ma Thuot',
+      'Ho Chi Minh City',
+      'Phu Quoc',
+    ]
+
+    for (const [index, destination] of destinations.entries()) {
+      const addDestination = page.getByRole('combobox', { name: /^Add another stop/i })
+      await addDestination.fill(destination)
+      const matchingOption = page.getByRole('option').filter({ hasText: destination }).first()
+      await expect(matchingOption).toBeVisible()
+      await matchingOption.click()
+      await expect(page.getByTestId('itinerary-route-stop')).toHaveCount(index + 1)
+    }
+
+    await expect(page.getByTestId('itinerary-route-stop')).toHaveCount(14)
+    await expect(page.getByRole('combobox', { name: /^Add another stop/i })).toHaveCount(0)
+  })
+
   test('builds a researched, responsive itinerary from granular controls', async ({ page }) => {
     let generationPayload: { cityDays?: Array<{ cityId: string; days: number }> } | undefined
     await page.route('**/api/itineraries/generate', async (route) => {
