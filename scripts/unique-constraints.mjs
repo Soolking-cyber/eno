@@ -11,10 +11,15 @@
 //      unique index on (subjectProfileId, reason) for the one-time reasons only —
 //      so the -40 new-account deficit (and the +bonuses) can never double-apply,
 //      while engagement/transaction/report events (which repeat) stay unconstrained.
-//   2. Profile/Seller: recompute the cached trustScore from the (now-deduped) events
-//      so any account corrupted by a past race (e.g. stuck at 20/Restricted) un-sticks.
-//   3. SavedSearch: dedupe identical (profileId, params), then a unique index so a
+//   2. SavedSearch: dedupe identical (profileId, params), then a unique index so a
 //      double-save can't create a duplicate the alerts cron amplifies forever.
+//
+// ⚠️ A former step recomputed Profile.trustScore as `100 + SUM(delta)` — the RETIRED
+// Trust v1 formula. Since Trust v2 (composeScore, base 60 — src/lib/trust-math.ts)
+// that recompute CORRUPTED every displayed score each time this script ran after a
+// `prisma db push`, until the nightly cron converged (audit 2026-07-18, P0). It is
+// deliberately GONE: score recomputation belongs to recomputeTrust()/the cron only.
+// Never reintroduce a score formula here.
 import pg from 'pg'
 
 const url = process.env.DIRECT_URL || process.env.DATABASE_URL
@@ -48,18 +53,7 @@ await run('create partial unique index on TrustEvent one-time reasons', `
   WHERE reason IN ${ONE_TIME};
 `)
 
-// ── 2. Recompute cached score from the deduped events (un-stick corrupted accounts) ──
-await run('recompute Profile.trustScore from deduped events', `
-  UPDATE "Profile" p
-  SET "trustScore" = GREATEST(0, 100 + COALESCE(
-    (SELECT SUM(e.delta) FROM "TrustEvent" e WHERE e."subjectProfileId" = p.id), 0));
-`)
-await run('mirror recomputed score onto owned Sellers', `
-  UPDATE "Seller" s SET "trustScore" = p."trustScore"
-  FROM "Profile" p WHERE s."ownerId" = p.id;
-`)
-
-// ── 3. SavedSearch: dedupe identical saves, then enforce uniqueness ──
+// ── 2. SavedSearch: dedupe identical saves, then enforce uniqueness ──
 await run('dedupe SavedSearch identical (profileId, params)', `
   DELETE FROM "SavedSearch" s
   USING "SavedSearch" keep
