@@ -11,10 +11,11 @@ import {
   MoreHorizontal,
   Pin,
   Share2,
+  Trash2,
   UserRoundX,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useLanguage } from '@/context/language-context'
+import { useLanguage, useTr } from '@/context/language-context'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -41,6 +42,8 @@ export function ForumPostCard({
   onOpen,
   onBlock,
   onReport,
+  canDelete,
+  onDelete,
 }: {
   post: ForumPost
   community: ForumCommunity
@@ -51,9 +54,14 @@ export function ForumPostCard({
   onOpen: () => void
   onBlock: () => void
   onReport: () => void
+  canDelete: boolean
+  onDelete: () => void
 }) {
   const { tr } = useLanguage()
   const score = post.score + vote
+  const translatedTitle = useTr(post.title)
+  const translatedBody = useTr(post.body)
+  const translatedRole = useTr(post.authorRole)
 
   const share = async () => {
     const url = `${window.location.origin}/?post=${encodeURIComponent(post.id)}`
@@ -107,7 +115,7 @@ export function ForumPostCard({
                 <span className="text-ink-4" aria-hidden="true">·</span>
                 <span className="text-ink-4">{post.timeLabel}</span>
               </div>
-              {post.authorRole && <p className="mt-0.5 text-2xs text-body">{post.authorRole}</p>}
+              {post.authorRole && <p className="mt-0.5 text-2xs text-body">{translatedRole}</p>}
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger render={
@@ -116,15 +124,20 @@ export function ForumPostCard({
                 </IconButton>
               } />
               <DropdownMenuContent align="end" className="min-w-44">
-                <DropdownMenuItem onClick={onBlock}>
-                  <UserRoundX />
-                  {tr('Block this member', 'Chặn thành viên này')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onClick={onReport}>
-                  <Flag />
-                  {tr('Report post', 'Báo cáo bài viết')}
-                </DropdownMenuItem>
+                {canDelete ? <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                  <Trash2 />
+                  {tr('Delete post', 'Xóa bài viết')}
+                </DropdownMenuItem> : <>
+                  <DropdownMenuItem onClick={onBlock}>
+                    <UserRoundX />
+                    {tr('Block this member', 'Chặn thành viên này')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={onReport}>
+                    <Flag />
+                    {tr('Report post', 'Báo cáo bài viết')}
+                  </DropdownMenuItem>
+                </>}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -154,9 +167,9 @@ export function ForumPostCard({
             className="mt-3 h-auto w-full justify-start whitespace-normal text-left text-lg font-bold leading-snug text-foreground hover:text-accent-foreground"
             onClick={onOpen}
           >
-            {post.title}
+            {translatedTitle}
           </Button>
-          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-body">{post.body}</p>
+          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-body">{translatedBody}</p>
           {post.media?.length ? (
             <div className={cn('mt-3 grid gap-1.5 overflow-hidden rounded-xl', post.media.length > 1 && 'grid-cols-2')}>
               {post.media.slice(0, 4).map((item, index) => (

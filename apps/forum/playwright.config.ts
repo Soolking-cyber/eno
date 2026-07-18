@@ -18,7 +18,11 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 5'] } },
   ],
   webServer: process.env.E2E_BASE ? undefined : {
-    command: 'npm run dev',
+    // Pin every cross-app origin used by assertions. The monorepo developer .env.local may point
+    // at a marketplace dev server on another port; browser tests must never depend on that private
+    // machine state. The backend proxy targets this forum process, whose own itinerary endpoint
+    // supplies the expected unauthenticated contract without requiring an external server.
+    command: 'FORUM_E2E_PREVIEW=1 NEXT_PUBLIC_MARKETPLACE_URL=https://eno.vn MARKETPLACE_API_URL=http://127.0.0.1:3101 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=e2e-public-key npm run dev',
     url: baseURL,
     reuseExistingServer: true,
   },

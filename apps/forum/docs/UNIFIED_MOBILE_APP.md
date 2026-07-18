@@ -2,15 +2,15 @@
 
 ## Architecture
 
-Ship one App Store / Play Store application. The native project remains in the
-`eno.vn` repository and starts at `https://eno.vn`. Marketplace pages stay on
+Ship one App Store / Play Store application. The native project remains at the
+monorepo root and starts at `https://eno.vn`. Marketplace pages stay on
 `eno.vn`; community, itinerary, and visa pages stay on `eno.forum`. Browser URLs
 and independent Vercel deployments do not change.
 
 The native WebView may navigate between both first-party origins. Each origin
 continues to own its Next.js routing, API routes, CSP, cookies, errors, and
-deployment. Do not copy the forum back into the marketplace repository and do
-not add a second Capacitor project here.
+deployment. `apps/forum` is the forum deployment root; do not add a second
+Capacitor project here.
 
 ## Forum-side readiness implemented here
 
@@ -25,29 +25,31 @@ not add a second Capacitor project here.
   deliberately excludes `/auth` and `/signin`.
 - One shared `eno` PWA identity with forum, itinerary, and e-Visa shortcuts.
 
-## Required eno.vn native-source changes before release
+## Cross-app work already present in the monorepo
 
-These changes belong to eno.vn and were deliberately **not** made by this work.
+- Root Capacitor navigation allows only the two eno origins and stamps the
+  `EnoNativeApp/1` user-agent token used on Android forum pages.
+- Root and forum deep-link bridges understand both domains and validate paths
+  before same-origin routing or cross-origin navigation.
+- Native navigation into the forum uses a nonce-bound, single-use Supabase OTP
+  handoff. It gives the forum its own cookie without exposing an access or refresh
+  token and falls back to a normal guest visit when the handoff cannot complete.
+- Marketplace and forum account rails link the same dashboard, community,
+  itinerary, visa, listing, message, and saved surfaces.
 
-1. Add `eno.forum` and `www.eno.forum` to Capacitor `server.allowNavigation`.
-   This keeps first-party cross-origin navigation in the WebView; third-party
-   links must continue to open externally.
-2. Add a verified Android App Link intent filter for the canonical
+## Native-source work remaining before release
+
+1. Add a verified Android App Link intent filter for the canonical
    `www.eno.forum` host and only the
    intended paths: `/`, `/itinerary`, `/visa`, and `/dashboard`. Keep `/auth`
    excluded. Confirm the Play App Signing SHA-256 fingerprint matches the forum
    `assetlinks.json`; update both applications if Google rotates the signing key.
-3. Enable the iOS Associated Domains capability and include
+2. Enable the iOS Associated Domains capability and include
    `applinks:www.eno.forum` alongside the marketplace domains. The current Xcode
    target uses team `S4VCY6N8QR` and bundle
    `com.mk1e3.enovn`; those exact release values must be supplied to this forum
    Vercel project as `APPLE_TEAM_ID` and `APPLE_BUNDLE_ID`.
-4. Extend eno.vn's deep-link router to accept both forum hosts. Use
-   `window.location.assign()` for the other origin and the SPA router only for
-   the current origin. For custom links use
-   `enovn://open?url=<absolute-first-party-url>`; retain the existing marketplace
-   `path` form only for backward compatibility.
-5. Add forum, itinerary, visa, and marketplace actions to the native navigation
+3. Add forum, itinerary, visa, and marketplace actions to the native navigation
    affordance that product design chooses. Do not render two competing bottom
    bars on one screen.
 
@@ -56,38 +58,36 @@ These changes belong to eno.vn and were deliberately **not** made by this work.
 Supabase maps both sites to the same user ID, but `.vn` and `.forum` cannot share
 cookies or local storage. A WebView does not change that browser security rule.
 
-Implement a server-to-server, one-time session handoff before calling the mobile
-experience seamless:
+The implemented handoff is a three-hop top-level navigation:
 
-1. The signed-in source origin requests a handoff code from its server.
-2. Store only a hash of the random code, bound to user ID, destination origin,
-   native installation/device proof, and a maximum 60-second expiry.
-3. Navigate to a destination endpoint with the opaque code. Never place an
-   access token, refresh token, PKCE verifier, or user data in a URL.
-4. The destination server atomically consumes the code once, confirms the exact
-   destination, establishes its own Supabase session cookie, and redirects to a
-   clean URL.
-5. Reject replay, wrong-origin, expired, browser-only, or already-used codes and
-   audit only non-secret identifiers.
+1. `eno.forum/auth/bridge` sets a short-lived, HTTP-only nonce cookie.
+2. `eno.vn/api/auth/forum-handoff` verifies the native UA and source session,
+   rate-limits strictly, and generates a single-use hashed OTP for that user.
+3. `eno.forum/auth/handoff` requires the matching nonce cookie, consumes the OTP,
+   establishes an independent forum session, clears the nonce, and redirects to
+   a clean local path.
 
-Until that coordinated backend work exists on both origins, keep each site's
-current explicit login flow. A visible second login is preferable to an insecure
-URL-token shortcut.
+Never replace this with access/refresh tokens in query parameters or shared
+cross-domain cookies. Browser navigation remains an ordinary cross-site visit;
+the automatic handoff is native-app-only.
 
 ## Deployment order
 
-1. Deploy this forum version and set the two Apple variables in every production
-   environment that serves the association file.
-2. Verify `/.well-known/assetlinks.json` and
+1. Re-point the existing `eno-forum` Vercel project to the monorepo, set Root
+   Directory `apps/forum`, and preserve its existing environment and domains.
+2. Set the two Apple variables in every production environment that serves the
+   association file, then verify `/.well-known/assetlinks.json` and
    `/.well-known/apple-app-site-association` on `www.eno.forum` without a redirect
    or authentication challenge. The apex `eno.forum` currently redirects to the
    canonical `www` host, so it must not be declared as an associated/app-link
    domain unless that redirect is later removed and both files are served there
    directly. Apple requires a separate, non-redirecting association response for
    every declared hostname.
-3. Implement and deploy the eno.vn source-owner items, then sync the native
-   projects and make signed internal iOS/Android builds.
-4. Release native changes only after the test matrix below passes. Browser
+3. Complete the remaining native-source items, sync the native projects, and make
+   signed internal iOS/Android builds.
+4. Run one forum-only and one marketplace-only test push, verify the correct
+   Vercel project builds or skips, then archive the standalone forum repository.
+5. Release native changes only after the test matrix below passes. Browser
    deployments can remain independent afterward.
 
 ## Release test matrix

@@ -1,19 +1,23 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
   BedDouble,
   Building2,
+  BusFront,
   CalendarCheck,
   CalendarDays,
+  CarFront,
   Check,
   CircleDollarSign,
   Clock3,
   CloudSun,
   Compass,
+  ConciergeBell,
+  Download,
   ExternalLink,
   Footprints,
   Globe2,
@@ -25,16 +29,21 @@ import {
   Map,
   MapPin,
   MapPinned,
+  MessagesSquare,
   MoonStar,
   Navigation,
   Plane,
+  PhoneCall,
   Plus,
   RefreshCw,
   Route,
   Save,
+  Search,
   SearchCheck,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
+  Stamp,
   Sun,
   TicketCheck,
   TrainFront,
@@ -45,11 +54,24 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useLanguage } from '@/context/language-context'
+import { requestTranslations, useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import {
+  Combobox,
+  ComboboxClear,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxGroupLabel,
+  ComboboxInput,
+  ComboboxInputGroup,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from '@/components/ui/combobox'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
@@ -65,6 +87,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { ForumApiError, forumApi } from '@/lib/api'
+import { localeForLanguage, type Language } from '@/lib/languages'
+import { buildItinerarySavePayload } from '@/lib/itinerary-save'
+import { itineraryDocxTranslationSources } from '@/lib/itinerary-docx-copy'
 import { cn } from '@/lib/utils'
 import {
   addDays,
@@ -76,6 +101,7 @@ import {
   type ActivityPlan,
   type BudgetId,
   type CabinId,
+  type City,
   type CityId,
   type GeneratedItineraryResponse,
   type GeneratedPlan,
@@ -83,6 +109,7 @@ import {
   type PaceId,
   type StopsId,
 } from './itinerary-data'
+import { buildItineraryResourceGroups, type ItineraryResourceKind } from './itinerary-resources'
 
 const INTERESTS: Array<{ id: InterestId; label: string; labelVi: string; Icon: typeof Landmark }> = [
   { id: 'food', label: 'Food', labelVi: 'Ẩm thực', Icon: UtensilsCrossed },
@@ -94,6 +121,21 @@ const INTERESTS: Array<{ id: InterestId; label: string; labelVi: string; Icon: t
   { id: 'wellness', label: 'Wellness', labelVi: 'Nghỉ dưỡng', Icon: Sparkles },
   { id: 'family', label: 'Family', labelVi: 'Gia đình', Icon: Users },
 ]
+
+const RESOURCE_ICONS: Record<ItineraryResourceKind, typeof Landmark> = {
+  concierge: ConciergeBell,
+  marketplace: ShoppingBag,
+  community: MessagesSquare,
+  visa: Stamp,
+  ride: CarFront,
+  bus: BusFront,
+  rail: TrainFront,
+  flight: Plane,
+  stay: Hotel,
+  map: MapPinned,
+  tourism: Compass,
+  source: Globe2,
+}
 
 const ACCOMMODATIONS: Array<{ id: AccommodationId; label: string; labelVi: string }> = [
   { id: 'hotel', label: 'Reliable hotels', labelVi: 'Khách sạn uy tín' },
@@ -110,9 +152,78 @@ const PACES: Array<{ id: PaceId; label: string; labelVi: string; detail: string;
   { id: 'full', label: 'Full', labelVi: 'Nhiều trải nghiệm', detail: 'More activity, still geographically sensible', detailVi: 'Nhiều hoạt động nhưng vẫn hợp lý' },
 ]
 
-function displayDate(date: string, locale: 'en' | 'vi') {
+const MIN_TRIP_DAYS = 1
+const MAX_TRIP_DAYS = 30
+const MAX_TRAVELER_SLIDER = 10
+const MAX_TRAVELERS = 100
+
+const CITY_GROUPS = [
+  { id: 'north', label: 'Northern Vietnam', labelVi: 'Miền Bắc', items: CITIES.filter((city) => city.region === 'north') },
+  { id: 'central', label: 'Central Vietnam', labelVi: 'Miền Trung', items: CITIES.filter((city) => city.region === 'central') },
+  { id: 'south', label: 'Southern Vietnam', labelVi: 'Miền Nam', items: CITIES.filter((city) => city.region === 'south') },
+] as const
+
+const AIRPORT_GROUPS = [
+  {
+    id: 'asia', label: 'Popular Asia gateways', labelVi: 'Cửa ngõ phổ biến ở châu Á', items: [
+      'Bangkok (BKK)', 'Singapore (SIN)', 'Kuala Lumpur (KUL)', 'Seoul (ICN)', 'Tokyo (NRT)',
+      'Hong Kong (HKG)', 'Taipei (TPE)', 'Phnom Penh (PNH)', 'Siem Reap (SAI)', 'Delhi (DEL)',
+    ],
+  },
+  {
+    id: 'long-haul', label: 'Popular long-haul gateways', labelVi: 'Cửa ngõ đường dài phổ biến', items: [
+      'Dubai (DXB)', 'Doha (DOH)', 'Sydney (SYD)', 'Melbourne (MEL)', 'London (LHR)', 'Paris (CDG)',
+      'Frankfurt (FRA)', 'Istanbul (IST)', 'Los Angeles (LAX)', 'San Francisco (SFO)', 'New York (JFK)',
+      'Toronto (YYZ)', 'Vancouver (YVR)',
+    ],
+  },
+] as const
+
+type CityGroup = { id: string; label: string; labelVi: string; items: City[] }
+type AirportGroup = { id: string; label: string; labelVi: string; items: readonly string[] }
+
+function clampWholeNumber(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min
+  return Math.min(max, Math.max(min, Math.round(value)))
+}
+
+function normalizeSearch(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
+}
+
+function cityMatchesSearch(city: City, query: string) {
+  const searchable = [city.name, city.nameVi, city.regionLabel, city.regionLabelVi, city.description, city.descriptionVi, ...city.airports].join(' ')
+  return normalizeSearch(searchable).includes(normalizeSearch(query.trim()))
+}
+
+function recommendedDayRange(city: City) {
+  const values = city.recommendedDays.match(/\d+/g)?.map(Number) || [3]
+  return { min: values[0] || 3, max: values[1] || values[0] || 3 }
+}
+
+function suggestedDaysForRoute(cityIds: CityId[]) {
+  const cities = cityIds.map((id) => CITY_MAP.get(id)).filter((city): city is City => Boolean(city))
+  if (cities.length === 0) return 4
+  if (cities.length === 1) return recommendedDayRange(cities[0]).max
+  return clampWholeNumber(cities.reduce((total, city) => {
+    const range = recommendedDayRange(city)
+    return total + Math.ceil((range.min + range.max) / 2)
+  }, 0), MIN_TRIP_DAYS, MAX_TRIP_DAYS)
+}
+
+function dateInputValueFromToday(offsetDays: number) {
+  const date = new Date()
+  date.setHours(12, 0, 0, 0)
+  date.setDate(date.getDate() + offsetDays)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function displayDate(date: string, locale: Language) {
   if (!date) return '—'
-  return new Intl.DateTimeFormat(locale === 'vi' ? 'vi-VN' : 'en-GB', {
+  return new Intl.DateTimeFormat(localeForLanguage(locale), {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
   }).format(new Date(`${date}T00:00:00.000Z`))
 }
@@ -145,7 +256,7 @@ function PlannerLoading() {
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-accent-foreground"><Loader2 className="h-5 w-5 animate-spin" /></span>
         <div>
           <p className="font-bold text-foreground">{tr('Researching your trip', 'Đang nghiên cứu chuyến đi')}</p>
-          <p className="mt-1 text-xs text-body">{tr('Gemini is checking the web and optimizing the route.', 'Gemini đang kiểm tra web và tối ưu lộ trình.')}</p>
+          <p className="mt-1 text-xs text-body">{tr('eno is checking current travel information and optimizing the route.', 'eno đang kiểm tra thông tin du lịch hiện tại và tối ưu lộ trình.')}</p>
         </div>
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -196,7 +307,14 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
   saved: boolean
 }) {
   const { tr, lang } = useLanguage()
+  const [downloading, setDownloading] = useState(false)
   const plan = result.plan
+  const resourceGroups = buildItineraryResourceGroups(result)
+  const resourceCount = resourceGroups.reduce((total, group) => total + group.resources.length, 0)
+  const conciergeHref = `mailto:support@eno.vn?subject=${encodeURIComponent(`eno Concierge — ${plan.title}`)}&body=${encodeURIComponent(tr(
+    `I would like eno Concierge to help arrange this itinerary: ${plan.title}. Please contact me about booking support.`,
+    `Tôi muốn eno Concierge hỗ trợ sắp xếp lịch trình này: ${plan.title}. Vui lòng liên hệ với tôi về dịch vụ đặt chỗ.`,
+  ))}`
   const practical = [
     { Icon: Navigation, label: tr('Arrival', 'Đến nơi'), text: plan.practical.arrival },
     { Icon: TrainFront, label: tr('Getting around', 'Di chuyển'), text: plan.practical.localTransport },
@@ -206,13 +324,45 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
     { Icon: ShieldCheck, label: tr('Safety', 'An toàn'), text: plan.practical.safety },
   ]
 
+  const downloadWordFile = async () => {
+    setDownloading(true)
+    try {
+      const translations = lang === 'en' || lang === 'vi'
+        ? {}
+        : await requestTranslations(itineraryDocxTranslationSources(result), lang)
+      const response = await fetch('/api/itineraries/docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result, travelers, lang, translations }),
+      })
+      if (!response.ok) throw new Error(`DOCX request failed (${response.status})`)
+      const blob = await response.blob()
+      const disposition = response.headers.get('content-disposition') || ''
+      const filename = disposition.match(/filename="([^"]+)"/i)?.[1] || 'eno-itinerary.docx'
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
+      toast.message(tr('Your styled Word itinerary is ready.', 'Lịch trình Word đã sẵn sàng.'))
+    } catch (error) {
+      console.error('[itinerary/docx]', error)
+      toast.error(tr('The Word file could not be created. Please try again.', 'Không thể tạo tệp Word. Vui lòng thử lại.'))
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div className="space-y-7 duration-300 animate-in fade-in slide-in-from-bottom-2">
       <Card className="gap-0 overflow-hidden p-0">
         <div className="bg-brand-deep px-5 py-6 text-white sm:px-7 sm:py-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />Gemini 3.5 Flash + Google Search</Badge>
-            <span className="text-2xs font-semibold text-white/80">{tr('Researched', 'Đã nghiên cứu')} {new Date(result.generatedAt).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-GB')}</span>
+            <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />{tr('Researched by eno', 'Được eno nghiên cứu')}</Badge>
+            <span className="text-2xs font-semibold text-white/80">{tr('Researched', 'Đã nghiên cứu')} {new Date(result.generatedAt).toLocaleString(localeForLanguage(lang))}</span>
           </div>
           <h2 className="mt-4 max-w-3xl text-2xl font-bold tracking-tight sm:text-3xl">{plan.title}</h2>
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-white/80">{plan.summary}</p>
@@ -230,10 +380,29 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
         </div>
         <div className="flex flex-col gap-3 border-t border-border/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-relaxed text-body">{plan.budget.note}</p>
-          <Button type="button" variant="outline" onClick={onSave} disabled={saving || saved} className="sm:shrink-0">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-            {saving ? tr('Saving…', 'Đang lưu…') : saved ? tr('Saved', 'Đã lưu') : tr('Save plan', 'Lưu kế hoạch')}
-          </Button>
+          <div className="grid w-full shrink-0 grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
+            <Button data-testid="download-itinerary-docx" type="button" variant="outline" className="h-11 w-full px-4" onClick={() => void downloadWordFile()} disabled={downloading}>
+              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {downloading ? tr('Creating Word file…', 'Đang tạo tệp Word…') : tr('Download Word file', 'Tải tệp Word')}
+            </Button>
+            <Button type="button" variant="outline" className="h-11 w-full px-4" onClick={onSave} disabled={saving || saved}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+              {saving ? tr('Saving…', 'Đang lưu…') : saved ? tr('Saved', 'Đã lưu') : tr('Save plan', 'Lưu kế hoạch')}
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="gap-0 border-brand/30 bg-accent p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white"><ConciergeBell className="h-5 w-5" /></span>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">{tr('Want eno to handle the bookings?', 'Bạn muốn eno lo việc đặt chỗ?')}</h2>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-body">{tr('eno Concierge can arrange stays and activities, call transport providers, and coordinate the details so you can enjoy the journey. The service fee is 10% of the bookings we arrange, and you approve every cost first.', 'eno Concierge có thể đặt chỗ ở và hoạt động, gọi đơn vị vận chuyển và điều phối chi tiết để bạn tận hưởng chuyến đi. Phí dịch vụ là 10% giá trị các đặt chỗ do eno sắp xếp và bạn duyệt mọi chi phí trước.')}</p>
+            </div>
+          </div>
+          <a href={conciergeHref} className={buttonVariants({ variant: 'cta', className: 'shrink-0' })}><PhoneCall className="h-4 w-4" />{tr('Ask eno Concierge', 'Liên hệ eno Concierge')}</a>
         </div>
       </Card>
 
@@ -259,7 +428,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
                 </div>
                 <p className="mt-4 text-sm font-bold text-accent-foreground">{flight.priceLowVnd ? `${formatVnd(flight.priceLowVnd)}–${formatVnd(flight.priceHighVnd)}` : tr('No defensible fare found', 'Chưa tìm thấy mức giá đáng tin')}</p>
                 <p className="mt-2 text-xs leading-relaxed text-body">{flight.fareNote}</p>
-                {flight.url && <Button asChild variant="link" size="none" className="mt-4 h-auto justify-start p-0 text-xs font-bold"><a href={flight.url} target="_blank" rel="noreferrer">{tr('Check this option', 'Kiểm tra lựa chọn này')}<ExternalLink className="h-3.5 w-3.5" /></a></Button>}
+                {flight.url && <a href={flight.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'link', size: 'none', className: 'mt-4 h-auto justify-start p-0 text-xs font-bold' })}>{tr('Check this option', 'Kiểm tra lựa chọn này')}<ExternalLink className="h-3.5 w-3.5" /></a>}
               </Card>
             ))}
           </div>
@@ -290,14 +459,14 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
               <p className="mt-1 flex items-center gap-1 text-xs text-body"><MapPin className="h-3.5 w-3.5" />{stay.area}</p>
               <p className="mt-3 text-xs leading-relaxed text-body">{stay.why}</p>
               <p className="mt-3 text-xs font-bold text-accent-foreground">{formatVnd(stay.nightlyLowVnd)}–{formatVnd(stay.nightlyHighVnd)}{tr('/night', '/đêm')}</p>
-              {stay.url && <Button asChild variant="link" size="none" className="mt-3 h-auto justify-start p-0 text-xs font-bold"><a href={stay.url} target="_blank" rel="noreferrer">{tr('View source', 'Xem nguồn')}<ExternalLink className="h-3.5 w-3.5" /></a></Button>}
+              {stay.url && <a href={stay.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'link', size: 'none', className: 'mt-3 h-auto justify-start p-0 text-xs font-bold' })}>{tr('View source', 'Xem nguồn')}<ExternalLink className="h-3.5 w-3.5" /></a>}
             </Card>
           ))}
         </div>
       </section>
 
       <section aria-labelledby="day-plan-title">
-        <div className="mb-3 px-1"><p className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Your days', 'Lịch từng ngày')}</p><h2 id="day-plan-title" className="mt-1 text-xl font-bold text-foreground">{tr('Meticulous day-by-day plan', 'Kế hoạch chi tiết từng ngày')}</h2></div>
+        <div className="mb-3 px-1"><p className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Your days', 'Lịch từng ngày')}</p><h2 id="day-plan-title" className="mt-1 text-xl font-bold text-foreground">{tr('Day-by-day plan', 'Kế hoạch từng ngày')}</h2></div>
         <div className="space-y-4">
           {plan.days.map((day) => (
             <Card data-testid="itinerary-day" key={day.dayNumber} className="gap-0 overflow-hidden p-0">
@@ -329,25 +498,50 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
         </Card>
       </section>
 
-      <section aria-labelledby="sources-title">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-3 px-1"><div><p className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Trust, but verify', 'Tin cậy và kiểm chứng')}</p><h2 id="sources-title" className="mt-1 text-xl font-bold text-foreground">{tr('Web research sources', 'Nguồn nghiên cứu web')}</h2></div><Badge variant="brand" size="sm"><Globe2 className="h-3 w-3" />Google Search</Badge></div>
-        <Card className="gap-0 divide-y divide-border/70 p-0">
-          {result.sources.length ? result.sources.map((source, index) => (
-            <Button key={`${source.url}-${index}`} asChild variant="bare" size="none" className="h-auto w-full justify-between gap-4 rounded-none px-4 py-3 text-left hover:bg-tint sm:px-5">
-              <a href={source.url} target="_blank" rel="noreferrer"><span className="min-w-0"><span className="line-clamp-1 text-xs font-bold text-foreground">{source.title}</span><span className="mt-0.5 block text-2xs text-body">{source.domain}</span></span><ExternalLink className="h-4 w-4 shrink-0 text-ink-4" /></a>
-            </Button>
-          )) : <p className="px-5 py-4 text-xs text-body">{tr('Gemini returned no source links for this plan. Treat every option as unverified.', 'Gemini không trả về liên kết nguồn. Hãy xem mọi lựa chọn là chưa được xác minh.')}</p>}
-        </Card>
+      <section aria-labelledby="resources-title">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 px-1">
+          <div>
+            <p className="text-2xs font-bold uppercase tracking-wider text-accent-foreground">{tr('Prepare before you go', 'Chuẩn bị trước chuyến đi')}</p>
+            <h2 id="resources-title" className="mt-1 text-xl font-bold text-foreground">{tr('Travel services and plan links', 'Dịch vụ du lịch và liên kết lịch trình')}</h2>
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-body">{tr('Booking, transport, visa, community, maps, and every link from this itinerary—collected in one place and included in your Word file.', 'Đặt chỗ, di chuyển, visa, cộng đồng, bản đồ và mọi liên kết trong lịch trình—được tập hợp tại một nơi và đưa vào tệp Word.')}</p>
+          </div>
+          <Badge variant="brand" size="sm"><Globe2 className="h-3 w-3" />{resourceCount} {tr('useful links', 'liên kết hữu ích')}</Badge>
+        </div>
+        <div className="space-y-3">
+          {resourceGroups.map((group) => (
+            <Card data-testid="itinerary-resource-group" key={group.id} className="gap-0 border-line-strong p-4 sm:p-5">
+              <div>
+                <h3 className="text-sm font-bold text-foreground">{tr(group.title, group.titleVi)}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-body">{tr(group.description, group.descriptionVi)}</p>
+              </div>
+              <div className="mt-4 grid auto-rows-fr gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {group.resources.map((resource) => {
+                  const ResourceIcon = RESOURCE_ICONS[resource.kind]
+                  const opensNewTab = resource.url.startsWith('http')
+                  return (
+                    <a data-testid="itinerary-resource-link" key={resource.url} href={resource.url} target={opensNewTab ? '_blank' : undefined} rel={opensNewTab ? 'noreferrer' : undefined} className={buttonVariants({ variant: 'bare', size: 'none', className: 'group/resource h-full min-h-28 min-w-0 w-full items-start justify-start gap-3 overflow-hidden whitespace-normal rounded-2xl border border-line-strong bg-card px-4 py-4 text-left hover:border-brand/40 hover:bg-tint' })}>
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tint text-accent-foreground transition-colors group-hover/resource:bg-accent"><ResourceIcon className="h-4 w-4" /></span>
+                        <span className="min-w-0 flex-1 overflow-hidden">
+                          <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 text-xs font-bold leading-5 text-foreground"><span className="min-w-0 break-words">{tr(resource.title, resource.titleVi)}</span><ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-4" /></span>
+                          <span className="mt-1.5 block min-w-0 break-words text-2xs leading-relaxed text-body [overflow-wrap:anywhere]">{tr(resource.description, resource.descriptionVi)}</span>
+                        </span>
+                    </a>
+                  )
+                })}
+              </div>
+            </Card>
+          ))}
+        </div>
       </section>
 
-      {(plan.assumptions.length > 0 || result.searchQueries.length > 0) && (
+      {plan.assumptions.length > 0 && (
         <Card className="gap-0 bg-accent p-4 text-accent-foreground">
           <p className="flex items-center gap-2 text-sm font-bold"><Info className="h-4 w-4" />{tr('Planning assumptions', 'Giả định khi lập kế hoạch')}</p>
           <ul className="mt-2 space-y-1.5 pl-5 text-xs leading-relaxed list-disc">{plan.assumptions.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>
         </Card>
       )}
 
-      <p className="px-1 text-2xs leading-relaxed text-ink-4">{tr('AI research is a planning aid, not a booking engine. Flight seats, fares, hotel rooms, opening hours, visa rules, and weather can change. Confirm material details directly with the operator before paying.', 'Nghiên cứu AI hỗ trợ lập kế hoạch, không phải hệ thống đặt chỗ. Chỗ ngồi, giá vé, phòng, giờ mở cửa, quy định thị thực và thời tiết có thể thay đổi. Hãy xác nhận trực tiếp trước khi thanh toán.')}</p>
+      <p className="px-1 text-2xs leading-relaxed text-ink-4">{tr('This plan is a travel aid, not confirmed inventory. Seats, fares, rooms, opening hours, visa rules, and weather can change. Confirm important details before paying, or ask eno Concierge to arrange them for you.', 'Kế hoạch này hỗ trợ chuyến đi, không phải tình trạng chỗ đã xác nhận. Chỗ ngồi, giá vé, phòng, giờ mở cửa, quy định thị thực và thời tiết có thể thay đổi. Hãy xác nhận trước khi thanh toán hoặc nhờ eno Concierge sắp xếp.')}</p>
     </div>
   )
 }
@@ -355,17 +549,18 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
 export function ItineraryBuilder() {
   const { tr, lang } = useLanguage()
   const { user, openSignIn } = useAuth()
-  const [cityIds, setCityIds] = useState<CityId[]>(['danang', 'hoian', 'hue'])
-  const [cityToAdd, setCityToAdd] = useState<CityId>('hanoi')
+  const [hydrated, setHydrated] = useState(false)
+  const [cityIds, setCityIds] = useState<CityId[]>(['danang'])
+  const [citySearch, setCitySearch] = useState('')
   const [origin, setOrigin] = useState('')
   const [startDate, setStartDate] = useState('')
-  const [days, setDays] = useState(8)
+  const [days, setDays] = useState(4)
   const [travelers, setTravelers] = useState(2)
   const [budgetId, setBudgetId] = useState<BudgetId>('comfort')
   const [pace, setPace] = useState<PaceId>('balanced')
   const [interests, setInterests] = useState<Set<InterestId>>(() => new Set(['food', 'culture', 'nature']))
-  const [accommodation, setAccommodation] = useState<AccommodationId>('boutique')
-  const [includeFlights, setIncludeFlights] = useState(true)
+  const [accommodation, setAccommodation] = useState<AccommodationId>('hotel')
+  const [includeFlights, setIncludeFlights] = useState(false)
   const [cabin, setCabin] = useState<CabinId>('economy')
   const [maxStops, setMaxStops] = useState<StopsId>('one_stop')
   const [checkedBags, setCheckedBags] = useState(true)
@@ -375,11 +570,18 @@ export function ItineraryBuilder() {
   const [saving, setSaving] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
+  const daysCustomizedRef = useRef(false)
+
+  useEffect(() => setHydrated(true), [])
 
   const selectedCities = cityIds.map((id) => CITY_MAP.get(id)).filter((city) => Boolean(city))
-  const availableCities = CITIES.filter((city) => !cityIds.includes(city.id))
+  const primaryCity = CITY_MAP.get(cityIds[0]) || CITIES[0]
+  const availableCityGroups = useMemo<CityGroup[]>(() => CITY_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((city) => !cityIds.includes(city.id)),
+  })).filter((group) => group.items.length > 0), [cityIds])
   const endDate = addDays(startDate, days - 1)
-  const minDate = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const minDate = useMemo(() => dateInputValueFromToday(0), [])
   const budget = BUDGETS.find((item) => item.id === budgetId) || BUDGETS[1]
 
   const toggleInterest = (id: InterestId) => setInterests((current) => {
@@ -389,18 +591,36 @@ export function ItineraryBuilder() {
     return next
   })
 
-  const addCity = () => {
-    if (cityIds.includes(cityToAdd) || cityIds.length >= 6) return
-    const next = [...cityIds, cityToAdd]
+  const updateSuggestedDays = (nextCityIds: CityId[]) => {
+    if (!daysCustomizedRef.current) setDays(suggestedDaysForRoute(nextCityIds))
+  }
+
+  const choosePrimaryCity = (city: City | null) => {
+    if (!city) return
+    const existingIndex = cityIds.indexOf(city.id)
+    const next = [...cityIds]
+    if (existingIndex > 0) {
+      ;[next[0], next[existingIndex]] = [next[existingIndex], next[0]]
+    } else {
+      next[0] = city.id
+    }
     setCityIds(next)
-    const replacement = CITIES.find((city) => !next.includes(city.id))
-    if (replacement) setCityToAdd(replacement.id)
+    updateSuggestedDays(next)
+  }
+
+  const addCity = (city: City | null) => {
+    if (!city || cityIds.includes(city.id) || cityIds.length >= 6) return
+    const next = [...cityIds, city.id]
+    setCityIds(next)
+    setCitySearch('')
+    updateSuggestedDays(next)
   }
 
   const removeCity = (id: CityId) => {
     if (cityIds.length === 1) return
-    setCityIds((current) => current.filter((cityId) => cityId !== id))
-    setCityToAdd(id)
+    const next = cityIds.filter((cityId) => cityId !== id)
+    setCityIds(next)
+    updateSuggestedDays(next)
   }
 
   const moveCity = (index: number, direction: -1 | 1) => {
@@ -409,6 +629,7 @@ export function ItineraryBuilder() {
     setCityIds((current) => {
       const next = [...current]
       ;[next[index], next[target]] = [next[target], next[index]]
+      updateSuggestedDays(next)
       return next
     })
   }
@@ -416,6 +637,7 @@ export function ItineraryBuilder() {
   const buildPlan = async () => {
     if (!startDate) {
       toast.error(tr('Choose a departure date so we can research viable options.', 'Chọn ngày khởi hành để nghiên cứu lựa chọn phù hợp.'))
+      document.getElementById('trip-start')?.focus()
       return
     }
     if (includeFlights && origin.trim().length < 2) {
@@ -429,6 +651,7 @@ export function ItineraryBuilder() {
       const response = await forumApi<GeneratedItineraryResponse>('/api/itineraries/generate', {
         method: 'POST',
         auth: 'optional',
+        direct: true,
         body: JSON.stringify({
           locale: lang,
           origin: origin.trim(),
@@ -447,82 +670,55 @@ export function ItineraryBuilder() {
       setResult(response)
       setState('ready')
       window.requestAnimationFrame(() => resultRef.current?.focus())
+      if (user) void persistPlan(response, true)
     } catch (error) {
       if (error instanceof ForumApiError && error.status === 401) {
         setState('empty')
         openSignIn()
-        toast.message(tr('Sign in with your eno account to run live AI research.', 'Đăng nhập tài khoản eno để chạy nghiên cứu AI trực tiếp.'))
+        toast.message(tr('Sign in with your eno account to run live travel research.', 'Đăng nhập tài khoản eno để nghiên cứu chuyến đi trực tiếp.'))
         return
       }
       setState('error')
       toast.error(error instanceof ForumApiError && error.status === 429
         ? tr('The planner has reached its research limit. Please try again later.', 'Trình lập kế hoạch đã đạt giới hạn nghiên cứu. Vui lòng thử lại sau.')
-        : tr('Gemini could not complete this plan. Your inputs are still here—please retry.', 'Gemini chưa thể hoàn thành kế hoạch. Thông tin vẫn được giữ—hãy thử lại.'))
+        : tr('eno could not complete this plan. Your inputs are still here—please retry.', 'eno chưa thể hoàn thành kế hoạch. Thông tin vẫn được giữ—hãy thử lại.'))
+    }
+  }
+
+  const persistPlan = async (nextResult: GeneratedItineraryResponse, announce: boolean) => {
+    if (!user) return null
+    setSaving(true)
+    try {
+      const { itinerary } = await forumApi<{ itinerary: { id: string } }>('/api/itineraries', {
+        method: 'POST',
+        auth: 'required',
+        body: JSON.stringify(buildItinerarySavePayload({ result: nextResult, cityIds, days, budgetId, interests })),
+      })
+      setSavedId(itinerary.id)
+      if (announce) toast.success(tr('Itinerary saved automatically to your eno dashboard.', 'Lịch trình đã tự động lưu vào bảng điều khiển eno.'))
+      return itinerary.id
+    } catch {
+      toast.error(tr('Your itinerary could not be saved.', 'Không thể lưu lịch trình của bạn.'))
+      return null
+    } finally {
+      setSaving(false)
     }
   }
 
   const savePlan = async () => {
     if (!result) return
     if (!user) { openSignIn(); return }
-    setSaving(true)
-    const plan = result.plan
-    try {
-      const { itinerary } = await forumApi<{ itinerary: { id: string } }>('/api/itineraries', {
-        method: 'POST',
-        auth: 'required',
-        body: JSON.stringify({
-          title: plan.title,
-          destinationId: cityIds[0],
-          days,
-          budgetId,
-          interests: Array.from(interests),
-          status: 'ready',
-          estimatedBudget: plan.budget.groupHighVnd,
-          currency: 'VND',
-          generatedAt: result.generatedAt,
-          dayPlans: plan.days.map((day) => ({
-            dayNumber: day.dayNumber,
-            area: day.city,
-            areaVi: null,
-            title: day.title,
-            titleVi: null,
-            morning: `${day.morning.time} · ${day.morning.title} — ${day.morning.details}`.slice(0, 1000),
-            morningVi: null,
-            afternoon: `${day.afternoon.time} · ${day.afternoon.title} — ${day.afternoon.details}`.slice(0, 1000),
-            afternoonVi: null,
-            evening: `${day.evening.time} · ${day.evening.title} — ${day.evening.details}`.slice(0, 1000),
-            eveningVi: null,
-          })),
-          stays: plan.stays.map((stay, index) => ({
-            position: index,
-            name: stay.name,
-            nameVi: null,
-            area: `${stay.city} · ${stay.area}`.slice(0, 120),
-            areaVi: null,
-            note: stay.why,
-            noteVi: null,
-            estimatedNightly: stay.nightlyLowVnd,
-            currency: 'VND',
-          })),
-        }),
-      })
-      setSavedId(itinerary.id)
-      toast.success(tr('Itinerary saved to your eno account.', 'Lịch trình đã được lưu vào tài khoản eno.'))
-    } catch {
-      toast.error(tr('Your itinerary could not be saved.', 'Không thể lưu lịch trình của bạn.'))
-    } finally {
-      setSaving(false)
-    }
+    await persistPlan(result, true)
   }
 
   return (
-    <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 sm:pt-10 lg:px-8">
+    <main id="main" tabIndex={-1} data-hydrated={hydrated} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 sm:pt-10 lg:px-8">
       <div className="grid items-start gap-6 lg:grid-cols-[410px_minmax(0,1fr)] lg:grid-rows-[max-content_1fr]">
-        <section className="relative overflow-hidden rounded-3xl bg-brand-deep px-5 py-8 text-white sm:px-8 sm:py-10 lg:col-start-2 lg:row-start-1 lg:px-10">
+        {state !== 'ready' && <section className="relative overflow-hidden rounded-3xl bg-brand-deep px-5 py-8 text-white sm:px-8 sm:py-10 lg:col-start-2 lg:row-start-1 lg:px-10">
           <div className="relative z-10 max-w-3xl">
-            <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />{tr('Grounded by live Google Search', 'Dựa trên Google Search trực tiếp')}</Badge>
+            <Badge variant="brand" size="sm" className="bg-white/10 text-white"><SearchCheck className="h-3.5 w-3.5" />{tr('Current travel research', 'Nghiên cứu du lịch hiện tại')}</Badge>
             <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">{tr('A Vietnam itinerary that survives reality.', 'Lịch trình Việt Nam thực sự khả thi.')}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/80 sm:text-base">{tr('Gemini 3.5 Flash researches viable flights, sensible transfers, current stays, and place-level details—then builds the trip around your dates, pace, and budget.', 'Gemini 3.5 Flash nghiên cứu chuyến bay phù hợp, di chuyển hợp lý, chỗ ở hiện tại và từng địa điểm—sau đó lập kế hoạch theo ngày, nhịp độ và ngân sách của bạn.')}</p>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/80 sm:text-base">{tr('eno checks practical flights, transfers, stays, and local details, then shapes the trip around your dates, pace, and budget.', 'eno kiểm tra chuyến bay, di chuyển, chỗ ở và thông tin địa phương, sau đó lập kế hoạch theo ngày, nhịp độ và ngân sách của bạn.')}</p>
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-white/80 sm:text-sm">
               <span className="inline-flex items-center gap-2"><Plane className="h-4 w-4" />{tr('Flight research', 'Tìm chuyến bay')}</span>
               <span className="inline-flex items-center gap-2"><Route className="h-4 w-4" />{tr('Route optimization', 'Tối ưu lộ trình')}</span>
@@ -530,66 +726,167 @@ export function ItineraryBuilder() {
             </div>
           </div>
           <Map className="pointer-events-none absolute -bottom-14 -right-10 h-64 w-64 rotate-6 text-white/5 sm:h-80 sm:w-80" aria-hidden="true" />
-        </section>
+        </section>}
 
         <Card className="gap-0 overflow-visible p-5 sm:p-6 lg:sticky lg:top-24 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain">
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground"><MapPinned className="h-5 w-5" /></span>
-            <div><h2 className="text-lg font-bold text-foreground">{tr('Design the brief', 'Thiết kế yêu cầu')}</h2><p className="mt-1 text-xs leading-relaxed text-body">{tr('Specific inputs produce a plan you can actually use.', 'Thông tin cụ thể tạo ra kế hoạch thực sự hữu ích.')}</p></div>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground"><Route className="h-5 w-5" /></span>
+            <div><h2 className="text-lg font-bold text-foreground">{tr('Design the route', 'Thiết kế lộ trình')}</h2><p className="mt-1 text-xs leading-relaxed text-body">{tr('Start with one destination. Add stops only when useful.', 'Bắt đầu với một điểm đến. Chỉ thêm điểm dừng khi cần.')}</p></div>
           </div>
 
-          <div className="mt-6 space-y-5">
-            <FormSection icon={Route} title={tr('Route', 'Lộ trình')} subtitle={tr('Choose up to six stops in travel order.', 'Chọn tối đa sáu điểm theo thứ tự di chuyển.')}>
-              <div className="space-y-2">
-                {selectedCities.map((city, index) => city && (
-                  <div key={city.id} className="flex items-center gap-2 rounded-xl bg-tint px-3 py-2.5">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">{index + 1}</span>
-                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-foreground">{tr(city.name, city.nameVi)}</span><span className="block text-2xs text-body">{city.airports.join(' / ')} · {tr(city.recommendedDays, city.recommendedDays)}</span></span>
-                    <div className="flex shrink-0 items-center">
-                      <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => moveCity(index, -1)} disabled={index === 0} aria-label={tr(`Move ${city.name} earlier`, `Đưa ${city.nameVi} lên trước`)}><ArrowUp className="h-3.5 w-3.5" /></IconButton>
-                      <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => moveCity(index, 1)} disabled={index === cityIds.length - 1} aria-label={tr(`Move ${city.name} later`, `Đưa ${city.nameVi} xuống sau`)}><ArrowDown className="h-3.5 w-3.5" /></IconButton>
-                      <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => removeCity(city.id)} disabled={cityIds.length === 1} aria-label={tr(`Remove ${city.name}`, `Xóa ${city.nameVi}`)}><X className="h-3.5 w-3.5" /></IconButton>
+          <form onSubmit={(event) => { event.preventDefault(); void buildPlan() }}>
+            <div className="mt-4 space-y-5">
+            <div>
+              <Field>
+                <FieldLabel htmlFor="primary-destination">{tr('Main destination', 'Điểm đến chính')}</FieldLabel>
+                <Combobox
+                  items={CITY_GROUPS}
+                  value={primaryCity}
+                  onValueChange={choosePrimaryCity}
+                  itemToStringLabel={(city: City) => tr(city.name, city.nameVi)}
+                  itemToStringValue={(city: City) => city.id}
+                  filter={cityMatchesSearch}
+                  autoHighlight
+                >
+                  <ComboboxInputGroup>
+                    <span className="ml-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-2xs font-bold text-white">1</span>
+                    <ComboboxInput id="primary-destination" autoComplete="off" className="px-2" />
+                    <ComboboxTrigger aria-label={tr('Search destinations', 'Tìm điểm đến')} />
+                  </ComboboxInputGroup>
+                  <ComboboxContent>
+                    <ComboboxEmpty>{tr('No matching destination.', 'Không có điểm đến phù hợp.')}</ComboboxEmpty>
+                    <ComboboxList>
+                      {(group: CityGroup) => (
+                        <ComboboxGroup key={group.id} items={group.items}>
+                          <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
+                          {group.items.map((city) => (
+                            <ComboboxItem key={city.id} value={city}>
+                              <span className="flex flex-col items-start">
+                                <span className="font-semibold text-foreground">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span>
+                                <span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span>
+                              </span>
+                            </ComboboxItem>
+                          ))}
+                        </ComboboxGroup>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
+                <FieldDescription>{tr('Type a city, region, or airport code.', 'Nhập thành phố, khu vực hoặc mã sân bay.')}</FieldDescription>
+              </Field>
+
+              {selectedCities.length > 1 && (
+                <div className="mt-3 space-y-2" aria-label={tr('Additional route stops', 'Điểm dừng bổ sung')}>
+                  {selectedCities.slice(1).map((city, offset) => city && (
+                    <div key={city.id} data-testid="itinerary-route-stop" className="flex min-h-14 items-center gap-2 rounded-xl bg-tint px-3 py-2.5">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">{offset + 2}</span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-foreground">{tr(city.name, city.nameVi)}</span><span className="block text-2xs text-body">{city.airports.join(' / ')} · {city.recommendedDays}</span></span>
+                      <div className="flex shrink-0 items-center">
+                        <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => moveCity(offset + 1, -1)} aria-label={tr(`Move ${city.name} earlier`, `Đưa ${city.nameVi} lên trước`)}><ArrowUp className="h-3.5 w-3.5" /></IconButton>
+                        <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => moveCity(offset + 1, 1)} disabled={offset + 1 === cityIds.length - 1} aria-label={tr(`Move ${city.name} later`, `Đưa ${city.nameVi} xuống sau`)}><ArrowDown className="h-3.5 w-3.5" /></IconButton>
+                        <IconButton size="xs" tapTarget={false} className="text-body hover:bg-muted" onClick={() => removeCity(city.id)} aria-label={tr(`Remove ${city.name}`, `Xóa ${city.nameVi}`)}><X className="h-3.5 w-3.5" /></IconButton>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-              {availableCities.length > 0 && cityIds.length < 6 && (
-                <div className="mt-3 flex gap-2">
-                  <Select value={cityToAdd} onValueChange={(value) => { if (typeof value === 'string') setCityToAdd(value as CityId) }}>
-                    <SelectTrigger aria-label={tr('Add another Vietnam destination', 'Thêm điểm đến Việt Nam')} className="min-w-0 flex-1 cursor-pointer border-line-strong bg-card"><Plus className="h-4 w-4" /><SelectValue>{tr(CITY_MAP.get(cityToAdd)?.name || '', CITY_MAP.get(cityToAdd)?.nameVi || '')}</SelectValue></SelectTrigger>
-                    <SelectContent align="start" className="max-h-80 min-w-[min(24rem,calc(100vw-2rem))]">
-                      {availableCities.map((city) => <SelectItem key={city.id} value={city.id}><span className="flex flex-col items-start"><span className="font-semibold">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span><span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span></span></SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Button type="button" variant="outline" size="sm" onClick={addCity}>{tr('Add', 'Thêm')}</Button>
+                  ))}
                 </div>
               )}
-            </FormSection>
+
+              {availableCityGroups.length > 0 && cityIds.length < 6 && (
+                <Field className="mt-3">
+                  <FieldLabel htmlFor="add-destination">{tr('Add another stop', 'Thêm điểm dừng')} <span className="font-normal text-ink-4">{tr('(optional)', '(không bắt buộc)')}</span></FieldLabel>
+                  <Combobox
+                    items={availableCityGroups}
+                    value={null}
+                    inputValue={citySearch}
+                    onInputValueChange={setCitySearch}
+                    onValueChange={addCity}
+                    itemToStringLabel={(city: City) => tr(city.name, city.nameVi)}
+                    itemToStringValue={(city: City) => city.id}
+                    filter={cityMatchesSearch}
+                    autoHighlight
+                  >
+                    <ComboboxInputGroup>
+                      {citySearch ? <Search className="ml-3 h-4 w-4 shrink-0 text-ink-4" /> : <Plus className="ml-3 h-4 w-4 shrink-0 text-ink-4" />}
+                      <ComboboxInput id="add-destination" autoComplete="off" className="px-2" placeholder={tr('Search city, region, or airport code', 'Tìm thành phố, khu vực hoặc mã sân bay')} />
+                      <ComboboxClear aria-label={tr('Clear destination search', 'Xóa tìm kiếm điểm đến')} />
+                      <ComboboxTrigger aria-label={tr('Show available destinations', 'Hiện các điểm đến')} />
+                    </ComboboxInputGroup>
+                    <ComboboxContent>
+                      <ComboboxEmpty>{tr('No matching destination.', 'Không có điểm đến phù hợp.')}</ComboboxEmpty>
+                      <ComboboxList>
+                        {(group: CityGroup) => (
+                          <ComboboxGroup key={group.id} items={group.items}>
+                            <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
+                            {group.items.map((city) => (
+                              <ComboboxItem key={city.id} value={city}>
+                                <span className="flex flex-col items-start">
+                                  <span className="font-semibold text-foreground">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span>
+                                  <span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span>
+                                </span>
+                              </ComboboxItem>
+                            ))}
+                          </ComboboxGroup>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                  <FieldDescription>{tr('Choose a result to add it instantly. Maximum six stops.', 'Chọn kết quả để thêm ngay. Tối đa sáu điểm.')}</FieldDescription>
+                </Field>
+              )}
+            </div>
 
             <FormSection icon={CalendarDays} title={tr('Dates and travelers', 'Ngày và số khách')} subtitle={tr('Exact dates make flight and seasonal research useful.', 'Ngày chính xác giúp tìm chuyến bay và mùa phù hợp.')}>
-              <div className="grid grid-cols-2 gap-3">
-                <Field><FieldLabel htmlFor="trip-start">{tr('Start date', 'Ngày bắt đầu')}</FieldLabel><Input id="trip-start" variant="outline" type="date" min={minDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} className="px-3" /></Field>
-                <Field><FieldLabel>{tr('End date', 'Ngày kết thúc')}</FieldLabel><div className="flex h-[46px] items-center rounded-xl bg-tint px-3 text-sm font-semibold text-body">{endDate ? displayDate(endDate, lang) : tr('Choose start', 'Chọn ngày đầu')}</div></Field>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field className="min-w-0"><FieldLabel htmlFor="trip-start">{tr('Start date', 'Ngày bắt đầu')}</FieldLabel><Input id="trip-start" name="startDate" variant="outline" type="date" min={minDate} value={startDate} onChange={(event) => setStartDate(event.target.value)} className="h-11 min-w-0 px-3 py-0" required /></Field>
+                <Field className="min-w-0"><FieldLabel>{tr('End date', 'Ngày kết thúc')}</FieldLabel><output htmlFor="trip-start" className="flex h-11 min-w-0 items-center rounded-xl bg-tint px-3 text-sm font-semibold text-body">{endDate ? displayDate(endDate, lang) : tr('Choose start', 'Chọn ngày đầu')}</output></Field>
               </div>
               <div className="mt-4">
-                <div className="flex items-center justify-between gap-3"><p id="trip-days-label" className="text-sm font-medium text-foreground">{tr('Trip length', 'Thời lượng')}</p><Badge variant="brand" size="md">{days} {tr('days', 'ngày')}</Badge></div>
-                <Slider value={days} min={3} max={21} onChange={setDays} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} className="mt-3" />
-                <div className="mt-1 flex justify-between text-2xs text-ink-4"><span>3</span><span>21</span></div>
+                <div className="flex items-center justify-between gap-3"><p id="trip-days-label" className="text-sm font-medium text-foreground">{tr('Trip length', 'Thời lượng')}</p><Input aria-label={tr('Enter trip length in days', 'Nhập số ngày chuyến đi')} name="days" variant="outline" type="number" inputMode="numeric" min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} value={days} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) { daysCustomizedRef.current = true; setDays(clampWholeNumber(event.currentTarget.valueAsNumber, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) } }} onBlur={(event) => { event.currentTarget.value = String(days) }} className="h-10 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" /></div>
+                <div className="mt-3"><Slider value={days} min={MIN_TRIP_DAYS} max={MAX_TRIP_DAYS} onChange={(value) => { daysCustomizedRef.current = true; setDays(clampWholeNumber(value, MIN_TRIP_DAYS, MAX_TRIP_DAYS)) }} aria-label={tr('Trip length in days', 'Số ngày của chuyến đi')} /><div className="mt-1 flex justify-between text-2xs text-ink-4"><span>{MIN_TRIP_DAYS}</span><span>{MAX_TRIP_DAYS}</span></div></div>
               </div>
               <div className="mt-4">
-                <div className="flex items-center justify-between gap-3"><p id="travelers-label" className="text-sm font-medium text-foreground">{tr('Travelers', 'Số khách')}</p><Badge variant="neutral" size="md"><Users className="h-3.5 w-3.5" />{travelers}</Badge></div>
-                <Slider value={travelers} min={1} max={8} onChange={setTravelers} aria-label={tr('Number of travelers', 'Số khách đi cùng')} className="mt-3" />
+                <div className="flex items-center justify-between gap-3"><p id="travelers-label" className="text-sm font-medium text-foreground">{tr('Travelers', 'Số khách')}</p><Input aria-label={tr('Enter number of travelers', 'Nhập số khách')} name="travelers" variant="outline" type="number" inputMode="numeric" min={1} max={MAX_TRAVELERS} value={travelers} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { if (Number.isFinite(event.currentTarget.valueAsNumber)) setTravelers(clampWholeNumber(event.currentTarget.valueAsNumber, 1, MAX_TRAVELERS)) }} onBlur={(event) => { event.currentTarget.value = String(travelers) }} className="h-10 w-16 shrink-0 px-2 py-0 text-center font-bold tabular-nums" /></div>
+                <div className="mt-3"><Slider value={Math.min(travelers, MAX_TRAVELER_SLIDER)} min={1} max={MAX_TRAVELER_SLIDER} onChange={(value) => setTravelers(clampWholeNumber(value, 1, MAX_TRAVELER_SLIDER))} aria-label={tr('Number of travelers', 'Số khách đi cùng')} /><div className="mt-1 flex justify-between text-2xs text-ink-4"><span>1</span><span>{MAX_TRAVELER_SLIDER}</span></div></div>
               </div>
             </FormSection>
 
-            <FormSection icon={Plane} title={tr('Flight research', 'Tìm chuyến bay')} subtitle={tr('Gemini searches viable route patterns and fare signals—not reserved inventory.', 'Gemini tìm đường bay và tín hiệu giá—không phải chỗ đã giữ.')}>
+            <FormSection icon={Plane} title={tr('Flight research', 'Tìm chuyến bay')} subtitle={tr('eno checks viable routes and fare signals—not reserved inventory.', 'eno kiểm tra đường bay và tín hiệu giá—không phải chỗ đã giữ.')}>
               <Button type="button" variant="bare" size="none" aria-pressed={includeFlights} onClick={() => setIncludeFlights((value) => !value)} className={cn('h-auto w-full justify-start gap-3 rounded-xl border px-3 py-3 text-left', includeFlights ? 'border-brand bg-accent' : 'border-border bg-card')}>
                 <span className={cn('flex h-5 w-5 items-center justify-center rounded-md border', includeFlights ? 'border-brand bg-primary text-white' : 'border-line-strong')}>{includeFlights && <Check className="h-3 w-3" />}</span>
-                <span><span className="block text-sm font-bold text-foreground">{tr('Include flight options', 'Bao gồm lựa chọn chuyến bay')}</span><span className="mt-0.5 block text-xs text-body">{tr('International gateway and useful domestic legs', 'Cửa ngõ quốc tế và chặng nội địa hữu ích')}</span></span>
+                <span className="min-w-0"><span className="block text-sm font-bold text-foreground">{tr('Include flight options', 'Bao gồm lựa chọn chuyến bay')}</span><span className="mt-0.5 block whitespace-normal text-xs text-body">{tr('Optional—add this when you want international flight leads.', 'Không bắt buộc—thêm khi bạn muốn gợi ý chuyến bay quốc tế.')}</span></span>
               </Button>
               {includeFlights && (
                 <div className="mt-4 space-y-4">
-                  <Field><FieldLabel htmlFor="trip-origin">{tr('Flying from', 'Bay từ')}</FieldLabel><Input id="trip-origin" variant="outline" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder={tr('City or airport, e.g. Singapore (SIN)', 'Thành phố hoặc sân bay, ví dụ Singapore (SIN)')} /><FieldDescription>{tr('Add an airport code when you know it.', 'Thêm mã sân bay nếu bạn biết.')}</FieldDescription></Field>
+                  <Field>
+                    <FieldLabel htmlFor="trip-origin">{tr('Departure city or airport', 'Thành phố hoặc sân bay khởi hành')}</FieldLabel>
+                    <Combobox
+                      items={AIRPORT_GROUPS}
+                      value={origin || null}
+                      inputValue={origin}
+                      onValueChange={(value) => setOrigin(value || '')}
+                      onInputValueChange={setOrigin}
+                      autoHighlight
+                    >
+                      <ComboboxInputGroup>
+                        <Plane className="ml-3 h-4 w-4 shrink-0 text-ink-4" />
+                        <ComboboxInput id="trip-origin" name="origin" autoComplete="off" className="px-2" placeholder={tr('Start typing a city or airport code', 'Nhập thành phố hoặc mã sân bay')} required />
+                        <ComboboxClear aria-label={tr('Clear departure airport', 'Xóa sân bay khởi hành')} />
+                        <ComboboxTrigger aria-label={tr('Show suggested departure airports', 'Hiện sân bay khởi hành gợi ý')} />
+                      </ComboboxInputGroup>
+                      <ComboboxContent>
+                        <ComboboxEmpty>{tr('Keep your typed city or airport—we can still research it.', 'Giữ thành phố hoặc sân bay đã nhập—eno vẫn có thể tìm kiếm.')}</ComboboxEmpty>
+                        <ComboboxList>
+                          {(group: AirportGroup) => (
+                            <ComboboxGroup key={group.id} items={group.items}>
+                              <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
+                              {group.items.map((airport) => <ComboboxItem key={airport} value={airport}>{airport}</ComboboxItem>)}
+                            </ComboboxGroup>
+                          )}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                    <FieldDescription>{tr('Choose a suggestion or keep any city or airport you type.', 'Chọn gợi ý hoặc giữ bất kỳ thành phố hay sân bay nào bạn nhập.')}</FieldDescription>
+                  </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field><FieldLabel id="cabin-label">{tr('Cabin', 'Hạng ghế')}</FieldLabel><Select value={cabin} onValueChange={(value) => { if (typeof value === 'string') setCabin(value as CabinId) }}><SelectTrigger aria-labelledby="cabin-label" className="w-full cursor-pointer border-line-strong bg-card"><SelectValue>{cabin === 'premium_economy' ? tr('Premium economy', 'Phổ thông đặc biệt') : cabin === 'business' ? tr('Business', 'Thương gia') : tr('Economy', 'Phổ thông')}</SelectValue></SelectTrigger><SelectContent><SelectItem value="economy">{tr('Economy', 'Phổ thông')}</SelectItem><SelectItem value="premium_economy">{tr('Premium economy', 'Phổ thông đặc biệt')}</SelectItem><SelectItem value="business">{tr('Business', 'Thương gia')}</SelectItem></SelectContent></Select></Field>
                     <Field><FieldLabel id="stops-label">{tr('Stops', 'Điểm dừng')}</FieldLabel><Select value={maxStops} onValueChange={(value) => { if (typeof value === 'string') setMaxStops(value as StopsId) }}><SelectTrigger aria-labelledby="stops-label" className="w-full cursor-pointer border-line-strong bg-card"><SelectValue>{maxStops === 'direct' ? tr('Direct only', 'Chỉ bay thẳng') : maxStops === 'one_stop' ? tr('Up to 1 stop', 'Tối đa 1 điểm') : tr('Any viable', 'Mọi lựa chọn')}</SelectValue></SelectTrigger><SelectContent><SelectItem value="direct">{tr('Direct only', 'Chỉ bay thẳng')}</SelectItem><SelectItem value="one_stop">{tr('Up to 1 stop', 'Tối đa 1 điểm')}</SelectItem><SelectItem value="any">{tr('Any viable', 'Mọi lựa chọn')}</SelectItem></SelectContent></Select></Field>
@@ -616,24 +913,25 @@ export function ItineraryBuilder() {
             </FormSection>
 
             <FormSection icon={Info} title={tr('Anything we should know?', 'Điều gì cần lưu ý?')} subtitle={tr('Diet, mobility, children, celebrations, work calls, or hard no’s.', 'Ăn kiêng, di chuyển, trẻ em, dịp đặc biệt, công việc hoặc điều không muốn.')}>
-              <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={600} rows={3} size="compact" variant="outline" placeholder={tr('Example: vegetarian, avoid early mornings, one traveler has limited mobility…', 'Ví dụ: ăn chay, tránh sáng sớm, một khách hạn chế vận động…')} />
+              <Textarea name="notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={600} rows={3} size="compact" variant="outline" placeholder={tr('Example: vegetarian, avoid early mornings, one traveler has limited mobility…', 'Ví dụ: ăn chay, tránh sáng sớm, một khách hạn chế vận động…')} />
               <p className="mt-1 text-right text-2xs tabular-nums text-ink-4">{notes.length}/600</p>
             </FormSection>
-          </div>
+            </div>
 
-          <Button data-testid="build-itinerary" type="button" variant="cta" size="lg" className="mt-6 w-full" onClick={() => void buildPlan()} disabled={state === 'building'}>
-            {state === 'building' ? <Loader2 className="h-4 w-4 animate-spin" /> : result ? <RefreshCw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-            {state === 'building' ? tr('Researching the trip…', 'Đang nghiên cứu chuyến đi…') : result ? tr('Research a new version', 'Nghiên cứu phiên bản mới') : tr('Research and build itinerary', 'Nghiên cứu và tạo lịch trình')}
-          </Button>
-          <p className="mt-3 text-center text-2xs leading-relaxed text-ink-4">{user ? tr('Includes live web research. Up to 8 plans per account each hour.', 'Bao gồm nghiên cứu web trực tiếp. Tối đa 8 kế hoạch mỗi giờ.') : tr('A unified eno account is required before paid web research runs.', 'Cần tài khoản eno thống nhất trước khi chạy nghiên cứu web trả phí.')}</p>
+            <Button data-testid="build-itinerary" type="submit" variant="cta" size="lg" className="mt-6 w-full" disabled={state === 'building'}>
+              {state === 'building' ? <Loader2 className="h-4 w-4 animate-spin" /> : result ? <RefreshCw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+              {state === 'building' ? tr('Researching the trip…', 'Đang nghiên cứu chuyến đi…') : result ? tr('Research a new version', 'Nghiên cứu phiên bản mới') : tr('Research and build itinerary', 'Nghiên cứu và tạo lịch trình')}
+            </Button>
+            <p className="mt-3 text-center text-2xs leading-relaxed text-ink-4">{user ? tr('Includes live web research. Up to 8 plans per account each hour.', 'Bao gồm nghiên cứu web trực tiếp. Tối đa 8 kế hoạch mỗi giờ.') : tr('A unified eno account is required before paid web research runs.', 'Cần tài khoản eno thống nhất trước khi chạy nghiên cứu web trả phí.')}</p>
+          </form>
         </Card>
 
-        <section aria-label={tr('Itinerary result', 'Kết quả lịch trình')} className="lg:col-start-2 lg:row-start-2">
+        <section aria-label={tr('Itinerary result', 'Kết quả lịch trình')} className={cn('lg:col-start-2', state === 'ready' ? 'lg:row-start-1' : 'lg:row-start-2')}>
           {state === 'empty' && (
             <Card className="min-h-[620px] items-center justify-center gap-0 px-5 py-12 text-center sm:px-10">
               <span className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-accent text-accent-foreground"><Map className="h-9 w-9" /><SearchCheck className="absolute -right-2 -top-2 h-6 w-6 text-brand" /></span>
-              <h2 className="mt-6 text-2xl font-bold text-foreground">{tr('From vague idea to researched plan', 'Từ ý tưởng đến kế hoạch đã nghiên cứu')}</h2>
-              <p className="mt-3 max-w-lg text-sm leading-relaxed text-body">{tr('Set your exact route, dates, flight constraints, pace, and preferences. The planner will search before it recommends.', 'Chọn lộ trình, ngày, yêu cầu chuyến bay, nhịp độ và sở thích. Trình lập kế hoạch sẽ tìm kiếm trước khi gợi ý.')}</p>
+              <h2 className="mt-6 text-2xl font-bold text-foreground">{tr('Start with one place. eno handles the details.', 'Bắt đầu với một nơi. eno lo phần chi tiết.')}</h2>
+              <p className="mt-3 max-w-lg text-sm leading-relaxed text-body">{tr('Choose a destination and date. Add flights or more stops only when you need them; eno researches the practical details.', 'Chọn điểm đến và ngày. Chỉ thêm chuyến bay hoặc điểm dừng khi cần; eno sẽ nghiên cứu các chi tiết thực tế.')}</p>
               <div className="mt-8 grid w-full max-w-xl gap-3 sm:grid-cols-3">
                 {[{ Icon: Plane, label: tr('Viable flight leads', 'Gợi ý chuyến bay') }, { Icon: Hotel, label: tr('Real stay candidates', 'Chỗ ở thực tế') }, { Icon: CalendarCheck, label: tr('Book-by timeline', 'Mốc thời gian đặt') }].map(({ Icon, label }) => <div key={label} className="flex items-center justify-center gap-2 rounded-xl bg-tint px-3 py-3 text-xs font-semibold text-body sm:flex-col"><Icon className="h-5 w-5 text-accent-foreground" />{label}</div>)}
               </div>
