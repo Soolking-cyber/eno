@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { safeNext } from '@/lib/safe-next'
 
 // First leg of the native one-app SSO (see /auth/handoff for the last leg):
 //   app (on eno.vn) → GET /auth/bridge?next=… → sets a short-lived nonce cookie on THIS
@@ -12,10 +13,6 @@ import { NextResponse } from 'next/server'
 
 const MARKETPLACE_URL = process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn'
 
-function safeNext(value: string | null): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('..') || value.includes('\\')) return '/'
-  return value
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url)

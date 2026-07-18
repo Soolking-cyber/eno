@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { safeNext } from '@/lib/safe-next'
 
 // Last leg of the native one-app SSO (see /auth/bridge for the flow diagram). Verifying the
 // single-use token minted by eno.vn/api/auth/forum-handoff creates an INDEPENDENT forum
@@ -11,10 +12,6 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 
 const NO_STORE = { 'Cache-Control': 'no-store' }
 
-function safeNext(value: string | null): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('..') || value.includes('\\')) return '/'
-  return value
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
