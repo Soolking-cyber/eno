@@ -358,7 +358,13 @@ export function HomeClient({ forum, trips, visa, saves }: {
         </div>
       </section>
 
-      <div className="mt-7 grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
+      {/* grid-cols-[minmax(0,1fr)] on MOBILE is load-bearing: the implicit single track is
+          min-content-sized, and the stat snap strip's non-shrinking 40vw tiles (~744px of
+          min-content) would blow the track — and the whole layout viewport — past the phone
+          (mobile browsers then zoom out to fit: the "tiny desktop soup" bug). minmax(0,…)
+          lets the track shrink so overflow-x-auto can actually scroll. Same reason the lg
+          tracks already carry minmax(0,…). min-w-0 on the columns is the belt. */}
+      <div className="mt-7 grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)] *:min-w-0">
         {/* LEFT (wide) — canonical order: marketplace, then saved itineraries. */}
         <div className="space-y-5">
           <Card className={REVEAL}>
