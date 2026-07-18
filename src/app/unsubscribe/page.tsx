@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { useLanguage } from '@/context/language-context'
 import { Mail, Check } from 'lucide-react'
 
 // Public, token-scoped email-preference page (no login). The visible footer link in the
@@ -18,6 +19,7 @@ export default function UnsubscribePage() {
 }
 
 function UnsubscribeInner() {
+  const { tr } = useLanguage()
   const token = useSearchParams().get('token') ?? ''
   const [state, setState] = useState<'idle' | 'saving' | 'unsubscribed' | 'resubscribed' | 'error'>('idle')
 
@@ -45,31 +47,31 @@ function UnsubscribeInner() {
 
         {state === 'unsubscribed' ? (
           <>
-            <h1 className="mt-4 text-xl font-bold text-foreground">You're unsubscribed</h1>
-            <p className="mt-2 text-sm text-muted-foreground">You won't get the weekly eno.vn digest anymore. Changed your mind?</p>
+            <h1 className="mt-4 text-xl font-bold text-foreground">{tr("You're unsubscribed", 'Bạn đã hủy đăng ký')}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{tr("You won't get the weekly eno.vn digest anymore. Changed your mind?", 'Bạn sẽ không nhận bản tin hằng tuần của eno.vn nữa. Đổi ý?')}</p>
             <Button
               variant="outline"
               size="none"
               onClick={() => set(true)}
               className="mt-5 border-border px-5 py-2.5 font-bold text-accent-foreground hover:bg-tint hover:text-accent-foreground cursor-pointer"
             >
-              Re-subscribe
+              {tr('Re-subscribe', 'Đăng ký lại')}
             </Button>
           </>
         ) : state === 'resubscribed' ? (
           <>
-            <h1 className="mt-4 text-xl font-bold text-foreground">You're back in</h1>
-            <p className="mt-2 text-sm text-muted-foreground">You'll receive the weekly eno.vn digest again.</p>
+            <h1 className="mt-4 text-xl font-bold text-foreground">{tr("You're back in", 'Bạn đã đăng ký lại')}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{tr("You'll receive the weekly eno.vn digest again.", 'Bạn sẽ tiếp tục nhận bản tin hằng tuần của eno.vn.')}</p>
           </>
         ) : state === 'error' ? (
           <>
-            <h1 className="mt-4 text-xl font-bold text-foreground">That link didn't work</h1>
-            <p className="mt-2 text-sm text-muted-foreground">The unsubscribe link is invalid or expired. You can manage email preferences from your account settings.</p>
+            <h1 className="mt-4 text-xl font-bold text-foreground">{tr("That link didn't work", 'Liên kết không hợp lệ')}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{tr('The unsubscribe link is invalid or expired. You can manage email preferences from your account settings.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn. Bạn có thể quản lý email trong cài đặt tài khoản.')}</p>
           </>
         ) : (
           <>
-            <h1 className="mt-4 text-xl font-bold text-foreground">Unsubscribe from the weekly digest?</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Stop receiving the weekly "top products & moving sales" email from eno.vn.</p>
+            <h1 className="mt-4 text-xl font-bold text-foreground">{tr('Unsubscribe from the weekly digest?', 'Hủy đăng ký bản tin hằng tuần?')}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{tr('Stop receiving the weekly "top products & moving sales" email from eno.vn.', 'Ngừng nhận email hằng tuần "sản phẩm nổi bật & moving sale" từ eno.vn.')}</p>
             <Button
               variant="cta"
               size="none"
@@ -77,13 +79,13 @@ function UnsubscribeInner() {
               disabled={state === 'saving' || !token}
               className="mt-5 w-full py-2.5 cursor-pointer"
             >
-              {state === 'saving' ? 'Saving…' : 'Unsubscribe'}
+              {state === 'saving' ? tr('Saving…', 'Đang lưu…') : tr('Unsubscribe', 'Hủy đăng ký')}
             </Button>
           </>
         )}
 
         <div className="mt-6">
-          <Link href="/" className="text-xs font-medium text-muted-foreground hover:text-foreground">← Back to eno.vn</Link>
+          <Link href="/" className="text-xs font-medium text-muted-foreground hover:text-foreground">{tr('← Back to eno.vn', '← Quay lại eno.vn')}</Link>
         </div>
       </div>
     </div>
