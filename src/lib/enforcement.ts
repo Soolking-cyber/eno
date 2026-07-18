@@ -153,9 +153,9 @@ function parsePulled(json: string | null | undefined): string[] {
 // Restore listings a hold pulled — only rows the seller still keeps 'active'
 // (sold/hidden since stay down) and that are still un-verified (an admin re-approve
 // in between isn't stomped… it's already true, updateMany just matches fewer rows).
-async function restoreListings(ids: string[]): Promise<void> {
+async function restoreListings(ids: string[], client: Pick<typeof db, 'listing'> = db): Promise<void> {
   if (!ids.length) return
-  await db.listing.updateMany({ where: { id: { in: ids }, status: 'active', verified: false }, data: { verified: true } })
+  await client.listing.updateMany({ where: { id: { in: ids }, status: 'active', verified: false }, data: { verified: true } })
   for (const id of ids) { try { revalidatePath(`/listings/${id}`) } catch { /* no request scope */ } }
 }
 
@@ -217,62 +217,71 @@ export async function applyEnforcement(
       where: { profileId, status: 'active', reason: NOT_FLAGS }, // flags outlive ladder transitions
       select: { id: true, state: true, pulledListingIds: true },
     })
-    if (prevActive.length) {
-      await db.enforcementAction.updateMany({
-        where: { id: { in: prevActive.map((a) => a.id) } },
-        data: { status: 'lifted', liftedAt: now },
-      })
-    }
-
-    // Pulled-listing bookkeeping across the transition: escalating to (or staying at)
-    // held+ carries the previous action's pulled ids forward; dropping below held
-    // restores them now.
+    // ONE transaction for the whole mutation (audit P2): a throw between the listing
+    // pull and the action create used to strand pulled listings with NO recorded
+    // action (so no lift could ever restore them) and an unchanged profile state.
+    // Path revalidation happens AFTER commit — never inside the txn.
     const nextSev = ENFORCEMENT_SEVERITY[next.state]
-    const carried: string[] = []
-    for (const a of prevActive) {
-      const ids = parsePulled(a.pulledListingIds)
-      if (!ids.length) continue
-      if (nextSev >= ENFORCEMENT_SEVERITY.held) carried.push(...ids)
-      else await restoreListings(ids)
-    }
+    const revalidateIds = await db.$transaction(async (tx) => {
+      const touched: string[] = []
+      if (prevActive.length) {
+        await tx.enforcementAction.updateMany({
+          where: { id: { in: prevActive.map((a) => a.id) } },
+          data: { status: 'lifted', liftedAt: now },
+        })
+      }
 
-    if (next.state !== 'good_standing') {
-      let pulled = carried
-      if (nextSev >= ENFORCEMENT_SEVERITY.held) {
-        // Pull every live listing (verified=false → out of the public feed), recording
-        // exactly which so a lift restores precisely those. Bounded.
-        const owned = await db.seller.findMany({ where: { ownerId: profileId }, select: { id: true } })
-        if (owned.length) {
-          const live = await db.listing.findMany({
-            where: { sellerId: { in: owned.map((s) => s.id) }, status: 'active', verified: true },
-            select: { id: true },
-            take: 500,
-          })
-          if (live.length) {
-            await db.listing.updateMany({ where: { id: { in: live.map((l) => l.id) } }, data: { verified: false } })
-            for (const l of live) { try { revalidatePath(`/listings/${l.id}`) } catch { /* no request scope */ } }
-            pulled = [...new Set([...carried, ...live.map((l) => l.id)])]
+      // Pulled-listing bookkeeping across the transition: escalating to (or staying at)
+      // held+ carries the previous action's pulled ids forward; dropping below held
+      // restores them now.
+      const carried: string[] = []
+      for (const a of prevActive) {
+        const ids = parsePulled(a.pulledListingIds)
+        if (!ids.length) continue
+        if (nextSev >= ENFORCEMENT_SEVERITY.held) carried.push(...ids)
+        else { await tx.listing.updateMany({ where: { id: { in: ids }, status: 'active', verified: false }, data: { verified: true } }); touched.push(...ids) }
+      }
+
+      if (next.state !== 'good_standing') {
+        let pulled = carried
+        if (nextSev >= ENFORCEMENT_SEVERITY.held) {
+          // Pull every live listing (verified=false → out of the public feed), recording
+          // exactly which so a lift restores precisely those. Bounded.
+          const owned = await tx.seller.findMany({ where: { ownerId: profileId }, select: { id: true } })
+          if (owned.length) {
+            const live = await tx.listing.findMany({
+              where: { sellerId: { in: owned.map((s) => s.id) }, status: 'active', verified: true },
+              select: { id: true },
+              take: 500,
+            })
+            if (live.length) {
+              await tx.listing.updateMany({ where: { id: { in: live.map((l) => l.id) } }, data: { verified: false } })
+              touched.push(...live.map((l) => l.id))
+              pulled = [...new Set([...carried, ...live.map((l) => l.id)])]
+            }
           }
         }
+        await tx.enforcementAction.create({
+          data: {
+            profileId,
+            state: next.state,
+            reason: next.reason,
+            adminNote: ctx.adminNote ?? null,
+            triggerReportId: ctx.triggerReportId ?? null,
+            decidedBy: ctx.decidedBy,
+            status: 'active',
+            expiresAt: next.expiresAt ? new Date(next.expiresAt) : null,
+            pulledListingIds: pulled.length ? JSON.stringify(pulled) : null,
+          },
+          select: { id: true },
+        })
       }
-      await db.enforcementAction.create({
-        data: {
-          profileId,
-          state: next.state,
-          reason: next.reason,
-          adminNote: ctx.adminNote ?? null,
-          triggerReportId: ctx.triggerReportId ?? null,
-          decidedBy: ctx.decidedBy,
-          status: 'active',
-          expiresAt: next.expiresAt ? new Date(next.expiresAt) : null,
-          pulledListingIds: pulled.length ? JSON.stringify(pulled) : null,
-        },
-        select: { id: true },
-      })
-    }
 
-    const until = next.expiresAt ? new Date(next.expiresAt) : null
-    await db.profile.update({ where: { id: profileId }, data: { enforcementState: next.state, enforcementUntil: until } })
+      const until = next.expiresAt ? new Date(next.expiresAt) : null
+      await tx.profile.update({ where: { id: profileId }, data: { enforcementState: next.state, enforcementUntil: until } })
+      return touched
+    })
+    for (const id of revalidateIds) { try { revalidatePath(`/listings/${id}`) } catch { /* no request scope */ } }
 
     // Ban-evasion anchors (Phase 3): entering suspension records the account's
     // phone+email; leaving it clears them (covers admin set-state downgrades, which
