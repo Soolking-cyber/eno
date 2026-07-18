@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { getTrending, logSearch } from '@/lib/trending'
+import { clientIp } from '@/lib/client-ip'
 
 export const runtime = 'nodejs'
 
@@ -27,8 +28,9 @@ export async function POST(req: Request) {
     if (typeof q === 'string') {
       // Per-searcher dedup key = a hash of the client IP (never store the raw IP; the
       // set entry is ephemeral, ~3d TTL). One vote per IP per term per day.
-      const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon'
-      const actor = createHash('sha1').update(ip).digest('hex').slice(0, 16)
+      // Shared helper (audit Phase 1): the inline read skipped x-real-ip and drifted
+      // from the pinned cf-connecting-ip discipline everywhere else.
+      const actor = createHash('sha1').update(clientIp(req)).digest('hex').slice(0, 16)
       await logSearch(q, actor)
     }
   } catch {
