@@ -4,18 +4,16 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { ChevronUp } from 'lucide-react'
-import { HelpPopover } from './help-popover'
 import { useAccountPanel } from './account-panel'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 /** Floating bottom-right controls, portaled to <body> (no ancestor can offset them),
  *  above the mobile bottom-nav. A bare chevron "back to top" that fades in after
- *  scrolling, stacked over an always-present "?" Help button — both circle-less. */
+ *  scrolling,circle-less. The floating Help "?" was removed (duplicate of the rail's Help row). */
 export function BackToTop() {
   const [show, setShow] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [helpOpen, setHelpOpen] = useState(false)
   // Mounted inside AccountPanelShell (see layout.tsx) purely to read this.
   const { open: panelOpen } = useAccountPanel()
   // Extra clearance when a page renders a sticky bottom bar (listing contact bar,
@@ -91,8 +89,8 @@ export function BackToTop() {
           tabIndex={show ? undefined : -1}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           // back-to-top-chevron is a stable hook for globals.css: native iOS hides
-          // ONLY this button (status-bar tap already scrolls to top there); the
-          // Help "?" below is untouched, and Android keeps the chevron.
+          // ONLY this button (status-bar tap already scrolls to top there); Android keeps the chevron.
+          // (The floating Help "?" was removed 2026-07-18 — the rail's Help row owns it.)
           className={cn(
             'back-to-top-chevron relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-90 tap-44',
             show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
@@ -101,24 +99,8 @@ export function BackToTop() {
           <ChevronUp className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]" strokeWidth={2.5} />
         </Button>
 
-        {/* Help — bare "?", DESKTOP ONLY (on mobile, Help lives in the profile page
-            next to Post/Listings/Settings, so it's not a floating popup there). */}
-        <Button
-          variant="bare"
-          size="none"
-          type="button"
-          aria-label="Help"
-          aria-haspopup="dialog"
-          onClick={() => setHelpOpen(true)}
-          className="relative hidden h-9 w-9 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-90 lg:flex tap-44"
-        >
-          <span className="text-2xl font-bold leading-none [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]">?</span>
-        </Button>
       </div>
 
-      {/* Always mounted (not `{helpOpen && …}`) so Base UI Dialog can play its exit animation
-          before it unmounts itself — a conditional unmount would remove the node mid-close. */}
-      <HelpPopover open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>,
     document.body,
   )
