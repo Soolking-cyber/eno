@@ -160,7 +160,11 @@ export const VIDEO_ALLOWED = new Map<string, string>([
   ['video/webm', 'webm'],
   ['video/quicktime', 'mov'],
 ])
-export const VIDEO_MAX_BYTES = 50 * 1024 * 1024 // 50MB — matches the bucket's own limit
+// ⚠️ 50MB is the Supabase PROJECT-WIDE upload ceiling (probed 2026-07-18: updateBucket
+// rejects 51MB+ until the owner raises Project Settings → Storage → upload limit). The
+// wizard therefore accepts big phone clips and COMPRESSES them client-side to fit
+// (src/lib/video-compress.ts) — this server/bucket cap is what the landed object obeys.
+export const VIDEO_MAX_BYTES = 50 * 1024 * 1024
 
 // Storage object names the sign route mints (and the only shape complete/GC will touch).
 export const VIDEO_PATH_RE = /^\d{10,16}-[a-z0-9]{4,12}\.(mp4|webm|mov)$/

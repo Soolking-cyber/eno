@@ -15,18 +15,27 @@ if (buckets?.some((b) => b.name === 'listings')) {
   console.log('created public bucket "listings"')
 }
 
-// PUBLIC listing-videos bucket — optional ≤60s clips per listing. Larger cap (50MB) than
-// photos + a video MIME allowlist. Served via public URL for <video> playback.
-if (buckets?.some((b) => b.name === 'listing-videos')) {
-  console.log('bucket "listing-videos" already exists')
-} else {
-  const { error } = await sb.storage.createBucket('listing-videos', {
+// PUBLIC listing-videos bucket — optional ≤60s clips per listing. 50MB cap: this is the
+// Supabase PROJECT-WIDE upload ceiling (probed 2026-07-18 — anything higher is rejected
+// until the owner raises Project Settings → Storage → upload limit, then this value,
+// VIDEO_MAX_BYTES, and the wizard's compression target can grow together). Oversized
+// phone clips are compressed client-side to fit (src/lib/video-compress.ts). Existing
+// buckets are RECONCILED to this config (idempotent).
+{
+  const videoConfig = {
     public: true,
     fileSizeLimit: '52428800',
     allowedMimeTypes: ['video/mp4', 'video/webm', 'video/quicktime'],
-  })
-  if (error) { console.error('createBucket error:', error.message); process.exit(1) }
-  console.log('created public bucket "listing-videos"')
+  }
+  if (buckets?.some((b) => b.name === 'listing-videos')) {
+    const { error } = await sb.storage.updateBucket('listing-videos', videoConfig)
+    if (error) { console.error('updateBucket error:', error.message); process.exit(1) }
+    console.log('bucket "listing-videos" reconciled (50MB cap)')
+  } else {
+    const { error } = await sb.storage.createBucket('listing-videos', videoConfig)
+    if (error) { console.error('createBucket error:', error.message); process.exit(1) }
+    console.log('created public bucket "listing-videos"')
+  }
 }
 
 // PRIVATE dispute-evidence bucket — receipts/screenshots carry PII; served only via

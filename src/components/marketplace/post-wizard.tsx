@@ -20,6 +20,7 @@ import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord } from '@/lib/publish-guard'
+import { compressVideo, videoCompressionSupported } from '@/lib/video-compress'
 import { trackPostListing } from '@/lib/analytics'
 import { VndInput } from './vnd-input'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
@@ -534,16 +535,27 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // Optional listing clip. Validate type + size + DURATION (≤60s, read from metadata) + CODEC
   // on the client so the seller gets an instant, specific rejection; the server re-checks
   // magic bytes and the bucket re-checks type/size at upload.
-  const VIDEO_MAX_MB = 50
+  // Two caps since 2026-07-18 (the iOS "video error"): a 60s iPhone HEVC clip is 60–400MB,
+  // but 50MB is the Supabase PROJECT-WIDE upload ceiling (probed; owner-raisable only in
+  // the dashboard). So SELECT accepts up to 200MB and anything over the 50MB upload
+  // ceiling is COMPRESSED in-browser (src/lib/video-compress.ts) down to fit before
+  // upload. VIDEO_UPLOAD_MAX_BYTES mirrors the server's VIDEO_MAX_BYTES (core/media.ts,
+  // server-only — keep in lockstep) and the bucket limit (scripts/setup-storage.mjs).
+  const VIDEO_MAX_MB = 200
+  const VIDEO_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
   // HEVC (H.265) detector: iPhones capture .mov/.mp4 in High-Efficiency HEVC by default, which
   // mid-range Android Chrome (the majority buyer here) often can't decode — the clip would play
   // as a black box for most of the audience and the seller would never know. The `hvc1`/`hev1`
   // codec fourcc lives in the moov box, which sits at the START (faststart) or END of the file —
   // scan both edges. H.264 (`avc1`) passes. Heuristic by design: a false negative just means the
   // clip uploads as-is; the sniff costs two 2MB slices, no full read.
+  // ⚠️ ALWAYS slice — never pass the whole File. Blob.slice caps the read at EDGE bytes even
+  // when WKWebView misreports f.size (a real iOS quirk); the old `size ≤ 4MB → whole file`
+  // branch materialized a multi-hundred-MB ArrayBuffer on exactly those picks and jetsam
+  // killed the app. For small files the two slices simply overlap — harmless double scan.
   const hasHevcTrack = async (f: File): Promise<boolean> => {
     const EDGE = 2 * 1024 * 1024
-    const edges = f.size <= 2 * EDGE ? [f] : [f.slice(0, EDGE), f.slice(f.size - EDGE)]
+    const edges = [f.slice(0, EDGE), f.slice(Math.max(0, f.size - EDGE))]
     for (const part of edges) {
       const arr = new Uint8Array(await part.arrayBuffer())
       for (let i = 0; i < arr.length - 3; i++) {
@@ -560,7 +572,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const addVideo = async (files: FileList | null) => {
     const f = files?.[0]
     if (!f) return
-    if (!/^video\/(mp4|webm|quicktime)$/.test(f.type)) { toast.error(t('Chỉ nhận video MP4, WebM hoặc MOV.', 'Only MP4, WebM or MOV videos.')); return }
+    // MIME check with an extension fallback: some iOS picker paths hand over files with an
+    // EMPTY type — the name is then the only signal, and rejecting outright loses the clip.
+    const typeOk = /^video\/(mp4|webm|quicktime|x-m4v)$/.test(f.type) || (!f.type && /\.(mp4|webm|mov|m4v)$/i.test(f.name))
+    if (!typeOk) { toast.error(t('Chỉ nhận video MP4, WebM hoặc MOV.', 'Only MP4, WebM or MOV videos.')); return }
     if (f.size > VIDEO_MAX_MB * 1024 * 1024) { toast.error(t(`Video quá lớn (tối đa ${VIDEO_MAX_MB}MB).`, `Video is too large (${VIDEO_MAX_MB}MB max).`)); return }
     setVideoBusy(true)
     const url = URL.createObjectURL(f)
@@ -570,12 +585,50 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         v.preload = 'metadata'
         v.onloadedmetadata = () => resolve(v.duration)
         v.onerror = () => resolve(NaN)
+        // Metadata that never arrives (WKWebView blob hiccup) must not hang the tile on
+        // "Checking…" forever — time out to NaN and surface the honest can't-read error.
+        window.setTimeout(() => resolve(NaN), 10_000)
         v.src = url
       })
       // 61s tolerance for rounding; Infinity/NaN = unreadable metadata → reject (can't verify ≤60s).
       if (!Number.isFinite(dur) || dur > 61) {
         URL.revokeObjectURL(url)
-        toast.error(t('Video phải dài tối đa 60 giây.', 'Video must be 60 seconds or less.'))
+        toast.error(Number.isFinite(dur)
+          ? t('Video phải dài tối đa 60 giây.', 'Video must be 60 seconds or less.')
+          : t('Không đọc được video này — hãy thử video khác.', 'Could not read this video — please try another one.'))
+        return
+      }
+      // Over the 50MB upload ceiling → compress in-browser (realtime; progress toast).
+      // The output is H.264 MP4 (Safari/iOS) or VP8/9 WebM (Chromium) — never HEVC, so
+      // the compressed path skips the codec probe entirely.
+      if (f.size > VIDEO_UPLOAD_MAX_BYTES) {
+        const toastId = 'video-compress'
+        if (!videoCompressionSupported()) {
+          URL.revokeObjectURL(url)
+          toast.error(t('Video quá lớn để tải lên từ thiết bị này (tối đa 50MB).', 'This video is too large to upload from this device (50MB max).'))
+          return
+        }
+        try {
+          let lastShown = -1
+          toast.loading(t('Đang nén video… 0%', 'Compressing video… 0%'), { id: toastId })
+          const compressed = await compressVideo(f, {
+            targetBytes: VIDEO_UPLOAD_MAX_BYTES,
+            onProgress: (fraction) => {
+              const percent = Math.floor(fraction * 100)
+              if (percent > lastShown) {
+                lastShown = percent
+                toast.loading(t(`Đang nén video… ${percent}%`, `Compressing video… ${percent}%`), { id: toastId })
+              }
+            },
+          })
+          URL.revokeObjectURL(url)
+          const compressedUrl = URL.createObjectURL(compressed)
+          setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return { url: compressedUrl, file: compressed, hevc: false } })
+          toast.success(t(`Video đã được nén còn ${Math.round(compressed.size / 1024 / 1024)}MB.`, `Video compressed to ${Math.round(compressed.size / 1024 / 1024)}MB.`), { id: toastId })
+        } catch {
+          URL.revokeObjectURL(url)
+          toast.error(t('Không thể nén video này — hãy thử video ngắn hơn hoặc chất lượng thấp hơn.', 'Could not compress this video — try a shorter or lower-quality clip.'), { id: toastId })
+        }
         return
       }
       // HEVC is no longer rejected: the server transcodes it to H.264 at publish (fixing the
@@ -894,7 +947,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     {videoBusy ? <Loader2 className="h-6 w-6 animate-spin" /> : <Video className="h-6 w-6" />}
                     <span className="text-3xs font-semibold">{videoBusy ? t('Đang kiểm tra…', 'Checking…') : t('Thêm video', 'Add video')}</span>
                     <span className="text-3xs leading-tight text-ink-4">{t('tùy chọn · 60 giây', 'optional · 60s')}</span>
-                    <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
+                    <input type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" className="hidden" onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
                   </label>
                 )}
               </div>
