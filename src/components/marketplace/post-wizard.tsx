@@ -732,16 +732,43 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         })
         if (!done.ok) throw new Error('video')
 
-        // Transcode. For H.264 this falls open to the raw clip on any hiccup ({fallback}); for
-        // HEVC it fails closed (422) — a raw HEVC clip plays black on most Android buyers, so
-        // we surface a retry rather than publish a broken video.
+        // Transcode — submit-then-poll: POST claims the job and returns 202 while the encode
+        // runs server-side (a synchronous ~210s response would be severed by Cloudflare's
+        // ~100s proxy budget once eno.vn fronts Cloud Run); we then poll GET ?path= every 3s.
+        // Semantics preserved server-side: H.264 falls open to the raw clip ({fallback});
+        // HEVC fails closed (422 / status:'failed') — a raw HEVC clip plays black on most
+        // Android buyers, so we surface a retry rather than publish a broken video.
         const xc = await fetch('/api/upload/video/transcode', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path, hevc: video.hevc === true }),
         })
         if (xc.status === 422) throw new Error('video_hevc')
-        videoUrl = xc.ok ? (((await xc.json()) as { url?: string }).url ?? null) : null
+        if (!xc.ok && xc.status !== 202) throw new Error('video')
+        let xj = (await xc.json()) as { url?: string; status?: string }
+        if (!xj.url && xj.status === 'running') {
+          // 330s: covers the 210s encode wall + download/upload margins, under the 360s claim.
+          const deadline = Date.now() + 330_000
+          while (Date.now() < deadline && !xj.url) {
+            await new Promise((r) => setTimeout(r, 3000))
+            try {
+              const st = await fetch(`/api/upload/video/transcode?path=${encodeURIComponent(path)}`, {
+                signal: AbortSignal.timeout(10_000),
+              })
+              if (!st.ok) {
+                if (st.status === 404) throw new Error(video.hevc ? 'video_hevc' : 'video') // job lost
+                continue // transient (429/5xx) — keep polling until the deadline
+              }
+              const sj = (await st.json()) as { status?: string; url?: string }
+              if (sj.status === 'failed') throw new Error(video.hevc ? 'video_hevc' : 'video')
+              if (sj.status === 'done' && sj.url) xj = sj
+            } catch (err) {
+              if (err instanceof Error && (err.message === 'video' || err.message === 'video_hevc')) throw err
+              // network blip / poll timeout — keep polling until the deadline
+            }
+          }
+        }
+        videoUrl = xj.url ?? null
         if (!videoUrl) throw new Error('video')
       } else if (video && !video.url.startsWith('blob:')) {
         videoUrl = video.url
