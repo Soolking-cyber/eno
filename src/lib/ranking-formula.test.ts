@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { browseRankScore, RANK, rankScoreExprSql } from './ranking-formula'
 
 describe('rankScore single source', () => {
-  it('the SQL trust clamp appears NOWHERE outside ranking-formula.ts (drift guard)', () => {
+  // 30s timeout: the recursive grep scans the whole tree and can exceed the 5s
+  // default under concurrent-build disk load (observed 11.5s while a docker build ran).
+  it('the SQL trust clamp appears NOWHERE outside ranking-formula.ts (drift guard)', { timeout: 30_000 }, () => {
     // The formula's structural fingerprint. Any new hand-mirrored SQL copy fails this.
     const hits = execSync(
       `grep -rl 'LEAST(GREATEST(("sellerTrustScore"' src apps prisma scripts --include='*.ts' --include='*.tsx' --include='*.mjs' || true`,

@@ -56,6 +56,21 @@ These carry invariants recorded in their own comments. Read the comments before 
 
 `messages/[id]/page.tsx` deserves its own line, because the invariant here is easy to state backwards. **Text mode DOES have a tap-Send button** (the Zalo/FB pattern). The real rule is *why* it's safe: `ChatSendButton` fires on **`onMouseDown` + `preventDefault`, never `onPointerDown`** — that holds the composer's focus, so the tap can't blur the field, dismiss the keyboard, and shift the button out from under the finger. That focus-hold is the invariant; "no tap-Send" was an earlier workaround and is **obsolete** — don't let anyone "restore" it. Enter still sends (`enterKeyHint="send"`), and the Counter button must stay gated by `negotiable !== false` (a counter sends an offer; on a fixed-price listing the server 409s and docks the buyer's trust).
 
+## Parallel sessions (owner, 2026-07-19)
+
+Multiple Claude Code sessions may run in THIS worktree concurrently. Rules:
+- **Claims board**: `.claude/COORDINATION.md` — read it before picking up work,
+  claim your item (and the TaskList task) there, release when done. Pick tasks
+  the other session hasn't claimed.
+- **Stage explicitly — `git add -A` at the repo root is BANNED** (it once
+  scooped another session's mid-flight edit into a broken commit, 5550b99b).
+  Add the exact files you changed.
+- Before committing: anything dirty outside your claim belongs to the other
+  session — leave it. If HEAD moved since your gates, re-run tsc before push.
+- A red pipeline after your push: check whether the other session already
+  shipped the fix before writing your own (both sessions watching the same
+  build → duplicate fixes collide).
+
 ## Shipping
 
 **Forum/itinerary deployment boundary — cutover complete (owner, 2026-07-18):**
