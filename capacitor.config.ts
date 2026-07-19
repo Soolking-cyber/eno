@@ -53,7 +53,10 @@ const config: CapacitorConfig = {
       // the page paints (decoupled from plugin imports), so this floor only matters
       // for stalled loads — 3s still comfortably clears a normal cold start, and the
       // MainViewController watchdog continues to backstop the pure-blank case.
-      launchShowDuration: 3000,
+      // LOCAL SHELL (owner A/B verdict 2026-07-20: "too glitchy — drop the logo
+      // splash, boot straight into a content skeleton"): the disk skeleton paints
+      // in ~100ms, so the splash doesn't hold AT ALL — 0 releases it immediately.
+      launchShowDuration: LOCAL_SHELL ? 0 : 3000,
       backgroundColor: '#ffffff',
       showSpinner: false,
     },
