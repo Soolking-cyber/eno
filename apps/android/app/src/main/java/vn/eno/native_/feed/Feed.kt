@@ -36,7 +36,15 @@ import vn.eno.native_.core.*
 class FeedViewModel : ViewModel() {
     private val _items = MutableStateFlow<List<ListingCard>>(emptyList())
     val items: StateFlow<List<ListingCard>> = _items
+    private val _rails = MutableStateFlow<List<Pair<String, List<ListingCard>>>>(emptyList())
+    val rails: StateFlow<List<Pair<String, List<ListingCard>>>> = _rails
     var category: String? = null
+        set(value) {
+            field = value
+            _items.value = emptyList()
+            load(reset = true)
+        }
+    var sort: String = "newest"
         set(value) {
             field = value
             _items.value = emptyList()
@@ -49,6 +57,27 @@ class FeedViewModel : ViewModel() {
     init {
         load(reset = true)
         viewModelScope.launch { Fx.ensureLoaded() }
+        viewModelScope.launch { loadRails() }
+    }
+
+    @kotlinx.serialization.Serializable
+    private data class RailsEnvelope(val rails: List<Rail> = emptyList()) {
+        @kotlinx.serialization.Serializable
+        data class Rail(val slug: String, val listings: List<ListingCard> = emptyList())
+    }
+
+    // Home rails (web landing parity): Outstanding businesses + per-category.
+    private suspend fun loadRails() {
+        val out = mutableListOf<Pair<String, List<ListingCard>>>()
+        runCatching { Api.get<FeedPage>("api/businesses/top") }.getOrNull()?.listings
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { out += L10n.tr("Outstanding businesses", "Doanh nghiệp nổi bật") to it }
+        runCatching { Api.get<RailsEnvelope>("api/category-rails") }.getOrNull()?.rails
+            ?.forEach { rail ->
+                val cat = Categories.all.firstOrNull { it.slug == rail.slug } ?: return@forEach
+                if (rail.listings.isNotEmpty()) out += cat.name to rail.listings
+            }
+        _rails.value = out
     }
 
     fun load(reset: Boolean = false) {
@@ -61,6 +90,7 @@ class FeedViewModel : ViewModel() {
                     put("limit", "24")
                     put("offset", offset.toString())
                     category?.let { put("category", it) }
+                    if (sort != "newest") put("sort", sort)
                 }
                 val page: FeedPage = Api.get("api/listings", q)
                 val known = _items.value.map { it.id }.toSet()
@@ -80,10 +110,20 @@ class FeedViewModel : ViewModel() {
     }
 }
 
+private val SORTS = listOf(
+    "newest" to ("Recommended" to "Đề xuất"),
+    "recent" to ("Newest" to "Mới nhất"),
+    "price-low" to ("Price: low" to "Giá thấp trước"),
+    "price-high" to ("Price: high" to "Giá cao trước"),
+    "popular" to ("Most contacted" to "Được quan tâm"),
+)
+
 @Composable
 fun FeedScreen(onOpen: (String) -> Unit, onSearch: () -> Unit = {}, vm: FeedViewModel = viewModel()) {
     val items by vm.items.collectAsState()
+    val rails by vm.rails.collectAsState()
     var selected by remember { mutableStateOf<String?>(null) }
+    var sort by remember { mutableStateOf("newest") }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -125,6 +165,37 @@ fun FeedScreen(onOpen: (String) -> Unit, onSearch: () -> Unit = {}, vm: FeedView
                     }
                     items(Categories.all) { cat ->
                         Chip(cat.name, selected == cat.slug) { selected = cat.slug; vm.category = cat.slug }
+                    }
+                }
+                // Rails render only on the unfiltered landing (web parity).
+                if (selected == null) {
+                    rails.forEach { (title, cards) ->
+                        Spacer(Modifier.height(16.dp))
+                        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                        Spacer(Modifier.height(8.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(cards) { card ->
+                                Box(Modifier.width(168.dp)) {
+                                    ListingCardView(card) { onOpen(card.id) }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        L10n.tr("Latest listings", "Tin mới nhất"),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(SORTS) { (value, labels) ->
+                        Chip(L10n.tr(labels.first, labels.second), sort == value) {
+                            sort = value
+                            vm.sort = value
+                        }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
