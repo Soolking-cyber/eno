@@ -17,7 +17,7 @@ rationale in docs/perf-phase1.md ("Phase 2" section).
   Owner A/B on the physical iPhone decides whether local-first becomes default.
   Known trade in M1: one extra navigation hop (local → remote) — the skeleton
   covers it; measured perception is the deciding metric.
-- **M2 — auth tokens.** Session storage moves from cookie-implicit to explicit
+- **M2 — auth tokens (SHIPPED 2026-07-20).** Server: every cookie-auth API also accepts Authorization: Bearer <supabase jwt> (same JWKS verification — additive, explicit token wins). Client: the native app mirrors its session (access+refresh) into Preferences key eno-session on every auth-state change, cleared on sign-out — M3 shell pages restore it via setSession. Original design: session storage moves from cookie-implicit to explicit
   secure storage (@capacitor/preferences) + Authorization header, behind a flag;
   Supabase client instantiated with native storage in the shell context. Web
   unchanged.
@@ -37,5 +37,6 @@ crash/vitals beacons per bundle version.
 
 ## Status log
 
+- 2026-07-20: M2 shipped (Bearer path + session mirror); offline query cache live (per-query Preferences persistence).
 - 2026-07-19: M1 built (shell page + config toggle + iOS build); awaiting owner
   device verdict on making local-first the default.

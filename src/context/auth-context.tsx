@@ -98,6 +98,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
           setUser(session?.user ?? null)
           if (session?.user) { setSignInOpen(false); maybeTrackSignUp(session.user) }
+          // Native-shell Phase 2 · M2: mirror the session into native Preferences so
+          // LOCAL shell pages (different origin — no cookie access) can restore it via
+          // setSession and call the APIs with a Bearer token. Fire-and-forget; cleared
+          // on sign-out. NOTE: Preferences = UserDefaults (app-sandboxed, unencrypted);
+          // upgrade path if ever needed = a Keychain/secure-storage plugin.
+          try {
+            if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) {
+              void import('@capacitor/preferences').then(({ Preferences }) =>
+                session
+                  ? Preferences.set({ key: 'eno-session', value: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token }) })
+                  : Preferences.remove({ key: 'eno-session' }),
+              ).catch(() => {})
+            }
+          } catch { /* web */ }
         })
         unsub = () => sub.subscription.unsubscribe()
       }).catch(fail)

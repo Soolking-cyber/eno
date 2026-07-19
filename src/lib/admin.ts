@@ -1,5 +1,6 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { after } from 'next/server'
+import { headers } from 'next/headers'
 import { db } from '@/lib/db'
 import { ensureProfile } from '@/lib/profile'
 import { recordPhoneVerified, BASE_SCORE, PHONE_VERIFIED_BONUS } from '@/lib/trust'
@@ -37,7 +38,7 @@ export async function getAdmin(): Promise<string | null> {
  */
 export async function getCurrentProfile(): Promise<Profile | null> {
   const supabase = await createSupabaseServer()
-  const { data } = await supabase.auth.getUser()
+  const { data } = await supabase.auth.getUser(await bearerToken())
   if (!data.user) return null
   // Lazily provision so a user who signed up before this existed still gets one.
   const existing = await db.profile.findUnique({ where: { id: data.user.id } })
@@ -70,10 +71,23 @@ export async function getCurrentProfile(): Promise<Profile | null> {
  * getCurrentProfile() where the row must exist (admin, /api/me, account page,
  * conversation create / FK targets).
  */
+/** Native-shell Phase 2 · M2: an explicit `Authorization: Bearer <supabase jwt>` is
+ *  accepted alongside the cookie session — same JWKS verification, purely additive.
+ *  This is what lets LOCAL shell pages (a different origin, no cookies) call the
+ *  APIs. Absent header ⇒ the cookie path, byte-identical to before. */
+async function bearerToken(): Promise<string | undefined> {
+  try {
+    const h = (await headers()).get('authorization')
+    return h?.startsWith('Bearer ') ? h.slice(7) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export async function getCurrentProfileId(): Promise<string | null> {
   try {
     const supabase = await createSupabaseServer()
-    const { data, error } = await supabase.auth.getClaims()
+    const { data, error } = await supabase.auth.getClaims(await bearerToken())
     const sub = data?.claims?.sub
     return error || !sub ? null : (sub as string)
   } catch {
