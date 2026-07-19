@@ -1,21 +1,13 @@
 import { formatMoneyFull } from '@/lib/vnd'
 import type { DigestItem } from '@/lib/digest'
+import { renderBrandEmail, esc, EMAIL } from './layout'
 
 // Static, server-rendered HTML email — no React context (tr()/useLanguage are client
-// only), so copy is English (the app's server-default locale) with fully INLINED styles
-// (email clients strip <style>/external CSS). Brand: single blue #0A66C2, slate ink.
+// only), so copy is English (the app's server-default locale). The branded shell
+// (real logo, card, CTA, legal footer) comes from ./layout — this file renders only
+// the digest's own content rows.
 
-const BLUE = '#0A66C2'
-const BLUE_DARK = '#004182'
-const INK = '#171717'
-const MUTED = '#6b7280'
-const BORDER = '#e5e7eb'
-const CANVAS = '#f5f6f8'
-const RED = '#dc2626'
-
-function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
+const { BLUE, INK, MUTED, BORDER, RED } = EMAIL
 
 function card(item: DigestItem, origin: string): string {
   const url = `${origin}/listings/${item.id}`
@@ -80,17 +72,7 @@ export function renderWeeklyDigest(opts: {
 
   const hi = recipientName ? `Hi ${esc(recipientName.split(' ')[0])},` : 'Hi there,'
 
-  const html = `<!-- preheader --><div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CANVAS};margin:0;padding:0;">
-  <tr><td align="center" style="padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:16px;border:1px solid ${BORDER};overflow:hidden;">
-      <!-- header -->
-      <tr><td style="padding:22px 24px 6px;">
-        <a href="${origin}" style="text-decoration:none;">
-          <span style="display:inline-block;background:${BLUE};color:#ffffff;font-weight:800;font-size:16px;width:30px;height:30px;line-height:30px;text-align:center;border-radius:8px;vertical-align:middle;">e</span>
-          <span style="font-size:18px;font-weight:800;color:${INK};vertical-align:middle;margin-left:8px;">eno.vn</span>
-        </a>
-      </td></tr>
+  const bodyHtml = `
       <tr><td style="padding:4px 24px 0;">
         <p style="margin:12px 0 0;font-size:15px;color:${INK};">${hi}</p>
         <p style="margin:6px 0 0;font-size:14px;color:${MUTED};line-height:1.5;">Here's what's moving on eno.vn this week — handpicked top listings and the latest price drops. Everything's on the app; message the seller to arrange.</p>
@@ -106,27 +88,16 @@ export function renderWeeklyDigest(opts: {
       <tr><td style="padding:0 16px;">
         ${sectionHeading('Moving sales — going fast')}
         ${grid(sales, origin)}
-      </td></tr>` : ''}
+      </td></tr>` : ''}`
 
-      <!-- cta -->
-      <tr><td align="center" style="padding:24px 24px 8px;">
-        <a href="${origin}" style="display:inline-block;background:${BLUE};color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:12px;">Browse eno.vn →</a>
-      </td></tr>
-
-      <!-- footer -->
-      <tr><td style="padding:20px 24px 24px;border-top:1px solid ${BORDER};margin-top:16px;">
-        <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">
-          You're receiving this because you have an eno.vn account.
-          <a href="${unsubscribeUrl}" style="color:${BLUE};text-decoration:underline;">Unsubscribe from these emails</a>.
-        </p>
-        <p style="margin:10px 0 0;font-size:11px;color:${MUTED};line-height:1.6;">
-          Công ty TNHH ENO · TP. Hồ Chí Minh, Việt Nam · support@eno.vn<br/>
-          eno.vn — Vietnam's trusted marketplace for the international community.
-        </p>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>`.trim()
+  const html = renderBrandEmail({
+    preheader,
+    bodyHtml,
+    origin,
+    cta: { label: 'Browse eno.vn →', url: origin },
+    audienceNote: "You're receiving this because you have an eno.vn account.",
+    unsubscribeUrl,
+  })
 
   return { subject, html, text: textVersion(top, sales, origin, unsubscribeUrl) }
 }
