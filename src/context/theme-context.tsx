@@ -22,6 +22,17 @@ const systemPrefersDark = () =>
 function apply(theme: Theme): 'light' | 'dark' {
   const dark = theme === 'dark' || (theme === 'system' && systemPrefersDark())
   document.documentElement.classList.toggle('dark', dark)
+  // Native shell mirror (Phase 2 M1): persist the RESOLVED scheme into native
+  // Preferences so the instant local shell can paint the same theme on the next
+  // cold launch (the shell is a different origin — it can't read our localStorage).
+  // Fire-and-forget; the dynamic import keeps the plugin out of the web bundle.
+  try {
+    if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) {
+      void import('@capacitor/preferences')
+        .then(({ Preferences }) => Preferences.set({ key: 'eno-resolved-theme', value: dark ? 'dark' : 'light' }))
+        .catch(() => {})
+    }
+  } catch { /* web / plugin absent */ }
   return dark ? 'dark' : 'light'
 }
 

@@ -15,8 +15,14 @@
       In remote mode (no flag) this page remains the webDir placeholder it always was.
     -->
     <style>
+      /* Theme: first paint follows the OS scheme; the script below corrects to the APP's
+         last resolved choice (mirrored into native Preferences by theme-context) within
+         milliseconds — a Light-app-on-Dark-phone paints light, and vice versa. Explicit
+         .t-light/.t-dark classes outrank the media query. */
       :root { --bg:#fafafa; --card:#ffffff; --tint:#eef2f6; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; }
       @media (prefers-color-scheme: dark){ :root{ --bg:#1b1b1b; --card:#242424; --tint:#2e2e2e; --fg:#f3f4f6; --sub:#9ca3af; --brand:#3b8ee6; --ring:#333; } }
+      html.t-light { --bg:#fafafa; --card:#ffffff; --tint:#eef2f6; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; }
+      html.t-dark { --bg:#1b1b1b; --card:#242424; --tint:#2e2e2e; --fg:#f3f4f6; --sub:#9ca3af; --brand:#3b8ee6; --ring:#333; }
       * { box-sizing:border-box; }
       html, body { margin:0; height:100%; background:var(--bg); }
       body {
@@ -47,7 +53,15 @@
       #offline { display:none; position:fixed; inset:0; background:var(--bg); z-index:10;
         flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center;
         padding:24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left)); }
-      #offline .logo { font-weight:800; font-size:42px; letter-spacing:-1.5px; color:var(--brand); }
+      /* Zalo-style launch mark: small brand square, gentle breathing pulse. */
+      .mark { width:52px; height:52px; border-radius:14px; background:var(--brand); color:#fff;
+        display:flex; align-items:center; justify-content:center; font-weight:800; font-size:28px;
+        animation:pulse 1.2s ease-in-out infinite; }
+      @keyframes pulse { 0%,100%{ transform:scale(1); opacity:1 } 50%{ transform:scale(.86); opacity:.7 } }
+      .dots { display:flex; gap:6px; justify-content:center; }
+      .dots i { width:8px; height:8px; border-radius:50%; background:var(--brand); animation:bounce 1s ease-in-out infinite; }
+      .dots i:nth-child(2){ animation-delay:.15s } .dots i:nth-child(3){ animation-delay:.3s }
+      @keyframes bounce { 0%,100%{ transform:translateY(0); opacity:.5 } 40%{ transform:translateY(-7px); opacity:1 } }
       #offline h1 { font-size:19px; margin:0; font-weight:700; }
       #offline .en { display:block; margin-top:4px; font-size:13px; font-weight:500; color:var(--sub); }
       #offline p { margin:0; color:var(--sub); max-width:300px; line-height:1.5; font-size:15px; }
@@ -68,7 +82,8 @@
     <div class="grid" id="grid"></div>
 
     <div id="offline">
-      <div class="logo">eno</div>
+      <div class="mark">e</div>
+      <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
       <h1>Không có kết nối mạng<span class="en">No internet connection</span></h1>
       <p>Kiểm tra kết nối của bạn rồi thử lại. / Check your connection and try again.</p>
       <button onclick="go()">Thử lại / Try again</button>
@@ -119,6 +134,14 @@
           done()
         }
       }
+
+      // Apply the APP's last resolved theme (native Preferences mirror) over the OS guess.
+      try {
+        var P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences
+        if (P && P.get) P.get({ key: 'eno-resolved-theme' }).then(function (r) {
+          if (r && (r.value === 'light' || r.value === 'dark')) document.documentElement.className = 't-' + r.value
+        }).catch(function () {})
+      } catch (e) {}
 
       // Reveal instantly: the shell IS the paint — no reason to hold the splash.
       try {
