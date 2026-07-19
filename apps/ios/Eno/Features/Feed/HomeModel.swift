@@ -15,6 +15,11 @@ final class HomeModel {
 
     private var loaded = false
 
+    func refresh() async {
+        loaded = false
+        await start()
+    }
+
     func start() async {
         guard !loaded else { return }
         loaded = true

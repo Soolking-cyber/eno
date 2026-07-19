@@ -56,7 +56,9 @@ struct CategoriesResponse: Codable {
         let slug: String
         let name: String
         let nameVi: String
-        let subcategories: [Sub]
+        // Optional: the CDN can serve the pre-subcategories payload for up to
+        // an hour after a deploy — degrade to a hidden facet bar, never a throw.
+        let subcategories: [Sub]?
     }
     struct Sub: Codable, Identifiable, Hashable {
         let slug: String

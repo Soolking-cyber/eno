@@ -7,6 +7,7 @@ import SwiftUI
 struct FeedView: View {
     @State private var feed = FeedModel()
     @State private var home = HomeModel()
+    @State private var aiSheet = false
 
     var body: some View {
         NavigationStack {
@@ -34,7 +35,12 @@ struct FeedView: View {
             }
             .background(Tokens.canvas)
             .refreshable {
-                await feed.reload()
+                async let f: Void = feed.reload()
+                async let h: Void = home.refresh()
+                _ = await (f, h)
+            }
+            .sheet(isPresented: $aiSheet) {
+                WebSheet(path: "/messages/ai")
             }
             .navigationDestination(for: ListingCard.self) { card in
                 ListingDetailView(card: card)
@@ -72,6 +78,17 @@ struct FeedView: View {
                 .frame(height: 40)
                 .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
             }
+            // The web header's ✨ AI-shopping entry (AISearchButton → /messages/ai).
+            Button {
+                aiSheet = true
+            } label: {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Tokens.brand)
+                    .frame(width: 40, height: 40)
+                    .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 12)
         .padding(.top, 14)

@@ -13,6 +13,12 @@ struct ListingDetailView: View {
     @State private var band: PriceBand?
     @State private var more: [ListingCard] = []
     @State private var showWeb = false
+    @State private var viewer: ViewerState?
+    @State private var sellerSheet = false
+
+    private struct ViewerState: Identifiable {
+        let id: Int
+    }
 
     private var images: [String] { detail?.images ?? card.images }
     private var title: String { detail?.displayTitle ?? card.displayTitle }
@@ -65,6 +71,14 @@ struct ListingDetailView: View {
         .sheet(isPresented: $showWeb) {
             WebSheet(path: "/listings/\(card.id)")
         }
+        .sheet(isPresented: $sellerSheet) {
+            if let sellerId = detail?.seller.id {
+                WebSheet(path: "/sellers/\(sellerId)")
+            }
+        }
+        .fullScreenCover(item: $viewer) { state in
+            GalleryViewer(images: images, page: state.id)
+        }
     }
 
     private func load() async {
@@ -87,13 +101,15 @@ struct ListingDetailView: View {
             if let videoURL {
                 VideoPage(url: videoURL)
             }
-            ForEach(images, id: \.self) { raw in
+            ForEach(Array(images.enumerated()), id: \.offset) { idx, raw in
                 AsyncImage(url: ImageURL.optimized(raw, width: 1080)) { phase in
                     switch phase {
                     case .success(let image): image.resizable().scaledToFill()
                     default: Tokens.tint
                     }
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { viewer = ViewerState(id: idx) }
             }
         }
         .tabViewStyle(.page)
@@ -188,6 +204,15 @@ struct ListingDetailView: View {
     }
 
     private func sellerCard(_ seller: ListingDetail.DetailSeller) -> some View {
+        Button {
+            sellerSheet = true
+        } label: {
+            sellerCardBody(seller)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func sellerCardBody(_ seller: ListingDetail.DetailSeller) -> some View {
         HStack(spacing: 12) {
             Text(String(seller.name.prefix(1)).uppercased())
                 .font(.system(size: 18, weight: .bold))
