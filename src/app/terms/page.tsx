@@ -3,7 +3,11 @@ import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { COMPANY } from '@/lib/site-legal'
 
-export const metadata: Metadata = { title: 'Terms of Service | eno.vn' }
+export const metadata: Metadata = {
+  title: 'Terms of Service | eno.vn',
+  description: 'The Terms of Service for using eno.vn: accounts, listings, acceptable use, liability and how the marketplace rules apply to buyers and sellers.',
+  alternates: { canonical: '/terms' },
+}
 
 const sections: [string, string[]][] = [
   [

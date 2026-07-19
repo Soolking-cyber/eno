@@ -8,6 +8,7 @@ import { Search, MessageCircle, Tag, MapPin, Plus, BadgeCheck, Bell, Heart, Glob
 export const metadata: Metadata = {
   title: 'How eno.vn works — Guide | eno.vn',
   description: 'A quick guide to eno.vn: how to buy, sell, build trust, message, make offers and trade safely on Vietnam’s marketplace for the international community.',
+  alternates: { canonical: '/guide' },
 }
 
 const BUYER_STEPS: { Icon: typeof Search; title: string; body: string }[] = [

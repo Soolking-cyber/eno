@@ -2,17 +2,20 @@
 # landings) are crawlable. Private/app/API paths are not — and consolidating to a
 # single group closes a leak where named bots (Googlebot/Bingbot) previously had
 # no Disallow and could crawl /admin.
+# Auth-gated app pages (/signin /onboard /post /account /saved /dashboard
+# /messages) are deliberately NOT disallowed: they carry meta noindex, and a
+# Disallow would block crawlers from ever SEEING that noindex — the URLs could
+# then linger in the index as "indexed, though blocked by robots.txt".
+# Sensitive trust/ops surfaces (/disputes /appeal /reports /unsubscribe) get the
+# opposite call: keeping crawlers out entirely outweighs that trade-off there.
 User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api
-Disallow: /signin
-Disallow: /onboard
-Disallow: /post
-Disallow: /account
-Disallow: /saved
-Disallow: /messages
-Disallow: /dashboard
+Disallow: /disputes
+Disallow: /appeal
+Disallow: /reports
+Disallow: /unsubscribe
 
 # AI-training + pure-scraper crawlers that ingest our content (incl. listing photos)
 # but send no traffic back — blocked entirely. AI *search / answer* crawlers

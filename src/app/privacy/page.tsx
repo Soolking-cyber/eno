@@ -4,7 +4,11 @@ import { ContentPage, ContentSection } from '@/components/marketplace/content-pa
 import { CookieSettingsButton } from '@/components/marketplace/cookie-settings-button'
 import { COMPANY } from '@/lib/site-legal'
 
-export const metadata: Metadata = { title: 'Privacy Policy | eno.vn' }
+export const metadata: Metadata = {
+  title: 'Privacy Policy | eno.vn',
+  description: 'How eno.vn collects, uses and protects personal data under Vietnam’s Personal Data Protection Law, including your rights and how to exercise them.',
+  alternates: { canonical: '/privacy' },
+}
 
 // ── Privacy policy — written to the Personal Data Protection Law 91/2025/QH15 +
 // Decree 356/2025 (compliance audit 2026-07-06): controller identity, per-purpose

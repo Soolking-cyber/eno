@@ -5,6 +5,7 @@ import { ContentPage, ContentSection } from '@/components/marketplace/content-pa
 export const metadata: Metadata = {
   title: 'Prohibited items & services | Hàng hóa & dịch vụ cấm | eno.vn',
   description: 'Goods and services that must not be listed on eno.vn, per Vietnamese law and platform policy.',
+  alternates: { canonical: '/prohibited' },
 }
 
 // ── Prohibited goods & services (part of the Operating Regulations) ─────────────

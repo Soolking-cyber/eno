@@ -12,6 +12,7 @@ import { brandIconPath } from '@/lib/brand-icons'
 export const metadata: Metadata = {
   title: 'Brands | eno.vn',
   description: 'Browse listings by brand on eno.vn — phones, laptops, motorbikes, fashion and more from the brands buyers in Vietnam search for.',
+  alternates: { canonical: '/brands' },
 }
 
 // Brand directory refreshes hourly — the catalogue grows slowly and rankings are

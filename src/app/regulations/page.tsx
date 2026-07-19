@@ -6,6 +6,7 @@ import { COMPANY } from '@/lib/site-legal'
 export const metadata: Metadata = {
   title: 'Quy chế hoạt động | Operating Regulations | eno.vn',
   description: 'Operating regulations of the eno.vn e-commerce platform (Quy chế hoạt động sàn giao dịch thương mại điện tử eno.vn).',
+  alternates: { canonical: '/regulations' },
 }
 
 // ── Quy chế hoạt động sàn GDTMĐT (Decree 52/2013 Điều 38, E-commerce Law 122/2025) ──

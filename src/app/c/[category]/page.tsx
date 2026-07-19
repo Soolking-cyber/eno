@@ -30,10 +30,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Real 404 (not soft-404) for an unknown category — notFound() before streaming.
   if (!cat) notFound()
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  const title = `${cat.name} in Vietnam — Trusted listings | eno.vn`
+  const description = `Browse ${cat.name.toLowerCase()} for expats in Vietnam. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`
   return {
-    title: `${cat.name} in Vietnam — Trusted listings | eno.vn`,
-    description: `Browse ${cat.name.toLowerCase()} for expats in Vietnam. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`,
+    title,
+    description,
     alternates: { canonical: `${hostUrl}/c/${cat.slug}` },
+    // Mirror the page's own title/description/canonical into OG — without this the
+    // page inherits the generic homepage OG tags in link unfurls.
+    openGraph: { title, description, url: `${hostUrl}/c/${cat.slug}` },
   }
 }
 

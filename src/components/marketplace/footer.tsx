@@ -4,6 +4,7 @@ import { Facebook, Instagram, Youtube } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { COMPANY } from '@/lib/site-legal'
+import { TAXONOMY } from '@/lib/taxonomy'
 
 export function Footer() {
   const { tr } = useLanguage()
@@ -36,6 +37,24 @@ export function Footer() {
         { label: tr('Browse by brand', 'Duyệt theo thương hiệu'), href: '/brands' },
       ],
     },
+    {
+      title: tr('Popular searches', 'Tìm kiếm phổ biến'),
+      links: [
+        { label: tr('Housing in Vietnam for expats', 'Nhà ở cho người nước ngoài tại Việt Nam'), href: '/housing-vietnam-expats' },
+        { label: tr('Jobs in Vietnam for expats', 'Việc làm cho người nước ngoài'), href: '/jobs-vietnam-expats' },
+        { label: tr('Motorbikes for sale in Vietnam', 'Mua bán xe máy tại Việt Nam'), href: '/motorbikes-for-sale-vietnam' },
+        { label: tr('Moving sales in Vietnam', 'Thanh lý chuyển nhà tại Việt Nam'), href: '/moving-sales-vietnam' },
+        { label: tr('Services for expats in Vietnam', 'Dịch vụ cho người nước ngoài'), href: '/services-for-expats-vietnam' },
+      ],
+    },
+    {
+      title: tr('Community', 'Cộng đồng'),
+      links: [
+        { label: tr('Expat forum', 'Diễn đàn cộng đồng'), href: 'https://www.eno.forum' },
+        { label: tr('Trip planner', 'Lập kế hoạch chuyến đi'), href: 'https://www.eno.forum/itinerary' },
+        { label: tr('Vietnam e-Visa help', 'Hỗ trợ e-Visa Việt Nam'), href: 'https://www.eno.forum/visa' },
+      ],
+    },
   ]
 
   return (
@@ -55,6 +74,20 @@ export function Footer() {
               <a href="https://www.instagram.com/eno.vn/" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Instagram" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Instagram className="h-5 w-5" /></a>
               <a href="https://www.youtube.com/@enovietnam" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on YouTube" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Youtube className="h-5 w-5" /></a>
             </div>
+          </div>
+
+          {/* Explore — crawlable internal links to every /c/{slug} category landing
+              (SEO internal linking). Slugs and bilingual names come straight from the
+              canonical taxonomy (src/lib/taxonomy.ts), so this never drifts from it. */}
+          <div className="col-span-2 space-y-3">
+            <h3 className="text-sm font-bold text-foreground">{tr('Explore', 'Khám phá')}</h3>
+            <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
+              {TAXONOMY.map((cat) => (
+                <li key={cat.slug}>
+                  <a href={`/c/${cat.slug}`} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr(cat.name, cat.nameVi)}</a>
+                </li>
+              ))}
+            </ul>
           </div>
 
           {/* Link columns */}

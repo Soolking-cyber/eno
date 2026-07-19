@@ -6,6 +6,7 @@ import { ContentPage, ContentSection } from '@/components/marketplace/content-pa
 export const metadata: Metadata = {
   title: 'How trust works — eno.vn',
   description: 'eno.vn uses a single Trust Score, shown in color, instead of stars. Learn how accounts earn and lose trust.',
+  alternates: { canonical: '/trust' },
 }
 
 // Flat, single-canvas content page (matches Guide/About) — no boxes, separation by spacing.

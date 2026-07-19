@@ -8,6 +8,10 @@ import { NextResponse } from 'next/server'
 // (plus a 1h CDN s-maxage below), so Google always gets a fast, already-built XML.
 export const revalidate = 86400
 
+// Stable lastmod for static pages: fixed per server instance (module init), so
+// crawlers don't see a fake "changed" date on every regeneration.
+const STATIC_LASTMOD = new Date()
+
 export async function GET() {
   try {
     const [listings, categories, sellers] = await Promise.all([
@@ -20,7 +24,10 @@ export async function GET() {
         take: 45000,
       }),
       db.category.findMany({ select: { slug: true } }),
-      db.seller.findMany({ where: { verifiedSeller: true }, select: { id: true } }),
+      db.seller.findMany({
+        where: { verifiedSeller: true },
+        select: { id: true, handle: { select: { handle: true } } },
+      }),
     ])
 
     const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
@@ -53,9 +60,9 @@ export async function GET() {
   </url>
 `
 
-    // Static info pages (not data-driven → no lastmod)
-    for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'prohibited']) {
-      xml += `  <url><loc>${hostUrl}/${p}</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>\n`
+    // Static info pages (not data-driven → stable build-time lastmod)
+    for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'prohibited', 'brands']) {
+      xml += `  <url><loc>${hostUrl}/${p}</loc>${lm(STATIC_LASTMOD)}<changefreq>monthly</changefreq><priority>0.4</priority></url>\n`
     }
 
     // SEO keyword landing pages (funnel to categories → track the site's freshest content)
@@ -66,7 +73,7 @@ export async function GET() {
       'moving-sales-vietnam',
       'services-for-expats-vietnam',
     ]) {
-      xml += `  <url><loc>${hostUrl}/${p}</loc>${lm(siteLastmod)}<changefreq>weekly</changefreq><priority>0.8</priority></url>\n`
+      xml += `  <url><loc>${hostUrl}/${p}</loc>${lm(siteLastmod ?? STATIC_LASTMOD)}<changefreq>weekly</changefreq><priority>0.8</priority></url>\n`
     }
 
     // Indexing decoupled from PRELAUNCH (owner, 2026-07-18): the full data-driven
@@ -82,9 +89,12 @@ export async function GET() {
       xml += `  <url><loc>${hostUrl}/c/${combo}</loc>${lm(max)}<changefreq>daily</changefreq><priority>0.7</priority></url>\n`
     }
 
-    // Seller profiles
+    // Seller profiles — the public @handle URL is canonical (sellers/[id] points its
+    // canonical at /{handle}), so submit that; fall back to /sellers/{id} only for
+    // handle-less sellers.
     for (const s of sellers) {
-      xml += `  <url><loc>${hostUrl}/sellers/${s.id}</loc>${lm(sellerMax.get(s.id))}<changefreq>weekly</changefreq><priority>0.5</priority></url>\n`
+      const loc = s.handle ? `${hostUrl}/${s.handle.handle}` : `${hostUrl}/sellers/${s.id}`
+      xml += `  <url><loc>${loc}</loc>${lm(sellerMax.get(s.id))}<changefreq>weekly</changefreq><priority>0.5</priority></url>\n`
     }
 
     for (const listing of listings) {

@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: 'Safe trading | eno.vn',
   description:
     'How to trade safely on eno.vn: vet the seller, meet in public, inspect before paying, spot the red flags, and what eno does to protect you — verification, screened listings, on-record chat and a real dispute process.',
+  alternates: { canonical: '/safety' },
 }
 
 type Tip = [icon: LucideIcon, title: string, body: string]

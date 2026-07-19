@@ -3,7 +3,11 @@ import { ShieldCheck, Eye, BadgeCheck } from 'lucide-react'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 
-export const metadata: Metadata = { title: 'About | eno.vn' }
+export const metadata: Metadata = {
+  title: 'About | eno.vn',
+  description: 'What eno.vn is and how it works: a trust-first classifieds marketplace for Vietnam, with verified sellers, public trust scores and screened listings.',
+  alternates: { canonical: '/about' },
+}
 
 export default function AboutPage() {
   const steps = [

@@ -9,7 +9,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { SellerStorefront } from '@/components/marketplace/seller-storefront'
+import { SellerStorefront, loadSeller } from '@/components/marketplace/seller-storefront'
 import { Tr } from '@/context/language-context'
 
 // eno.vn/<handle> — the shareable, Telegram-style clean URL for users and storefronts
@@ -60,15 +60,39 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const seller = row.seller || row.profile?.seller
   if (seller) {
+    // Compose a real description from the storefront data the page itself loads —
+    // loadSeller is React-cache()d, so this is the SAME DB read SellerStorefront
+    // makes for the render, not an extra query. Falls back to the bare name if the
+    // storefront row vanished between resolve() and here.
+    const shop = await loadSeller(seller.id)
+    const count = shop?.listings.length ?? 0
+    const cats = shop ? [...new Set(shop.listings.map((l) => l.category.name))].slice(0, 3) : []
+    const tierWord = shop?.trustTier === 'exceptional' ? 'Top-rated seller' : shop?.trustTier === 'trusted' ? 'Trusted seller' : ''
+    const bits = [
+      count > 0 ? `${count} listing${count === 1 ? '' : 's'}${cats.length ? ` in ${cats.join(', ')}` : ''}` : '',
+      shop?.location || '',
+      tierWord,
+    ].filter(Boolean)
+    const description = bits.length ? `${seller.name} — ${bits.join(' · ')} on eno.vn` : `${seller.name} on eno.vn`
     return {
       title: `${seller.name} | eno.vn`,
-      description: `${seller.name} on eno.vn`,
+      description,
       alternates: { canonical: `${hostUrl}/${row.handle}` },
+      openGraph: {
+        title: `${seller.name} | eno.vn`,
+        description,
+        url: `${hostUrl}/${row.handle}`,
+      },
     }
   }
   return {
     title: `@${row.handle} | eno.vn`,
     description: `${row.profile?.displayName || `@${row.handle}`} on eno.vn`,
+    openGraph: {
+      title: `@${row.handle} | eno.vn`,
+      description: `${row.profile?.displayName || `@${row.handle}`} on eno.vn`,
+      url: `${hostUrl}/${row.handle}`,
+    },
     // Member cards are not an SEO surface — people land here via shared links only.
     robots: { index: false, follow: false },
   }

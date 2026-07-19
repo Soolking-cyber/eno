@@ -6,6 +6,7 @@ import { HelpCenter } from '@/components/marketplace/help-center'
 export const metadata: Metadata = {
   title: 'Help center | eno.vn',
   description: 'Answers about buying, selling, trust, messaging, offers and safe trading on eno.vn — the trusted marketplace for Vietnam.',
+  alternates: { canonical: '/help' },
 }
 
 export default function HelpPage() {

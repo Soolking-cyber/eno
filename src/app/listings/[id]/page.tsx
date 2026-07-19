@@ -94,7 +94,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // users, so it can't vary by language; forcing titleVi made an English app show a
   // Vietnamese tab. The visible H1 still localizes per-user via <LocalizedTitle>.
   const displayTitle = listing.title
-  const desc = listing.description.slice(0, 160)
   // Guard against corrupt/legacy image rows (a known reality here — see the mock
   // self-heal in serialize.ts): a single bad row must not 500 the top SEO page.
   const parsedImages = safeParse<unknown>(listing.images, [])
@@ -105,11 +104,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // unfurl (Facebook/Zalo/Telegram scrape OG tags, not our share text). Skip when
   // there's no meaningful price (e.g. some job posts).
   const priceLabel = listing.price > 0 ? formatMoneyFull(listing.price, listing.currency) : ''
+  // Meta description: the listing body when the seller wrote one; otherwise a
+  // composed fallback ("TITLE — PRICE, CATEGORY in LOCATION on eno.vn") so an
+  // empty body never ships a junk description like "21,000,000 VND · ".
+  const bodyDesc = listing.description.trim()
+  const facts = [priceLabel, listing.category.name].filter(Boolean).join(', ')
+  const fallbackDesc = `${displayTitle}${facts ? ` — ${facts}` : ''}${listing.location ? ` in ${listing.location}` : ''} on eno.vn`
+  const desc = (bodyDesc || fallbackDesc).slice(0, 160)
+  // The fallback already carries the price — only prefix it onto a real body.
   const ogTitle = priceLabel ? `${displayTitle} — ${priceLabel}` : displayTitle
-  const ogDesc = priceLabel ? `${priceLabel} · ${desc}` : desc
+  const ogDesc = priceLabel && bodyDesc ? `${priceLabel} · ${desc}` : desc
 
   return {
-    title: `${displayTitle} | eno.vn`,
+    title: priceLabel ? `${displayTitle} — ${priceLabel} | eno.vn` : `${displayTitle} | eno.vn`,
     description: desc,
     // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
     robots: listing.verified && listing.status === 'active' ? undefined : { index: false, follow: true },
@@ -230,6 +237,10 @@ export default async function ListingPage({ params }: Props) {
   const indexable = listing.verified && listing.status === 'active'
   const availability = listing.status === 'sold' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock'
 
+  // One currency expression shared by the offer and its shippingDetails — a USD
+  // listing must not advertise a VND shipping rate.
+  const offerCurrency = listing.currency === '₫' ? 'VND' : 'USD'
+
   const productLd = {
     '@context': 'https://schema.org/',
     '@type': 'Product',
@@ -237,7 +248,6 @@ export default async function ListingPage({ params }: Props) {
     'image': listing.images,
     'description': displayDesc,
     'sku': listing.id,
-    'mpn': listing.id,
     // Real product brand (drives Google free product listings + matching). Only
     // emitted when the listing carries a canonical brand.
     ...(brand ? { 'brand': { '@type': 'Brand', 'name': brand.name } } : {}),
@@ -245,7 +255,7 @@ export default async function ListingPage({ params }: Props) {
     'offers': {
       '@type': 'Offer',
       'url': canonicalUrl,
-      'priceCurrency': listing.currency === '₫' ? 'VND' : 'USD',
+      'priceCurrency': offerCurrency,
       'price': listing.price,
       'priceValidUntil': new Date(new Date(listing.postedAt).getTime() + 1000 * 60 * 60 * 24 * 90).toISOString().split('T')[0], // postedAt + 90d — deterministic across ISR regens (Date.now() made every regen unique, defeating Vercel's unchanged-output write dedup)
       'itemCondition': schemaCondition,
@@ -263,7 +273,7 @@ export default async function ListingPage({ params }: Props) {
       // (free local handover). Satisfies the shippingDetails recommendation.
       'shippingDetails': {
         '@type': 'OfferShippingDetails',
-        'shippingRate': { '@type': 'MonetaryAmount', 'value': '0', 'currency': 'VND' },
+        'shippingRate': { '@type': 'MonetaryAmount', 'value': '0', 'currency': offerCurrency },
         'shippingDestination': { '@type': 'DefinedRegion', 'addressCountry': 'VN' },
         'deliveryTime': {
           '@type': 'ShippingDeliveryTime',
