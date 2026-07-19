@@ -720,6 +720,11 @@ export function ListingsExplorer({
       if (activeCategory !== 'all') params.set('category', activeCategory)
       if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
     }
+    // Language in the CACHE KEY (audit P2): the response body varies on language for
+    // non-en/vi viewers, but the edge caches by URL — a ru/ko variant could poison the
+    // shared entry for everyone. en/vi (the vast majority) send nothing and share one
+    // deterministic cached variant.
+    if (lang !== 'en' && lang !== 'vi') params.set('lang', lang)
     if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
     if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
     if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
@@ -736,7 +741,7 @@ export function ListingsExplorer({
     }
     applyFilterParams(params, customFilters, activeCategory, activeSubcategory)
     return params.toString()
-  }, [activeBrand, activeModel, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters])
+  }, [activeBrand, activeModel, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters, lang])
 
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isError: queryError, refetch: refetchListings } = useQuery({
     queryKey: [
@@ -1036,7 +1041,12 @@ export function ListingsExplorer({
           if (activeCategory !== 'all') params.set('category', activeCategory)
           if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
         }
-        if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
+        // Language in the CACHE KEY (audit P2): the response body varies on language for
+    // non-en/vi viewers, but the edge caches by URL — a ru/ko variant could poison the
+    // shared entry for everyone. en/vi (the vast majority) send nothing and share one
+    // deterministic cached variant.
+    if (lang !== 'en' && lang !== 'vi') params.set('lang', lang)
+    if (!nearby && activeDistrict !== 'all') params.set('district', activeDistrict)
         if (!nearby && activeProvince) params.set('province', activeProvince.nameEn)
         if (!nearby && activeWard) params.set('ward', activeWard.nameEn)
         if (conditionFilter !== 'all') params.set('condition', conditionFilter)

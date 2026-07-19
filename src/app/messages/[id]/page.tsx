@@ -176,14 +176,24 @@ export default function ThreadPage() {
     }
     join()
 
-    const iv = setInterval(load, 15000) // backstop only — realtime is primary
+    // Backstop poll, gated on visibility (audit P2 — the chat-context idiom): a
+    // backgrounded tab used to keep polling every 15s indefinitely. Realtime is
+    // primary; on return to visibility we refetch once and resume.
+    let iv: ReturnType<typeof setInterval> | null = document.visibilityState === 'visible' ? setInterval(load, 15000) : null
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        if (!iv) { load(); iv = setInterval(load, 15000) }
+      } else if (iv) { clearInterval(iv); iv = null }
+    }
+    document.addEventListener('visibilitychange', onVis)
     const onFocus = () => load()
     window.addEventListener('focus', onFocus)
     return () => {
       cancelled = true
       if (retry) clearTimeout(retry)
       drop()
-      clearInterval(iv)
+      if (iv) clearInterval(iv)
+      document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('focus', onFocus)
     }
   }, [user, load, id])

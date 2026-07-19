@@ -20,7 +20,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true } },
       seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
-      messages: { orderBy: { createdAt: 'asc' }, select: { id: true, senderProfileId: true, body: true, createdAt: true, kind: true, offerAmount: true, offerStatus: true } },
+      // Bounded (audit P2): the full history shipped on EVERY call × a 15s poll per
+      // open tab. Last 200 in reverse, un-reversed below — covers any realistic
+      // active thread; older history is simply not re-sent.
+      messages: { orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, senderProfileId: true, body: true, createdAt: true, kind: true, offerAmount: true, offerStatus: true } },
     },
   })
   if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -95,7 +98,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     counterpart: iAmBuyer
       ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust }
       : { name: convo.buyer.displayName || maskEmailHandle(convo.buyer.email) || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust },
-    messages: convo.messages.map((m) => ({ id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString(), kind: m.kind, offerAmount: m.offerAmount, offerStatus: m.offerStatus })),
+    // take:200 fetched newest-first — restore chronological order for the client.
+    messages: [...convo.messages].reverse().map((m) => ({ id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString(), kind: m.kind, offerAmount: m.offerAmount, offerStatus: m.offerStatus })),
   })
 }
 

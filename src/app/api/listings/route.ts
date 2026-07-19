@@ -456,7 +456,10 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(
     {
-      listings: await localizeListingTitles(ordered.map(serializeListingCard), req.cookies.get('lang')?.value),
+      // lang comes from the QUERY (the client sends it only for non-en/vi) so the CDN cache
+      // key varies with the payload — the cookie-read variant poisoned the shared edge
+      // entry with whichever language hit first (audit P2).
+      listings: await localizeListingTitles(ordered.map(serializeListingCard), searchParams.get('lang') || undefined),
       total,
       offset,
       limit,
