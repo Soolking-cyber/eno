@@ -39,14 +39,14 @@ const INIT_REFRESH_TOKEN = process.env.ZALO_INIT_REFRESH_TOKEN
 const MODE = process.env.ZALO_ZNS_MODE
 
 type TokenState = { accessToken: string; refreshToken: string; expiresAt: number }
-type TokenRow = { access_token: string; refresh_token: string; expires_ms: number | bigint }
+type TokenRow = { access_token: string; refresh_token: string; expires_ms: number | bigint; updated_ms: number | bigint }
 
 export function znsConfigured(): boolean {
   return Boolean(APP_ID && APP_SECRET && TEMPLATE_ID)
 }
 
-const rowToState = (r: TokenRow | undefined): TokenState | null =>
-  r ? { accessToken: r.access_token, refreshToken: r.refresh_token, expiresAt: Number(r.expires_ms) } : null
+const rowToState = (r: TokenRow | undefined): (TokenState & { updatedAt: number }) | null =>
+  r ? { accessToken: r.access_token, refreshToken: r.refresh_token, expiresAt: Number(r.expires_ms), updatedAt: Number(r.updated_ms) } : null
 
 // Exchange a refresh token for a fresh pair. PERSISTENCE IS THE CALLER'S JOB —
 // this runs inside the FOR UPDATE transaction so the new chain and the row lock
@@ -116,13 +116,24 @@ async function getAccessToken(force = false): Promise<string | null> {
   const read = async (client: Pick<typeof db, '$queryRaw'>, lock: boolean) => {
     const rows = lock
       ? await client.$queryRaw<TokenRow[]>`
-          select access_token, refresh_token, extract(epoch from expires_at) * 1000 as expires_ms
+          select access_token, refresh_token, extract(epoch from expires_at) * 1000 as expires_ms,
+                 extract(epoch from updated_at) * 1000 as updated_ms
             from zalo_oauth_token where id = 1 for update`
       : await client.$queryRaw<TokenRow[]>`
-          select access_token, refresh_token, extract(epoch from expires_at) * 1000 as expires_ms
+          select access_token, refresh_token, extract(epoch from expires_at) * 1000 as expires_ms,
+                 extract(epoch from updated_at) * 1000 as updated_ms
             from zalo_oauth_token where id = 1`
     return rowToState(rows[0])
   }
+
+  const persist = (client: Pick<typeof db, '$executeRaw'>, next: TokenState) => client.$executeRaw`
+    insert into zalo_oauth_token (id, access_token, refresh_token, expires_at, updated_at)
+    values (1, ${next.accessToken}, ${next.refreshToken}, to_timestamp(${next.expiresAt} / 1000.0), now())
+    on conflict (id) do update set
+      access_token = excluded.access_token,
+      refresh_token = excluded.refresh_token,
+      expires_at = excluded.expires_at,
+      updated_at = now()`
 
   try {
     const state = await read(db, false)
@@ -131,33 +142,51 @@ async function getAccessToken(force = false): Promise<string | null> {
     // Join an in-flight refresh rather than opening another transaction. Safe for
     // force=true too: the in-flight refresh yields a brand-new token either way.
     if (refreshInFlight) return await refreshInFlight
-    refreshInFlight = db.$transaction(
-      async (tx) => {
-        // Row-independent one-winner gate — holds even when the table is empty.
-        await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('zalo:oa-refresh'))`
-        const latest = await read(tx, true)
-        if (latest && !force && latest.expiresAt > Date.now()) return latest.accessToken
+    // The refresh token is consumed by Zalo BEFORE our commit. If persisting the
+    // new pair fails (DB blip in that window), discarding it would kill the chain
+    // — so the pair is captured here and re-persisted OUTSIDE the doomed
+    // transaction (review 2026-07-20; safe: the winner is the pair's only holder).
+    let rescued: TokenState | null = null
+    refreshInFlight = db
+      .$transaction(
+        async (tx) => {
+          // Row-independent one-winner gate — holds even when the table is empty.
+          await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('zalo:oa-refresh'))`
+          const latest = await read(tx, true)
+          // force=true means our token was just REJECTED (-124) — but if another
+          // instance rotated within the last minute, adopt its fresh token instead
+          // of burning another single-use refresh (a -124 burst otherwise chains
+          // refreshes R0→R1→R2… across instances; review 2026-07-20).
+          if (latest && latest.expiresAt > Date.now() && (!force || latest.updatedAt > Date.now() - 60_000)) {
+            return latest.accessToken
+          }
 
-        const seed = latest?.refreshToken ?? INIT_REFRESH_TOKEN
-        if (!seed) {
-          console.error('[zns] no refresh token available (set ZALO_INIT_REFRESH_TOKEN to bootstrap)')
-          return null
+          const seed = latest?.refreshToken ?? INIT_REFRESH_TOKEN
+          if (!seed) {
+            console.error('[zns] no refresh token available (set ZALO_INIT_REFRESH_TOKEN to bootstrap)')
+            return null
+          }
+          const next = await refreshTokens(seed)
+          if (!next) return null
+          rescued = next
+          await persist(tx, next)
+          rescued = null // committed normally — nothing to rescue
+          return next.accessToken
+        },
+        // Cover a queued waiter (winner's 4s HTTP + commit) with honest headroom.
+        { maxWait: 8_000, timeout: 15_000 },
+      )
+      .catch(async (e) => {
+        if (!rescued) throw e
+        console.error('[zns] in-tx persist failed after the refresh token was consumed — re-persisting outside the transaction:', (e as Error).message)
+        try {
+          await persist(db, rescued)
+        } catch {
+          // Chain may be lost — the token still works for THIS send; re-auth may be needed.
+          console.error('[zns] RESCUE persist failed — chain may need re-authorization (API Explorer + ZALO_INIT_REFRESH_TOKEN)')
         }
-        const next = await refreshTokens(seed)
-        if (!next) return null
-        await tx.$executeRaw`
-          insert into zalo_oauth_token (id, access_token, refresh_token, expires_at, updated_at)
-          values (1, ${next.accessToken}, ${next.refreshToken}, to_timestamp(${next.expiresAt} / 1000.0), now())
-          on conflict (id) do update set
-            access_token = excluded.access_token,
-            refresh_token = excluded.refresh_token,
-            expires_at = excluded.expires_at,
-            updated_at = now()`
-        return next.accessToken
-      },
-      // Cover a queued waiter (winner's 4s HTTP + commit) with honest headroom.
-      { maxWait: 8_000, timeout: 15_000 },
-    )
+        return rescued.accessToken
+      })
     try {
       return await refreshInFlight
     } finally {

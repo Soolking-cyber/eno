@@ -31,9 +31,10 @@ const statements = [
     key          text not null,
     window_start timestamptz not null,
     count        integer not null,
+    expires_at   timestamptz not null,
     primary key (name, key, window_start)
   )`,
-  `create index if not exists rl_window_sweep_idx on rl_window (window_start)`,
+  `create index if not exists rl_window_expires_idx on rl_window (expires_at)`,
   `alter table rl_window enable row level security`,
 
   `create unlogged table if not exists rl_cooldown (
@@ -106,8 +107,8 @@ const statements = [
     v_prev  int;
     v_used  numeric;
   begin
-    insert into rl_window as w (name, key, window_start, count)
-    values (p_name, p_key, v_start, 1)
+    insert into rl_window as w (name, key, window_start, count, expires_at)
+    values (p_name, p_key, v_start, 1, v_start + make_interval(secs => 2 * p_window_sec))
     on conflict (name, key, window_start) do update set count = w.count + 1
     returning w.count into v_curr;
 
@@ -252,7 +253,7 @@ const statements = [
   returns void
   language sql security definer set search_path = public, pg_temp as $$
     delete from kv_store where expires_at is not null and expires_at < now();
-    delete from rl_window where window_start < now() - interval '2 days';
+    delete from rl_window where expires_at < now();
     delete from rl_cooldown where until < now() and reset_at < now();
     delete from search_trend where day < (now() at time zone 'utc')::date - 3;
     delete from search_trend_seen where day < (now() at time zone 'utc')::date - 1;
@@ -274,18 +275,27 @@ const statements = [
     kv_get(text), kv_set(text, jsonb, int, boolean), kv_del(text), kv_incrby(text, bigint, int),
     trend_log(text, text), trend_top(int, int, int)
   to service_role`,
-
-  `create extension if not exists pg_cron`,
-  `select cron.schedule('rl-kv-sweep', '*/15 * * * *', 'select rl_sweep()')`,
 ]
 
 const client = new pg.Client({ connectionString: url })
 await client.connect()
 try {
+  // All-or-nothing (review 2026-07-20): a SECURITY DEFINER function in public is
+  // PostgREST-callable by anon the moment it exists (default PUBLIC EXECUTE) —
+  // an abort between a CREATE and the trailing REVOKE must never strand that
+  // window open, so tables + functions + grants commit as ONE transaction.
+  await client.query('begin')
   for (const sql of statements) {
     await client.query(sql)
   }
-  console.log(`rate-limit-pg: ${statements.length} statements applied ✓`)
+  await client.query('commit')
+  // pg_cron stays outside the transaction (background-worker extension).
+  await client.query('create extension if not exists pg_cron')
+  await client.query(`select cron.schedule('rl-kv-sweep', '*/15 * * * *', 'select rl_sweep()')`)
+  console.log(`rate-limit-pg: ${statements.length} statements + pg_cron sweep applied ✓`)
+} catch (e) {
+  await client.query('rollback').catch(() => {})
+  throw e
 } finally {
   await client.end()
 }

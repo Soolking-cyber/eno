@@ -128,7 +128,12 @@ module.exports = class EnoCacheHandler {
         ...(Array.isArray(ctx.tags) ? ctx.tags : []),
         ...(Array.isArray(value?.headers?.['x-next-cache-tags']?.split?.(',')) ? value.headers['x-next-cache-tags'].split(',') : []),
       ]
-      const revalidate = typeof ctx.revalidate === 'number' && ctx.revalidate > 0 ? ctx.revalidate : null
+      // Next 16 carries the revalidate hint in different places per entry kind:
+      // route/page entries → ctx.cacheControl.revalidate, fetch entries → the
+      // value itself; plain ctx.revalidate is legacy. Check all three or every
+      // entry silently retains for the 30d maximum (review 2026-07-20).
+      const revalidate = [ctx.revalidate, ctx.cacheControl && ctx.cacheControl.revalidate, value && value.revalidate]
+        .find((r) => typeof r === 'number' && r > 0) ?? null
       const ttl = Math.min(MAX_TTL_S, revalidate ? revalidate + 6 * 3600 : MAX_TTL_S)
       const entry = { lastModified: Date.now(), tags: [...new Set(tags)].filter(Boolean), value: encodeValue(value) }
       await withTimeout(getPool().query(
@@ -142,14 +147,19 @@ module.exports = class EnoCacheHandler {
   async revalidateTag(tags) {
     const list = (Array.isArray(tags) ? tags : [tags]).filter(Boolean)
     if (!this.pg) {
-      for (const tag of list) memTags.set(T(tag), Date.now())
+      for (const tag of list) memTags.set(T(tag), Math.max(memTags.get(T(tag)) || 0, Date.now()))
       return
     }
     try {
+      // greatest(): a delayed invalidation must never move a tombstone BACKWARD —
+      // that would revive entries a newer invalidation already killed (review
+      // 2026-07-20).
       await withTimeout(getPool().query(
         `insert into next_cache_tag (tag, stamp, expires_at)
          select t, $2, now() + make_interval(secs => $3) from unnest($1::text[]) as t
-         on conflict (tag) do update set stamp = excluded.stamp, expires_at = excluded.expires_at`,
+         on conflict (tag) do update set
+           stamp = greatest(next_cache_tag.stamp, excluded.stamp),
+           expires_at = greatest(next_cache_tag.expires_at, excluded.expires_at)`,
         [list.map(T), Date.now(), TAG_TTL_S]))
     } catch { /* a failed purge self-heals via entry TTL */ }
   }
