@@ -8,6 +8,7 @@ struct FeedView: View {
     @State private var feed = FeedModel()
     @State private var home = HomeModel()
     @State private var aiSheet = false
+    @State private var notif = NotifModel.shared
 
     var body: some View {
         NavigationStack {
@@ -87,6 +88,22 @@ struct FeedView: View {
                     .foregroundStyle(Tokens.brand)
                     .frame(width: 40, height: 40)
                     .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+            }
+            .buttonStyle(.plain)
+            // Notification bell (web header parity) — red dot while unread.
+            NavigationLink {
+                NotificationsView()
+            } label: {
+                Image(systemName: "bell")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Tokens.fg)
+                    .frame(width: 40, height: 40)
+                    .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                    .overlay(alignment: .topTrailing) {
+                        if notif.unread > 0 {
+                            Circle().fill(Tokens.danger).frame(width: 9, height: 9).offset(x: -6, y: 6)
+                        }
+                    }
             }
             .buttonStyle(.plain)
         }

@@ -14,6 +14,7 @@ struct EnoApp: App {
                         Task {
                             await AuthModel.shared.refreshIfNeeded()
                             await UnreadModel.shared.refresh()
+                            await NotifModel.shared.refreshBadge()
                         }
                     }
                 }
