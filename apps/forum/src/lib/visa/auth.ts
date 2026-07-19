@@ -2,7 +2,7 @@ import 'server-only'
 import { createClient, type User } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 
-export const VISA_SUPPORT_ADMIN_EMAIL = 'support@eno.forum'
+export const VISA_SUPPORT_ADMIN_EMAIL = 'support@eno.vn'
 
 export async function getVisaUser(request: Request): Promise<User | null> {
   const authorization = request.headers.get('authorization')

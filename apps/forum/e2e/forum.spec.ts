@@ -8,7 +8,7 @@ function mockEnoSessionCookie() {
     id: 'e2e-support-user',
     aud: 'authenticated',
     role: 'authenticated',
-    email: 'support@eno.forum',
+    email: 'support@eno.vn',
     email_confirmed_at: new Date().toISOString(),
     phone: '',
     confirmed_at: new Date().toISOString(),
