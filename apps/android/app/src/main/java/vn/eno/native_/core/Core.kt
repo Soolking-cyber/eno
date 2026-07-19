@@ -1,0 +1,162 @@
+package vn.eno.native_.core
+
+import androidx.compose.ui.graphics.Color
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+// Design tokens mirroring docs/design-language.md (same values as apps/ios
+// Tokens.swift). Light/dark pairs resolve in EnoTheme.
+object Palette {
+    val brandLight = Color(0xFF0A66C2); val brandDark = Color(0xFF3B8EE6)
+    val canvasLight = Color(0xFFFAFAFA); val canvasDark = Color(0xFF1B1B1B)
+    val cardLight = Color(0xFFFFFFFF); val cardDark = Color(0xFF242424)
+    val tintLight = Color(0xFFEEF2F6); val tintDark = Color(0xFF2E2E2E)
+    val fgLight = Color(0xFF111827); val fgDark = Color(0xFFF3F4F6)
+    val subLight = Color(0xFF6B7280); val subDark = Color(0xFF9CA3AF)
+    val ringLight = Color(0xFFE5E7EB); val ringDark = Color(0xFF333333)
+    val danger = Color(0xFFDC2626)
+}
+
+// tr(en, vi) — device-language driven, mirroring the web contract.
+object L10n {
+    val isVi: Boolean = Locale.getDefault().language.startsWith("vi")
+    fun tr(en: String, vi: String): String = if (isVi) vi else en
+}
+
+object Format {
+    // src/lib/vnd.ts: VI dot-thousands + đ; EN comma + VND.
+    fun vnd(amount: Long): String {
+        val grouped = "%,d".format(amount).let {
+            if (L10n.isVi) it.replace(',', '.') else it
+        }
+        return if (L10n.isVi) "$grouped đ" else "$grouped VND"
+    }
+}
+
+object ImageUrl {
+    fun optimized(raw: String, width: Int = 640): String =
+        "https://eno.vn/_next/image?url=${java.net.URLEncoder.encode(raw, "UTF-8")}&w=$width&q=60"
+}
+
+// ── API client: same BFF as iOS (https://eno.vn/api/*), Bearer-ready ──
+object Api {
+    val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    @Volatile var accessToken: String? = null
+
+    @PublishedApi
+    internal val client = OkHttpClient.Builder().build()
+
+    suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T =
+        withContext(Dispatchers.IO) {
+            val url = StringBuilder("https://eno.vn/").append(path)
+            if (query.isNotEmpty()) {
+                url.append('?').append(query.entries.joinToString("&") {
+                    "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}"
+                })
+            }
+            val req = Request.Builder()
+                .url(url.toString())
+                .header("User-Agent", "EnoNativeApp/1 android-native")
+                .apply { accessToken?.let { header("Authorization", "Bearer $it") } }
+                .build()
+            client.newCall(req).execute().use { res ->
+                if (!res.isSuccessful) throw RuntimeException("http ${res.code}")
+                json.decodeFromString<T>(res.body!!.string())
+            }
+        }
+}
+
+// ── Codable mirrors (subset the feed + PDP need; unknown keys ignored) ──
+@Serializable
+data class CategoryRef(val id: String, val name: String, val nameVi: String, val slug: String)
+
+@Serializable
+data class CardSeller(val trustScore: Int, val isBusiness: Boolean)
+
+@Serializable
+data class ListingCard(
+    val id: String,
+    val title: String,
+    val titleVi: String? = null,
+    val price: Long,
+    val negotiable: Boolean = true,
+    val prevPrice: Long? = null,
+    val urgent: Boolean = false,
+    val location: String = "",
+    val district: String? = null,
+    val city: String = "",
+    val images: List<String> = emptyList(),
+    val video: String? = null,
+    val goodPrice: Boolean = false,
+    val postedAt: String = "",
+    val savedCount: Int = 0,
+    val category: CategoryRef,
+    val seller: CardSeller,
+) {
+    val displayTitle: String get() = if (L10n.isVi) (titleVi ?: title) else title
+    val displayLocation: String get() = listOfNotNull(district, city.ifEmpty { null }).joinToString(", ")
+}
+
+@Serializable
+data class FeedPage(val listings: List<ListingCard>)
+
+@Serializable
+data class DetailSeller(
+    val id: String,
+    val name: String,
+    val trustScore: Int = 100,
+    val memberSince: String = "",
+    val isBusiness: Boolean = false,
+)
+
+@Serializable
+data class ListingDetail(
+    val id: String,
+    val title: String,
+    val titleVi: String? = null,
+    val description: String = "",
+    val price: Long,
+    val images: List<String> = emptyList(),
+    val district: String? = null,
+    val city: String = "",
+    val views: Int = 0,
+    val savedCount: Int = 0,
+    val contactCount: Int = 0,
+    val seller: DetailSeller,
+) {
+    val displayTitle: String get() = if (L10n.isVi) (titleVi ?: title) else title
+    val displayLocation: String get() = listOfNotNull(district, city.ifEmpty { null }).joinToString(", ")
+}
+
+@Serializable
+data class ListingDetailEnvelope(val listing: ListingDetail)
+
+// The 15 top-level categories (mirror of apps/ios Categories.swift / taxonomy.ts).
+data class AppCategory(val slug: String, val en: String, val vi: String) {
+    val name: String get() = L10n.tr(en, vi)
+}
+
+object Categories {
+    val all = listOf(
+        AppCategory("vehicles", "Vehicles", "Xe cộ"),
+        AppCategory("rentals", "Rentals", "Cho thuê"),
+        AppCategory("property", "Property", "Nhà đất"),
+        AppCategory("moving-sale", "Moving", "Thanh lý"),
+        AppCategory("furniture-appliances", "Home", "Nhà cửa"),
+        AppCategory("electronics", "Electronics", "Điện tử"),
+        AppCategory("fashion-beauty", "Fashion", "Thời trang"),
+        AppCategory("baby-kids", "Kids", "Mẹ & Bé"),
+        AppCategory("hobbies-sports", "Hobbies", "Sở thích"),
+        AppCategory("pets", "Pets", "Thú cưng"),
+        AppCategory("jobs", "Jobs", "Việc làm"),
+        AppCategory("services", "Services", "Dịch vụ"),
+        AppCategory("community-events", "Community", "Cộng đồng"),
+        AppCategory("tickets-travel", "Travel", "Du lịch"),
+        AppCategory("food-drink", "Food", "Ẩm thực"),
+    )
+}
