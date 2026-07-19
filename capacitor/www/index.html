@@ -1,26 +1,135 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <title>eno</title>
+    <!--
+      PHASE 2 · M1 — the INSTANT LOCAL SHELL (native-shell migration, docs/native-shell-phase2.md).
+      When the app is built with ENO_LOCAL_SHELL=1 (capacitor.config.ts), the WebView boots THIS
+      page from disk (~100ms) instead of waiting on the network for eno.vn: the splash hides
+      immediately, a canon-styled skeleton paints, and we forward to the live app (carrying any
+      cold-start deep link). Offline shows an inline retry instead of a dead splash. Self-contained
+      by design — no imports; brand values mirror docs/design-language.md tokens.
+      In remote mode (no flag) this page remains the webDir placeholder it always was.
+    -->
     <style>
-      html, body { margin: 0; height: 100%; }
+      :root { --bg:#fafafa; --card:#ffffff; --tint:#eef2f6; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; }
+      @media (prefers-color-scheme: dark){ :root{ --bg:#1b1b1b; --card:#242424; --tint:#2e2e2e; --fg:#f3f4f6; --sub:#9ca3af; --brand:#3b8ee6; --ring:#333; } }
+      * { box-sizing:border-box; }
+      html, body { margin:0; height:100%; background:var(--bg); }
       body {
-        display: grid; place-items: center;
-        font-family: system-ui, -apple-system, sans-serif;
-        background: #ffffff; color: #6b7280;
+        font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color:var(--fg);
+        -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+        padding-top:env(safe-area-inset-top);
       }
-      @media (prefers-color-scheme: dark) { body { background: #1b1b1b; color: #9ca3af; } }
+      header { display:flex; align-items:center; gap:12px; padding:14px 12px 10px; }
+      .wordmark { font-weight:800; font-size:26px; letter-spacing:-1px; color:var(--brand); }
+      .search { flex:1; height:40px; border-radius:14px; background:var(--tint); }
+      .bell { width:34px; height:34px; border-radius:50%; background:var(--tint); }
+      .chips { display:flex; gap:8px; padding:2px 12px 12px; }
+      .chip { height:30px; border-radius:9999px; background:var(--tint); }
+      .chip:nth-child(1){ width:84px } .chip:nth-child(2){ width:64px } .chip:nth-child(3){ width:96px } .chip:nth-child(4){ width:72px }
+      .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:0 12px; }
+      .card { border-radius:12px; overflow:hidden; background:var(--card); border:1px solid var(--ring); }
+      .ph { aspect-ratio:10/11; background:var(--tint); }
+      .meta { padding:10px; }
+      .bar { height:12px; border-radius:6px; background:var(--tint); margin-bottom:8px; }
+      .bar.b1 { width:55%; height:16px } .bar.b2 { width:90% } .bar.b3 { width:40%; margin-bottom:0 }
+      .shimmer { position:relative; overflow:hidden; }
+      .shimmer::after { content:""; position:absolute; inset:0; transform:translateX(-100%);
+        background:linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+        animation:sh 1.3s infinite; }
+      @media (prefers-color-scheme: dark){ .shimmer::after{ background:linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);} }
+      @keyframes sh { to { transform:translateX(100%); } }
+      /* Offline / failed state (hidden until needed) */
+      #offline { display:none; position:fixed; inset:0; background:var(--bg); z-index:10;
+        flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center;
+        padding:24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left)); }
+      #offline .logo { font-weight:800; font-size:42px; letter-spacing:-1.5px; color:var(--brand); }
+      #offline h1 { font-size:19px; margin:0; font-weight:700; }
+      #offline .en { display:block; margin-top:4px; font-size:13px; font-weight:500; color:var(--sub); }
+      #offline p { margin:0; color:var(--sub); max-width:300px; line-height:1.5; font-size:15px; }
+      #offline button { margin-top:6px; border:0; border-radius:14px; background:var(--brand); color:#fff;
+        font-size:16px; font-weight:600; padding:14px 30px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+      #offline button:active { opacity:.85; }
     </style>
   </head>
-  <!--
-    Offline fallback ONLY. Capacitor's webDir must exist for `cap copy`/`cap sync`, but the
-    running app is loaded from server.url (https://eno.vn) — this page is what shows if the
-    device is offline at launch before the remote site loads.
-  -->
   <body>
-    <p>Reconnecting to eno…</p>
+    <header>
+      <div class="wordmark">eno</div>
+      <div class="search shimmer"></div>
+      <div class="bell shimmer"></div>
+    </header>
+    <div class="chips">
+      <div class="chip shimmer"></div><div class="chip shimmer"></div><div class="chip shimmer"></div><div class="chip shimmer"></div>
+    </div>
+    <div class="grid" id="grid"></div>
+
+    <div id="offline">
+      <div class="logo">eno</div>
+      <h1>Không có kết nối mạng<span class="en">No internet connection</span></h1>
+      <p>Kiểm tra kết nối của bạn rồi thử lại. / Check your connection and try again.</p>
+      <button onclick="go()">Thử lại / Try again</button>
+    </div>
+
+    <script>
+      // Skeleton cards (6 = one viewport of the 2-col feed).
+      var g = document.getElementById('grid')
+      for (var i = 0; i < 6; i++) {
+        g.insertAdjacentHTML('beforeend',
+          '<div class="card"><div class="ph shimmer"></div><div class="meta">' +
+          '<div class="bar b1 shimmer"></div><div class="bar b2 shimmer"></div><div class="bar b3 shimmer"></div></div></div>')
+      }
+
+      var ORIGIN = 'https://eno.vn'
+      var HOSTS = { 'eno.vn': 1, 'www.eno.vn': 1, 'eno.forum': 1, 'www.eno.forum': 1 }
+
+      // Cold-start deep link → same-origin path (mirrors src/lib/deep-link.ts's contract:
+      // first-party hosts only, auth paths blocked, anything unknown lands on home).
+      function targetFromLaunch(urlStr) {
+        try {
+          var u = new URL(urlStr)
+          if (!HOSTS[u.hostname]) return ORIGIN + '/'
+          var path = u.pathname + u.search
+          if (u.pathname.indexOf('/auth') === 0) return ORIGIN + '/'
+          return (u.hostname.indexOf('forum') !== -1 ? 'https://' + u.hostname : ORIGIN) + path
+        } catch (e) { return ORIGIN + '/' }
+      }
+
+      function go() {
+        document.getElementById('offline').style.display = 'none'
+        if (navigator.onLine === false) {
+          document.getElementById('offline').style.display = 'flex'
+          return
+        }
+        var target = ORIGIN + '/'
+        var C = window.Capacitor
+        var done = function () { window.location.replace(target) }
+        if (C && C.Plugins && C.Plugins.App && C.Plugins.App.getLaunchUrl) {
+          // Bounded: a hung plugin call must never strand the shell.
+          var t = setTimeout(done, 350)
+          C.Plugins.App.getLaunchUrl().then(function (r) {
+            clearTimeout(t)
+            if (r && r.url) target = targetFromLaunch(r.url)
+            done()
+          }).catch(function () { clearTimeout(t); done() })
+        } else {
+          done()
+        }
+      }
+
+      // Reveal instantly: the shell IS the paint — no reason to hold the splash.
+      try {
+        var SS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SplashScreen
+        if (SS && SS.hide) SS.hide({ fadeOutDuration: 150 })
+      } catch (e) {}
+
+      // A failed eno.vn navigation falls to Capacitor's errorPath (error.html) natively;
+      // the online check above catches the airplane-mode case without a doomed attempt.
+      go()
+      window.addEventListener('online', go)
+    </script>
   </body>
 </html>

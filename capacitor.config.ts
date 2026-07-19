@@ -5,6 +5,14 @@ import { KeyboardResize } from '@capacitor/keyboard'
 // statically exported, so Capacitor runs in REMOTE-SERVER mode: the native WebView loads the live
 // deployment (server.url) and the native plugins layer the polish on top. `webDir` is only a tiny
 // offline fallback bundle; it is never the running app. See src/components/native/native-bootstrap.
+// PHASE 2 · M1 (native-shell migration): with ENO_LOCAL_SHELL=1 at `cap copy` time the
+// app boots the LOCAL instant shell (capacitor/www/index.html — skeleton in ~100ms,
+// then forwards to the live site with the launch deep link). Without the flag, behavior
+// is EXACTLY the pre-Phase-2 remote-server mode. Build variants:
+//   remote (default):  npx cap copy ios
+//   local shell:       ENO_LOCAL_SHELL=1 npx cap copy ios
+const LOCAL_SHELL = process.env.ENO_LOCAL_SHELL === '1'
+
 const config: CapacitorConfig = {
   appId: 'vn.eno.app',
   appName: 'eno',
@@ -13,9 +21,11 @@ const config: CapacitorConfig = {
   // so eno.forum detects the app via UA, server- and client-side.
   appendUserAgent: 'EnoNativeApp/1',
   server: {
-    // The one URL the app renders. For LOCAL native dev, override to your machine's LAN IP
-    // (http://192.168.x.x:3100 + cleartext:true) — a dev-only change, never committed.
-    url: 'https://eno.vn',
+    // The one URL the app renders (remote mode). For LOCAL native dev, override to your
+    // machine's LAN IP (http://192.168.x.x:3100 + cleartext:true) — dev-only, never committed.
+    // In LOCAL_SHELL mode `url` is omitted → Capacitor serves webDir, whose index.html
+    // forwards to the live site after painting instantly.
+    ...(LOCAL_SHELL ? {} : { url: 'https://eno.vn' }),
     cleartext: false,
     // First-party links stay in the WebView; everything else opens in the system browser.
     // First-party only — iOS injects the full Capacitor bridge into every allowNavigation origin,
