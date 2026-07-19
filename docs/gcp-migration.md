@@ -93,15 +93,28 @@ its env secret). Attempt deadline 320s for warm-translations, 180s otherwise.
 6. Create the 7 Scheduler jobs; PAUSED until cutover (avoid double-firing next
    to Vercel's crons); delete the crons from vercel.json at cutover.
 7. Transcode submit-then-poll refactor (known issue 1) + re-verify.
-8. **Owner actions**: create/confirm the Cloudflare account; add sites eno.vn +
-   eno.forum; at the registrars, switch nameservers to Cloudflare. (I: import
-   current DNS records first — Vercel A/CNAME initially, so nothing changes.)
-9. Build the LB: two serverless NEGs, URL map by host, certs via Certificate
-   Manager DNS authorization (one CNAME each, works while proxied) or a
-   Cloudflare Origin CA cert; Cloudflare SSL mode Full (strict).
-10. Cutover per domain (forum first — lower risk, no ISR, no payments): flip
-    the Cloudflare DNS records from Vercel to the LB IP, orange-cloud on.
-    Watch logs + error rates. eno.vn follows after a soak.
+8. ✅ **LB built** (2026-07-19): global static IP **8.232.86.0**; serverless
+   NEGs `eno-vn-neg`/`eno-forum-neg` → backends `eno-vn-be` (timeout 320s) /
+   `eno-forum-be` (320s — visa prefill-session drives a remote browser); URL
+   map `eno-lb` routes eno.forum/www.eno.forum to the forum, default to the
+   marketplace; HTTPS proxy with Certificate Manager map `eno-cert-map`
+   (managed certs `eno.vn,*.eno.vn` + `eno.forum,*.eno.forum` via DNS
+   authorization); port-80 rule 301s to HTTPS.
+   DNS facts discovered: **eno.vn is ALREADY on Cloudflare** (record flip
+   only, no registrar change); eno.forum uses Namecheap default DNS pointed
+   straight at Vercel.
+9. **Owner actions — certificates** (do these first; certs go ACTIVE without
+   touching live traffic):
+   - Cloudflare (eno.vn zone), DNS-only CNAME:
+     `_acme-challenge.eno.vn` → `d3b1f415-d932-45aa-9811-dbc7d9a81fd2.10.authorize.certificatemanager.goog`
+   - Namecheap (eno.forum), CNAME:
+     `_acme-challenge.eno.forum` → `4b55bfd0-63b5-435a-8607-25a942644681.17.authorize.certificatemanager.goog`
+10. Cutover per domain once its cert is ACTIVE (forum first — lower risk, no
+    ISR, no payments): point A records for apex+www at **8.232.86.0**
+    (Cloudflare: proxied is fine — Full (strict) validates against the
+    Google-managed cert; Namecheap: plain A records). Watch logs + error
+    rates. eno.vn follows after a soak — but NOT before the transcode
+    submit-then-poll fix (known issue 1) lands.
 11. Post-cutover: restrict Cloud Run ingress to the LB; unpause Scheduler;
     Cloudflare cache rules for `/_next/static/*` (immutable) + `/_next/image`
     (respect origin TTL); prod guest e2e against the domains; update OAuth
@@ -109,8 +122,35 @@ its env secret). Attempt deadline 320s for warm-translations, 180s otherwise.
     domains — verify); Capacitor apps keep working (they load the domains).
 12. Soak 48h → remove Vercel projects (domains released), delete vercel.json
     crons block, update `/ship` skill to build+deploy Cloud Run instead of
-    polling Vercel, set up a Cloud Build GitHub trigger (owner OAuth) for
-    push-to-deploy parity.
+    polling Vercel.
+
+## CI/CD (GitHub → Cloud Build → Cloud Run)
+
+Both cloudbuild.yaml configs now build → push → **deploy**. The Cloud Build
+GitHub connection `eno-github` (region asia-southeast1) is created and
+**PENDING_USER_OAUTH** — the owner must open the authorization link (logged in
+to Google as support@eno.forum and to GitHub as the account that owns
+`Soolking-cyber/eno`) that was surfaced in chat / can be re-fetched with
+`gcloud builds connections describe eno-github --region=asia-southeast1`.
+After authorization: link the repo and create two push-to-main triggers
+(root config `cloudbuild.yaml`; forum config `apps/forum/cloudbuild.yaml`,
+which is repo-root-relative via `dir:`). Until then, deploys are manual
+`gcloud builds submit` from the repo root.
+
+## Env recovery status
+
+`vercel env pull` returns EMPTY values for sensitive-flagged vars (32/37 root,
+9/16 forum came back blank). Merged from local `.env` + prod constants +
+GCP-side recovery (`GEMINI_VERTEX_API_KEY` re-read from the project's API
+keys; `VISA_ADMIN_EMAILS` mirrors ADMIN_EMAILS; fresh `EDGE_SECRET`,
+`FEED_USER`, `FEED_PASSWORD` minted — feeds aren't wired into Merchant Center
+yet, so new creds are safe). Secrets at v3 (root — EDGE_SECRET removed until
+the Cloudflare transform rule exists; its value is stashed in
+`~/eno-gcp-migration/env/edge-secret.txt`) and v2 (forum).
+**Still missing — owner must copy from dashboards into new secret versions:**
+`META_CAPI_TOKEN`, `META_PIXEL_ID`, `NEXT_PUBLIC_META_PIXEL_ID` (Meta Business
+console), `RESEND_API_KEY` (Resend). Until then: CAPI conversions and the
+weekly digest email are silently off on Cloud Run (both fail soft).
 
 **Rollback at any point before step 12**: point Cloudflare DNS back at Vercel
 (records preserved by the import in step 8) — Vercel deployment stays live and
