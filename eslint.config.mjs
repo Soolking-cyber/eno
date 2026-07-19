@@ -63,11 +63,15 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-empty": "off",
     "no-irregular-whitespace": "off",
     "no-case-declarations": "off",
-    "no-fallthrough": "off",
+    // Correctness rules deliberately ON (audit 2026-07-19): unreachable code and
+    // silent switch fallthrough are bugs, not style. `no-fallthrough` accepts an
+    // explicit `// falls through` comment where the cascade is intended.
+    "no-fallthrough": ["error", { commentPattern: "falls?\\s?through" }],
+    "no-unreachable": "error",
+    "no-dupe-else-if": "error",
     "no-mixed-spaces-and-tabs": "off",
     "no-redeclare": "off",
     "no-undef": "off",
-    "no-unreachable": "off",
     "no-useless-escape": "off",
   },
 }, {

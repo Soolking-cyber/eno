@@ -59,6 +59,7 @@ import { useAuth } from '@/context/auth-context'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Combobox,
   ComboboxClear,
@@ -965,10 +966,11 @@ export function ItineraryBuilder() {
             </FormSection>
 
             <FormSection icon={Plane} title={tr('Flight research', 'Tìm chuyến bay')} subtitle={tr('eno checks viable routes and fare signals—not reserved inventory.', 'eno kiểm tra đường bay và tín hiệu giá—không phải chỗ đã giữ.')}>
-              <Button type="button" variant="bare" size="none" aria-pressed={includeFlights} onClick={() => setIncludeFlights((value) => !value)} className={cn('h-auto w-full justify-start gap-3 rounded-xl border px-3 py-3 text-left', includeFlights ? 'border-brand bg-accent' : 'border-border bg-card')}>
-                <span className={cn('flex h-5 w-5 items-center justify-center rounded-md border', includeFlights ? 'border-brand bg-primary text-white' : 'border-line-strong')}>{includeFlights && <Check className="h-3 w-3" />}</span>
+              {/* Whole row is a <label>: the label forwards clicks to the checkbox's hidden input, so tapping anywhere toggles — same hit area the old aria-pressed Button had, now with real checkbox semantics. */}
+              <label className={cn('flex w-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-left', includeFlights ? 'border-brand bg-accent' : 'border-border bg-card')}>
+                <Checkbox checked={includeFlights} onChange={setIncludeFlights} className="mt-0.5 h-5 w-5 rounded-md border" indicatorClassName="[&_svg]:h-3 [&_svg]:w-3" />
                 <span className="min-w-0"><span className="block text-sm font-bold text-foreground">{tr('Include flight options', 'Bao gồm lựa chọn chuyến bay')}</span><span className="mt-0.5 block whitespace-normal text-xs text-body">{tr('Optional—add this when you want international flight leads.', 'Không bắt buộc—thêm khi bạn muốn gợi ý chuyến bay quốc tế.')}</span></span>
-              </Button>
+              </label>
               {includeFlights && (
                 <div className="mt-4 space-y-4">
                   <Field>

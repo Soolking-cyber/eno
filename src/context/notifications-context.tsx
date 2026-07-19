@@ -40,6 +40,12 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       const d = await r.json()
       setItems(d.notifications || [])
       setUnread(d.unread || 0)
+      // The route piggybacks the conversations-unread total on this poll so
+      // ChatProvider doesn't need its own duplicate 45s interval — broadcast it
+      // (app-wide eno:* event idiom) for chat-context to consume.
+      if (typeof d.convoUnread === 'number') {
+        try { window.dispatchEvent(new CustomEvent('eno:convo-unread', { detail: { unread: d.convoUnread } })) } catch {}
+      }
       // Cache (userId-scoped) for an instant paint on the next visit.
       try { if (user) localStorage.setItem('eno-notifs', JSON.stringify({ userId: user.id, items: d.notifications || [], unread: d.unread || 0 })) } catch {}
     } catch { /* keep last state */ }

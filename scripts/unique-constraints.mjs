@@ -78,11 +78,71 @@ await run('add Handle owner XOR check', `
   END $$;
 `)
 
-// Sanity: confirm both indexes exist.
+// ── 4. EnforcementAction: one ACTIVE silent flag per (profile, reason) ──
+// Backstop for flagForReview's findFirst→create dedup (concurrent detectors could
+// double-flag). Scoped to the FLAG reasons only — ladder actions (warned/held/…) may
+// legitimately repeat a reason. Dedup keeps the earliest active flag; flag rows are
+// pure admin-console annotations, so deleting a duplicate has no side effects.
+const FLAG_REASONS = `('velocity_review','ban_evasion_email')`
+await run('dedupe active EnforcementAction flags', `
+  DELETE FROM "EnforcementAction" a
+  USING "EnforcementAction" keep
+  WHERE a."profileId" = keep."profileId"
+    AND a.reason = keep.reason
+    AND a.status = 'active' AND keep.status = 'active'
+    AND a.reason IN ${FLAG_REASONS}
+    AND (a."createdAt" > keep."createdAt"
+         OR (a."createdAt" = keep."createdAt" AND a.id > keep.id));
+`)
+await run('create partial unique index on active EnforcementAction flags', `
+  CREATE UNIQUE INDEX IF NOT EXISTS "EnforcementAction_active_flag_unique"
+  ON "EnforcementAction" ("profileId", reason)
+  WHERE status = 'active' AND reason IN ${FLAG_REASONS};
+`)
+
+// ── 5. Report: one OPEN report per reporter per SURFACE ──
+// Backstop for the report route's findFirst→create dupe suppression. The surface is
+// the highest-priority non-null key (conversation > listing > profile > seller) —
+// each partial index replicates exactly that hierarchy, so a chat report and a
+// listing report about the same listing stay independently filable (as the app
+// allows). NO dedupe here: an open duplicate may own a dispute room — creating the
+// index over existing dupes is warned about and skipped, never destructive.
+const reportSurfaces = [
+  ['Report_open_conversation_unique', `"reporterProfileId", "conversationId"`,
+    `"status" = 'open' AND "reporterProfileId" IS NOT NULL AND "conversationId" IS NOT NULL`],
+  ['Report_open_listing_unique', `"reporterProfileId", "listingId"`,
+    `"status" = 'open' AND "reporterProfileId" IS NOT NULL AND "listingId" IS NOT NULL AND "conversationId" IS NULL`],
+  ['Report_open_profile_unique', `"reporterProfileId", "targetProfileId"`,
+    `"status" = 'open' AND "reporterProfileId" IS NOT NULL AND "targetProfileId" IS NOT NULL AND "listingId" IS NULL AND "conversationId" IS NULL`],
+  ['Report_open_seller_unique', `"reporterProfileId", "targetSellerId"`,
+    `"status" = 'open' AND "reporterProfileId" IS NOT NULL AND "targetSellerId" IS NOT NULL AND "targetProfileId" IS NULL AND "listingId" IS NULL AND "conversationId" IS NULL`],
+]
+for (const [name, cols, where] of reportSurfaces) {
+  try {
+    await run(`create partial unique index ${name}`, `
+      CREATE UNIQUE INDEX IF NOT EXISTS "${name}" ON "Report" (${cols}) WHERE ${where};
+    `)
+  } catch (e) {
+    // ONLY 23505 (existing duplicate open reports) is skippable: leave those rows
+    // for manual admin triage (they may own dispute rooms) — the app-level findFirst
+    // still suppresses new dupes. Anything else is a real failure and must surface.
+    if (e.code !== '23505') throw e
+    console.warn(`⚠ skipped ${name} (duplicate open reports exist — triage manually): ${e.message}`)
+  }
+}
+
+// Sanity: list which of the expected indexes actually exist (report-surface ones
+// may be legitimately absent after a 23505 skip above — the printout is the audit).
+const EXPECTED = [
+  'TrustEvent_one_time_reason_unique', 'SavedSearch_profile_params_unique',
+  'EnforcementAction_active_flag_unique', ...reportSurfaces.map(([name]) => name),
+]
 const { rows } = await client.query(`
   SELECT indexname FROM pg_indexes
-  WHERE indexname IN ('TrustEvent_one_time_reason_unique','SavedSearch_profile_params_unique')
+  WHERE indexname = ANY($1)
   ORDER BY indexname;
-`)
+`, [EXPECTED])
+const missing = EXPECTED.filter((n) => !rows.some((r) => r.indexname === n))
+if (missing.length) console.warn('⚠ missing indexes:', missing.join(', '))
 console.log('\n✓ indexes present:', rows.map((r) => r.indexname).join(', ') || 'NONE')
 await client.end()

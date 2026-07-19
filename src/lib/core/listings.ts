@@ -47,6 +47,76 @@ import { activateUrgentGate, urgentQuotaFree, URGENT } from '@/lib/urgent'
 
 export const LISTING_STATUSES = new Set(['active', 'sold', 'hidden'])
 
+// ── Shared create/update field normalizers ───────────────────────────────────────
+// createListingCore and updateListingCore must persist IDENTICAL shapes for the same
+// input, so the per-field normalization lives here once. Where the two paths GENUINELY
+// differ (update's sparse-body semantics — undefined = untouched, null/'' = clear —
+// vs create's read-everything coercion), the difference is an explicit parameter or a
+// caller-mapped action, never a silent fork. Pure functions; exported for tests.
+
+/** Whitelisted, stringly-typed attribute facets (taxonomy values) → the persisted
+ *  JSON string, or null when nothing survives. Keys must be simple identifiers
+ *  (/^[a-z0-9_]+$/i); values are non-empty strings capped at 40 chars. Non-object /
+ *  array / falsy input → null. */
+export function sanitizeAttributes(raw: unknown): string | null {
+  const clean: Record<string, string> = {}
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = v.slice(0, 40)
+    }
+  }
+  return Object.keys(clean).length ? JSON.stringify(clean) : null
+}
+
+/** Structured numeric specs (range facets) → dedicated-column writes, each clamped to
+ *  the category's declared range. Engine keeps one decimal (litres); year/mileage etc.
+ *  round to integers. `sparse` selects the body contract:
+ *  - true (update): an omitted key is untouched (not emitted); explicit null/'' clears
+ *    the spec (emits null); non-numeric junk is ignored.
+ *  - false (create): every declared column is read with plain Number() coercion (an
+ *    absent key → NaN → skipped; null/'' coerce to 0 and clamp to the range minimum —
+ *    the create path's long-standing behavior, kept as-is). */
+export function clampRangeFacets(
+  categorySlug: string,
+  subcategorySlug: string | null,
+  body: Record<string, unknown>,
+  opts: { sparse: boolean },
+): Record<string, number | null> {
+  const out: Record<string, number | null> = {}
+  for (const f of rangeFacetsFor(categorySlug, subcategorySlug)) {
+    const col = f.range.column
+    if (opts.sparse) {
+      if (body[col] === undefined) continue
+      if (body[col] === null || body[col] === '') { out[col] = null; continue }
+    }
+    const raw = Number(body[col])
+    if (!Number.isFinite(raw)) continue
+    const clamped = Math.min(Math.max(raw, f.range.min), f.range.max)
+    out[col] = col === 'engineL' ? Math.round(clamped * 10) / 10 : Math.round(clamped)
+  }
+  return out
+}
+
+/** Precise geo-pin coordinate ("use my current location") → the number when it's a
+ *  plausible latitude (limit 90) / longitude (limit 180), else null. */
+export function parseGeoCoord(raw: unknown, limit: 90 | 180): number | null {
+  const n = Number(raw)
+  return Number.isFinite(n) && n >= -limit && n <= limit ? n : null
+}
+
+/** Canonicalize the optional single-video field. Only a CANONICAL first-party URL (our
+ *  bucket + a minted object name) 'set's it; explicit null/'' is a 'clear'; anything
+ *  else — foreign hosts, arbitrary bucket paths, malformed suffixes — is 'ignore'd and
+ *  never persisted (treating a malformed url as an explicit clear once let a partner-API
+ *  typo silently delete + evict a live clip — audit P2). Callers map 'ignore' per their
+ *  body contract: create treats it as "no video" (null); update leaves the stored clip
+ *  untouched. */
+export function parseVideoField(raw: unknown): { action: 'set'; url: string } | { action: 'clear' } | { action: 'ignore' } {
+  if (raw === null || raw === '') return { action: 'clear' }
+  if (isCanonicalVideoUrl(raw)) return { action: 'set', url: raw }
+  return { action: 'ignore' }
+}
+
 /**
  * Set the availability status of an OWNED listing: 'active' (live) / 'sold' / 'hidden'
  * (pulled from the public feed, kept in the dashboard). Re-activating also stamps an
@@ -199,24 +269,20 @@ export async function updateListingCore(
     }
     data.images = JSON.stringify(images)
   }
-  // Optional single video: a CANONICAL first-party URL (our bucket + a minted object name)
-  // sets it; explicit null/'' clears it (seller removed the clip). Anything else — foreign
-  // hosts, arbitrary bucket paths, malformed suffixes — is ignored, not persisted. The old
-  // object's eviction is registered ONLY after the DB write commits (below): after() runs
-  // even when the response is an error, so queueing it here would delete a live clip on a
-  // rejected edit (banned word, failed transaction).
+  // Optional single video — parseVideoField owns the contract (canonical URL sets,
+  // null/'' clears, invalid values are IGNORED, not persisted). The old object's
+  // eviction is registered ONLY after the DB write commits (below): after() runs
+  // even when the response is an error, so queueing it here would delete a live clip
+  // on a rejected edit (banned word, failed transaction).
   let evictOldVideo: string | null = null
   if (body.video !== undefined) {
-    // Contract (comment above): invalid values are IGNORED, not persisted. The old
-    // ternary treated a malformed/foreign url as an EXPLICIT CLEAR — a partner-API
-    // typo silently deleted (and evicted!) the listing's live clip (audit P2).
-    // null/'' remain the explicit clear.
-    if (body.video === null || body.video === '') {
+    const parsedVideo = parseVideoField(body.video)
+    if (parsedVideo.action === 'clear') {
       data.video = null
       if (current.video) evictOldVideo = current.video
-    } else if (isCanonicalVideoUrl(body.video)) {
-      data.video = body.video
-      if (current.video && current.video !== data.video) evictOldVideo = current.video
+    } else if (parsedVideo.action === 'set') {
+      data.video = parsedVideo.url
+      if (current.video && current.video !== parsedVideo.url) evictOldVideo = current.video
     }
   }
 
@@ -231,19 +297,11 @@ export async function updateListingCore(
     if ((typesFor(current.category.slug) as string[]).includes(lt)) data.listingType = lt
   }
   // Attribute facets — whitelisted stringly-typed taxonomy values (same rule as create).
-  if (body.attributes !== undefined) {
-    const clean: Record<string, string> = {}
-    if (body.attributes && typeof body.attributes === 'object' && !Array.isArray(body.attributes)) {
-      for (const [k, v] of Object.entries(body.attributes as Record<string, unknown>)) {
-        if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = v.slice(0, 40)
-      }
-    }
-    data.attributes = Object.keys(clean).length ? JSON.stringify(clean) : null
-  }
+  if (body.attributes !== undefined) data.attributes = sanitizeAttributes(body.attributes)
   // Precise pin from "use my current location".
   if (body.city !== undefined && body.city) data.city = String(body.city).trim().slice(0, 80)
-  if (body.lat !== undefined) { const n = Number(body.lat); data.lat = Number.isFinite(n) && n >= -90 && n <= 90 ? n : null }
-  if (body.lng !== undefined) { const n = Number(body.lng); data.lng = Number.isFinite(n) && n >= -180 && n <= 180 ? n : null }
+  if (body.lat !== undefined) data.lat = parseGeoCoord(body.lat, 90)
+  if (body.lng !== undefined) data.lng = parseGeoCoord(body.lng, 180)
 
   // Brand edit (product categories only) — re-resolve into the catalogue and move
   // the listing-count from the old brand to the new one. Best-effort; never blocks.
@@ -264,16 +322,10 @@ export async function updateListingCore(
   }
 
   // Range specs (year/mileage/engine) → clamped to the category's declared range.
-  // An explicit null/'' clears the spec; an omitted key leaves it untouched.
-  for (const f of rangeFacetsFor(current.category.slug, current.subcategorySlug)) {
-    const col = f.range.column
-    if (body[col] === undefined) continue
-    if (body[col] === null || body[col] === '') { data[col] = null; continue }
-    const raw = Number(body[col])
-    if (!Number.isFinite(raw)) continue
-    const clamped = Math.min(Math.max(raw, f.range.min), f.range.max)
-    data[col] = col === 'engineL' ? Math.round(clamped * 10) / 10 : Math.round(clamped)
-  }
+  // Sparse: an explicit null/'' clears the spec; an omitted key leaves it untouched.
+  // (Scoped to the CURRENT subcategory's facets, even if this edit also changes it —
+  // long-standing behavior, kept as-is.)
+  Object.assign(data, clampRangeFacets(current.category.slug, current.subcategorySlug, body, { sparse: true }))
 
   if (Object.keys(data).length === 0) return { ok: true }
 
@@ -312,7 +364,10 @@ export async function updateListingCore(
   // Republish a HELD listing (verified=false — it was photoless or the seller was
   // Restricted) the moment it becomes eligible again: adding a photo to a held listing
   // must make it public, not leave it dead inventory (manual moderation was removed).
-  // The publish gate mirrors create: >=1 image AND a non-restricted seller.
+  // Create's photo bar is now ≥3 distinct angles (assertEnoughAngles), and an edit
+  // payload that includes `images` already passed that same gate above — so this check
+  // only floors the images-not-in-payload case (stored photos) at ≥1, plus requires a
+  // non-restricted seller, before flipping verified back on.
   if (current.verified === false && current.seller?.trustTier !== 'restricted') {
     let imgs: string[] = []
     try { imgs = data.images !== undefined ? JSON.parse(data.images as string) : JSON.parse(current.images || '[]') } catch { imgs = [] }
@@ -418,16 +473,16 @@ export async function createListingCore(input: {
   const images: string[] = Array.isArray(body.images)
     ? (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     : []
-  // Optional single listing video — a CANONICAL first-party URL only (our bucket + a minted
-  // object name; foreign hosts/paths/garbage suffixes dropped).
-  const video: string | null = isCanonicalVideoUrl(body.video) ? body.video : null
+  // Optional single listing video — canonical-URL-or-nothing on create: 'clear' and
+  // 'ignore' both mean "no video" here (only update distinguishes them).
+  const parsedVideo = parseVideoField(body.video)
+  const video: string | null = parsedVideo.action === 'set' ? parsedVideo.url : null
   const district = body.district ? String(body.district).trim().slice(0, 80) : null
   const city = body.city ? String(body.city).trim().slice(0, 80) : 'Ho Chi Minh City'
   const location = body.location ? String(body.location).trim().slice(0, 120) : (district || city)
   // Optional precise pin from "use my current location" (validated to plausible ranges).
-  const latNum = Number(body.lat), lngNum = Number(body.lng)
-  const lat = Number.isFinite(latNum) && latNum >= -90 && latNum <= 90 ? latNum : null
-  const lng = Number.isFinite(lngNum) && lngNum >= -180 && lngNum <= 180 ? lngNum : null
+  const lat = parseGeoCoord(body.lat, 90)
+  const lng = parseGeoCoord(body.lng, 180)
 
   // Publish gate — NO held-for-review queue (manual verification removed; nothing waits on
   // an admin). A Restricted (low-trust) account can't post until its score recovers; a
@@ -452,24 +507,11 @@ export async function createListingCore(input: {
   const priceUnit = listingType === 'rent' || listingType === 'job' ? 'VND/month'
     : listingType === 'service' ? 'VND/service (from)' : 'VND'
   // Whitelisted, stringly-typed attribute facets (taxonomy values).
-  let attributes: string | null = null
-  if (body.attributes && typeof body.attributes === 'object' && !Array.isArray(body.attributes)) {
-    const clean: Record<string, string> = {}
-    for (const [k, v] of Object.entries(body.attributes as Record<string, unknown>)) {
-      if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = v.slice(0, 40)
-    }
-    if (Object.keys(clean).length) attributes = JSON.stringify(clean)
-  }
+  const attributes = sanitizeAttributes(body.attributes)
 
   // Structured numeric specs (range facets) → dedicated columns, each clamped to the
-  // category's declared range. Engine keeps one decimal (litres); year/mileage integers.
-  const rangeData: Record<string, number> = {}
-  for (const f of rangeFacetsFor(categorySlug, subcategorySlug)) {
-    const raw = Number((body as Record<string, unknown>)[f.range.column])
-    if (!Number.isFinite(raw)) continue
-    const clamped = Math.min(Math.max(raw, f.range.min), f.range.max)
-    rangeData[f.range.column] = f.range.column === 'engineL' ? Math.round(clamped * 10) / 10 : Math.round(clamped)
-  }
+  // category's declared range (non-sparse: every declared column is read).
+  const rangeData = clampRangeFacets(categorySlug, subcategorySlug, body, { sparse: false })
 
   // Brand (product categories only): canonicalize + typo-dedupe into the catalogue,
   // growing it on first sight. Never blocks the post if resolution fails.

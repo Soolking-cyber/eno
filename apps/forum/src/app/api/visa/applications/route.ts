@@ -4,7 +4,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { getVisaUser } from '@/lib/visa/auth'
 import { encryptVisaPayload } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
-import { serializeVisa, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
+import { serializeVisa, type VisaApplicationRow, type VisaDocumentRow, type VisaEventRow } from '@/lib/visa/records'
 import { emptyVisaPayload } from '@/lib/visa/schema'
 
 export const runtime = 'nodejs'
@@ -16,12 +16,31 @@ export function OPTIONS(request: Request) { return forumPreflight(request, METHO
 export async function GET(request: Request) {
   const user = await getVisaUser(request)
   if (!user) return forumJson(request, { error: 'auth_required' }, { status: 401 }, METHODS)
+  const activeMode = new URL(request.url).searchParams.get('active') === '1'
   try {
     const db = getVisaDb()
     const { data, error } = await db.from('visa_applications').select('*').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(20)
     if (error) throw error
     const applications = (data || []) as VisaApplicationRow[]
     const ids = applications.map((item) => item.id)
+    if (activeMode) {
+      // ?active=1 — the assistant's mount/poll shape: the list rows PLUS the active
+      // application in DETAIL form (decrypted payload + events, same serialization as
+      // GET /api/visa/applications/[id]), replacing the client's former list→detail
+      // request waterfall with one round trip. Selection mirrors the client rule it
+      // replaces exactly: newest non-cancelled application, else the newest one.
+      const active = applications.find((item) => item.status !== 'cancelled') || applications[0] || null
+      const [documentsResult, eventsResult] = await Promise.all([
+        ids.length ? db.from('visa_documents').select('*').in('application_id', ids).order('created_at') : Promise.resolve({ data: [] }),
+        active ? db.from('visa_events').select('*').eq('application_id', active.id).order('created_at') : Promise.resolve({ data: [] }),
+      ])
+      const documents = (documentsResult.data || []) as VisaDocumentRow[]
+      const events = (eventsResult.data || []) as VisaEventRow[]
+      return forumJson(request, {
+        application: active ? serializeVisa(active, documents.filter((document) => document.application_id === active.id), events) : null,
+        applications: applications.map((item) => serializeVisa(item, documents.filter((document) => document.application_id === item.id), undefined, false)),
+      }, undefined, METHODS)
+    }
     const documents = ids.length
       ? ((await db.from('visa_documents').select('*').in('application_id', ids).order('created_at')).data || []) as VisaDocumentRow[]
       : []

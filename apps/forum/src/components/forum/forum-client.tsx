@@ -441,13 +441,44 @@ export function ForumClient({
   const fetchedAuthenticatedViewer = useRef(false)
   // Monotonic per-action request ids — the reconciliation guard for rapid toggles.
   const actionSeq = useRef<Record<string, number>>({})
+  // True while the CURRENT history entry is one openThread pushed. Closing then
+  // uses history.back() so Back/Forward stay coherent; direct-loaded deep links
+  // (?post= present at mount) never set it and close via replaceState instead.
+  const threadHistoryRef = useRef(false)
+  // Keyset cursor for feed pagination — continues the server's `best` chain that
+  // produced the SSR page (tabs re-sort the union locally, same as the base feed).
+  const feedCursorRef = useRef<string | null>(
+    initialPosts.length >= 50 && initialPosts[initialPosts.length - 1].live ? initialPosts[initialPosts.length - 1].id : null,
+  )
+  const [hasMorePosts, setHasMorePosts] = useState(() => Boolean(
+    initialPosts.length >= 50 && initialPosts[initialPosts.length - 1].live,
+  ))
+  const [loadingMore, setLoadingMore] = useState(false)
 
   const communityMap = useMemo(() => new Map(communities.map((item) => [item.slug, item])), [communities])
 
   useEffect(() => {
     setHydrated(true)
+    // Deep link: sync state only — openThread would push a second history entry
+    // for a URL that already carries ?post=.
     const postId = new URLSearchParams(window.location.search).get('post')
     if (postId) setOpenPostId(postId)
+  }, [])
+
+  useEffect(() => {
+    // History traversal drives the thread dialog: ?post is the source of truth.
+    // Inside the native Android WebView, hardware Back dispatches popstate — so
+    // Back closes an open thread instead of exiting the app, which is exactly
+    // the wanted behavior.
+    const onPopState = () => {
+      // After any traversal we can no longer prove the current entry is ours —
+      // reset so closeThread falls back to replaceState (never a second back()
+      // that could pop past the first entry and exit the WebView).
+      threadHistoryRef.current = false
+      setOpenPostId(new URLSearchParams(window.location.search).get('post'))
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
   useEffect(() => {
@@ -664,12 +695,33 @@ export function ForumClient({
   const openThread = (id: string) => {
     setOpenPostId(id)
     const url = new URL(window.location.href)
+    // Same thread already in the URL (re-opening a direct-loaded deep link):
+    // pushing again would take two Backs to leave.
+    if (url.searchParams.get('post') === id) return
     url.searchParams.set('post', id)
-    window.history.replaceState({}, '', url)
+    if (threadHistoryRef.current) {
+      // Our thread entry is already on the stack (e.g. jumping to another post
+      // from the right rail) — swap it in place so ONE Back still closes.
+      window.history.replaceState({}, '', url)
+    } else {
+      // Push an entry so Back (incl. Android hardware Back → popstate) closes
+      // the thread; the popstate listener re-syncs openPostId from the URL.
+      window.history.pushState({}, '', url)
+      threadHistoryRef.current = true
+    }
   }
 
   const closeThread = () => {
     setOpenPostId(null)
+    if (threadHistoryRef.current) {
+      // Consume the entry we pushed so the stack does not accumulate stale
+      // ?post URLs; popstate confirms the close (openPostId is already null).
+      threadHistoryRef.current = false
+      window.history.back()
+      return
+    }
+    // Direct-loaded deep link (or post-traversal entry): nothing of ours to
+    // pop — rewrite the URL in place.
     const url = new URL(window.location.href)
     url.searchParams.delete('post')
     window.history.replaceState({}, '', url)
@@ -760,6 +812,39 @@ export function ForumClient({
     } catch (error) {
       toast.error(tr('Your post could not be published.', 'Không thể đăng bài viết của bạn.'))
       throw error
+    }
+  }
+
+  const loadMorePosts = async () => {
+    const cursor = feedCursorRef.current
+    if (loadingMore || !cursor) return
+    setLoadingMore(true)
+    try {
+      const { posts: page, nextCursor } = await forumApi<{ posts: ForumPostResponse[]; nextCursor: string | null }>(
+        `/api/forum/posts?limit=30&sort=best&cursor=${encodeURIComponent(cursor)}`,
+      )
+      // Dedupe before merging: deep-linked or freshly published posts may already
+      // be in the feed — for those, keep the viewer's optimistic vote/saved state
+      // (MERGE, never replace — same audit rule as the viewer refresh above).
+      const known = new Set(posts.map((post) => post.id))
+      const fresh = page.filter((post) => !known.has(post.id))
+      const mapped = fresh.map(mapForumPost)
+      setPosts((current) => {
+        const seen = new Set(current.map((post) => post.id))
+        return [...current, ...mapped.filter((post) => !seen.has(post.id))]
+      })
+      setVotes((current) => ({ ...current, ...Object.fromEntries(fresh.map((post) => [post.id, post.viewerVote])) }))
+      setSaved((current) => {
+        const next = new Set(current)
+        for (const post of fresh) { if (post.saved) next.add(post.id) }
+        return next
+      })
+      feedCursorRef.current = nextCursor
+      setHasMorePosts(Boolean(nextCursor))
+    } catch {
+      toast.error(tr('More discussions could not be loaded.', 'Không thể tải thêm thảo luận.'))
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -922,6 +1007,21 @@ export function ForumClient({
                 </TabsContent>
               ))}
             </Tabs>
+
+            {mode === 'all' && hasMorePosts && (
+              <div className="flex justify-center pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full max-w-xs"
+                  disabled={loadingMore}
+                  onClick={() => void loadMorePosts()}
+                >
+                  {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {tr('Load more discussions', 'Xem thêm thảo luận')}
+                </Button>
+              </div>
+            )}
           </div>
 
           <ForumRightRail communities={communities} posts={posts} helpers={initialHelpers} onOpenPost={openThread} />

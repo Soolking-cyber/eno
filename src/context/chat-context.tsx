@@ -104,21 +104,35 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => {})
   }, [user, prefetchThread])
 
+  // Mirror of `convos` for handler-time reads (deleteConvo computes the next
+  // list without reaching inside a state updater — updaters must stay pure).
+  const convosRef = useRef<InboxConvo[] | null>(null)
+  useEffect(() => { convosRef.current = convos }, [convos])
+
+  // Conversation ids whose server DELETE is still held inside the 5s undo
+  // window (value = the undo toast's id + the commit timer) — flushed on
+  // pagehide so an unload can't lose the delete.
+  const pendingDeletes = useRef<Map<string, { toastId: string | number; timer: ReturnType<typeof setTimeout> }>>(new Map())
+
   // Delete a conversation from MY inbox (per-user hide, non-destructive on the
   // server). Optimistic: drop it from the list + caches now, then call the API.
   const deleteConvo = useCallback((id: string) => {
-    setConvos((prev) => {
-      const next = (prev ?? []).filter((c) => c.id !== id)
-      if (user) { try { localStorage.setItem(CONVOS_KEY, JSON.stringify({ userId: user.id, list: next })) } catch {} }
-      return next
-    })
+    // Compute the next list OUTSIDE the setConvos updater: the localStorage
+    // write is a side effect, and updaters must be pure (StrictMode double-
+    // invokes them, so an impure updater writes the cache twice — or worse).
+    const next = (convosRef.current ?? []).filter((c) => c.id !== id)
+    convosRef.current = next
+    setConvos(next)
+    if (user) { try { localStorage.setItem(CONVOS_KEY, JSON.stringify({ userId: user.id, list: next })) } catch {} }
     threadCache.current.delete(id)
     if (user) { try { localStorage.removeItem(THREAD_PREFIX + id) } catch {} }
     // Hold the server DELETE for the toast's lifetime so a mis-tap is recoverable —
-    // the row stays server-side until then, so Undo just re-pulls the inbox.
+    // the row stays server-side until then, so Undo just re-pulls the inbox. If the
+    // page unloads first, the pagehide flush below commits the delete instead.
     let undone = false
     const commit = setTimeout(() => {
       if (undone) return
+      pendingDeletes.current.delete(id)
       // On failure, ROLL BACK the optimistic removal: the row still exists server-side,
       // so re-pulling the inbox restores it — and say so instead of silently desyncing.
       const rollback = () => { toast.error(tr("Couldn't delete — try again", 'Chưa xóa được — thử lại')); refreshConvos() }
@@ -126,14 +140,37 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         .then((r) => { if (r.ok) refreshUnread(); else rollback() })
         .catch(rollback)
     }, 5000)
-    toast(tr('Conversation removed', 'Đã xóa cuộc trò chuyện'), {
+    const toastId = toast(tr('Conversation removed', 'Đã xóa cuộc trò chuyện'), {
       duration: 5000,
       action: {
         label: tr('Undo', 'Hoàn tác'),
-        onClick: () => { undone = true; clearTimeout(commit); refreshConvos() },
+        onClick: () => { undone = true; pendingDeletes.current.delete(id); clearTimeout(commit); refreshConvos() },
       },
     })
+    pendingDeletes.current.set(id, { toastId, timer: commit })
   }, [user, refreshUnread, refreshConvos, tr])
+
+  // Unload safety net for the undo window above: a bare setTimeout dies with the
+  // page, silently losing the delete. On pagehide, commit any still-pending
+  // DELETEs via keepalive fetch (sendBeacon only speaks POST). The route is
+  // idempotent (per-user hide), so a bfcache restore whose timer later fires
+  // again is harmless.
+  useEffect(() => {
+    const flush = () => {
+      for (const [id, { toastId, timer }] of pendingDeletes.current) {
+        try { fetch(`/api/conversations/${id}`, { method: 'DELETE', keepalive: true }).catch(() => {}) } catch {}
+        // The delete is now committed — cancel the commit timer (a bfcache restore
+        // would otherwise fire a SECOND DELETE, whose deletedAt restamp could hide
+        // a reply that landed in between) and kill the Undo toast so the restore
+        // can't show a still-live Undo that would silently no-op.
+        clearTimeout(timer)
+        toast.dismiss(toastId)
+      }
+      pendingDeletes.current.clear()
+    }
+    window.addEventListener('pagehide', flush)
+    return () => window.removeEventListener('pagehide', flush)
+  }, [])
 
   useEffect(() => {
     if (!user) { setConvos(null); threadCache.current.clear(); return }
@@ -147,18 +184,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) { setUnread(0); return }
-    let iv: ReturnType<typeof setInterval> | null = null
-    const stop = () => { if (iv) { clearInterval(iv); iv = null } }
-    // 45s backstop only — realtime ('user:<id>' topic below) updates unread instantly;
-    // a tight poll just multiplies function invocations across every open tab.
-    const start = () => { if (!iv) iv = setInterval(refreshUnread, 45000) }
-    const onVis = () => {
-      if (document.visibilityState === 'visible') { refreshUnread(); start() } else stop()
+    // NO interval of our own: the periodic backstop rides NotificationsProvider's
+    // 45s visibility-gated poll — /api/notifications piggybacks the conversations-
+    // unread total and the provider broadcasts it as 'eno:convo-unread' (consumed
+    // here), so signed-in tabs run ONE badge poll instead of two. This provider
+    // keeps only the IMMEDIATE refresh triggers: sign-in, tab shown again, and
+    // the realtime nudge / post-send refreshUnread() calls elsewhere.
+    const onVis = () => { if (document.visibilityState === 'visible') refreshUnread() }
+    const onBroadcast = (e: Event) => {
+      const n = (e as CustomEvent<{ unread?: number }>).detail?.unread
+      if (typeof n === 'number') setUnread(n)
     }
     refreshUnread()
-    if (document.visibilityState === 'visible') start()
     document.addEventListener('visibilitychange', onVis)
-    return () => { stop(); document.removeEventListener('visibilitychange', onVis) }
+    window.addEventListener('eno:convo-unread', onBroadcast)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('eno:convo-unread', onBroadcast)
+    }
   }, [user, refreshUnread])
 
   // REALTIME: warm the socket on sign-in and subscribe to ONE private user topic
@@ -166,7 +209,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // message — across ALL my conversations, unbounded (no 30-convo cap). The trigger
   // broadcasts a content-free 'convo_activity' nudge to each participant's user
   // topic; the open thread keeps its own convo:<id> subscription for live content.
-  // The 8s poll above stays as a backstop. Keyed only by user → never re-subscribes.
+  // The 45s NotificationsProvider poll (via 'eno:convo-unread', consumed above)
+  // stays as a backstop. Keyed only by user → never re-subscribes.
   useEffect(() => {
     if (!user) return
     // Supabase is imported LAZILY here (same pattern as auth-context) — a static

@@ -125,80 +125,86 @@ export async function POST(req: NextRequest) {
   if (!gate.success) return NextResponse.json({ error: 'budget_exhausted', message: `Daily AI review budget (${DAILY_BUDGET}) is used up — it resets tomorrow.` }, { status: 429 })
 
   // ── Evidence gathering (all server-side, display names only — no phone/email) ──
-  const listing = report.listingId
-    ? await db.listing.findUnique({
-        where: { id: report.listingId },
-        select: {
-          id: true, title: true, description: true, price: true, condition: true, images: true,
-          category: { select: { name: true } },
-          seller: { select: { id: true, ownerId: true, name: true, trustScore: true, trustTier: true, memberSince: true } },
-        },
-      })
-    : null
+  // Wave 1: everything that depends only on the report row, in parallel.
+  const [listing, { convoByReportId }, reporter, thread] = await Promise.all([
+    report.listingId
+      ? db.listing.findUnique({
+          where: { id: report.listingId },
+          select: {
+            id: true, title: true, description: true, price: true, condition: true, images: true,
+            category: { select: { name: true } },
+            seller: { select: { id: true, ownerId: true, name: true, trustScore: true, trustTier: true, memberSince: true } },
+          },
+        })
+      : null,
+    // Conversation: linked directly (chat report) or derived reporter↔seller thread —
+    // same derivation the queue uses (reportContext).
+    reportContext([{
+      id: report.id, reporterProfileId: report.reporterProfileId, listingId: report.listingId,
+      conversationId: report.conversationId, targetSellerId: report.targetSellerId, targetProfileId: report.targetProfileId,
+    }]),
+    report.reporterProfileId
+      ? db.profile.findUnique({ where: { id: report.reporterProfileId }, select: { displayName: true, trustScore: true, falseReportStrikes: true, createdAt: true } })
+      : null,
+    // Dispute-case thread: both parties' statements + admin mediation, in order.
+    db.disputeMessage.findMany({
+      where: { reportId: report.id },
+      orderBy: { createdAt: 'asc' },
+      take: 60,
+      select: { senderRole: true, body: true, images: true, createdAt: true },
+    }),
+  ])
 
-  // Conversation: linked directly (chat report) or derived reporter↔seller thread —
-  // same derivation the queue uses (reportContext).
-  const { convoByReportId } = await reportContext([{
-    id: report.id, reporterProfileId: report.reporterProfileId, listingId: report.listingId,
-    conversationId: report.conversationId, targetSellerId: report.targetSellerId, targetProfileId: report.targetProfileId,
-  }])
+  // Wave 2: needs the derived convo id / target ids from wave 1.
   const convoId = convoByReportId.get(report.id) ?? null
-  const convo = convoId
-    ? await db.conversation.findUnique({
-        where: { id: convoId },
-        select: {
-          buyerProfileId: true,
-          messages: { orderBy: { createdAt: 'desc' }, take: 40, select: { senderProfileId: true, body: true, kind: true, offerAmount: true, offerStatus: true } },
-        },
-      })
-    : null
-
   // Target account context: the reported profile, else the listing's seller / storefront.
   const targetProfileId = report.targetProfileId ?? listing?.seller.ownerId ?? null
   const targetSellerId = report.targetSellerId ?? listing?.seller.id ?? null
-  const targetProfile = targetProfileId
-    ? await db.profile.findUnique({ where: { id: targetProfileId }, select: { displayName: true, trustScore: true, trustTier: true, createdAt: true } })
-    : null
-  const targetSeller = !targetProfile && targetSellerId && !listing
-    ? await db.seller.findUnique({ where: { id: targetSellerId }, select: { name: true, trustScore: true, trustTier: true, memberSince: true } })
-    : null
   const targetOr = [
     targetProfileId ? { targetProfileId } : null,
     targetSellerId ? { targetSellerId } : null,
   ].filter((x): x is NonNullable<typeof x> => x !== null)
-  const priorConfirmed = targetOr.length
-    ? await db.report.count({ where: { status: 'confirmed', id: { not: report.id }, OR: targetOr } })
-    : 0
-
-  const reporter = report.reporterProfileId
-    ? await db.profile.findUnique({ where: { id: report.reporterProfileId }, select: { displayName: true, trustScore: true, falseReportStrikes: true, createdAt: true } })
+  const [convo, targetProfile, priorConfirmed] = await Promise.all([
+    convoId
+      ? db.conversation.findUnique({
+          where: { id: convoId },
+          select: {
+            buyerProfileId: true,
+            messages: { orderBy: { createdAt: 'desc' }, take: 40, select: { senderProfileId: true, body: true, kind: true, offerAmount: true, offerStatus: true } },
+          },
+        })
+      : null,
+    targetProfileId
+      ? db.profile.findUnique({ where: { id: targetProfileId }, select: { displayName: true, trustScore: true, trustTier: true, createdAt: true } })
+      : null,
+    targetOr.length
+      ? db.report.count({ where: { status: 'confirmed', id: { not: report.id }, OR: targetOr } })
+      : 0,
+  ])
+  // Storefront fallback only when the profile lookup came back empty (and no listing
+  // already carries the seller) — genuinely sequential.
+  const targetSeller = !targetProfile && targetSellerId && !listing
+    ? await db.seller.findUnique({ where: { id: targetSellerId }, select: { name: true, trustScore: true, trustTier: true, memberSince: true } })
     : null
-
-  // ── Dispute-case thread: both parties' statements + admin mediation, in order. ──
-  const thread = await db.disputeMessage.findMany({
-    where: { reportId: report.id },
-    orderBy: { createdAt: 'asc' },
-    take: 60,
-    select: { senderRole: true, body: true, images: true, createdAt: true },
-  })
 
   // ── Images: up to MAX_IMAGES as inlineData. Dispute evidence is primary (that's
   // what the parties submitted to be judged), then appeal proof, then listing photos.
   const listingImages = parseImages(listing?.images)
   const appealImages = parseImages(report.appealImages)
   const evidencePaths = thread.flatMap((m) => parseImages(m.images)).filter((p) => !p.startsWith('http'))
-  const inlineImages: string[] = []
-  for (const path of evidencePaths) {
-    if (inlineImages.length >= MAX_IMAGES) break
-    const b64 = await downloadInline(path)
-    if (b64) inlineImages.push(b64)
-  }
   const candidates = report.appealedAt ? [...appealImages, ...listingImages] : [...listingImages, ...appealImages]
-  for (const url of candidates) {
-    if (inlineImages.length >= MAX_IMAGES) break
-    const b64 = await fetchInline(url)
-    if (b64) inlineImages.push(b64)
-  }
+  // Fetch in parallel (each fetch keeps its own 8s timeout and swallows its own
+  // failure — one bad image can never sink the review), then keep the first
+  // MAX_IMAGES successes in priority order. The batch is bounded at 2× the cap so
+  // a long thread doesn't fan out into dozens of downloads just to fill 4 slots.
+  const imageFetches: Array<Promise<string | null>> = [
+    ...evidencePaths.map((path) => downloadInline(path)),
+    ...candidates.map((url) => fetchInline(url)),
+  ].slice(0, MAX_IMAGES * 2)
+  const inlineImages = (await Promise.allSettled(imageFetches))
+    .map((r) => (r.status === 'fulfilled' ? r.value : null))
+    .filter((b): b is string => !!b)
+    .slice(0, MAX_IMAGES)
 
   // ── Evidence dossier (plain text — the model quotes verbatim from this) ──
   const targetName = targetProfile?.displayName || listing?.seller.name || targetSeller?.name || 'Unknown'

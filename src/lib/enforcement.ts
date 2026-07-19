@@ -519,6 +519,9 @@ export async function flagForReview(profileId: string, reason: FlagReason, opts?
     })
     return true
   } catch (e) {
+    // P2002 = the partial unique index (unique-constraints.mjs §4) held against a
+    // concurrent detector's create — benign, identical outcome to the prior-row path.
+    if ((e as { code?: string })?.code === 'P2002') return false
     console.error('[enforcement] flag failed', profileId, reason, e)
     return false
   }

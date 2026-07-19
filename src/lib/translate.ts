@@ -2,14 +2,12 @@ import 'server-only'
 import crypto from 'crypto'
 import { db } from './db'
 import { detectContentLang } from './detect-lang'
+import { LANGS, type Lang } from './i18n/langs'
 
-// Supported languages — English source, Vietnamese home market, plus the top
-// inbound-tourist languages to Vietnam (GSO 2025 arrivals). One Chinese option
-// (Simplified — the #1 market; Taiwan/HK visitors are routed to it).
-export type Lang =
-  | 'en' | 'vi' | 'zh-Hans' | 'ko' | 'ja' | 'ru' | 'km' | 'ms' | 'th' | 'fr' | 'hi'
-
-export const LANGS: Lang[] = ['en', 'vi', 'zh-Hans', 'ko', 'ja', 'ru', 'km', 'ms', 'th', 'fr', 'hi']
+// Supported-language roster: canonical definition lives in the isomorphic
+// @/lib/i18n/langs; re-exported here so existing importers keep working.
+export { LANGS }
+export type { Lang }
 
 // Azure AI Translator language codes. Almost all match our internal codes 1:1
 // (our codes are already Azure-canonical, e.g. zh-Hans — NOT Google's zh-CN).

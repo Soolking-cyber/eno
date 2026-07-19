@@ -113,10 +113,16 @@ export async function POST(req: NextRequest) {
       if (!ids.length) return NextResponse.json({ error: 'No ids' }, { status: 400 })
       const severity = normSeverity(body.severity)
       const penalty = -SEVERITY_PENALTY[severity]
+      // ONE read for the whole batch (was a sequential per-id findUnique). The per-id
+      // updateMany below stays: its open→confirmed guard is the idempotency gate that
+      // keeps a retry / concurrent resolve from double-docking trust.
+      const reports = await db.report.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, targetProfileId: true, targetSellerId: true, listingId: true, reporterProfileId: true },
+      })
       let confirmed = 0
-      for (const rid of ids) {
-        const report = await db.report.findUnique({ where: { id: rid }, select: { targetProfileId: true, targetSellerId: true, listingId: true, reporterProfileId: true } })
-        if (!report) continue
+      for (const report of reports) {
+        const rid = report.id
         const upd = await db.report.updateMany({ where: { id: rid, status: 'open' }, data: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date() } })
         if (upd.count === 0) continue // already resolved — no double-dock
         if (report.targetProfileId) {
@@ -129,7 +135,9 @@ export async function POST(req: NextRequest) {
         if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, rid, 'decided_upheld_reporter')
         confirmed++
       }
-      return NextResponse.json({ ok: true, confirmed })
+      // Counts back to the client: `skipped` = ids that were missing or already
+      // resolved (idempotency skips) — surfaced in the admin toast.
+      return NextResponse.json({ ok: true, confirmed, skipped: ids.length - confirmed })
     }
 
     case 'approve': {

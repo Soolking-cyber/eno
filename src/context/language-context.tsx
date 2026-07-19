@@ -2,6 +2,12 @@
 
 import React, { createContext, useContext, useState, useMemo, useEffect, useSyncExternalStore } from 'react'
 import { detectContentLang } from '@/lib/detect-lang'
+import { LANGUAGES, type Language } from '@/lib/i18n/langs'
+
+// Re-exported so the many existing importers of the roster keep working
+// (the canonical definition now lives in the isomorphic @/lib/i18n/langs).
+export { LANGUAGES }
+export type { Language }
 
 // djb2 hash of the UI string set → cache-busts the localStorage UI dictionary when
 // copy changes. A function (not a top-level const over a static import) so the large
@@ -14,28 +20,6 @@ function hashStrings(strings: string[]): string {
   for (let i = 0; i < s.length; i++) h = (((h << 5) + h + s.charCodeAt(i)) | 0)
   return (h >>> 0).toString(36)
 }
-
-// English (default/source) + Vietnamese (home market) + the top inbound-tourist
-// languages to Vietnam by 2025 arrivals (GSO): China→Simplified (single Chinese
-// option, covers the #1 market; Taiwan/HK visitors are routed here too), then
-// Korea, Japan, Russia, Cambodia, Malaysia, Thailand, France, with Hindi held
-// for India (which otherwise skews English).
-export type Language =
-  | 'en' | 'vi' | 'zh-Hans' | 'ko' | 'ja' | 'ru' | 'km' | 'ms' | 'th' | 'fr' | 'hi'
-
-export const LANGUAGES: { code: Language; label: string; native: string }[] = [
-  { code: 'en', label: 'EN', native: 'English' },
-  { code: 'vi', label: 'VI', native: 'Tiếng Việt' },
-  { code: 'zh-Hans', label: 'ZH', native: '中文' },
-  { code: 'ko', label: 'KO', native: '한국어' },
-  { code: 'ja', label: 'JA', native: '日本語' },
-  { code: 'ru', label: 'RU', native: 'Русский' },
-  { code: 'km', label: 'KM', native: 'ភាសាខ្មែរ' },
-  { code: 'ms', label: 'MS', native: 'Bahasa Melayu' },
-  { code: 'th', label: 'TH', native: 'ไทย' },
-  { code: 'fr', label: 'FR', native: 'Français' },
-  { code: 'hi', label: 'HI', native: 'हिन्दी' },
-]
 
 // Curated glossary for short, ambiguous UI terms that machine translation gets
 // wrong out of context (e.g. the bare verb "Post" → 後 "after", "Property" → ru

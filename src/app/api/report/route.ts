@@ -120,23 +120,37 @@ export async function POST(req: NextRequest) {
   // reporter into their open dispute room instead of silently swallowing the tap.
   if (dupe) return NextResponse.json({ ok: true, id: dupe.id })
 
-  const created = await db.report.create({
-    data: {
-      listingId,
-      conversationId,
-      reporterProfileId: reporter.id,
-      targetProfileId,
-      targetSellerId: sellerId,
-      reason,
-      detail,
-      severity: severityForReason(reason),
-      status: 'open',
-      // Dispute center: every report opens a case with a 72h evidence window in
-      // which BOTH sides can post statements/evidence in the case room (/disputes).
-      evidenceUntil: new Date(Date.now() + DISPUTE_WINDOW_MS),
-    },
-    select: { id: true, targetProfileId: true, targetSellerId: true },
-  })
+  let created: { id: string; targetProfileId: string | null; targetSellerId: string | null }
+  try {
+    created = await db.report.create({
+      data: {
+        listingId,
+        conversationId,
+        reporterProfileId: reporter.id,
+        targetProfileId,
+        targetSellerId: sellerId,
+        reason,
+        detail,
+        severity: severityForReason(reason),
+        status: 'open',
+        // Dispute center: every report opens a case with a 72h evidence window in
+        // which BOTH sides can post statements/evidence in the case room (/disputes).
+        evidenceUntil: new Date(Date.now() + DISPUTE_WINDOW_MS),
+      },
+      select: { id: true, targetProfileId: true, targetSellerId: true },
+    })
+  } catch (e) {
+    // Unique-index backstop (unique-constraints.mjs §5): a double-tap raced past the
+    // findFirst dedup above — hand back the winner's case, same as the dupe branch.
+    if ((e as { code?: string })?.code === 'P2002') {
+      const winner = await db.report.findFirst({
+        where: { reporterProfileId: reporter.id, status: 'open', ...dupeWhere },
+        select: { id: true },
+      })
+      if (winner) return NextResponse.json({ ok: true, id: winner.id })
+    }
+    throw e
+  }
 
   // ≥2 strikes → pre-screen the report: it stays in the queue (never silently drop a
   // possibly-real scam report) but sorts LAST and is excluded from the buyer-waiting

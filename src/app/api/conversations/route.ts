@@ -75,10 +75,37 @@ export async function POST(req: Request) {
   // the lead). A P2002 means the thread already exists → reuse it, created:false.
   const sellerProfileId = listing.seller.ownerId ?? null
 
+  // Deliver the optional first message into a just-resolved thread. The offer is
+  // the primary message (returned for the optimistic card); its body stays EMPTY —
+  // the offer line is derived client-side from the structured offerAmount (locale
+  // + money format live in the renderer). A note, if present, follows as a plain
+  // message. Shared by all three resolution paths (seller-thread reuse / fresh
+  // create / P2002 race fallback) so their delivery semantics can't drift.
+  const deliverFirstMessage = async (conv: {
+    id: string; buyerProfileId: string; sellerProfileId: string | null; listingId: string
+  }): Promise<SerializedMessage | null> => {
+    let message: SerializedMessage | null = null
+    if (isOffer) {
+      message = await insertMessage(conv, profile.id, '', { kind: 'offer', offerAmount })
+      if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
+    } else if (initialMessage) {
+      message = await insertMessage(conv, profile.id, initialMessage)
+    }
+    return message
+  }
+
   // One thread per buyer↔seller (user decision 2026-07-14): inquiring about a
   // DIFFERENT listing from the same seller reuses the existing thread and
   // retargets its listing context (header card + offer math follow), instead of
   // opening a parallel chat per product.
+  //
+  // ⚠️ This seller-level rule is find-then-create with NO DB constraint behind it —
+  // the only unique index is (listingId, buyerProfileId). Two concurrent first
+  // contacts on the SAME listing collide on that constraint (handled by the P2002
+  // fallback below); two concurrent first contacts on DIFFERENT listings of the
+  // same seller can, in a narrow race, each create a thread. That's rare and
+  // benign (both threads work; the inbox shows the newest), and we accept it
+  // rather than serialize creates here.
   const existingWithSeller = await db.conversation.findFirst({
     where: { sellerId: listing.sellerId, buyerProfileId: profile.id },
     orderBy: { lastMessageAt: 'desc' },
@@ -88,14 +115,7 @@ export async function POST(req: Request) {
     if (existingWithSeller.listingId !== listingId) {
       await db.conversation.update({ where: { id: existingWithSeller.id }, data: { listingId } })
     }
-    const conv = { id: existingWithSeller.id, buyerProfileId: profile.id, sellerProfileId, listingId }
-    let message: SerializedMessage | null = null
-    if (isOffer) {
-      message = await insertMessage(conv, profile.id, '', { kind: 'offer', offerAmount })
-      if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
-    } else if (initialMessage) {
-      message = await insertMessage(conv, profile.id, initialMessage)
-    }
+    const message = await deliverFirstMessage({ id: existingWithSeller.id, buyerProfileId: profile.id, sellerProfileId, listingId })
     return NextResponse.json({ id: existingWithSeller.id, created: false, message })
   }
 
@@ -109,18 +129,7 @@ export async function POST(req: Request) {
       },
       select: { id: true },
     })
-    const conv = { id: convo.id, buyerProfileId: profile.id, sellerProfileId, listingId }
-    // Offer is the primary message (returned for the optimistic card); a note, if
-    // present, follows as a plain message.
-    let message: SerializedMessage | null = null
-    if (isOffer) {
-      // Offer body stays EMPTY — the offer line is derived client-side from the
-      // structured offerAmount (locale + money format live in the renderer).
-      message = await insertMessage(conv, profile.id, '', { kind: 'offer', offerAmount })
-      if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
-    } else if (initialMessage) {
-      message = await insertMessage(conv, profile.id, initialMessage)
-    }
+    const message = await deliverFirstMessage({ id: convo.id, buyerProfileId: profile.id, sellerProfileId, listingId })
     // First-lead milestone: if THIS brand-new thread is the listing's first-ever
     // conversation, celebrate it once for the seller (bell + best-effort push).
     // Out of the hot path (after the response flushes), fail-quiet by design —
@@ -145,23 +154,29 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ id: convo.id, created: true, message })
   } catch (e) {
+    // Double-tap / concurrent-POST loser: the (listingId, buyerProfileId) unique
+    // constraint rejected our create → the winner's thread already exists. Refetch
+    // it and deliver into it instead of 500ing. If the winner's listingId was
+    // retargeted by yet another request between our failed create and this refetch,
+    // findUnique misses — fall back to the same-seller lookup (and retarget the
+    // listing context exactly like the reuse path above) so the race still can't 500.
     if ((e as { code?: string })?.code === 'P2002') {
-      const existing = await db.conversation.findUnique({
-        where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
-        select: { id: true },
-      })
+      const existing =
+        (await db.conversation.findUnique({
+          where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
+          select: { id: true, listingId: true },
+        })) ??
+        (await db.conversation.findFirst({
+          where: { sellerId: listing.sellerId, buyerProfileId: profile.id },
+          orderBy: { lastMessageAt: 'desc' },
+          select: { id: true, listingId: true },
+        }))
       if (existing) {
         // Thread already exists → still deliver the offer/message (reuse it).
-        const conv = { id: existing.id, buyerProfileId: profile.id, sellerProfileId, listingId }
-        let message: SerializedMessage | null = null
-        if (isOffer) {
-          // Offer body stays EMPTY — the offer line is derived client-side from the
-      // structured offerAmount (locale + money format live in the renderer).
-      message = await insertMessage(conv, profile.id, '', { kind: 'offer', offerAmount })
-          if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
-        } else if (initialMessage) {
-          message = await insertMessage(conv, profile.id, initialMessage)
+        if (existing.listingId !== listingId) {
+          await db.conversation.update({ where: { id: existing.id }, data: { listingId } })
         }
+        const message = await deliverFirstMessage({ id: existing.id, buyerProfileId: profile.id, sellerProfileId, listingId })
         return NextResponse.json({ id: existing.id, created: false, message })
       }
     }

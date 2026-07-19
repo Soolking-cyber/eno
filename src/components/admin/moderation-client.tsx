@@ -71,9 +71,12 @@ const REASON_LABEL: Record<string, string> = {
 const PENALTY: Record<string, number> = { minor: -3, moderate: -10, severe: -25 }
 const SEVERITIES = ['minor', 'moderate', 'severe'] as const
 
-async function post(body: Record<string, unknown>) {
+async function post(body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const res = await fetch('/api/admin/moderate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   if (!res.ok) throw new Error('action failed')
+  // The API returns counts on bulk actions (confirmed/dismissed/skipped) — surface
+  // them to callers instead of discarding the body. Fail-soft on an empty body.
+  return res.json().catch(() => ({}))
 }
 const askedAgo = (iso: string) => {
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000)
@@ -502,6 +505,7 @@ type FilterKey = 'all' | 'critical' | 'aging' | 'listing' | 'account' | 'chat' |
 
 export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolved: ModCase[] }) {
   const router = useRouter()
+  const { tr } = useLanguage() // bulk-result toast copy follows the viewer's language
   const [filter, setFilter] = useState<FilterKey>('all')
   const [sel, setSel] = useState(0)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -543,7 +547,21 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
     const ids = [...checked]
     if (!ids.length) return
     setBulkBusy(true)
-    try { await post({ action, ids, ...(action === 'bulk-confirm' ? { severity: bulkSev } : {}) }); setChecked(new Set()); refresh() } catch { toast.error('Bulk action failed — the selection is unchanged.') } finally { setBulkBusy(false) }
+    // The API caps each call (100 confirm / 200 dismiss) — chunk client-side so a
+    // larger selection isn't silently truncated, then toast the summed counts the
+    // server actually transitioned (idempotency skips show as "already resolved").
+    const cap = action === 'bulk-confirm' ? 100 : 200
+    try {
+      let done = 0
+      for (let i = 0; i < ids.length; i += cap) {
+        const res = await post({ action, ids: ids.slice(i, i + cap), ...(action === 'bulk-confirm' ? { severity: bulkSev } : {}) })
+        done += Number(res[action === 'bulk-confirm' ? 'confirmed' : 'dismissed']) || 0
+      }
+      const already = ids.length - done
+      const label = action === 'bulk-confirm' ? tr('confirmed', 'đã xác nhận') : tr('dismissed', 'đã bỏ qua')
+      toast.success(already > 0 ? `${done} ${label} · ${already} ${tr('already resolved', 'đã xử lý trước đó')}` : `${done} ${label}`)
+      setChecked(new Set()); refresh()
+    } catch { toast.error('Bulk action failed — the selection is unchanged.') } finally { setBulkBusy(false) }
   }
 
   // Latest-values ref so the keydown listener is attached exactly once but always

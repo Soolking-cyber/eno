@@ -19,7 +19,8 @@ import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { useDashboard } from '@/hooks/use-dashboard'
-import { DASHBOARD_NAV, type NavItem, type NavRole } from './dashboard-nav'
+import { DASHBOARD_NAV } from './dashboard-nav'
+import { resolveNavGroups, type ResolvedNavItem } from './dashboard-nav-resolve'
 
 // LEFT account/dashboard NAV RAIL — Gemini "collapsed-by-default, expand-on-hover" model
 // (owner 2026-07-17). DESKTOP: a narrow 72px column of crisp icons on the LEFT edge; hovering
@@ -213,7 +214,7 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
 
   // Plain render fn (NOT a nested component — that would remount the subtree each render). Reused
   // for the middle routing AND the Settings/Help rows in the bottom cluster.
-  type RailItem = { href: string; label: string; icon: React.ElementType; exact?: boolean; badge?: number; external?: boolean }
+  type RailItem = ResolvedNavItem
   const renderNav = (it: RailItem) => {
     const Icon = it.icon
     const isOn = active(it.href, it.exact)
@@ -255,34 +256,15 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   // page (the old /admin pathname fork — and its 'Back to site' row — is gone; the regular
   // Marketplace/Community groups are always present to navigate back with). Settings + Help +
   // Sign out stay in the bottom cluster.
-  const roleOk = (role: NavRole = 'all') =>
-    role === 'all' || (role === 'business' ? isBusiness : role === 'seller' ? !!dash?.seller : isAdmin)
-  // Config item → concrete rail row: resolve the storefront href for THIS seller, localize the
-  // label (vi absent → EN verbatim, the admin-chrome convention), bind the live badge counters.
-  const toRail = (it: NavItem): RailItem | null => {
-    let href = it.href
-    if (it.dynamic === 'storefront') {
-      if (!dash?.seller) return null // role-gated already; belt-and-braces so the placeholder href never renders
-      href = dash.seller.handle ? `/${dash.seller.handle}` : `/sellers/${dash.seller.id}`
-    }
-    return {
-      href,
-      label: it.vi ? tr(it.en, it.vi) : it.en,
-      icon: it.icon,
-      exact: it.exact,
-      external: it.external,
-      badge: it.badge === 'unread' ? unread : it.badge === 'saved' ? savedCount : undefined,
-    }
-  }
-  const GROUPS: { caption?: string; items: RailItem[] }[] = DASHBOARD_NAV
-    .filter((g) => roleOk(g.role))
-    .map((g) => ({
-      // Caption tolerates vi-less groups (Admin renders its EN caption verbatim).
-      caption: g.vi ? tr(g.en, g.vi) : g.en,
-      items: g.items
-        .filter((it) => roleOk(it.role))
-        .flatMap((it) => { const r = toRail(it); return r ? [r] : [] }),
-    }))
+  // The role-gating + storefront-URL + label/badge resolution is a PURE function
+  // (dashboard-nav-resolve.ts) so its branches are unit-testable outside the authed e2e.
+  const GROUPS = resolveNavGroups(DASHBOARD_NAV, {
+    isBusiness,
+    isAdmin,
+    seller: dash?.seller ?? null,
+    counters: { unread, saved: savedCount },
+    label: tr,
+  })
 
   return (
     <aside

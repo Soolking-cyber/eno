@@ -10,7 +10,7 @@
 //     the Save button is the retry path when that save failed;
 //   · no forum page chrome: the dashboard layout provides <main>, the plan page
 //     provides the mobile SectionHeader.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowRight,
@@ -69,6 +69,7 @@ import { useAuth } from '@/context/auth-context'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Combobox,
   ComboboxClear,
@@ -684,13 +685,21 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
   const endDate = addDays(startDate, days - 1)
   const minDate = useMemo(() => dateInputValueFromToday(0), [])
 
-  useEffect(() => {
-    if (!allCityDaysSet) return
-    const total = cityIds.reduce((sum, id) => sum + (cityDays[id] || 0), 0)
+  // Sync the trip total from per-city allocations. Called directly from the two
+  // handlers that change allocations (updateCityDays, removeCity) — not an effect —
+  // so `days` updates in the same render pass as the edit, from the same next values.
+  // daysCustomizedRef is a one-way RATCHET: completing a per-city allocation counts as
+  // an explicit choice of trip length, so once it flips true, route edits stop
+  // overwriting `days` with the suggested duration (see updateSuggestedDays). It is
+  // deliberately never reset — clearing a city's days later should not surrender a
+  // total the user already committed to.
+  const applyCityDays = (nextCityIds: CityId[], nextCityDays: Partial<Record<CityId, number>>) => {
+    if (!nextCityIds.every((id) => nextCityDays[id] != null)) return
+    const total = nextCityIds.reduce((sum, id) => sum + (nextCityDays[id] || 0), 0)
     if (total < MIN_TRIP_DAYS || total > MAX_TRIP_DAYS) return
     daysCustomizedRef.current = true
     setDays(total)
-  }, [allCityDaysSet, cityDays, cityIds])
+  }
 
   const toggleInterest = (id: InterestId) => setInterests((current) => {
     const next = new Set(current)
@@ -735,30 +744,29 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
   const removeCity = (id: CityId) => {
     if (cityIds.length === 1) return
     const next = cityIds.filter((cityId) => cityId !== id)
+    const nextDays = { ...cityDays }
+    delete nextDays[id]
     setCityIds(next)
-    setCityDays((current) => {
-      const updated = { ...current }
-      delete updated[id]
-      return updated
-    })
+    setCityDays(nextDays)
     updateSuggestedDays(next)
+    // After updateSuggestedDays on purpose: when removing the only unallocated city
+    // completes the allocation, the committed total must win over the suggestion.
+    applyCityDays(next, nextDays)
   }
 
   const updateCityDays = (id: CityId, value: string) => {
     if (value === '') {
-      setCityDays((current) => {
-        const updated = { ...current }
-        delete updated[id]
-        return updated
-      })
+      const updated = { ...cityDays }
+      delete updated[id]
+      setCityDays(updated)
+      // No applyCityDays: clearing an entry can only make the allocation incomplete.
       return
     }
     const parsed = Number(value)
     if (!Number.isFinite(parsed)) return
-    setCityDays((current) => ({
-      ...current,
-      [id]: clampWholeNumber(parsed, 1, MAX_TRIP_DAYS),
-    }))
+    const nextDays = { ...cityDays, [id]: clampWholeNumber(parsed, 1, MAX_TRIP_DAYS) }
+    setCityDays(nextDays)
+    applyCityDays(cityIds, nextDays)
   }
 
   const moveCity = (index: number, direction: -1 | 1) => {
@@ -1032,10 +1040,14 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
             </FormSection>
 
             <FormSection icon={Plane} title={tr('Flight research', 'Tìm chuyến bay')} subtitle={tr('eno checks viable routes and fare signals—not reserved inventory.', 'eno kiểm tra đường bay và tín hiệu giá—không phải chỗ đã giữ.')}>
-              <Button type="button" variant="bare" size="none" aria-pressed={includeFlights} onClick={() => setIncludeFlights((value) => !value)} className={cn('h-auto w-full justify-start gap-3 rounded-xl border px-3 py-3 text-left', includeFlights ? 'border-brand bg-accent' : 'border-border bg-card')}>
-                <span className={cn('flex h-5 w-5 items-center justify-center rounded-lg border', includeFlights ? 'border-brand bg-primary text-white' : 'border-line-strong')}>{includeFlights && <Check className="h-3 w-3" />}</span>
+              {/* ui/checkbox (Base UI) instead of the ported hand-painted square-in-a-Button:
+                  the label wrap keeps the whole card clickable — label activation lands on
+                  Base UI's hidden form input, which toggles the Root (same pattern as the
+                  visa Consent card). */}
+              <label className={cn('flex w-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors', includeFlights ? 'border-brand bg-accent' : 'border-border bg-card hover:bg-tint')}>
+                <Checkbox checked={includeFlights} onChange={setIncludeFlights} name="includeFlights" className="mt-0.5 h-5 w-5" />
                 <span className="min-w-0"><span className="block text-sm font-bold text-foreground">{tr('Include flight options', 'Bao gồm lựa chọn chuyến bay')}</span><span className="mt-0.5 block whitespace-normal text-xs text-body">{tr('Optional—add this when you want international flight leads.', 'Không bắt buộc—thêm khi bạn muốn gợi ý chuyến bay quốc tế.')}</span></span>
-              </Button>
+              </label>
               {includeFlights && (
                 <div className="mt-4 space-y-4">
                   <Field>
@@ -1072,7 +1084,11 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
                     <Field><FieldLabel id="cabin-label">{tr('Cabin', 'Hạng ghế')}</FieldLabel><Select value={cabin} onValueChange={(value) => { if (typeof value === 'string') setCabin(value as CabinId) }}><SelectTrigger aria-labelledby="cabin-label" className="w-full cursor-pointer border-line-strong bg-card"><SelectValue>{cabin === 'premium_economy' ? tr('Premium economy', 'Phổ thông đặc biệt') : cabin === 'business' ? tr('Business', 'Thương gia') : tr('Economy', 'Phổ thông')}</SelectValue></SelectTrigger><SelectContent><SelectItem value="economy">{tr('Economy', 'Phổ thông')}</SelectItem><SelectItem value="premium_economy">{tr('Premium economy', 'Phổ thông đặc biệt')}</SelectItem><SelectItem value="business">{tr('Business', 'Thương gia')}</SelectItem></SelectContent></Select></Field>
                     <Field><FieldLabel id="stops-label">{tr('Stops', 'Điểm dừng')}</FieldLabel><Select value={maxStops} onValueChange={(value) => { if (typeof value === 'string') setMaxStops(value as StopsId) }}><SelectTrigger aria-labelledby="stops-label" className="w-full cursor-pointer border-line-strong bg-card"><SelectValue>{maxStops === 'direct' ? tr('Direct only', 'Chỉ bay thẳng') : maxStops === 'one_stop' ? tr('Up to 1 stop', 'Tối đa 1 điểm') : tr('Any viable', 'Mọi lựa chọn')}</SelectValue></SelectTrigger><SelectContent><SelectItem value="direct">{tr('Direct only', 'Chỉ bay thẳng')}</SelectItem><SelectItem value="one_stop">{tr('Up to 1 stop', 'Tối đa 1 điểm')}</SelectItem><SelectItem value="any">{tr('Any viable', 'Mọi lựa chọn')}</SelectItem></SelectContent></Select></Field>
                   </div>
-                  <Button type="button" variant="bare" size="none" aria-pressed={checkedBags} onClick={() => setCheckedBags((value) => !value)} className={cn('h-auto gap-2 rounded-full border px-3 py-2 text-xs font-semibold', checkedBags ? 'border-brand bg-primary text-white' : 'border-border text-body')}><Luggage className="h-3.5 w-3.5" />{tr('Checked baggage needed', 'Cần hành lý ký gửi')}</Button>
+                  <label className="flex w-fit cursor-pointer items-center gap-2 text-xs font-semibold text-body">
+                    <Checkbox checked={checkedBags} onChange={setCheckedBags} name="checkedBags" />
+                    <Luggage className="h-3.5 w-3.5 shrink-0" />
+                    {tr('Checked baggage needed', 'Cần hành lý ký gửi')}
+                  </label>
                 </div>
               )}
             </FormSection>

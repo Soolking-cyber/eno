@@ -238,12 +238,13 @@ export function VisaAssistant() {
     if (!user) { setApplication(null); setPayload(null); setLoading(false); return }
     if (!background) setLoading(true)
     try {
-      const list = await forumApi<{ applications: VisaApplication[] }>('/api/visa/applications', { auth: 'required', direct: true })
-      const active = list.applications.find((item) => !['cancelled'].includes(item.status)) || list.applications[0]
-      if (!active) { setApplication(null); setPayload(null); return }
-      const detail = await forumApi<{ application: VisaApplication }>(`/api/visa/applications/${active.id}`, { auth: 'required', direct: true })
-      const loadedPayload = detail.application.payload
-      setApplication(detail.application); setPayload(loadedPayload ? {
+      // ?active=1: the server picks the active case (newest non-cancelled, else newest)
+      // and returns it in DETAIL form — one request where a list→detail waterfall was.
+      const result = await forumApi<{ application: VisaApplication | null }>('/api/visa/applications?active=1', { auth: 'required', direct: true })
+      const detail = result.application
+      if (!detail) { setApplication(null); setPayload(null); return }
+      const loadedPayload = detail.payload
+      setApplication(detail); setPayload(loadedPayload ? {
         ...loadedPayload,
         entryGate: loadedPayload.entryGate || DEFAULT_EVISA_ENTRY_GATE,
         exitGate: loadedPayload.exitGate || DEFAULT_EVISA_ENTRY_GATE,

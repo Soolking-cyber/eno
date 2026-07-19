@@ -315,16 +315,18 @@ export function VisaApplyClient() {
     if (!user) { setApplication(null); setPayload(null); setLoading(false); return }
     if (!background) setLoading(true)
     try {
-      const list = await visaApi<{ applications: VisaApplication[]; encryptionReady?: boolean; payments?: VisaPaymentsInfo }>('/api/visa/applications')
+      // ?active=1: the server picks the active case (newest non-cancelled, else newest)
+      // and returns it in DETAIL form alongside the history list — one request where a
+      // list→detail waterfall was.
+      const list = await visaApi<{ application: VisaApplication | null; applications: VisaApplication[]; encryptionReady?: boolean; payments?: VisaPaymentsInfo }>('/api/visa/applications?active=1')
       setPayments(list.payments ?? null)
       if (list.encryptionReady === false) { setNotConfigured(true); setApplication(null); setPayload(null); return }
       setNotConfigured(false)
       setApplications(list.applications)
-      const active = list.applications.find((item) => !['cancelled'].includes(item.status)) || list.applications[0]
-      if (!active) { setApplication(null); setPayload(null); return }
-      const detail = await visaApi<{ application: VisaApplication }>(`/api/visa/applications/${active.id}`)
-      const loadedPayload = detail.application.payload
-      setApplication(detail.application); setPayload(loadedPayload ? {
+      const detail = list.application
+      if (!detail) { setApplication(null); setPayload(null); return }
+      const loadedPayload = detail.payload
+      setApplication(detail); setPayload(loadedPayload ? {
         ...loadedPayload,
         entryGate: loadedPayload.entryGate || DEFAULT_EVISA_ENTRY_GATE,
         exitGate: loadedPayload.exitGate || DEFAULT_EVISA_ENTRY_GATE,

@@ -47,6 +47,11 @@ export async function GET(request: Request) {
   const sort = url.searchParams.get('sort') || 'best'
   const savedOnly = url.searchParams.get('saved') === 'true'
   const take = Math.min(Math.max(Number(url.searchParams.get('limit')) || 30, 1), 50)
+  // Keyset pagination: `cursor` is the id of the last post of the previous page.
+  // Prisma's cursor translates it into a row-value comparison over THIS request's
+  // orderBy columns, so the same opaque id works for every sort. Responses without
+  // a cursor are byte-compatible with the pre-pagination shape plus `nextCursor`.
+  const cursor = url.searchParams.get('cursor')?.trim().slice(0, 64) || null
   const auth = await getForumAuth(request)
   if (savedOnly && !auth) return forumJson(request, { error: 'auth_required' }, { status: 401 }, 'GET, POST, OPTIONS')
 
@@ -74,11 +79,14 @@ export async function GET(request: Request) {
         } : {}),
       },
       take,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      // `id` closes each sort's keyset: without a unique tiebreaker, rows that tie
+      // on (pinned, score/hotScore, createdAt) could repeat or vanish across pages.
       orderBy: sort === 'latest'
-        ? [{ pinned: 'desc' }, { createdAt: 'desc' }]
+        ? [{ pinned: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }]
         : sort === 'top'
-          ? [{ pinned: 'desc' }, { score: 'desc' }, { createdAt: 'desc' }]
-          : [{ pinned: 'desc' }, { hotScore: 'desc' }, { createdAt: 'desc' }],
+          ? [{ pinned: 'desc' }, { score: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }]
+          : [{ pinned: 'desc' }, { hotScore: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       include: {
         author: { select: forumAuthorSelect },
         media: { orderBy: { position: 'asc' } },
@@ -87,10 +95,15 @@ export async function GET(request: Request) {
       },
     })
 
-    return forumJson(request, { posts: posts.map(serializeForumPost) }, undefined, 'GET, POST, OPTIONS')
+    const nextCursor = posts.length === take ? posts[posts.length - 1].id : null
+    return forumJson(request, { posts: posts.map(serializeForumPost), nextCursor }, undefined, 'GET, POST, OPTIONS')
   } catch (error) {
     if ((error as { code?: string }).code === 'P2021') {
       return forumJson(request, { error: 'forum_schema_not_ready' }, { status: 503 }, 'GET, POST, OPTIONS')
+    }
+    // P2025: the cursor post was deleted between pages — the page simply ends.
+    if (cursor && (error as { code?: string }).code === 'P2025') {
+      return forumJson(request, { posts: [], nextCursor: null }, undefined, 'GET, POST, OPTIONS')
     }
     throw error
   }

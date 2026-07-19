@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { ChevronRight, X } from 'lucide-react'
 import { CustomSelect } from './custom-select'
@@ -59,6 +60,9 @@ export function ExplorerFilters({
   setCustomFilters,
 }: Props) {
   const { lang, t, tr } = useLanguage()
+  // Unique prefix for the heading-label ids below (mirrors facet-bar): this panel
+  // mounts TWICE — desktop sidebar and mobile drawer — so static ids would collide.
+  const uid = useId()
 
   // Category facets from the CANONICAL taxonomy (audit top-5 value): this drawer used
   // to hand-code ~200 lines of per-category selects that had already drifted from the
@@ -84,13 +88,13 @@ export function ExplorerFilters({
           const opts = f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
           return (
             <div key={f.key} className={cn('space-y-1.5', i === 0 ? 'pt-2 border-t border-border/80' : 'pt-1')}>
-              <label id={`drawer-facet-${f.key}`} className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+              <label id={`${uid}-facet-${f.key}`} className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
                 {tr(f.label, f.labelVi)}
               </label>
               {f.kind === 'range' && f.range ? (
                 <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacet(f.key, v)} />
               ) : f.kind === 'toggle' ? (
-                <div role="group" aria-labelledby={`drawer-facet-${f.key}`} className="flex flex-wrap gap-1.5">
+                <div role="group" aria-labelledby={`${uid}-facet-${f.key}`} className="flex flex-wrap gap-1.5">
                   {opts.map((o) => (
                     <Button
                       key={o.value}
@@ -130,10 +134,13 @@ export function ExplorerFilters({
       {/* Categories Selection for Mobile Drawer */}
       {isMobile && (
         <div className="space-y-1.5">
-          <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+          {/* A <label> with no htmlFor/control names nothing on its own — the id +
+              role="group"/aria-labelledby below is what actually names the chip run
+              (same pattern as facet-bar). */}
+          <label id={`${uid}-category-label`} className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
             {tr('Category', 'Danh mục')}
           </label>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div role="group" aria-labelledby={`${uid}-category-label`} className="grid grid-cols-2 gap-1.5">
             <Button
               variant="bare"
               size="none"
@@ -174,10 +181,10 @@ export function ExplorerFilters({
       {/* Subcategories Selection for Mobile Drawer */}
       {isMobile && activeCategory !== 'all' && SUBCATEGORIES[activeCategory] && (
         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-75">
-          <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+          <label id={`${uid}-subcategory-label`} className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
             {tr('Subcategory', 'Danh mục con')}
           </label>
-          <div className="flex flex-wrap gap-1.5">
+          <div role="group" aria-labelledby={`${uid}-subcategory-label`} className="flex flex-wrap gap-1.5">
             <Button
               variant="bare"
               size="none"
@@ -229,9 +236,11 @@ export function ExplorerFilters({
 
       {/* District Filter */}
       <div className="space-y-1.5">
-        <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+        {/* Visible heading only — CustomSelect labels itself via its `label` prop
+            (sr-only span + aria-labelledby), so a <label> here would name nothing. */}
+        <span className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
           {tr('District / Commune', 'Quận / Huyện')}
-        </label>
+        </span>
         <CustomSelect
           value={activeDistrict}
           onChange={setActiveDistrict}
@@ -244,8 +253,8 @@ export function ExplorerFilters({
 
       {/* Condition Filter */}
       <div className="space-y-1.5">
-        <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">{t('filter.condition')}</label>
-        <div className="flex flex-col gap-1">
+        <label id={`${uid}-condition-label`} className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">{t('filter.condition')}</label>
+        <div role="group" aria-labelledby={`${uid}-condition-label`} className="flex flex-col gap-1">
           {[
             { slug: 'all', name: tr('All Conditions', 'Tất cả tình trạng') },
             { slug: 'new', name: tr('New / Like New', 'Mới / Like new') },
