@@ -4,9 +4,28 @@ import { db } from '@/lib/db'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { updateListingCore, deleteListingCore } from '@/lib/core/listings'
+import { serializeListing } from '@/lib/serialize'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+// GET — public detail payload for the native iOS app (the web PDP is SSR and
+// never calls this). Visibility contract matches the page exactly: only
+// verified + active listings exist here — sold/hidden/held/missing all 404.
+// serializeListing keeps seller.phone null; contact reveal stays auth-gated.
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const listing = await db.listing.findUnique({
+    where: { id },
+    include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+  })
+  if (!listing || !listing.verified || listing.status !== 'active') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  const res = NextResponse.json({ listing: serializeListing(listing) })
+  res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
+  return res
+}
 
 // PATCH — a seller edits their OWN listing (title/description/price/district/
 // condition/images…). Category isn't editable here. auth → core → respond; the edit

@@ -1,0 +1,47 @@
+# eno — NATIVE iOS app (owner direction 2026-07-19: "comprehensive native app
+# rewrite… ios native", UI mirroring the web app as closely as possible).
+#
+# The Xcode project is GENERATED — never hand-edit Eno.xcodeproj (gitignored).
+# After adding/removing Swift files: `xcodegen generate` in this directory.
+# Sources are globbed from Eno/, so new files need only regeneration, keeping
+# Kyle's and Murat's lanes free of pbxproj merge conflicts.
+#
+# Coexists with the Capacitor WebView app (com.mk1e3.enovn) on the same phone
+# during the transition — different bundle id, display name "eno native".
+# Bundle id vn.eno.app: a valid team provisioning profile for it already exists
+# on this Mac (covers the owner's phone) — headless xcodebuild can't mint NEW
+# profiles ("No Accounts"), so we ride the existing one. If signing starts
+# failing with "expired profile", open Eno.xcodeproj in Xcode once to renew.
+name: Eno
+options:
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    # Owner's personal team (same as the Capacitor app's local signing). A team
+    # id ships inside every public IPA — it is not a secret.
+    DEVELOPMENT_TEAM: S4VCY6N8QR
+    CODE_SIGN_STYLE: Automatic
+    # Swift 6.3 compiler, language mode 5 for now — strict-concurrency migration
+    # is a later, deliberate pass; velocity matters more while screens land.
+    SWIFT_VERSION: "5.0"
+targets:
+  Eno:
+    type: application
+    platform: iOS
+    sources: [Eno]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: vn.eno.app
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: false
+        INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
+    info:
+      path: Eno/Info.plist
+      properties:
+        CFBundleDisplayName: eno native
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        ITSAppUsesNonExemptEncryption: false
