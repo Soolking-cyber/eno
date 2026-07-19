@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(data.session?.user ?? null)
           setLoading(false)
         }).catch(fail)
-        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
           setUser(session?.user ?? null)
           if (session?.user) { setSignInOpen(false); maybeTrackSignUp(session.user) }
           // Native-shell Phase 2 · M2: mirror the session into native Preferences so
@@ -110,6 +110,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   ? Preferences.set({ key: 'eno-session', value: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token }) })
                   : Preferences.remove({ key: 'eno-session' }),
               ).catch(() => {})
+            }
+          } catch { /* web */ }
+          try {
+            // Native iOS app's embedded tabs (WKWebView, UA EnoNativeTabs): hand
+            // the session to the shell's enoAuth bridge so Keychain-backed native
+            // surfaces sign in from this same flow. Sessions only — a guest tab
+            // must never clobber an existing native session, so null is NOT
+            // posted; explicit sign-out posts the "signout" sentinel instead.
+            const wk = (window as unknown as { webkit?: { messageHandlers?: { enoAuth?: { postMessage: (m: unknown) => void } } } }).webkit
+            const bridge = wk?.messageHandlers?.enoAuth
+            if (bridge && navigator.userAgent.includes('EnoNativeTabs')) {
+              if (session) bridge.postMessage({ access_token: session.access_token, refresh_token: session.refresh_token })
+              else if (event === 'SIGNED_OUT') bridge.postMessage('signout')
             }
           } catch { /* web */ }
         })

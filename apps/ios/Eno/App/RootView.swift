@@ -15,7 +15,7 @@ struct RootView: View {
                 .tabItem { Label(L10n.tr("Post", "Đăng tin"), systemImage: "plus.square.fill") }
             WebTabView(path: "/messages", title: L10n.tr("Messages", "Tin nhắn"))
                 .tabItem { Label(L10n.tr("Messages", "Tin nhắn"), systemImage: "message") }
-            WebTabView(path: "/dashboard", title: L10n.tr("Account", "Tài khoản"))
+            AccountView()
                 .tabItem { Label(L10n.tr("Account", "Tài khoản"), systemImage: "person.crop.circle") }
         }
     }

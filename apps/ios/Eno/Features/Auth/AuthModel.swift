@@ -1,0 +1,122 @@
+import Foundation
+import Observation
+
+// Native session (#117): tokens arrive from the embedded web sign-in over the
+// enoAuth script bridge (one sign-in flow — phone/email OTP in the web tab),
+// live in the Keychain, refresh directly against Supabase Auth, and ride every
+// API call as Authorization: Bearer (the server's M2 path). The publishable
+// key is public by design — it ships in every web page of eno.vn.
+struct StoredSession: Codable {
+    var accessToken: String
+    var refreshToken: String
+    var expiresAt: TimeInterval
+}
+
+@MainActor
+@Observable
+final class AuthModel {
+    static let shared = AuthModel()
+
+    private static let supabase = URL(string: "https://xihiryllwmjoouipkyhw.supabase.co")!
+    private static let publishableKey = "sb_publishable_He0wwlDfz9YW35sjys3O5Q_qyJ5qwB1"
+    private static let keychainKey = "session"
+
+    private(set) var session: StoredSession?
+    var isSignedIn: Bool { session != nil }
+
+    private init() {}
+
+    // ── lifecycle ──
+    func restore() async {
+        guard session == nil else { await refreshIfNeeded(); return }
+        guard let data = Keychain.load(key: Self.keychainKey),
+              let stored = try? JSONDecoder().decode(StoredSession.self, from: data) else { return }
+        session = stored
+        apply()
+        await refreshIfNeeded()
+    }
+
+    /// Adopt tokens handed over by the embedded web sign-in (idempotent).
+    func adopt(accessToken: String, refreshToken: String) {
+        guard accessToken != session?.accessToken else { return }
+        let expiresAt = Self.jwtExpiry(accessToken) ?? (Date().timeIntervalSince1970 + 3000)
+        session = StoredSession(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
+        persist()
+        apply()
+    }
+
+    func signOut() {
+        // Best-effort server-side revoke, then drop local state either way.
+        if let token = session?.accessToken {
+            var req = URLRequest(url: Self.supabase.appending(path: "auth/v1/logout"))
+            req.httpMethod = "POST"
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue(Self.publishableKey, forHTTPHeaderField: "apikey")
+            Task { _ = try? await URLSession.shared.data(for: req) }
+        }
+        session = nil
+        Keychain.delete(key: Self.keychainKey)
+        APIClient.shared.accessToken = nil
+    }
+
+    // ── refresh ──
+    func refreshIfNeeded() async {
+        guard let s = session else { return }
+        // A minute of headroom: refresh before requests start bouncing.
+        guard s.expiresAt < Date().timeIntervalSince1970 + 60 else { return }
+        await refresh()
+    }
+
+    private struct RefreshResponse: Codable {
+        let access_token: String
+        let refresh_token: String
+        let expires_at: TimeInterval?
+    }
+
+    private func refresh() async {
+        guard let s = session else { return }
+        var req = URLRequest(url: Self.supabase.appending(path: "auth/v1/token").appending(queryItems: [URLQueryItem(name: "grant_type", value: "refresh_token")]))
+        req.httpMethod = "POST"
+        req.setValue(Self.publishableKey, forHTTPHeaderField: "apikey")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONEncoder().encode(["refresh_token": s.refreshToken])
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              let status = (response as? HTTPURLResponse)?.statusCode else { return }
+        if (200..<300).contains(status), let r = try? JSONDecoder().decode(RefreshResponse.self, from: data) {
+            session = StoredSession(
+                accessToken: r.access_token,
+                refreshToken: r.refresh_token,
+                expiresAt: r.expires_at ?? Self.jwtExpiry(r.access_token) ?? (Date().timeIntervalSince1970 + 3000)
+            )
+            persist()
+            apply()
+        } else if status == 400 || status == 401 {
+            // Refresh token revoked/expired — the session is gone for real.
+            signOut()
+        }
+        // Network errors: keep the session, retry on the next foreground.
+    }
+
+    // ── helpers ──
+    private func persist() {
+        guard let s = session, let data = try? JSONEncoder().encode(s) else { return }
+        Keychain.save(data, key: Self.keychainKey)
+    }
+
+    private func apply() {
+        APIClient.shared.accessToken = session?.accessToken
+    }
+
+    /// exp claim from a JWT payload (base64url, no verification — expiry only;
+    /// the SERVER verifies signatures, the client just schedules refreshes).
+    private static func jwtExpiry(_ jwt: String) -> TimeInterval? {
+        let parts = jwt.split(separator: ".")
+        guard parts.count == 3 else { return nil }
+        var b64 = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        while b64.count % 4 != 0 { b64 += "=" }
+        guard let data = Data(base64Encoded: b64),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let exp = obj["exp"] as? TimeInterval else { return nil }
+        return exp
+    }
+}
