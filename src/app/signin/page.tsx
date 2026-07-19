@@ -79,10 +79,13 @@ export default function SignInPage() {
           searchParams-reading inner page prerenders as the fallback. noscript
           can't run the language hook — static EN + VI. */}
       <noscript>
+        {/* No JS ⇒ no client i18n — deliberately static bilingual copy. */}
+        {/* eslint-disable react/jsx-no-literals */}
         <div className="mx-auto my-4 max-w-sm rounded-xl bg-warning/10 px-4 py-3 text-center text-sm text-foreground">
           <p className="font-semibold">Sign in needs JavaScript enabled.</p>
           <p>Đăng nhập cần bật JavaScript trong trình duyệt.</p>
         </div>
+        {/* eslint-enable react/jsx-no-literals */}
       </noscript>
       <Suspense fallback={<div className="min-h-screen bg-background" />}>
         <SignInPageInner />

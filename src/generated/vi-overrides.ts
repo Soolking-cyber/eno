@@ -3,6 +3,8 @@
 // vi language (before any machine translation) by language-context.
 // Regenerate with the translate-vi-overrides workflow.
 export const VI_OVERRIDES: Record<string, string> = {
+  "min": "phút",
+  "required": "bắt buộc",
   "1 Bedroom": "1 phòng ngủ",
   "2 Bedrooms": "2 phòng ngủ",
   "3+ Bedrooms": "3+ phòng ngủ",

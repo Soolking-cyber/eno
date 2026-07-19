@@ -53,7 +53,7 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
       {unitRaw ? ` / ${unit}` : ''}
       {approx && (
         <span className={cn('ml-1.5 text-[0.8em] font-medium text-muted-foreground', dual === 'sm' && 'hidden sm:inline')}>
-          {`≈ ${approx}`}
+          {'≈'} {approx}
         </span>
       )}
     </span>

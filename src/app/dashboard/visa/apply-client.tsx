@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, ChevronLeft, ChevronRight, CreditCard, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Trash2, Upload, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
-import { useLanguage } from '@/context/language-context'
+import { useLanguage, Tr } from '@/context/language-context'
 import { validateVisaStep, visaDateDefaultsForStart, visaEndDateFor90DayWindow, type VisaPayload } from '@/lib/visa/schema'
 import { DEFAULT_EVISA_ENTRY_GATE, EVISA_CHECKPOINT_GROUPS } from '@/lib/visa/checkpoints'
 import { Badge } from '@/components/ui/badge'
@@ -250,7 +250,7 @@ function issueFieldId(issue: string) {
 }
 
 function FormField({ id, label, required, children }: { id: string; label: string; required?: boolean; children: React.ReactNode }) {
-  return <label htmlFor={id} className="flex min-w-0 flex-col gap-1.5 text-sm font-medium text-foreground">{label}{required && <span className="sr-only"> required</span>}{children}</label>
+  return <label htmlFor={id} className="flex min-w-0 flex-col gap-1.5 text-sm font-medium text-foreground">{label}{required && <span className="sr-only"> <Tr text="required" /></span>}{children}</label>
 }
 
 // Adapter kept from the forum port: reads plain <option> children as DATA (they never

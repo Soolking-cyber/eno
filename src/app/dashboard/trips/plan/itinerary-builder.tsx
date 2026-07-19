@@ -64,7 +64,7 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useLanguage, type Language } from '@/context/language-context'
+import { useLanguage, Tr, type Language } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -364,7 +364,7 @@ function Activity({ icon: Icon, label, activity }: { icon: typeof Sun; label: st
       <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-body"><MapPin className="h-3.5 w-3.5" />{activity.place}</p>
       <p className="mt-2 text-xs leading-relaxed text-body">{activity.details}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {activity.travelMinutes > 0 && <Badge variant="neutral" size="sm"><Clock3 className="h-3 w-3" />{activity.travelMinutes} min</Badge>}
+        {activity.travelMinutes > 0 && <Badge variant="neutral" size="sm"><Clock3 className="h-3 w-3" />{activity.travelMinutes} <Tr text="min" /></Badge>}
         {activity.estimatedCostVnd > 0 && <Badge variant="neutral" size="sm"><CircleDollarSign className="h-3 w-3" />{vnd(activity.estimatedCostVnd)}</Badge>}
       </div>
       {activity.bookingAdvice && <p className="mt-3 text-2xs leading-relaxed text-ink-4"><TicketCheck className="mr-1 inline h-3.5 w-3.5" />{activity.bookingAdvice}</p>}

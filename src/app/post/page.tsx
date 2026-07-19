@@ -23,10 +23,13 @@ export default async function PostPage() {
         {/* The wizard is fully client-side — without JS the page is blank. noscript
             can't run the language hook, so static EN + VI. */}
         <noscript>
+          {/* No JS ⇒ no client i18n — deliberately static bilingual copy. */}
+          {/* eslint-disable react/jsx-no-literals */}
           <div className="mx-auto mb-6 max-w-xl rounded-xl bg-warning/10 px-4 py-3 text-center text-sm text-foreground">
             <p className="font-semibold">Posting a listing needs JavaScript enabled.</p>
             <p>Đăng tin cần bật JavaScript trong trình duyệt.</p>
           </div>
+          {/* eslint-enable react/jsx-no-literals */}
         </noscript>
         <PostWizard categories={serialized} />
       </main>

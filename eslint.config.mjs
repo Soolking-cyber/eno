@@ -104,7 +104,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
         "·", "—", "–", "-", "•", "…", "/", "|", "+", "%", "°", "★", "☆", "✓", "×", "→", "←", "@",
         "(", ")", ":", ",", ".", "?", "!", "&", "#",
         "VND", "₫", "km", "m²", "cc", "L", "kg", "GB", "TB", "MB",
-        "1 km", "20 km", "=", "−", "↓", "©", "“", "”", "💰", "❤️", "+000",
+        "1 km", "20 km", "=", "−", "↓", "©", "“", "”", "💰", "❤️", "+000", "1", "/600", "≈", "~", "% ·", "★ ·",
         "×1,000", "×1,000,000", "×1,000,000,000",
         "support@eno.vn", "eno.vn/", "eno.vn ·", "eno.vn —", ") · Email:", "Email:",
         // brand / proper nouns
@@ -119,7 +119,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   files: ["e2e/**"],
   rules: { "react-hooks/rules-of-hooks": "off" },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**"]
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**", "src/generated/prisma/**", "public/vendor/**"]
 }];
 
 export default eslintConfig;
