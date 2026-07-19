@@ -13,6 +13,7 @@ final class ThreadModel {
     let convoId: String
     var thread: ChatThread?
     var notFound = false
+    var actionError: String?
 
     init(convoId: String) {
         self.convoId = convoId
@@ -85,8 +86,17 @@ final class ThreadModel {
     }
 
     func act(on msg: ChatMsg, action: String) async {
+        // Review #6: a swallowed failure left optimistic accept/decline state
+        // standing. Only reload on a real 2xx; surface everything else.
         let status = try? await APIClient.shared.send("POST", "api/conversations/\(convoId)/offer", body: ["messageId": msg.id, "action": action])
-        if status != nil { await load() }
+        if let status, (200..<300).contains(status) {
+            await load()
+        } else if status == 409 {
+            actionError = L10n.tr("This offer can't be updated anymore.", "Đề nghị này không còn hiệu lực.")
+            await load()
+        } else {
+            actionError = L10n.tr("Could not update the offer. Try again.", "Không cập nhật được đề nghị. Thử lại.")
+        }
     }
 
     private func replace(_ localId: String, with server: ChatMsg) {
@@ -146,6 +156,12 @@ struct ThreadView: View {
                 guard !Task.isCancelled else { break }
                 await model.load()
             }
+        }
+        .alert(
+            model.actionError ?? "",
+            isPresented: Binding(get: { model.actionError != nil }, set: { if !$0 { model.actionError = nil } })
+        ) {
+            Button("OK") { model.actionError = nil }
         }
         .alert(L10n.tr("Counter-offer (VND)", "Trả giá (đ)"), isPresented: $counterPrompt) {
             TextField(L10n.tr("Amount", "Số tiền"), text: $counterText)
@@ -302,7 +318,20 @@ struct ThreadView: View {
             if !m.body.isEmpty && !m.body.hasPrefix("💰") {
                 Text(m.body).font(.system(size: 14)).foregroundStyle(Tokens.fg)
             }
-            status(m)
+            // Review #7: a network-failed counter must not read as a live offer.
+            if m.failed == true {
+                Button {
+                    Task { await model.retry(m) }
+                } label: {
+                    Text(L10n.tr("Not sent — tap to retry", "Chưa gửi — chạm để thử lại"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Tokens.danger)
+                }
+            } else if m.pending == true {
+                Text(L10n.tr("Sending…", "Đang gửi…")).font(.system(size: 12)).foregroundStyle(Tokens.sub)
+            } else {
+                status(m)
+            }
             if !m.mine && m.offerStatus == "pending" {
                 HStack(spacing: 8) {
                     Button(L10n.tr("Accept", "Chấp nhận")) { Task { await model.act(on: m, action: "accept") } }
@@ -327,7 +356,7 @@ struct ThreadView: View {
                 .buttonStyle(.plain)
                 .padding(.top, 2)
             }
-            if m.mine && m.offerStatus == "pending" {
+            if m.mine && m.offerStatus == "pending" && m.pending != true && m.failed != true {
                 Text(L10n.tr("Waiting for a response…", "Đang chờ phản hồi…")).font(.system(size: 12)).foregroundStyle(Tokens.sub)
             }
         }

@@ -44,6 +44,14 @@ private struct WebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKScriptMessageHandler {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.name == "enoAuth" else { return }
+            // SECURITY (review #1): the handler is exposed to EVERY frame of every
+            // page this WebView ever loads. Only the main frame of https://eno.vn
+            // may hand us a session — a cross-origin iframe or a followed link
+            // could otherwise plant its own tokens (session fixation/hijack).
+            // securityOrigin, not request.url — the URL can be nil/about:blank.
+            guard message.frameInfo.isMainFrame,
+                  message.frameInfo.securityOrigin.protocol == "https",
+                  message.frameInfo.securityOrigin.host == "eno.vn" else { return }
             let body = message.body
             Task { @MainActor in
                 if let dict = body as? [String: Any],

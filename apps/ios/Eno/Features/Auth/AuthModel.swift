@@ -24,6 +24,14 @@ final class AuthModel {
     private(set) var session: StoredSession?
     var isSignedIn: Bool { session != nil }
 
+    // Session GENERATION (review #2/#3): every event that changes which session
+    // is valid — adopt, successful refresh, signOut — bumps it. An in-flight
+    // refresh snapshots the generation before suspending and discards its
+    // result (success OR failure) if the world moved: a 400 on a rotated old
+    // token can no longer wipe a freshly-adopted session, and a late 200 can
+    // no longer resurrect a signed-out one.
+    private var sessionGen = 0
+
     private init() {}
 
     // ── lifecycle ──
@@ -45,12 +53,18 @@ final class AuthModel {
         guard accessToken != session?.accessToken else { return }
         let expiresAt = Self.jwtExpiry(accessToken) ?? (Date().timeIntervalSince1970 + 3000)
         if let current = session, expiresAt <= current.expiresAt { return }
+        sessionGen += 1
         session = StoredSession(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
         persist()
         apply()
     }
 
     func signOut() {
+        // Invalidate any in-flight refresh FIRST (review #3): its late resume
+        // must not resurrect the session we're about to clear.
+        refreshTask?.cancel()
+        refreshTask = nil
+        sessionGen += 1
         // Best-effort server-side revoke, then drop local state either way.
         if let token = session?.accessToken {
             var req = URLRequest(url: Self.supabase.appending(path: "auth/v1/logout"))
@@ -62,6 +76,7 @@ final class AuthModel {
         session = nil
         Keychain.delete(key: Self.keychainKey)
         APIClient.shared.accessToken = nil
+        APIClient.shared.clearCache()
     }
 
     // ── refresh ──
@@ -92,6 +107,7 @@ final class AuthModel {
 
     private func refresh() async {
         guard let s = session else { return }
+        let gen = sessionGen
         var req = URLRequest(url: Self.supabase.appending(path: "auth/v1/token").appending(queryItems: [URLQueryItem(name: "grant_type", value: "refresh_token")]))
         req.httpMethod = "POST"
         req.setValue(Self.publishableKey, forHTTPHeaderField: "apikey")
@@ -99,7 +115,11 @@ final class AuthModel {
         req.httpBody = try? JSONEncoder().encode(["refresh_token": s.refreshToken])
         guard let (data, response) = try? await URLSession.shared.data(for: req),
               let status = (response as? HTTPURLResponse)?.statusCode else { return }
+        // The world moved while we were suspended (adopt/signOut/another refresh):
+        // this result — success OR failure — is about a superseded token. Drop it.
+        guard sessionGen == gen, !Task.isCancelled, session != nil else { return }
         if (200..<300).contains(status), let r = try? JSONDecoder().decode(RefreshResponse.self, from: data) {
+            sessionGen += 1
             session = StoredSession(
                 accessToken: r.access_token,
                 refreshToken: r.refresh_token,

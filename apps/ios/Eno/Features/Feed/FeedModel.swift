@@ -45,32 +45,51 @@ final class FeedModel {
 
     func start() async {
         guard items.isEmpty else { return }
-        // Instant paint from the disk cache, then revalidate.
-        if let data = try? Data(contentsOf: Self.cacheURL),
-           let cached = try? JSONDecoder().decode([ListingCard].self, from: data), !cached.isEmpty {
+        // Instant paint from the disk cache, then revalidate. Decode off the
+        // MainActor (review #11 addendum) — the cache can be hundreds of KB.
+        let cacheURL = Self.cacheURL
+        let cached = await Task.detached(priority: .userInitiated) { () -> [ListingCard]? in
+            guard let data = try? Data(contentsOf: cacheURL) else { return nil }
+            return try? JSONDecoder().decode([ListingCard].self, from: data)
+        }.value
+        if let cached, !cached.isEmpty, items.isEmpty {
             items = cached
             offset = cached.count
         }
         await reload()
     }
 
+    // Latest-wins (review #10): rapid filter/sort changes fire overlapping
+    // reloads; only the newest may commit.
+    private var reloadGen = 0
+
     func reload() async {
         isRefreshing = true
         defer { isRefreshing = false }
+        reloadGen += 1
+        let gen = reloadGen
         do {
             let page = try await fetchPage(offset: 0)
+            guard gen == reloadGen else { return }
             items = page.listings
             offset = page.listings.count
             exhausted = page.listings.count < pageSize
             failed = false
-            // Fresh bases arrived — session save-deltas would now double-count.
-            FavoritesStore.shared.resetDeltas()
+            // Fresh bases arrived for THESE listings — their session save-deltas
+            // would now double-count. Scoped (review #11): deltas shown on other
+            // surfaces (PDP, Saved) survive.
+            FavoritesStore.shared.clearDeltas(for: page.listings.map(\.id))
             if let counts = page.subcategoryCounts { subcategoryCounts = counts }
-            if category == nil, query == nil, sort == "newest", !hasPriceFilter, subcategory == nil,
-               let data = try? JSONEncoder().encode(page.listings) {
-                try? data.write(to: Self.cacheURL)
+            if category == nil, query == nil, sort == "newest", !hasPriceFilter, subcategory == nil {
+                let snapshot = page.listings
+                Task.detached(priority: .utility) {
+                    if let data = try? JSONEncoder().encode(snapshot) {
+                        try? data.write(to: Self.cacheURL)
+                    }
+                }
             }
         } catch {
+            guard gen == reloadGen else { return }
             failed = items.isEmpty
         }
     }

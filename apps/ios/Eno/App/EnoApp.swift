@@ -8,7 +8,10 @@ struct EnoApp: App {
         WindowGroup {
             RootView()
                 .tint(Tokens.brand)
-                .task { await AuthModel.shared.restore() }
+                .task {
+                    APIClient.shared.ensureFreshToken = { await AuthModel.shared.refreshIfNeeded() }
+                    await AuthModel.shared.restore()
+                }
                 .onChange(of: scenePhase) {
                     if scenePhase == .active {
                         Task {

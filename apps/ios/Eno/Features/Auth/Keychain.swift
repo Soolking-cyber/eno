@@ -15,8 +15,15 @@ enum Keychain {
         SecItemDelete(query as CFDictionary)
         var add = query
         add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(add as CFDictionary, nil)
+        // ThisDeviceOnly (review #8): session tokens must not migrate via
+        // backups or iCloud Keychain to other devices.
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let status = SecItemAdd(add as CFDictionary, nil)
+        if status != errSecSuccess {
+            // Loud, not silent (review #9): a failed save means surprise logout
+            // on the next cold launch.
+            print("⚠️ Keychain save failed for \(key): OSStatus \(status)")
+        }
     }
 
     static func load(key: String) -> Data? {

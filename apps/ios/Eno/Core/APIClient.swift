@@ -25,12 +25,24 @@ final class APIClient: @unchecked Sendable {
         set { tokenLock.lock(); defer { tokenLock.unlock() }; _accessToken = newValue }
     }
 
+    /// Called before every request (review #5): keeps the token fresh during
+    /// ACTIVE use, not just on foreground. Set once at startup to
+    /// AuthModel.refreshIfNeeded (single-flight + 60s headroom live there).
+    var ensureFreshToken: (@Sendable () async -> Void)?
+
+    private let cache = URLCache(memoryCapacity: 32 << 20, diskCapacity: 256 << 20)
+
     private init() {
         let cfg = URLSessionConfiguration.default
         // Native marker, same convention as the Android forum UA ('EnoNativeApp/1').
         cfg.httpAdditionalHeaders = ["User-Agent": "EnoNativeApp/1 ios-native"]
-        cfg.urlCache = URLCache(memoryCapacity: 32 << 20, diskCapacity: 256 << 20)
+        cfg.urlCache = cache
         session = URLSession(configuration: cfg)
+    }
+
+    /// Privacy: wipe cached responses (called on sign-out — review #4).
+    func clearCache() {
+        cache.removeAllCachedResponses()
     }
 
     func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
@@ -101,11 +113,21 @@ final class APIClient: @unchecked Sendable {
         var req = URLRequest(url: url)
         if let token = accessToken {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            // Review #4 (reproduced): Bearer responses must never persist in the
+            // shared disk cache — private data would survive sign-out and could
+            // be re-served. Authed endpoints are dynamic anyway.
+            req.cachePolicy = .reloadIgnoringLocalCacheData
         }
         return req
     }
 
     private func run(_ req: URLRequest) async throws -> (Data, Int) {
+        await ensureFreshToken?()
+        // The token may have rotated while we awaited the refresh hook.
+        var req = req
+        if req.value(forHTTPHeaderField: "Authorization") != nil, let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         let (data, response) = try await session.data(for: req)
         return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
     }

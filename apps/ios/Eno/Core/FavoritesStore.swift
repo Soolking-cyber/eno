@@ -29,9 +29,13 @@ final class FavoritesStore {
 
     func delta(_ id: String) -> Int { deltas[id] ?? 0 }
 
-    /// Fresh server bases arrived (feed reload / PDP hydration) — the persisted
-    /// counts already include prior saves; keeping deltas would double-count.
-    func resetDeltas() { deltas = [:] }
+    /// Fresh server bases arrived for THESE listings — their persisted counts
+    /// already include prior saves; keeping their deltas would double-count.
+    /// Scoped on purpose (review #11): deltas for listings still displayed with
+    /// an older base elsewhere must survive.
+    func clearDeltas(for ids: [String]) {
+        for id in ids { deltas.removeValue(forKey: id) }
+    }
 
     func toggle(_ id: String) {
         let added: Bool
