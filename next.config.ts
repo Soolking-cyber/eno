@@ -66,6 +66,18 @@ const nextConfig: NextConfig = {
   // /.well-known/apple-app-site-association is served by a route handler (which
   // env-gates on APPLE_TEAM_ID — 404 until the paid Apple team exists). Android's
   // assetlinks.json needs no rewrite: it's a static file under public/.well-known.
+  // Canonical-host redirect: Vercel's domain config used to 308 www→apex; on
+  // Cloud Run behind the LB both hosts reach the app, so the app owns it.
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.eno.vn' }],
+        destination: 'https://eno.vn/:path*',
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {
