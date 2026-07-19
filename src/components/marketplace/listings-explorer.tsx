@@ -1330,17 +1330,11 @@ export function ListingsExplorer({
                   value={landingQuery}
                   onChange={(e) => setLandingQuery(e.target.value)}
                   onFocus={() => setShowSuggestions(true)}
-                  onPaste={async (e) => {
-                    const f = imageFromPaste(e); if (!f) return; e.preventDefault()
-                    toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })
-                    const r = await runVisualSearch(f)
-                    if (r?.query) { toast.dismiss('vis'); setLandingQuery(r.query); applyVisualSearch(r) }
-                    else toast.error(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'), { id: 'vis' })
-                  }}
+                  onPaste={(e) => visualSearchFromPaste(e, tr, (r) => { setLandingQuery(r.query); applyVisualSearch(r) })}
                   onKeyDown={(e) => {
                     if (showSuggestions && landingQuery.trim().length >= 2 && heroSuggestItems.length) {
-                      if (e.key === 'ArrowDown') { e.preventDefault(); setHeroActiveIdx((i) => Math.min(heroSuggestItems.length - 1, i + 1)); return }
-                      if (e.key === 'ArrowUp') { e.preventDefault(); setHeroActiveIdx((i) => Math.max(-1, i - 1)); return }
+                      if (e.key === 'ArrowDown') { e.preventDefault(); heroMoveDown(heroSuggestItems.length); return }
+                      if (e.key === 'ArrowUp') { e.preventDefault(); heroMoveUp(); return }
                       if (e.key === 'Enter' && heroActiveIdx >= 0) {
                         e.preventDefault()
                         pickHeroSuggest(heroSuggestItems[heroActiveIdx])
@@ -1417,7 +1411,7 @@ export function ListingsExplorer({
                               <Button
                                 variant="bare"
                                 size="none"
-                                onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }}
+                                onClick={(e) => { e.stopPropagation(); localStorage.removeItem(RECENT_SEARCHES_KEY); setRecentSearches([]) }}
                                 className="text-2xs font-semibold text-body hover:text-destructive cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
@@ -1446,7 +1440,7 @@ export function ListingsExplorer({
                               <Button
                                 variant="bare"
                                 size="none"
-                                onClick={(e) => { e.stopPropagation(); localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }}
+                                onClick={(e) => { e.stopPropagation(); localStorage.removeItem(RECENT_LOCATIONS_KEY); setRecentLocations([]) }}
                                 className="text-2xs font-semibold text-body hover:text-destructive cursor-pointer"
                               >
                                 {tr('Clear', 'Xóa')}
