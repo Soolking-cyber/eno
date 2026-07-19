@@ -53,6 +53,15 @@ until this one reaches parity.
 
 ## Status
 
+- 2026-07-20 (Kyle) v2 — web-parity home + embedded-tab fixes (1f69f1e5):
+  home mirrors the web landing (icon category grid from the taxonomy table,
+  For-you + Outstanding-businesses + per-category rails, latest grid); card v2
+  = the web's exact badge rules (urgent > drop% > New-48h, goodPrice yields to
+  drops, video/saved≥3 chips, trust mini-shield bands, business glyph) + ≈USD
+  approximation via /api/fx. Embedded web tabs now send UA `EnoNativeTabs/1`:
+  the web hides its bottom nav (double-bar fix) and the Google button (Google
+  rejects OAuth in raw WKWebViews — owner hit "access blocked"; phone/email
+  OTP work in place; the REAL fix is Murat's native-auth lane #117).
 - 2026-07-19 (Kyle): scaffold SHIPPED and running on the owner's phone —
   project.yml/xcodegen, tokens, APIClient, models, home feed (2-col cards,
   chips, pull-to-refresh, infinite scroll, disk-cache SWR instant paint,
