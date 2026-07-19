@@ -65,6 +65,6 @@ export async function GET() {
 
   return NextResponse.json(
     { rails: present },
-    { headers: { 'Cache-Control': 'public, max-age=120, stale-while-revalidate=300' } },
+    { headers: { 'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=900' } },
   )
 }

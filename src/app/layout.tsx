@@ -93,11 +93,11 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l)document.documentElement.lang=l;}catch(e){}try{var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){var dc=document.documentElement.classList;dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));}else if(!window.scrollY){document.documentElement.classList.add('page-at-top');}}catch(e){}})();`,
           }}
         />
-        {/* Warm up TCP/TLS to the image origin so above-the-fold listing photos
-            start downloading sooner. (The map tile origin — cartocdn — is
-            preconnected lazily by the map itself, which only mounts on demand;
-            Leaflet is self-hosted first-party.) */}
-        <link rel="preconnect" href="https://xihiryllwmjoouipkyhw.supabase.co" crossOrigin="" />
+        {/* Supabase preconnect REMOVED (perf Phase 1, measured): every above-the-fold
+            image is served through same-origin /_next/image (the optimizer fetches
+            Supabase server-side), auth is lazy and realtime is authed-only — nothing
+            hits the origin directly before LCP. Listing VIDEOS do connect directly,
+            but only well after LCP when a card's clip mounts. */}
         {/* NB: the hero-wordmark preload (/logo.svg) lives on the HOME page only —
             it's the landing LCP element there and unused elsewhere (preloading it
             globally warned "preloaded but not used" on every non-home route). */}

@@ -134,17 +134,20 @@ export function NativeBootstrap() {
       else cleanups.push(() => { void handle.remove() })
     }
 
+    // Perf Phase 1 — REVEAL FIRST: the splash hide must never wait on the keyboard/app
+    // plugin imports (they're enhancements, not paint prerequisites). One tiny import,
+    // hide the instant the web app is painted, then wire everything else.
+    void import('@capacitor/splash-screen')
+      .then(({ SplashScreen }) => SplashScreen.hide({ fadeOutDuration: 200 }))
+      .catch(() => {})
+
     void (async () => {
-      const [{ SplashScreen }, { Keyboard }, { App }] = await Promise.all([
-        import('@capacitor/splash-screen'),
+      const [{ Keyboard }, { App }] = await Promise.all([
         import('@capacitor/keyboard'),
         import('@capacitor/app'),
       ])
       if (disposed) return
       const android = cap()?.getPlatform?.() === 'android'
-
-      // Painted → reveal the app (crossfade, not a hard cut).
-      SplashScreen.hide({ fadeOutDuration: 200 }).catch(() => {})
 
       // Native keyboard → the SAME store the web VisualViewport path drives.
       // ⚠️ Platform asymmetry: the config's Keyboard resize:'none' is honored on iOS ONLY. On

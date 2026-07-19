@@ -42,7 +42,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       }
     } catch { /* ignore */ }
     if (!fresh) {
-      fetch('/api/fx')
+      const refresh = () => fetch('/api/fx')
         .then((r) => r.json())
         .then((d) => {
           if (d?.rates && Object.keys(d.rates).length) {
@@ -51,6 +51,14 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
           }
         })
         .catch(() => {})
+      // Perf Phase 1: a VND user (the default) doesn't need rates to paint anything —
+      // defer the refresh to a post-load idle slot so it never competes with LCP.
+      // A non-VND user needs them for the very first price render → fetch now.
+      let cur = 'VND'
+      try { cur = localStorage.getItem(CUR_KEY) || 'VND' } catch { /* storage blocked */ }
+      if (cur !== 'VND') refresh()
+      else if (typeof requestIdleCallback === 'function') requestIdleCallback(() => refresh(), { timeout: 10_000 })
+      else setTimeout(refresh, 4000)
     }
   }, [])
 

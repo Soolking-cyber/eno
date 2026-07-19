@@ -101,7 +101,7 @@ export function CookieConsent() {
                       'Allow cookies and we’ll put the most relevant products first — and keep you signed in. ',
                       'Cho phép cookie để chúng tôi đưa sản phẩm phù hợp nhất lên đầu — và giữ bạn đăng nhập. ',
                     )}
-                <Link href="/privacy" className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
+                <Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 <Button variant="cta" size="none" onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</Button>

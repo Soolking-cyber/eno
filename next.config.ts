@@ -17,11 +17,13 @@ const nextConfig: NextConfig = {
   ...(process.env.VERCEL ? {} : { cacheHandler: join(__dirname, "cache-handler.cjs"), cacheMaxMemorySize: 0 }),
   // Don't advertise the framework (`x-powered-by: Next.js`) on every response.
   poweredByHeader: false,
-  // Inline CSS into the HTML <head> instead of a render-blocking <link>. On
-  // Slow-4G mobile the stylesheet round-trip was the #1 render blocker (~570ms
-  // in PSI); inlining removes that request so first paint isn't gated on it.
+  // inlineCss DISABLED (perf Phase 1 A/B, 2026-07-19): with RSC payloads the
+  // inlined stylesheet was embedded ~3x — homepage HTML measured 876KB decoded /
+  // 126KB gzip WITH inlining vs 314KB / 35KB with a normal cacheable <link>.
+  // Cost: +~0.3s FCP on cold Slow-4G (the link round-trip); LCP unchanged and
+  // every SUBSEQUENT navigation stops re-downloading the whole stylesheet.
   experimental: {
-    inlineCss: true,
+    inlineCss: false,
     // Tree-shake barrel-export packages so only the icons/primitives actually used
     // are bundled (lucide-react is imported across ~68 files) — trims first-party JS.
     optimizePackageImports: ["lucide-react"],

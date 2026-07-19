@@ -12,17 +12,22 @@ import { ListingCardSkeleton } from './listing-card-skeleton'
 /** "Outstanding businesses" — a horizontal rail of ONE flagship listing (most-viewed)
  *  from each of the highest-trust business storefronts. A reward for good standing.
  *  Reuses the standard ListingCard (heart, locate→map, trust). Hides when empty. */
-export function BusinessRail() {
+export function BusinessRail({ initial }: { initial?: SerializedListingCard[] }) {
   const { tr } = useLanguage()
   const router = useRouter()
-  const [listings, setListings] = useState<SerializedListingCard[] | null>(null)
+  // Perf Phase 1: the home landing passes SERVER-KNOWN data — final geometry from the
+  // first paint, no fetch, and an empty rail never renders skeletons it must collapse
+  // (that collapse was the homepage's whole 0.142 CLS). The client fetch survives only
+  // for call sites without a seed.
+  const [listings, setListings] = useState<SerializedListingCard[] | null>(initial ?? null)
 
   useEffect(() => {
+    if (initial) return
     fetch('/api/businesses/top')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d) setListings(d.listings || []) })
       .catch(() => {})
-  }, [])
+  }, [initial])
 
   if (listings !== null && listings.length === 0) return null
 

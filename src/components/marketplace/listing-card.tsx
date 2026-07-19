@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState, useRef, memo } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
-import { Slider } from '@/components/ui/slider'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
 import Image from 'next/image'
@@ -16,12 +16,17 @@ import { Price } from './price'
 import { formatMoneyFull, moneyLocale, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
 import { isMockImageUrl } from '@/lib/listing-image'
-import { CardVideo } from './card-video'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
 import { useFavorites } from '@/context/favorites-context'
 import { useAuth } from '@/context/auth-context'
+// Perf Phase 1: both are OPTIONAL card features — the video enhancement mounts only
+// on in-viewport video cards, the discount slider only inside the owner's popover —
+// so neither belongs in the default card path every page pays for.
+const CardVideo = dynamic(() => import('./card-video').then((m) => m.CardVideo), { ssr: false })
+const Slider = dynamic(() => import('@/components/ui/slider').then((m) => m.Slider), { ssr: false })
+
 import { stashQuickCompose } from '@/lib/quick-contact'
 
 // Tiny neutral blur (matches the card's bg) so images fade in instead of popping

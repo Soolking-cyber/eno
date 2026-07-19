@@ -119,7 +119,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   files: ["e2e/**"],
   rules: { "react-hooks/rules-of-hooks": "off" },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**", "src/generated/prisma/**", "public/vendor/**"]
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**", "src/generated/prisma/**", "public/vendor/**", "cache-handler.cjs", "playwright-report/**", "test-results/**"]
 }];
 
 export default eslintConfig;

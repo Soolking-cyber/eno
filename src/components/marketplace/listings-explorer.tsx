@@ -25,6 +25,7 @@ import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
 import { ForYouRail } from './for-you-rail'
 import { RecentlyViewedRail } from './recently-viewed-rail'
+import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
 import { DISTRICTS } from './listings-explorer.constants'
 import { type Nearby, type Geo } from './area-filter'
@@ -95,6 +96,28 @@ function parseFilterParams(p: URLSearchParams, categorySlug: string, subcategory
 // — `ssr:false` here caused the CLS "layout shift culprits". They're tiny (reuse the
 // already-bundled ListingCard), so the JS cost is negligible.
 const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.CategoryRails), { ssr: false })
+
+// Perf Phase 1: mount the per-category rails only when the user approaches them —
+// they injected many sections above the feed right after hydration (layout shift +
+// an immediate /api/category-rails fetch on every cold load). The sentinel is
+// zero-height, so deferral itself never moves anything.
+function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>) {
+  const { ref, near } = useNearViewport<HTMLDivElement>()
+  // Idle-armed on top of near-viewport: the sentinel sits at the first-paint fold,
+  // so near fires immediately — without the idle gate the rails (and their
+  // /api/category-rails fetch) would still land inside the critical window.
+  const [armed, setArmed] = useState(false)
+  useEffect(() => {
+    const arm = () => setArmed(true)
+    if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(arm, { timeout: 8000 }); return () => cancelIdleCallback(id) }
+    const t = setTimeout(arm, 3500); return () => clearTimeout(t)
+  }, [])
+  return (
+    <div ref={ref}>
+      {armed && near ? <CategoryRails {...props} /> : null}
+    </div>
+  )
+}
 const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { ssr: false })
 
 const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.ListingsMap), {
@@ -145,6 +168,9 @@ type Props = {
   // 30s staleTime), so React Query never revalidated it. With the true age, a stale snapshot
   // still paints instantly but refetches in the background.
   initialFetchedAt?: number
+  // Server-known rail seeds (perf Phase 1) — rail geometry decided at first paint.
+  initialBusinesses?: SerializedListingCard[]
+  initialTrending?: SerializedListingCard[]
   listingsRef?: React.RefObject<HTMLDivElement | null>
 }
 
@@ -155,6 +181,8 @@ export function ListingsExplorer({
   initialListings,
   initialTotal,
   initialFetchedAt,
+  initialBusinesses,
+  initialTrending,
   listingsRef,
 }: Props) {
   const { lang, t, tr } = useLanguage()
@@ -814,8 +842,17 @@ export function ListingsExplorer({
   // Does the catalog have ANY video listings? Gates the ▷ Video view toggle — with zero
   // videos the takeover is a guaranteed dead end, so the tab stays hidden until at least
   // one exists. Site-wide (not filter-scoped) + long staleTime: one cheap query per session.
+  // Perf Phase 1: this probe is display-only (shows the ▷ toggle) — keep it out of
+  // the critical cold path; run it in the first post-load idle slot instead.
+  const [videoProbeReady, setVideoProbeReady] = useState(false)
+  useEffect(() => {
+    const arm = () => setVideoProbeReady(true)
+    if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(arm, { timeout: 10_000 }); return () => cancelIdleCallback(id) }
+    const t = setTimeout(arm, 4000); return () => clearTimeout(t)
+  }, [])
   const { data: videoAvail } = useQuery({
     queryKey: ['video-availability'],
+    enabled: videoProbeReady,
     queryFn: async () => {
       const res = await fetch('/api/listings?hasVideo=1&limit=1')
       if (!res.ok) return { total: 0 }
@@ -1566,15 +1603,15 @@ export function ListingsExplorer({
           {/* For You — horizontal rail between the category grid and the vertical feed
               (search → categories → horizontal For You → vertical). Self-hides once a
               filter/search is active. */}
-          <ForYouRail />
+          <ForYouRail initial={initialTrending} />
 
           {/* Outstanding businesses — second horizontal rail: the highest-trust business
               storefronts (only on the home landing view). */}
-          <BusinessRail />
+          <BusinessRail initial={initialBusinesses} />
 
           {/* Browse by category — one horizontal rail per category, most-used first.
               Tapping a heading / "See all" opens that category (same as the grid). */}
-          <CategoryRails categories={categories} onCategory={handleCategorySelect} />
+          <DeferredCategoryRails categories={categories} onCategory={handleCategorySelect} />
 
           {/* Section heading for the feed — keeps the document outline sequential
               (h1 → h2 → card h3s); visually hidden. */}
@@ -1641,7 +1678,7 @@ export function ListingsExplorer({
                       onMouseEnter={() => prefetchListing(l.id)}
                       onTouchStart={() => prefetchListing(l.id)}
                     >
-                      <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={locateListing} />
+                      <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} onLocate={locateListing} />
                     </div>
                   </Fragment>
                 ))}
@@ -2022,7 +2059,7 @@ export function ListingsExplorer({
                           onMouseEnter={() => prefetchListing(l.id)}
                           onTouchStart={() => prefetchListing(l.id)}
                         >
-                          <ListingCard listing={l} onOpen={handleOpen} priority={index < 4} lcp={index === 0} onLocate={locateListing} />
+                          <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} onLocate={locateListing} />
                         </div>
                       </Fragment>
                     ))}

@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       ]),
     )
     if (stat.size === 0) {
-      return NextResponse.json({ brands: [] }, { headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' } })
+      return NextResponse.json({ brands: [] }, { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=900' } })
     }
     const brandRows = await db.brand.findMany({
       where: { status: 'active', slug: { in: Array.from(stat.keys()) } },
@@ -73,6 +73,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(
     { brands },
-    { headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' } },
+    { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=900' } },
   )
 }

@@ -14,7 +14,7 @@ export async function GET() {
     if (d?.result !== 'success' || !d?.rates) throw new Error('fx_unavailable')
     return NextResponse.json(
       { base: 'VND', rates: d.rates as Record<string, number>, updated: d.time_last_update_unix ?? 0 },
-      { headers: { 'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400' } },
+      { headers: { 'Cache-Control': 'public, max-age=3600, s-maxage=21600, stale-while-revalidate=86400' } },
     )
   } catch {
     // Fail soft — the client falls back to showing VND when rates are empty. Never cached.

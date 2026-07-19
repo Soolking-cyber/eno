@@ -17,13 +17,18 @@ const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district'
  *  the user's own on-site signals when they've allowed it (consent 'all'); otherwise
  *  Trending. Only shows on the default home view — hides as soon as a filter/search is
  *  active (it would be redundant over filtered results). */
-export function ForYouRail() {
+export function ForYouRail({ initial }: { initial?: SerializedListingCard[] }) {
   const { tr } = useLanguage()
   const router = useRouter()
-  const [listings, setListings] = useState<SerializedListingCard[] | null>(null)
+  // Perf Phase 1: the home landing passes the SERVER-KNOWN "Trending now" seed, so the
+  // rail's geometry (including the thin-catalog empty → hidden case) is final at first
+  // paint — the SSR'd skeletons collapsing on the client's empty answer was the
+  // homepage's dominant CLS (0.15). Personalization then upgrades the CONTENT in place.
+  const [listings, setListings] = useState<SerializedListingCard[] | null>(initial ?? null)
   const [personalized, setPersonalized] = useState(false)
   const [active, setActive] = useState(true) // default (unfiltered) home view?
 
+  const seeded = initial !== undefined
   const load = useCallback(() => {
     const params = new URLSearchParams()
     const terms: string[] = []
@@ -41,11 +46,21 @@ export function ForYouRail() {
     }
     const uniqTerms = Array.from(new Set(terms.filter(Boolean))).slice(0, 6)
     if (uniqTerms.length) params.set('terms', uniqTerms.join(','))
+    // Seeded + signal-less: the server seed IS the trending answer — skip the fetch
+    // entirely (one less cold-start request; a guest with no history gains nothing).
+    if (seeded && !uniqTerms.length && !params.has('cats') && !params.has('brands')) return
     fetch(`/api/recommendations?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d) { setListings(d.listings || []); setPersonalized(!!d.personalized) } })
+      .then((d) => {
+        if (!d) return
+        const next: SerializedListingCard[] = d.listings || []
+        // Never collapse a rendered rail: an empty personalized answer keeps the
+        // current (seed/previous) content instead of yanking the section away.
+        setListings((prev) => (next.length ? next : seeded ? prev : next))
+        if (next.length) setPersonalized(!!d.personalized)
+      })
       .catch(() => {})
-  }, [])
+  }, [seeded])
 
   useEffect(() => {
     load()

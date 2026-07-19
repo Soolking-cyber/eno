@@ -133,9 +133,12 @@ export function AreaFilter({
     setAddress(null)
   }, [open, province, ward, nearby])
 
-  // Wards for the selected province.
+  // Wards for the selected province — ONLY while the popover is open (perf Phase 1:
+  // a persisted/geolocated province made every cold load fetch that province's wards
+  // for a control nobody had opened).
   useEffect(() => {
     if (!provCode) { setWards([]); return }
+    if (!open) return
     let off = false
     setLoadingWards(true)
     fetch(`/api/geo?type=wards&province=${provCode}`)
@@ -156,7 +159,7 @@ export function AreaFilter({
       })
       .catch(() => { if (!off) setLoadingWards(false) })
     return () => { off = true }
-  }, [provCode])
+  }, [provCode, open])
 
   const label = (u: Unit) => (lang === 'vi' ? u.name : u.nameEn)
   const toGeo = (u?: Unit): Geo | null => (u ? { code: u.code, name: u.name, nameEn: u.nameEn } : null)

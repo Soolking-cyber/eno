@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { getCategoriesByDemand } from '@/lib/categories'
+import { topBusinessListings } from '@/lib/core/business-rail'
+import { trendingRailListings } from '@/lib/core/trending-rail'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
@@ -14,12 +16,12 @@ export const revalidate = 21600 // 6h — the client explorer fetches live listi
 // Self-canonical so Google attributes ranking signals to the no-redirect www host.
 export const metadata: Metadata = { alternates: { canonical: '/' } }
 
-async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListingCard[]; total: number }> {
+async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListingCard[]; total: number; businesses: Awaited<ReturnType<typeof topBusinessListings>>; trending: Awaited<ReturnType<typeof trendingRailListings>> }> {
   try {
     // verified:true AND status:'active' matches the /api/listings response (GET
     // forces verified+active-only), so this SSR data can seed React Query's
     // default-view cache exactly — and never leaks sold/hidden items on first paint.
-    const [serializedCategories, listings, total] = await Promise.all([
+    const [serializedCategories, listings, total, businesses, trending] = await Promise.all([
       // Categories ordered by live DEMAND — most-wanted lead the rail + home grid.
       getCategoriesByDemand(),
       db.listing.findMany({
@@ -33,20 +35,27 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
         select: LISTING_CARD_SELECT,
       }),
       db.listing.count({ where: { verified: true, status: 'active' } }),
+      // Outstanding-businesses rail, server-known (perf Phase 1): the rail's
+      // presence/geometry is decided at first paint — the client fetch's
+      // skeleton→empty collapse was the homepage's dominant CLS (0.142).
+      topBusinessListings().catch(() => []),
+      // "Trending now" seed for the ForYouRail — same server-known-geometry fix
+      // (the client's empty thin-catalog answer collapsed the SSR'd skeletons).
+      trendingRailListings().catch(() => []),
     ])
 
     const serializedListings: SerializedListingCard[] = await localizeListingTitles(listings.map(serializeListingCard))
 
-    return { categories: serializedCategories, listings: serializedListings, total }
+    return { categories: serializedCategories, listings: serializedListings, total, businesses, trending }
   } catch {
     // DB unreachable at build → prerender empty and let ISR (revalidate) fill it
     // on the first request, so a transient build-time DB error never fails the deploy.
-    return { categories: [], listings: [], total: 0 }
+    return { categories: [], listings: [], total: 0, businesses: [], trending: [] }
   }
 }
 
 export default async function Home() {
-  const { categories, listings, total } = await getData()
+  const { categories, listings, total, businesses, trending } = await getData()
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
@@ -63,6 +72,8 @@ export default async function Home() {
           // Baked at ISR regeneration time — tells the client explorer the seed's TRUE age
           // so a 6h-old snapshot revalidates in the background instead of posing as fresh.
           initialFetchedAt={Date.now()}
+          initialBusinesses={businesses}
+          initialTrending={trending}
         />
       </main>
       <Footer />

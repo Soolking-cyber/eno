@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { User, Search, MapPin, Clock, X } from 'lucide-react'
@@ -12,9 +13,9 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { NotificationBell } from './notification-bell'
-import { AreaFilter, type Nearby, type Geo } from './area-filter'
+import type { Nearby, Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
-import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
+import { buildSuggestItems, type SuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
 import { useTrendingSearches } from '@/hooks/use-trending-searches'
 import { AISearchButton } from './ai-concierge'
@@ -30,6 +31,11 @@ const SUGGEST_ID = 'header-search-suggest'
 
 // One uniform lucide stroke across the whole header, matching the bottom nav — a slightly
 // thicker, identical weight reads softer and keeps every icon visually the same weight.
+// Perf Phase 1: popover-only widgets load on demand — neither the area picker nor
+// the suggest dropdown belongs in the header's initial chunk.
+const AreaFilter = dynamic(() => import('./area-filter').then((m) => m.AreaFilter), { ssr: false })
+const SearchSuggest = dynamic(() => import('./search-suggest').then((m) => m.SearchSuggest), { ssr: false })
+
 const STROKE = 2.25
 
 export function Header() {
@@ -89,6 +95,10 @@ export function Header() {
   const [ward, setWard] = useState<Geo | null>(null)
   const [nearby, setNearby] = useState<Nearby | null>(null)
   const [areaOpen, setAreaOpen] = useState(false)
+  // Perf Phase 1: don't even fetch the area-picker chunk until the first open —
+  // stays mounted afterwards so close animations/state behave as before.
+  const [areaEverOpened, setAreaEverOpened] = useState(false)
+  useEffect(() => { if (areaOpen) setAreaEverOpened(true) }, [areaOpen])
   const areaBtnRef = useRef<HTMLButtonElement>(null)
   // Quick-select suggestions (same store as the hero/in-explorer search): the user's
   // recent searches + recently-used areas, shown when the header search is focused.
@@ -256,6 +266,7 @@ export function Header() {
         {/* Logo */}
         <Link
           href="/"
+          prefetch={false}
           onClick={() => window.dispatchEvent(new CustomEvent('eno:reset-home'))}
           className="flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95"
           aria-label="eno.vn"
@@ -448,6 +459,7 @@ export function Header() {
           {!user && (
             <Link
               href="/signin"
+              prefetch={false}
               className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-48 relative"
               aria-label={tr('Sign in', 'Đăng nhập')}
             >
@@ -470,6 +482,7 @@ export function Header() {
             <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
               <Link
                 href={user ? '/dashboard?tab=post' : '/post'}
+                prefetch={false}
                 className="px-4 py-2 text-sm inline-flex cursor-pointer"
               >
                 {t('header.postBtn')}
@@ -479,7 +492,7 @@ export function Header() {
         </div>
       </div>
 
-      <AreaFilter
+      {areaEverOpened && <AreaFilter
         open={areaOpen}
         anchorRef={areaBtnRef}
         onClose={() => setAreaOpen(false)}
@@ -488,7 +501,7 @@ export function Header() {
         nearby={nearby}
         onApply={applyArea}
         onReset={() => applyArea({ province: null, ward: null, nearby: null })}
-      />
+      />}
     </header>
   )
 }

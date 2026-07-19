@@ -39,7 +39,11 @@ const config: CapacitorConfig = {
       // it can show its own retry/offline state instead of a dead splash. Fast loads still hide
       // early via native-bootstrap; only a slow/failed load ever reaches the floor.
       launchAutoHide: true,
-      launchShowDuration: 4000,
+      // 3s (perf Phase 1, was 4s): native-bootstrap now hides the splash the moment
+      // the page paints (decoupled from plugin imports), so this floor only matters
+      // for stalled loads — 3s still comfortably clears a normal cold start, and the
+      // MainViewController watchdog continues to backstop the pure-blank case.
+      launchShowDuration: 3000,
       backgroundColor: '#ffffff',
       showSpinner: false,
     },

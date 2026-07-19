@@ -74,7 +74,7 @@ function GatedTab({ href, active, icon, label, gate, onNavigate }: { href: strin
   // Keep the <Link> (prefetch + a11y) but drive the actual nav through the slide
   // router so it animates directionally.
   return (
-    <Link href={href} aria-label={label} aria-current={active ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); onNavigate() }}>
+    <Link href={href} prefetch={false} aria-label={label} aria-current={active ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); onNavigate() }}>
       <TabBody active={active} icon={icon} label={label} />
     </Link>
   )
@@ -204,13 +204,13 @@ export function MobileNav() {
       {/* Fixed 64px tab row; the safe-area padding sits BELOW it (filled white) so
           the home-indicator inset never compresses the icons out of the bar. */}
       <div className="flex h-16 items-stretch">
-      <Link href="/" aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); scrollTopOrGo('/', at('/')) }}>
+      <Link href="/" prefetch={false} aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); scrollTopOrGo('/', at('/')) }}>
         <TabBody active={at('/')} label={tr('Explore', 'Khám phá')} icon={<Compass className="h-7 w-7" strokeWidth={STROKE} />} />
       </Link>
 
       {/* Saved is public — favorites are stored device-local (localStorage), so a
           logged-out visitor can save and review listings without an account. */}
-      <Link href="/saved" aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); scrollTopOrGo('/saved', at('/saved')) }}>
+      <Link href="/saved" prefetch={false} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); scrollTopOrGo('/saved', at('/saved')) }}>
         <TabBody
           active={at('/saved')}
           label={tr('Saved', 'Đã lưu')}
