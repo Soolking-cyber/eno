@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { FileCheck2 } from 'lucide-react'
 import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
-import { listVisaAdminCases, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa-admin'
+import { listVisaAdminCases, type VisaQueueRow, type VisaDocumentRow } from '@/lib/visa-admin'
 import { visaStatusLabel, visaStatusVariant } from './visa-status'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -57,7 +57,7 @@ export default async function AdminVisasPage() {
   const changes = rows.filter((item) => item.status === 'needs_changes')
   const closed = rows.filter((item) => ['approved', 'rejected', 'cancelled'].includes(item.status))
 
-  const CaseRow = ({ item }: { item: VisaApplicationRow }) => {
+  const CaseRow = ({ item }: { item: VisaQueueRow }) => {
     const kinds = docs.filter((d: VisaDocumentRow) => d.application_id === item.id).map((d) => d.kind)
     return (
       <Link href={`/admin/visas/${item.id}`} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted">
@@ -77,7 +77,7 @@ export default async function AdminVisasPage() {
 
   // Plain render helper, NOT a component (see admin/disputes — a component created
   // during render remounts its subtree every pass).
-  const renderList = (list: VisaApplicationRow[]) =>
+  const renderList = (list: VisaQueueRow[]) =>
     list.length === 0
       ? <p className="px-2 py-6 text-sm text-muted-foreground">No cases here.</p>
       : (

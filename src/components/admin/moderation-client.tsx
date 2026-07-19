@@ -508,6 +508,18 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
   const { tr } = useLanguage() // bulk-result toast copy follows the viewer's language
   const [filter, setFilter] = useState<FilterKey>('all')
   const [sel, setSel] = useState(0)
+  // Post-mount, only ONE of the two layout trees stays mounted (audit §G: with a
+  // long queue, rendering every full card for the CSS-hidden mobile list doubled
+  // the work of every interaction). Pre-mount (null) both render, CSS-gated —
+  // identical to the server HTML, so hydration stays clean.
+  const [viewport, setViewport] = useState<'wide' | 'narrow' | null>(null)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const apply = () => setViewport(mq.matches ? 'wide' : 'narrow')
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [sevById, setSevById] = useState<Record<string, string>>({})
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -657,12 +669,12 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
       ) : (
         <>
           {/* Narrow / non-desktop: original single-column full cards (each self-contained). */}
-          <div className="space-y-3 lg:hidden">
+          {viewport !== 'wide' && <div className="space-y-3 lg:hidden">
             {filtered.map((c, i) => renderCard(c, i))}
-          </div>
+          </div>}
 
           {/* Desktop: master-detail. Left = compact list; right = the selected case in full. */}
-          <div className="hidden lg:grid lg:grid-cols-[minmax(300px,380px)_1fr] lg:items-start lg:gap-4">
+          {viewport !== 'narrow' && <div className="hidden lg:grid lg:grid-cols-[minmax(300px,380px)_1fr] lg:items-start lg:gap-4">
             <div className="max-h-[calc(100vh-150px)] space-y-1.5 overflow-y-auto pr-1">
               {filtered.map((c, i) => (
                 <CaseRow
@@ -681,7 +693,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
                 <EmptyState title="Select a case to review." />
               )}
             </div>
-          </div>
+          </div>}
         </>
       )}
     </div>

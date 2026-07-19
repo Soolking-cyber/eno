@@ -65,7 +65,13 @@ function visaDb(): SupabaseClient | null {
 
 // ── Queue + case loads (mirroring apps/forum/src/app/admin/visas queries) ───────
 
-export type VisaQueueData = { applications: VisaApplicationRow[]; documents: VisaDocumentRow[] }
+/** Queue rows carry everything EXCEPT the ciphertext — the list never decrypts, and
+ *  200 × encrypted_payload was the page's dominant transfer weight (audit §G). */
+export type VisaQueueRow = Omit<VisaApplicationRow, 'encrypted_payload'>
+const QUEUE_COLUMNS =
+  'id,user_id,status,checklist,applicant_confirmation_version,applicant_confirmed_at,applicant_snapshot_hash,authorization_version,authorized_at,authorization_snapshot_hash,assigned_admin,submitted_at,resolved_at,retention_until,paid_at,payment_provider,payment_ref,created_at,updated_at'
+
+export type VisaQueueData = { applications: VisaQueueRow[]; documents: VisaDocumentRow[] }
 
 /** All cases for the queue page, newest activity first. `null` = tables/env not provisioned here.
  *  DRAFTS ARE EXCLUDED (owner 2026-07-18): a draft is the applicant's private local work —
@@ -75,7 +81,7 @@ export type VisaQueueData = { applications: VisaApplicationRow[]; documents: Vis
 export async function listVisaAdminCases(): Promise<VisaQueueData | null> {
   const db = visaDb()
   if (!db) return null
-  const apps = await db.from('visa_applications').select('*').neq('status', 'draft').order('updated_at', { ascending: false }).limit(200)
+  const apps = await db.from('visa_applications').select(QUEUE_COLUMNS).neq('status', 'draft').order('updated_at', { ascending: false }).limit(200)
   if (tableMissing(apps.error)) return null
   if (apps.error) throw new Error(`visa_queue_failed:${apps.error.message}`)
   // Documents scoped to the fetched cases — an unfiltered read walks the WHOLE table
@@ -86,7 +92,7 @@ export async function listVisaAdminCases(): Promise<VisaQueueData | null> {
     : { data: [], error: null }
   if (tableMissing(docs.error)) return null
   if (docs.error) throw new Error(`visa_queue_failed:${docs.error.message}`)
-  return { applications: (apps.data ?? []) as VisaApplicationRow[], documents: (docs.data ?? []) as VisaDocumentRow[] }
+  return { applications: (apps.data ?? []) as unknown as VisaQueueRow[], documents: (docs.data ?? []) as VisaDocumentRow[] }
 }
 
 export type VisaCaseResult =
