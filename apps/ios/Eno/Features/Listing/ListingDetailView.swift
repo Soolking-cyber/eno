@@ -14,6 +14,7 @@ struct ListingDetailView: View {
     @State private var more: [ListingCard] = []
     @State private var showWeb = false
     @State private var viewer: ViewerState?
+    @State private var favs = FavoritesStore.shared
     @State private var sellerSheet = false
     @State private var signInSheet = false
     @State private var chatConvo: ChatRoute?
@@ -65,6 +66,14 @@ struct ListingDetailView: View {
         .safeAreaInset(edge: .bottom) { ctaBar }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    FavoritesStore.shared.toggle(card.id)
+                } label: {
+                    Image(systemName: favs.isFavorite(card.id) ? "heart.fill" : "heart")
+                        .foregroundStyle(favs.isFavorite(card.id) ? Tokens.brand : Tokens.fg)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 ShareLink(item: URL(string: "https://eno.vn/listings/\(card.id)")!) {
                     Image(systemName: "square.and.arrow.up")
@@ -200,7 +209,7 @@ struct ListingDetailView: View {
     private func statsRow(_ d: ListingDetail) -> some View {
         HStack(spacing: 14) {
             stat(icon: "eye", value: d.views, label: L10n.tr("views", "lượt xem"))
-            stat(icon: "heart", value: d.savedCount, label: L10n.tr("saved", "đã lưu"))
+            stat(icon: "heart", value: max(0, d.savedCount + favs.delta(card.id)), label: L10n.tr("saved", "đã lưu"))
             stat(icon: "message", value: d.contactCount, label: L10n.tr("contacted", "đã liên hệ"))
             Spacer()
         }

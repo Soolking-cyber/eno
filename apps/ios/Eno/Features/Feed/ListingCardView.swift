@@ -8,6 +8,11 @@ import SwiftUI
 struct ListingCardView: View {
     let listing: ListingCard
     var fx: Fx = .shared
+    @State private var favs = FavoritesStore.shared
+
+    // Landmine (web parity): displayed saves = server base + session delta,
+    // floored — never derived from the favorited flag.
+    private var savedTotal: Int { max(0, listing.savedCount + favs.delta(listing.id)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -48,7 +53,23 @@ struct ListingCardView: View {
         }
         .aspectRatio(10 / 11, contentMode: .fit)
         .overlay(alignment: .topLeading) { topBadge.padding(8) }
+        .overlay(alignment: .topTrailing) { heart.padding(8) }
         .overlay(alignment: .bottomLeading) { bottomChips.padding(8) }
+    }
+
+    private var heart: some View {
+        Button {
+            favs.toggle(listing.id)
+        } label: {
+            Image(systemName: favs.isFavorite(listing.id) ? "heart.fill" : "heart")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(favs.isFavorite(listing.id) ? Tokens.brand : .white)
+                .frame(width: 30, height: 30)
+                .background(.black.opacity(favs.isFavorite(listing.id) ? 0.0 : 0.25), in: Circle())
+                .background(favs.isFavorite(listing.id) ? AnyShapeStyle(.white) : AnyShapeStyle(.clear), in: Circle())
+                .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -72,10 +93,10 @@ struct ListingCardView: View {
                     .padding(5)
                     .background(.black.opacity(0.55), in: Capsule())
             }
-            if listing.savedCount >= 3 {
+            if savedTotal >= 3 {
                 HStack(spacing: 3) {
                     Image(systemName: "heart.fill").font(.system(size: 9))
-                    Text("\(listing.savedCount)").font(.system(size: 10, weight: .semibold))
+                    Text("\(savedTotal)").font(.system(size: 10, weight: .semibold))
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 7)

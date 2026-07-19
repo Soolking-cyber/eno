@@ -11,7 +11,7 @@ struct RootView: View {
         TabView {
             FeedView()
                 .tabItem { Label(L10n.tr("Explore", "Khám phá"), systemImage: "safari") }
-            WebTabView(path: "/saved", title: L10n.tr("Saved", "Đã lưu"))
+            SavedView()
                 .tabItem { Label(L10n.tr("Saved", "Đã lưu"), systemImage: "heart") }
             WebTabView(path: "/post", title: L10n.tr("Post", "Đăng tin"))
                 .tabItem { Label(L10n.tr("Post", "Đăng tin"), systemImage: "plus.square.fill") }

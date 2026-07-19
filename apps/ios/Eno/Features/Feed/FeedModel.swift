@@ -63,6 +63,8 @@ final class FeedModel {
             offset = page.listings.count
             exhausted = page.listings.count < pageSize
             failed = false
+            // Fresh bases arrived — session save-deltas would now double-count.
+            FavoritesStore.shared.resetDeltas()
             if let counts = page.subcategoryCounts { subcategoryCounts = counts }
             if category == nil, query == nil, sort == "newest", !hasPriceFilter, subcategory == nil,
                let data = try? JSONEncoder().encode(page.listings) {
