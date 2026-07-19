@@ -99,17 +99,10 @@ gcloud builds list --region=europe-west1 --limit=2 \
 
 Poll until the build(s) tagged with your commit show `SUCCESS` (~6–12 min on default machines).
 `FAILURE` → `gcloud builds log <id> --region=europe-west1`, fix, restart at step 1. Then confirm
-the new revision serves: `curl -s -o /dev/null -w '%{http_code}' https://eno-vn-71068369681.asia-southeast1.run.app/`.
+the new revision serves **via the domain** (ingress is locked — direct run.app URLs 404):
+`curl -s -o /dev/null -w '%{http_code}' https://eno.vn`.
 
-**Until the DNS cutover completes** (see docs/gcp-migration.md), the DOMAINS are still served by
-Vercel, which also auto-deploys the push — check it too:
-
-```bash
-npx vercel ls | head -8
-```
-
-`● Ready` = live on eno.vn. `● Error` → `npx vercel inspect --logs <url>`, fix, restart at step 1.
-After the cutover + Vercel decommission, delete this Vercel block.
+GCP is the ONLY deploy path — the Vercel projects were deleted 2026-07-19.
 
 Prefer a bounded poll loop (e.g. check every 20s, give up after ~15 min and report) over an
 open-ended `until` loop — one of those was left running for nearly 3 hours.
