@@ -2,6 +2,13 @@
 .git
 .next
 node_modules
+# The forum is a SEPARATE image (apps/forum/Dockerfile, its own context).
+apps
+# Native shells + test artifacts never belong in a server image.
+ios
+e2e
+test-results
+playwright-report
 npm-debug.log*
 dev.log
 server.log

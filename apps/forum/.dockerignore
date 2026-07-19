@@ -1,0 +1,14 @@
+# Keep the build context small + secrets out of the image.
+.git
+.next
+node_modules
+npm-debug.log*
+*.log
+.env
+.env.*
+.vercel
+*.md
+coverage
+test-results
+playwright-report
+.DS_Store

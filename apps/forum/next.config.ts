@@ -1,6 +1,10 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  // Standalone server output for Cloud Run / self-hosting (same guard as the
+  // marketplace app: Vercel handles output natively and standalone breaks its
+  // Edge middleware bundling, so it stays off there).
+  output: process.env.VERCEL ? undefined : 'standalone',
   poweredByHeader: false,
   reactStrictMode: true,
   // Playwright's canonical local base URL uses 127.0.0.1 while Next binds the

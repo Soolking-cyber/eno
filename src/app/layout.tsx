@@ -23,7 +23,6 @@ import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
-import { VercelTelemetry } from "@/components/marketplace/vercel-telemetry";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
 import { NativePush } from "@/components/native/native-push";
@@ -227,7 +226,6 @@ export default function RootLayout({
         </ThemeProvider>
         <AnalyticsTags />
         <AttributionCapture />
-        <VercelTelemetry />
       </body>
     </html>
   );

@@ -8,7 +8,11 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 function clientIp(request: Request) {
-  return request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()
+  // Cloudflare's header first (Cloud Run sits behind CF + a Google LB, where
+  // x-forwarded-for's first hop can be an edge IP, not the client) — mirrors
+  // the marketplace's src/lib/client-ip.ts ordering.
+  return request.headers.get('cf-connecting-ip')?.trim()
+    || request.headers.get('x-real-ip')?.trim()
     || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     || 'unknown'
 }

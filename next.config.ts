@@ -92,9 +92,8 @@ const nextConfig: NextConfig = {
       // Next.js needs inline + eval without a nonce setup; GTM/Turnstile scripts. Leaflet is
       // SELF-HOSTED (public/vendor/leaflet) and the browser Meta Pixel is REMOVED (server-side
       // CAPI only) — so unpkg.com and the facebook.net/stape/run.app hosts are gone from every
-      // directive. va.vercel-scripts.com: @vercel/analytics + speed-insights SDK (proxied same-
-      // origin in prod, but the external host loads on preview/debug deployments).
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://static.cloudflareinsights.com https://va.vercel-scripts.com https://challenges.cloudflare.com",
+      // directive. (va.vercel-scripts.com dropped with the Vercel→Cloud Run migration.)
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://static.cloudflareinsights.com https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline'",
       // Supabase is PINNED to our exact project host (not *.supabase.co): connect-src is the
       // main post-XSS exfiltration brake, and a wildcard would let stolen data POST to any

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import { normalizePhoneVN } from '@/lib/otp-channels'
 import { rateLimit, getRedis } from '@/lib/ratelimit'
 
@@ -14,7 +15,7 @@ import { rateLimit, getRedis } from '@/lib/ratelimit'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = clientIp(req)
   // strict: fail CLOSED — if Redis is down this weak has-app/mid-signup oracle
   // must not become unbounded (verification sweep 2026-07-06).
   const gate = await rateLimit('otp-channel-read', ip, 30, '10 m', { strict: true })
