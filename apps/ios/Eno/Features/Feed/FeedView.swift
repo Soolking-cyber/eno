@@ -1,42 +1,54 @@
 import SwiftUI
 
-// The home browse surface, mirroring the web homepage's mobile layout: wordmark +
-// search field, category chip rail, 2-column card grid. Native niceties the web
-// can't give: system pull-to-refresh, edge-swipe back from the PDP, buttery
-// LazyVGrid scrolling.
+// The home surface, mirroring the web landing order (listings-explorer
+// isLandingMode): search hero → two-row icon category grid → For-you rail →
+// Outstanding-businesses rail → per-category rails → latest-listings grid.
+// Native extras the web can't give: system pull-to-refresh + edge-swipe back.
 struct FeedView: View {
-    @State private var model = FeedModel()
-
-    // Top-level browse chips (canonical slugs; "rentals" is its own category).
-    private static let chips: [(slug: String?, en: String, vi: String)] = [
-        (nil, "All", "Tất cả"),
-        ("electronics", "Electronics", "Điện tử"),
-        ("vehicles", "Vehicles", "Xe cộ"),
-        ("property", "Property", "Bất động sản"),
-        ("rentals", "Rentals", "Cho thuê"),
-        ("jobs", "Jobs", "Việc làm"),
-        ("services", "Services", "Dịch vụ"),
-    ]
+    @State private var feed = FeedModel()
+    @State private var home = HomeModel()
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(spacing: 0, pinnedViews: []) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     header
-                    chipRail
+                    categoryGrid
+                    if !home.forYou.isEmpty {
+                        railSection(title: L10n.tr("For you", "Dành cho bạn"), items: home.forYou)
+                    }
+                    if !home.businesses.isEmpty {
+                        railSection(title: L10n.tr("Outstanding businesses", "Doanh nghiệp nổi bật"), items: home.businesses)
+                    }
+                    ForEach(home.rails, id: \.slug) { rail in
+                        if let cat = Categories.bySlug(rail.slug), !rail.listings.isEmpty {
+                            railSection(title: cat.name, items: rail.listings, seeAll: cat)
+                        }
+                    }
+                    latestHeading
                     grid
                 }
             }
             .background(Tokens.canvas)
-            .refreshable { await model.reload() }
+            .refreshable {
+                await feed.reload()
+            }
             .navigationDestination(for: ListingCard.self) { card in
                 ListingDetailView(card: card)
             }
+            .navigationDestination(for: AppCategory.self) { cat in
+                CategoryFeedView(category: cat)
+            }
             .toolbar(.hidden, for: .navigationBar)
-            .task { await model.start() }
+            .task {
+                async let f: Void = feed.start()
+                async let h: Void = home.start()
+                _ = await (f, h)
+            }
         }
     }
 
+    // ── hero: wordmark + search pill ──
     private var header: some View {
         HStack(spacing: 12) {
             Text("eno")
@@ -62,43 +74,92 @@ struct FeedView: View {
         .padding(.bottom, 10)
     }
 
-    private var chipRail: some View {
+    // ── two-row horizontally scrolling icon grid (the FINN-style web grid) ──
+    private var categoryGrid: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(Self.chips, id: \.en) { chip in
-                    let active = model.category == chip.slug
-                    Button {
-                        model.category = chip.slug
-                    } label: {
-                        Text(L10n.tr(chip.en, chip.vi))
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(active ? Color.white : Tokens.fg)
-                            .padding(.horizontal, 14)
-                            .frame(height: 32)
-                            .background(active ? Tokens.brand : Tokens.tint, in: Capsule())
+            LazyHGrid(rows: [GridItem(.fixed(84), spacing: 4), GridItem(.fixed(84), spacing: 4)], spacing: 4) {
+                ForEach(Categories.all) { cat in
+                    NavigationLink(value: cat) {
+                        VStack(spacing: 6) {
+                            Image(systemName: cat.symbol)
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundStyle(cat.color)
+                                .frame(width: 44, height: 44)
+                                .background(cat.color.opacity(0.12), in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
+                            Text(cat.name)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Tokens.fg)
+                                .lineLimit(1)
+                        }
+                        .frame(width: 96)
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 8)
         }
-        .padding(.bottom, 12)
+        .frame(height: 176)
+        .padding(.bottom, 8)
+    }
+
+    // ── horizontal card rail with "See all" ──
+    private func railSection(title: String, items: [ListingCard], seeAll: AppCategory? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Tokens.fg)
+                Spacer()
+                if let seeAll {
+                    NavigationLink(value: seeAll) {
+                        HStack(spacing: 2) {
+                            Text(L10n.tr("See all", "Xem tất cả")).font(.system(size: 13, weight: .semibold))
+                            Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
+                        }
+                        .foregroundStyle(Tokens.brand)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(items) { item in
+                        NavigationLink(value: item) {
+                            ListingCardView(listing: item)
+                                .frame(width: 168)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
+        }
+        .padding(.top, 16)
+    }
+
+    private var latestHeading: some View {
+        Text(L10n.tr("Latest listings", "Tin mới nhất"))
+            .font(.system(size: 18, weight: .bold))
+            .foregroundStyle(Tokens.fg)
+            .padding(.horizontal, 12)
+            .padding(.top, 20)
+            .padding(.bottom, 8)
     }
 
     @ViewBuilder
     private var grid: some View {
-        if model.failed {
+        if feed.failed {
             offline
         } else {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                ForEach(model.items) { item in
+                ForEach(feed.items) { item in
                     NavigationLink(value: item) {
                         ListingCardView(listing: item)
                     }
                     .buttonStyle(.plain)
-                    .task { await model.loadMoreIfNeeded(current: item) }
+                    .task { await feed.loadMoreIfNeeded(current: item) }
                 }
-                if model.items.isEmpty {
+                if feed.items.isEmpty {
                     ForEach(0..<6, id: \.self) { _ in SkeletonCard() }
                 }
             }
@@ -109,16 +170,14 @@ struct FeedView: View {
 
     private var offline: some View {
         VStack(spacing: 14) {
-            Text("e")
-                .font(.system(size: 28, weight: .heavy))
-                .foregroundStyle(.white)
-                .frame(width: 52, height: 52)
-                .background(Tokens.brand, in: RoundedRectangle(cornerRadius: 14))
             Text(L10n.tr("No internet connection", "Không có kết nối mạng"))
                 .font(.system(size: 19, weight: .bold))
                 .foregroundStyle(Tokens.fg)
+            Text(L10n.tr("Check your connection and try again.", "Kiểm tra kết nối của bạn rồi thử lại."))
+                .font(.system(size: 15))
+                .foregroundStyle(Tokens.sub)
             Button(L10n.tr("Try again", "Thử lại")) {
-                Task { await model.reload() }
+                Task { await feed.reload() }
             }
             .font(.system(size: 16, weight: .semibold))
             .foregroundStyle(.white)
@@ -126,7 +185,8 @@ struct FeedView: View {
             .frame(height: 48)
             .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
         }
-        .padding(.top, 80)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
     }
 }
 

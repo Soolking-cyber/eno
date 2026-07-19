@@ -78,6 +78,10 @@ struct ListingDetailView: View {
                     .font(.system(size: 14, weight: .medium))
                     .strikethrough()
                     .foregroundStyle(Tokens.sub)
+            } else if let approx = Fx.shared.approxUSD(detail?.price ?? card.price) {
+                Text(approx)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Tokens.sub)
             }
             if (detail?.urgent ?? card.urgent) {
                 Text(L10n.tr("Urgent", "Bán gấp"))

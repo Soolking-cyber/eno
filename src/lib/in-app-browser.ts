@@ -27,6 +27,20 @@ export function googleOauthBlocked(): boolean {
   return false
 }
 
+/**
+ * The native iOS app's EMBEDDED web tabs (apps/ios WebTabView/WebSheet append
+ * "EnoNativeTabs/1" to the UA). Google rejects OAuth in these raw WKWebViews, and
+ * unlike an in-app browser there is no "open in Safari" menu — and even a manual
+ * Safari sign-in could not hand its session back to the app's WebView. So these
+ * surfaces hide Google entirely and steer to Phone/Email, which work in-place.
+ * The Capacitor app is NOT this: it has window.Capacitor and its own
+ * nativeGoogleSignIn path (SFSafariViewController + deep-link back).
+ */
+export function isNativeTabs(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /EnoNativeTabs/.test(navigator.userAgent || '')
+}
+
 export function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { googleOauthBlocked, openInSystemBrowser } from '@/lib/in-app-browser'
+import { googleOauthBlocked, isNativeTabs, openInSystemBrowser } from '@/lib/in-app-browser'
 import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
 import { useTurnstile } from './turnstile'
 
@@ -48,7 +48,10 @@ export function SignInForm({ className }: { className?: string }) {
   // "Continue with Google" button, not the "open in your browser" fallback + hint.
   const [oauthBlocked, setOauthBlocked] = useState(false)
   const [iosHint, setIosHint] = useState(false)
-  useEffect(() => { setOauthBlocked(googleOauthBlocked() && !isNativeApp()) }, [])
+  // Native iOS app's embedded tabs: Google can't work there at all (no escape
+  // hatch, no session handoff) — hide it and lead with Phone/Email.
+  const [hideGoogle, setHideGoogle] = useState(false)
+  useEffect(() => { setOauthBlocked(googleOauthBlocked() && !isNativeApp()); setHideGoogle(isNativeTabs() && !isNativeApp()) }, [])
 
   const supabase = createSupabaseBrowser()
   // Cloudflare Turnstile — mints a fresh single-use token for each OTP send so Supabase
@@ -238,24 +241,29 @@ export function SignInForm({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-3', className)}>
       {/* OAuth — in an in-app browser / iOS PWA, Google rejects OAuth, so this hands
-          off to the real browser (Android: automatic; iOS: shows the manual hint). */}
-      <Button variant="ghost" size="none" onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
-        <GoogleIcon /> {oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
-        {oauthBlocked && <ExternalLink className="size-3.5 text-ink-4" />}
-      </Button>
-      {oauthBlocked && (
-        <p className="rounded-xl bg-tint px-3 py-2 text-2xs leading-relaxed text-muted-foreground">
-          {iosHint
-            ? t('Tap ••• at the top, choose “Open in Safari/Browser”, then sign in with Google. Or just use Phone/Email below — they work right here.', 'Chạm ••• ở trên rồi chọn “Mở trong Safari”, sau đó đăng nhập với Google. Hoặc dùng SĐT/email bên dưới — vẫn hoạt động ngay tại đây.')
-            : t('Google sign-in needs your real browser. Phone or email below work right here.', 'Google chỉ hoạt động trong trình duyệt thật. Dùng SĐT hoặc email bên dưới — vẫn hoạt động ngay tại đây.')}
-        </p>
-      )}
+          off to the real browser (Android: automatic; iOS: shows the manual hint).
+          In the native app's embedded tabs it's hidden outright (isNativeTabs). */}
+      {!hideGoogle && (
+        <>
+          <Button variant="ghost" size="none" onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
+            <GoogleIcon /> {oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
+            {oauthBlocked && <ExternalLink className="size-3.5 text-ink-4" />}
+          </Button>
+          {oauthBlocked && (
+            <p className="rounded-xl bg-tint px-3 py-2 text-2xs leading-relaxed text-muted-foreground">
+              {iosHint
+                ? t('Tap ••• at the top, choose “Open in Safari/Browser”, then sign in with Google. Or just use Phone/Email below — they work right here.', 'Chạm ••• ở trên rồi chọn “Mở trong Safari”, sau đó đăng nhập với Google. Hoặc dùng SĐT/email bên dưới — vẫn hoạt động ngay tại đây.')
+                : t('Google sign-in needs your real browser. Phone or email below work right here.', 'Google chỉ hoạt động trong trình duyệt thật. Dùng SĐT hoặc email bên dưới — vẫn hoạt động ngay tại đây.')}
+            </p>
+          )}
 
-      <div className="flex items-center gap-3 py-1">
-        <span className="h-px flex-1 bg-border" />
-        <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
-        <span className="h-px flex-1 bg-border" />
-      </div>
+          <div className="flex items-center gap-3 py-1">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      )}
 
       {/* Email / Phone tabs — real tab semantics (role=tablist/tab/tabpanel, aria-selected,
           roving arrow-key focus) via ui/tabs, CONTROLLED by our own `tab` state: the OTP

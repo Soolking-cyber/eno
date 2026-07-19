@@ -15,7 +15,10 @@ private struct WebView: UIViewRepresentable {
         let web = WKWebView(frame: .zero, configuration: cfg)
         web.allowsBackForwardNavigationGestures = true
         web.scrollView.contentInsetAdjustmentBehavior = .automatic
-        web.customUserAgent = (WKWebView().value(forKey: "userAgent") as? String).map { "\($0) EnoNativeApp/1" }
+        // EnoNativeApp/1 = first-party app signal (forum origin + SSO handoff key on
+        // it); EnoNativeTabs/1 = "embedded tab inside the native TabView" — eno.vn
+        // hides its own bottom nav and the Google OAuth button on this marker.
+        web.customUserAgent = (WKWebView().value(forKey: "userAgent") as? String).map { "\($0) EnoNativeApp/1 EnoNativeTabs/1" }
         web.load(URLRequest(url: url))
         return web
     }

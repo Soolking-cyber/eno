@@ -24,6 +24,8 @@ struct ListingCard: Codable, Identifiable, Hashable {
     let postedAt: String
     let savedCount: Int
     let contactCount: Int
+    let brandSlug: String?
+    let model: String?
     let category: CategoryRef
     let seller: CardSeller
 
@@ -44,6 +46,36 @@ struct ListingCard: Codable, Identifiable, Hashable {
 
 struct FeedPage: Codable {
     let listings: [ListingCard]
+}
+
+// /api/category-rails → { rails: [{ slug, listings }] }
+struct CategoryRails: Codable {
+    struct Rail: Codable {
+        let slug: String
+        let listings: [ListingCard]
+    }
+    let rails: [Rail]
+}
+
+extension ListingCard {
+    // Web card badge rules (card-badges.tsx): urgent wins, then a live price
+    // drop, then "New" within 48h. goodPrice yields to a live drop.
+    var isNew: Bool {
+        guard let d = Format.date(postedAt) else { return false }
+        return Date().timeIntervalSince(d) < 48 * 60 * 60
+    }
+    var dropPercent: Int? {
+        guard let prev = prevPrice, prev > price, price > 0 else { return nil }
+        let pct = Int((Double(prev - price) / Double(prev) * 100).rounded())
+        return pct > 0 ? min(pct, 50) : nil
+    }
+    var brandModelLine: String {
+        var parts: [String] = []
+        if !displayLocation.isEmpty { parts.append(displayLocation) }
+        if let b = brandSlug, !b.isEmpty { parts.append(b.replacingOccurrences(of: "-", with: " ").capitalized) }
+        if let m = model, !m.isEmpty { parts.append(m) }
+        return parts.joined(separator: " · ")
+    }
 }
 
 struct ListingDetail: Codable, Identifiable {

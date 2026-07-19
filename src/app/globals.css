@@ -757,6 +757,17 @@ html.native .bottom-nav-spacer {
   height: calc(4rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)));
 }
 
+/* Embedded web tabs INSIDE the native SwiftUI app (html.native-tabs, set from the
+   "EnoNativeTabs/1" UA marker in layout.tsx's pre-paint script): the native TabView
+   supplies the app's navigation, so the web's own bottom nav would stack a second
+   bar under it (owner screenshot, 2026-07-20). Hide it and collapse its spacer. */
+html.native-tabs .mobile-nav {
+  display: none;
+}
+html.native-tabs .bottom-nav-spacer {
+  height: 0;
+}
+
 /* Favorite-button burst — the save confirmation IS the animation. Two one-shot,
    compositor-only (transform/opacity) pieces: the heart pops 1→1.35→1 with a
    slight bounce, and a brand-blue ring (::after) expands + fades once. Toggled by
