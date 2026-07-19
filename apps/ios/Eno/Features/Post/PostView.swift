@@ -20,6 +20,7 @@ struct PostView: View {
                 photosSection
                 categorySection
                 detailsSection
+                specificsSection
                 priceSection
                 locationSection
                 contactSection
@@ -124,7 +125,7 @@ struct PostView: View {
             if !model.subs.isEmpty {
                 Picker(L10n.tr("Subcategory", "Danh mục con"), selection: Binding(
                     get: { model.subcategory?.slug ?? "" },
-                    set: { slug in model.subcategory = model.subs.first { $0.slug == slug } }
+                    set: { slug in model.pickSubcategory(model.subs.first { $0.slug == slug }) }
                 )) {
                     Text(L10n.tr("Auto", "Tự chọn")).tag("")
                     ForEach(model.subs) { sub in
@@ -132,36 +133,124 @@ struct PostView: View {
                     }
                 }
             }
-        }
-    }
-
-    // ── details ──
-    private var detailsSection: some View {
-        Section(L10n.tr("Details", "Chi tiết")) {
-            TextField(L10n.tr("Title", "Tiêu đề"), text: $model.title)
-            TextField(L10n.tr("Description (optional)", "Mô tả (không bắt buộc)"), text: $model.descriptionText, axis: .vertical)
-                .lineLimit(3...8)
-            Picker(L10n.tr("Condition", "Tình trạng"), selection: Binding(
-                get: { model.condition ?? "" },
-                set: { model.condition = $0.isEmpty ? nil : $0 }
-            )) {
-                Text(L10n.tr("Not set", "Chưa chọn")).tag("")
-                ForEach(PostModel.conditions, id: \.slug) { c in
-                    Text(L10n.tr(c.en, c.vi)).tag(c.slug)
+            // Intent (sell/rent/wanted/…): shown only when the category offers a
+            // choice — matches the web wizard's type picker + sale/rent toggle.
+            if model.types.count > 1 {
+                Picker(L10n.tr("Listing type", "Loại tin"), selection: Binding(
+                    get: { model.listingType ?? model.types.first?.value ?? "sell" },
+                    set: { model.listingType = $0 }
+                )) {
+                    ForEach(model.types) { t in
+                        Text(t.displayName).tag(t.value)
+                    }
+                }
+            }
+            if model.brandable {
+                TextField(L10n.tr("Brand (optional)", "Hãng (không bắt buộc)"), text: $model.brand)
+                    .autocorrectionDisabled()
+                if !model.brand.trimmingCharacters(in: .whitespaces).isEmpty {
+                    TextField(L10n.tr("Model (optional)", "Dòng máy (không bắt buộc)"), text: $model.model)
+                        .autocorrectionDisabled()
                 }
             }
         }
     }
 
+    // ── details ──
+    private var detailsSection: some View {
+        Section {
+            TextField(L10n.tr("Title", "Tiêu đề"), text: $model.title)
+            TextField(L10n.tr("Description", "Mô tả"), text: $model.descriptionText, axis: .vertical)
+                .lineLimit(3...8)
+        } header: {
+            Text(L10n.tr("Details", "Chi tiết"))
+        } footer: {
+            // Web parity: description is required, ≥20 characters.
+            let n = model.descriptionText.trimmingCharacters(in: .whitespacesAndNewlines).count
+            if n < 20 {
+                Text(L10n.tr("Describe the item in at least 20 characters (\(n)/20).",
+                             "Mô tả món đồ bằng ít nhất 20 ký tự (\(n)/20)."))
+                    .foregroundStyle(n > 0 ? Tokens.brand : Tokens.sub)
+            }
+        }
+    }
+
+    // ── specifics (condition + per-category facets, mirroring the web wizard) ──
+    @ViewBuilder
+    private var specificsSection: some View {
+        if model.conditionFacet != nil || !model.chipFacets.isEmpty || !model.rangeFacets.isEmpty {
+            Section(L10n.tr("Specifics", "Thông số")) {
+                if let cond = model.conditionFacet {
+                    Picker(cond.displayLabel, selection: Binding(
+                        get: { model.condition ?? "" },
+                        set: { model.condition = $0.isEmpty ? nil : $0 }
+                    )) {
+                        Text(L10n.tr("Choose…", "Chọn…")).tag("")
+                        ForEach(cond.options) { o in
+                            Text(o.displayName).tag(o.value)
+                        }
+                    }
+                }
+                ForEach(model.chipFacets) { facet in
+                    Picker(facet.displayLabel, selection: Binding(
+                        get: { model.attributes[facet.key] ?? "" },
+                        set: { model.attributes[facet.key] = $0 }
+                    )) {
+                        Text(L10n.tr("Choose…", "Chọn…")).tag("")
+                        ForEach(facet.options) { o in
+                            Text(o.displayName).tag(o.value)
+                        }
+                    }
+                }
+                ForEach(model.rangeFacets) { facet in
+                    if let range = facet.range {
+                        HStack {
+                            Text(facet.displayLabel)
+                            Spacer()
+                            TextField(rangePlaceholder(range), text: Binding(
+                                get: { model.rangeTexts[range.column] ?? "" },
+                                set: { model.rangeTexts[range.column] = $0 }
+                            ))
+                            .keyboardType(range.column == "engineL" ? .decimalPad : .numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 120)
+                            if let unit = range.unit {
+                                Text(unit).foregroundStyle(Tokens.sub)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func rangePlaceholder(_ range: CategoriesResponse.Facet.RangeMeta) -> String {
+        "\(Int(range.min))–\(Int(range.max))"
+    }
+
     // ── price ──
     private var priceSection: some View {
-        Section(L10n.tr("Price", "Giá")) {
+        Section {
             HStack {
                 TextField("0", text: $model.priceText)
                     .keyboardType(.numberPad)
                 Text("đ").foregroundStyle(Tokens.sub)
             }
-            Toggle(L10n.tr("Open to offers", "Cho phép trả giá"), isOn: $model.negotiable)
+            Toggle(L10n.tr("Open to offers", "Cho phép trả giá"), isOn: Binding(
+                get: { model.negotiable },
+                set: { model.setNegotiable($0) }
+            ))
+            Toggle(L10n.tr("Urgent sale", "Bán gấp"), isOn: Binding(
+                get: { model.urgent },
+                set: { model.setUrgent($0) }
+            ))
+        } header: {
+            Text(L10n.tr("Price", "Giá"))
+        } footer: {
+            if model.urgent {
+                Text(L10n.tr("Urgent listings stay open to offers and get a highlighted badge for a few days.",
+                             "Tin bán gấp luôn cho phép trả giá và được gắn nhãn nổi bật trong vài ngày."))
+            }
         }
     }
 
@@ -194,6 +283,7 @@ struct PostView: View {
     // ── contact ──
     private var contactSection: some View {
         Section {
+            TextField(L10n.tr("Name or shop name", "Tên hoặc tên cửa hàng"), text: $model.contactName)
             TextField(L10n.tr("Phone number", "Số điện thoại"), text: $model.contactPhone)
                 .keyboardType(.phonePad)
         } header: {

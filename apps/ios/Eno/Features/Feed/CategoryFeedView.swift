@@ -93,9 +93,14 @@ final class Taxonomy {
     private var cats: [CategoriesResponse.Cat]?
 
     func subs(for slug: String) async -> [CategoriesResponse.Sub] {
+        await category(for: slug)?.subcategories ?? []
+    }
+
+    /// Full category meta (subcategories + post-wizard types/brandable/facets).
+    func category(for slug: String) async -> CategoriesResponse.Cat? {
         if cats == nil {
             cats = (try? await APIClient.shared.get("api/categories") as CategoriesResponse)?.categories
         }
-        return cats?.first { $0.slug == slug }?.subcategories ?? []
+        return cats?.first { $0.slug == slug }
     }
 }

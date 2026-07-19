@@ -50,7 +50,7 @@ struct FeedPage: Codable {
     let subcategoryCounts: [String: Int]?
 }
 
-// /api/categories → { categories: [{slug,name,nameVi,subcategories:[…]}] }
+// /api/categories → { categories: [{slug,name,nameVi,subcategories,types,brandable,facets}] }
 struct CategoriesResponse: Codable {
     struct Cat: Codable {
         let slug: String
@@ -59,6 +59,11 @@ struct CategoriesResponse: Codable {
         // Optional: the CDN can serve the pre-subcategories payload for up to
         // an hour after a deploy — degrade to a hidden facet bar, never a throw.
         let subcategories: [Sub]?
+        // Post-wizard metadata (additive 2026-07-20) — same stale-CDN tolerance:
+        // every field optional so an old payload degrades to the v10 wizard.
+        let types: [TypeOption]?
+        let brandable: Bool?
+        let facets: [Facet]?
     }
     struct Sub: Codable, Identifiable, Hashable {
         let slug: String
@@ -66,6 +71,47 @@ struct CategoriesResponse: Codable {
         let nameVi: String
         var id: String { slug }
         var displayName: String { L10n.tr(name, nameVi) }
+    }
+    struct TypeOption: Codable, Identifiable, Hashable {
+        let value: String
+        let label: String
+        let labelVi: String
+        var id: String { value }
+        var displayName: String { L10n.tr(label, labelVi) }
+    }
+    // Mirrors taxonomy.ts FacetDef: chip facets live in Listing.attributes
+    // (stringly, key→value); range facets write dedicated numeric columns
+    // (year/mileageKm/engineCc/engineL/areaM2/salaryM) named by `range.column`.
+    struct Facet: Codable, Identifiable, Hashable {
+        struct Option: Codable, Identifiable, Hashable {
+            let value: String
+            let label: String
+            let labelVi: String
+            var id: String { value }
+            var displayName: String { L10n.tr(label, labelVi) }
+        }
+        struct RangeMeta: Codable, Hashable {
+            let min: Double
+            let max: Double
+            let step: Double
+            let unit: String?
+            let column: String
+        }
+        let key: String
+        let label: String
+        let labelVi: String
+        let kind: String // 'toggle' | 'select' | 'range'
+        let subcats: [String]?
+        let options: [Option]
+        let range: RangeMeta?
+        var id: String { key }
+        var displayLabel: String { L10n.tr(label, labelVi) }
+        /// A subcats-restricted facet only applies once a matching subcategory is chosen.
+        func applies(toSubcategory slug: String?) -> Bool {
+            guard let subcats else { return true }
+            guard let slug else { return false }
+            return subcats.contains(slug)
+        }
     }
     let categories: [Cat]
 }
