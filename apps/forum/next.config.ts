@@ -17,7 +17,17 @@ const nextConfig: NextConfig = {
   },
   turbopack: { root: __dirname },
   async redirects() {
-    return [{ source: '/forum', destination: '/', permanent: true }]
+    return [
+      { source: '/forum', destination: '/', permanent: true },
+      // Canonical-host redirect: Vercel's domain config used to 308 apex→www;
+      // on Cloud Run behind the LB both hosts reach the app, so the app owns it.
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'eno.forum' }],
+        destination: 'https://www.eno.forum/:path*',
+        permanent: true,
+      },
+    ]
   },
   async rewrites() {
     return [{ source: '/.well-known/apple-app-site-association', destination: '/api/well-known/aasa' }]
