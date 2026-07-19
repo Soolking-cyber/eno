@@ -86,11 +86,11 @@ export function CookieConsent() {
         <div className="min-w-0 flex-1 pr-0.5">
           {view === 'ask' ? (
             <>
-              <h2 className="text-base font-bold leading-tight text-foreground">
+              <DialogPrimitive.Title className="text-base font-bold leading-tight text-foreground">
                 {isNative
                   ? tr('Personalize your experience?', 'Cá nhân hoá trải nghiệm của bạn?')
                   : tr('Want results made for you?', 'Muốn kết quả dành riêng cho bạn?')}
-              </h2>
+              </DialogPrimitive.Title>
               <p className="mt-1 text-sm leading-snug text-muted-foreground">
                 {isNative
                   ? tr(
@@ -111,7 +111,7 @@ export function CookieConsent() {
             </>
           ) : (
             <>
-              <h2 className="text-base font-bold leading-tight text-foreground">{tr('Your choices', 'Lựa chọn của bạn')}</h2>
+              <DialogPrimitive.Title className="text-base font-bold leading-tight text-foreground">{tr('Your choices', 'Lựa chọn của bạn')}</DialogPrimitive.Title>
               <div className="mt-1.5 -ml-1.5 space-y-0">
                 <Toggle locked value title={tr('Essential', 'Cần thiết')} desc={tr('Sign-in & speed. Always on.', 'Đăng nhập & tốc độ. Luôn bật.')} />
                 <Toggle value={perso} onChange={setPerso} title={tr('Personalized', 'Cá nhân hoá')} desc={tr('Rank the most relevant items first from your activity.', 'Xếp hạng mục phù hợp nhất theo hoạt động của bạn.')} />
