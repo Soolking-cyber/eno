@@ -214,8 +214,9 @@ model Seller {
 // ── Public @handles (Telegram-style usernames) ──────────────────────────────────
 // ONE global namespace for users AND storefronts: the handle is the PRIMARY KEY,
 // so uniqueness across both owner kinds is a DB guarantee (no cross-table races).
-// A row belongs to EXACTLY ONE of profileId / sellerId (enforced in src/lib/handle.ts
-// — Prisma can't express XOR). Rows CASCADE with their owner, so deleting an account
+// A row belongs to EXACTLY ONE of profileId / sellerId (enforced in src/lib/handle.ts;
+// Prisma can't express XOR — a DB CHECK (handle_owner_xor) is applied by
+// scripts/unique-constraints.mjs in the db:setup chain). Rows CASCADE with their owner, so deleting an account
 // or storefront frees the name. Canonical form: ^[a-z][a-z0-9_]{2,29}$ (lowercased
 // on claim). Public URL: eno.vn/<handle> — clean, no "@" (src/app/[handle]/page.tsx).
 model Handle {

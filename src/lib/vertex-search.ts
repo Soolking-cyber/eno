@@ -69,16 +69,23 @@ async function accessToken(now: number): Promise<string | null> {
 async function call(path: string, method: string, body?: unknown): Promise<any | null> {
   const t = await accessToken(Date.now())
   if (!t) return null
-  const res = await fetch(`https://${HOST}/v1/${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) {
-    console.error('[vertex-search]', method, path.split('?')[0], res.status, (await res.text()).slice(0, 300))
+  try {
+    const res = await fetch(`https://${HOST}/v1/${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) {
+      console.error('[vertex-search]', method, path.split('?')[0], res.status, (await res.text()).slice(0, 300))
+      return null
+    }
+    return res.json()
+  } catch (e) {
+    // Timeout/abort or network failure → the callers' existing null fallback path.
+    console.error('[vertex-search]', method, path.split('?')[0], e instanceof Error ? e.name : e)
     return null
   }
-  return res.json()
 }
 
 export type SearchFilters = { categorySlug?: string | null; minPriceVnd?: number | null; maxPriceVnd?: number | null; take?: number; lang?: 'en' | 'vi' }

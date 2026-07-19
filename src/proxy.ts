@@ -23,8 +23,8 @@ export function proxy(req: NextRequest) {
   // signup/login), the product feeds (Basic-Auth, fetched by Google Merchant/Meta), and
   // the partner API `/api/v1/*` — reached server-to-server off Cloudflare by shops' own
   // backends/agents, so it carries its OWN per-key auth (NOT the IP-keyed rate limits the
-  // edge pin protects). Every /api/v1 route MUST authenticate via API key (Phase 1) — the
-  // edge pin is not its guard. No-op today (no /api/v1 routes exist yet).
+  // edge pin protects). /api/v1 is LIVE (analytics/listings/media/oauth/shop/webhooks) and
+  // every route authenticates via per-key API auth — the edge pin is not its guard.
   const { pathname } = req.nextUrl
   if (
     pathname.startsWith('/api/cron/') ||

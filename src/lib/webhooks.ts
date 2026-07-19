@@ -13,7 +13,7 @@ const DELIVERY_TIMEOUT_MS = 8000
 
 export type ListingEvent = 'listing.created' | 'listing.updated' | 'listing.status_changed' | 'listing.deleted'
 
-type Hook = { id: string; url: string; secret: string; events: string; failureCount: number }
+type Hook = { id: string; url: string; secret: string; events: string }
 
 export function generateWebhookSecret(): string {
   return `whsec_${crypto.randomBytes(24).toString('base64')}`
@@ -27,17 +27,26 @@ function sign(secret: string, msgId: string, ts: number, payload: string): strin
   return `v1,${sig}`
 }
 
-async function recordFailure(id: string, failureCount: number, error: string): Promise<void> {
-  const next = failureCount + 1
-  await db.webhookEndpoint.update({
-    where: { id },
-    data: { failureCount: next, lastError: error.slice(0, 300), ...(next >= MAX_FAILURES ? { enabled: false } : {}) },
-  }).catch(() => {})
+async function recordFailure(id: string, error: string): Promise<void> {
+  try {
+    // Atomic increment (not read-modify-write) so N concurrent failures count as N,
+    // then disable based on the RETURNED post-increment count.
+    const row = await db.webhookEndpoint.update({
+      where: { id },
+      data: { failureCount: { increment: 1 }, lastError: error.slice(0, 300) },
+      select: { failureCount: true },
+    })
+    if (row.failureCount >= MAX_FAILURES) {
+      await db.webhookEndpoint.update({ where: { id }, data: { enabled: false } }).catch(() => {})
+    }
+  } catch {
+    /* best-effort bookkeeping */
+  }
 }
 
 async function loadHooks(sellerId: string): Promise<Hook[]> {
   return db.webhookEndpoint
-    .findMany({ where: { sellerId, enabled: true }, select: { id: true, url: true, secret: true, events: true, failureCount: true } })
+    .findMany({ where: { sellerId, enabled: true }, select: { id: true, url: true, secret: true, events: true } })
     .catch(() => [])
 }
 
@@ -67,12 +76,12 @@ async function deliver(h: Hook, event: ListingEvent, listingId: string, extra?: 
     if (res.ok) {
       await db.webhookEndpoint.update({ where: { id: h.id }, data: { failureCount: 0, lastError: null, lastDeliveryAt: now } }).catch(() => {})
     } else {
-      await recordFailure(h.id, h.failureCount, `HTTP ${res.status}`)
+      await recordFailure(h.id, `HTTP ${res.status}`)
     }
   } catch {
     // Generic message (not the raw DNS/connection/SSRF error) so the readable failure log
     // can't be used as an internal-network probe oracle. HTTP statuses above are public-safe.
-    await recordFailure(h.id, h.failureCount, 'delivery failed (unreachable or blocked)')
+    await recordFailure(h.id, 'delivery failed (unreachable or blocked)')
   }
 }
 

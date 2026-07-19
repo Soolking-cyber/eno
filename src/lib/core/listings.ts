@@ -76,20 +76,28 @@ export async function setStatusCore(
  * the day's activity earns a (daily-capped) trust reward. Intentionally does NOT
  * revalidate the cached page (recency surfaces live via the client feed).
  */
-export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean }> {
+export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' }> {
   const now = new Date()
   const current = await db.listing.findUnique({ where: { id: listingId }, select: { postedAt: true, sellerTrustScore: true, featured: true, views: true, contactCount: true } })
-  const bump = current ? canBump(current.postedAt, now.getTime()) : true
-  await db.listing.update({
-    where: { id: listingId },
-    data: {
-      status: 'active',
-      availabilityConfirmedAt: now,
-      // A bump resets recency (postedAt=now) → recompute rankScore at age 0 so the listing
-      // jumps up immediately. No bump (within cooldown) leaves recency to the daily decay.
-      ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current?.sellerTrustScore ?? 100, postedAt: now, featured: current?.featured ?? false, views: current?.views ?? 0, contactCount: current?.contactCount ?? 0 }) } : {}),
-    },
-  })
+  // Typed 404 instead of letting the update's P2025 surface as a 500 — the row can
+  // vanish between the route's ownership check and this call (delete race).
+  if (!current) return { ok: false, code: 404, error: 'not_found' }
+  const bump = canBump(current.postedAt, now.getTime())
+  try {
+    await db.listing.update({
+      where: { id: listingId },
+      data: {
+        status: 'active',
+        availabilityConfirmedAt: now,
+        // A bump resets recency (postedAt=now) → recompute rankScore at age 0 so the listing
+        // jumps up immediately. No bump (within cooldown) leaves recency to the daily decay.
+        ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current.sellerTrustScore ?? 100, postedAt: now, featured: current.featured, views: current.views, contactCount: current.contactCount }) } : {}),
+      },
+    })
+  } catch (e) {
+    if ((e as { code?: string })?.code === 'P2025') return { ok: false, code: 404, error: 'not_found' }
+    throw e
+  }
   after(() => recordEngagement(profileId).catch(() => {})) // reward keeping listings fresh (daily-capped)
   return { ok: true, bumped: bump }
 }
@@ -476,6 +484,10 @@ export async function createListingCore(input: {
   // but NEVER fails the post over a chip: over quota, the listing is simply created
   // without it (the seller can re-arm from edit once a slot frees). No cooldown check
   // here — a brand-new listing has no urgent history.
+  // ACCEPTED RACE (check-then-create TOCTOU, here and on the edit path's
+  // activateUrgentGate): two concurrent requests can both see a free slot and
+  // briefly exceed MAX_ACTIVE_PER_SELLER. Worst case is one extra free cosmetic
+  // chip with zero rank effect — not worth advisory-lock serialization.
   const urgentOk = (body.urgent === true || body.urgent === 'true') && (await urgentQuotaFree(seller.id))
 
   // Screen the SECONDARY free-text fields too (all publicly rendered): district,
@@ -497,6 +509,8 @@ export async function createListingCore(input: {
   // and the check is seller-scoped so nobody is blocked by other sellers' items. The
   // candidate searchText uses the exact recipe of the create below. detail = the existing
   // listing's id so clients can link "edit / bump it instead". Fail-open inside the guard.
+  // Same ACCEPTED check-then-create race as the urgent quota above: two simultaneous
+  // posts of the same item can both pass — the dup is visible and admin-removable.
   const searchText = buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug, model])
   const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price, images })
   if (dup) throw new PublishBlockedError('duplicate_listing', dup.id)
@@ -591,9 +605,17 @@ export async function createListingCore(input: {
 
 /** Delete an OWNED listing (cascades reports/conversations); decrements its brand
  *  count, purges the cached page, and drops it from AI search. */
-export async function deleteListingCore(listingId: string): Promise<{ ok: true }> {
+export async function deleteListingCore(listingId: string): Promise<{ ok: true } | { ok: false; code: 404; error: 'not_found' }> {
   const gone = await db.listing.findUnique({ where: { id: listingId }, select: { brandSlug: true, sellerId: true, video: true } })
-  await db.listing.delete({ where: { id: listingId } })
+  try {
+    await db.listing.delete({ where: { id: listingId } })
+  } catch (e) {
+    // Row vanished between the ownership check / findUnique above and the delete
+    // (concurrent delete) — a typed not-found, not an untyped 500. Callers that
+    // ignore the result treat it as an idempotent no-op.
+    if ((e as { code?: string })?.code === 'P2025') return { ok: false, code: 404, error: 'not_found' }
+    throw e
+  }
   if (gone?.brandSlug) after(() => bumpBrandCount(gone.brandSlug!, -1))
   if (gone?.video) after(() => removeVideoIfOrphaned(gone.video!)) // don't strand the clip — unless another listing still references it
   revalidatePath(`/listings/${listingId}`)

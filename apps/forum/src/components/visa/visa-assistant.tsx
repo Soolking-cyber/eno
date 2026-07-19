@@ -7,6 +7,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { forumApi, ForumApiError } from '@/lib/api'
 import { validateVisaStep, visaDateDefaultsForStart, visaEndDateFor90DayWindow, type VisaPayload } from '@/lib/visa/schema'
+import type { VisaApplication, VisaDocument } from '@/lib/visa/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,24 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { DEFAULT_EVISA_ENTRY_GATE, EVISA_CHECKPOINT_GROUPS } from '@/lib/visa/checkpoints'
 
-type VisaImageReport = {
-  issues?: string[]
-  warnings?: string[]
-  corrections?: string[]
-  normalized?: { format?: string; sizeBytes?: number; width?: number | null; height?: number | null }
-}
-type VisaDocument = {
-  id: string; kind: string; mimeType: string; sizeBytes: number; width: number | null; height: number | null
-  validationStatus?: 'pending' | 'passed' | 'failed' | 'unavailable'
-  validationReport?: VisaImageReport
-  createdAt: string
-}
-type VisaEvent = { id: string; actorType: string; event: string; metadata: Record<string, unknown>; createdAt: string }
-type VisaApplication = {
-  id: string; status: string; payload?: VisaPayload; checklist: string[]; applicantConfirmedAt: string | null;
-  authorizedAt: string | null; assignedAdmin: string | null; submittedAt: string | null; resolvedAt: string | null;
-  createdAt: string; updatedAt: string; documents: VisaDocument[]; events?: VisaEvent[]
-}
+// Shapes shared with the admin case view — single source in lib/visa/types.ts.
 type VisaAnalysis = {
   document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>
   payload?: VisaPayload

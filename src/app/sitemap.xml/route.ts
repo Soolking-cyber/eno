@@ -2,21 +2,26 @@ import { db } from '@/lib/db'
 import { slugify } from '@/lib/slug'
 import { NextResponse } from 'next/server'
 
-// Cache the generated sitemap for an hour instead of rebuilding it (DB query over
-// all listings + a serverless cold start) on every request — that ~6s response was
-// timing out Google's fetcher ("Couldn't fetch"). Revalidates hourly in the
-// background, so Google always gets a fast, already-built XML.
+// Cache the generated sitemap instead of rebuilding it (DB query over all listings
+// + a serverless cold start) on every request — that ~6s response was timing out
+// Google's fetcher ("Couldn't fetch"). ISR revalidates every 24h in the background
+// (plus a 1h CDN s-maxage below), so Google always gets a fast, already-built XML.
 export const revalidate = 86400
 
 export async function GET() {
   try {
-    const listings = await db.listing.findMany({
-      where: { verified: true, status: 'active' },
-      select: { id: true, updatedAt: true, district: true, sellerId: true, category: { select: { slug: true } } },
-      orderBy: { updatedAt: 'desc' },
-    })
-    const categories = await db.category.findMany({ select: { slug: true } })
-    const sellers = await db.seller.findMany({ where: { verifiedSeller: true }, select: { id: true } })
+    const [listings, categories, sellers] = await Promise.all([
+      db.listing.findMany({
+        where: { verified: true, status: 'active' },
+        select: { id: true, updatedAt: true, district: true, sellerId: true, category: { select: { slug: true } } },
+        orderBy: { updatedAt: 'desc' },
+        // Sitemap protocol caps a file at 50k URLs — leave headroom for the
+        // category/combo/seller/static entries above the listing block.
+        take: 45000,
+      }),
+      db.category.findMany({ select: { slug: true } }),
+      db.seller.findMany({ where: { verifiedSeller: true }, select: { id: true } }),
+    ])
 
     const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 

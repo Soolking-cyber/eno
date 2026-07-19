@@ -21,14 +21,18 @@ export const revalidate = 21600 // 6h — fewer ISR writes; the catalogue grows 
 export default async function BrandsPage() {
   // Active brands that actually have listings, most-listed first. Resolve each
   // brand's monotone logo server-side so simple-icons never reaches the client.
-  // Defensive: if the catalogue table isn't reachable (e.g. pre-migration build),
-  // fall back to empty rather than failing the render.
+  // Defensive: only a genuinely missing catalogue table (pre-migration build, Prisma
+  // P2021) falls back to empty. Transient DB errors RETHROW so ISR keeps serving the
+  // last good HTML instead of caching a false "No brands" page for 6h.
   const brands = await db.brand.findMany({
     where: { status: 'active', listingCount: { gt: 0 } },
     select: { slug: true, name: true, iconSlug: true, logoPath: true, listingCount: true },
     orderBy: [{ listingCount: 'desc' }, { name: 'asc' }],
     take: 300,
-  }).catch(() => [])
+  }).catch((error: unknown) => {
+    if ((error as { code?: string })?.code === 'P2021') return []
+    throw error
+  })
   const items = brands.map((b) => ({ ...b, iconPath: brandIconPath(b) }))
 
   return (

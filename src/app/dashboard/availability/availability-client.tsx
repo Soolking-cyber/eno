@@ -7,6 +7,7 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Price } from '@/components/marketplace/price'
 import { Mascot } from '@/components/marketplace/mascot'
 import { useAuth } from '@/context/auth-context'
+import { useDashboard } from '@/hooks/use-dashboard'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -25,31 +26,35 @@ export function AvailabilityClient() {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
-  const [listings, setListings] = useState<SerializedListing[] | null>(null)
+  // Shared dashboard cache (same source the rail + sibling section pages read) instead
+  // of a bespoke /api/dashboard fetch.
+  const { dash, refresh, loading: dashLoading } = useDashboard()
   const [soldIds, setSoldIds] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [submitting, setSubmitting] = useState(false)
   // Consecutive "Skip for now" taps. After 2 in a row, the Skip option is hidden so the
-  // seller has to confirm (reset to 0 on confirm). Loaded from the dashboard payload.
-  const [skips, setSkips] = useState(0)
+  // seller has to confirm (reset to 0 on confirm). Read from the dashboard payload.
+  const skips = dash?.profile.availabilitySkips ?? 0
   const canSkip = skips < 2
 
+  // null while the dashboard is still loading (skeletons); [] only once it resolved empty.
+  const listings = useMemo<SerializedListing[] | null>(
+    () => (dash ? dash.listings.filter((l) => l.status === 'active') : dashLoading ? null : []),
+    [dash, dashLoading],
+  )
+
   useEffect(() => {
-    if (!loading && !user) { router.replace('/'); return }
-    if (!user) return
-    fetch('/api/dashboard').then((r) => (r.ok ? r.json() : { dashboard: null })).then((d) => {
-      const active = (d.dashboard?.listings ?? []).filter((l: SerializedListing) => l.status === 'active')
-      setListings(active)
-      setSkips(d.dashboard?.profile?.availabilitySkips ?? 0)
-      // Nothing to review → mark done + leave.
-      if (active.length === 0) { markDone(); router.replace('/dashboard') }
-    }).catch(() => setListings([]))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loading])
+    if (!loading && !user) router.replace('/')
+  }, [user, loading, router])
 
   const markDone = useCallback(() => {
     try { if (user) localStorage.setItem(reviewKey(user.id), todayStr()) } catch {}
   }, [user])
+
+  // Nothing to review → mark done + leave.
+  useEffect(() => {
+    if (user && listings && listings.length === 0) { markDone(); router.replace('/dashboard') }
+  }, [user, listings, markDone, router])
 
   const toggle = (id: string) => setSoldIds((prev) => {
     const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n
@@ -75,12 +80,14 @@ export function AvailabilityClient() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm, sold }),
       })
     } catch { /* best-effort */ }
+    refresh() // statuses/bumps changed — re-pull the shared dashboard cache
     markDone()
     router.replace('/dashboard')
   }
 
   const skip = () => {
-    fetch('/api/availability/skip', { method: 'POST' }).catch(() => {}) // record the consecutive skip
+    // Record the consecutive skip, then re-pull so the cached availabilitySkips stays honest.
+    fetch('/api/availability/skip', { method: 'POST' }).then(() => refresh()).catch(() => {})
     markDone()
     router.replace('/dashboard')
   }

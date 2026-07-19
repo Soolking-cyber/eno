@@ -27,8 +27,8 @@ export type SerializedListingCard = {
   currency: string
   negotiable: boolean
   // Active price-drop anchor (server-normalized): the struck-through "was" price
-  // while the drop badge is live (7 days), else null. Server-computed 30-day-min
-  // reference — never a seller-entered number.
+  // while the drop badge is live (3 days — see DROP.BADGE_MS in src/lib/price-drop.ts),
+  // else null. Server-computed 30-day-min reference — never a seller-entered number.
   prevPrice: number | null
   // Urgent sale ("Bán gấp") — resolved read-time from urgentUntil.
   urgent: boolean

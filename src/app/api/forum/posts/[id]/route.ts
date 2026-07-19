@@ -122,11 +122,17 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!existing || existing.status === 'removed') return forumJson(request, { error: 'not_found' }, { status: 404 })
   if (existing.authorProfileId !== auth.profile.id) return forumJson(request, { error: 'forbidden' }, { status: 403 })
 
-  await db.$transaction([
-    db.forumPost.update({ where: { id }, data: { status: 'removed', title: '[removed]', body: '[removed]', editedAt: new Date() } }),
-    db.forumCommunity.update({ where: { slug: existing.communitySlug }, data: { postCount: { decrement: 1 } } }),
-    db.forumProfile.update({ where: { profileId: auth.profile.id }, data: { postCount: { decrement: 1 } } }),
-  ])
+  // Claim atomically so two concurrent DELETEs can't both decrement the counters.
+  const claimed = await db.forumPost.updateMany({
+    where: { id, authorProfileId: auth.profile.id, status: { not: 'removed' } },
+    data: { status: 'removed', title: '[removed]', body: '[removed]', editedAt: new Date() },
+  })
+  if (claimed.count === 1) {
+    await db.$transaction([
+      db.forumCommunity.update({ where: { slug: existing.communitySlug }, data: { postCount: { decrement: 1 } } }),
+      db.forumProfile.update({ where: { profileId: auth.profile.id }, data: { postCount: { decrement: 1 } } }),
+    ])
+  }
   return forumJson(request, { ok: true })
 }
 

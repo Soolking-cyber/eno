@@ -4,6 +4,7 @@ import { Type } from '@google/genai'
 import { Prisma } from '@/generated/prisma/client'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { db } from '@/lib/db'
+import { safeFetch } from '@/lib/ssrf'
 
 // ── AI illegal-content moderation (Tier 2, async post-publish) ─────────────────────────
 // The inline word-scan (publish-guard) blocks CLEAR prohibited text at publish time. This
@@ -53,7 +54,7 @@ export async function moderateListing(input: { title: string; description: strin
   const parts: { inlineData?: { mimeType: string; data: string }; text?: string }[] = []
   for (const url of input.imageUrls.slice(0, 4)) {
     try {
-      const res = await fetch(url)
+      const res = await safeFetch(url, { timeoutMs: 8000 })
       if (!res.ok) continue
       const buf = await sharp(Buffer.from(await res.arrayBuffer()), { limitInputPixels: 50_000_000 })
         .rotate()

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import Image from 'next/image'
 import { X, Loader2, ExternalLink, MessageSquare, ChevronDown, StickyNote, Users, ShieldQuestion, MoreHorizontal, Sparkles , Scale } from 'lucide-react'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -95,7 +96,7 @@ function NoteEditor({ caseId, initial, onSaved }: { caseId: string; initial: str
   const [text, setText] = useState(initial || '')
   const [saving, setSaving] = useState(false)
   const dirty = text !== (initial || '')
-  const save = async () => { setSaving(true); try { await post({ action: 'set-note', id: caseId, note: text }); onSaved() } catch { /* noop */ } finally { setSaving(false) } }
+  const save = async () => { setSaving(true); try { await post({ action: 'set-note', id: caseId, note: text }); onSaved() } catch { toast.error('Saving the note failed — try again.') } finally { setSaving(false) } }
   if (!open) {
     return (
       <Button variant="bare" size="none" onClick={(e) => { e.stopPropagation(); setOpen(true) }} className="gap-1 whitespace-normal text-3xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer">
@@ -528,42 +529,46 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
 
   const act = async (action: string, id: string, severity?: string) => {
     setBusyId(id)
-    try { await post({ action, id, ...(severity ? { severity } : {}) }); refresh() } catch { /* stays */ } finally { setBusyId(null) }
+    try { await post({ action, id, ...(severity ? { severity } : {}) }); refresh() } catch { toast.error('Action failed — the case is unchanged.') } finally { setBusyId(null) }
   }
   const listingAct = async (action: string, listingId: string) => {
     setBusyId(listingId)
-    try { await post({ action, id: listingId }); refresh() } catch { /* noop */ } finally { setBusyId(null) }
+    try { await post({ action, id: listingId }); refresh() } catch { toast.error('Listing action failed — nothing changed.') } finally { setBusyId(null) }
   }
   const dismissTarget = async (id: string) => {
     setBusyId(id)
-    try { await post({ action: 'dismiss-target', id }); refresh() } catch { /* noop */ } finally { setBusyId(null) }
+    try { await post({ action: 'dismiss-target', id }); refresh() } catch { toast.error('Dismiss failed — the reports are unchanged.') } finally { setBusyId(null) }
   }
   const bulk = async (action: 'bulk-dismiss' | 'bulk-confirm') => {
     const ids = [...checked]
     if (!ids.length) return
     setBulkBusy(true)
-    try { await post({ action, ids, ...(action === 'bulk-confirm' ? { severity: bulkSev } : {}) }); setChecked(new Set()); refresh() } catch { /* noop */ } finally { setBulkBusy(false) }
+    try { await post({ action, ids, ...(action === 'bulk-confirm' ? { severity: bulkSev } : {}) }); setChecked(new Set()); refresh() } catch { toast.error('Bulk action failed — the selection is unchanged.') } finally { setBulkBusy(false) }
   }
 
+  // Latest-values ref so the keydown listener is attached exactly once but always
+  // reads the current filter/selection/handlers (no re-subscribe per keystroke of
+  // state, no stale closures riding on `filtered`'s referential instability).
+  const onKeyRef = useRef<(e: KeyboardEvent) => void>(() => {})
+  onKeyRef.current = (e: KeyboardEvent) => {
+    if (showResolved) return
+    const el = e.target as HTMLElement
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return
+    // The primitives render popup triggers/items as buttons and divs — keep hotkeys
+    // suppressed while a menu/select is focused, same as the old native <select> guard.
+    if (el && typeof el.closest === 'function' && el.closest('[role="menu"], [role="menuitem"], [role="listbox"], [role="option"], [role="combobox"]')) return
+    const cur = filtered[sel]
+    if (e.key === 'j') { e.preventDefault(); setSel((s) => Math.min(s + 1, filtered.length - 1)) }
+    else if (e.key === 'k') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)) }
+    else if (cur && e.key === 'c') { e.preventDefault(); act('confirm-report', cur.id, sevOf(cur)) }
+    else if (cur && e.key === 'd') { e.preventDefault(); act('dismiss-report', cur.id) }
+    else if (cur && e.key === 'a') { e.preventDefault(); act('abusive-report', cur.id) }
+  }
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (showResolved) return
-      const el = e.target as HTMLElement
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return
-      // The primitives render popup triggers/items as buttons and divs — keep hotkeys
-      // suppressed while a menu/select is focused, same as the old native <select> guard.
-      if (el && typeof el.closest === 'function' && el.closest('[role="menu"], [role="menuitem"], [role="listbox"], [role="option"], [role="combobox"]')) return
-      const cur = filtered[sel]
-      if (e.key === 'j') { e.preventDefault(); setSel((s) => Math.min(s + 1, filtered.length - 1)) }
-      else if (e.key === 'k') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)) }
-      else if (cur && e.key === 'c') { e.preventDefault(); act('confirm-report', cur.id, sevOf(cur)) }
-      else if (cur && e.key === 'd') { e.preventDefault(); act('dismiss-report', cur.id) }
-      else if (cur && e.key === 'a') { e.preventDefault(); act('abusive-report', cur.id) }
-    }
+    const onKey = (e: KeyboardEvent) => onKeyRef.current(e)
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, sel, showResolved])
+  }, [])
 
   useEffect(() => { if (sel > filtered.length - 1) setSel(Math.max(0, filtered.length - 1)) }, [filtered.length, sel])
 

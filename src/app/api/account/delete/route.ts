@@ -77,7 +77,7 @@ export async function POST(req: Request) {
   // Same-origin gate (defense-in-depth CSRF)
   const origin = req.headers.get('origin')
   const host = req.headers.get('host')
-  if (origin && host && new URL(origin).host !== host) {
+  if (origin && host && (!URL.canParse(origin) || new URL(origin).host !== host)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

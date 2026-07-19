@@ -13,7 +13,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  Store, MessageSquareText, Heart, Scale, Upload, Code2,
+  House, Store, MessageSquareText, Heart, Scale, Upload, Code2,
   UsersRound, Route, FileCheck2,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp,
 } from 'lucide-react'
@@ -67,6 +67,7 @@ export const DASHBOARD_NAV: NavGroup[] = [
       // /dashboard is a real HOME (owner 2026-07-18: one cross-property dashboard on the
       // forum's card design). EXACT match only — every section also lives under /dashboard/,
       // so prefix matching would light this row on /dashboard/listings etc.
+      { href: '/dashboard', exact: true, ...tr('Home', 'Trang chủ'), icon: House },
       { href: '/dashboard/listings', ...tr('My listings', 'Tin của tôi'), icon: Store },
       { href: '/messages', ...tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: 'unread' },
       { href: '/saved', ...tr('Saved', 'Đã lưu'), icon: Heart, badge: 'saved' },

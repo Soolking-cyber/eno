@@ -34,7 +34,7 @@ export function useSearchShortcuts(setShowSuggestions: (v: boolean) => void) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [setShowSuggestions])
 }
 
 /** Recent searches + recently-used areas (province/ward), persisted to localStorage. Reads the

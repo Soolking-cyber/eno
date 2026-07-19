@@ -14,7 +14,8 @@ export const dynamic = 'force-dynamic'
 
 // AI shopping concierge — the "AI mode" chat (a conversation in the messages tab). A
 // buyer describes what they want in natural language (EN/VI); we return a grounded
-// reply + matching listings as cards. Public but IP-rate-limited.
+// reply + matching listings as cards. Login-only + per-account rate limit via aiGuard;
+// daily budget breakers below.
 //
 // It UNDERSTANDS, not just retrieves: one Gemini call classifies intent (chat vs
 // search), writes a natural reply in the buyer's language, and extracts structured

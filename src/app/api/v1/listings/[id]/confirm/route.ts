@@ -15,5 +15,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   if (!(await listingOwnedBy(id, r.auth.sellerId))) return apiError(404, 'not_found', 'Listing not found.', r.rate)
   const res = await confirmCore(id, r.auth.profileId)
+  if (!res.ok) return apiError(404, 'not_found', 'Listing not found.', r.rate)
   return apiOk({ ok: true, bumped: res.bumped }, r.rate)
 }

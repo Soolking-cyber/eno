@@ -1,7 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { Loader2, MessageSquare, ExternalLink, Gavel, Clock, ShieldQuestion, Flag } from 'lucide-react'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -107,6 +112,8 @@ export function EnforcementClient() {
   const [queue, setQueue] = useState<Queue | null>(null)
   const [failed, setFailed] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  // Suspend awaiting the destructive confirm (alert-dialog, same idiom as admin-listings).
+  const [pendingSuspend, setPendingSuspend] = useState<{ body: Record<string, unknown>; busyKey: string } | null>(null)
 
   const load = useCallback(() => {
     setFailed(false)
@@ -120,9 +127,10 @@ export function EnforcementClient() {
   const act = async (body: Record<string, unknown>, busyKey: string) => {
     setBusyId(busyKey)
     try {
-      await fetch('/api/admin/enforcement', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      load()
-    } catch { /* stays — reload shows truth */ } finally { setBusyId(null) }
+      const res = await fetch('/api/admin/enforcement', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!res.ok) toast.error('Action failed — nothing changed. Try again.')
+      load() // reload shows truth either way
+    } catch { toast.error('Action failed — network error. Try again.') } finally { setBusyId(null) }
   }
 
   if (failed) {
@@ -197,7 +205,7 @@ export function EnforcementClient() {
                     <Button
                       variant="outline"
                       size="none"
-                      onClick={() => act({ action: 'set-state', profileId: r.targetProfileId, state: 'suspended', note: `Unanswered report ${r.id} (buyer waiting)` }, r.id)}
+                      onClick={() => setPendingSuspend({ body: { action: 'set-state', profileId: r.targetProfileId, state: 'suspended', note: `Unanswered report ${r.id} (buyer waiting)` }, busyKey: r.id })}
                       disabled={busyId === r.id}
                       className={`${DECIDE} ml-auto border-destructive/30 bg-transparent font-semibold text-destructive hover:bg-destructive/5 hover:text-destructive`}
                     >
@@ -227,7 +235,7 @@ export function EnforcementClient() {
                 <div className="min-w-0 flex-1"><WhoLine a={a} /><ActionMeta a={a} /></div>
                 <Button variant="outline" size="none" onClick={() => act({ action: 'dismiss_flag', id: a.id }, a.id)} disabled={busyId === a.id} className={`${DECIDE} border-line-strong bg-transparent font-bold text-foreground hover:bg-muted hover:text-foreground`}>Dismiss</Button>
                 <Button variant="outline" size="none" onClick={() => act({ action: 'set-state', profileId: a.profileId, state: 'held', flagId: a.id, note: `Review flag ${a.reason}` }, a.id)} disabled={busyId === a.id} className={`${DECIDE} border-warning/40 bg-transparent font-semibold text-warning hover:bg-warning/10 hover:text-warning`}>Hold</Button>
-                <Button variant="outline" size="none" onClick={() => act({ action: 'set-state', profileId: a.profileId, state: 'suspended', flagId: a.id, note: `Review flag ${a.reason}` }, a.id)} disabled={busyId === a.id} className={`${DECIDE} border-destructive/30 bg-transparent font-semibold text-destructive hover:bg-destructive/5 hover:text-destructive`}>Suspend</Button>
+                <Button variant="outline" size="none" onClick={() => setPendingSuspend({ body: { action: 'set-state', profileId: a.profileId, state: 'suspended', flagId: a.id, note: `Review flag ${a.reason}` }, busyKey: a.id })} disabled={busyId === a.id} className={`${DECIDE} border-destructive/30 bg-transparent font-semibold text-destructive hover:bg-destructive/5 hover:text-destructive`}>Suspend</Button>
                 {busyId === a.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
               </Card>
             ))}
@@ -253,6 +261,24 @@ export function EnforcementClient() {
           </div>
         </section>
       )}
+
+      {/* Destructive confirm for suspend (both call sites route here). */}
+      <AlertDialog open={pendingSuspend !== null} onOpenChange={(open) => { if (!open) setPendingSuspend(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suspend account</AlertDialogTitle>
+            <AlertDialogDescription>Suspend this account? Their active listings are pulled and the seller is locked out until an admin lifts it.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { if (pendingSuspend) void act(pendingSuspend.body, pendingSuspend.busyKey); setPendingSuspend(null) }}
+            >
+              Suspend
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

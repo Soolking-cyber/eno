@@ -307,17 +307,17 @@ export async function POST(request: Request) {
   const userId = await getAuthenticatedUserId(request)
   if (!userId) return forumJson(request, { error: 'auth_required' }, { status: 401 }, 'POST, OPTIONS')
 
+  const parsed = requestSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return forumJson(request, { error: 'invalid_trip', issues: parsed.error.issues }, { status: 400 }, 'POST, OPTIONS')
+  }
+
   const [accountLimit, globalLimit] = await Promise.all([
     rateLimit('itinerary-gemini-account', userId, 8, '1 h', { strict: true }),
     rateLimit('itinerary-gemini-global', 'global', 400, '1 d', { strict: true }),
   ])
   if (!accountLimit.success || !globalLimit.success) {
     return forumJson(request, { error: 'rate_limited' }, { status: 429 }, 'POST, OPTIONS')
-  }
-
-  const parsed = requestSchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) {
-    return forumJson(request, { error: 'invalid_trip', issues: parsed.error.issues }, { status: 400 }, 'POST, OPTIONS')
   }
 
   const ai = getGemini()

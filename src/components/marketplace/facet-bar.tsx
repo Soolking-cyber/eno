@@ -313,7 +313,7 @@ export function FacetBar({
                 <Button
                   variant="bare"
                   size="none"
-                  onClick={() => { setConditionFilter('all'); setCustomFilters({}) }}
+                  onClick={() => { setConditionFilter('all'); setActiveSubcategory('all'); setCustomFilters({}) }}
                   className="mt-3.5 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
                 >
                   {tr('Clear all', 'Xóa tất cả')}

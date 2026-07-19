@@ -108,6 +108,7 @@ until load → strips it from SSR → costs the LCP; reason in the file).
 | Modal | `ui/dialog` (Base UI); destructive confirms → `ui/alert-dialog` |
 | Menus | `ui/dropdown-menu` (never a hand-rolled absolute-positioned div) |
 | Floating panels | `ui/popover` |
+| Hover/focus hint | `ui/tooltip` (Base UI; `TooltipProvider` in layout — never native `title=`) |
 | Side panels / mobile filters | `ui/sheet` (side) / `ui/drawer` (bottom, Base UI Drawer) |
 | Select (desktop/admin) | `ui/select` — native `<select>` stays fine on mobile consumer surfaces |
 | Tabs | `ui/tabs` — every tab strip, including the explorer's 4-tab sort model, the dashboard's listing filters and the sign-in phone/email switch. A strip of `<Button>`s is NOT a tab strip: it reports no `role="tablist"`, no `aria-selected`, and the arrow keys do nothing. |
@@ -123,7 +124,7 @@ content panels → `2xl`, input-like triggers/controls → `xl`, menu items and
 compact sidebar controls → `lg`.
 
 **The table above is the whole layer — there is no shelf of spare parts behind it.**
-`chart` (+`recharts`), `command` (+`cmdk`), `sidebar`, `tooltip`, `collapsible`,
+`chart` (+`recharts`), `command` (+`cmdk`), `sidebar`, `collapsible`,
 `pagination`, `scroll-area`, `toggle`, `toggle-group` and `input-group` were deleted on
 2026-07-14: they were shadcn defaults that shipped with the scaffold and that nothing ever
 imported. An unused primitive is not free — it is a decoy. `ui/alert` sat here with ZERO

@@ -13,7 +13,6 @@ import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
 import { BottomNavSpacer } from "@/components/marketplace/bottom-nav-spacer";
 import { KeyboardViewportSync } from "@/components/marketplace/keyboard-viewport-sync";
-import { PageTransitions } from "@/components/marketplace/page-transitions";
 import { BackToTop } from "@/components/marketplace/back-to-top";
 import { SkipLink } from "@/components/marketplace/skip-link";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
@@ -114,7 +113,7 @@ export default function RootLayout({
             idempotent, kept as the fallback. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');}catch(e){}try{var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){var dc=document.documentElement.classList;dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));}else if(!window.scrollY){document.documentElement.classList.add('page-at-top');}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l)document.documentElement.lang=l;}catch(e){}try{var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){var dc=document.documentElement.classList;dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));}else if(!window.scrollY){document.documentElement.classList.add('page-at-top');}}catch(e){}})();`,
           }}
         />
         {/* Warm up TCP/TLS to the image origin so above-the-fold listing photos
@@ -193,7 +192,6 @@ export default function RootLayout({
                       {/* One delay group for every ui/tooltip in the app: moving between adjacent
                           icon tooltips feels instant once the first opens. Context only, no DOM. */}
                       <TooltipProvider>
-                      <PageTransitions>
                       <AccountPanelShell>
                       {children}
                       {/* Inside the shell so it can READ the panel state (it portals to
@@ -216,7 +214,6 @@ export default function RootLayout({
                       <InstallHint />
                       <SaveSignupSheet />
                       <ImageShield />
-                      </PageTransitions>
                       </TooltipProvider>
                     </QueryProvider>
                   </FavoritesProvider>

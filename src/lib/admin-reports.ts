@@ -119,13 +119,18 @@ const firstImg = (images: string): string | null => {
   try { const a = JSON.parse(images || '[]'); return Array.isArray(a) && a[0] ? a[0] : null } catch { return null }
 }
 
+/** The identity a report is "about" — used to group reports on the same target
+ *  (pile-on signal). Shared with the admin queue's open-report counts. */
+export function reportTargetKey(r: Pick<RawReport, 'id' | 'listingId' | 'targetSellerId' | 'targetProfileId'>): string {
+  return r.targetProfileId || r.targetSellerId || r.listingId || r.id
+}
+
 /**
- * Resolve the reported TARGET (trust/tier + listing) for each report, plus the COMMUNITY
- * count — how many open reports share the same target identity (pile-on signal). Batched.
+ * Resolve the reported TARGET (trust/tier + listing) for each report. Batched.
  */
 export async function targetContext(
   reports: RawReport[],
-): Promise<{ targetByReportId: Map<string, TargetInfo>; communityByReportId: Map<string, number> }> {
+): Promise<{ targetByReportId: Map<string, TargetInfo> }> {
   const listingIds = [...new Set(reports.map((r) => r.listingId).filter((x): x is string => !!x))]
   const sellerIds = [...new Set(reports.map((r) => r.targetSellerId).filter((x): x is string => !!x))]
   const profileIds = [...new Set(reports.map((r) => r.targetProfileId).filter((x): x is string => !!x))]
@@ -144,14 +149,8 @@ export async function targetContext(
   const sellerById = new Map((sellers as SEL[]).map((s) => [s.id, s]))
   const profileById = new Map((profiles as PRO[]).map((p) => [p.id, p]))
 
-  const keyOf = (r: RawReport) => r.targetProfileId || r.targetSellerId || r.listingId || r.id
-  const counts = new Map<string, number>()
-  for (const r of reports) { const k = keyOf(r); counts.set(k, (counts.get(k) || 0) + 1) }
-
   const targetByReportId = new Map<string, TargetInfo>()
-  const communityByReportId = new Map<string, number>()
   for (const r of reports) {
-    communityByReportId.set(r.id, counts.get(keyOf(r)) || 1)
     if (r.listingId) {
       const l = listingById.get(r.listingId)
       const s = l?.seller
@@ -170,5 +169,5 @@ export async function targetContext(
       targetByReportId.set(r.id, { kind: 'account', name: 'Unknown', trustScore: null, trustTier: null, sellerId: null, profileId: null, isGuest: true, listing: null })
     }
   }
-  return { targetByReportId, communityByReportId }
+  return { targetByReportId }
 }

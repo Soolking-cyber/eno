@@ -97,6 +97,15 @@ function writeLangCookie(lang: Language) {
   document.cookie = `lang=${lang};path=/;max-age=31536000;samesite=lax`
 }
 
+// localStorage access can throw (Safari private mode, storage-blocked WebViews,
+// quota) — never let a preference read/write take down the provider.
+function safeGetItem(key: string): string | null {
+  try { return localStorage.getItem(key) } catch { return null }
+}
+function safeSetItem(key: string, value: string) {
+  try { localStorage.setItem(key, value) } catch { /* storage unavailable — non-fatal */ }
+}
+
 // Pick the device language: walk the user's ordered preference list, first match
 // wins; English if none of the supported languages appear.
 function detectDeviceLanguage(): Language {
@@ -275,7 +284,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // A saved preference always wins; otherwise fall back to the device language
     // (navigator.languages), then English.
-    const stored = localStorage.getItem('lang') as Language
+    const stored = safeGetItem('lang') as Language | null
     if (stored && LANGUAGES.some((l) => l.code === stored)) {
       setLangState(stored)
       writeLangCookie(stored)
@@ -295,6 +304,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         try {
           const { Device } = await import('@capacitor/device')
           const { value } = await Device.getLanguageTag()
+          // The user may have picked a language explicitly while this resolved —
+          // an explicit preference always wins over the device locale.
+          if (safeGetItem('lang')) return
           const dev = matchLanguage(value)
           if (dev) { writeLangCookie(dev); setLangState(dev) }
         } catch { /* plugin missing / not synced — the navigator fallback already applied */ }
@@ -311,8 +323,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   // (Best Practices 100→96), and each one burned a function invocation for nothing.
   useEffect(() => {
     if (typeof document === 'undefined' || !/(^|;\s*)sb-[^=]*-auth-token/.test(document.cookie)) return
+    // Skip when the settled language was already synced (persisted marker), so a
+    // hard load doesn't re-POST the same locale on every visit.
+    if (safeGetItem('lang-synced') === lang) return
     const id = setTimeout(() => {
-      fetch('/api/profile/locale', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ locale: lang }) }).catch(() => {})
+      fetch('/api/profile/locale', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ locale: lang }) })
+        .then((r) => { if (r.ok) safeSetItem('lang-synced', lang) })
+        .catch(() => {})
     }, 800)
     return () => clearTimeout(id)
   }, [lang])
@@ -391,7 +408,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         // (a few legit source-identical strings — brand names, "OK" — always exist).
         const translated = UI_STRINGS.reduce((n, s) => (map[s] !== s ? n + 1 : n), 0)
         if (!anyFail && translated >= UI_STRINGS.length * 0.95) {
-          try { localStorage.setItem(cacheKey, JSON.stringify(map)) } catch { /* ignore */ }
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(map))
+            // Evict superseded dictionaries (old hash/generation, other languages'
+            // stale copies) — nothing else ever deletes 'ui-dict:' keys, and each
+            // is a full ~100KB dictionary.
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+              const k = localStorage.key(i)
+              if (k && k.startsWith('ui-dict:') && k !== cacheKey) localStorage.removeItem(k)
+            }
+          } catch { /* ignore */ }
         }
       })
     })
@@ -406,7 +432,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const setLang = (newLang: Language) => {
     setLangState(newLang)
-    localStorage.setItem('lang', newLang)
+    safeSetItem('lang', newLang)
     writeLangCookie(newLang)
   }
 

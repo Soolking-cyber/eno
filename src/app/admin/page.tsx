@@ -2,7 +2,7 @@ import { AdminDenied } from '@/components/admin/admin-denied'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { ModerationClient, type ModCase } from '@/components/admin/moderation-client'
-import { reportContext, targetContext, type RawReport } from '@/lib/admin-reports'
+import { reportContext, reportTargetKey, targetContext, type RawReport } from '@/lib/admin-reports'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Monitor } from 'lucide-react'
 import type { Metadata } from 'next'
@@ -53,15 +53,14 @@ export default async function AdminPage() {
   const [{ reporterById, convoByReportId }, { targetByReportId }] = await Promise.all([reportContext(raw), targetContext(raw)])
 
   // Community = how many OPEN reports share a target (the actionable pile-on).
-  const keyOf = (r: Rep) => r.targetProfileId || r.targetSellerId || r.listingId || r.id
   const openByKey = new Map<string, number>()
-  for (const r of openRows) { const k = keyOf(r); openByKey.set(k, (openByKey.get(k) || 0) + 1) }
+  for (const r of openRows) { const k = reportTargetKey(r); openByKey.set(k, (openByKey.get(k) || 0) + 1) }
 
   const now = Date.now()
   const buildCase = (r: Rep, resolved: boolean): ModCase => {
     const reporter = r.reporterProfileId ? reporterById.get(r.reporterProfileId) ?? null : null
     const target = targetByReportId.get(r.id)!
-    const community = resolved ? 1 : openByKey.get(keyOf(r)) ?? 1
+    const community = resolved ? 1 : openByKey.get(reportTargetKey(r)) ?? 1
     const sevKey = r.severity && SEV_W[r.severity] ? r.severity : 'moderate'
     const cred = credibility(reporter)
     const ageDays = (now - r.createdAt.getTime()) / 86_400_000

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tag, Send, MessageCircle } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
@@ -55,16 +55,34 @@ export function ContactComposer({
   // Stash the first message + optional STRUCTURED offer (offerAmount — never a baked
   // text line, so it lands as a proper offer card kind='offer'), then redirect
   // instantly. The /messages/pending resolver posts it and swaps to the real thread.
+  // A tap that lands while auth is still resolving is BUFFERED here (not dropped)
+  // and drained by the effect below once `loading` settles — an early "Chat now"
+  // click used to silently no-op, which e2e papered over with retries.
+  const pendingRef = useRef<{ body?: string; offerAmount?: number | null } | null>(null)
   const send = (opts: { body?: string; offerAmount?: number | null }) => {
     // Until auth resolves, treat as not-ready: don't push to /messages/pending
     // (which would 401-bounce). Prompt only once we know they're truly logged out.
-    if (!user) { if (!loading) openSignIn({ listingTitle, listingImage, sellerName }); return }
+    if (!user) {
+      if (loading) { pendingRef.current = opts; return }
+      openSignIn({ listingTitle, listingImage, sellerName })
+      return
+    }
     const offerAmount = opts.offerAmount ?? null
     // Shared single writer (src/lib/quick-contact) — a stash failure is deliberately
     // ignored here: the pending page falls back to /messages.
     stashCompose({ listingId, body: opts.body, offerAmount, listingTitle, listingImage, price, currency })
     router.push('/messages/pending')
   }
+
+  // Drain a buffered intent once auth resolves: send() then routes it (signed-in →
+  // stash + redirect; signed-out → sign-in prompt). One-shot: cleared before replay.
+  useEffect(() => {
+    if (loading || !pendingRef.current) return
+    const opts = pendingRef.current
+    pendingRef.current = null
+    send(opts)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, loading])
 
   const chatNow = () => send({ body: opener() })
   const sendOffer = () => { if (canOffer) send({ offerAmount: offerPrice }) }

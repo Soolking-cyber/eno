@@ -34,8 +34,15 @@ export function DevelopersPanel() {
   const [copied, setCopied] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
 
+  // Failures set loadError instead of coercing to [] — an empty list would render the
+  // false "No API keys yet" empty state over a transient server/network error.
+  const [loadError, setLoadError] = useState(false)
   const load = useCallback(() => {
-    fetch('/api/keys').then((r) => (r.ok ? r.json() : { keys: [] })).then((d) => setKeys(d.keys || [])).catch(() => setKeys([]))
+    setLoadError(false)
+    fetch('/api/keys')
+      .then((r) => { if (!r.ok) throw new Error('keys_load_failed'); return r.json() })
+      .then((d) => setKeys(d.keys || []))
+      .catch(() => { setKeys(null); setLoadError(true) })
   }, [])
   useEffect(() => { load() }, [load])
 
@@ -153,7 +160,12 @@ export function DevelopersPanel() {
 
       {/* List */}
       <div className="space-y-2">
-        {keys === null ? (
+        {loadError ? (
+          <div className="rounded-2xl border border-dashed border-border p-6 text-center">
+            <p className="text-sm text-muted-foreground">{tr('Could not load your API keys.', 'Không tải được khóa API của bạn.')}</p>
+            <Button variant="bare" size="none" onClick={load} className="mt-2 cursor-pointer text-sm font-semibold text-accent-foreground hover:underline">{tr('Try again', 'Thử lại')}</Button>
+          </div>
+        ) : keys === null ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {tr('Loading…', 'Đang tải…')}</p>
         ) : active.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-6 text-center">
@@ -214,8 +226,14 @@ function WebhooksSection() {
   const [copied, setCopied] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
 
+  // Same failure semantics as the API-keys loader: error state, never a false empty list.
+  const [loadError, setLoadError] = useState(false)
   const load = useCallback(() => {
-    fetch('/api/webhooks').then((r) => (r.ok ? r.json() : { webhooks: [] })).then((d) => setHooks(d.webhooks || [])).catch(() => setHooks([]))
+    setLoadError(false)
+    fetch('/api/webhooks')
+      .then((r) => { if (!r.ok) throw new Error('webhooks_load_failed'); return r.json() })
+      .then((d) => setHooks(d.webhooks || []))
+      .catch(() => { setHooks(null); setLoadError(true) })
   }, [])
   useEffect(() => { load() }, [load])
 
@@ -332,7 +350,12 @@ function WebhooksSection() {
 
       {/* List */}
       <div className="space-y-2">
-        {hooks === null ? (
+        {loadError ? (
+          <div className="rounded-2xl border border-dashed border-border p-6 text-center">
+            <p className="text-sm text-muted-foreground">{tr('Could not load your webhooks.', 'Không tải được webhook của bạn.')}</p>
+            <Button variant="bare" size="none" onClick={load} className="mt-2 cursor-pointer text-sm font-semibold text-accent-foreground hover:underline">{tr('Try again', 'Thử lại')}</Button>
+          </div>
+        ) : hooks === null ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {tr('Loading…', 'Đang tải…')}</p>
         ) : hooks.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-6 text-center">

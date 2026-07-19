@@ -1,48 +1,28 @@
-// Harvest EVERY UI string the app renders, then translate+verify them for a
-// target language: pre-warms the cache (instant, no English leak) and flags any
-// string that comes back identical to the source (potential gap).
+// Translate+verify EVERY UI string the app renders for a target language:
+// pre-warms the cache (instant, no English leak) and flags any string that comes
+// back identical to the source (potential gap). The harvest itself is owned by
+// scripts/gen-ui-strings.mjs (which also covers taxonomy.ts display strings) —
+// this script reads its generated output instead of re-harvesting inline, so the
+// two can never drift.
 //
 // Usage: node scripts/i18n-verify.mjs <lang>   (needs the dev server running)
 //   e.g. node scripts/i18n-verify.mjs zh-Hans
 
-import { readFileSync, readdirSync, statSync } from 'fs'
-import { join } from 'path'
+import { readFileSync } from 'fs'
 
 const lang = process.argv[2]
 if (!lang) { console.error('Usage: node scripts/i18n-verify.mjs <lang>'); process.exit(1) }
 const BASE = process.env.BASE_URL || 'http://localhost:3000'
 
-function walk(dir) {
-  const out = []
-  for (const e of readdirSync(dir)) {
-    const p = join(dir, e)
-    const s = statSync(p)
-    if (s.isDirectory()) out.push(...walk(p))
-    else if (/\.(tsx|ts)$/.test(e)) out.push(p)
-  }
-  return out
-}
+// ui-strings.ts is a TS module — extract the JSON array literal (after the `=`,
+// NOT the first `[`: that's the `string[]` type annotation). Same technique as
+// scripts/prewarm-translations.mjs.
+const tsSrc = readFileSync('src/generated/ui-strings.ts', 'utf8')
+const eq = tsSrc.indexOf('= [')
+const STRINGS = JSON.parse(tsSrc.slice(eq + 2, tsSrc.lastIndexOf(']') + 1))
 
-const strings = new Set()
-const add = (s) => { if (s && s.trim() && s.length <= 400) strings.add(s.trim()) }
-const unesc = (s) => s.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\`/g, '`')
-
-for (const file of walk('src')) {
-  const src = readFileSync(file, 'utf8')
-  if (file.endsWith('language-context.tsx')) {
-    const enBlock = src.split('const EN:')[1]?.split('const VI:')[0] || ''
-    for (const m of enBlock.matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)) add(unesc(m[1]))
-  }
-  for (const m of src.matchAll(/\btr\(\s*'((?:[^'\\]|\\.)*)'/g)) add(unesc(m[1]))
-  for (const m of src.matchAll(/\btr\(\s*"((?:[^"\\]|\\.)*)"/g)) add(unesc(m[1]))
-  for (const m of src.matchAll(/\bt\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*'((?:[^'\\]|\\.)*)'/g)) { add(unesc(m[1])); add(unesc(m[2])) }
-  for (const m of src.matchAll(/<Tr\s+text=\{?\s*'((?:[^'\\]|\\.)*)'/g)) add(unesc(m[1]))
-  for (const m of src.matchAll(/<Tr\s+text="((?:[^"\\]|\\.)*)"/g)) add(unesc(m[1]))
-}
-for (const u of ['month', 'month (est.)', 'hour', 'visit (from)', 'service (from)', 'day', 'year', 'week']) add(u)
-
-const list = [...strings].filter((s) => /[a-zA-Z]/.test(s))
-console.log(`Harvested ${list.length} unique UI strings.`)
+const list = STRINGS.filter((s) => /[a-zA-Z]/.test(s))
+console.log(`Loaded ${list.length} UI strings from src/generated/ui-strings.ts.`)
 
 const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))

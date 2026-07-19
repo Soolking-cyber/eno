@@ -37,6 +37,21 @@ export function findUnit(list: { code: string; name: string; nameEn: string }[],
     list.find((u) => { const un = norm(u.name); return un.includes(n) || n.includes(un) })
 }
 
+// Provinces list, fetched ONCE per page load and shared: AreaFilter is mounted
+// unconditionally by the header AND the facet bar (and WardPicker repeats the call),
+// so each instance hitting /api/geo on mount duplicated the request. Module-level
+// promise cache dedupes across instances; reset on failure so a later open can retry.
+let provincesPromise: Promise<Unit[]> | null = null
+function fetchProvinces(): Promise<Unit[]> {
+  if (!provincesPromise) {
+    provincesPromise = fetch('/api/geo?type=provinces')
+      .then((r) => r.json())
+      .then((d) => d.provinces || [])
+      .catch(() => { provincesPromise = null; return [] })
+  }
+  return provincesPromise
+}
+
 function DisabledField({ label }: { label: string }) {
   return (
     <div className="flex w-full cursor-not-allowed items-center justify-between rounded-xl bg-tint/60 px-3.5 py-2.5 text-sm text-ink-4">
@@ -96,12 +111,17 @@ export function AreaFilter({
   useEffect(() => { provincesRef.current = provinces }, [provinces])
   useEffect(() => { wardsRef.current = wards }, [wards])
 
-  // Provinces (once).
+  // Provinces (once, and only once the panel actually opens — this component is
+  // mounted unconditionally by the header and facet bar, so a mount-time fetch
+  // would fire on every page view even when the filter is never used).
+  const provincesFetched = useRef(false)
   useEffect(() => {
+    if (!open || provincesFetched.current) return
+    provincesFetched.current = true
     let off = false
-    fetch('/api/geo?type=provinces').then((r) => r.json()).then((d) => { if (!off) setProvinces(d.provinces || []) }).catch(() => {})
+    fetchProvinces().then((ps) => { if (!off) setProvinces(ps) })
     return () => { off = true }
-  }, [])
+  }, [open])
 
   // Re-sync the draft to the applied values each time the modal opens.
   useEffect(() => {
@@ -361,7 +381,7 @@ export function WardPicker({ onPick, className }: { onPick: (v: { province: Geo 
 
   useEffect(() => {
     let off = false
-    fetch('/api/geo?type=provinces').then((r) => r.json()).then((d) => { if (!off) setProvinces(d.provinces || []) }).catch(() => {})
+    fetchProvinces().then((ps) => { if (!off) setProvinces(ps) })
     return () => { off = true }
   }, [])
   useEffect(() => {

@@ -70,15 +70,10 @@ test.describe('Guest · listing detail (first live listing)', () => {
     const chat = page.getByRole('button', { name: /^(Chat now|Chat)$/i }).first()
     await expect(chat).toBeVisible()
     const dialog = page.getByRole('dialog')
-    // Retry the click (viewport-agnostic — the mobile header has no "Sign in" link to wait on):
-    // the gate no-ops while useAuth is still loading, and "Chat now" fires a one-shot
-    // eno:chat-now event whose ContactComposer listener re-registers on auth state changes, so
-    // an early single click can be dropped. Retrying lands a click once auth has settled. The
-    // gate stays secure throughout — a guest is never routed to a thread, worst case is a no-op.
-    await expect(async () => {
-      await chat.click()
-      await expect(dialog).toBeVisible({ timeout: 2000 })
-    }).toPass({ timeout: 15000 })
+    // A click that lands while useAuth is still resolving is buffered by ContactComposer
+    // and drained once auth settles — so a single click always yields the sign-in dialog.
+    await chat.click()
+    await expect(dialog).toBeVisible({ timeout: 15000 })
   })
 
   test('exposes Save / Share / Report controls', async ({ page }) => {

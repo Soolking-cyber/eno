@@ -27,6 +27,7 @@ import { Field, FieldControl, FieldLabel } from '@/components/ui/field'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { ForumApiError } from '@/lib/api'
 import {
   DEFAULT_THREAD_COMMENTS,
   THREAD_COMMENTS,
@@ -203,8 +204,12 @@ export function ThreadDialog({
         setReply('')
         setReplyTo(null)
         toast.success(tr('Your reply is live.', 'Câu trả lời của bạn đã được đăng.'))
-      } catch {
-        toast.error(tr('Your reply could not be published.', 'Không thể đăng câu trả lời của bạn.'))
+      } catch (error) {
+        // auth_required already opened the sign-in dialog — an error toast on
+        // top of it would be misleading (the draft stays in the composer).
+        if (!(error instanceof ForumApiError && error.code === 'auth_required')) {
+          toast.error(tr('Your reply could not be published.', 'Không thể đăng câu trả lời của bạn.'))
+        }
       } finally {
         setSubmittingReply(false)
       }

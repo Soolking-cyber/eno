@@ -1,10 +1,9 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
-import { toast } from 'sonner'
-import type { SerializedListing } from '@/lib/types'
+import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
+import type { SerializedListing } from '@/lib/types'
 import { haptic } from '@/lib/haptics'
 
 const KEY = 'eno:favorites'
@@ -28,9 +27,8 @@ const FavoritesContext = createContext<FavoritesCtx | undefined>(undefined)
 
 export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   const [ids, setIds] = useState<Set<string>>(new Set())
-  const router = useRouter()
   const pathname = usePathname()
-  const { tr } = useLanguage()
+  const { lang } = useLanguage() // third-language titles come server-localized (en/vi are in the payload)
 
   // Per-listing net saves made in the current view (this session, this route). The
   // server savedCount already reflects saves persisted before the page loaded (they're
@@ -84,7 +82,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
       // decides whether to show (guest + not shown before); we just announce.
       window.dispatchEvent(new Event('eno:first-save'))
     }
-  }, [ids, tr, router])
+  }, [ids])
 
   const isFavorite = useCallback((id: string) => ids.has(id), [ids])
 
@@ -109,7 +107,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     // Debounce so rapid hearting while browsing coalesces into one request.
     let cancelled = false
     const t = setTimeout(() => {
-      fetch(`/api/listings?ids=${encodeURIComponent(idKey)}`)
+      fetch(`/api/listings?ids=${encodeURIComponent(idKey)}${lang !== 'en' && lang !== 'vi' ? `&lang=${lang}` : ''}`)
         // A non-ok response must land in .catch — treating it as data would both
         // hide the failure AND let the self-heal below wrongly prune saved ids.
         .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
@@ -135,7 +133,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
         .catch(() => { if (!cancelled) setSavedError(true) })
     }, 400)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [idKey, fetchTick])
+  }, [idKey, fetchTick, lang])
 
   const value = useMemo(() => ({ ids, isFavorite, toggle, count: ids.size, savedDelta, saved, savedError, retrySaved }), [ids, isFavorite, toggle, savedDelta, saved, savedError, retrySaved])
 

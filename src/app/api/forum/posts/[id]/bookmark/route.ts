@@ -24,8 +24,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!post) return forumJson(request, { error: 'not_found' }, { status: 404 }, 'POST, OPTIONS')
   const existing = await db.forumBookmark.findUnique({ where: { postId_profileId: { postId: id, profileId: auth.profile.id } } })
   const saved = parsed.data.saved ?? !existing
-  if (saved && !existing) await db.forumBookmark.create({ data: { postId: id, profileId: auth.profile.id } })
-  if (!saved && existing) await db.forumBookmark.delete({ where: { postId_profileId: { postId: id, profileId: auth.profile.id } } })
+  // upsert/deleteMany (not create/delete) so a double-tap can't race into a P2002/P2025 500.
+  if (saved) {
+    await db.forumBookmark.upsert({
+      where: { postId_profileId: { postId: id, profileId: auth.profile.id } },
+      create: { postId: id, profileId: auth.profile.id },
+      update: {},
+    })
+  } else {
+    await db.forumBookmark.deleteMany({ where: { postId: id, profileId: auth.profile.id } })
+  }
   return forumJson(request, { saved }, undefined, 'POST, OPTIONS')
 }
 

@@ -10,7 +10,6 @@ import type { LatLng } from '@/lib/travel'
 import type { SerializedListingCard } from '@/lib/types'
 import { formatMoneyFull, compactPrice, moneyLocale, type MoneyLocale } from '@/lib/vnd'
 import { useCurrency } from '@/context/currency-context'
-import type { Language } from '@/context/language-context'
 import { useLanguage } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
 import { LocalizedText } from './listing-content'
@@ -37,7 +36,6 @@ type Props = {
   listings: SerializedListingCard[]
   activeDistrict: string
   onOpenListing: (l: SerializedListingCard) => void
-  lang: Language
   selectedId?: string | null
   onHover?: (id: string | null) => void
   focusId?: string | null
@@ -61,7 +59,7 @@ type Props = {
 const LEAFLET_JS = '/vendor/leaflet/leaflet.js'
 const LEAFLET_CSS = '/vendor/leaflet/leaflet.css'
 
-function loadLeaflet(cb: () => void) {
+function loadLeaflet(cb: () => void, onError?: () => void) {
   if (typeof window === 'undefined') return
   const w = window as unknown as { L?: unknown }
   if (w.L) { cb(); return }
@@ -80,12 +78,18 @@ function loadLeaflet(cb: () => void) {
   const existing = document.getElementById('leaflet-js') as HTMLScriptElement | null
   if (existing) {
     if (w.L) cb()
-    else existing.addEventListener('load', cb, { once: true })
+    else {
+      existing.addEventListener('load', cb, { once: true })
+      // The tag may already have failed (a 'load' listener would never fire) —
+      // surface that; removing the dead tag lets a retry inject a fresh one.
+      existing.addEventListener('error', () => { existing.remove(); onError?.() }, { once: true })
+    }
     return
   }
   const s = document.createElement('script')
   s.id = 'leaflet-js'; s.src = LEAFLET_JS; s.async = true
   s.onload = () => cb()
+  s.onerror = () => { s.remove(); onError?.() }
   document.head.appendChild(s)
 }
 
@@ -102,13 +106,14 @@ function pinHtml(label: string, active: boolean): string {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove }: Props) {
+export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove }: Props) {
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
   const { format: formatPrice } = useCurrency()
-  // Pin + card amounts follow the viewer's UI language from CONTEXT — the `lang`
-  // prop is a content-localization hint some hosts hardcode (listing-detail-map
-  // passes 'vi'), so it can't drive money formatting.
+  // Pin + card amounts follow the viewer's UI language from CONTEXT — a former
+  // `lang` prop was a content-localization hint some hosts hardcoded (listing-
+  // detail-map passed 'vi'), so it could never drive money formatting; it was
+  // unused and has been removed.
   const locale = moneyLocale(uiLang)
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
@@ -116,6 +121,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   const radiusCircleRef = useRef<any>(null) // the "search near you" radius overlay
   const fitKeyRef = useRef<string>('') // last filter signature we auto-fit bounds for
   const [ready, setReady] = useState(false)
+  // Leaflet script failed to load (offline / blocked) — without this the overlay
+  // spinner spins forever. `loadTry` re-runs the loader effect on Retry.
+  const [loadError, setLoadError] = useState(false)
+  const [loadTry, setLoadTry] = useState(0)
   // Airbnb-style: a pin tap opens a small info card (not a direct navigation). The
   // ref mirrors the open card id so marker/map click handlers (captured in effects)
   // always see the current value without stale closures.
@@ -187,7 +196,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     map.panTo(map.unproject(L.point(pt.x, pt.y - shift), z), { animate: true, duration: 0.25 })
   }
   const onMoveRef = useRef(onMove)
-  onMoveRef.current = onMove
+  useEffect(() => { onMoveRef.current = onMove }, [onMove])
 
   // Both gates are FUNCTIONS, read live at event time — never snapshotted into the
   // marker closures. The markers effect only re-runs on a listings/filter redraw, so a
@@ -237,9 +246,12 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
 
   useEffect(() => {
     let cancelled = false
-    loadLeaflet(() => { if (!cancelled) setReady(true) })
+    loadLeaflet(
+      () => { if (!cancelled) setReady(true) },
+      () => { if (!cancelled) setLoadError(true) },
+    )
     return () => { cancelled = true } // don't setReady after unmount (stale script 'load')
-  }, [])
+  }, [loadTry])
 
   // Init map once Leaflet is ready.
   useEffect(() => {
@@ -302,9 +314,12 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
     // Keep the open card UNLESS its listing is gone (e.g. filtered out). A redraw
     // alone must NOT close it — otherwise it flickers shut right after opening.
     setCard((c) => {
-      const keep = c && listings.some((l) => l.id === c.id)
-      if (!keep) cardIdRef.current = null
-      return keep ? c : null
+      // Re-resolve to the FRESH row from the new set (price/status may have
+      // changed on the redraw) — returning the stale `c` object would pin the
+      // open card to outdated data.
+      const fresh = c ? listings.find((l) => l.id === c.id) : null
+      if (!fresh) cardIdRef.current = null
+      return fresh ?? null
     })
 
     // On hover-capable devices (desktop), HOVER reveals the card so the user can
@@ -319,7 +334,12 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
       const { lat, lng } = getListingCoordinates(l)
       bounds.push([lat, lng])
       const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
-      const marker = L.marker([lat, lng], { icon, riseOnHover: true }).addTo(map)
+      // `alt` gives the pin an accessible name (the visible label is just a price
+      // string); keyboard users close the popup card via Escape on the wrapper.
+      const marker = L.marker([lat, lng], { icon, riseOnHover: true, alt: l.title }).addTo(map)
+      // A rebuild mid-selection must keep the selected pin on top — the styling
+      // effect only runs on [selectedId, ready], not on a redraw.
+      if (selectedId === l.id) marker.setZIndexOffset(1000)
       marker.on('click', () => {
         // Click = centre the pin + show the card on EVERY input (mobile pattern
         // everywhere, user decision 2026-07-06); the card itself opens the page.
@@ -398,13 +418,41 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, lang, sel
   return (
     // `isolate` keeps Leaflet's internal z-index (panes/controls up to ~1000)
     // contained so it can never render above modals/dialogs (which sit at z-50).
-    <div className="w-full h-full relative isolate bg-tint">
+    // Escape closes the popup card (keyboard parity with the map-background tap);
+    // the handler sits on the wrapper so it catches keys from both the Leaflet
+    // container (focusable via its keyboard handler) and the card's controls.
+    <div
+      className="w-full h-full relative isolate bg-tint"
+      onKeyDown={(e) => { if (e.key === 'Escape' && cardIdRef.current) { e.stopPropagation(); closeCard() } }}
+    >
       {!ready && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted z-20 select-none">
-          <Spinner size="md" />
-          <span className="text-3xs font-bold text-slate-700 uppercase tracking-wider">
-            {tr('Loading map…', 'Đang tải bản đồ...')}
-          </span>
+          {loadError ? (
+            <>
+              <span className="text-3xs font-bold text-slate-700 uppercase tracking-wider">
+                {tr('Map failed to load', 'Không tải được bản đồ')}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // The dead tag would swallow the retry (its load/error already fired) —
+                  // drop it so loadLeaflet injects a fresh script.
+                  document.getElementById('leaflet-js')?.remove()
+                  setLoadError(false); setLoadTry((t) => t + 1)
+                }}
+              >
+                {tr('Retry', 'Thử lại')}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Spinner size="md" />
+              <span className="text-3xs font-bold text-slate-700 uppercase tracking-wider">
+                {tr('Loading map…', 'Đang tải bản đồ...')}
+              </span>
+            </>
+          )}
         </div>
       )}
       <div ref={mapRef} className="w-full h-full" />

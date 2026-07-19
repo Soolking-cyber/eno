@@ -179,7 +179,6 @@ export function ListingsExplorer({
   const [activeSubcategory, setActiveSubcategory] = useState('all')
   const [activeBrand, setActiveBrand] = useState('all') // canonical brand slug, or 'all'
   const [activeModel, setActiveModel] = useState('all') // model display string, or 'all'
-  const [openMobileDistrictDropdown, setOpenMobileDistrictDropdown] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('compact')
   // The full-screen Video view remembers the view to fall back to on close (so exiting the
   // takeover lands the user back where they were, not always on the grid).
@@ -246,6 +245,13 @@ export function ListingsExplorer({
       .sort((a, b) => (b.l.seller.trustScore - a.l.seller.trustScore) || (a.d - b.d))
       .map((x) => x.l)
   }, [listings, nearby])
+  // Map view: inject the out-of-feed focus listing (For You rail / ?focus= deep
+  // link) ahead of the feed. Memoized — an inline expression allocated a fresh
+  // array every render, forcing the map's markers effect to re-run needlessly.
+  const mapListings = useMemo(
+    () => (focusListing && !shownListings.some((l) => l.id === focusListing.id) ? [focusListing, ...shownListings] : shownListings),
+    [focusListing, shownListings],
+  )
   // Render the card grids off a DEFERRED copy so a facet/sort toggle paints the
   // control's new state immediately and the (heavier) grid reconciliation runs as a
   // non-urgent update — keeps INP low on mid-range Android.
@@ -262,7 +268,6 @@ export function ListingsExplorer({
   const [reachedEnd, setReachedEnd] = useState(false)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const maxOffsetRef = useRef(0)
-  const [isLoading, setIsLoading] = useState(false)
   // Return-to-feed restoration: when set, a back-nav snapshot is being rehydrated —
   // hold the scroll target until the taller list paints, and don't let the page-1
   // query shrink the restored list.
@@ -518,17 +523,6 @@ export function ListingsExplorer({
     setPriceRange('all') // price brackets are category-specific
   }
 
-  const handleCategoryClick = (slug: string) => {
-    setOpenMobileDistrictDropdown(false)
-    setLooseMatch(false)
-    setActiveCategory(slug)
-    setActiveSubcategory('all')
-    setActiveBrand('all')
-    setActiveModel('all')
-    setCustomFilters({})
-    setPriceRange('all')
-  }
-
   // Parse a query-string into the explorer's filter state. Shared by the mount/popstate
   // reader and the notification deep-link handler below.
   const applyParams = useCallback((params: URLSearchParams) => {
@@ -666,7 +660,9 @@ export function ListingsExplorer({
     const newSearch = params.toString()
     const newUrl = newSearch ? `?${newSearch}` : window.location.pathname
 
-    window.history.replaceState(null, '', newUrl)
+    // Preserve the existing history.state — replacing it with null would wipe the
+    // `takeover: 'video'` flag the video-return mount check depends on.
+    window.history.replaceState(window.history.state, '', newUrl)
     // replaceState bypasses Next's router, so the persistent header search bar won't
     // see the query change — broadcast it so the top bar stays in sync. When a search
     // resolved to a brand/model (no text query), show the brand label so the bar still
@@ -967,21 +963,9 @@ export function ListingsExplorer({
     }
   }, [listingsData, page, debouncedQuery, saveSearchToHistory, activeCategory])
 
-  // Update loading state
-  useEffect(() => {
-    setIsLoading(queryLoading || (queryFetching && listings.length === 0))
-  }, [queryLoading, queryFetching, listings.length])
-
-  // Count helper for category items to display in the sidebar/pills
-  const getCategoryCount = useCallback(
-    (slug: string) => {
-      if (slug === 'all') {
-        return categories.reduce((sum, c) => sum + (c.verifiedCount || 0), 0)
-      }
-      return categories.find((c) => c.slug === slug)?.verifiedCount ?? 0
-    },
-    [categories],
-  )
+  // Loading is DERIVED from the query — it was mirrored into state via an effect,
+  // which lagged a render behind and added a redundant state/effect pair.
+  const isLoading = queryLoading || (queryFetching && listings.length === 0)
 
   // Count helper for subcategory items
   const getSubcategoryCount = useCallback(
@@ -1219,7 +1203,7 @@ export function ListingsExplorer({
     const id = new URLSearchParams(window.location.search).get('focus')
     if (!id) return
     setViewMode('map'); setShowExplorer(true) // switch immediately, no landing-mode flash
-    fetch(`/api/listings?ids=${encodeURIComponent(id)}`)
+    fetch(`/api/listings?ids=${encodeURIComponent(id)}${lang !== 'en' && lang !== 'vi' ? `&lang=${lang}` : ''}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         const l = d?.listings?.[0] as SerializedListingCard | undefined
@@ -1228,8 +1212,10 @@ export function ListingsExplorer({
       .catch(() => {})
     // Strip the param so a later filter change / refresh doesn't re-trigger.
     const u = new URLSearchParams(window.location.search); u.delete('focus')
-    window.history.replaceState(null, '', u.toString() ? `?${u}` : window.location.pathname)
-  }, [locateOnMap])
+    // Keep history.state (see the write-back effect) — null would drop the video-return flag.
+    window.history.replaceState(window.history.state, '', u.toString() ? `?${u}` : window.location.pathname)
+    // lang: re-runs are no-ops after the focus param is stripped above.
+  }, [locateOnMap, lang])
 
   // Intent shortcuts (Free / Wanted) from the landing grid → open the explorer
   // filtered by listingType across all categories.
@@ -2094,10 +2080,9 @@ export function ListingsExplorer({
                       ref={mapWrapRef}
                       className="min-w-0 lg:col-span-8 h-[60dvh] lg:h-[calc(100dvh-8rem)] scroll-mt-[calc(4rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
                       <ListingsMap
-                        listings={focusListing && !shownListings.some((l) => l.id === focusListing.id) ? [focusListing, ...shownListings] : shownListings}
+                        listings={mapListings}
                         activeDistrict={activeDistrict}
                         onOpenListing={handleOpen}
-                        lang={lang}
                         selectedId={hoveredId ?? focusId}
                         onHover={setHoveredId}
                         onPinOpen={(id) => {

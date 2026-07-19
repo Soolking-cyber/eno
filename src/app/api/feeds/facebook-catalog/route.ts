@@ -11,7 +11,10 @@ import { FEED_CATEGORIES, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedAuthError, 
 // RFC-4180 CSV escaping. A field with a comma/quote/newline is wrapped in quotes
 // (also lets additional_image_link carry a comma-separated URL list in one cell).
 function escapeCsv(val: string): string {
-  const clean = val.replace(/\r?\n|\r/g, ' ').trim()
+  let clean = val.replace(/\r?\n|\r/g, ' ').trim()
+  // CSV formula-injection guard: neutralize a leading =, +, - or @ so a listing title
+  // can't execute as a formula when the feed is opened in a spreadsheet.
+  if (/^[=+\-@]/.test(clean)) clean = `'${clean}`
   if (clean.includes('"') || clean.includes(',') || clean.includes(';')) {
     return `"${clean.replace(/"/g, '""')}"`
   }

@@ -16,6 +16,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const auth = await checkListingOwner(id)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.code })
 
-  await confirmCore(id, auth.profileId)
+  const res = await confirmCore(id, auth.profileId)
+  if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.code })
   return NextResponse.json({ ok: true })
 }

@@ -38,8 +38,10 @@ export function Avatar({
       style={{ backgroundColor: color || BRAND_BLUE }}
     >
       {getInitials(name)}
+      {/* key={url}: remount on URL change so a previous onError display:none doesn't stick to the new image. */}
       {url && (
         <img
+          key={url}
           src={url}
           alt=""
           className="absolute inset-0 h-full w-full object-cover"

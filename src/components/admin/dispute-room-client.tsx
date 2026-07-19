@@ -1,11 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, Clock, Loader2, Scale, Shield, Sparkles } from 'lucide-react'
 import type { TargetInfo } from '@/lib/admin-reports'
 import { cn } from '@/lib/utils'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -89,6 +93,11 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
   const [aiBusy, setAiBusy] = useState(false)
   const [note, setNote] = useState(data.internalNote || '')
   const [noteSaved, setNoteSaved] = useState(false)
+  // Penalizing decision awaiting the destructive confirm (alert-dialog, same idiom
+  // as admin-listings). The ref keeps the dialog copy stable while it animates out.
+  const [pendingDecision, setPendingDecision] = useState<'confirm-report' | 'abusive-report' | null>(null)
+  const lastDecision = useRef<'confirm-report' | 'abusive-report'>('confirm-report')
+  if (pendingDecision) lastDecision.current = pendingDecision
 
   const act = async (action: string, extra: Record<string, unknown> = {}) => {
     setBusy(action); setErr('')
@@ -360,7 +369,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
             <Button
               variant="destructive"
               size="none"
-              onClick={() => act('confirm-report', { severity, decisionNote })}
+              onClick={() => setPendingDecision('confirm-report')}
               disabled={busy !== null}
               className="gap-1.5 px-4 py-2 text-xs font-bold disabled:opacity-40 cursor-pointer"
             >
@@ -378,7 +387,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
             <Button
               variant="soft"
               size="none"
-              onClick={() => act('abusive-report', { decisionNote })}
+              onClick={() => setPendingDecision('abusive-report')}
               disabled={busy !== null}
               className="px-4 py-2 text-xs font-bold text-warning transition-colors disabled:opacity-40 cursor-pointer"
             >
@@ -415,6 +424,31 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
       </div>
 
       {err && <p role="alert" className="mt-4 text-sm font-semibold text-destructive">{err}</p>}
+
+      {/* Destructive confirm for the two penalizing decisions. */}
+      <AlertDialog open={pendingDecision !== null} onOpenChange={(o) => { if (!o) setPendingDecision(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{lastDecision.current === 'confirm-report' ? 'Confirm & penalize' : 'Mark report abusive'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {lastDecision.current === 'confirm-report'
+                ? `Confirm this report as ${severity}? The respondent's trust is docked by the severity weight, the listing is pulled, and both parties are notified.`
+                : 'Penalize the reporter for an abusive report and close the case? Both parties are notified.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDecision) void act(pendingDecision, pendingDecision === 'confirm-report' ? { severity, decisionNote } : { decisionNote })
+                setPendingDecision(null)
+              }}
+            >
+              {lastDecision.current === 'confirm-report' ? 'Confirm & penalize' : 'Penalize reporter'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

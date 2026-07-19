@@ -43,7 +43,13 @@ export async function GET() {
   } catch (error) {
     const code = (error as { code?: string }).code
     const missing = visaTableMissing({ code })
-    return NextResponse.json({ error: missing ? 'visa_schema_not_ready' : (error as Error).message }, { status: missing || (error as Error).message.includes('not_configured') ? 503 : 500 })
+    const message = (error as Error).message
+    if (missing || message.includes('not_configured')) {
+      return NextResponse.json({ error: missing ? 'visa_schema_not_ready' : message }, { status: 503 })
+    }
+    // Passport-data route: never echo raw DB/driver error text to the client.
+    console.error('[visa] applications GET failed', error)
+    return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }
 }
 
@@ -69,6 +75,11 @@ export async function POST() {
   } catch (error) {
     const message = (error as Error).message
     const missing = visaTableMissing(error as { code?: string }) || message.includes('relation')
-    return NextResponse.json({ error: missing ? 'visa_schema_not_ready' : message }, { status: message.includes('not_configured') || missing ? 503 : 500 })
+    if (missing || message.includes('not_configured')) {
+      return NextResponse.json({ error: missing ? 'visa_schema_not_ready' : message }, { status: 503 })
+    }
+    // Passport-data route: never echo raw DB/driver error text to the client.
+    console.error('[visa] applications POST failed', error)
+    return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }
 }

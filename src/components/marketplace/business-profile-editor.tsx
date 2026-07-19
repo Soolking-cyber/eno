@@ -37,7 +37,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   // shown ON that field via <Field invalid>/<FieldError> — it lands in the control's
   // aria-describedby and marks it aria-invalid. `error` stays for the FORM-level residue only
   // (save failed, logo upload failed, an unmapped code): role="alert", bound to no single input.
-  const [fieldErr, setFieldErr] = useState<{ name?: string; bio?: string; phone?: string; idNumber?: string; taxCode?: string }>({})
+  const [fieldErr, setFieldErr] = useState<{ name?: string; rep?: string; bio?: string; phone?: string; idNumber?: string; taxCode?: string }>({})
   const [error, setError] = useState('')
 
   // One-tap: fill Location from the device's GPS via reverse-geocoding.
@@ -86,9 +86,14 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
     setSaving(true); setError(''); setFieldErr({}); setSaved(false)
     try {
       // The representative's name lives on the Profile (one business → many staff,
-      // each their own account), saved alongside the storefront fields.
+      // each their own account), saved alongside the storefront fields. A failure
+      // here must not fall through to a green "Saved" from the seller PATCH alone.
       if (rep.trim() && rep.trim() !== (repName || '')) {
-        await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: rep.trim() }) })
+        const repRes = await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: rep.trim() }) })
+        if (!repRes.ok) {
+          setFieldErr({ rep: tr('Could not save your name — please try again.', 'Không lưu được tên của bạn — vui lòng thử lại.') })
+          return
+        }
       }
       // Only send avatarUrl when it changed — re-sending an unchanged non-bucket
       // logo URL would 400 (the API only accepts Supabase-hosted images).
@@ -147,11 +152,12 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
           <FieldControl id="biz-name" render={<Input id="biz-name" autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />} />
           {fieldErr.name && <FieldError>{fieldErr.name}</FieldError>}
         </Field>
-        <div className="space-y-1.5">
+        <Field invalid={!!fieldErr.rep}>
           <Label htmlFor="biz-rep">{tr('Your name (representative)', 'Tên người đại diện')}</Label>
-          <Input id="biz-rep" autoComplete="name" value={rep} onChange={(e) => setRep(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} />
+          <FieldControl id="biz-rep" render={<Input id="biz-rep" autoComplete="name" value={rep} onChange={(e) => setRep(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} />} />
+          {fieldErr.rep && <FieldError>{fieldErr.rep}</FieldError>}
           <p className="text-xs text-muted-foreground">{tr('The person on this account — buyers see the business name, not this.', 'Người dùng tài khoản này — người mua thấy tên doanh nghiệp, không phải tên này.')}</p>
-        </div>
+        </Field>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="biz-location">{tr('Location', 'Khu vực')}</Label>

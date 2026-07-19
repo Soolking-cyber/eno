@@ -53,9 +53,16 @@ export async function GET(req: NextRequest) {
           const title = matches === 1 ? '🔔 New match for your saved search' : `🔔 ${matches} new matches for your saved search`
           const body = `${s.label} — tap to view.`
           const url = `/?${toUrlParams(params)}`
-          await db.notification.create({ data: { recipientId: s.profileId, type: 'saved_search', title, body, url } })
-          const sent = await sendPushToProfile(s.profileId, { title, body, url, tag: `eno-saved-${s.id}` })
-          await db.savedSearch.update({ where: { id: s.id }, data: { lastNotifiedAt: runStart } })
+          // Create the notification and advance the cursor atomically so a mid-run crash
+          // can't leave the search stuck re-notifying the same matches every run.
+          await db.$transaction([
+            db.notification.create({ data: { recipientId: s.profileId, type: 'saved_search', title, body, url } }),
+            db.savedSearch.update({ where: { id: s.id }, data: { lastNotifiedAt: runStart } }),
+          ])
+          // Web Push is best-effort — a push failure must not re-trigger the alert.
+          let sent = 0
+          try { sent = await sendPushToProfile(s.profileId, { title, body, url, tag: `eno-saved-${s.id}` }) }
+          catch (e) { console.error('[cron] saved-search push failed for', s.id, e) }
           return { notified: 1, pushed: sent }
         } catch (e) {
           console.error('[cron] saved-search alert failed for', s.id, e)

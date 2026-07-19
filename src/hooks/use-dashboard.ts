@@ -16,6 +16,9 @@ export type Dash = {
     avatarColor: string
     businessName: string | null
     trustScore: number
+    /** Consecutive availability-review skips (daily review flow). Optional: legacy
+     *  cached payloads may lack it. */
+    availabilitySkips?: number
   }
   seller: {
     id: string

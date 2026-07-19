@@ -110,24 +110,30 @@ export function CreatePostDialog({
     if (images.length === 0) return []
     if (!user) throw new Error('auth_required')
     const supabase = createSupabaseBrowser()
+    const jobs = images.map((file, index) => {
+      const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || file.type.split('/')[1] || 'jpg'
+      return { file, path: `${user.id}/${crypto.randomUUID()}/${index}.${extension}` }
+    })
     const uploaded: string[] = []
-    try {
-      for (const [index, file] of images.entries()) {
-        const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || file.type.split('/')[1] || 'jpg'
-        const path = `${user.id}/${crypto.randomUUID()}/${index}.${extension}`
-        const { error } = await supabase.storage.from('forum-media').upload(path, file, { contentType: file.type, upsert: false })
+    const queue = [...jobs]
+    const worker = async () => {
+      for (let job = queue.shift(); job; job = queue.shift()) {
+        const { error } = await supabase.storage.from('forum-media').upload(job.path, job.file, { contentType: job.file.type, upsert: false })
         if (error) throw error
-        uploaded.push(path)
+        uploaded.push(job.path)
       }
-      return uploaded.map((storagePath, index) => ({
-        storagePath,
-        mimeType: images[index].type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-        altText: images[index].name || null,
-      }))
-    } catch (error) {
-      if (uploaded.length) await supabase.storage.from('forum-media').remove(uploaded).catch(() => {})
-      throw error
     }
+    const results = await Promise.allSettled(Array.from({ length: Math.min(3, jobs.length) }, worker))
+    const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+    if (failed) {
+      if (uploaded.length) await supabase.storage.from('forum-media').remove(uploaded).catch(() => {})
+      throw failed.reason
+    }
+    return jobs.map(({ path }, index) => ({
+      storagePath: path,
+      mimeType: images[index].type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
+      altText: images[index].name || null,
+    }))
   }
 
   const publish = async (event: React.FormEvent<HTMLFormElement>) => {

@@ -22,10 +22,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const saved = body?.saved
   if (typeof saved !== 'boolean') return NextResponse.json({ ok: false, error: 'bad_request' }, { status: 400 })
 
-  // Generous cap (shared/CGNAT IPs are common in VN); over-limit just skips the count
-  // move, never the device-local favorite itself. Fails open without UPSTASH_*.
-  const { success } = await rateLimit('listing-save-ip', ip, 300, '1 h')
-  if (!success) return NextResponse.json({ ok: true, counted: false })
+  // Generous coarse cap (shared/CGNAT IPs are common in VN) + per-(ip,listing,direction)
+  // dedup (mirrors the view counter) so one device can't pump a single listing's count by
+  // toggling; over-limit just skips the count move, never the device-local favorite
+  // itself. Fails open without UPSTASH_*.
+  const [byPair, byIp] = await Promise.all([
+    rateLimit('listing-save', `${ip}:${id}:${saved}`, 1, '6 h'), // 1 move / (ip,listing,direction) / 6h
+    rateLimit('listing-save-ip', ip, 300, '1 h'),
+  ])
+  if (!byPair.success || !byIp.success) return NextResponse.json({ ok: true, counted: false })
 
   // Only move counts on live (public) listings.
   const listing = await db.listing.findUnique({

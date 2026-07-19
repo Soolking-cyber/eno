@@ -211,6 +211,14 @@ function ForumRightRail({ communities, posts, helpers, onOpenPost }: { communiti
   const { tr } = useLanguage()
   const totalMembers = communities.reduce((sum, community) => sum + community.members, 0)
   const online = communities.reduce((sum, community) => sum + community.online, 0)
+  // Suppress-when-empty: the live API reports online=0 for every community (no
+  // presence tracking yet) — the only nonzero counts come from the hard-coded
+  // FORUM_COMMUNITIES fallback rows. Never dress fallback fiction in a live-green
+  // "online now" dot: hide the stat when the sum is zero or when any nonzero count
+  // matches its hard-coded fallback value (server props lose object identity, so
+  // this is a value check, not a reference check).
+  const fallbackOnline = new Map(FORUM_COMMUNITIES.map((c) => [c.slug, c.online]))
+  const showOnline = online > 0 && communities.every((c) => c.online === 0 || c.online !== fallbackOnline.get(c.slug))
   const popular = posts.slice().sort((a, b) => b.score - a.score).slice(0, 3)
 
   return (
@@ -238,13 +246,15 @@ function ForumRightRail({ communities, posts, helpers, onOpenPost }: { communiti
                 <p className="text-lg font-bold tabular-nums text-foreground">{formatForumCount(totalMembers)}</p>
                 <p className="text-2xs text-body">{tr('community members', 'thành viên cộng đồng')}</p>
               </div>
-              <div>
-                <p className="flex items-center gap-1.5 text-lg font-bold tabular-nums text-foreground">
-                  <span className="h-2 w-2 rounded-full bg-success" />
-                  {formatForumCount(online)}
-                </p>
-                <p className="text-2xs text-body">{tr('online now', 'đang trực tuyến')}</p>
-              </div>
+              {showOnline && (
+                <div>
+                  <p className="flex items-center gap-1.5 text-lg font-bold tabular-nums text-foreground">
+                    <span className="h-2 w-2 rounded-full bg-success" />
+                    {formatForumCount(online)}
+                  </p>
+                  <p className="text-2xs text-body">{tr('online now', 'đang trực tuyến')}</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -413,7 +423,9 @@ export function ForumClient({
   const { user, loading: authLoading, openSignIn } = useAuth()
   const [hydrated, setHydrated] = useState(false)
   const [posts, setPosts] = useState<ForumPost[]>(initialPosts)
-  const [communities] = useState<ForumCommunity[]>(initialCommunities)
+  // Never changes after mount — plain prop alias, not state (communityMap's
+  // useMemo keys on it either way).
+  const communities = initialCommunities
   const [query, setQuery] = useState('')
   const [community, setCommunity] = useState<string | null>(null)
   const [location, setLocation] = useState('all')
@@ -488,7 +500,15 @@ export function ForumClient({
         })
         setThreadComments((current) => ({ ...current, [post.id]: comments.map(mapForumComment) }))
       })
-      .catch(() => {})
+      .catch((error) => {
+        if (!active) return
+        // A deleted/never-existed deep link deserves an explanation + a clean URL;
+        // transient network failures stay silent (the feed already rendered).
+        if (error instanceof ForumApiError && error.status === 404) {
+          toast.error(tr('This discussion is no longer available.', 'Thảo luận này không còn tồn tại.'))
+          closeThread()
+        }
+      })
     return () => { active = false }
   }, [openPostId, user?.id])
 
@@ -693,6 +713,10 @@ export function ForumClient({
   }
 
   const addThreadReply = async (body: string, parentId: string | null) => {
+    // Same guard as every sibling mutation: open the sign-in dialog and throw a
+    // typed code the thread dialog suppresses (no misleading "could not be
+    // published" toast on top of the sign-in prompt).
+    if (!user) { openSignIn(); throw new ForumApiError(401, 'auth_required') }
     if (!activePost) throw new Error('post_not_found')
     const { comment } = await forumApi<{ comment: ForumCommentResponse }>('/api/forum/comments', {
       method: 'POST',

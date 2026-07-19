@@ -107,10 +107,9 @@ const parseImages = (raw: string | null | undefined): string[] => {
  *  (appealImages pre-date the private bucket) pass through untouched. Batched per
  *  call. `ttl` lets a one-shot render (admin SSR, which never re-signs) buy a longer
  *  window than the polling party page, which re-signs every fetch. */
-export async function signEvidenceUrls(images: string[], ttl = 3600): Promise<string[]> {
-  const paths = images.filter((i) => !i.startsWith('http'))
-  if (paths.length === 0) return images
+async function signEvidenceMap(paths: string[], ttl: number): Promise<Map<string, string>> {
   const signed = new Map<string, string>()
+  if (paths.length === 0) return signed
   try {
     const { data, error } = await getSupabaseAdmin().storage.from(EVIDENCE_BUCKET).createSignedUrls(paths, ttl)
     if (error) console.error('[dispute] sign urls', error.message)
@@ -118,6 +117,13 @@ export async function signEvidenceUrls(images: string[], ttl = 3600): Promise<st
   } catch (e) {
     console.error('[dispute] sign urls', (e as Error).message)
   }
+  return signed
+}
+
+export async function signEvidenceUrls(images: string[], ttl = 3600): Promise<string[]> {
+  const paths = images.filter((i) => !i.startsWith('http'))
+  if (paths.length === 0) return images
+  const signed = await signEvidenceMap(paths, ttl)
   // A path that failed to sign collapses to '' and is filtered out — the alternative
   // (leaking the raw private path to the client) is worse. The error above tells us why.
   return images.map((i) => (i.startsWith('http') ? i : signed.get(i) ?? '')).filter(Boolean)
@@ -159,16 +165,22 @@ export async function disputeTimeline(report: PartyReport, opts: { signTtl?: num
       images: parseImages(report.appealImages), at: report.appealedAt.toISOString(),
     })
   }
-  for (const m of rows) {
+  // ONE signing round-trip for the whole thread (not one per message), then map the
+  // signed URLs back per message by path. Failed/unknown paths collapse to '' and are
+  // filtered — same no-raw-path-leak rule as signEvidenceUrls.
+  const rowImages = rows.map((m) => parseImages(m.images))
+  const allPaths = [...new Set(rowImages.flat().filter((i) => !i.startsWith('http')))]
+  const signed = await signEvidenceMap(allPaths, opts.signTtl ?? 3600)
+  rows.forEach((m, index) => {
     items.push({
       id: m.id,
       kind: m.senderRole === 'system' ? 'system' : 'message',
       role: (['reporter', 'respondent', 'admin', 'system'].includes(m.senderRole) ? m.senderRole : 'system') as TimelineItem['role'],
       body: m.body,
-      images: await signEvidenceUrls(parseImages(m.images), opts.signTtl),
+      images: rowImages[index].map((i) => (i.startsWith('http') ? i : signed.get(i) ?? '')).filter(Boolean),
       at: m.createdAt.toISOString(),
     })
-  }
+  })
   // Push the decision BEFORE sorting so a post-decision admin clarification (which
   // has a later timestamp) still renders after the decision banner, not above it.
   if (report.status !== 'open' && report.resolvedAt) {

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { hashApiKey, API_KEY_RE } from '@/lib/api/auth'
 import { issueAccessToken, TOKEN_TTL_SECONDS } from '@/lib/api/oauth'
 import { rateLimit } from '@/lib/ratelimit'
+import { clientIp } from '@/lib/client-ip'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -52,9 +53,15 @@ export async function POST(req: NextRequest) {
     return oauthError(401, 'invalid_client', 'client_secret must be a valid eno API key.')
   }
 
-  // Throttle credential checks (brute-force guard), keyed by the presented id/secret prefix.
-  const rl = await rateLimit('oauth-token', clientId || clientSecret.slice(0, 16), 30, '1 m')
-  if (!rl.success) return oauthError(429, 'invalid_request', 'Too many token requests. Slow down.')
+  // Throttle credential checks (brute-force guard). Keyed by caller IP — the presented
+  // id/secret is attacker-controlled, so keying on it lets a brute-forcer rotate keys to
+  // dodge the limit. Also AND a per-clientId bucket so one shared IP (CGNAT) can't be
+  // used to hammer a single client's credentials from many sources unnoticed.
+  const [byIp, byClient] = await Promise.all([
+    rateLimit('oauth-token', clientIp(req), 30, '1 m'),
+    rateLimit('oauth-token-client', clientId || clientSecret.slice(0, 16), 60, '1 m'),
+  ])
+  if (!byIp.success || !byClient.success) return oauthError(429, 'invalid_request', 'Too many token requests. Slow down.')
 
   let key: { id: string; sellerId: string; profileId: string; scopes: string; prefix: string; revokedAt: Date | null } | null = null
   try {

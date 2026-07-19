@@ -13,7 +13,7 @@ import { ChevronLeft, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
-import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { formatMoneyFull, groupVnd, moneyLocale } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -395,7 +395,7 @@ export default function ThreadPage() {
   const addThousand = () => setOfferInput((v) => {
     const d = v.replace(/\D/g, '')
     if (!d) return v
-    return new Intl.NumberFormat('en-US').format(Number((d + '000').slice(0, 12)))
+    return groupVnd((d + '000').slice(0, 12), locale)
   })
 
   const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput(''); setOfferPct(10); setCounterMode(false) }
@@ -511,7 +511,7 @@ export default function ThreadPage() {
               const dk = dayKey(m.createdAt)
               const dayText = dk === new Date().toDateString() ? tr('Today', 'Hôm nay')
                 : dk === new Date(Date.now() - 864e5).toDateString() ? tr('Yesterday', 'Hôm qua')
-                : new Date(m.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                : new Date(m.createdAt).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US', { month: 'short', day: 'numeric' })
               const askPct = m.kind === 'offer' && thread?.listing.price && m.offerAmount ? Math.round((m.offerAmount / thread.listing.price) * 100) : null
               return (
               <Fragment key={m.id}>
@@ -557,7 +557,7 @@ export default function ThreadPage() {
                             can outlive a switch to fixed price — the 409 would otherwise reject
                             the counter and, for a buyer, dock trust for a control we showed. */}
                         {thread?.listing.negotiable !== false && (
-                          <Button variant="ghost" size="none" onClick={() => { setOfferInput(new Intl.NumberFormat('en-US').format(m.offerAmount ?? 0)); setCounterMode(true); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</Button>
+                          <Button variant="ghost" size="none" onClick={() => { setOfferInput(groupVnd(String(m.offerAmount ?? 0), locale)); setCounterMode(true); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</Button>
                         )}
                       </div>
                     )}
@@ -694,7 +694,7 @@ export default function ThreadPage() {
                 <Input
                   variant="outline"
                   value={offerInput}
-                  onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 12); setOfferInput(d ? new Intl.NumberFormat('en-US').format(Number(d)) : '') }}
+                  onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 12); setOfferInput(d ? groupVnd(d, locale) : '') }}
                   inputMode="numeric"
                   enterKeyHint="send"
                   autoFocus

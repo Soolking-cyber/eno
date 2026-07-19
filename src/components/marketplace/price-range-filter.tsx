@@ -115,9 +115,20 @@ export function PriceRangeFilter({
     if (d >= 1_000) return `${Math.round(d / 1_000)}k`
     return String(d)
   }
-  const triggerText = active && prices.length
-    ? `${compactAmt(effLo)}–${effHi >= dataMax ? compactAmt(dataMax) + '+' : compactAmt(effHi)} ${sym}`
-    : tr('Price', 'Giá')
+  // The label parses min/max straight from the committed `value` string so a
+  // URL-restored filter labels itself immediately — the histogram fetch is lazy
+  // (panel open), and the old `prices.length` guard left the generic "Price"
+  // trigger until first open.
+  const triggerText = (() => {
+    if (!active) return tr('Price', 'Giá')
+    const [mn, mx] = value.split('-')
+    const min = mn ? Number(mn) : 0
+    const max = mx ? Number(mx) : 0
+    if (min && max) return `${compactAmt(min)}–${compactAmt(max)} ${sym}`
+    if (min) return tr('From {x}', 'Từ {x}').replace('{x}', `${compactAmt(min)} ${sym}`)
+    if (max) return tr('Up to {x}', 'Đến {x}').replace('{x}', `${compactAmt(max)} ${sym}`)
+    return tr('Price', 'Giá')
+  })()
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -157,7 +168,10 @@ export function PriceRangeFilter({
         <div className="flex items-baseline justify-between">
           <p className="text-sm font-bold text-foreground">{tr('Price range', 'Khoảng giá')}</p>
           <p className="text-xs text-muted-foreground">
-            {!loaded ? tr('Loading…', 'Đang tải…') : prices.length ? tr(`${inRangeCount} available`, `${inRangeCount} món`) : ''}
+            {/* {n} template, not `${count} available` interpolation: an interpolated
+                string mints one MT-cache key (one billed translate segment) per unique
+                count — worst on slider drag. The template translates once. */}
+            {!loaded ? tr('Loading…', 'Đang tải…') : prices.length ? tr('{n} available', '{n} món').replace('{n}', String(inRangeCount)) : ''}
           </p>
         </div>
 

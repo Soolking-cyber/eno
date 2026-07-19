@@ -55,7 +55,7 @@ export function NotificationBell() {
         render={
           <IconButton
             size="lg"
-            aria-label={user && unread > 0 ? tr(`Notifications, ${unread} unread`, `Thông báo, ${unread} chưa đọc`) : tr('Notifications', 'Thông báo')}
+            aria-label={user && unread > 0 ? tr('Notifications, {n} unread', 'Thông báo, {n} chưa đọc').replace('{n}', String(unread)) : tr('Notifications', 'Thông báo')}
             // active:scale-90 is safe on this popover anchor: Base UI opens on `click` (fires after
             // pointerup, i.e. after :active releases), so floating-ui measures the rect at scale-100
             // and autoUpdate never re-reads on a transform — the panel is never placed off a pressed rect.

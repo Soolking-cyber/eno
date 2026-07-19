@@ -1,3 +1,5 @@
+import { localeForLanguage, type Language } from '@/lib/languages'
+
 export type CityId =
   | 'hanoi' | 'halong' | 'ninhbinh' | 'sapa' | 'hagiang' | 'caobang' | 'puluong'
   | 'hue' | 'danang' | 'hoian' | 'phongnha' | 'quynhon' | 'nhatrang' | 'dalat' | 'buonmathuot'
@@ -129,13 +131,16 @@ export type GeneratedItineraryResponse = {
   searchQueries: string[]
 }
 
-export function formatVnd(amount: number): string {
+export function formatVnd(amount: number, lang: Language = 'en'): string {
   if (!amount) return '—'
+  const locale = localeForLanguage(lang)
   if (amount >= 1_000_000) {
     const millions = amount / 1_000_000
-    return `₫${millions >= 100 ? Math.round(millions) : Number(millions.toFixed(1))}m`
+    // vi writes decimal fractions with a comma (₫2,5m), so localize the compact number
+    const value = millions >= 100 ? Math.round(millions) : Number(millions.toFixed(1))
+    return `₫${value.toLocaleString(locale, { maximumFractionDigits: 1 })}m`
   }
-  return `₫${Math.round(amount / 1_000)}k`
+  return `₫${Math.round(amount / 1_000).toLocaleString(locale)}k`
 }
 
 export function addDays(date: string, amount: number): string {

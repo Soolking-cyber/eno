@@ -20,7 +20,7 @@ import { getViewedListingIds } from '@/lib/reco-signals'
  *  Card size/gaps match the other home rails + feed grid (cols-2 / -3 / -4). */
 export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
   const router = useRouter()
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const [listings, setListings] = useState<SerializedListingCard[]>([])
   const { ref, near } = useNearViewport<HTMLDivElement>()
 
@@ -31,12 +31,12 @@ export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
     ids = ids.slice(0, 12)
     if (ids.length < 2) return
     let off = false
-    fetch(`/api/listings?ids=${ids.join(',')}`)
+    fetch(`/api/listings?ids=${ids.join(',')}${lang !== 'en' && lang !== 'vi' ? `&lang=${lang}` : ''}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!off && d?.listings) setListings(d.listings) })
       .catch(() => { /* ignore */ })
     return () => { off = true }
-  }, [near, excludeId])
+  }, [near, excludeId, lang])
 
   // Sentinel: the observer needs a node in the layout before there is data. It must be
   // OUT OF FLOW (absolute, zero-size): the home landing mounts this rail inside a space-y

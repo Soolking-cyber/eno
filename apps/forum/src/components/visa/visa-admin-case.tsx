@@ -1,10 +1,10 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CircleStop, ExternalLink, Eye, FileText, Loader2, MonitorUp, RotateCcw, ShieldCheck, Upload } from 'lucide-react'
 import { toast } from 'sonner'
-import type { VisaPayload } from '@/lib/visa/schema'
+import type { VisaApplication, VisaDocument } from '@/lib/visa/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,9 +13,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { isAdminPrefillableStatus, isAdminReviewStatus } from '@/lib/visa/workflow'
 
-type Document = { id: string; kind: string; mimeType: string; sizeBytes: number; width: number | null; height: number | null; validationStatus?: 'pending' | 'passed' | 'failed' | 'unavailable'; validationReport?: { issues?: string[] }; createdAt: string }
-type Event = { id: string; actorType: string; event: string; metadata: Record<string, unknown>; createdAt: string }
-type Case = { id: string; status: string; payload?: VisaPayload; checklist: string[]; applicantConfirmedAt: string | null; authorizedAt: string | null; assignedAdmin: string | null; submittedAt: string | null; resolvedAt: string | null; createdAt: string; updatedAt: string; documents: Document[]; events?: Event[] }
 type HostedSession = { id: string; liveViewUrl: string; expiresAt: string; warnings: string[]; persistentLogin: boolean }
 
 const actions: Record<string, Array<[string, string]>> = {
@@ -28,7 +25,7 @@ const actions: Record<string, Array<[string, string]>> = {
 
 const hidden = new Set(['schemaVersion', 'aiDocumentProcessingConsent', 'adminMessage'])
 
-export function VisaAdminCase({ initialApplication }: { initialApplication: Case }) {
+export function VisaAdminCase({ initialApplication }: { initialApplication: VisaApplication }) {
   const [application, setApplication] = useState(initialApplication)
   const [message, setMessage] = useState(application.payload?.adminMessage || '')
   const [registrationCode, setRegistrationCode] = useState(application.payload?.governmentRegistrationCode || '')
@@ -38,7 +35,7 @@ export function VisaAdminCase({ initialApplication }: { initialApplication: Case
   const [hostedBrowserConfigured, setHostedBrowserConfigured] = useState<boolean | null>(null)
   const [persistentLoginConfigured, setPersistentLoginConfigured] = useState(false)
   const [documentUrls, setDocumentUrls] = useState<Record<string, string>>({})
-  const [previewDocument, setPreviewDocument] = useState<Document | null>(null)
+  const [previewDocument, setPreviewDocument] = useState<VisaDocument | null>(null)
 
   useEffect(() => {
     if (!isAdminPrefillableStatus(application.status)) {
@@ -73,6 +70,22 @@ export function VisaAdminCase({ initialApplication }: { initialApplication: Case
     return () => { cancelled = true }
   }, [application.documents, application.id])
 
+  // Signed preview URLs expire (storage ttl 300s) — re-fetch a document's URL when
+  // its <Image> errors so a case left open past 5 minutes recovers instead of showing
+  // a broken preview. Per-document throttle guards against an error→refetch loop.
+  const urlRefreshAt = useRef<Record<string, number>>({})
+  const refreshDocumentUrl = (documentId: string) => {
+    const last = urlRefreshAt.current[documentId] || 0
+    if (Date.now() - last < 5000) return
+    urlRefreshAt.current[documentId] = Date.now()
+    void fetch(`/api/visa/applications/${application.id}/documents/${documentId}`, { cache: 'no-store' })
+      .then(async (response) => {
+        const result = await response.json()
+        if (response.ok && typeof result.url === 'string') setDocumentUrls((previous) => ({ ...previous, [documentId]: result.url }))
+      })
+      .catch(() => undefined)
+  }
+
   const refresh = async () => { const response = await fetch(`/api/visa/admin/applications/${application.id}`); const result = await response.json(); if (response.ok) setApplication(result.application) }
   const update = async (status?: string) => {
     setBusy(true)
@@ -81,7 +94,7 @@ export function VisaAdminCase({ initialApplication }: { initialApplication: Case
       const result = await response.json(); if (!response.ok) throw new Error(result.error || 'update_failed'); setApplication(result.application); toast.success('Visa case updated')
     } catch (error) { toast.error((error as Error).message.replaceAll('_', ' ')) } finally { setBusy(false) }
   }
-  const openDocument = async (document: Document) => { const preview = window.open('about:blank', '_blank'); if (preview) preview.opener = null; const response = await fetch(`/api/visa/applications/${application.id}/documents/${document.id}`); const result = await response.json(); if (!response.ok) { preview?.close(); return toast.error(result.error) } if (preview) preview.location.href = result.url; else window.location.assign(result.url) }
+  const openDocument = async (document: VisaDocument) => { const preview = window.open('about:blank', '_blank'); if (preview) preview.opener = null; const response = await fetch(`/api/visa/applications/${application.id}/documents/${document.id}`); const result = await response.json(); if (!response.ok) { preview?.close(); return toast.error(result.error) } if (preview) preview.location.href = result.url; else window.location.assign(result.url) }
   const browserError = (code: string) => ({
     hosted_browser_not_configured: 'Add the Browserbase server credentials before launching the secure browser.',
     applicant_authorization_refresh_required: 'Return the case for fresh applicant authorization to use the disclosed hosted browser.',
@@ -137,7 +150,7 @@ export function VisaAdminCase({ initialApplication }: { initialApplication: Case
         return <article key={document.id} className="overflow-hidden rounded-2xl border border-line-strong bg-tint/40">
           <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3"><div><h3 className="font-bold capitalize text-foreground">{document.kind === 'passport' ? 'Passport data page' : 'Portrait photo'}</h3><p className="mt-0.5 text-xs text-body">{document.width && document.height ? `${document.width} × ${document.height}px · ` : ''}{Math.max(1, Math.round(document.sizeBytes / 1024))} KB</p></div><Badge variant={document.validationStatus === 'passed' ? 'success' : document.validationStatus === 'failed' ? 'destructive' : 'warning'}>{document.validationStatus || 'pending'}</Badge></div>
           <button type="button" disabled={!url} onClick={() => setPreviewDocument(document)} className="group relative flex h-72 w-full items-center justify-center overflow-hidden bg-white p-3 text-body disabled:cursor-wait lg:h-80" aria-label={`Enlarge ${document.kind} image`}>
-            {url ? <><Image src={url} alt={`${document.kind} submitted by applicant`} fill unoptimized sizes="(min-width: 1024px) 40vw, 90vw" className="object-contain p-3" /><span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-card/95 px-3 py-1.5 text-xs font-bold text-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"><Eye className="h-3.5 w-3.5" />Enlarge here</span></> : <><Loader2 className="h-5 w-5 animate-spin" /><span className="ml-2 text-sm">Loading private preview…</span></>}
+            {url ? <><Image src={url} alt={`${document.kind} submitted by applicant`} fill unoptimized sizes="(min-width: 1024px) 40vw, 90vw" className="object-contain p-3" onError={() => refreshDocumentUrl(document.id)} /><span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-card/95 px-3 py-1.5 text-xs font-bold text-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"><Eye className="h-3.5 w-3.5" />Enlarge here</span></> : <><Loader2 className="h-5 w-5 animate-spin" /><span className="ml-2 text-sm">Loading private preview…</span></>}
           </button>
           {document.validationReport?.issues?.length ? <ul className="list-disc space-y-1 border-t border-border px-8 py-3 text-xs text-destructive">{document.validationReport.issues.map((issue) => <li key={issue}>{issue.replaceAll('_', ' ')}</li>)}</ul> : null}
         </article>
@@ -173,7 +186,7 @@ export function VisaAdminCase({ initialApplication }: { initialApplication: Case
     <Dialog open={Boolean(previewDocument)} onOpenChange={(open) => { if (!open) setPreviewDocument(null) }}>
       <DialogContent className="h-[min(92dvh,900px)] max-w-6xl grid-rows-[auto_minmax(0,1fr)] p-4 sm:p-5">
         <DialogHeader><DialogTitle className="capitalize">{previewDocument?.kind === 'passport' ? 'Passport data page' : 'Portrait photo'}</DialogTitle><DialogDescription>Private same-page review. Compare this image with the applicant-approved answers before continuing.</DialogDescription></DialogHeader>
-        <div className="relative min-h-0 overflow-hidden rounded-xl border border-line-strong bg-white">{previewDocument && documentUrls[previewDocument.id] ? <Image src={documentUrls[previewDocument.id]} alt={`${previewDocument.kind} submitted by applicant`} fill unoptimized sizes="95vw" className="object-contain p-3" /> : <div className="flex h-full items-center justify-center text-sm text-body"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading private preview…</div>}</div>
+        <div className="relative min-h-0 overflow-hidden rounded-xl border border-line-strong bg-white">{previewDocument && documentUrls[previewDocument.id] ? <Image src={documentUrls[previewDocument.id]} alt={`${previewDocument.kind} submitted by applicant`} fill unoptimized sizes="95vw" className="object-contain p-3" onError={() => refreshDocumentUrl(previewDocument.id)} /> : <div className="flex h-full items-center justify-center text-sm text-body"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading private preview…</div>}</div>
       </DialogContent>
     </Dialog>
   </div>

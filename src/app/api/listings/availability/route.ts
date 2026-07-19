@@ -5,6 +5,7 @@ import { getCurrentProfile } from '@/lib/admin'
 import { BUMP_COOLDOWN_DAYS } from '@/lib/stale'
 import { removeFromIndex } from '@/lib/listing-index'
 import { recomputeRankScoreForListings } from '@/lib/ranking'
+import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,10 +19,21 @@ export async function POST(req: NextRequest) {
   const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
   if (!seller) return NextResponse.json({ error: 'no_storefront' }, { status: 403 })
 
+  // Modest per-profile cap: this is a once-a-day review flow, and each request can drive
+  // up to 500 ISR revalidations — don't let a script hammer it.
+  const { success } = await rateLimit('availability-review', profile.id, 30, '1 h')
+  if (!success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+
   let body: { confirm?: string[]; sold?: string[] }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
   const confirm = Array.isArray(body.confirm) ? body.confirm.filter((x) => typeof x === 'string').slice(0, 500) : []
-  const sold = Array.isArray(body.sold) ? body.sold.filter((x) => typeof x === 'string').slice(0, 500) : []
+  const soldRequested = Array.isArray(body.sold) ? body.sold.filter((x) => typeof x === 'string').slice(0, 500) : []
+
+  // Ownership-scope the sold set up front: the revalidatePath/removeFromIndex loops below
+  // must never run over raw client ids the caller doesn't own (cache-purge amplification).
+  const sold = soldRequested.length
+    ? (await db.listing.findMany({ where: { id: { in: soldRequested }, sellerId: seller.id }, select: { id: true } })).map((l) => l.id)
+    : []
 
   const now = new Date()
   let confirmed = 0

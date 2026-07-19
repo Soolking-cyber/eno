@@ -67,6 +67,17 @@ await run('create unique index on SavedSearch (profileId, params)', `
   ON "SavedSearch" ("profileId", params);
 `)
 
+// ── 3. Handle: XOR owner CHECK — a row belongs to EXACTLY ONE of profileId/sellerId ──
+// (Prisma can't express this; src/lib/handle.ts enforces it app-side, this is the
+// DB backstop. Idempotent via the duplicate_object guard.)
+await run('add Handle owner XOR check', `
+  DO $$ BEGIN
+    ALTER TABLE "Handle" ADD CONSTRAINT handle_owner_xor
+      CHECK (("profileId" IS NULL) <> ("sellerId" IS NULL));
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $$;
+`)
+
 // Sanity: confirm both indexes exist.
 const { rows } = await client.query(`
   SELECT indexname FROM pg_indexes

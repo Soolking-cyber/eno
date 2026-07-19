@@ -116,6 +116,8 @@ export function useTurnstile() {
         if (resolverRef.current === finish) resolverRef.current = null
         resolve(token)
       }
+      // Settle any superseded caller immediately (instead of leaving it to its 15s timeout).
+      resolverRef.current?.(undefined)
       resolverRef.current = finish
       try {
         // reset() before execute() so subsequent sends always mint a new token rather

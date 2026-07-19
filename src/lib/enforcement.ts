@@ -167,6 +167,9 @@ async function revalidateSellerSurfaces(profileId: string): Promise<void> {
   try {
     const owned = await db.seller.findMany({ where: { ownerId: profileId }, select: { id: true } })
     if (!owned.length) return
+    // Deliberately capped at 500: revalidation is best-effort cache freshening (ISR
+    // pages self-heal on their revalidate window) — unlike the listing PULL in
+    // applyEnforcement, missing the overflow here loses nothing durable.
     const live = await db.listing.findMany({
       where: { sellerId: { in: owned.map((s) => s.id) }, status: 'active', verified: true },
       select: { id: true },
@@ -246,18 +249,30 @@ export async function applyEnforcement(
         let pulled = carried
         if (nextSev >= ENFORCEMENT_SEVERITY.held) {
           // Pull every live listing (verified=false → out of the public feed), recording
-          // exactly which so a lift restores precisely those. Bounded.
+          // exactly which so a lift restores precisely those. Cursor-paged in 500-row
+          // batches: a >500-listing seller must have EVERY live listing pulled AND
+          // recorded — an unrecorded pull could never be restored by a lift.
           const owned = await tx.seller.findMany({ where: { ownerId: profileId }, select: { id: true } })
           if (owned.length) {
-            const live = await tx.listing.findMany({
-              where: { sellerId: { in: owned.map((s) => s.id) }, status: 'active', verified: true },
-              select: { id: true },
-              take: 500,
-            })
-            if (live.length) {
+            const pulledNow: string[] = []
+            let cursor: string | undefined
+            for (;;) {
+              const live = await tx.listing.findMany({
+                where: { sellerId: { in: owned.map((s) => s.id) }, status: 'active', verified: true },
+                select: { id: true },
+                orderBy: { id: 'asc' },
+                take: 500,
+                ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+              })
+              if (!live.length) break
               await tx.listing.updateMany({ where: { id: { in: live.map((l) => l.id) } }, data: { verified: false } })
-              touched.push(...live.map((l) => l.id))
-              pulled = [...new Set([...carried, ...live.map((l) => l.id)])]
+              pulledNow.push(...live.map((l) => l.id))
+              if (live.length < 500) break
+              cursor = live[live.length - 1].id
+            }
+            if (pulledNow.length) {
+              touched.push(...pulledNow)
+              pulled = [...new Set([...carried, ...pulledNow])]
             }
           }
         }

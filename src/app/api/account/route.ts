@@ -13,10 +13,14 @@ export async function GET() {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ account: null })
 
-  const seller = await db.seller.findUnique({
-    where: { ownerId: profile.id },
-    include: { listings: { orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } } },
-  })
+  const seller = await db.seller.findUnique({ where: { ownerId: profile.id } })
+  const listings = seller
+    ? await db.listing.findMany({
+        where: { sellerId: seller.id },
+        orderBy: { postedAt: 'desc' },
+        include: { category: true },
+      })
+    : []
 
   return NextResponse.json({
     account: {
@@ -27,7 +31,7 @@ export async function GET() {
         avatarColor: profile.avatarColor,
       },
       seller: seller ? { id: seller.id, verifiedSeller: seller.verifiedSeller } : null,
-      listings: seller ? seller.listings.map(serializeListing) : [],
+      listings: seller ? listings.map((l) => serializeListing({ ...l, seller })) : [],
     },
   })
 }

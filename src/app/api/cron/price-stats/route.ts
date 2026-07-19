@@ -58,11 +58,12 @@ export async function GET(req: NextRequest) {
   // band vanished or whose price moved out of 'low' must lose its badge), then set from the bands
   // that pass the min-spread guard — never badge off a uselessly-wide "range". Segment expression
   // MUST match listingSegment() / the upsert above.
-  await db.$executeRaw(Prisma.sql`
+  const [, positioned] = await db.$transaction([
+    db.$executeRaw(Prisma.sql`
     UPDATE "Listing" SET "marketPosition" = NULL
     WHERE status = 'active' AND "marketPosition" IS NOT NULL
-  `)
-  const positioned = await db.$executeRaw(Prisma.sql`
+  `),
+    db.$executeRaw(Prisma.sql`
     UPDATE "Listing" l SET "marketPosition" =
       CASE WHEN l.price < ps.p25 THEN 'low' WHEN l.price > ps.p75 THEN 'high' ELSE 'typical' END
     FROM "PriceStat" ps
@@ -70,7 +71,8 @@ export async function GET(req: NextRequest) {
       AND l."brandSlug" = ps."brandSlug" AND l.model = ps.model
       AND ps.segment = COALESCE(l.condition, 'any') || CASE WHEN l.year IS NOT NULL THEN ':' || ((l.year / 2) * 2)::text ELSE '' END
       AND ps.p75 <= ps.p25 * ${PRICE_STAT_MAX_SPREAD}
-  `)
+  `),
+  ])
 
   return NextResponse.json({ ok: true, segments: upserted, pruned: removed, positioned })
 }

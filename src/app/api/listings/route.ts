@@ -25,6 +25,7 @@ export const dynamic = 'force-dynamic'
 // runs at most once per minute per (category, district, verified) on a warm
 // instance, instead of on every cache miss.
 const SUBCOUNT_TTL = 60_000
+const SUBCOUNT_CACHE_MAX = 500
 const subCountCache = new Map<string, { at: number; data: { slug: string; count: number }[] }>()
 
 // Vertex ranked-ID cache (keyed by the exact Vertex args: q + category + price band).
@@ -58,8 +59,11 @@ export async function GET(req: NextRequest) {
       select: LISTING_CARD_SELECT,
     })
     const byId = new Map(rows.map((r) => [r.id, serializeListingCard(r)]))
-    const listings = ids.map((id) => byId.get(id)).filter(Boolean)
-    return NextResponse.json({ listings, total: listings.length })
+    const listings = ids.map((id) => byId.get(id)).filter((l): l is NonNullable<typeof l> => !!l)
+    return NextResponse.json({
+      listings: await localizeListingTitles(listings, searchParams.get('lang') || undefined),
+      total: listings.length,
+    })
   }
 
   const category = searchParams.get('category') || undefined // slug
@@ -346,14 +350,16 @@ export async function GET(req: NextRequest) {
       // capping at 120, and the displayed result count is honest. `total` always equals
       // the paginable count, so the client's load-more (listings.length < total) terminates.
       const tailWhere: Prisma.ListingWhereInput = { AND: [...andFilters, { id: { notIn: rankedIds } }] }
-      const tailTotal = await db.listing.count({ where: tailWhere })
-      semanticTotal = R + tailTotal
       // Fetch card rows for THIS page's ranked slice only, restoring rank order.
       const pageIds = ranked.slice(offset, offset + limit).map((r) => r.id)
-      const pageRows = pageIds.length
-        ? await db.listing.findMany({ where: { id: { in: pageIds } }, select: LISTING_CARD_SELECT })
-        : []
-      const pageById = new Map(pageRows.map((r) => [r.id, r]))
+      const [tailTotal, pageRows] = await Promise.all([
+        db.listing.count({ where: tailWhere }),
+        pageIds.length
+          ? db.listing.findMany({ where: { id: { in: pageIds } }, select: LISTING_CARD_SELECT })
+          : [],
+      ])
+      semanticTotal = R + tailTotal
+      const pageById = new Map(pageRows.map((r) => [r.id, r] as const))
       const aPart = pageIds.map((id) => pageById.get(id)).filter((r): r is (typeof pageRows)[number] => !!r)
       if (aPart.length < limit && offset + limit > R && tailTotal > 0) {
         // This page reaches past the ranked set — fill the remainder from rankScore-ordered
@@ -423,6 +429,7 @@ export async function GET(req: NextRequest) {
           const data = grouped
             .filter((g) => g.subcategorySlug)
             .map((g) => ({ slug: g.subcategorySlug as string, count: g._count._all }))
+          if (subCountCache.size >= SUBCOUNT_CACHE_MAX) subCountCache.delete(subCountCache.keys().next().value!) // evict oldest (insertion order)
           subCountCache.set(cacheKey, { at: Date.now(), data })
           return data
         })
@@ -507,7 +514,7 @@ export async function POST(req: NextRequest) {
     const price = Number(body.price)
 
     if (!categorySlug || title.length < 3 || contactPhone.replace(/\D/g, '').length < 9 || !Number.isFinite(price) || price < 0 || price > 1e12) {
-      return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+      return NextResponse.json({ error: 'invalid_input' }, { status: 400 })
     }
 
     // Keep contact info + banned content OFF the public listing — buyers reach sellers
@@ -523,7 +530,7 @@ export async function POST(req: NextRequest) {
     }
 
     const category = await db.category.findUnique({ where: { slug: categorySlug } })
-    if (!category) return NextResponse.json({ error: 'Unknown category' }, { status: 400 })
+    if (!category) return NextResponse.json({ error: 'unknown_category' }, { status: 400 })
 
     // Resolve the storefront this listing belongs to. CRITICAL: a SIGNED-IN poster's
     // listing must attach to THEIR Profile-owned Seller (ownerId) — otherwise it

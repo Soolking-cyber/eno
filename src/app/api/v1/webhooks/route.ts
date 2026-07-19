@@ -68,16 +68,20 @@ export async function POST(req: NextRequest) {
   const events = normalizeEvents(body.events)
   if (typeof events === 'object') return apiError(422, 'invalid_input', events.error, r.rate)
 
-  const count = await db.webhookEndpoint.count({ where: { sellerId: r.auth.sellerId } })
-  if (count >= MAX_HOOKS_PER_SHOP) {
+  const secret = generateWebhookSecret()
+  // Count + create atomically — two concurrent POSTs could otherwise both pass the
+  // count check and exceed MAX_HOOKS_PER_SHOP.
+  const hook = await db.$transaction(async (tx) => {
+    const count = await tx.webhookEndpoint.count({ where: { sellerId: r.auth.sellerId } })
+    if (count >= MAX_HOOKS_PER_SHOP) return null
+    return tx.webhookEndpoint.create({
+      data: { sellerId: r.auth.sellerId, url, events, secret },
+      select: { id: true, url: true, events: true, enabled: true, createdAt: true },
+    })
+  })
+  if (!hook) {
     return apiError(422, 'limit_reached', `A shop may register at most ${MAX_HOOKS_PER_SHOP} webhooks.`, r.rate)
   }
-
-  const secret = generateWebhookSecret()
-  const hook = await db.webhookEndpoint.create({
-    data: { sellerId: r.auth.sellerId, url, events, secret },
-    select: { id: true, url: true, events: true, enabled: true, createdAt: true },
-  })
 
   return apiOk({
     webhook: {

@@ -620,10 +620,35 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
   )
 }
 
+// Shared dropdown body for both city comboboxes (primary destination + add-a-stop);
+// the option groups come from the surrounding Combobox root's `items`.
+function CityComboboxOptions() {
+  const { tr } = useLanguage()
+  return (
+    <ComboboxContent>
+      <ComboboxEmpty>{tr('No matching destination.', 'Không có điểm đến phù hợp.')}</ComboboxEmpty>
+      <ComboboxList>
+        {(group: CityGroup) => (
+          <ComboboxGroup key={group.id} items={group.items}>
+            <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
+            {group.items.map((city) => (
+              <ComboboxItem key={city.id} value={city}>
+                <span className="flex flex-col items-start">
+                  <span className="font-semibold text-foreground">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span>
+                  <span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span>
+                </span>
+              </ComboboxItem>
+            ))}
+          </ComboboxGroup>
+        )}
+      </ComboboxList>
+    </ComboboxContent>
+  )
+}
+
 export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
   const { tr, lang } = useLanguage()
   const { user, openSignIn } = useAuth()
-  const [hydrated, setHydrated] = useState(false)
   const [cityIds, setCityIds] = useState<CityId[]>(['danang'])
   const [cityDays, setCityDays] = useState<Partial<Record<CityId, number>>>({})
   const [citySearch, setCitySearch] = useState('')
@@ -646,8 +671,6 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
   const [savedId, setSavedId] = useState<string | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
   const daysCustomizedRef = useRef(false)
-
-  useEffect(() => setHydrated(true), [])
 
   const selectedCities = cityIds.map((id) => CITY_MAP.get(id)).filter((city) => Boolean(city))
   const primaryCity = CITY_MAP.get(cityIds[0]) || CITIES[0]
@@ -755,6 +778,13 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
       document.getElementById('trip-start')?.focus()
       return
     }
+    // Recompute "today" at submit — minDate is frozen at mount, so a tab left open
+    // past midnight can submit a now-past date the server will reject with a 400.
+    if (startDate < dateInputValueFromToday(0)) {
+      toast.error(tr('The start date has passed. Choose a date from today onward.', 'Ngày bắt đầu đã qua. Hãy chọn từ hôm nay trở đi.'))
+      document.getElementById('trip-start')?.focus()
+      return
+    }
     if (includeFlights && origin.trim().length < 2) {
       toast.error(tr('Add your departure city or airport for flight research.', 'Thêm thành phố hoặc sân bay khởi hành để tìm chuyến bay.'))
       document.getElementById('trip-origin')?.focus()
@@ -806,6 +836,14 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
         toast.message(tr('Sign in with your eno account to run live travel research.', 'Đăng nhập tài khoản eno để nghiên cứu chuyến đi trực tiếp.'))
         return
       }
+      if (error instanceof PlannerApiError && error.status === 400) {
+        // Validation rejection (e.g. a start date that slipped into the past) — not
+        // retryable as-is, so return to the form instead of the retryable-error state.
+        setState('empty')
+        toast.error(tr('Please check the trip details — the planner could not accept them.', 'Vui lòng kiểm tra thông tin chuyến đi — trình lập kế hoạch chưa chấp nhận được.'))
+        document.getElementById('trip-start')?.focus()
+        return
+      }
       setState('error')
       toast.error(error instanceof PlannerApiError && error.status === 429
         ? tr('The planner has reached its research limit. Please try again later.', 'Trình lập kế hoạch đã đạt giới hạn nghiên cứu. Vui lòng thử lại sau.')
@@ -838,7 +876,7 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
   }
 
   return (
-    <div data-hydrated={hydrated} className="pb-10">
+    <div className="pb-10">
       <div className="grid items-start gap-6 lg:grid-cols-[410px_minmax(0,1fr)] lg:grid-rows-[max-content_1fr]">
         {state !== 'ready' && <section className="relative overflow-hidden rounded-3xl bg-brand-deep px-5 py-8 text-white sm:px-8 sm:py-10 lg:col-start-2 lg:row-start-1 lg:px-10">
           <div className="relative z-10 max-w-3xl">
@@ -880,24 +918,7 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
                       <ComboboxInput id="primary-destination" autoComplete="off" className="px-2" />
                       <ComboboxTrigger aria-label={tr('Search destinations', 'Tìm điểm đến')} />
                     </ComboboxInputGroup>
-                    <ComboboxContent>
-                      <ComboboxEmpty>{tr('No matching destination.', 'Không có điểm đến phù hợp.')}</ComboboxEmpty>
-                      <ComboboxList>
-                        {(group: CityGroup) => (
-                          <ComboboxGroup key={group.id} items={group.items}>
-                            <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
-                            {group.items.map((city) => (
-                              <ComboboxItem key={city.id} value={city}>
-                                <span className="flex flex-col items-start">
-                                  <span className="font-semibold text-foreground">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span>
-                                  <span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span>
-                                </span>
-                              </ComboboxItem>
-                            ))}
-                          </ComboboxGroup>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
+                    <CityComboboxOptions />
                   </Combobox>
                   <FieldDescription>{tr('Type a city, region, or airport code.', 'Nhập thành phố, khu vực hoặc mã sân bay.')}</FieldDescription>
                 </Field>
@@ -988,24 +1009,7 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
                       <ComboboxClear aria-label={tr('Clear destination search', 'Xóa tìm kiếm điểm đến')} />
                       <ComboboxTrigger aria-label={tr('Show available destinations', 'Hiện các điểm đến')} />
                     </ComboboxInputGroup>
-                    <ComboboxContent>
-                      <ComboboxEmpty>{tr('No matching destination.', 'Không có điểm đến phù hợp.')}</ComboboxEmpty>
-                      <ComboboxList>
-                        {(group: CityGroup) => (
-                          <ComboboxGroup key={group.id} items={group.items}>
-                            <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
-                            {group.items.map((city) => (
-                              <ComboboxItem key={city.id} value={city}>
-                                <span className="flex flex-col items-start">
-                                  <span className="font-semibold text-foreground">{tr(city.name, city.nameVi)} · {city.airports.join('/')}</span>
-                                  <span className="text-xs text-body">{tr(city.description, city.descriptionVi)}</span>
-                                </span>
-                              </ComboboxItem>
-                            ))}
-                          </ComboboxGroup>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
+                    <CityComboboxOptions />
                   </Combobox>
                   <FieldDescription>{tr(`Choose a result to add it instantly. Maximum ${MAX_ROUTE_CITIES} destinations.`, `Chọn kết quả để thêm ngay. Tối đa ${MAX_ROUTE_CITIES} điểm đến.`)}</FieldDescription>
                 </Field>

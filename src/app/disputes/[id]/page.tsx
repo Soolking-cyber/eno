@@ -85,6 +85,9 @@ export default function DisputeRoomPage() {
   const [notFound, setNotFound] = useState(false)
   const [text, setText] = useState('')
   const [files, setFiles] = useState<{ url: string; file: File }[]>([])
+  // Evidence paths already uploaded in a previous (failed) send attempt — reused on
+  // retry so a messages-POST failure doesn't re-upload the same photos.
+  const [uploadedPaths, setUploadedPaths] = useState<string[] | null>(null)
   const [sending, setSending] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
   const [confirmWithdraw, setConfirmWithdraw] = useState(false)
@@ -117,14 +120,15 @@ export default function DisputeRoomPage() {
     const arr = Array.from(list).slice(0, 6 - files.length)
     const next = await Promise.all(arr.map(async (f) => ({ url: URL.createObjectURL(f), file: await compressImageFile(f) })))
     setFiles((p) => [...p, ...next].slice(0, 6))
+    setUploadedPaths(null) // batch changed — a previous partial upload no longer matches
   }
 
   const send = async () => {
     if (!data || (text.trim().length === 0 && files.length === 0)) return
     setSending(true); setError('')
     try {
-      let paths: string[] = []
-      if (files.length) {
+      let paths: string[] = uploadedPaths ?? []
+      if (files.length && !uploadedPaths) {
         const form = new FormData()
         for (const f of files) form.append('files', f.file)
         const up = await fetch(`/api/disputes/${data.id}/evidence`, { method: 'POST', body: form })
@@ -137,6 +141,7 @@ export default function DisputeRoomPage() {
           return
         }
         paths = uj.paths
+        setUploadedPaths(paths) // survive a failed messages POST — retry reuses these
       }
       const res = await fetch(`/api/disputes/${data.id}/messages`, {
         method: 'POST',
@@ -145,7 +150,7 @@ export default function DisputeRoomPage() {
       })
       if (!res.ok) {
         const code = (await res.json().catch(() => null))?.error as string | undefined
-        if (code === 'already_submitted') { setText(''); setFiles([]); await load(); return } // one-shot done — show locked state
+        if (code === 'already_submitted') { setText(''); setFiles([]); setUploadedPaths(null); await load(); return } // one-shot done — show locked state
         setError(code === 'window_closed'
           ? t('The evidence window has closed.', 'Đã hết thời gian nộp bằng chứng.')
           : code === 'rate_limited'
@@ -153,7 +158,7 @@ export default function DisputeRoomPage() {
             : t('Could not send — try again.', 'Không gửi được — thử lại.'))
         return
       }
-      setText(''); setFiles([])
+      setText(''); setFiles([]); setUploadedPaths(null)
       await load()
       endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
     } catch {

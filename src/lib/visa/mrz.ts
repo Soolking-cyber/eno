@@ -20,10 +20,13 @@ function characterValue(character: string) {
   return 0
 }
 
-function checkDigit(value: string, expected: string) {
-  if (!/^\d$/.test(expected)) return false
+function checkDigit(value: string, expected: string, allowFillerDigit = false) {
+  // ICAO 9303 permits '<' as the check digit for an all-filler optional-data field,
+  // where it is equivalent to '0'. Only that field opts in via allowFillerDigit.
+  const digit = allowFillerDigit && expected === '<' ? '0' : expected
+  if (!/^\d$/.test(digit)) return false
   const total = [...value].reduce((sum, character, index) => sum + characterValue(character) * WEIGHTS[index % WEIGHTS.length], 0)
-  return String(total % 10) === expected
+  return String(total % 10) === digit
 }
 
 function cleanLine(value: string) {
@@ -64,7 +67,7 @@ export function parsePassportMrz(rawLine1: string, rawLine2: string): PassportMr
     passportNumber: checkDigit(line2.slice(0, 9), line2[9]),
     dateOfBirth: checkDigit(line2.slice(13, 19), line2[19]),
     expiryDate: checkDigit(line2.slice(21, 27), line2[27]),
-    optionalData: checkDigit(line2.slice(28, 42), line2[42]),
+    optionalData: checkDigit(line2.slice(28, 42), line2[42], true),
     composite: checkDigit(`${line2.slice(0, 10)}${line2.slice(13, 20)}${line2.slice(21, 43)}`, line2[43]),
   }
   const nameParts = line1.slice(5).split('<<')

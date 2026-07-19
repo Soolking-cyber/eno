@@ -67,14 +67,18 @@ export async function POST(req: NextRequest) {
   const events = normalizeEvents(body.events)
   if (typeof events === 'object') return NextResponse.json({ error: events.error }, { status: 400 })
 
-  const count = await db.webhookEndpoint.count({ where: { sellerId: who.sellerId } })
-  if (count >= MAX_HOOKS_PER_SHOP) return NextResponse.json({ error: 'too_many_webhooks', max: MAX_HOOKS_PER_SHOP }, { status: 400 })
-
   const secret = generateWebhookSecret()
-  const hook = await db.webhookEndpoint.create({
-    data: { sellerId: who.sellerId, url, events, secret },
-    select: { id: true, url: true, events: true, enabled: true, createdAt: true },
+  // Count + create atomically — two concurrent POSTs could otherwise both pass the
+  // count check and exceed MAX_HOOKS_PER_SHOP.
+  const hook = await db.$transaction(async (tx) => {
+    const count = await tx.webhookEndpoint.count({ where: { sellerId: who.sellerId } })
+    if (count >= MAX_HOOKS_PER_SHOP) return null
+    return tx.webhookEndpoint.create({
+      data: { sellerId: who.sellerId, url, events, secret },
+      select: { id: true, url: true, events: true, enabled: true, createdAt: true },
+    })
   })
+  if (!hook) return NextResponse.json({ error: 'too_many_webhooks', max: MAX_HOOKS_PER_SHOP }, { status: 400 })
   return NextResponse.json({
     webhook: { ...hook, events: hook.events === '*' ? ['*'] : hook.events.split(/\s+/).filter(Boolean), secret },
   }, { status: 201 }) // secret shown ONCE

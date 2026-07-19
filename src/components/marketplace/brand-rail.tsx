@@ -91,12 +91,9 @@ export function BrandRail({
 
   if (brands.length === 0) return null
 
-  // Most-used first (by listing count), 8 inline + the rest in a "More" dropdown.
-  // The active item is always kept visible so its models can still roll out beside it.
+  // Most-used first (by listing count). Full-width swipeable rail like the category row
+  // (user decision 2026-07-06): every brand rides the horizontal scroll — no More dropdown.
   const sortedBrands = [...brands].sort((a, b) => b.count - a.count)
-  // Full-width swipeable rail like the category row (user decision 2026-07-06):
-  // every brand rides the horizontal scroll — no More dropdown.
-  const visibleBrands = sortedBrands
   const sortedModels = [...models].sort((a, b) => b.count - a.count)
   // 3×3 grid (9 cells): "All" + up to 8 models fills it exactly, so only collapse into
   // a "More" cell when there are MORE than 8 — at ≤8 show them all.
@@ -112,7 +109,7 @@ export function BrandRail({
 
   return (
     <div ref={railRef} className="flex items-center gap-4 overflow-x-auto scrollbar-none snap-x py-1">
-      {visibleBrands.map((b) => {
+      {sortedBrands.map((b) => {
         const isActive = activeBrand === b.slug
         return (
           <Fragment key={b.slug}>

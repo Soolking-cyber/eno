@@ -116,7 +116,6 @@ export function severityForReason(reason: string): ReportSeverity {
 
 export type TrustBreakdown = {
   score: number // the UNCAPPED composite (recomputeTrust applies the daily cap on persist)
-  tier: TrustTier
   V: number
   Q: number
   T: number
@@ -231,7 +230,6 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   // Timing approximations (no dedicated soldAt column): sold → Listing.updatedAt
   // (the status flip touches it); accepted offer → the offer Message's createdAt.
   const txByListing = new Map<string, number>() // listingId → earliest transaction ms
-  const buyersWithAcceptedOffer = new Set<string>()
 
   if (seller) {
     // Scam freeze needs clean-transaction timestamps AFTER the oldest severe event,
@@ -270,7 +268,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
       }),
       db.message.findMany({
         where: { kind: 'offer', offerStatus: 'accepted', createdAt: { gte: txSince }, conversation: { sellerId: seller.id } },
-        select: { createdAt: true, conversation: { select: { listingId: true, buyerProfileId: true } } },
+        select: { createdAt: true, conversation: { select: { listingId: true } } },
         take: 5000,
       }),
     ])
@@ -287,7 +285,6 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
       const t = m.createdAt.getTime()
       const prev = txByListing.get(m.conversation.listingId)
       if (prev === undefined || t < prev) txByListing.set(m.conversation.listingId, t)
-      buyersWithAcceptedOffer.add(m.conversation.buyerProfileId)
     }
   }
 
@@ -412,7 +409,9 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     freshActiveListings,
     velocity,
   }
-  return { score, tier: tierFor(inputs), V, Q, T, C, M, inputs, cached: { score: profile.trustScore, tier: profile.trustTier } }
+  // No `tier` here on purpose: recomputeTrust derives the tier from the PERSISTED
+  // (possibly daily-capped) score — keeping it the single tier authority.
+  return { score, V, Q, T, C, M, inputs, cached: { score: profile.trustScore, tier: profile.trustTier } }
 }
 
 /**
@@ -532,6 +531,11 @@ export async function penalizeSeller(sellerId: string, delta: number, meta?: { r
  * Availability-confirm activity: an informational (delta 0) daily-capped ledger
  * event whose recompute picks up the fresh availabilityConfirmedAt — the freshness
  * component (0–5) is the real reward now, endogenous and un-farmable.
+ *
+ * The daily cap is BEST-EFFORT under concurrency: the count-then-create below has
+ * no lock ('activity' is not in ONE_TIME_REASONS), so two simultaneous confirms can
+ * both pass the check and land two events. Accepted — engagement events are delta 0
+ * (informational), so an extra row has zero scoring impact.
  */
 export async function recordEngagement(profileId: string, perDayCap = ENGAGEMENT_DAILY_CAP): Promise<boolean> {
   const since = new Date(Date.now() - DAY_MS)

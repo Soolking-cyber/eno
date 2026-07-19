@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, Fragment, useCallback, useContext, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { createContext, Fragment, useContext, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Settings, CircleHelp, LogOut, PanelLeft } from 'lucide-react'
@@ -13,6 +13,7 @@ import { PreferencesInline } from './preferences-inline'
 // (useAuth is used by BOTH the shell — to keep the desktop rail permanent for signed-in users —
 //  and the panel body.)
 import { TrustScore } from './trust-score'
+import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
@@ -29,18 +30,14 @@ import { DASHBOARD_NAV, type NavItem, type NavRole } from './dashboard-nav'
 // rail only links to them. Borderless throughout: no divider line — collapsed is a whisper tint, the
 // hover-expansion lifts off the canvas with a soft blur + diffuse shadow.
 
-export type PanelView = 'root'
-
 const Ctx = createContext<{
   open: boolean
   setOpen: (o: boolean) => void
-  /** Open the nav rail. (Arg retained for back-compat with openTo('root') callers.) */
-  openTo: (v?: PanelView) => void
   /** Desktop rail expanded (pinned via the toggle). Lifted to the shell so the content padding can
    *  push the feed clear of the WIDE (280px) rail when open — otherwise the expansion overlaps it. */
   expanded: boolean
   setExpanded: Dispatch<SetStateAction<boolean>>
-}>({ open: false, setOpen: () => {}, openTo: () => {}, expanded: false, setExpanded: () => {} })
+}>({ open: false, setOpen: () => {}, expanded: false, setExpanded: () => {} })
 export const useAccountPanel = () => useContext(Ctx)
 
 export function AccountPanelShell({ children }: { children: React.ReactNode }) {
@@ -54,7 +51,6 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   // Lazy-mount: guests and users who never open the panel pay zero render cost.
   const [mounted, setMounted] = useState(false)
   if (open && !mounted) setMounted(true)
-  const openTo = useCallback(() => { setOpen(true) }, [])
 
   // Mobile entry point. The bottom-nav "Account" tab lives OUTSIDE this provider, so it drives the
   // rail via a window event rather than the context — the launcher gesture on phones (tap Account →
@@ -91,7 +87,7 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   }, [pathname, user])
 
   return (
-    <Ctx.Provider value={{ open, setOpen, openTo, expanded, setExpanded }}>
+    <Ctx.Provider value={{ open, setOpen, expanded, setExpanded }}>
       <div
         className={cn(
           // duration-200 matches the rail's own width transition, so the push and the widen move in
@@ -184,7 +180,6 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
   }, [expanded, trapRef])
 
   if (!user) return null
-  const initial = (user.email || user.phone || '?').charAt(0).toUpperCase()
   const isBusiness = dash?.tier === 'business'
   // Admin-ness comes from the SERVER (isAdminEmail over the session email, shipped as
   // `isAdmin` on the /api/dashboard payload) — the client never decides it. False while the
@@ -223,6 +218,8 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
     const Icon = it.icon
     const isOn = active(it.href, it.exact)
     const badgeLabel = it.badge && it.badge > 0 ? (it.badge > 9 ? '9+' : String(it.badge)) : null
+    // aria-label REPLACES the element's content for AT, which silenced the badge count — fold it in.
+    const accessibleName = badgeLabel ? tr(`${it.label}, ${badgeLabel} new`, `${it.label}, ${badgeLabel} mới`) : it.label
     const inner = (
       <>
         <span className="relative shrink-0">
@@ -241,9 +238,9 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
       </>
     )
     const el = it.external ? (
-      <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={it.label} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</a>
+      <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</a>
     ) : (
-      <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={it.label} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</Link>
+      <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</Link>
     )
     // Collapsed desktop rail: hovering an icon reveals its NAME as a tooltip to the right (Gemini
     // model). Expanded → label already visible, so no tooltip. Mobile never hovers (Base UI Tooltip
@@ -377,11 +374,7 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         {/* BOTTOM — the account: identity snippet, then Settings · Help · prefs · Sign out. */}
         <div className="mt-auto space-y-1 pt-3">
           <div className={cn('flex items-center gap-3 rounded-2xl px-3 py-2', expanded ? 'lg:justify-start lg:gap-3 lg:px-3' : 'lg:justify-center lg:gap-0 lg:px-0')}>
-            {dash?.profile.avatarUrl ? (
-              <img src={dash.profile.avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-            ) : (
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{initial}</span>
-            )}
+            <Avatar url={dash?.profile.avatarUrl} name={displayName} color={dash?.profile.avatarColor} size="sm" />
             <div className={cn('min-w-0 overflow-hidden transition-[max-width,opacity] duration-200', 'max-w-[180px] flex-1 opacity-100', expanded ? 'lg:max-w-[180px] lg:flex-1 lg:opacity-100' : 'lg:max-w-0 lg:opacity-0')}>
               <span className="flex items-center gap-1.5">
                 <p className="truncate text-sm font-bold text-foreground">{displayName}</p>

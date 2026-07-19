@@ -55,7 +55,9 @@ export async function GET() {
     savedSearches,
     notifications,
     reviewsWritten,
-    trustEvents,
+    // Summarized per the note above: type/points/date only — internal reason
+    // metadata (admin notes etc.) stays out of the export.
+    trustEvents: trustEvents.map((e) => ({ type: e.type, points: e.delta, createdAt: e.createdAt })),
     conversations: { asBuyer: buyerConvos, asSeller: sellerConvos },
     messagesSent: messages,
   }

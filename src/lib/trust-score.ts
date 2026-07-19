@@ -10,6 +10,9 @@ export type TrustBand = 'restricted' | 'standard' | 'trusted' | 'exceptional' | 
 
 // Tier ladder (thresholds match trust.ts tierFor — 60/85/110 — plus the 160 flourish):
 //   <60 red · 60–84 slate · 85–109 blue (Trusted) · 110–159 gold (Exceptional) · 160+ violet (Elite).
+// NOTE: Elite (>=160) is INTENTIONALLY unreachable under Trust v2 — composeScore clamps
+// at TRUST.MAX (150, trust-math.ts). It's reserved headroom for a future MAX raise,
+// not a live band; don't "fix" the threshold down.
 export function trustBand(score: number): TrustBand {
   if (score >= 160) return 'elite'
   if (score >= 110) return 'exceptional'

@@ -55,7 +55,7 @@ export function MarketPrice({ price, band }: { price: number; band: Band }) {
           style={{ left: `${markerLeft}%` }}
         />
       </div>
-      <p className="mt-2 text-2xs text-ink-4">{tr(`Based on ${band.n} similar listings`, `Dựa trên ${band.n} tin tương tự`)}</p>
+      <p className="mt-2 text-2xs text-ink-4">{tr('Based on {n} similar listings', 'Dựa trên {n} tin tương tự').replace('{n}', String(band.n))}</p>
     </div>
   )
 }

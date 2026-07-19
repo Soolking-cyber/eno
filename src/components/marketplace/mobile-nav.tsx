@@ -10,7 +10,7 @@ import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
-import { useSlideRouter } from './page-transitions'
+import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -22,15 +22,6 @@ const STROKE = 2.25
 
 // Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay.
 const TAB = 'flex flex-1 cursor-pointer transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-90 active:duration-[60ms] [touch-action:manipulation]'
-
-// Tab order drives the slide direction: tapping a tab to the RIGHT slides forward
-// (new from the right), to the LEFT slides back (new from the left).
-const TAB_ORDER = ['/', '/saved', '/post', '/messages', '/dashboard']
-function tabIndex(path: string): number {
-  if (path === '/') return 0
-  const i = TAB_ORDER.findIndex((t) => t !== '/' && path.startsWith(t))
-  return i === -1 ? 0 : i
-}
 
 // The icon + micro-label stack, centred in the bar. The label (text-3xs — the canon's
 // micro-label size, §1) makes every tab unmistakable ("Post", "Saved") without turning the
@@ -97,7 +88,7 @@ export function MobileNav() {
   const { tr } = useLanguage()
   const { user, loading } = useAuth()
   const { unread } = useChat()
-  const { navigate } = useSlideRouter()
+  const router = useRouter()
   // The bar auto-hides on scroll like a native app (owner 2026-07-16, reversing the earlier
   // "permanent anchor"): it retracts DOWN off-screen while the user scrolls down to browse and
   // slides back on any scroll-up / near the top — the same useHideOnScroll signal the top header
@@ -133,16 +124,14 @@ export function MobileNav() {
   // after a section nav). Independent of the !accountOpen dimming the other tabs get.
   const accountActive = accountOpen || (mounted && (pathname?.startsWith('/dashboard') ?? false))
 
-  // Navigate with an FB-style directional slide: right if the target tab is further
-  // right than the current one, left otherwise.
+  // Plain push — the template fade handles the visual. (The FB-style directional
+  // slide this once fed was reverted with the View Transitions experiment.)
   const go = (href: string) => {
     // If the account launcher is open, close it first — a page tab must revert to its page even when
     // the route doesn't change (tapping Explore while already on home with the launcher up: the
     // panel's route-driven close can't fire, so it would otherwise stay open — the reported bug).
     if (accountOpen) window.dispatchEvent(new CustomEvent('eno:open-account', { detail: false }))
-    const from = tabIndex(pathname || '/')
-    const to = TAB_ORDER.indexOf(href)
-    navigate(href, to >= from ? 'forward' : 'back')
+    router.push(href)
   }
 
   // Native staple: re-tapping the tab you're already on scrolls that view to the top (with a

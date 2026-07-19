@@ -281,6 +281,7 @@ function PlannerLoading() {
 }
 
 function Activity({ icon: Icon, label, activity }: { icon: typeof Sun; label: string; activity: ActivityPlan }) {
+  const { lang } = useLanguage()
   return (
     <div className="min-w-0 border-t border-border/70 pt-4 first:border-t-0 first:pt-0 md:border-l md:border-t-0 md:pl-4 md:pt-0 md:first:border-l-0 md:first:pl-0">
       <div className="flex items-center justify-between gap-2">
@@ -292,7 +293,7 @@ function Activity({ icon: Icon, label, activity }: { icon: typeof Sun; label: st
       <p className="mt-2 text-xs leading-relaxed text-body">{activity.details}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {activity.travelMinutes > 0 && <Badge variant="neutral" size="sm"><Clock3 className="h-3 w-3" />{activity.travelMinutes} min</Badge>}
-        {activity.estimatedCostVnd > 0 && <Badge variant="neutral" size="sm"><CircleDollarSign className="h-3 w-3" />{formatVnd(activity.estimatedCostVnd)}</Badge>}
+        {activity.estimatedCostVnd > 0 && <Badge variant="neutral" size="sm"><CircleDollarSign className="h-3 w-3" />{formatVnd(activity.estimatedCostVnd, lang)}</Badge>}
       </div>
       {activity.bookingAdvice && <p className="mt-3 text-2xs leading-relaxed text-ink-4"><TicketCheck className="mr-1 inline h-3.5 w-3.5" />{activity.bookingAdvice}</p>}
     </div>
@@ -373,7 +374,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
           {[
             [tr('Trip', 'Chuyến đi'), `${days} ${tr('days', 'ngày')}`],
             [tr('Travelers', 'Khách'), String(travelers)],
-            [tr('Per traveler', 'Mỗi khách'), `${formatVnd(plan.budget.perTravelerLowVnd)}–${formatVnd(plan.budget.perTravelerHighVnd)}`],
+            [tr('Per traveler', 'Mỗi khách'), `${formatVnd(plan.budget.perTravelerLowVnd, lang)}–${formatVnd(plan.budget.perTravelerHighVnd, lang)}`],
             [tr('Sources checked', 'Nguồn đã kiểm tra'), String(result.sources.length)],
           ].map(([label, value]) => (
             <div key={label} className="bg-card px-5 py-4"><p className="text-2xs font-bold uppercase tracking-wider text-ink-4">{label}</p><p className="mt-1.5 text-sm font-bold text-foreground">{value}</p></div>
@@ -427,7 +428,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
                   <div><p className="text-2xs uppercase tracking-wide text-ink-4">{tr('Journey', 'Hành trình')}</p><p className="mt-1 font-semibold text-foreground">{flight.duration} · {flight.stops === 0 ? tr('Direct', 'Bay thẳng') : `${flight.stops} ${tr('stop', 'điểm dừng')}`}</p></div>
                   <div className="col-span-2"><p className="text-2xs uppercase tracking-wide text-ink-4">{tr('Operators found', 'Hãng được tìm thấy')}</p><p className="mt-1 font-semibold text-foreground">{flight.airlines.join(', ') || '—'}</p></div>
                 </div>
-                <p className="mt-4 text-sm font-bold text-accent-foreground">{flight.priceLowVnd ? `${formatVnd(flight.priceLowVnd)}–${formatVnd(flight.priceHighVnd)}` : tr('No defensible fare found', 'Chưa tìm thấy mức giá đáng tin')}</p>
+                <p className="mt-4 text-sm font-bold text-accent-foreground">{flight.priceLowVnd ? `${formatVnd(flight.priceLowVnd, lang)}–${formatVnd(flight.priceHighVnd, lang)}` : tr('No defensible fare found', 'Chưa tìm thấy mức giá đáng tin')}</p>
                 <p className="mt-2 text-xs leading-relaxed text-body">{flight.fareNote}</p>
                 {flight.url && <a href={flight.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'link', size: 'none', className: 'mt-4 h-auto justify-start p-0 text-xs font-bold' })}>{tr('Check this option', 'Kiểm tra lựa chọn này')}<ExternalLink className="h-3.5 w-3.5" /></a>}
               </Card>
@@ -459,7 +460,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
               <h3 className="mt-1 text-sm font-bold text-foreground">{stay.name}</h3>
               <p className="mt-1 flex items-center gap-1 text-xs text-body"><MapPin className="h-3.5 w-3.5" />{stay.area}</p>
               <p className="mt-3 text-xs leading-relaxed text-body">{stay.why}</p>
-              <p className="mt-3 text-xs font-bold text-accent-foreground">{formatVnd(stay.nightlyLowVnd)}–{formatVnd(stay.nightlyHighVnd)}{tr('/night', '/đêm')}</p>
+              <p className="mt-3 text-xs font-bold text-accent-foreground">{formatVnd(stay.nightlyLowVnd, lang)}–{formatVnd(stay.nightlyHighVnd, lang)}{tr('/night', '/đêm')}</p>
               {stay.url && <a href={stay.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'link', size: 'none', className: 'mt-3 h-auto justify-start p-0 text-xs font-bold' })}>{tr('View source', 'Xem nguồn')}<ExternalLink className="h-3.5 w-3.5" /></a>}
             </Card>
           ))}
@@ -478,7 +479,7 @@ function PlanResults({ result, travelers, days, onSave, saving, saved }: {
               <div className="px-4 py-4 sm:px-5">
                 <p className="mb-4 text-xs leading-relaxed text-body">{day.focus}</p>
                 <div className="grid gap-4 md:grid-cols-3"><Activity icon={Sun} label={tr('Morning', 'Buổi sáng')} activity={day.morning} /><Activity icon={Compass} label={tr('Afternoon', 'Buổi chiều')} activity={day.afternoon} /><Activity icon={MoonStar} label={tr('Evening', 'Buổi tối')} activity={day.evening} /></div>
-                <div className="mt-4 flex flex-col gap-2 border-t border-border/70 pt-4 text-xs sm:flex-row sm:items-start sm:justify-between"><p className="flex max-w-2xl items-start gap-2 text-body"><UtensilsCrossed className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" />{day.foodNote}</p><p className="shrink-0 font-bold text-foreground">{tr('Day estimate', 'Ước tính ngày')}: {formatVnd(day.estimatedDailyCostVnd)}</p></div>
+                <div className="mt-4 flex flex-col gap-2 border-t border-border/70 pt-4 text-xs sm:flex-row sm:items-start sm:justify-between"><p className="flex max-w-2xl items-start gap-2 text-body"><UtensilsCrossed className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" />{day.foodNote}</p><p className="shrink-0 font-bold text-foreground">{tr('Day estimate', 'Ước tính ngày')}: {formatVnd(day.estimatedDailyCostVnd, lang)}</p></div>
               </div>
             </Card>
           ))}
@@ -572,6 +573,9 @@ export function ItineraryBuilder() {
   const [saving, setSaving] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
+  // Tracks the result a persistPlan call belongs to, so a slow auto-save for a
+  // superseded plan can never stamp its savedId onto a newer plan (sendEpoch pattern).
+  const resultDataRef = useRef<GeneratedItineraryResponse | null>(null)
   const daysCustomizedRef = useRef(false)
 
   useEffect(() => setHydrated(true), [])
@@ -699,6 +703,9 @@ export function ItineraryBuilder() {
     }
     setState('building')
     setSavedId(null)
+    // Invalidate any in-flight auto-save immediately: a stale persistPlan that
+    // resolves while we are building must not stamp savedId onto the next plan.
+    resultDataRef.current = null
     try {
       const response = await forumApi<GeneratedItineraryResponse>('/api/itineraries/generate', {
         method: 'POST',
@@ -723,6 +730,7 @@ export function ItineraryBuilder() {
         }),
       })
       setResult(response)
+      resultDataRef.current = response
       setState('ready')
       window.requestAnimationFrame(() => resultRef.current?.focus())
       if (user) void persistPlan(response, true)
@@ -749,7 +757,7 @@ export function ItineraryBuilder() {
         auth: 'required',
         body: JSON.stringify(buildItinerarySavePayload({ result: nextResult, cityIds, days, budgetId, interests })),
       })
-      setSavedId(itinerary.id)
+      if (resultDataRef.current === nextResult) setSavedId(itinerary.id)
       if (announce) toast.success(tr('Itinerary saved automatically to your eno dashboard.', 'Lịch trình đã tự động lưu vào bảng điều khiển eno.'))
       return itinerary.id
     } catch {

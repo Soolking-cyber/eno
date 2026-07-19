@@ -21,18 +21,24 @@ export default async function EditListingPage({ params }: Props) {
   const profile = await getCurrentProfile()
   if (!profile) redirect(`/signin?next=/listings/${id}/edit`)
 
-  const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
-  const listing = await db.listing.findUnique({
-    where: { id },
-    select: {
-      id: true, sellerId: true, title: true, description: true, price: true, negotiable: true, urgentUntil: true,
-      categoryId: true, subcategorySlug: true, listingType: true, condition: true,
-      brandSlug: true, model: true, attributes: true,
-      year: true, mileageKm: true, engineL: true, engineCc: true,
-      district: true, city: true, lat: true, lng: true, images: true, video: true,
-      category: { select: { slug: true } },
-    },
-  })
+  // The three lookups are independent — run them in parallel (force-dynamic route,
+  // every request pays these round-trips serially otherwise).
+  const [seller, listing, cats] = await Promise.all([
+    db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } }),
+    db.listing.findUnique({
+      where: { id },
+      select: {
+        id: true, sellerId: true, title: true, description: true, price: true, negotiable: true, urgentUntil: true,
+        categoryId: true, subcategorySlug: true, listingType: true, condition: true,
+        brandSlug: true, model: true, attributes: true,
+        year: true, mileageKm: true, engineL: true, engineCc: true,
+        district: true, city: true, lat: true, lng: true, images: true, video: true,
+        category: { select: { slug: true } },
+      },
+    }),
+    // Categories for the wizard's (locked-in-edit) picker — same shape as /post.
+    db.category.findMany({ orderBy: { name: 'asc' } }),
+  ])
   if (!listing) notFound()
   // Not your storefront's listing → 404 (don't reveal it exists).
   if (!seller || listing.sellerId !== seller.id) notFound()
@@ -42,8 +48,6 @@ export default async function EditListingPage({ params }: Props) {
     ? (await db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true } }))?.name ?? null
     : null
 
-  // Categories for the wizard's (locked-in-edit) picker — same shape as /post.
-  const cats = await db.category.findMany({ orderBy: { name: 'asc' } })
   const categories: SerializedCategory[] = cats.map(serializeCategoryBasic)
 
   const edit: ListingEditData = {

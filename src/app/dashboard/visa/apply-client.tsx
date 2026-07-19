@@ -22,6 +22,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { cn } from '@/lib/utils'
+import { formatUsdCents, moneyLocale } from '@/lib/vnd'
 
 // /dashboard/visa/apply — the Vietnam e-Visa ASSISTANT, ported from the forum
 // (apps/forum/src/components/visa/visa-assistant.tsx) to run INSIDE the eno.vn dashboard:
@@ -269,7 +270,7 @@ function VisaSelect({ id, value, onChange, children }: { id: string; value: stri
 }
 
 export function VisaApplyClient() {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [application, setApplication] = useState<VisaApplication | null>(null)
@@ -770,7 +771,7 @@ export function VisaApplyClient() {
               // the server verifies payment and completes the handoff itself.
               <div className="rounded-2xl border border-brand/20 bg-accent/40 p-4">
                 <p className="text-sm font-bold text-foreground">
-                  {tr('eno service fee', 'Phí dịch vụ eno')}: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(payments.feeCents / 100)}
+                  {tr('eno service fee', 'Phí dịch vụ eno')}: {formatUsdCents(payments.feeCents, moneyLocale(lang))}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-body">{tr('Paid once, securely, on the provider’s own page. Your application reaches eno review right after payment. Government e-Visa fees are separate and paid to the authority.', 'Thanh toán một lần, an toàn, trên trang của nhà cung cấp. Hồ sơ được chuyển cho eno xem xét ngay sau khi thanh toán. Lệ phí e-Visa của nhà nước là khoản riêng, nộp cho cơ quan chức năng.')}</p>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">

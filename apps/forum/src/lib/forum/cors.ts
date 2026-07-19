@@ -26,8 +26,10 @@ export function withForumCors(request: Request, response: NextResponse, methods 
   const origin = request.headers.get('origin')
   if (origin && allowedOrigins().has(origin)) {
     response.headers.set('Access-Control-Allow-Origin', origin)
-    response.headers.append('Vary', 'Origin')
   }
+  // Every CORS-managed response varies on Origin — including the disallowed/no-Origin
+  // branch — so shared caches never serve an allowed-origin response to another origin.
+  response.headers.append('Vary', 'Origin')
   response.headers.set('Access-Control-Allow-Methods', methods)
   response.headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
   response.headers.set('Access-Control-Max-Age', '86400')

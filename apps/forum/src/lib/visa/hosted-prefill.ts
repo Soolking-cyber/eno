@@ -294,8 +294,9 @@ export async function createHostedVisaPrefill(input: {
     userMetadata: { workflow: 'visa-prefill' },
   }).catch((error) => { throw errorCode(error) })
 
+  let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | undefined
   try {
-    const browser = await chromium.connectOverCDP(session.connectUrl)
+    browser = await chromium.connectOverCDP(session.connectUrl)
     const context = browser.contexts()[0]
     const page = context.pages()[0] || await context.newPage()
     const warnings = await fillOfficialForm(page, input.payload, input.portrait, input.passport)
@@ -303,6 +304,9 @@ export async function createHostedVisaPrefill(input: {
     await browser.close()
     return { id: session.id, liveViewUrl: liveView.debuggerFullscreenUrl, expiresAt: session.expiresAt, warnings, persistentLogin: Boolean(contextId) }
   } catch (error) {
+    // Log the real cause server-side — errorCode() deliberately collapses it to an opaque code.
+    console.error('[visa-prefill] hosted prefill failed', error)
+    await browser?.close().catch(() => undefined)
     await bb.sessions.update(session.id, { status: 'REQUEST_RELEASE', projectId: projectId() }).catch(() => undefined)
     throw errorCode(error)
   }

@@ -35,6 +35,12 @@ export function formatMoneyFull(price: number, currency: string, locale: MoneyLo
 }
 
 
+/** USD amount from cents — the rare USD fee (e.g. the visa service fee). Currency
+ *  style with the viewer's separators: "$25.00" (en) / "25,00 US$" (vi). */
+export function formatUsdCents(cents: number, locale: MoneyLocale = 'en'): string {
+  return new Intl.NumberFormat(locale === 'vi' ? 'vi-VN' : 'en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
+}
+
 /** Price-drop badge label: "−12%", capped at "−50%+" (honest-display rule — beyond
  *  50% we stop advertising a bigger number). null when not a real drop. Shared by
  *  the server rules engine (notification copy) and the client badges so the % a

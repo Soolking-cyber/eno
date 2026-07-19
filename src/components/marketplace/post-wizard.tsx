@@ -340,7 +340,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // unique per account). If the account is missing either, we prompt them to add it
   // in Settings first and block publishing.
   useEffect(() => {
-    fetch('/api/me').then((r) => r.json()).then((d) => {
+    // Wait for auth to settle — firing during authLoading meant a throwaway fetch
+    // (once while loading, again when `user` resolved) racing the real one.
+    if (authLoading) return
+    const ctrl = new AbortController()
+    fetch('/api/me', { signal: ctrl.signal }).then((r) => r.json()).then((d) => {
       const u = d.user
       if (u) {
         setContactName(u.seller?.name || u.displayName || '')
@@ -348,10 +352,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         if (u.accountType === 'business') setPostingAs(u.businessName || u.seller?.name || null)
       }
       setMeLoaded(true)
-    }).catch(() => setMeLoaded(true))
+    }).catch(() => { if (!ctrl.signal.aborted) setMeLoaded(true) })
     // re-runs when a guest signs in mid-wizard (draft-first posting) so the
     // account's name/phone land without a reload.
-  }, [user])
+    return () => ctrl.abort()
+  }, [user, authLoading])
 
   // Top brands for the datalist (suggestions only — free text creates new brands).
   // Fetched once when the user lands on a brand-relevant category.
@@ -474,6 +479,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // all — the seller was bounced by a rule the form never stated.
     description: (touched.description || attempted) && description.trim().length < 20,
     price: (touched.price || attempted) && price.trim().length === 0,
+    // Condition + specifics BLOCK publish (see `checks`) — flag them red on a failed
+    // attempt like every other required field, not silently.
+    condition: attempted && hasCondition && !condition,
+    details: attempted && attrFacets.some((f) => f.kind !== 'range' && !attrs[f.key]),
     location: attempted && !hasLocation,
     // Name and phone are TWO fields. One shared `contact` flag lit both of them red when
     // only one was wrong — and pointed the screen reader at the wrong one.
@@ -508,12 +517,26 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     })
   const { bind: bindPhoto, dragging: draggingPhoto } = usePointerReorder(movePhoto)
 
+  // Every blob: URL the wizard mints, revoked in one mount-scoped cleanup so an
+  // abandoned wizard doesn't leak photo/video object URLs for the session's
+  // lifetime. Mid-session revokes (video replace/remove) stay where they are —
+  // double-revoking is a harmless no-op.
+  const blobUrls = useRef<Set<string>>(new Set())
+  const trackBlobUrl = (url: string) => { blobUrls.current.add(url); return url }
+  useEffect(() => {
+    const urls = blobUrls.current
+    return () => { urls.forEach((u) => URL.revokeObjectURL(u)) }
+  }, [])
+
   const addPhotos = async (files: FileList | File[] | null) => {
     if (!files) return
     // Accept images incl. HEIC/HEIF (which lack an image/* type on some browsers).
+    // The slice is only a coarse pre-bound (don't compress 20 picks) — the REAL cap
+    // lives inside the functional updater below, because `photos.length` here is a
+    // render-closure value that goes stale across the async compress awaits.
     const incoming = Array.from(files)
       .filter((f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name))
-      .slice(0, 6 - photos.length)
+      .slice(0, Math.max(0, 6 - photos.length))
     if (!incoming.length) return
     setConverting(true)
     try {
@@ -522,7 +545,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           // HEIC (iPhone) → JPEG + downscale/recompress in-browser so it previews,
           // uploads small (no 413 on big phone photos), and AI-reads cleanly.
           const norm = await compressImageFile(f)
-          setPhotos((p) => [...p, { url: URL.createObjectURL(norm), file: norm }])
+          const url = trackBlobUrl(URL.createObjectURL(norm))
+          setPhotos((p) => {
+            if (p.length >= 6) { URL.revokeObjectURL(url); return p }
+            return [...p, { url, file: norm }]
+          })
         } catch {
           toast.error(t('Không đọc được ảnh này.', "Couldn't read that photo."))
         }
@@ -570,6 +597,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     return false
   }
   const addVideo = async (files: FileList | null) => {
+    if (videoBusy) return // one probe/compress at a time — a second pick mid-flight races setVideo
     const f = files?.[0]
     if (!f) return
     // MIME check with an extension fallback: some iOS picker paths hand over files with an
@@ -578,7 +606,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     if (!typeOk) { toast.error(t('Chỉ nhận video MP4, WebM hoặc MOV.', 'Only MP4, WebM or MOV videos.')); return }
     if (f.size > VIDEO_MAX_MB * 1024 * 1024) { toast.error(t(`Video quá lớn (tối đa ${VIDEO_MAX_MB}MB).`, `Video is too large (${VIDEO_MAX_MB}MB max).`)); return }
     setVideoBusy(true)
-    const url = URL.createObjectURL(f)
+    const url = trackBlobUrl(URL.createObjectURL(f))
     try {
       const dur = await new Promise<number>((resolve) => {
         const v = document.createElement('video')
@@ -622,7 +650,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             },
           })
           URL.revokeObjectURL(url)
-          const compressedUrl = URL.createObjectURL(compressed)
+          const compressedUrl = trackBlobUrl(URL.createObjectURL(compressed))
           setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return { url: compressedUrl, file: compressed, hevc: false } })
           toast.success(t(`Video đã được nén còn ${Math.round(compressed.size / 1024 / 1024)}MB.`, `Video compressed to ${Math.round(compressed.size / 1024 / 1024)}MB.`), { id: toastId })
         } catch {
@@ -1168,12 +1196,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           {categorySlug && (hasCondition || attrFacets.length > 0) && (
             <Section title={t('Thông số', 'Specifics')}>
               {hasCondition && (
-                <Field group id="pw-condition" label={t('Tình trạng', 'Condition')}>
+                <Field group id="pw-condition" label={t('Tình trạng', 'Condition')} error={err.condition ? t('Hãy chọn tình trạng', 'Pick the condition') : undefined}>
                   <Chips options={[{ value: 'new', label: t('Mới', 'New') }, { value: 'used', label: t('Đã dùng', 'Used') }]} value={condition} onPick={setCondition} />
                 </Field>
               )}
               {attrFacets.map((f, fi) => (
-                <Field group key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)}>
+                <Field group key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)} error={err.details && f.kind !== 'range' && !attrs[f.key] ? t('Hãy chọn một mục', 'Pick one') : undefined}>
                   {f.kind === 'range' && f.range ? (
                     <RangeSpecInput range={f.range} value={ranges[f.key] ?? null} onChange={(v) => setRanges((prev) => ({ ...prev, [f.key]: v }))} />
                   ) : (
