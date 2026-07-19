@@ -33,6 +33,13 @@ Slow-4G but removes ~90 KB gzip from EVERY page HTML (the stylesheet was embedde
 ~3× via RSC), makes CSS cacheable across navigations, and leaves LCP unaffected.
 Kept per the task's own decision criteria.
 
+## Production verification (post-deploy, 2026-07-19)
+
+Same harness against **live https://eno.vn through Cloudflare** (revision
+eno-vn-00036): LCP **1572 ms**, CLS **0.0023**, HTML 354 KB / 23.6 KB brotli,
+0 prefetches, fan-out post-idle — the local results hold in production (the
+~250 ms over local LCP is real network to Singapore).
+
 ## What changed (by task section)
 
 - **B — inlineCss**: `experimental.inlineCss: false` (A/B table above).
