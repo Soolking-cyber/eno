@@ -53,6 +53,14 @@ until this one reaches parity.
 
 ## Status
 
+- 2026-07-20 (Kyle) v3–v6 (14c429fc, ad0ca74c, 20d7b312, 268880c8): PDP v2
+  (AVKit video page, share sheet, market gauge via priceBand on the GET,
+  stats, condition chips, similar rail, zoomable fullscreen gallery, seller
+  tap-through) · sort tabs + price filter on all result surfaces · search v2
+  (recents + trending + ranked typeahead) · recently-viewed rail ·
+  subcategory facet chips (/api/categories now carries TAXONOMY subs) ·
+  header ✨ AI entry. **Guest browse journey is fully native.** Kyle's lane
+  now pauses at the auth boundary — Saved/chat/dashboard wait on #117.
 - 2026-07-20 (Kyle) v2 — web-parity home + embedded-tab fixes (1f69f1e5):
   home mirrors the web landing (icon category grid from the taxonomy table,
   For-you + Outstanding-businesses + per-category rails, latest grid); card v2
