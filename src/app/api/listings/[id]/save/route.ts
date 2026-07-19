@@ -25,7 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // Generous coarse cap (shared/CGNAT IPs are common in VN) + per-(ip,listing,direction)
   // dedup (mirrors the view counter) so one device can't pump a single listing's count by
   // toggling; over-limit just skips the count move, never the device-local favorite
-  // itself. Fails open without UPSTASH_*.
+  // itself. Fails open on a limiter backend error.
   const [byPair, byIp] = await Promise.all([
     rateLimit('listing-save', `${ip}:${id}:${saved}`, 1, '6 h'), // 1 move / (ip,listing,direction) / 6h
     rateLimit('listing-save-ip', ip, 300, '1 h'),

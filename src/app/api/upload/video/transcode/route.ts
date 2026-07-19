@@ -7,7 +7,7 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { getCurrentProfileId } from '@/lib/admin'
-import { rateLimit, getRedis } from '@/lib/ratelimit'
+import { rateLimit, kv } from '@/lib/ratelimit'
 import { db } from '@/lib/db'
 import { getSupabaseAdmin, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { VIDEO_PATH_RE, VIDEO_MAX_BYTES } from '@/lib/core/media'
@@ -22,11 +22,11 @@ export const maxDuration = 300 // Vercel Pro ceiling — a ≤60s clip transcode
 // exposes the compressed URL.
 //
 // SUBMIT-THEN-POLL (GCP migration, 2026-07-19): the synchronous form ran to ~210s, which any
-// ~100s proxy budget (Cloudflare's orange cloud at cutover) would sever mid-flight. With Redis
-// available, POST now CLAIMS the job (SET NX), runs the encode via after() — the Cloud Run
-// service keeps CPU allocated post-response, and Vercel honors maxDuration — and returns
-// 202 {status:'running'}; the client polls GET ?path= until done/failed. Without Redis (local
-// dev without UPSTASH_*) it stays synchronous, and the client handles both shapes.
+// ~100s proxy budget (Cloudflare's orange cloud at cutover) would sever mid-flight. POST
+// CLAIMS the job (kv NX lease), runs the encode via after() — the Cloud Run service keeps
+// CPU allocated post-response, and Vercel honors maxDuration — and returns 202
+// {status:'running'}; the client polls GET ?path= until done/failed. If the claim write
+// itself errors it falls back to the old synchronous form, and the client handles both shapes.
 //
 // Fail policy (computed server-side into the job's final state): for an H.264 source, a failure
 // FALLS OPEN to the raw clip (already compatible — never block a publish on an ffmpeg hiccup).
@@ -122,12 +122,6 @@ export async function POST(req: NextRequest) {
     const referenced = await db.listing.count({ where: { video: rawUrl } })
     if (referenced > 0) return NextResponse.json({ error: 'already_in_use' }, { status: 409 })
 
-    const redis = getRedis()
-    if (!redis) {
-      // Local dev without UPSTASH_* — synchronous, same response shapes as the async path.
-      return respond(await runTranscode(path, hevc))
-    }
-
     // Claim the job. NX means a double-submit (retry, double-tap) attaches to the running
     // job instead of racing a second encode against the same source. The token FENCES the
     // worker: if the lease somehow expires mid-job and a successor claims, the stale worker
@@ -136,14 +130,14 @@ export async function POST(req: NextRequest) {
     const claim: JobState = { state: 'running', startedAt: Date.now(), token }
     let won: unknown
     try {
-      won = await redis.set(jobKey(path), JSON.stringify(claim), { nx: true, ex: CLAIM_TTL_S })
+      won = await kv.set(jobKey(path), JSON.stringify(claim), { nx: true, ex: CLAIM_TTL_S })
     } catch (e) {
-      // Redis outage must not lose the old fail-open behavior — run synchronously instead.
+      // A kv outage must not lose the old fail-open behavior — run synchronously instead.
       console.error('[transcode] claim', e)
       return respond(await runTranscode(path, hevc))
     }
     if (won !== 'OK') {
-      const existing = (await redis.get(jobKey(path))) as string | JobState | null
+      const existing = await kv.get<string | JobState>(jobKey(path))
       if (existing) return respond(typeof existing === 'string' ? (JSON.parse(existing) as JobState) : existing)
       // Claim raced its own expiry — extremely narrow; ask the client to retry.
       return NextResponse.json({ error: 'retry' }, { status: 503 })
@@ -155,10 +149,10 @@ export async function POST(req: NextRequest) {
           // Fence: only the claim holder may write. (GET→SET is a narrow window, but the
           // hazard it guards — a lease lost DURING a ≤300s job under a 360s TTL — needs
           // minutes-scale drift, so best-effort fencing is proportionate here.)
-          const cur = (await redis.get(jobKey(path))) as string | JobState | null
+          const cur = await kv.get<string | JobState>(jobKey(path))
           const curJob = cur == null ? null : typeof cur === 'string' ? (JSON.parse(cur) as JobState) : cur
           if (curJob && curJob.state === 'running' && curJob.token !== token) return false
-          await redis.set(jobKey(path), JSON.stringify(s), { ex: DONE_TTL_S })
+          await kv.set(jobKey(path), JSON.stringify(s), { ex: DONE_TTL_S })
           return true
         } catch (e) { console.error('[transcode] state write', e); return false }
       }
@@ -184,9 +178,7 @@ export async function GET(req: NextRequest) {
   if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   const path = new URL(req.url).searchParams.get('path') || ''
   if (!VIDEO_PATH_RE.test(path)) return NextResponse.json({ error: 'bad_path' }, { status: 400 })
-  const redis = getRedis()
-  if (!redis) return NextResponse.json({ error: 'unknown' }, { status: 404 })
-  const raw = (await redis.get(jobKey(path))) as string | JobState | null
+  const raw = await kv.get<string | JobState>(jobKey(path)).catch(() => null)
   if (!raw) return NextResponse.json({ error: 'unknown' }, { status: 404 })
   const job = typeof raw === 'string' ? (JSON.parse(raw) as JobState) : raw
   return job.state === 'running'

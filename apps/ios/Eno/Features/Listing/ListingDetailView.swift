@@ -15,6 +15,13 @@ struct ListingDetailView: View {
     @State private var showWeb = false
     @State private var viewer: ViewerState?
     @State private var sellerSheet = false
+    @State private var signInSheet = false
+    @State private var chatConvo: ChatRoute?
+    @State private var contactBusy = false
+
+    private struct ChatRoute: Identifiable, Hashable {
+        let id: String
+    }
 
     private struct ViewerState: Identifiable {
         let id: Int
@@ -67,6 +74,10 @@ struct ListingDetailView: View {
         .navigationDestination(for: AppCategory.self) { cat in
             CategoryFeedView(category: cat)
         }
+        .navigationDestination(item: $chatConvo) { route in
+            ThreadView(convoId: route.id)
+        }
+        .sheet(isPresented: $signInSheet) { WebSheet(path: "/signin") }
         .task { await load() }
         .sheet(isPresented: $showWeb) {
             WebSheet(path: "/listings/\(card.id)")
@@ -289,18 +300,44 @@ struct ListingDetailView: View {
 
     private var ctaBar: some View {
         Button {
-            showWeb = true
+            startChat()
         } label: {
-            Text(L10n.tr("Contact seller", "Liên hệ người bán"))
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+            Group {
+                if contactBusy {
+                    ProgressView().tint(.white)
+                } else {
+                    Text(L10n.tr("Chat with seller", "Nhắn tin cho người bán"))
+                }
+            }
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
         }
+        .disabled(contactBusy)
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .background(.bar)
+    }
+
+    // Native chat entry: find-or-create the thread (the same idempotent POST the
+    // web's contact composer resolves through — no auto-message; the thread's
+    // composer is right there) and push it. Guests get the sign-in sheet; API
+    // refusals (own listing, caps) fall back to the web page, which explains them.
+    private func startChat() {
+        guard AuthModel.shared.isSignedIn else { signInSheet = true; return }
+        guard !contactBusy else { return }
+        contactBusy = true
+        Task {
+            defer { contactBusy = false }
+            do {
+                let r: CreateConvoResponse = try await APIClient.shared.post("api/conversations", body: ["listingId": card.id])
+                chatConvo = ChatRoute(id: r.id)
+            } catch {
+                showWeb = true
+            }
+        }
     }
 }
 

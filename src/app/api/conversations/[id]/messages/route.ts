@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { Redis } from '@upstash/redis'
 import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimit, kv } from '@/lib/ratelimit'
 import { insertMessage } from '@/lib/messages'
 import { messagingGate } from '@/lib/enforcement'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
@@ -14,12 +13,9 @@ const MAX_LEN = 2000
 
 // Send-idempotency ledger (audit P2): on VN mobile networks the RESPONSE of a
 // committed POST is often dropped — the bubble flips to "tap to retry" and the retry
-// used to insert a DUPLICATE message (or duplicate offer). The client now sends a
-// per-logical-send clientId; the first request claims it (SET NX), commits, then
-// stores the serialized message for replay. Redis absent → previous behavior.
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
-const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null
+// used to insert a DUPLICATE message (or duplicate offer). The client sends a
+// per-logical-send clientId; the first request claims it (kv NX), commits, then
+// stores the serialized message for replay.
 
 // Send a message in a conversation. Authenticated, participant-only, Prisma
 // insert (never a client-direct insert). One transaction inserts the Message and
@@ -43,18 +39,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // Idempotency claim BEFORE any work. A replayed clientId returns the original
   // message; a still-in-flight duplicate gets 409 so the retry loop tries again.
   const clientId = typeof body.clientId === 'string' ? body.clientId.trim().slice(0, 64) : ''
-  const idemKey = clientId && redis ? `msgid:${id}:${meId}:${clientId}` : null
+  const idemKey = clientId ? `msgid:${id}:${meId}:${clientId}` : null
   if (idemKey) {
-    const claimed = await redis!.set(idemKey, 'pending', { nx: true, ex: 300 }).catch(() => 'OK' as const)
+    const claimed = await kv.set(idemKey, 'pending', { nx: true, ex: 300 }).catch(() => 'OK' as const)
     if (claimed === null) {
-      const stored = await redis!.get<Record<string, unknown> | 'pending'>(idemKey).catch(() => null)
+      const stored = await kv.get<Record<string, unknown> | 'pending'>(idemKey).catch(() => null)
       if (stored && stored !== 'pending') return NextResponse.json(stored)
       return NextResponse.json({ error: 'send_in_flight' }, { status: 409 })
     }
   }
   // A claim must never outlive a FAILED attempt — every error exit below releases it,
   // else a retry of a validation failure would 409 for the whole TTL.
-  const release = async () => { if (idemKey) await redis!.del(idemKey).catch(() => {}) }
+  const release = async () => { if (idemKey) await kv.del(idemKey).catch(() => {}) }
 
   // An offer is a structured message: validate the amount. The body carries ONLY
   // the sender's optional note (possibly empty) — the offer line itself is derived
@@ -100,6 +96,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   // Store the committed result for replay (best-effort — a miss just means a rare
   // duplicate on the exact old failure pattern, never a lost message).
-  if (idemKey) await redis!.set(idemKey, message, { ex: 86_400 }).catch(() => {})
+  if (idemKey) await kv.set(idemKey, message, { ex: 86_400 }).catch(() => {})
   return NextResponse.json(message)
 }

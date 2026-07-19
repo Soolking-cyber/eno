@@ -35,7 +35,7 @@
     "e2e:ui": "playwright test --ui",
     "e2e:report": "playwright show-report",
     "db:push": "prisma db push",
-    "db:setup": "prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs && node scripts/image-hash-index.mjs",
+    "db:setup": "prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs && node scripts/image-hash-index.mjs && node scripts/rate-limit-pg.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset"
@@ -65,8 +65,6 @@
     "@tanstack/react-query": "^5.82.0",
     "@tanstack/react-query-persist-client": "^5.101.2",
     "@tanstack/react-table": "^8.21.3",
-    "@upstash/ratelimit": "^2.0.8",
-    "@upstash/redis": "^1.38.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "docx": "^9.7.1",

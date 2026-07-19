@@ -1,16 +1,13 @@
 import 'server-only'
-import { Redis } from '@upstash/redis'
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { kv } from '@/lib/ratelimit'
 
 // Idempotency for /api/v1 mutating endpoints. A client sends `Idempotency-Key: <id>` on a
 // POST; we run the handler at most once per (api-key, idempotency-key) and replay the
 // stored response on a retry — so a network retry of a create never double-applies. No-op
-// (just runs once) when the header is absent or Redis is unconfigured. Only 2xx results
-// are cached, so a transient error stays retryable. TTL 24h.
-const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL
-const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
-const redis = url && token ? new Redis({ url, token }) : null
+// (just runs once) when the header is absent. Only 2xx results are cached, so a transient
+// error stays retryable. TTL 24h. Backed by the Postgres kv layer (see lib/ratelimit.ts).
 const TTL_SECONDS = 86_400
 
 type Outcome = { status: number; body: unknown }
@@ -32,24 +29,24 @@ export async function withIdempotency(
   run: () => Promise<Outcome>,
 ): Promise<NextResponse> {
   const idem = (req.headers.get('idempotency-key') || '').trim().slice(0, 200)
-  if (!idem || !redis) {
+  if (!idem) {
     const r = await run()
     return NextResponse.json(r.body, { status: r.status, headers: headers(rate) })
   }
   const cacheKey = `idem:${keyId}:${idem}`
-  const cached = await redis.get<Outcome>(cacheKey).catch(() => null)
+  const cached = await kv.get<Outcome>(cacheKey).catch(() => null)
   if (cached) return NextResponse.json(cached.body, { status: cached.status, headers: headers(rate, true) })
 
   // In-progress claim (audit P2 #15): without it, a client that TIMES OUT and retries
   // while the first run is still executing sees a cache miss and double-executes — the
-  // exact scenario idempotency exists for. SET NX = one runner; the loser replays the
+  // exact scenario idempotency exists for. NX = one runner; the loser replays the
   // finished result if it just landed, else gets an honest 409 to retry shortly.
-  // Redis blip on the claim fails OPEN (runs) — availability over strictness here,
+  // A backend blip on the claim fails OPEN (runs) — availability over strictness here,
   // matching the header-absent path.
   const progressKey = `${cacheKey}:running`
-  const claimed = await redis.set(progressKey, '1', { nx: true, ex: 120 }).catch(() => 'OK' as const)
+  const claimed = await kv.set(progressKey, '1', { nx: true, ex: 120 }).catch(() => 'OK' as const)
   if (claimed === null) {
-    const done = await redis.get<Outcome>(cacheKey).catch(() => null)
+    const done = await kv.get<Outcome>(cacheKey).catch(() => null)
     if (done) return NextResponse.json(done.body, { status: done.status, headers: headers(rate, true) })
     return NextResponse.json(
       { error: { code: 'idempotency_in_progress', message: 'A request with this Idempotency-Key is still processing. Retry shortly.' } },
@@ -60,10 +57,10 @@ export async function withIdempotency(
   try {
     const r = await run()
     if (r.status >= 200 && r.status < 300) {
-      await redis.set(cacheKey, { status: r.status, body: r.body } satisfies Outcome, { ex: TTL_SECONDS }).catch(() => {})
+      await kv.set(cacheKey, { status: r.status, body: r.body } satisfies Outcome, { ex: TTL_SECONDS }).catch(() => {})
     }
     return NextResponse.json(r.body, { status: r.status, headers: headers(rate) })
   } finally {
-    await redis.del(progressKey).catch(() => {})
+    await kv.del(progressKey).catch(() => {})
   }
 }

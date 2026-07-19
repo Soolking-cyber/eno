@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { LANGUAGE_CODES, isLanguage } from '@/lib/languages'
-import { getRedis, rateLimit } from '@/lib/ratelimit'
+import { kv, rateLimit } from '@/lib/ratelimit'
 import { translateBatch, uncachedTranslationStats } from '@/lib/translate'
 
 export const runtime = 'nodejs'
@@ -19,14 +19,13 @@ function clientIp(request: Request) {
 
 async function chargeDailyCharacters(characters: number) {
   if (characters === 0) return true
-  const redis = getRedis()
-  if (!redis) return process.env.NODE_ENV !== 'production'
   try {
     const key = `forum-translate:chars:${new Date().toISOString().slice(0, 10)}`
-    const total = await redis.incrby(key, characters)
-    await redis.expire(key, 172_800)
+    const total = await kv.incrby(key, characters, 172_800)
     return total <= 1_000_000
   } catch {
+    // Unconfigured admin client or backend blip: dev stays usable, prod fails
+    // CLOSED (no accounting means no paid calls) — same stance as before.
     return process.env.NODE_ENV !== 'production'
   }
 }

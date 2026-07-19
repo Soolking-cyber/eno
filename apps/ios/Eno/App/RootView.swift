@@ -5,6 +5,8 @@ import SwiftUI
 // a tab that isn't native yet embeds the real web page (WebTabView), so the
 // whole product is usable from day one and nothing diverges from the web app.
 struct RootView: View {
+    @State private var unread = UnreadModel.shared
+
     var body: some View {
         TabView {
             FeedView()
@@ -13,10 +15,13 @@ struct RootView: View {
                 .tabItem { Label(L10n.tr("Saved", "Đã lưu"), systemImage: "heart") }
             WebTabView(path: "/post", title: L10n.tr("Post", "Đăng tin"))
                 .tabItem { Label(L10n.tr("Post", "Đăng tin"), systemImage: "plus.square.fill") }
-            WebTabView(path: "/messages", title: L10n.tr("Messages", "Tin nhắn"))
+            MessagesView()
                 .tabItem { Label(L10n.tr("Messages", "Tin nhắn"), systemImage: "message") }
+                // Web parity: the nav badge caps at 9+.
+                .badge(unread.unread > 0 ? Text(unread.unread > 9 ? "9+" : "\(unread.unread)") : nil)
             AccountView()
                 .tabItem { Label(L10n.tr("Account", "Tài khoản"), systemImage: "person.crop.circle") }
         }
+        .task { await unread.refresh() }
     }
 }

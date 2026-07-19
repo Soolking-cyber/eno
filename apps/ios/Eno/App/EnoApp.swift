@@ -11,7 +11,10 @@ struct EnoApp: App {
                 .task { await AuthModel.shared.restore() }
                 .onChange(of: scenePhase) {
                     if scenePhase == .active {
-                        Task { await AuthModel.shared.refreshIfNeeded() }
+                        Task {
+                            await AuthModel.shared.refreshIfNeeded()
+                            await UnreadModel.shared.refresh()
+                        }
                     }
                 }
         }

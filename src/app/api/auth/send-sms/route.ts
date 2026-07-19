@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { Webhook } from 'standardwebhooks'
 import { sendZnsOtp, znsConfigured } from '@/lib/zalo-zns'
 import { sendTelegramOtp, sendWhatsAppOtp, sendSpeedSmsOtp, telegramConfigured, whatsappConfigured, normalizePhoneVN } from '@/lib/otp-channels'
-import { rateLimit, escalatingCooldown, getRedis } from '@/lib/ratelimit'
+import { rateLimit, escalatingCooldown, kv } from '@/lib/ratelimit'
 
 // Supabase "Send SMS Hook". Supabase generates, rate-limits and verifies the
 // phone OTP natively (signInWithOtp/verifyOtp unchanged); this endpoint only
@@ -107,9 +107,9 @@ export async function POST(req: Request) {
 
   // Remember WHERE the code landed so the sign-in form can say "check your
   // Telegram" instead of "check everywhere" (read back by /api/auth/otp-channel).
-  // Best-effort: a Redis blip only degrades the copy, never the login.
+  // Best-effort: a kv blip only degrades the copy, never the login.
   if (channel) {
-    try { await getRedis()?.set(`otp-ch:${phone}`, channel, { ex: 600 }) } catch {}
+    try { await kv.set(`otp-ch:${phone}`, channel, { ex: 600 }) } catch {}
   }
 
   // 6) Return 200 even on a transient delivery hiccup: Supabase already stored

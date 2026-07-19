@@ -15,9 +15,15 @@ import { describe, expect, it } from 'vitest'
 //   · itinerary-data — eno.vn adds savedItineraryId; the forum keeps compact formatVnd
 //     (eno.vn money goes through vnd.ts per the money canon).
 //   · itinerary-docx — eno.vn adds the saved-itinerary export + shared shell builders.
+//   · ratelimit — since the Upstash→Postgres migration (2026-07-20) the ATOMIC
+//     semantics live in ONE place (the SQL functions rl_check / rl_cooldown_claim /
+//     kv_*, scripts/rate-limit-pg.mjs) — which is exactly the drift this pair was
+//     guarding against (the OTP cooldown race had to land in both copies). What
+//     remains duplicated is only the thin client, and those are structurally
+//     different by design: root goes through Prisma raw SQL, the forum through
+//     supabase-js RPC. The contract test below keeps their shared surface aligned.
 
 const EXACT_PAIRS: Array<[string, string]> = [
-  ['src/lib/ratelimit.ts', 'apps/forum/src/lib/ratelimit.ts'],
   ['src/lib/visa/mrz.ts', 'apps/forum/src/lib/visa/mrz.ts'],
   ['src/lib/visa/image-quality.ts', 'apps/forum/src/lib/visa/image-quality.ts'],
   ['src/lib/visa/image-normalization.ts', 'apps/forum/src/lib/visa/image-normalization.ts'],
@@ -55,4 +61,18 @@ describe('root/forum sync pairs', () => {
       expect(normalize(readFileSync(a, 'utf8'))).toBe(normalize(readFileSync(b, 'utf8')))
     })
   }
+
+  it('ratelimit clients share the SQL primitives, window table, and strict stance', () => {
+    const root = readFileSync('src/lib/ratelimit.ts', 'utf8')
+    const forum = readFileSync('apps/forum/src/lib/ratelimit.ts', 'utf8')
+    for (const src of [root, forum]) {
+      // same fixed-window unit table → identical window math on both apps
+      expect(src).toContain('{ s: 1, m: 60, h: 3600, d: 86400 }')
+      // both ride the SAME server-side atomic primitives
+      expect(src).toContain('rl_check')
+      expect(src).toContain('kv_incrby')
+      // fail-open default / fail-closed strict — the security stance must never drift
+      expect(src).toContain('return { success: !opts?.strict, remaining: 0 }')
+    }
+  })
 })

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { translateBatch, uncachedStats, LANGS, type Lang } from '@/lib/translate'
-import { rateLimit, getRedis } from '@/lib/ratelimit'
+import { rateLimit, kv } from '@/lib/ratelimit'
 
 // Global daily ceiling on BILLABLE characters through this public endpoint. The per-request
 // (30k chars) and per-IP guards bound ONE caller; this bounds ALL of them together — worst
@@ -10,15 +10,12 @@ import { rateLimit, getRedis } from '@/lib/ratelimit'
 // nightly warm-translations cron doesn't go through this route at all.
 const DAILY_CHAR_BUDGET = 1_000_000
 
-/** Charge `chars` against today's global budget. True = proceed. Fail-CLOSED without Redis —
- *  consistent with the strict per-IP limiter below: no accounting means no paid calls. */
+/** Charge `chars` against today's global budget. True = proceed. Fail-CLOSED on a backend
+ *  error — consistent with the strict per-IP limiter below: no accounting, no paid calls. */
 async function chargeCharBudget(chars: number): Promise<boolean> {
-  const redis = getRedis()
-  if (!redis) return false
   try {
     const key = `translate:chars:${new Date().toISOString().slice(0, 10)}`
-    const total = await redis.incrby(key, chars)
-    await redis.expire(key, 2 * 24 * 60 * 60)
+    const total = await kv.incrby(key, chars, 2 * 24 * 60 * 60)
     return total <= DAILY_CHAR_BUDGET
   } catch {
     return false

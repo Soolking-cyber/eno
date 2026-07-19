@@ -1,95 +1,100 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Characterization (audit Phase 0 / P2 #14): escalatingCooldown guards PAID delivery
-// (OTP SMS/ZNS). The old ttl-check → set sequence was a race: N concurrent requests
-// all read ttl<=0 and were ALL admitted — N paid sends. The fix claims with SET NX
-// (one winner). This fake reproduces Upstash's per-command atomicity exactly: each
-// command is one synchronous step; concurrency interleaves BETWEEN awaits, which is
-// what made the old implementation admit everyone.
+// The atomic semantics (audit P2 #14's one-winner claim, escalation steps,
+// sliding-window math) moved INTO Postgres with the Upstash→Postgres migration
+// (2026-07-20): rl_cooldown_claim / rl_check are row-lock-serialized SECURITY
+// DEFINER functions — see scripts/rate-limit-pg.mjs, live-verified with a
+// 5-connection concurrency probe at migration time (exactly 1 of 5 admitted).
+// What remains testable HERE is the TS boundary: row→result mapping, window
+// parsing, and the fail-open (lenient) vs fail-closed (strict + cooldown)
+// stances when the backend errors — the property that a backend outage can
+// never reopen a paid-delivery or billing-drain vector.
 
-type Entry = { value: string; expiresAt: number }
-
-function fakeRedis() {
-  const store = new Map<string, Entry>()
-  const now = () => Date.now()
-  const alive = (k: string) => {
-    const e = store.get(k)
-    if (!e) return null
-    if (e.expiresAt <= now()) { store.delete(k); return null }
-    return e
-  }
-  return {
-    async set(key: string, value: string, opts?: { nx?: boolean; ex?: number }) {
-      if (opts?.nx && alive(key)) return null
-      store.set(key, { value, expiresAt: opts?.ex ? now() + opts.ex * 1000 : Number.MAX_SAFE_INTEGER })
-      return 'OK'
-    },
-    async ttl(key: string) {
-      const e = alive(key)
-      return e ? Math.ceil((e.expiresAt - now()) / 1000) : -2
-    },
-    async incr(key: string) {
-      const e = alive(key)
-      const n = (e ? Number(e.value) : 0) + 1
-      store.set(key, { value: String(n), expiresAt: e?.expiresAt ?? Number.MAX_SAFE_INTEGER })
-      return n
-    },
-    async expire(key: string, seconds: number) {
-      const e = alive(key)
-      if (e) e.expiresAt = now() + seconds * 1000
-      return e ? 1 : 0
-    },
-  }
-}
-
-vi.mock('@upstash/redis', () => ({
-  Redis: class { constructor() { return fakeRedis() as unknown as object } },
+const queryRaw = vi.fn()
+vi.mock('@/lib/db', () => ({
+  db: { $queryRaw: (...args: unknown[]) => queryRaw(...args) },
 }))
-vi.mock('@upstash/ratelimit', () => ({
-  Ratelimit: class {
-    static slidingWindow() { return {} }
-    async limit() { return { success: true, limit: 1, remaining: 1, reset: 0 } }
-  },
-}))
+vi.mock('server-only', () => ({}))
+
+import { rateLimit, escalatingCooldown, windowSeconds, kv } from './ratelimit'
+
+beforeEach(() => {
+  queryRaw.mockReset()
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+})
+
+describe('windowSeconds', () => {
+  it('parses every unit the routes use', () => {
+    expect(windowSeconds('20 s')).toBe(20)
+    expect(windowSeconds('1 m')).toBe(60)
+    expect(windowSeconds('10 m')).toBe(600)
+    expect(windowSeconds('1 h')).toBe(3600)
+    expect(windowSeconds('24 h')).toBe(86400)
+    expect(windowSeconds('1 d')).toBe(86400)
+  })
+})
+
+describe('rateLimit', () => {
+  it('maps the rl_check row to { success, remaining }', async () => {
+    queryRaw.mockResolvedValueOnce([{ success: true, remaining: 4 }])
+    await expect(rateLimit('msg:send', 'u1', 20, '1 m')).resolves.toEqual({ success: true, remaining: 4 })
+    queryRaw.mockResolvedValueOnce([{ success: false, remaining: 0 }])
+    await expect(rateLimit('msg:send', 'u1', 20, '1 m')).resolves.toEqual({ success: false, remaining: 0 })
+  })
+
+  it('fails OPEN on backend error for lenient limits', async () => {
+    queryRaw.mockRejectedValueOnce(new Error('db down'))
+    const r = await rateLimit('msg:send', 'u1', 20, '1 m')
+    expect(r.success).toBe(true)
+  })
+
+  it('fails CLOSED on backend error for strict limits', async () => {
+    queryRaw.mockRejectedValueOnce(new Error('db down'))
+    const r = await rateLimit('contact-reveal', 'u1', 5, '1 h', { strict: true })
+    expect(r.success).toBe(false)
+    expect(r.remaining).toBe(0)
+  })
+
+  it('treats an empty result as a backend error (strict still denies)', async () => {
+    queryRaw.mockResolvedValueOnce([])
+    const r = await rateLimit('contact-reveal', 'u1', 5, '1 h', { strict: true })
+    expect(r.success).toBe(false)
+  })
+})
 
 describe('escalatingCooldown', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.stubEnv('UPSTASH_REDIS_REST_URL', 'https://fake.upstash.io')
-    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', 'fake')
+  it('maps the claim row to { allowed, retryAfterSec }', async () => {
+    queryRaw.mockResolvedValueOnce([{ allowed: true, retry_after_sec: 0 }])
+    await expect(escalatingCooldown('otp', 'u1', [60, 300])).resolves.toEqual({ allowed: true, retryAfterSec: 0 })
+    queryRaw.mockResolvedValueOnce([{ allowed: false, retry_after_sec: 287 }])
+    await expect(escalatingCooldown('otp', 'u1', [60, 300])).resolves.toEqual({ allowed: false, retryAfterSec: 287 })
   })
 
-  it('admits exactly ONE of 5 concurrent requests', async () => {
-    const { escalatingCooldown } = await import('./ratelimit')
-    const results = await Promise.all(
-      Array.from({ length: 5 }, () => escalatingCooldown('otp', 'user-1', [60, 300, 900])),
-    )
-    const allowed = results.filter((r) => r.allowed)
-    expect(allowed).toHaveLength(1)
-    for (const r of results.filter((x) => !x.allowed)) {
-      expect(r.retryAfterSec).toBeGreaterThan(0)
-    }
+  it('fails CLOSED on backend error — paid delivery is denied, honest retry-after', async () => {
+    queryRaw.mockRejectedValueOnce(new Error('db down'))
+    const r = await escalatingCooldown('otp', 'u1', [60, 300, 900])
+    expect(r.allowed).toBe(false)
+    expect(r.retryAfterSec).toBe(60)
+  })
+})
+
+describe('kv', () => {
+  it('set returns OK when the write won and null when NX lost', async () => {
+    queryRaw.mockResolvedValueOnce([{ won: true }])
+    await expect(kv.set('k', 'v', { nx: true, ex: 60 })).resolves.toBe('OK')
+    queryRaw.mockResolvedValueOnce([{ won: false }])
+    await expect(kv.set('k', 'v', { nx: true, ex: 60 })).resolves.toBeNull()
   })
 
-  it('sequential attempts escalate through the steps', async () => {
-    vi.useFakeTimers()
-    try {
-      const { escalatingCooldown } = await import('./ratelimit')
-      const first = await escalatingCooldown('otp', 'user-2', [60, 300])
-      expect(first.allowed).toBe(true)
-      // Immediately again → blocked with a positive retry-after.
-      const blocked = await escalatingCooldown('otp', 'user-2', [60, 300])
-      expect(blocked.allowed).toBe(false)
-      expect(blocked.retryAfterSec).toBeGreaterThan(0)
-      // After the first step expires → allowed again, and the SECOND step (300s) applies.
-      vi.advanceTimersByTime(61_000)
-      const second = await escalatingCooldown('otp', 'user-2', [60, 300])
-      expect(second.allowed).toBe(true)
-      const blocked2 = await escalatingCooldown('otp', 'user-2', [60, 300])
-      expect(blocked2.allowed).toBe(false)
-      expect(blocked2.retryAfterSec).toBeGreaterThan(60)
-    } finally {
-      vi.useRealTimers()
-    }
+  it('incrby coerces the SQL bigint to a JS number', async () => {
+    queryRaw.mockResolvedValueOnce([{ v: BigInt(7) }])
+    await expect(kv.incrby('k', 1, 60)).resolves.toBe(7)
+  })
+
+  it('get returns the stored JSON value or null', async () => {
+    queryRaw.mockResolvedValueOnce([{ v: { a: 1 } }])
+    await expect(kv.get('k')).resolves.toEqual({ a: 1 })
+    queryRaw.mockResolvedValueOnce([{ v: null }])
+    await expect(kv.get('k')).resolves.toBeNull()
   })
 })

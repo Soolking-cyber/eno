@@ -1,42 +1,40 @@
 import 'server-only'
-import { Ratelimit } from '@upstash/ratelimit'
-import { Redis } from '@upstash/redis'
+import { db } from '@/lib/db'
 
-// Sliding-window rate limiting backed by Upstash Redis. In-memory limiting is a
-// no-op on Vercel serverless (each invocation is a fresh process), so Redis is
-// effectively required for real limits. If Upstash env vars are absent, limiting
-// is DISABLED (fails OPEN — always allowed) so the app keeps working; a missing
-// Redis must never block real users (e.g. sending messages). Set UPSTASH_REDIS_*
-// in prod to actually enable abuse/PII-reveal protection.
+// Rate limiting + tiny KV, backed by Supabase Postgres (Upstash Redis retired,
+// owner directive 2026-07-20). The atomic semantics live in SECURITY DEFINER
+// SQL functions over UNLOGGED tables (no WAL — near-Redis write cost; truncated
+// on crash recovery, which is fine for throttles/caches):
+//   rl_check           — Upstash-style weighted sliding window
+//   rl_cooldown_claim  — one-winner escalating cooldown (row-lock serialized)
+//   kv_get/set/del/incrby — Redis-shaped KV with TTL semantics
+// Expiry is enforced on read AND swept by pg_cron ('rl-kv-sweep', every 15 min).
+// DDL restore after a DB reset: `npm run db:setup` (scripts/rate-limit-pg.mjs).
+// The forum app calls the SAME functions via supabase.rpc — keep signatures in
+// sync with apps/forum/src/lib/ratelimit.ts.
+//
+// One deliberate divergence from @upstash/ratelimit: a DENIED attempt still
+// increments the window counter, so sustained hammering extends the throttle.
+// Strictly safer for abuse limits; honest clients never notice.
 
-// Accept BOTH the native Upstash names and the names Vercel's Marketplace/KV
-// integration injects (KV_REST_API_*) — the #1 reason "I added Upstash but limiting
-// still doesn't work" is a name mismatch between those two conventions.
-const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL
-const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
+const WINDOW_UNIT_S: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 }
 
-let redis: Redis | null = null
-if (url && token) {
-  redis = new Redis({ url, token })
-} else if (process.env.NODE_ENV === 'production') {
-  console.warn('[ratelimit] No Upstash credentials (UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN) — rate limiting is DISABLED. Set them (Production scope) and redeploy to enable it.')
+export function windowSeconds(window: `${number} ${'s' | 'm' | 'h' | 'd'}`): number {
+  const [n, u] = window.split(' ')
+  return Number(n) * (WINDOW_UNIT_S[u] ?? 60)
 }
-
-/** Raw client for the few non-limiter uses (e.g. remembering which channel an
- *  OTP was delivered on). Null when Upstash is unconfigured — callers degrade. */
-export const getRedis = () => redis
-
-const limiters = new Map<string, Ratelimit>()
 
 /**
  * Returns { success } for a key under a named sliding-window limit.
  *
- * Default: fails OPEN (success:true) when Redis is unconfigured or errors — a missing/
- * flaky Redis must never block legitimate use (messaging, posting).
+ * Default: fails OPEN (success:true) when the DB call errors — a flaky backend
+ * must never block legitimate use (messaging, posting). In practice the limiter
+ * shares the app's Postgres, so "limiter down" usually means the route is down
+ * anyway.
  *
- * Pass { strict: true } on SECURITY/PAID routes (contact-reveal, paid Gemini/translate/
- * geocode, upload) to fail CLOSED: if Redis is unavailable the request is DENIED rather
- * than silently un-limited, so a missing env var or Redis outage can never reopen a
+ * Pass { strict: true } on SECURITY/PAID routes (contact-reveal, paid Gemini/
+ * translate/geocode, upload) to fail CLOSED: if the backend errors the request
+ * is DENIED rather than silently un-limited, so an outage can never reopen a
  * billing-drain or PII-harvest vector.
  */
 export async function rateLimit(
@@ -46,17 +44,14 @@ export async function rateLimit(
   window: `${number} s` | `${number} m` | `${number} h` | `${number} d`,
   opts?: { strict?: boolean },
 ): Promise<{ success: boolean; remaining: number }> {
-  if (!redis) return { success: !opts?.strict, remaining: opts?.strict ? 0 : limit }
-  let limiter = limiters.get(name)
-  if (!limiter) {
-    limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(limit, window), prefix: `rl:${name}` })
-    limiters.set(name, limiter)
-  }
   try {
-    const { success, remaining } = await limiter.limit(key)
-    return { success, remaining }
+    const rows = await db.$queryRaw<Array<{ success: boolean; remaining: number }>>`
+      select success, remaining from rl_check(${name}, ${key}, ${limit}::int, ${windowSeconds(window)}::int)`
+    const r = rows[0]
+    if (!r) throw new Error('rl_check returned no row')
+    return { success: r.success, remaining: r.remaining }
   } catch (e) {
-    // Redis transient error: strict routes DENY (no silent un-limiting); others allow.
+    // Transient backend error: strict routes DENY (no silent un-limiting); others allow.
     console.error('[ratelimit] backend error for', name, e)
     return { success: !opts?.strict, remaining: 0 }
   }
@@ -66,36 +61,63 @@ export async function rateLimit(
  * Escalating per-key resend cooldown — the OTP industry pattern (Twilio Verify /
  * Auth0 guidance): each successive send within the window must wait longer than
  * the last (e.g. 60s → 5m → 15m → 30m cap). A real user retries once or twice;
- * a script hammers. The attempt counter resets after 24h of quiet.
+ * a script hammers. The attempt counter resets 24h after the burst's first send.
  *
- * Fails CLOSED (used only on paid-delivery security routes): if Redis is down,
- * the send is denied rather than un-throttled.
+ * One-winner under concurrency (audit P2 #14): the claim is a single SQL call
+ * serialized by the cooldown row's lock, so N racing requests admit exactly one
+ * — the losers read the winner's fresh cooldown for an honest retry-after.
+ *
+ * Fails CLOSED (used only on paid-delivery security routes): if the backend
+ * errors, the send is denied rather than un-throttled.
  */
 export async function escalatingCooldown(
   name: string,
   key: string,
   stepsSec: number[],
 ): Promise<{ allowed: boolean; retryAfterSec: number }> {
-  if (!redis) return { allowed: false, retryAfterSec: stepsSec[0] ?? 60 }
-  const untilKey = `cd:${name}:${key}:until`
-  const countKey = `cd:${name}:${key}:n`
   try {
-    // Atomic claim (audit P2 #14): the old ttl-check → set was a race — N concurrent
-    // requests all saw ttl<=0 and were ALL admitted (N paid deliveries). SET NX is the
-    // one-winner gate; the loser reads the ttl for an honest retry-after.
-    const claimed = await redis.set(untilKey, '1', { nx: true, ex: stepsSec[0] ?? 60 })
-    if (claimed === null) {
-      const ttl = await redis.ttl(untilKey)
-      return { allowed: false, retryAfterSec: ttl > 0 ? ttl : (stepsSec[0] ?? 60) }
-    }
-    const n = await redis.incr(countKey)
-    if (n === 1) await redis.expire(countKey, 86400)
-    const cooldown = stepsSec[Math.min(n - 1, stepsSec.length - 1)] ?? 60
-    // Stretch the claim to this attempt's real step length (NX seeded the first step).
-    if (cooldown !== (stepsSec[0] ?? 60)) await redis.expire(untilKey, cooldown)
-    return { allowed: true, retryAfterSec: 0 }
+    // steps travel as a csv literal — portable across drivers, cast server-side.
+    const steps = stepsSec.map((s) => Math.max(1, Math.floor(s))).join(',')
+    const rows = await db.$queryRaw<Array<{ allowed: boolean; retry_after_sec: number }>>`
+      select allowed, retry_after_sec from rl_cooldown_claim(${name}, ${key}, string_to_array(${steps}, ',')::int[])`
+    const r = rows[0]
+    if (!r) throw new Error('rl_cooldown_claim returned no row')
+    return { allowed: r.allowed, retryAfterSec: r.retry_after_sec }
   } catch (e) {
     console.error('[ratelimit] cooldown backend error for', name, e)
     return { allowed: false, retryAfterSec: stepsSec[0] ?? 60 }
   }
+}
+
+/**
+ * Redis-shaped KV over Postgres (UNLOGGED kv_store) for the few non-limiter
+ * uses: OTP delivery-channel memos, daily spend budgets, idempotency claims,
+ * transcode job leases, spam counters. Mirrors the Upstash call shapes the
+ * code was written against:
+ *   set(k, v, { nx, ex })  → 'OK' | null   (null = NX lost; expired keys lose)
+ *   get<T>(k)              → T | null      (JSON in, JSON out)
+ *   incrby(k, n, exSec?)   → number        (TTL refreshed EVERY call when given
+ *                                           — the old INCR+EXPIRE pairs, fused)
+ *   del(k)                 → void
+ * All ops THROW on backend failure — call sites keep their own fail-open /
+ * fail-closed stance, exactly as they did with Redis.
+ */
+export const kv = {
+  async get<T = unknown>(key: string): Promise<T | null> {
+    const rows = await db.$queryRaw<Array<{ v: T | null }>>`select kv_get(${key}) as v`
+    return (rows[0]?.v ?? null) as T | null
+  },
+  async set(key: string, value: unknown, opts?: { nx?: boolean; ex?: number }): Promise<'OK' | null> {
+    const rows = await db.$queryRaw<Array<{ won: boolean }>>`
+      select kv_set(${key}, ${JSON.stringify(value)}::jsonb, ${opts?.ex ?? null}::int, ${opts?.nx ?? false}) as won`
+    return rows[0]?.won ? 'OK' : null
+  },
+  async incrby(key: string, by: number, exSec?: number): Promise<number> {
+    const rows = await db.$queryRaw<Array<{ v: bigint | number }>>`
+      select kv_incrby(${key}, ${Math.round(by)}::bigint, ${exSec ?? null}::int) as v`
+    return Number(rows[0]?.v ?? 0)
+  },
+  async del(key: string): Promise<void> {
+    await db.$queryRaw`select kv_del(${key})`
+  },
 }

@@ -1,5 +1,5 @@
 import 'server-only'
-import { Redis } from '@upstash/redis'
+import { db } from '@/lib/db'
 
 // ── Native Zalo ZNS (ZBS Template Message) OTP delivery ──────────────────────────
 // Direct integration with Zalo's Business OpenAPI — no aggregator (eSMS removed by
@@ -7,7 +7,10 @@ import { Redis } from '@upstash/redis'
 //   token:   POST oauth.zaloapp.com/v4/oa/access_token   (x-www-form-urlencoded,
 //            header `secret_key`) — access token 25h; REFRESH TOKEN IS SINGLE-USE
 //            (each refresh returns a NEW refresh token and kills the old one, 3-month
-//            life). The rotating chain therefore lives in Upstash Redis, NEVER env.
+//            life). The rotating chain therefore lives in the LOGGED Postgres table
+//            zalo_oauth_token (single row, id=1), NEVER env — and rotation runs under
+//            SELECT ... FOR UPDATE so two instances can never both consume the same
+//            single-use token (owner design, 2026-07-20; replaced the Upstash NX lock).
 //   send:    POST business.openapi.zalo.me/message/template (header `access_token`)
 //            body { phone: '84…', template_id, template_data: { otp }, tracking_id }
 // OTP ("Mẫu Xác thực") notes: param name is literally `otp`; the only template type
@@ -23,9 +26,10 @@ import { Redis } from '@upstash/redis'
 //   -135 OA not business-verified          → config-stage error, logged
 //
 // Bootstrap: an OA admin mints the first token pair via Zalo's API Explorer and puts
-// the refresh token in ZALO_INIT_REFRESH_TOKEN. The FIRST send seeds Redis from it
+// the refresh token in ZALO_INIT_REFRESH_TOKEN. The FIRST send seeds the table from it
 // and the chain self-maintains from then on (the env value is stale after first use
-// by design — it is only read when Redis has no chain).
+// by design — it is only read when the table has no chain). Manual recovery after a
+// dead chain: new ZALO_INIT_REFRESH_TOKEN + `delete from zalo_oauth_token`.
 
 const APP_ID = process.env.ZALO_APP_ID
 const APP_SECRET = process.env.ZALO_APP_SECRET
@@ -34,22 +38,21 @@ const INIT_REFRESH_TOKEN = process.env.ZALO_INIT_REFRESH_TOKEN
 // 'development' delivers only to app/OA admins — pre-launch end-to-end testing.
 const MODE = process.env.ZALO_ZNS_MODE
 
-const TOKENS_KEY = 'zalo:oa-tokens' // durable JSON { accessToken, refreshToken, expiresAt }
-const LOCK_KEY = 'zalo:oa-refresh-lock' // SET NX guard — single-use refresh must never race
-
-const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL
-const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
-const redis = url && token ? new Redis({ url, token }) : null
-
 type TokenState = { accessToken: string; refreshToken: string; expiresAt: number }
+type TokenRow = { access_token: string; refresh_token: string; expires_ms: number | bigint }
 
 export function znsConfigured(): boolean {
-  return Boolean(APP_ID && APP_SECRET && TEMPLATE_ID && redis)
+  return Boolean(APP_ID && APP_SECRET && TEMPLATE_ID)
 }
 
-// Exchange a refresh token for a fresh pair and persist the NEW chain atomically.
-// Returns null on failure (expired/consumed refresh token → chain is dead until an
-// OA admin re-authorizes; we log loudly and let the caller fall back).
+const rowToState = (r: TokenRow | undefined): TokenState | null =>
+  r ? { accessToken: r.access_token, refreshToken: r.refresh_token, expiresAt: Number(r.expires_ms) } : null
+
+// Exchange a refresh token for a fresh pair. PERSISTENCE IS THE CALLER'S JOB —
+// this runs inside the FOR UPDATE transaction so the new chain and the row lock
+// commit together. Returns null on failure (expired/consumed refresh token →
+// chain is dead until an OA admin re-authorizes; we log loudly and the caller
+// falls back).
 async function refreshTokens(refreshToken: string): Promise<TokenState | null> {
   try {
     const res = await fetch('https://oauth.zaloapp.com/v4/oa/access_token', {
@@ -75,60 +78,95 @@ async function refreshTokens(refreshToken: string): Promise<TokenState | null> {
     if (!json.access_token || !json.refresh_token) {
       // Most likely: the refresh token was already consumed or the 3-month life
       // lapsed. Recovery is MANUAL (API Explorer → new ZALO_INIT_REFRESH_TOKEN +
-      // `redis-cli DEL zalo:oa-tokens` equivalent) — shout about it.
+      // `delete from zalo_oauth_token`) — shout about it.
       console.error('[zns] token refresh REJECTED — chain may need re-authorization:', json.error, json.error_name)
       return null
     }
-    const state: TokenState = {
+    return {
       accessToken: json.access_token,
       refreshToken: json.refresh_token,
       // expires_in is a STRING ("90000" = 25h). Refresh 1h early.
       expiresAt: Date.now() + (Number(json.expires_in || 90000) - 3600) * 1000,
     }
-    await redis!.set(TOKENS_KEY, state)
-    return state
   } catch (e) {
     console.error('[zns] token refresh failed:', (e as Error).name)
     return null
   }
 }
 
+// Per-process single-flight for the refresh path: concurrent callers on one
+// instance share ONE transaction/connection instead of each pinning a pooled
+// connection while blocked on the lock during the ~once/24h refresh window
+// (review 2026-07-20). Cross-instance serialization is the advisory lock below.
+let refreshInFlight: Promise<string | null> | null = null
+
 // Returns a usable access token, refreshing (or bootstrapping from env) when needed.
-// Refresh is serialized behind an NX lock: with a SINGLE-USE refresh token, two
-// concurrent refreshes would consume the same token and brick the chain.
+// Fast path reads without a lock. The refresh path serializes on
+// pg_advisory_xact_lock — NOT just the row's FOR UPDATE, because FOR UPDATE on an
+// EMPTY table locks nothing, and bootstrap/recovery (`delete from zalo_oauth_token`)
+// is exactly when two racers would both spend the single-use INIT token (review
+// 2026-07-20; same xact-lock pattern as dispute.ts). A loser blocks until the winner
+// commits, re-reads the fresh chain, and returns it WITHOUT spending the single-use
+// refresh token — one consumer, always. The HTTP exchange runs inside the
+// transaction (bounded by its 4s AbortSignal) ON PURPOSE: dropping the lock before
+// the new pair is persisted would reopen the double-consume race.
 async function getAccessToken(force = false): Promise<string | null> {
   if (!znsConfigured()) return null
-  let state = (await redis!.get<TokenState>(TOKENS_KEY).catch(() => null)) ?? null
 
-  const fresh = state && !force && state.expiresAt > Date.now()
-  if (fresh) return state!.accessToken
+  const read = async (client: Pick<typeof db, '$queryRaw'>, lock: boolean) => {
+    const rows = lock
+      ? await client.$queryRaw<TokenRow[]>`
+          select access_token, refresh_token, extract(epoch from expires_at) * 1000 as expires_ms
+            from zalo_oauth_token where id = 1 for update`
+      : await client.$queryRaw<TokenRow[]>`
+          select access_token, refresh_token, extract(epoch from expires_at) * 1000 as expires_ms
+            from zalo_oauth_token where id = 1`
+    return rowToState(rows[0])
+  }
 
-  const seed = state?.refreshToken ?? INIT_REFRESH_TOKEN
-  if (!seed) {
-    console.error('[zns] no refresh token available (set ZALO_INIT_REFRESH_TOKEN to bootstrap)')
+  try {
+    const state = await read(db, false)
+    if (state && !force && state.expiresAt > Date.now()) return state.accessToken
+
+    // Join an in-flight refresh rather than opening another transaction. Safe for
+    // force=true too: the in-flight refresh yields a brand-new token either way.
+    if (refreshInFlight) return await refreshInFlight
+    refreshInFlight = db.$transaction(
+      async (tx) => {
+        // Row-independent one-winner gate — holds even when the table is empty.
+        await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('zalo:oa-refresh'))`
+        const latest = await read(tx, true)
+        if (latest && !force && latest.expiresAt > Date.now()) return latest.accessToken
+
+        const seed = latest?.refreshToken ?? INIT_REFRESH_TOKEN
+        if (!seed) {
+          console.error('[zns] no refresh token available (set ZALO_INIT_REFRESH_TOKEN to bootstrap)')
+          return null
+        }
+        const next = await refreshTokens(seed)
+        if (!next) return null
+        await tx.$executeRaw`
+          insert into zalo_oauth_token (id, access_token, refresh_token, expires_at, updated_at)
+          values (1, ${next.accessToken}, ${next.refreshToken}, to_timestamp(${next.expiresAt} / 1000.0), now())
+          on conflict (id) do update set
+            access_token = excluded.access_token,
+            refresh_token = excluded.refresh_token,
+            expires_at = excluded.expires_at,
+            updated_at = now()`
+        return next.accessToken
+      },
+      // Cover a queued waiter (winner's 4s HTTP + commit) with honest headroom.
+      { maxWait: 8_000, timeout: 15_000 },
+    )
+    try {
+      return await refreshInFlight
+    } finally {
+      refreshInFlight = null
+    }
+  } catch (e) {
+    console.error('[zns] token state error:', (e as Error).message)
     return null
   }
-
-  const locked = await redis!.set(LOCK_KEY, '1', { nx: true, px: 10_000 }).catch(() => null)
-  if (locked) {
-    try {
-      // Re-read under the lock — another instance may have refreshed while we queued.
-      const latest = (await redis!.get<TokenState>(TOKENS_KEY).catch(() => null)) ?? null
-      if (latest && !force && latest.expiresAt > Date.now()) return latest.accessToken
-      const next = await refreshTokens(latest?.refreshToken ?? seed)
-      return next?.accessToken ?? null
-    } finally {
-      await redis!.del(LOCK_KEY).catch(() => {})
-    }
-  }
-
-  // Someone else is refreshing — wait briefly and read their result.
-  for (let i = 0; i < 6; i++) {
-    await new Promise((r) => setTimeout(r, 500))
-    state = (await redis!.get<TokenState>(TOKENS_KEY).catch(() => null)) ?? null
-    if (state && state.expiresAt > Date.now()) return state.accessToken
-  }
-  return null
 }
 
 export type ZnsResult = { ok: boolean; code: number | null; noZalo: boolean }

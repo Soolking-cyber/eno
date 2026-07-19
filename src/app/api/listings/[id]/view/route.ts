@@ -13,8 +13,9 @@ export const dynamic = 'force-dynamic'
 // coarse per-IP cap so one client can't inflate many listings. Seller self-views are
 // excluded. Never blocks the page — always returns ok, `counted` says whether it bumped.
 //
-// NOTE: dedup rides on the rate limiter (Upstash). Without UPSTASH_* it fails OPEN, so
-// the client localStorage guard is what keeps refreshes from over-counting there.
+// NOTE: dedup rides on the rate limiter (Postgres-backed). On a limiter backend error
+// it fails OPEN, so the client localStorage guard is what keeps refreshes from
+// over-counting there.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const ip = clientIp(req)

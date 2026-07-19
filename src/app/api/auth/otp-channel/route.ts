@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { normalizePhoneVN } from '@/lib/otp-channels'
-import { rateLimit, getRedis } from '@/lib/ratelimit'
+import { rateLimit, kv } from '@/lib/ratelimit'
 
 // Which channel did the last OTP for this number actually land on? Written by
 // the send-sms hook (otp-ch:{phone}, 10-min TTL); the sign-in form reads it so
@@ -16,8 +16,8 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   const ip = clientIp(req)
-  // strict: fail CLOSED — if Redis is down this weak has-app/mid-signup oracle
-  // must not become unbounded (verification sweep 2026-07-06).
+  // strict: fail CLOSED — if the limiter backend is down this weak has-app/
+  // mid-signup oracle must not become unbounded (verification sweep 2026-07-06).
   const gate = await rateLimit('otp-channel-read', ip, 30, '10 m', { strict: true })
   if (!gate.success) return NextResponse.json({ channel: null }, { status: 429 })
 
@@ -25,6 +25,6 @@ export async function GET(req: Request) {
   if (phone.length < 10) return NextResponse.json({ channel: null })
 
   let channel: string | null = null
-  try { channel = (await getRedis()?.get<string>(`otp-ch:${phone}`)) ?? null } catch {}
+  try { channel = (await kv.get<string>(`otp-ch:${phone}`)) ?? null } catch {}
   return NextResponse.json({ channel })
 }

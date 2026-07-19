@@ -1,43 +1,34 @@
 import 'server-only'
-import { Ratelimit } from '@upstash/ratelimit'
-import { Redis } from '@upstash/redis'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
-// Sliding-window rate limiting backed by Upstash Redis. In-memory limiting is a
-// no-op on Vercel serverless (each invocation is a fresh process), so Redis is
-// effectively required for real limits. If Upstash env vars are absent, limiting
-// is DISABLED (fails OPEN — always allowed) so the app keeps working; a missing
-// Redis must never block real users (e.g. sending messages). Set UPSTASH_REDIS_*
-// in prod to actually enable abuse/PII-reveal protection.
+// Sliding-window rate limiting + tiny KV on the shared Postgres primitives
+// (rl_check / kv_incrby SECURITY DEFINER functions — Upstash Redis retired,
+// owner directive 2026-07-20; DDL lives in the marketplace repo root,
+// scripts/rate-limit-pg.mjs). The forum has no Prisma, so calls go through
+// supabase-js RPC with the service key (EXECUTE is granted to service_role
+// only). Keep signatures in sync with the main app's src/lib/ratelimit.ts.
+//
+// One deliberate divergence from @upstash/ratelimit: a DENIED attempt still
+// increments the window counter, so sustained hammering extends the throttle.
+// Strictly safer for abuse limits; honest clients never notice.
 
-// Accept BOTH the native Upstash names and the names Vercel's Marketplace/KV
-// integration injects (KV_REST_API_*) — the #1 reason "I added Upstash but limiting
-// still doesn't work" is a name mismatch between those two conventions.
-const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL
-const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
+const WINDOW_UNIT_S: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 }
 
-let redis: Redis | null = null
-if (url && token) {
-  redis = new Redis({ url, token })
-} else if (process.env.NODE_ENV === 'production') {
-  console.warn('[ratelimit] No Upstash credentials (UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN) — rate limiting is DISABLED. Set them (Production scope) and redeploy to enable it.')
+function windowSeconds(window: string): number {
+  const [n, u] = window.split(' ')
+  return Number(n) * (WINDOW_UNIT_S[u] ?? 60)
 }
-
-/** Raw client for the few non-limiter uses (e.g. remembering which channel an
- *  OTP was delivered on). Null when Upstash is unconfigured — callers degrade. */
-export const getRedis = () => redis
-
-const limiters = new Map<string, Ratelimit>()
 
 /**
  * Returns { success } for a key under a named sliding-window limit.
  *
- * Default: fails OPEN (success:true) when Redis is unconfigured or errors — a missing/
- * flaky Redis must never block legitimate use (messaging, posting).
+ * Default: fails OPEN (success:true) when the backend call errors — a flaky
+ * backend must never block legitimate use.
  *
- * Pass { strict: true } on SECURITY/PAID routes (contact-reveal, paid Gemini/translate/
- * geocode, upload) to fail CLOSED: if Redis is unavailable the request is DENIED rather
- * than silently un-limited, so a missing env var or Redis outage can never reopen a
- * billing-drain or PII-harvest vector.
+ * Pass { strict: true } on SECURITY/PAID routes (visa flows, paid Gemini/
+ * translate) to fail CLOSED: if the backend is unavailable the request is
+ * DENIED rather than silently un-limited, so a missing env var or outage can
+ * never reopen a billing-drain vector.
  */
 export async function rateLimit(
   name: string,
@@ -46,56 +37,37 @@ export async function rateLimit(
   window: `${number} s` | `${number} m` | `${number} h` | `${number} d`,
   opts?: { strict?: boolean },
 ): Promise<{ success: boolean; remaining: number }> {
-  if (!redis) return { success: !opts?.strict, remaining: opts?.strict ? 0 : limit }
-  let limiter = limiters.get(name)
-  if (!limiter) {
-    limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(limit, window), prefix: `rl:${name}` })
-    limiters.set(name, limiter)
-  }
   try {
-    const { success, remaining } = await limiter.limit(key)
-    return { success, remaining }
+    const { data, error } = await getSupabaseAdmin().rpc('rl_check', {
+      p_name: name,
+      p_key: key,
+      p_limit: limit,
+      p_window_sec: windowSeconds(window),
+    })
+    if (error) throw new Error(error.message)
+    const r = (data as Array<{ success: boolean; remaining: number }> | null)?.[0]
+    if (!r) throw new Error('rl_check returned no row')
+    return { success: r.success, remaining: r.remaining }
   } catch (e) {
-    // Redis transient error: strict routes DENY (no silent un-limiting); others allow.
+    // Backend error: strict routes DENY (no silent un-limiting); others allow.
     console.error('[ratelimit] backend error for', name, e)
     return { success: !opts?.strict, remaining: 0 }
   }
 }
 
 /**
- * Escalating per-key resend cooldown — the OTP industry pattern (Twilio Verify /
- * Auth0 guidance): each successive send within the window must wait longer than
- * the last (e.g. 60s → 5m → 15m → 30m cap). A real user retries once or twice;
- * a script hammers. The attempt counter resets after 24h of quiet.
- *
- * Fails CLOSED (used only on paid-delivery security routes): if Redis is down,
- * the send is denied rather than un-throttled.
+ * Minimal KV over the shared kv_store table. incrby refreshes the TTL on every
+ * call (the old INCR+EXPIRE pairs, fused server-side). THROWS on backend
+ * failure — call sites keep their own fail-open / fail-closed stance.
  */
-export async function escalatingCooldown(
-  name: string,
-  key: string,
-  stepsSec: number[],
-): Promise<{ allowed: boolean; retryAfterSec: number }> {
-  if (!redis) return { allowed: false, retryAfterSec: stepsSec[0] ?? 60 }
-  const untilKey = `cd:${name}:${key}:until`
-  const countKey = `cd:${name}:${key}:n`
-  try {
-    // Atomic claim (audit P2 #14): the old ttl-check → set was a race — N concurrent
-    // requests all saw ttl<=0 and were ALL admitted (N paid deliveries). SET NX is the
-    // one-winner gate; the loser reads the ttl for an honest retry-after.
-    const claimed = await redis.set(untilKey, '1', { nx: true, ex: stepsSec[0] ?? 60 })
-    if (claimed === null) {
-      const ttl = await redis.ttl(untilKey)
-      return { allowed: false, retryAfterSec: ttl > 0 ? ttl : (stepsSec[0] ?? 60) }
-    }
-    const n = await redis.incr(countKey)
-    if (n === 1) await redis.expire(countKey, 86400)
-    const cooldown = stepsSec[Math.min(n - 1, stepsSec.length - 1)] ?? 60
-    // Stretch the claim to this attempt's real step length (NX seeded the first step).
-    if (cooldown !== (stepsSec[0] ?? 60)) await redis.expire(untilKey, cooldown)
-    return { allowed: true, retryAfterSec: 0 }
-  } catch (e) {
-    console.error('[ratelimit] cooldown backend error for', name, e)
-    return { allowed: false, retryAfterSec: stepsSec[0] ?? 60 }
-  }
+export const kv = {
+  async incrby(key: string, by: number, exSec?: number): Promise<number> {
+    const { data, error } = await getSupabaseAdmin().rpc('kv_incrby', {
+      p_key: key,
+      p_by: Math.round(by),
+      p_ttl_sec: exSec ?? null,
+    })
+    if (error) throw new Error(error.message)
+    return Number(data ?? 0)
+  },
 }
