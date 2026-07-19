@@ -283,6 +283,25 @@ fun ListingCardView(card: ListingCard, onClick: () -> Unit) {
                         .padding(horizontal = 8.dp, vertical = 3.dp),
                 )
             }
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            LaunchedEffect(Unit) { Favorites.ensureLoaded(ctx) }
+            val fav = Favorites.isFavorite(card.id)
+            Text(
+                if (fav) "♥" else "♡",
+                color = if (fav) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (fav) androidx.compose.ui.graphics.Color.White
+                        else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.25f)
+                    )
+                    .clickable { Favorites.toggle(ctx, card.id) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
             if (card.savedCount >= 3) {
                 Text(
                     "♥ ${card.savedCount}",

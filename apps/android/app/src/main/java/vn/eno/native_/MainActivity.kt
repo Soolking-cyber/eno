@@ -115,7 +115,7 @@ fun EnoApp() {
                 composable("listing/{id}") { entry ->
                     DetailScreen(entry.arguments?.getString("id") ?: "", onOpen = { id -> nav.navigate("listing/$id") })
                 }
-                composable("saved") { WebTab("/saved") }
+                composable("saved") { vn.eno.native_.feed.SavedScreen(onOpen = { id -> nav.navigate("listing/$id") }) }
                 composable("post") { WebTab("/post") }
                 composable("messages") { WebTab("/messages") }
                 composable("account") { WebTab("/dashboard") }
