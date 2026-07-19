@@ -19,5 +19,5 @@ sessions"):
 
 | Session (started) | Claim | Files / area | Status |
 |---|---|---|---|
-| A (~2026-07-19 am, "audit" session) | Task #113 — structural extractions + §G perf + lint-zero | listings-explorer + extracted seams, forum-client rails/use-forum-feed, admin perf files | in progress (aa55d767, f15dc2af, 75043dda, 9341756c) |
+| A (~2026-07-19 am, "audit" session) | Task #113 — structural extractions + §G perf + lint-zero | listings-explorer + extracted seams, forum-client rails/use-forum-feed, admin perf files, providers.tsx | DONE except two units (75043dda, f15dc2af, aa55d767, 9341756c, be385a0a + search dedupe). **UNCLAIMED remainder: post-wizard §E split + api/listings route §E split** — both landmine files, take them one at a time with full gates |
 | B (~2026-07-19 pm, "migration" session) | Task #114 — GCP cutover (DNS flips, schedulers, lockdown, Vercel decommission) + SEO wave follow-ups | Cloudflare zones, gcloud infra, docs/gcp-migration.md, sitemap/robots/footer/metadata files from 5550b99b | in progress |
