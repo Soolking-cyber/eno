@@ -13,9 +13,31 @@ import type { NextRequest } from 'next/server'
 // Transform Rule that sets request header `x-eno-edge: <secret>` for eno.vn, (2) set
 // EDGE_SECRET=<same secret> on Vercel, (3) turn on Vercel Deployment Protection so the
 // *.vercel.app origin isn't publicly reachable at all.
+// Native-shell Phase 2 · M3: the LOCAL shell (capacitor://localhost on iOS,
+// https://localhost on Android) calls /api/* cross-origin with Bearer auth (M2) —
+// no cookies, so allow-credentials stays OFF. Only these exact app origins are
+// reflected; browsers keep plain same-origin behavior.
+const APP_ORIGINS = new Set(['capacitor://localhost', 'https://localhost'])
+
+function withCors(res: NextResponse, origin: string | null): NextResponse {
+  if (origin && APP_ORIGINS.has(origin)) {
+    res.headers.set('Access-Control-Allow-Origin', origin)
+    res.headers.set('Vary', 'Origin')
+    res.headers.set('Access-Control-Allow-Headers', 'authorization, content-type')
+    res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS')
+    res.headers.set('Access-Control-Max-Age', '86400')
+  }
+  return res
+}
+
 export function proxy(req: NextRequest) {
+  const origin = req.headers.get('origin')
+  // Preflights carry no app auth by design — answer them before the edge pin.
+  if (req.method === 'OPTIONS' && origin && APP_ORIGINS.has(origin)) {
+    return withCors(new NextResponse(null, { status: 204 }), origin)
+  }
   const secret = process.env.EDGE_SECRET
-  if (!secret) return NextResponse.next()
+  if (!secret) return withCors(NextResponse.next(), origin)
   // SERVER-TO-SERVER routes that legitimately hit the origin OFF Cloudflare and carry
   // their OWN auth — they must bypass the edge header or they break the moment EDGE_SECRET
   // is set: crons (CRON_SECRET, Vercel Cron/Cloud Scheduler), the Supabase Send-SMS auth
@@ -33,12 +55,12 @@ export function proxy(req: NextRequest) {
     pathname.startsWith('/api/v1/') ||
     pathname === '/api/mcp' // partner MCP server — key-authed like /api/v1, reached by AI clients off-Cloudflare
   ) {
-    return NextResponse.next()
+    return withCors(NextResponse.next(), origin)
   }
   if (req.headers.get('x-eno-edge') !== secret) {
-    return new NextResponse('Forbidden', { status: 403 })
+    return withCors(new NextResponse('Forbidden', { status: 403 }), origin)
   }
-  return NextResponse.next()
+  return withCors(NextResponse.next(), origin)
 }
 
 export const config = { matcher: '/api/:path*' }
