@@ -24,10 +24,31 @@ drop% > New-48h, saved≥3 chip, trust shield bands, ≈USD via /api/fx), search
 browser), favorites hearts + native Saved tab (device-local ids, self-heal).
 WebView tabs: Post, Messages, Account.
 
+## Status (v6, 2026-07-20 — Murat)
+
+Native **Messages** tab (port of apps/ios InboxView + ThreadView): guest hero →
+web /signin in the origin-scoped WebTab (bridge flips `Auth.isSignedIn` live);
+inbox with eno-AI pinned row, counterpart avatar, offer-aware preview line,
+unread rail + count, long-press delete; thread with chronological bubbles, day
+separators, first-contact safety note, offer CARDS (Accept/Decline for the
+recipient, Counter gated by `listing.negotiable` — the landmine), optimistic
+sends with clientId idempotency + the poll-vs-send merge (no blink, no dup id)
++ tap-to-retry, and a 12s poll backstop. Both CONFIRMED iOS review bugs avoided
+from the start: a network-failed counter shows tap-to-retry (never a live
+pending offer), and offer accept/decline only reloads on a real 2xx and
+surfaces every other outcome. Inbox↔thread nav is internal to `MessagesScreen`
+(no NavHost change). New package `messages/` (ChatModels/Messages/Thread); POST
+helpers live there so Core.kt/Auth.kt (Kyle's) stay untouched. assembleDebug
+green; not device-tested. FOLLOW-UPS: unread tab badge (needs EnoApp wiring),
+"Message seller" on the PDP → open the native thread (find-or-create POST
+/api/conversations, currently contact→browser in Detail.kt).
+
 ## Backlog (mirror the iOS ladder)
 
-1. Auth: WebView enoAuth-equivalent bridge (addJavascriptInterface or
-   onMessage) + EncryptedSharedPreferences/Keystore session + Bearer
+1. ~~Auth~~ DONE (v5, Kyle): origin-scoped WebMessageListener bridge +
+   EncryptedSharedPreferences + sessionGen refresh guard + Bearer.
+2. ~~Native Messages~~ DONE (v6, Murat).
+3. Native Post wizard (upload multipart + facets from /api/categories)
 2. Native Messages (inbox/thread/offers) — port from iOS ThreadModel semantics
    (clientId idempotency, poll backstop, offer state machine)
 3. Native Post wizard (upload multipart + facets from /api/categories)
