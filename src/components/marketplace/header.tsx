@@ -14,12 +14,15 @@ import { Input } from '@/components/ui/input'
 import { NotificationBell } from './notification-bell'
 import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
-import { SearchSuggest, buildSuggestItems, suggestOptionId, type SuggestItem } from './search-suggest'
+import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
 import { useTrendingSearches } from '@/hooks/use-trending-searches'
 import { AISearchButton } from './ai-concierge'
-import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
-import { toast } from 'sonner'
+import {
+  useSuggestKeyboardNav, activeSuggestOptionId, visualSearchFromPaste,
+  readRecentSearches, readRecentLocations, RECENT_LOCATIONS_KEY, type RecentLocation,
+} from '@/hooks/use-search-box'
+import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 
 // The typeahead listbox this bar owns. Static (one Header per page), and distinct
 // from the hero bar's so both can be in the DOM at once without id collisions.
@@ -91,14 +94,15 @@ export function Header() {
   // recent searches + recently-used areas, shown when the header search is focused.
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [recentSearches, setRecentSearches] = useState<string[]>([])
-  const [recentLocations, setRecentLocations] = useState<{ province: Geo; ward: Geo | null }[]>([])
+  const [recentLocations, setRecentLocations] = useState<RecentLocation[]>([])
 
   const searchFormRef = useRef<HTMLFormElement>(null)
 
-  // Read fresh on focus so it reflects searches/areas made elsewhere this session.
+  // Read fresh on focus so it reflects searches/areas made elsewhere this session
+  // (`?? []` because a re-read must also RESET state when history was cleared).
   const openSuggestions = () => {
-    try { const h = localStorage.getItem('eno:recent_searches'); setRecentSearches(h ? JSON.parse(h) : []) } catch { setRecentSearches([]) }
-    try { const l = localStorage.getItem('eno:recent_locations'); setRecentLocations(l ? JSON.parse(l) : []) } catch { setRecentLocations([]) }
+    setRecentSearches(readRecentSearches() ?? [])
+    setRecentLocations(readRecentLocations() ?? [])
     setShowSuggestions(true)
   }
 
@@ -129,16 +133,10 @@ export function Header() {
   // raw free-text search (never a suggestion); arrow keys still navigate suggestions.
   const live = useSearchSuggest(searchVal, showSuggestions)
   const suggestItems = buildSuggestItems(searchVal, live.brands, live.categories, live.listings)
-  const [activeIdx, setActiveIdx] = useState(-1)
-  useEffect(() => { setActiveIdx(-1) }, [searchVal])
-  // DOM focus stays in the input while the arrows move `activeIdx`, so there is no
-  // focus event to announce the highlighted row. aria-activedescendant IS that
-  // announcement — it points the screen reader's "virtual focus" at the option the
-  // highlight is on. Bounds-checked because a dangling id would announce nothing at
-  // all, which is the exact failure we're fixing.
-  const activeOptionId = instantOpen && activeIdx >= 0 && activeIdx < suggestItems.length
-    ? suggestOptionId(SUGGEST_ID, activeIdx)
-    : undefined
+  // Arrow-key virtual focus + its aria-activedescendant announcement — shared with
+  // the hero bar (see use-search-box.ts for the a11y contract).
+  const { activeIdx, moveDown, moveUp } = useSuggestKeyboardNav(searchVal)
+  const activeOptionId = activeSuggestOptionId(SUGGEST_ID, instantOpen, activeIdx, suggestItems.length)
 
   const pickSuggest = (it: SuggestItem) => {
     setShowSuggestions(false)
@@ -154,8 +152,8 @@ export function Header() {
   }
   const onSearchKeyDown = (e: React.KeyboardEvent) => {
     if (!instantOpen || suggestItems.length === 0) return
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx((i) => Math.min(suggestItems.length - 1, i + 1)) }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx((i) => Math.max(-1, i - 1)) }
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveDown(suggestItems.length) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); moveUp() }
     else if (e.key === 'Enter' && activeIdx >= 0 && suggestItems[activeIdx]) { e.preventDefault(); pickSuggest(suggestItems[activeIdx]) }
   }
 
@@ -308,13 +306,7 @@ export function Header() {
                 onChange={(e) => setSearchVal(e.target.value)}
                 onFocus={openSuggestions}
                 onKeyDown={onSearchKeyDown}
-                onPaste={async (e) => {
-                  const f = imageFromPaste(e); if (!f) return; e.preventDefault()
-                  toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })
-                  const r = await runVisualSearch(f)
-                  if (r?.query) { toast.dismiss('vis'); setSearchVal(r.query); setShowSuggestions(false); submitVisual(r) }
-                  else toast.error(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'), { id: 'vis' })
-                }}
+                onPaste={(e) => visualSearchFromPaste(e, tr, (r) => { setSearchVal(r.query); setShowSuggestions(false); submitVisual(r) })}
                 type="search"
                 inputMode="search"
                 enterKeyHint="search"
@@ -372,7 +364,7 @@ export function Header() {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" strokeWidth={STROKE} />{tr('Recent', 'Tìm gần đây')}</span>
-                        <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem('eno:recent_searches'); setRecentSearches([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
+                        <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem(RECENT_SEARCHES_KEY); setRecentSearches([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {recentSearches.map((term, i) => (
@@ -394,7 +386,7 @@ export function Header() {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" strokeWidth={STROKE} />{tr('Recent locations', 'Khu vực gần đây')}</span>
-                        <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem('eno:recent_locations'); setRecentLocations([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
+                        <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem(RECENT_LOCATIONS_KEY); setRecentLocations([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {recentLocations.map((loc, i) => (

@@ -9,6 +9,8 @@ import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import type { Geo } from './area-filter'
+import { readRecentSearches, readRecentLocations, RECENT_LOCATIONS_KEY, type RecentLocation } from '@/hooks/use-search-box'
+import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 
 /** '/' and ⌘/Ctrl+K focus the listings search input (the '/' path also opens the suggestions
  *  dropdown). One window keydown listener; ignores '/' while typing in an input/textarea. */
@@ -42,18 +44,15 @@ export function useSearchShortcuts(setShowSuggestions: (v: boolean) => void) {
  *  saveSearchToHistory (called from the feed-sync / landing-search / visual-search paths). */
 export function useSearchHistory(activeProvince: Geo | null, activeWard: Geo | null) {
   const [recentSearches, setRecentSearches] = useState<string[]>([])
-  const [recentLocations, setRecentLocations] = useState<{ province: Geo; ward: Geo | null }[]>([])
+  const [recentLocations, setRecentLocations] = useState<RecentLocation[]>([])
 
-  // Load search + location history from localStorage on mount.
+  // Load search + location history from localStorage on mount (shared readers return
+  // null on absent/corrupt storage, so state is only touched when there IS history).
   useEffect(() => {
-    try {
-      const h = localStorage.getItem('eno:recent_searches')
-      if (h) setRecentSearches(JSON.parse(h))
-    } catch (_) {}
-    try {
-      const l = localStorage.getItem('eno:recent_locations')
-      if (l) setRecentLocations(JSON.parse(l))
-    } catch (_) {}
+    const h = readRecentSearches()
+    if (h) setRecentSearches(h)
+    const l = readRecentLocations()
+    if (l) setRecentLocations(l)
   }, [])
 
   // Remember the user's applied areas (province/ward) for quick re-select.
@@ -63,7 +62,7 @@ export function useSearchHistory(activeProvince: Geo | null, activeWard: Geo | n
     setRecentLocations((prev) => {
       const key = (e: typeof entry) => `${e.province.code}:${e.ward?.code ?? ''}`
       const next = [entry, ...prev.filter((e) => key(e) !== key(entry))].slice(0, 6)
-      try { localStorage.setItem('eno:recent_locations', JSON.stringify(next)) } catch (_) {}
+      try { localStorage.setItem(RECENT_LOCATIONS_KEY, JSON.stringify(next)) } catch (_) {}
       return next
     })
   }, [activeProvince?.code, activeWard?.code])
@@ -74,11 +73,11 @@ export function useSearchHistory(activeProvince: Geo | null, activeWard: Geo | n
     if (!trimmed || trimmed.length < 2) return
     let list: string[] = []
     try {
-      const parsed = JSON.parse(localStorage.getItem('eno:recent_searches') || '[]')
+      const parsed = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]')
       if (Array.isArray(parsed)) list = parsed.filter((x): x is string => typeof x === 'string')
     } catch { /* reset on corrupt */ }
     list = [trimmed, ...list.filter((item) => item !== trimmed)].slice(0, 5)
-    try { localStorage.setItem('eno:recent_searches', JSON.stringify(list)) } catch {}
+    try { localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(list)) } catch {}
     setRecentSearches(list)
   }, [])
 

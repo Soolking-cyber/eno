@@ -50,11 +50,12 @@ import { Input } from '@/components/ui/input'
 import { Mascot } from './mascot'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
-import { SearchSuggest, buildSuggestItems, suggestOptionId, type SuggestItem } from './search-suggest'
+import { SearchSuggest, buildSuggestItems, type SuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
 import { useTrendingSearches } from '@/hooks/use-trending-searches'
 import { AISearchButton } from './ai-concierge'
-import { runVisualSearch, imageFromPaste } from '@/lib/visual-search'
+import { useSuggestKeyboardNav, activeSuggestOptionId, visualSearchFromPaste, RECENT_LOCATIONS_KEY } from '@/hooks/use-search-box'
+import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { ExplorerFiltersDrawer } from './explorer-filters'
 import { CompactListingRow } from './compact-listing-row'
@@ -371,8 +372,9 @@ export function ListingsExplorer({
   // identically (was a client-side filter over only the SSR-seeded listings).
   const heroSuggest = useSearchSuggest(landingQuery, showSuggestions)
   const heroSuggestItems = buildSuggestItems(landingQuery, heroSuggest.brands, heroSuggest.categories, heroSuggest.listings)
-  const [heroActiveIdx, setHeroActiveIdx] = useState(-1)
-  useEffect(() => { setHeroActiveIdx(-1) }, [landingQuery])
+  // Arrow-key virtual focus for the hero typeahead — shared hook with the header bar
+  // (state + clamps + query-edit reset; see use-search-box.ts).
+  const { activeIdx: heroActiveIdx, moveDown: heroMoveDown, moveUp: heroMoveUp } = useSuggestKeyboardNav(landingQuery)
 
   // Trending searches for the empty-focus hero dropdown (shared hook/component with
   // the header). Fetched only while the panel is showing an empty query.
@@ -1265,12 +1267,9 @@ export function ListingsExplorer({
     // panel is a set of plain buttons and has no listbox to point at.
     // Mirrors the `landingQuery.trim().length >= 2` branch that renders <SearchSuggest/>.
     const heroListOpen = showSuggestions && landingQuery.trim().length >= 2
-    // Virtual focus for the input: DOM focus never leaves it, so the moving bg-muted
-    // highlight has no focus event to announce. Bounds-checked — a dangling id is
-    // announced as nothing, i.e. the silence we're removing.
-    const heroActiveOptionId = heroListOpen && heroActiveIdx >= 0 && heroActiveIdx < heroSuggestItems.length
-      ? suggestOptionId(SUGGEST_ID, heroActiveIdx)
-      : undefined
+    // Virtual focus announcement for the input (shared derivation — see
+    // activeSuggestOptionId in use-search-box.ts for the a11y contract).
+    const heroActiveOptionId = activeSuggestOptionId(SUGGEST_ID, heroListOpen, heroActiveIdx, heroSuggestItems.length)
     // overflow-hidden guards against horizontal spill on narrow screens; lifted on desktop (pc:) so
     // the rails' / category-grid ← / → gutter arrows aren't clipped at the content edge.
     return (

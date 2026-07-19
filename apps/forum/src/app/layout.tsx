@@ -27,7 +27,9 @@ export const metadata: Metadata = {
   },
   description: 'A practical community forum for expats and locals in Vietnam to share firsthand help about visas, housing, work, daily life, and meetups.',
   applicationName: 'eno.forum',
-  alternates: { canonical: '/' },
+  // NO layout-level canonical: `alternates.canonical: '/'` here marked every
+  // nested route as a duplicate of the home page. The home canonical lives in
+  // app/page.tsx; /post/[id] sets its own.
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
@@ -61,6 +63,19 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var u=navigator.userAgent;var C=window.Capacitor;var cap=!!(C&&C.isNativePlatform&&C.isNativePlatform());if(cap||u.indexOf('EnoNativeApp')>-1||window.EnoNative){var dc=document.documentElement.classList;dc.add('native');dc.add('native-'+(cap?(C.getPlatform&&C.getPlatform()==='android'?'android':'ios'):(window.EnoNative||/android/i.test(u)?'android':'ios')));}}catch(e){}})();`,
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'WebSite',
+              name: 'eno.forum',
+              url: `${forumUrl}/`,
+              description: 'A practical community forum for expats and locals in Vietnam to share firsthand help about visas, housing, work, daily life, and meetups.',
+              inLanguage: ['en', 'vi'],
+            }).replace(/</g, '\\u003c'),
           }}
         />
       </head>

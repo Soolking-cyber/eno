@@ -6,7 +6,11 @@
 
 const VIEWED_KEY = 'eno:viewed'           // [{ c: categorySlug, b?: brandSlug }], newest first
 const VIEWED_IDS_KEY = 'eno:viewed_ids'   // string[] of listing ids, newest first
-const SEARCH_KEY = 'eno:recent_searches'  // string[], written by the header search
+// string[], newest first. THE canonical key for the recent-search history — exported
+// (this module is a dependency leaf, so anything can import it cycle-free) and shared
+// by the header + hero search bars (read/clear via hooks/use-search-box) and by
+// use-explorer's saveSearchToHistory (the sole writer).
+export const RECENT_SEARCHES_KEY = 'eno:recent_searches'
 const MAX = 24
 const MAX_IDS = 20
 
@@ -50,7 +54,7 @@ export function getRecoSignals(): RecoSignals {
   if (typeof window === 'undefined') return { terms: [], categories: [], brands: [] }
   let terms: string[] = []
   let viewed: Viewed[] = []
-  try { terms = JSON.parse(localStorage.getItem(SEARCH_KEY) || '[]') } catch { /* ignore */ }
+  try { terms = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]') } catch { /* ignore */ }
   try { viewed = JSON.parse(localStorage.getItem(VIEWED_KEY) || '[]') } catch { /* ignore */ }
   const categories = Array.from(new Set(viewed.map((v) => v.c).filter(Boolean))).slice(0, 6)
   const brands = Array.from(new Set(viewed.map((v) => v.b).filter((b): b is string => !!b))).slice(0, 6)

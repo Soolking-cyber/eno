@@ -207,7 +207,18 @@ export function ForumClient({
     setHydrated(true)
     // Deep link: sync state only — openThread would push a second history entry
     // for a URL that already carries ?post=.
-    const postId = new URLSearchParams(window.location.search).get('post')
+    let postId = new URLSearchParams(window.location.search).get('post')
+    // /post/[id]'s "Join the discussion" CTA lands here as /#post=<id>: a hash
+    // never reaches the server, so it cannot bounce off the home page's legacy
+    // `?post=` → /post/[id] permanent redirect. Rewrite it in place to the
+    // ?post= form the dialog flow owns (replaceState issues no request).
+    if (!postId && window.location.hash.startsWith('#post=')) {
+      postId = decodeURIComponent(window.location.hash.slice('#post='.length))
+      const url = new URL(window.location.href)
+      url.hash = ''
+      url.searchParams.set('post', postId)
+      window.history.replaceState({}, '', url)
+    }
     if (postId) setOpenPostId(postId)
   }, [])
 

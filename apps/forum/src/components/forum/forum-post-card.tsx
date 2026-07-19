@@ -1,5 +1,6 @@
 'use client'
 
+import type { MouseEvent } from 'react'
 import {
   ArrowBigDown,
   ArrowBigUp,
@@ -62,9 +63,18 @@ export function ForumPostCard({
   const translatedTitle = useTr(post.title)
   const translatedBody = useTr(post.body)
   const translatedRole = useTr(post.authorRole)
+  // Real permalink for crawlers, new tabs, and middle/modified clicks; a plain
+  // click is intercepted below and keeps the in-feed ?post= dialog flow
+  // (pushState — no server round-trip, no page reload).
+  const permalink = `/post/${encodeURIComponent(post.id)}`
+  const openFromAnchor = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    onOpen()
+  }
 
   const share = async () => {
-    const url = `${window.location.origin}/?post=${encodeURIComponent(post.id)}`
+    const url = `${window.location.origin}${permalink}`
     try {
       await navigator.clipboard.writeText(url)
       toast.success(tr('Discussion link copied.', 'Đã sao chép liên kết thảo luận.'))
@@ -161,13 +171,12 @@ export function ForumPostCard({
           </div>
 
           <Button
-            type="button"
+            asChild
             variant="bare"
             size="none"
             className="mt-3 h-auto w-full justify-start whitespace-normal text-left text-lg font-bold leading-snug text-foreground hover:text-accent-foreground"
-            onClick={onOpen}
           >
-            {translatedTitle}
+            <a href={permalink} onClick={openFromAnchor}>{translatedTitle}</a>
           </Button>
           <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-body">{translatedBody}</p>
           {post.media?.length ? (
@@ -205,10 +214,12 @@ export function ForumPostCard({
               </Button>
             </div>
 
-            <Button type="button" variant="soft" size="sm" className="text-body" onClick={onOpen} aria-label={tr('Open replies', 'Mở phản hồi')}>
-              <MessageCircle className="h-4 w-4" />
-              <span>{post.commentCount}</span>
-              <span className="hidden sm:inline">{tr('replies', 'phản hồi')}</span>
+            <Button asChild variant="soft" size="sm" className="text-body">
+              <a href={permalink} onClick={openFromAnchor} aria-label={tr('Open replies', 'Mở phản hồi')}>
+                <MessageCircle className="h-4 w-4" />
+                <span>{post.commentCount}</span>
+                <span className="hidden sm:inline">{tr('replies', 'phản hồi')}</span>
+              </a>
             </Button>
             <Button type="button" variant="soft" size="sm" className="ml-auto text-body" onClick={share} aria-label={tr('Share post', 'Chia sẻ bài viết')}>
               <Share2 className="h-4 w-4" />

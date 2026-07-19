@@ -1,3 +1,5 @@
+import type { Metadata } from 'next'
+import { permanentRedirect } from 'next/navigation'
 import { ForumClient } from '@/components/forum/forum-client'
 import {
   FORUM_COMMUNITIES,
@@ -57,7 +59,25 @@ async function initialForumData() {
   }
 }
 
-export default async function ForumHomePage() {
+// The home canonical lives HERE, not in the layout — a layout-level
+// `canonical: '/'` stamped every nested route (/itinerary, /visa, /post/[id])
+// as a duplicate of the home page (audit-verified footgun).
+export const metadata: Metadata = { alternates: { canonical: '/' } }
+
+export default async function ForumHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  // Legacy deep links: a FULL LOAD of /?post=X canonicalizes to /post/X (308) —
+  // the shareable, indexable permalink. The in-feed dialog flow is untouched:
+  // it moves ?post= around with pushState/replaceState, which never issues a
+  // server request, and the /post/[id] "Join the discussion" CTA re-enters via
+  // /#post=X (a hash also never reaches the server) for the same reason.
+  const { post } = await searchParams
+  const legacyPostId = Array.isArray(post) ? post[0] : post
+  if (legacyPostId) permanentRedirect(`/post/${encodeURIComponent(legacyPostId)}`)
+
   const initial = await initialForumData()
   return (
     <ForumClient
