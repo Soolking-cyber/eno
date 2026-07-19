@@ -32,6 +32,13 @@ private struct WebView: UIViewRepresentable {
 
     func updateUIView(_ web: WKWebView, context: Context) {}
 
+    // WKUserContentController retains its handlers strongly — without this,
+    // every dismissed sheet/tab leaks the WKWebView + Coordinator pair.
+    static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
+        web.configuration.userContentController.removeScriptMessageHandler(forName: "enoAuth")
+        web.stopLoading()
+    }
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     final class Coordinator: NSObject, WKScriptMessageHandler {

@@ -21,10 +21,27 @@ final class ThreadModel {
     func load() async {
         do {
             let t: ChatThread = try await APIClient.shared.get("api/conversations/\(convoId)")
-            // Keep local pending/failed bubbles that the server doesn't know yet.
-            let inflight = thread?.messages.filter { ($0.pending ?? false) || ($0.failed ?? false) } ?? []
+            // Keep local bubbles the server response doesn't carry: pending/failed
+            // sends, AND just-delivered ones — a poll that STARTED before a send
+            // completed returns a list without it, which would blink the message
+            // out for a cycle. Recent own messages survive the merge.
+            let serverIds = Set(t.messages.map(\.id))
+            // Duplication guard for the other half of the race: the poll can
+            // return the DB copy of a send whose local bubble is still pending
+            // (replace() hasn't run). A pending bubble whose content matches a
+            // recent own server message is that same message — drop it, and let
+            // the late replace() no-op (see replace()).
+            let recentMineBodies = Set(t.messages.filter(\.mine).suffix(10).map { "\($0.body)|\($0.offerAmount ?? -1)" })
+            let keep = thread?.messages.filter { m in
+                guard !serverIds.contains(m.id) else { return false }
+                let key = "\(m.body)|\(m.offerAmount ?? -1)"
+                if (m.pending ?? false) { return !recentMineBodies.contains(key) }
+                if (m.failed ?? false) { return true }
+                if m.mine, let d = Format.date(m.createdAt), Date().timeIntervalSince(d) < 60 { return !recentMineBodies.contains(key) }
+                return false
+            } ?? []
             var merged = t
-            merged.messages.append(contentsOf: inflight)
+            merged.messages.append(contentsOf: keep)
             thread = merged
         } catch {
             if case APIError.http(let s) = error, s == 404 || s == 403 { notFound = true }
@@ -74,7 +91,13 @@ final class ThreadModel {
 
     private func replace(_ localId: String, with server: ChatMsg) {
         guard var t = thread else { return }
-        if let idx = t.messages.firstIndex(where: { $0.id == localId }) { t.messages[idx] = server }
+        if t.messages.contains(where: { $0.id == server.id }) {
+            // The poll already delivered the server copy — just drop the local
+            // bubble instead of swapping (a swap would duplicate the id).
+            t.messages.removeAll { $0.id == localId }
+        } else if let idx = t.messages.firstIndex(where: { $0.id == localId }) {
+            t.messages[idx] = server
+        }
         thread = t
     }
 

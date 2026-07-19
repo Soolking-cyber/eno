@@ -36,10 +36,15 @@ final class AuthModel {
         await refreshIfNeeded()
     }
 
-    /// Adopt tokens handed over by the embedded web sign-in (idempotent).
+    /// Adopt tokens handed over by the embedded web sign-in. Web pages re-post
+    /// their session on EVERY load, and a stale tab can carry OLDER (already
+    /// rotated, i.e. burned) tokens than the native session — adopting those
+    /// would break the next refresh and sign the user out. Only adopt tokens
+    /// that expire LATER than what we hold.
     func adopt(accessToken: String, refreshToken: String) {
         guard accessToken != session?.accessToken else { return }
         let expiresAt = Self.jwtExpiry(accessToken) ?? (Date().timeIntervalSince1970 + 3000)
+        if let current = session, expiresAt <= current.expiresAt { return }
         session = StoredSession(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
         persist()
         apply()
@@ -60,11 +65,23 @@ final class AuthModel {
     }
 
     // ── refresh ──
+    // SINGLE-FLIGHT: Supabase ROTATES refresh tokens, so two concurrent
+    // refreshes (foreground + restore) would send the same token twice — the
+    // loser gets invalid_grant and would wrongly sign the user out.
+    private var refreshTask: Task<Void, Never>?
+
     func refreshIfNeeded() async {
         guard let s = session else { return }
         // A minute of headroom: refresh before requests start bouncing.
         guard s.expiresAt < Date().timeIntervalSince1970 + 60 else { return }
-        await refresh()
+        if let running = refreshTask {
+            await running.value
+            return
+        }
+        let task = Task { await refresh() }
+        refreshTask = task
+        await task.value
+        refreshTask = nil
     }
 
     private struct RefreshResponse: Codable {

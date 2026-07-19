@@ -16,8 +16,14 @@ final class APIClient: @unchecked Sendable {
     private let base = URL(string: "https://eno.vn")!
     private let session: URLSession
 
-    /// Supabase access token — set by the auth flow, read on every request.
-    var accessToken: String?
+    /// Supabase access token — set by the auth flow (main actor), read on every
+    /// request from arbitrary async contexts: lock-protected against torn reads.
+    private let tokenLock = NSLock()
+    private var _accessToken: String?
+    var accessToken: String? {
+        get { tokenLock.lock(); defer { tokenLock.unlock() }; return _accessToken }
+        set { tokenLock.lock(); defer { tokenLock.unlock() }; _accessToken = newValue }
+    }
 
     private init() {
         let cfg = URLSessionConfiguration.default
@@ -56,6 +62,39 @@ final class APIClient: @unchecked Sendable {
         }
         let (_, status) = try await run(req)
         return status
+    }
+
+    /// Listing-photo upload: multipart 'files' to /api/upload (server strips
+    /// EXIF/GPS, downscales, watermarks, fingerprints). ≤3 files per request —
+    /// the same batching the web client uses to stay under body caps.
+    struct UploadResponse: Codable {
+        let urls: [String]
+        let failed: Int
+    }
+
+    func uploadImages(_ jpegs: [Data]) async throws -> [String] {
+        var urls: [String] = []
+        for chunk in stride(from: 0, to: jpegs.count, by: 3).map({ Array(jpegs[$0..<min($0 + 3, jpegs.count)]) }) {
+            let boundary = "eno-\(UUID().uuidString)"
+            var req = request(url: base.appendingPathComponent("api/upload"))
+            req.httpMethod = "POST"
+            req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            var body = Data()
+            for (i, jpeg) in chunk.enumerated() {
+                body.append("--\(boundary)\r\n".data(using: .utf8)!)
+                body.append("Content-Disposition: form-data; name=\"files\"; filename=\"photo\(i).jpg\"\r\n".data(using: .utf8)!)
+                body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+                body.append(jpeg)
+                body.append("\r\n".data(using: .utf8)!)
+            }
+            body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+            req.httpBody = body
+            let (data, status) = try await run(req)
+            guard (200..<300).contains(status) else { throw APIError.http(status) }
+            let r: UploadResponse = try decode(data)
+            urls.append(contentsOf: r.urls)
+        }
+        return urls
     }
 
     private func request(url: URL) -> URLRequest {

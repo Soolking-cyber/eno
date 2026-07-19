@@ -13,7 +13,7 @@ struct RootView: View {
                 .tabItem { Label(L10n.tr("Explore", "Khám phá"), systemImage: "safari") }
             SavedView()
                 .tabItem { Label(L10n.tr("Saved", "Đã lưu"), systemImage: "heart") }
-            WebTabView(path: "/post", title: L10n.tr("Post", "Đăng tin"))
+            PostView()
                 .tabItem { Label(L10n.tr("Post", "Đăng tin"), systemImage: "plus.square.fill") }
             MessagesView()
                 .tabItem { Label(L10n.tr("Messages", "Tin nhắn"), systemImage: "message") }
