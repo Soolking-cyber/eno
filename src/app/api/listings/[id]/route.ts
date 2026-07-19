@@ -5,6 +5,7 @@ import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { updateListingCore, deleteListingCore } from '@/lib/core/listings'
 import { serializeListing } from '@/lib/serialize'
+import { getPriceBand } from '@/lib/price-stat'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,7 +23,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!listing || !listing.verified || listing.status !== 'active') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
-  const res = NextResponse.json({ listing: serializeListing(listing) })
+  // Same market-price gauge the web PDP shows (fail-safe null below the sample floor).
+  const priceBand = await getPriceBand({
+    brandSlug: listing.brandSlug,
+    model: listing.model,
+    condition: listing.condition,
+    year: listing.year,
+  })
+  const res = NextResponse.json({ listing: serializeListing(listing), priceBand })
   res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
   return res
 }

@@ -120,6 +120,15 @@ struct ListingDetail: Codable, Identifiable {
     var displayLocation: String { [district, city].compactMap { $0 }.joined(separator: ", ") }
 }
 
+// Market band (src/lib/price-stat.ts PriceBand): null below the sample floor.
+struct PriceBand: Codable {
+    let n: Int
+    let p25: Double
+    let median: Double
+    let p75: Double
+}
+
 struct ListingDetailEnvelope: Codable {
     let listing: ListingDetail
+    let priceBand: PriceBand?
 }

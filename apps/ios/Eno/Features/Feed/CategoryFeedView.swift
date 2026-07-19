@@ -8,6 +8,8 @@ struct CategoryFeedView: View {
 
     var body: some View {
         ScrollView {
+            SortBar(model: model)
+                .padding(.top, 8)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                 ForEach(model.items) { item in
                     NavigationLink(value: item) {

@@ -138,12 +138,15 @@ struct FeedView: View {
     }
 
     private var latestHeading: some View {
-        Text(L10n.tr("Latest listings", "Tin mới nhất"))
-            .font(.system(size: 18, weight: .bold))
-            .foregroundStyle(Tokens.fg)
-            .padding(.horizontal, 12)
-            .padding(.top, 20)
-            .padding(.bottom, 8)
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L10n.tr("Latest listings", "Tin mới nhất"))
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Tokens.fg)
+                .padding(.horizontal, 12)
+            SortBar(model: feed)
+        }
+        .padding(.top, 20)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder

@@ -14,6 +14,11 @@ final class FeedModel {
     var category: String? {
         didSet { if oldValue != category { Task { await reload() } } }
     }
+    // Feed sort, mirroring buildFeedOrderBy's public values: newest (default =
+    // the Recommended blend), recent, price-low, price-high, popular.
+    var sort: String = "newest" {
+        didSet { if oldValue != sort { Task { await reload() } } }
+    }
 
     private var offset = 0
     private var exhausted = false
@@ -41,7 +46,7 @@ final class FeedModel {
             offset = page.count
             exhausted = page.count < pageSize
             failed = false
-            if category == nil, let data = try? JSONEncoder().encode(page) {
+            if category == nil, sort == "newest", let data = try? JSONEncoder().encode(page) {
                 try? data.write(to: Self.cacheURL)
             }
         } catch {
@@ -69,6 +74,7 @@ final class FeedModel {
             URLQueryItem(name: "offset", value: String(offset)),
         ]
         if let category { q.append(URLQueryItem(name: "category", value: category)) }
+        if sort != "newest" { q.append(URLQueryItem(name: "sort", value: sort)) }
         let page: FeedPage = try await APIClient.shared.get("api/listings", query: q)
         return page.listings
     }

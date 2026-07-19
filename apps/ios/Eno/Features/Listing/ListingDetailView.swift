@@ -1,17 +1,23 @@
 import SwiftUI
+import AVKit
 
-// Native PDP v1, mirroring the web page's price-first hierarchy: gallery pager →
-// price block → title/meta → description → seller card. Renders instantly from
-// the card payload it was tapped with, then hydrates the full detail from
-// GET /api/listings/[id]. Chat/offers stay on the web surface for now (auth
-// lane pending) — the CTA opens the real listing page in an in-app web sheet.
+// Native PDP v2, mirroring the web page's price-first hierarchy: gallery pager
+// (video clip is its own page when present) → price block + market gauge →
+// title/meta → condition chips → description → seller card → more-in-category
+// rail. Renders instantly from the tapped card's payload, then hydrates from
+// GET /api/listings/[id] (which also carries the priceBand). Chat/offers stay
+// on the web surface until the native auth lane lands.
 struct ListingDetailView: View {
     let card: ListingCard
     @State private var detail: ListingDetail?
+    @State private var band: PriceBand?
+    @State private var more: [ListingCard] = []
     @State private var showWeb = false
 
     private var images: [String] { detail?.images ?? card.images }
     private var title: String { detail?.displayTitle ?? card.displayTitle }
+    private var price: Int { detail?.price ?? card.price }
+    private var videoURL: URL? { (detail?.video ?? card.video).flatMap { URL(string: $0) } }
 
     var body: some View {
         ScrollView {
@@ -19,11 +25,14 @@ struct ListingDetailView: View {
                 gallery
                 VStack(alignment: .leading, spacing: 12) {
                     priceBlock
+                    if let band { MarketGauge(price: price, band: band) }
                     Text(title)
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(Tokens.fg)
                     metaRow
+                    conditionChips
                     if let d = detail {
+                        statsRow(d)
                         Divider().overlay(Tokens.ring)
                         Text(d.description)
                             .font(.system(size: 15))
@@ -36,23 +45,47 @@ struct ListingDetailView: View {
                     }
                 }
                 .padding(16)
+                moreRail
             }
         }
         .background(Tokens.canvas)
         .safeAreaInset(edge: .bottom) { ctaBar }
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            if detail == nil {
-                detail = (try? await APIClient.shared.get("api/listings/\(card.id)") as ListingDetailEnvelope)?.listing
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: URL(string: "https://eno.vn/listings/\(card.id)")!) {
+                    Image(systemName: "square.and.arrow.up")
+                }
             }
         }
+        .navigationDestination(for: AppCategory.self) { cat in
+            CategoryFeedView(category: cat)
+        }
+        .task { await load() }
         .sheet(isPresented: $showWeb) {
             WebSheet(path: "/listings/\(card.id)")
         }
     }
 
+    private func load() async {
+        if detail == nil, let env: ListingDetailEnvelope = try? await APIClient.shared.get("api/listings/\(card.id)") {
+            detail = env.listing
+            band = env.priceBand
+        }
+        if more.isEmpty, let page: FeedPage = try? await APIClient.shared.get("api/listings", query: [
+            URLQueryItem(name: "category", value: card.category.slug),
+            URLQueryItem(name: "limit", value: "9"),
+        ]) {
+            more = page.listings.filter { $0.id != card.id }
+        }
+    }
+
+    // ── gallery: video page first when the listing has a clip ──
     private var gallery: some View {
         TabView {
+            if let videoURL {
+                VideoPage(url: videoURL)
+            }
             ForEach(images, id: \.self) { raw in
                 AsyncImage(url: ImageURL.optimized(raw, width: 1080)) { phase in
                     switch phase {
@@ -70,15 +103,15 @@ struct ListingDetailView: View {
 
     private var priceBlock: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(Format.vnd(detail?.price ?? card.price))
+            Text(Format.vnd(price))
                 .font(.system(size: 26, weight: .bold))
                 .foregroundStyle(Tokens.brand)
-            if let prev = detail?.prevPrice ?? card.prevPrice, prev > (detail?.price ?? card.price) {
+            if let prev = detail?.prevPrice ?? card.prevPrice, prev > price {
                 Text(Format.vnd(prev))
                     .font(.system(size: 14, weight: .medium))
                     .strikethrough()
                     .foregroundStyle(Tokens.sub)
-            } else if let approx = Fx.shared.approxUSD(detail?.price ?? card.price) {
+            } else if let approx = Fx.shared.approxUSD(price) {
                 Text(approx)
                     .font(.system(size: 14))
                     .foregroundStyle(Tokens.sub)
@@ -104,6 +137,55 @@ struct ListingDetailView: View {
         .foregroundStyle(Tokens.sub)
     }
 
+    // Condition / year / mileage facts as quiet chips (vehicles get year+km).
+    @ViewBuilder
+    private var conditionChips: some View {
+        let facts: [String] = [
+            detail?.condition.map { conditionLabel($0) },
+            detail?.year.map { String($0) },
+            detail?.mileageKm.map { "\($0.formatted()) km" },
+        ].compactMap { $0 }
+        if !facts.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(facts, id: \.self) { fact in
+                    Text(fact)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Tokens.fg)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Tokens.tint, in: Capsule())
+                }
+            }
+        }
+    }
+
+    private func conditionLabel(_ c: String) -> String {
+        switch c {
+        case "new": return L10n.tr("New", "Mới")
+        case "like-new": return L10n.tr("Like new", "Như mới")
+        case "good": return L10n.tr("Good", "Tốt")
+        case "fair": return L10n.tr("Fair", "Khá")
+        default: return c
+        }
+    }
+
+    private func statsRow(_ d: ListingDetail) -> some View {
+        HStack(spacing: 14) {
+            stat(icon: "eye", value: d.views, label: L10n.tr("views", "lượt xem"))
+            stat(icon: "heart", value: d.savedCount, label: L10n.tr("saved", "đã lưu"))
+            stat(icon: "message", value: d.contactCount, label: L10n.tr("contacted", "đã liên hệ"))
+            Spacer()
+        }
+    }
+
+    private func stat(icon: String, value: Int, label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 11))
+            Text("\(value) \(label)").font(.system(size: 12))
+        }
+        .foregroundStyle(Tokens.sub)
+    }
+
     private func sellerCard(_ seller: ListingDetail.DetailSeller) -> some View {
         HStack(spacing: 12) {
             Text(String(seller.name.prefix(1)).uppercased())
@@ -111,18 +193,25 @@ struct ListingDetailView: View {
                 .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
                 .background(Color(hexString: seller.avatarColor) ?? Tokens.brand, in: Circle())
-            VStack(alignment: .leading, spacing: 2) {
-                Text(seller.name)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Tokens.fg)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(seller.name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Tokens.fg)
+                    TrustMini(score: seller.trustScore)
+                }
                 HStack(spacing: 4) {
+                    if let rating = seller.rating, seller.reviewCount > 0 {
+                        Image(systemName: "star.fill").font(.system(size: 10)).foregroundStyle(.yellow)
+                        Text("\(rating, specifier: "%.1f") (\(seller.reviewCount))")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Tokens.sub)
+                        Text("·").foregroundStyle(Tokens.sub)
+                    }
                     if seller.isBusiness {
                         Text(L10n.tr("Business", "Doanh nghiệp"))
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Tokens.brand)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(Tokens.brandTint, in: Capsule())
                     }
                     if let year = Format.date(seller.memberSince).map({ Calendar.current.component(.year, from: $0) }) {
                         Text(L10n.tr("Member since \(String(year))", "Thành viên từ \(String(year))"))
@@ -132,6 +221,43 @@ struct ListingDetailView: View {
                 }
             }
             Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private var moreRail: some View {
+        if !more.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(L10n.tr("More like this", "Tin tương tự"))
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(Tokens.fg)
+                    Spacer()
+                    if let cat = Categories.bySlug(card.category.slug) {
+                        NavigationLink(value: cat) {
+                            HStack(spacing: 2) {
+                                Text(L10n.tr("See all", "Xem tất cả")).font(.system(size: 13, weight: .semibold))
+                                Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
+                            }
+                            .foregroundStyle(Tokens.brand)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(more) { item in
+                            NavigationLink(value: item) {
+                                ListingCardView(listing: item)
+                                    .frame(width: 168)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+            }
+            .padding(.bottom, 16)
         }
     }
 
@@ -149,6 +275,69 @@ struct ListingDetailView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .background(.bar)
+    }
+}
+
+// One gallery page playing the listing clip (raw Supabase URL) with native
+// controls; audio session stays ambient so it never ducks the user's music.
+private struct VideoPage: View {
+    let url: URL
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        VideoPlayer(player: player)
+            .onAppear {
+                if player == nil { player = AVPlayer(url: url) }
+            }
+            .onDisappear { player?.pause() }
+            .overlay {
+                if player == nil { Tokens.tint }
+            }
+    }
+}
+
+// The web's MarketPrice gauge, compact: the p25–p75 band as a track with the
+// listing's price as a marker; caption states the median. Green when below the
+// band (a good deal), brand inside, gray above.
+struct MarketGauge: View {
+    let price: Int
+    let band: PriceBand
+
+    private var position: Double {
+        let span = max(band.p75 - band.p25, 1)
+        return min(max((Double(price) - band.p25) / span, 0), 1)
+    }
+    private var accent: Color {
+        if Double(price) < band.p25 { return .green }
+        if Double(price) > band.p75 { return Tokens.sub }
+        return Tokens.brand
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Tokens.tint).frame(height: 6)
+                    Circle()
+                        .fill(accent)
+                        .frame(width: 12, height: 12)
+                        .offset(x: position * (geo.size.width - 12))
+                }
+            }
+            .frame(height: 12)
+            HStack {
+                Text(Format.vnd(Int(band.p25)))
+                Spacer()
+                Text(L10n.tr("Market median \(Format.vnd(Int(band.median)))", "Giá thị trường \(Format.vnd(Int(band.median)))"))
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(Format.vnd(Int(band.p75)))
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(Tokens.sub)
+        }
+        .padding(10)
+        .background(Tokens.tint.opacity(0.5), in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
     }
 }
 
