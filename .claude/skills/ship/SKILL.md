@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship the current work to production — typecheck, design-lint, build, local guest e2e, commit, push, wait for the Vercel deploy, then re-run the guest suite against prod. Aborts on the first failure.
+description: Ship the current work to production — typecheck, design-lint, build, local guest e2e, commit, push, wait for the deploys (Cloud Build→Cloud Run; Vercel until DNS cutover), then re-run the guest suite against prod. Aborts on the first failure.
 disable-model-invocation: true
 model: opus
 effort: medium
@@ -88,13 +88,31 @@ Then `git push`. The user's standing instruction is to push without asking.
 
 ## 5. Wait for the deploy
 
+**Primary (GCP, since 2026-07-19):** the push fires Cloud Build triggers `eno-vn-deploy` /
+`eno-forum-deploy` (forum only when `apps/forum/**` changed), which build and auto-deploy the
+Cloud Run services in asia-southeast1. Watch:
+
+```bash
+gcloud builds list --region=europe-west1 --limit=2 \
+  --format="table(status,substitutions._TAG)" --project=speedy-victory-500106-h8
+```
+
+Poll until the build(s) tagged with your commit show `SUCCESS` (~6–12 min on default machines).
+`FAILURE` → `gcloud builds log <id> --region=europe-west1`, fix, restart at step 1. Then confirm
+the new revision serves: `curl -s -o /dev/null -w '%{http_code}' https://eno-vn-71068369681.asia-southeast1.run.app/`.
+
+**Until the DNS cutover completes** (see docs/gcp-migration.md), the DOMAINS are still served by
+Vercel, which also auto-deploys the push — check it too:
+
 ```bash
 npx vercel ls | head -8
 ```
 
-Poll until the newest Production deployment shows `● Ready` (it takes ~1–2 min). `● Building` → keep waiting. `● Error` → read the build log (`npx vercel inspect --logs <url>`), fix, and start over at step 1.
+`● Ready` = live on eno.vn. `● Error` → `npx vercel inspect --logs <url>`, fix, restart at step 1.
+After the cutover + Vercel decommission, delete this Vercel block.
 
-Prefer a bounded poll loop (e.g. check every 20s, give up after ~5 min and report) over an open-ended `until` loop — one of those was left running for nearly 3 hours.
+Prefer a bounded poll loop (e.g. check every 20s, give up after ~15 min and report) over an
+open-ended `until` loop — one of those was left running for nearly 3 hours.
 
 ## 6. Prod smoke
 
