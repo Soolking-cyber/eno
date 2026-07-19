@@ -627,6 +627,14 @@ export async function runTrustMaintenance(): Promise<{ recomputed: number; scann
   const ids = [
     ...new Set([...owners.map((s) => s.ownerId).filter((x): x is string => !!x), ...restricted.map((p) => p.id)]),
   ]
+  // Fisher–Yates shuffle (audit P2): the scan is unordered, so once the population
+  // outgrew one deadline window the SAME stable-heap-order head was processed every
+  // night and the tail never converged. A random order gives every profile equal
+  // long-run coverage without a schema change ("resume" was never implemented).
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+  }
 
   let recomputed = 0
   for (let i = 0; i < ids.length; i += MAINTENANCE_CONCURRENCY) {

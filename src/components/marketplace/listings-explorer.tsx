@@ -480,6 +480,20 @@ export function ListingsExplorer({
     }
     window.addEventListener('eno:search', onSearch)
     window.addEventListener('eno:set-area', onArea)
+    // Consume a pending off-explorer area pick (header stashes it before navigating
+    // here — the live event would have fired before this listener existed).
+    try {
+      const raw = sessionStorage.getItem('eno:pending-area')
+      if (raw) {
+        sessionStorage.removeItem('eno:pending-area')
+        const d = JSON.parse(raw) as { province?: Geo | null; ward?: Geo | null; nearby?: Nearby | null }
+        setActiveProvince(d?.province ?? null)
+        setActiveWard(d?.ward ?? null)
+        setNearby(d?.nearby ?? null)
+        setShowExplorer(true)
+        document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    } catch { /* malformed stash — ignore */ }
     return () => {
       window.removeEventListener('eno:visual-search', onVisual)
       window.removeEventListener('eno:search', onSearch)
@@ -600,6 +614,14 @@ export function ListingsExplorer({
       params.delete('q')
     }
 
+    // match=any must round-trip with the query (audit P2): a visual-search URL
+    // reloaded/shared without it re-runs the photo terms as a strict AND → 0 results.
+    if (looseMatch && query.trim()) {
+      params.set('match', 'any')
+    } else {
+      params.delete('match')
+    }
+
     if (activeDistrict !== 'all') {
       params.set('district', activeDistrict)
     } else {
@@ -653,7 +675,7 @@ export function ListingsExplorer({
       ? [prettyBrand(activeBrand), activeModel !== 'all' ? activeModel : null].filter(Boolean).join(' ')
       : ''
     window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() || brandLabel } }))
-  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, priceRange, sort])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, priceRange, sort, looseMatch])
 
   // Debounce search query input to avoid making API requests on every keystroke
   useEffect(() => {

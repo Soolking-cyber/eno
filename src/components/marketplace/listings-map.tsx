@@ -90,11 +90,15 @@ function loadLeaflet(cb: () => void) {
 }
 
 function pinHtml(label: string, active: boolean): string {
+  // INVARIANT: label is interpolated into raw HTML — escape it (audit P2). Today every
+  // caller feeds formatter output (digits + currency), but the safety must not depend
+  // on that staying true.
+  const esc = label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   const bg = active ? '#0a66c2' : '#ffffff'
   const color = active ? '#ffffff' : '#1a202c'
   const border = active ? '#0a66c2' : '#d8dee6'
   const scale = active ? 1.08 : 1
-  return `<div style="transform:translate(-50%,-50%) scale(${scale});display:inline-block;background:${bg};color:${color};border:1px solid ${border};border-radius:9999px;padding:4px 9px;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,.22);transition:transform .12s ease, background .12s ease;">${label}</div>`
+  return `<div style="transform:translate(-50%,-50%) scale(${scale});display:inline-block;background:${bg};color:${color};border:1px solid ${border};border-radius:9999px;padding:4px 9px;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,.22);transition:transform .12s ease, background .12s ease;">${esc}</div>`
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

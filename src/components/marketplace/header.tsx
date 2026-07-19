@@ -229,7 +229,12 @@ export function Header() {
     if (isExplorerPage) {
       window.dispatchEvent(new CustomEvent('eno:set-area', { detail: { province: p, ward: w, nearby: nb } }))
     } else {
-      router.push('/') // off the explorer: jump to the home feed (area is session state)
+      // One-shot handoff (audit P2): the explorer only hears LIVE eno:set-area events,
+      // so a recent-location pick from a PDP/anywhere navigated home and silently
+      // dropped the chosen area. Same consume-once sessionStorage idiom as
+      // eno:video-return; the explorer applies it on mount.
+      try { sessionStorage.setItem('eno:pending-area', JSON.stringify({ province: p, ward: w, nearby: nb })) } catch { /* storage blocked */ }
+      router.push('/') // off the explorer: jump to the home feed
     }
   }
 
