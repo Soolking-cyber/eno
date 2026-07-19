@@ -108,9 +108,17 @@ struct AccountView: View {
                 .padding(.vertical, 4)
             }
             Section {
-                link(L10n.tr("My listings", "Tin đăng của tôi"), icon: "square.grid.2x2", path: "/dashboard/listings")
-                link(L10n.tr("Saved", "Đã lưu"), icon: "heart", path: "/saved")
-                link(L10n.tr("Post a listing", "Đăng tin"), icon: "plus.square", path: "/post")
+                NavigationLink {
+                    MyListingsView()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.grid.2x2")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Tokens.brand)
+                            .frame(width: 26)
+                        Text(L10n.tr("My listings", "Tin đăng của tôi")).foregroundStyle(Tokens.fg)
+                    }
+                }
                 link(L10n.tr("Settings", "Cài đặt"), icon: "gearshape", path: "/dashboard/settings")
             }
             Section {
