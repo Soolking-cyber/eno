@@ -21,23 +21,28 @@ rationale in docs/perf-phase1.md ("Phase 2" section).
   secure storage (@capacitor/preferences) + Authorization header, behind a flag;
   Supabase client instantiated with native storage in the shell context. Web
   unchanged.
-- **M3 — first native-shell surface (SHIPPED 2026-07-19).** The browse feed is
-  now a LOCAL page: a `/` launch renders cards inside the shell (vanilla JS, no
-  build step) from `GET /api/listings?limit=24` cross-origin, with SWR through
-  shell-origin localStorage (`eno-feed-v1`) — cold launch paints the last feed
-  instantly, revalidates in the background, and works fully offline from cache.
-  Cards mirror ListingCard's essentials: `/_next/image` thumbnails (w=420 q=60,
-  CF-edge cached), vi dot-thousand `đ` prices, urgent badge, price-drop
-  strikethrough, titleVi by device language. Every deeper interaction hands off
-  to the live site (card → /listings/[id], chips → /?category=…, search +
-  see-more → home). Deep links for non-home launches still forward; /auth still
-  blocked. Server side: `src/proxy.ts` reflects CORS for exactly the app origins
-  (`capacitor://localhost`, `https://localhost`) — preflight 204 before the edge
-  pin, headers on every /api return path, NO allow-credentials (Bearer only;
-  cookies never cross origins). Hostile origins get no CORS headers.
-- **M4 — post + chat surfaces.**
-- **M5 — retire server.url;** live-update channel (signed bundles, staged
-  rollout, last-known-good rollback) becomes the shipping path.
+- **M3 — local feed surface (SHIPPED then ROLLED BACK 2026-07-19, owner
+  verdict).** The browse feed ran as a local vanilla-JS page in the shell
+  (SWR via localStorage, /_next/image thumbs, handoff taps). It worked, but
+  the owner rejected the direction on sight of the device build: **"we need
+  native app same as web app as close as possible"** — a re-implemented
+  surface inevitably diverges (no bottom nav, no dark header, simplified
+  cards) and creates a second UI to maintain. The shell reverted to the M1
+  forwarding behavior. **Standing direction: local pages must never
+  re-implement app surfaces; the shell is a launch cover + offline state
+  ONLY, and the app IS the web app.** What SURVIVES from M3 (server-side,
+  additive, invisible): `src/proxy.ts` CORS for exactly the app origins
+  (`capacitor://localhost`, `https://localhost`) — preflight 204 before the
+  edge pin, NO allow-credentials — plus the M2 Bearer path. Both stay for any
+  future native fetch needs. The M3 feed page itself lives in git history
+  (4fd72881) if ever needed as reference.
+- ~~**M4 — post + chat surfaces.**~~ ~~**M5 — retire server.url; live-update
+  channel.**~~ **CANCELLED by the M3 verdict** — local re-implementations are
+  off the table. The ladder's remaining goal (app-likeness) is pursued the
+  other way around: the REAL web app served remotely, made to feel native
+  (instant boot cover, offline state, native chrome/haptics/theme sync — all
+  already shipped). Revisit only if the owner asks for true offline surfaces
+  again, and then via rendering the actual app bundle, never a parallel UI.
 
 ## Cross-cutting requirements (from the design note)
 
@@ -48,6 +53,10 @@ crash/vitals beacons per bundle version.
 
 ## Status log
 
+- 2026-07-19 (M3 rollback): owner saw the local feed on device and set the
+  standing direction — native app mirrors the web app, no parallel local
+  surfaces. Shell reverted to M1 forwarding; CORS + Bearer kept; M4/M5
+  cancelled.
 - 2026-07-19 (M3): local feed shipped. Verified: CORS curl matrix (preflight
   204 + reflected origin + Vary, hostile origin bare, android origin ok);
   headless Chromium render against the LIVE API (20 cards, dot-thousand

@@ -6,19 +6,20 @@
     <meta name="color-scheme" content="light dark" />
     <title>eno</title>
     <!--
-      PHASE 2 · M3 — the LOCAL FEED (native-shell migration, docs/native-shell-phase2.md).
-      Built with ENO_LOCAL_SHELL=1: the WebView boots this page from disk, paints the last
-      cached feed instantly (SWR via this origin's localStorage), and revalidates from
-      /api/listings cross-origin (CORS allowlist for the app origins lives in src/proxy.ts).
-      Any deeper interaction — card tap, search, chips, see-more — hands off to the live
-      site. Non-home cold-start deep links still forward immediately (first-party hosts
-      only, /auth blocked). Offline with no cache shows the inline retry state.
-      Self-contained by design — no imports; brand values mirror docs/design-language.md.
+      PHASE 2 · M1 — the INSTANT LOCAL SHELL (native-shell migration, docs/native-shell-phase2.md).
+      When the app is built with ENO_LOCAL_SHELL=1 (capacitor.config.ts), the WebView boots THIS
+      page from disk (~100ms) instead of waiting on the network for eno.vn: the splash hides
+      immediately, a canon-styled skeleton paints, and we forward to the live app (carrying any
+      cold-start deep link). Offline shows an inline retry instead of a dead splash. Self-contained
+      by design — no imports; brand values mirror docs/design-language.md tokens.
+      In remote mode (no flag) this page remains the webDir placeholder it always was.
     -->
     <style>
-      /* Theme: first paint follows the OS scheme; the script corrects to the APP's last
-         resolved choice (mirrored into native Preferences by theme-context) within ms. */
-      :root { --bg:#fafafa; --card:#ffffff; --tint:#eef2f6; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; --red:#dc2626; }
+      /* Theme: first paint follows the OS scheme; the script below corrects to the APP's
+         last resolved choice (mirrored into native Preferences by theme-context) within
+         milliseconds — a Light-app-on-Dark-phone paints light, and vice versa. Explicit
+         .t-light/.t-dark classes outrank the media query. */
+      :root { --bg:#fafafa; --card:#ffffff; --tint:#eef2f6; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; }
       @media (prefers-color-scheme: dark){ :root{ --bg:#1b1b1b; --card:#242424; --tint:#2e2e2e; --fg:#f3f4f6; --sub:#9ca3af; --brand:#3b8ee6; --ring:#333; } }
       html.t-light { --bg:#fafafa; --card:#ffffff; --tint:#eef2f6; --fg:#111827; --sub:#6b7280; --brand:#0a66c2; --ring:#e5e7eb; }
       html.t-dark { --bg:#1b1b1b; --card:#242424; --tint:#2e2e2e; --fg:#f3f4f6; --sub:#9ca3af; --brand:#3b8ee6; --ring:#333; }
@@ -27,29 +28,19 @@
       body {
         font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color:var(--fg);
         -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
-        padding-top:env(safe-area-inset-top); padding-bottom:calc(16px + env(safe-area-inset-bottom));
+        padding-top:env(safe-area-inset-top);
       }
-      a { color:inherit; text-decoration:none; -webkit-tap-highlight-color:transparent; }
       header { display:flex; align-items:center; gap:12px; padding:14px 12px 10px; }
       .wordmark { font-weight:800; font-size:26px; letter-spacing:-1px; color:var(--brand); }
-      .search { flex:1; height:40px; border-radius:14px; background:var(--tint); display:flex; align-items:center; padding:0 14px; color:var(--sub); font-size:15px; }
-      .chips { display:flex; gap:8px; padding:2px 12px 12px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-      .chips::-webkit-scrollbar { display:none; }
-      .chip { flex:none; height:32px; border-radius:9999px; background:var(--tint); color:var(--fg); font-size:13px; font-weight:600; display:flex; align-items:center; padding:0 14px; }
+      .search { flex:1; height:40px; border-radius:14px; background:var(--tint); }
+      .bell { width:34px; height:34px; border-radius:50%; background:var(--tint); }
+      .chips { display:flex; gap:8px; padding:2px 12px 12px; }
+      .chip { height:30px; border-radius:9999px; background:var(--tint); }
+      .chip:nth-child(1){ width:84px } .chip:nth-child(2){ width:64px } .chip:nth-child(3){ width:96px } .chip:nth-child(4){ width:72px }
       .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:0 12px; }
-      .card { border-radius:12px; overflow:hidden; background:var(--card); border:1px solid var(--ring); display:block; position:relative; }
-      .card:active { opacity:.85; }
-      .ph { aspect-ratio:10/11; background:var(--tint); width:100%; object-fit:cover; display:block; border:0; }
+      .card { border-radius:12px; overflow:hidden; background:var(--card); border:1px solid var(--ring); }
+      .ph { aspect-ratio:10/11; background:var(--tint); }
       .meta { padding:10px; }
-      .price { color:var(--brand); font-weight:700; font-size:17px; line-height:1.2; }
-      .prev { color:var(--sub); font-size:11px; text-decoration:line-through; margin-left:6px; font-weight:500; }
-      .t { font-size:14px; font-weight:500; line-height:1.35; margin-top:4px;
-        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.7em; }
-      .loc { color:var(--sub); font-size:11px; margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      .urgent { position:absolute; top:8px; left:8px; background:var(--red); color:#fff; font-size:10px; font-weight:700; padding:2px 8px; border-radius:9999px; z-index:1; }
-      .more { display:block; margin:16px auto 4px; width:fit-content; border:0; border-radius:14px; background:var(--brand); color:#fff; font-size:15px; font-weight:600; padding:13px 32px; }
-      .more:active { opacity:.85; }
-      /* Skeleton */
       .bar { height:12px; border-radius:6px; background:var(--tint); margin-bottom:8px; }
       .bar.b1 { width:55%; height:16px } .bar.b2 { width:90% } .bar.b3 { width:40%; margin-bottom:0 }
       .shimmer { position:relative; overflow:hidden; }
@@ -58,7 +49,11 @@
         animation:sh 1.3s infinite; }
       @media (prefers-color-scheme: dark){ .shimmer::after{ background:linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);} }
       @keyframes sh { to { transform:translateX(100%); } }
-      /* Zalo-style launch mark + Shopee-style dots (offline state) */
+      /* Offline / failed state (hidden until needed) */
+      #offline { display:none; position:fixed; inset:0; background:var(--bg); z-index:10;
+        flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center;
+        padding:24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left)); }
+      /* Zalo-style launch mark: small brand square, gentle breathing pulse. */
       .mark { width:52px; height:52px; border-radius:14px; background:var(--brand); color:#fff;
         display:flex; align-items:center; justify-content:center; font-weight:800; font-size:28px;
         animation:pulse 1.2s ease-in-out infinite; }
@@ -67,9 +62,6 @@
       .dots i { width:8px; height:8px; border-radius:50%; background:var(--brand); animation:bounce 1s ease-in-out infinite; }
       .dots i:nth-child(2){ animation-delay:.15s } .dots i:nth-child(3){ animation-delay:.3s }
       @keyframes bounce { 0%,100%{ transform:translateY(0); opacity:.5 } 40%{ transform:translateY(-7px); opacity:1 } }
-      #offline { display:none; position:fixed; inset:0; background:var(--bg); z-index:10;
-        flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center;
-        padding:24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left)); }
       #offline h1 { font-size:19px; margin:0; font-weight:700; }
       #offline .en { display:block; margin-top:4px; font-size:13px; font-weight:500; color:var(--sub); }
       #offline p { margin:0; color:var(--sub); max-width:300px; line-height:1.5; font-size:15px; }
@@ -81,27 +73,69 @@
   <body>
     <header>
       <div class="wordmark">eno</div>
-      <a class="search" href="https://eno.vn/"><span id="searchLabel">Tìm sản phẩm…</span></a>
+      <div class="search shimmer"></div>
+      <div class="bell shimmer"></div>
     </header>
-    <div class="chips" id="chips"></div>
+    <div class="chips">
+      <div class="chip shimmer"></div><div class="chip shimmer"></div><div class="chip shimmer"></div><div class="chip shimmer"></div>
+    </div>
     <div class="grid" id="grid"></div>
-    <a class="more" id="more" href="https://eno.vn/" style="display:none"></a>
 
     <div id="offline">
       <div class="mark">e</div>
       <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
       <h1>Không có kết nối mạng<span class="en">No internet connection</span></h1>
       <p>Kiểm tra kết nối của bạn rồi thử lại. / Check your connection and try again.</p>
-      <button onclick="boot()">Thử lại / Try again</button>
+      <button onclick="go()">Thử lại / Try again</button>
     </div>
 
     <script>
+      // Skeleton cards (6 = one viewport of the 2-col feed).
+      var g = document.getElementById('grid')
+      for (var i = 0; i < 6; i++) {
+        g.insertAdjacentHTML('beforeend',
+          '<div class="card"><div class="ph shimmer"></div><div class="meta">' +
+          '<div class="bar b1 shimmer"></div><div class="bar b2 shimmer"></div><div class="bar b3 shimmer"></div></div></div>')
+      }
+
       var ORIGIN = 'https://eno.vn'
       var HOSTS = { 'eno.vn': 1, 'www.eno.vn': 1, 'eno.forum': 1, 'www.eno.forum': 1 }
-      var VI = (navigator.language || '').toLowerCase().indexOf('vi') === 0
-      var FEED_KEY = 'eno-feed-v1'
 
-      // ---------- theme: correct the OS guess to the app's mirrored choice ----------
+      // Cold-start deep link → same-origin path (mirrors src/lib/deep-link.ts's contract:
+      // first-party hosts only, auth paths blocked, anything unknown lands on home).
+      function targetFromLaunch(urlStr) {
+        try {
+          var u = new URL(urlStr)
+          if (!HOSTS[u.hostname]) return ORIGIN + '/'
+          var path = u.pathname + u.search
+          if (u.pathname.indexOf('/auth') === 0) return ORIGIN + '/'
+          return (u.hostname.indexOf('forum') !== -1 ? 'https://' + u.hostname : ORIGIN) + path
+        } catch (e) { return ORIGIN + '/' }
+      }
+
+      function go() {
+        document.getElementById('offline').style.display = 'none'
+        if (navigator.onLine === false) {
+          document.getElementById('offline').style.display = 'flex'
+          return
+        }
+        var target = ORIGIN + '/'
+        var C = window.Capacitor
+        var done = function () { window.location.replace(target) }
+        if (C && C.Plugins && C.Plugins.App && C.Plugins.App.getLaunchUrl) {
+          // Bounded: a hung plugin call must never strand the shell.
+          var t = setTimeout(done, 350)
+          C.Plugins.App.getLaunchUrl().then(function (r) {
+            clearTimeout(t)
+            if (r && r.url) target = targetFromLaunch(r.url)
+            done()
+          }).catch(function () { clearTimeout(t); done() })
+        } else {
+          done()
+        }
+      }
+
+      // Apply the APP's last resolved theme (native Preferences mirror) over the OS guess.
       try {
         var P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences
         if (P && P.get) P.get({ key: 'eno-resolved-theme' }).then(function (r) {
@@ -109,124 +143,16 @@
         }).catch(function () {})
       } catch (e) {}
 
-      // ---------- static copy (device language) ----------
-      document.getElementById('searchLabel').textContent = VI ? 'Tìm sản phẩm…' : 'Find products…'
-      var moreBtn = document.getElementById('more')
-      moreBtn.textContent = VI ? 'Xem thêm trên eno.vn' : 'See more on eno.vn'
-      var CHIPS = [
-        ['electronics', 'Điện tử', 'Electronics'], ['vehicles', 'Xe cộ', 'Vehicles'],
-        ['property', 'Bất động sản', 'Property'], ['rentals', 'Cho thuê', 'Rentals'],
-        ['jobs', 'Việc làm', 'Jobs'], ['services', 'Dịch vụ', 'Services'],
-      ]
-      var chipRow = document.getElementById('chips')
-      CHIPS.forEach(function (c) {
-        chipRow.insertAdjacentHTML('beforeend',
-          '<a class="chip" href="' + ORIGIN + '/?category=' + c[0] + '">' + (VI ? c[1] : c[2]) + '</a>')
-      })
-
-      // ---------- card rendering (mirrors ListingCard's essentials) ----------
-      function esc(x) { return String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;') }
-      function vnd(n) { // vi money contract: dot thousands + đ (src/lib/vnd.ts)
-        var s = String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-        return s + ' đ'
-      }
-      function imgUrl(raw) { // through the site's optimizer → small webp + CF edge cache
-        return ORIGIN + '/_next/image?url=' + encodeURIComponent(raw) + '&w=420&q=60'
-      }
-      function cardHtml(l) {
-        var title = (VI && l.titleVi) || l.title
-        var img = l.images && l.images[0]
-          ? '<img class="ph" loading="lazy" src="' + esc(imgUrl(l.images[0])) + '" alt="" />'
-          : '<div class="ph"></div>'
-        var drop = l.prevPrice && l.prevPrice > l.price ? '<span class="prev">' + vnd(l.prevPrice) + '</span>' : ''
-        var urgent = l.urgent ? '<span class="urgent">' + (VI ? 'Bán gấp' : 'Urgent') + '</span>' : ''
-        var loc = [l.district, l.city].filter(Boolean).join(', ')
-        return '<a class="card" href="' + ORIGIN + '/listings/' + esc(l.id) + '">' + urgent + img +
-          '<div class="meta"><div class="price">' + vnd(l.price) + drop + '</div>' +
-          '<div class="t">' + esc(title) + '</div>' +
-          (loc ? '<div class="loc">' + esc(loc) + '</div>' : '') + '</div></a>'
-      }
-      var grid = document.getElementById('grid')
-      function renderSkeleton() {
-        grid.innerHTML = ''
-        for (var i = 0; i < 6; i++) {
-          grid.insertAdjacentHTML('beforeend',
-            '<div class="card"><div class="ph shimmer"></div><div class="meta">' +
-            '<div class="bar b1 shimmer"></div><div class="bar b2 shimmer"></div><div class="bar b3 shimmer"></div></div></div>')
-        }
-      }
-      function renderFeed(listings) {
-        grid.innerHTML = listings.map(cardHtml).join('')
-        moreBtn.style.display = 'block'
-      }
-      function readCache() {
-        try {
-          var c = JSON.parse(localStorage.getItem(FEED_KEY) || 'null')
-          return c && c.listings && c.listings.length ? c : null
-        } catch (e) { return null }
-      }
-
-      // ---------- deep links: anything that isn't home forwards to the live site ----------
-      // Mirrors src/lib/deep-link.ts's contract: first-party hosts only, /auth blocked.
-      function targetFromLaunch(urlStr) {
-        try {
-          var u = new URL(urlStr)
-          if (!HOSTS[u.hostname]) return null
-          if (u.pathname.indexOf('/auth') === 0) return null
-          if (u.pathname === '/' && !u.search) return null // home = the local feed
-          return (u.hostname.indexOf('forum') !== -1 ? 'https://' + u.hostname : ORIGIN) + u.pathname + u.search
-        } catch (e) { return null }
-      }
-
-      // ---------- boot: forward deep links, else SWR the local feed ----------
-      function showOffline(on) { document.getElementById('offline').style.display = on ? 'flex' : 'none' }
-      function loadFeed() {
-        var cached = readCache()
-        if (cached) renderFeed(cached.listings)
-        // (skeleton is already painted otherwise)
-        fetch(ORIGIN + '/api/listings?limit=24', { mode: 'cors' })
-          .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
-          .then(function (d) {
-            if (d && d.listings && d.listings.length) {
-              renderFeed(d.listings)
-              try { localStorage.setItem(FEED_KEY, JSON.stringify({ listings: d.listings })) } catch (e) {}
-            } else if (!cached) { showOffline(true) }
-          })
-          .catch(function () { if (!readCache()) showOffline(true) })
-      }
-      function boot() {
-        showOffline(false)
-        var proceed = function (launchUrl) {
-          var fwd = launchUrl ? targetFromLaunch(launchUrl) : null
-          if (fwd) { window.location.replace(fwd); return }
-          if (navigator.onLine === false) {
-            var cached = readCache()
-            if (cached) { renderFeed(cached.listings); return }
-            showOffline(true); return
-          }
-          loadFeed()
-        }
-        var C = window.Capacitor
-        if (C && C.Plugins && C.Plugins.App && C.Plugins.App.getLaunchUrl) {
-          // Bounded: a hung plugin call must never strand the shell.
-          var answered = false
-          var t = setTimeout(function () { answered = true; proceed(null) }, 350)
-          C.Plugins.App.getLaunchUrl().then(function (r) {
-            if (answered) return
-            clearTimeout(t); proceed(r && r.url)
-          }).catch(function () { if (!answered) { clearTimeout(t); proceed(null) } })
-        } else { proceed(null) }
-      }
-
       // Reveal instantly: the shell IS the paint — no reason to hold the splash.
       try {
         var SS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SplashScreen
         if (SS && SS.hide) SS.hide({ fadeOutDuration: 150 })
       } catch (e) {}
 
-      renderSkeleton()
-      boot()
-      window.addEventListener('online', boot)
+      // A failed eno.vn navigation falls to Capacitor's errorPath (error.html) natively;
+      // the online check above catches the airplane-mode case without a doomed attempt.
+      go()
+      window.addEventListener('online', go)
     </script>
   </body>
 </html>
