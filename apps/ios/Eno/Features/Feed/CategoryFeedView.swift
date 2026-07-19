@@ -5,11 +5,16 @@ import SwiftUI
 struct CategoryFeedView: View {
     let category: AppCategory
     @State private var model = FeedModel()
+    @State private var showFilter = false
 
     var body: some View {
         ScrollView {
-            SortBar(model: model)
-                .padding(.top, 8)
+            HStack(spacing: 8) {
+                SortBar(model: model)
+                FilterChip(active: model.hasPriceFilter) { showFilter = true }
+                    .padding(.trailing, 12)
+            }
+            .padding(.top, 8)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                 ForEach(model.items) { item in
                     NavigationLink(value: item) {
@@ -34,6 +39,7 @@ struct CategoryFeedView: View {
         .navigationTitle(category.name)
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await model.reload() }
+        .sheet(isPresented: $showFilter) { PriceFilterSheet(model: model) }
         .task {
             if model.category != category.slug { model.category = category.slug }
         }

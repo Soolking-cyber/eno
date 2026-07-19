@@ -120,6 +120,34 @@ struct ListingDetail: Codable, Identifiable {
     var displayLocation: String { [district, city].compactMap { $0 }.joined(separator: ", ") }
 }
 
+// /api/search/suggest → { q, listings, categories, brands }
+struct SuggestResponse: Codable {
+    struct SuggestListing: Codable, Identifiable {
+        let id: String
+        let title: String
+        let titleVi: String?
+        let price: Int
+        let location: String
+        let image: String?
+        let categorySlug: String
+        var displayTitle: String { L10n.isVi ? (titleVi ?? title) : title }
+    }
+    struct SuggestCategory: Codable, Identifiable {
+        let slug: String
+        let name: String
+        let nameVi: String
+        var id: String { slug }
+    }
+    let q: String
+    let listings: [SuggestListing]
+    let categories: [SuggestCategory]
+}
+
+// /api/search/trending → { trending: [term] } (fails open to empty)
+struct TrendingResponse: Codable {
+    let trending: [String]
+}
+
 // Market band (src/lib/price-stat.ts PriceBand): null below the sample floor.
 struct PriceBand: Codable {
     let n: Int

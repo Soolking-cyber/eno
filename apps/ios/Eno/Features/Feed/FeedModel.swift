@@ -19,6 +19,18 @@ final class FeedModel {
     var sort: String = "newest" {
         didSet { if oldValue != sort { Task { await reload() } } }
     }
+    // Full-text query (accent-folded searchText + pg_trgm server-side).
+    var query: String? {
+        didSet { if oldValue != query { Task { await reload() } } }
+    }
+    // Price range filter (VND), mirroring the web's priceMin/priceMax params.
+    var priceMin: Int? {
+        didSet { if oldValue != priceMin { Task { await reload() } } }
+    }
+    var priceMax: Int? {
+        didSet { if oldValue != priceMax { Task { await reload() } } }
+    }
+    var hasPriceFilter: Bool { priceMin != nil || priceMax != nil }
 
     private var offset = 0
     private var exhausted = false
@@ -46,7 +58,7 @@ final class FeedModel {
             offset = page.count
             exhausted = page.count < pageSize
             failed = false
-            if category == nil, sort == "newest", let data = try? JSONEncoder().encode(page) {
+            if category == nil, query == nil, sort == "newest", !hasPriceFilter, let data = try? JSONEncoder().encode(page) {
                 try? data.write(to: Self.cacheURL)
             }
         } catch {
@@ -74,7 +86,10 @@ final class FeedModel {
             URLQueryItem(name: "offset", value: String(offset)),
         ]
         if let category { q.append(URLQueryItem(name: "category", value: category)) }
+        if let query { q.append(URLQueryItem(name: "q", value: query)) }
         if sort != "newest" { q.append(URLQueryItem(name: "sort", value: sort)) }
+        if let priceMin { q.append(URLQueryItem(name: "priceMin", value: String(priceMin))) }
+        if let priceMax { q.append(URLQueryItem(name: "priceMax", value: String(priceMax))) }
         let page: FeedPage = try await APIClient.shared.get("api/listings", query: q)
         return page.listings
     }

@@ -11,6 +11,7 @@ final class HomeModel {
     var forYou: [ListingCard] = []
     var businesses: [ListingCard] = []
     var rails: [CategoryRails.Rail] = []
+    var recentlyViewed: [ListingCard] = []
 
     private var loaded = false
 
@@ -21,7 +22,20 @@ final class HomeModel {
         async let a: Void = loadForYou()
         async let b: Void = loadBusinesses()
         async let c: Void = loadRails()
-        _ = await (a, b, c)
+        async let d: Void = loadRecentlyViewed()
+        _ = await (a, b, c, d)
+    }
+
+    // Refreshed on every home appearance — viewing a listing changes it.
+    func loadRecentlyViewed() async {
+        let ids = RecentStore.viewedIds()
+        guard !ids.isEmpty else { recentlyViewed = []; return }
+        guard let page: FeedPage = try? await APIClient.shared.get("api/listings", query: [
+            URLQueryItem(name: "ids", value: ids.joined(separator: ",")),
+        ]) else { return }
+        // The API returns feed order; restore most-recently-viewed-first.
+        let byId = Dictionary(uniqueKeysWithValues: page.listings.map { ($0.id, $0) })
+        recentlyViewed = ids.compactMap { byId[$0] }
     }
 
     private func loadForYou() async {

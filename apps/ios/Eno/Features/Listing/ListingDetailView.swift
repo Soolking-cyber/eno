@@ -68,6 +68,7 @@ struct ListingDetailView: View {
     }
 
     private func load() async {
+        RecentStore.recordViewed(card.id)
         if detail == nil, let env: ListingDetailEnvelope = try? await APIClient.shared.get("api/listings/\(card.id)") {
             detail = env.listing
             band = env.priceBand

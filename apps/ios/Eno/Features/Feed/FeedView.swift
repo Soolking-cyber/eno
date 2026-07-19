@@ -14,6 +14,9 @@ struct FeedView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     header
                     categoryGrid
+                    if !home.recentlyViewed.isEmpty {
+                        railSection(title: L10n.tr("Recently viewed", "Đã xem gần đây"), items: home.recentlyViewed)
+                    }
                     if !home.forYou.isEmpty {
                         railSection(title: L10n.tr("For you", "Dành cho bạn"), items: home.forYou)
                     }
@@ -44,6 +47,7 @@ struct FeedView: View {
                 async let f: Void = feed.start()
                 async let h: Void = home.start()
                 _ = await (f, h)
+                await home.loadRecentlyViewed()
             }
         }
     }
