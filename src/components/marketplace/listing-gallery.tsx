@@ -400,7 +400,9 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             variant="overlay"
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="absolute right-4 top-4 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
+            // Safe-area term: the lightbox is a fullscreen overlay and the native WebView is
+            // edge-to-edge, so a bare top-4 puts Close under the Dynamic Island. 0 on web.
+            className="absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
           >
             <X className="h-5 w-5" />
           </IconButton>

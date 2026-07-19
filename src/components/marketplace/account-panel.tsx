@@ -277,7 +277,10 @@ function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void })
         // Base (MOBILE): full-screen OPAQUE overlay (bg-background) — anything less lets the page
         // bleed through. left-0 + w-full, so the L/R move is moot on phones. overflow-hidden clips
         // the label reveal on desktop; the inner div owns the y-scroll.
-        'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 z-50 flex w-full flex-col overflow-hidden bg-background motion-reduce:transition-none lg:bottom-0',
+        // pt-[env(safe-area-inset-top)]: the native WebView is edge-to-edge (contentInset 'never'),
+        // so top-0 sits under the Dynamic Island — the opaque bg still fills behind the status bar
+        // while the CONTENT starts below it (the iOS-native look). 0 on web, so desktop is untouched.
+        'fixed top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 z-50 flex w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] motion-reduce:transition-none lg:bottom-0',
         // DESKTOP: a LEFT rail. BORDERLESS + SHADOWLESS — no divider, no edge shadow (owner
         // 2026-07-17). Collapsed = 72px of icons over a whisper tint (lg:bg-muted/10); toggled open it
         // expands to 280px and FLOATS over the content on an OPAQUE bg-background (so the content
