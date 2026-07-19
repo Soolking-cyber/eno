@@ -136,6 +136,39 @@ data class ListingDetail(
 @Serializable
 data class ListingDetailEnvelope(val listing: ListingDetail)
 
+// Card badge rules (web card-badges.tsx, same as iOS): urgent > drop% > New(48h);
+// goodPrice yields to a live drop.
+val ListingCard.isNew: Boolean
+    get() = runCatching {
+        java.time.Instant.parse(postedAt).isAfter(java.time.Instant.now().minusSeconds(48 * 3600))
+    }.getOrDefault(false)
+
+val ListingCard.dropPercent: Int?
+    get() {
+        val prev = prevPrice ?: return null
+        if (prev <= price || price <= 0) return null
+        val pct = (((prev - price).toDouble() / prev) * 100).toInt()
+        return if (pct > 0) minOf(pct, 50) else null
+    }
+
+// ≈USD approximation (web currencies.ts): /api/fx rates.USD per 1 VND, 12h cache.
+object Fx {
+    @Volatile private var usdPerVnd: Double = 0.0
+
+    @Serializable
+    private data class FxEnvelope(val rates: Map<String, Double> = emptyMap())
+
+    suspend fun ensureLoaded() {
+        if (usdPerVnd > 0) return
+        usdPerVnd = runCatching { Api.get<FxEnvelope>("api/fx").rates["USD"] ?: 0.0 }.getOrDefault(0.0)
+    }
+
+    fun approxUSD(vnd: Long): String? {
+        if (usdPerVnd <= 0 || vnd <= 0) return null
+        return "≈ $" + "%,d".format((vnd * usdPerVnd).toLong())
+    }
+}
+
 // The 15 top-level categories (mirror of apps/ios Categories.swift / taxonomy.ts).
 data class AppCategory(val slug: String, val en: String, val vi: String) {
     val name: String get() = L10n.tr(en, vi)

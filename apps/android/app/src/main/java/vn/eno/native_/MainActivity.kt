@@ -103,7 +103,15 @@ fun EnoApp() {
             },
         ) { padding ->
             NavHost(nav, startDestination = "explore", modifier = Modifier.padding(padding)) {
-                composable("explore") { FeedScreen(onOpen = { id -> nav.navigate("listing/$id") }) }
+                composable("explore") {
+                    FeedScreen(
+                        onOpen = { id -> nav.navigate("listing/$id") },
+                        onSearch = { nav.navigate("search") },
+                    )
+                }
+                composable("search") {
+                    vn.eno.native_.feed.SearchScreen(onOpen = { id -> nav.navigate("listing/$id") })
+                }
                 composable("listing/{id}") { entry ->
                     DetailScreen(entry.arguments?.getString("id") ?: "", onOpen = { id -> nav.navigate("listing/$id") })
                 }

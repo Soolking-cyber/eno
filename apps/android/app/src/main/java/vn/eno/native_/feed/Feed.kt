@@ -46,7 +46,10 @@ class FeedViewModel : ViewModel() {
     private var exhausted = false
     private var loading = false
 
-    init { load(reset = true) }
+    init {
+        load(reset = true)
+        viewModelScope.launch { Fx.ensureLoaded() }
+    }
 
     fun load(reset: Boolean = false) {
         if (loading) return
@@ -78,7 +81,7 @@ class FeedViewModel : ViewModel() {
 }
 
 @Composable
-fun FeedScreen(onOpen: (String) -> Unit, vm: FeedViewModel = viewModel()) {
+fun FeedScreen(onOpen: (String) -> Unit, onSearch: () -> Unit = {}, vm: FeedViewModel = viewModel()) {
     val items by vm.items.collectAsState()
     var selected by remember { mutableStateOf<String?>(null) }
 
@@ -104,6 +107,7 @@ fun FeedScreen(onOpen: (String) -> Unit, vm: FeedViewModel = viewModel()) {
                             .height(40.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable(onClick = onSearch)
                             .padding(horizontal = 14.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
@@ -131,6 +135,26 @@ fun FeedScreen(onOpen: (String) -> Unit, vm: FeedViewModel = viewModel()) {
             LaunchedEffect(card.id) { vm.loadMoreIfNeeded(idx) }
             ListingCardView(card) { onOpen(card.id) }
         }
+    }
+}
+
+// Trust shield chip (web trust-score.tsx mini): band colors ≥110 gold, ≥85
+// brand, ≥60 slate, else red.
+@Composable
+fun TrustMini(score: Int) {
+    val band = when {
+        score >= 110 -> androidx.compose.ui.graphics.Color(0xFFB8860B)
+        score >= 85 -> MaterialTheme.colorScheme.primary
+        score >= 60 -> MaterialTheme.colorScheme.onSurfaceVariant
+        else -> MaterialTheme.colorScheme.error
+    }
+    Box(
+        Modifier
+            .clip(CircleShape)
+            .background(band.copy(alpha = 0.12f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        Text("🛡 $score", color = band, fontSize = 9.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -168,17 +192,38 @@ fun ListingCardView(card: ListingCard, onClick: () -> Unit) {
                     .aspectRatio(10f / 11f)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             )
-            if (card.urgent) {
+            // Top-left chip priority (card-badges.tsx): urgent > -N% > New(48h).
+            val (chip, chipBg) = when {
+                card.urgent -> L10n.tr("Urgent", "Bán gấp") to MaterialTheme.colorScheme.error
+                card.dropPercent != null -> "-${card.dropPercent}%" to MaterialTheme.colorScheme.error
+                card.isNew -> L10n.tr("New", "Mới") to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                else -> null to MaterialTheme.colorScheme.error
+            }
+            if (chip != null) {
                 Text(
-                    L10n.tr("Urgent", "Bán gấp"),
+                    chip,
                     color = androidx.compose.ui.graphics.Color.White,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .padding(8.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error)
+                        .background(chipBg)
                         .padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+            if (card.savedCount >= 3) {
+                Text(
+                    "♥ ${card.savedCount}",
+                    color = androidx.compose.ui.graphics.Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(8.dp)
+                        .clip(CircleShape)
+                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f))
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
                 )
             }
         }
@@ -192,15 +237,21 @@ fun ListingCardView(card: ListingCard, onClick: () -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                card.prevPrice?.takeIf { it > card.price }?.let {
+                val prev = card.prevPrice?.takeIf { it > card.price }
+                if (prev != null) {
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        Format.vnd(it),
+                        Format.vnd(prev),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough,
                         maxLines = 1,
                     )
+                } else {
+                    Fx.approxUSD(card.price)?.let { approx ->
+                        Spacer(Modifier.width(6.dp))
+                        Text(approx, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1)
+                    }
                 }
             }
             Spacer(Modifier.height(4.dp))
@@ -213,15 +264,17 @@ fun ListingCardView(card: ListingCard, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurface,
                 lineHeight = 18.sp,
             )
-            if (card.displayLocation.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     card.displayLocation,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
                 )
+                TrustMini(card.seller.trustScore)
             }
         }
     }
