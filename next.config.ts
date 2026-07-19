@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -6,6 +7,14 @@ const nextConfig: NextConfig = {
   // Node globals (`__dirname`), crashing it (MIDDLEWARE_INVOCATION_FAILED). Vercel
   // handles output natively, so disable standalone there.
   output: process.env.VERCEL ? undefined : "standalone",
+  // Cross-instance ISR: cache-handler.cjs replaces the per-instance filesystem
+  // cache so revalidatePath purges EVERY Cloud Run instance — the correctness
+  // gate for max-instances > 1 (a sold/moderated listing must vanish everywhere).
+  // The handler is DUAL-MODE internally (Redis on Cloud Run, in-process Map
+  // elsewhere) because the standalone server embeds this config at build time.
+  // cacheMaxMemorySize 0 kills Next's own L1, which would otherwise serve stale
+  // entries without consulting the shared tombstones.
+  ...(process.env.VERCEL ? {} : { cacheHandler: join(__dirname, "cache-handler.cjs"), cacheMaxMemorySize: 0 }),
   // Don't advertise the framework (`x-powered-by: Next.js`) on every response.
   poweredByHeader: false,
   // Inline CSS into the HTML <head> instead of a render-blocking <link>. On
