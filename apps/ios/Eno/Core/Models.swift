@@ -46,6 +46,26 @@ struct ListingCard: Codable, Identifiable, Hashable {
 
 struct FeedPage: Codable {
     let listings: [ListingCard]
+    // Present on category queries: live inventory per subcategory slug.
+    let subcategoryCounts: [String: Int]?
+}
+
+// /api/categories → { categories: [{slug,name,nameVi,subcategories:[…]}] }
+struct CategoriesResponse: Codable {
+    struct Cat: Codable {
+        let slug: String
+        let name: String
+        let nameVi: String
+        let subcategories: [Sub]
+    }
+    struct Sub: Codable, Identifiable, Hashable {
+        let slug: String
+        let name: String
+        let nameVi: String
+        var id: String { slug }
+        var displayName: String { L10n.tr(name, nameVi) }
+    }
+    let categories: [Cat]
 }
 
 // /api/category-rails → { rails: [{ slug, listings }] }

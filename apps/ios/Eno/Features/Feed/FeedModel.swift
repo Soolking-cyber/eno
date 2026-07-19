@@ -23,6 +23,11 @@ final class FeedModel {
     var query: String? {
         didSet { if oldValue != query { Task { await reload() } } }
     }
+    // Subcategory facet (slug; nil = all). Counts arrive with category pages.
+    var subcategory: String? {
+        didSet { if oldValue != subcategory { Task { await reload() } } }
+    }
+    private(set) var subcategoryCounts: [String: Int] = [:]
     // Price range filter (VND), mirroring the web's priceMin/priceMax params.
     var priceMin: Int? {
         didSet { if oldValue != priceMin { Task { await reload() } } }
@@ -54,11 +59,13 @@ final class FeedModel {
         defer { isRefreshing = false }
         do {
             let page = try await fetchPage(offset: 0)
-            items = page
-            offset = page.count
-            exhausted = page.count < pageSize
+            items = page.listings
+            offset = page.listings.count
+            exhausted = page.listings.count < pageSize
             failed = false
-            if category == nil, query == nil, sort == "newest", !hasPriceFilter, let data = try? JSONEncoder().encode(page) {
+            if let counts = page.subcategoryCounts { subcategoryCounts = counts }
+            if category == nil, query == nil, sort == "newest", !hasPriceFilter, subcategory == nil,
+               let data = try? JSONEncoder().encode(page.listings) {
                 try? data.write(to: Self.cacheURL)
             }
         } catch {
@@ -74,23 +81,23 @@ final class FeedModel {
         if let page = try? await fetchPage(offset: offset) {
             // De-dupe on id: the feed can shift under us between pages (bumps, new posts).
             let known = Set(items.map(\.id))
-            items.append(contentsOf: page.filter { !known.contains($0.id) })
-            offset += page.count
-            exhausted = page.count < pageSize
+            items.append(contentsOf: page.listings.filter { !known.contains($0.id) })
+            offset += page.listings.count
+            exhausted = page.listings.count < pageSize
         }
     }
 
-    private func fetchPage(offset: Int) async throws -> [ListingCard] {
+    private func fetchPage(offset: Int) async throws -> FeedPage {
         var q = [
             URLQueryItem(name: "limit", value: String(pageSize)),
             URLQueryItem(name: "offset", value: String(offset)),
         ]
         if let category { q.append(URLQueryItem(name: "category", value: category)) }
+        if let subcategory { q.append(URLQueryItem(name: "subcategory", value: subcategory)) }
         if let query { q.append(URLQueryItem(name: "q", value: query)) }
         if sort != "newest" { q.append(URLQueryItem(name: "sort", value: sort)) }
         if let priceMin { q.append(URLQueryItem(name: "priceMin", value: String(priceMin))) }
         if let priceMax { q.append(URLQueryItem(name: "priceMax", value: String(priceMax))) }
-        let page: FeedPage = try await APIClient.shared.get("api/listings", query: q)
-        return page.listings
+        return try await APIClient.shared.get("api/listings", query: q)
     }
 }
