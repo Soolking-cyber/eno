@@ -124,6 +124,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (session) bridge.postMessage({ access_token: session.access_token, refresh_token: session.refresh_token })
               else if (event === 'SIGNED_OUT') bridge.postMessage('signout')
             }
+            // Android sibling: WebMessageListener injects window.enoAuth ONLY on
+            // https://eno.vn (origin-scoped by the platform — the allowlist lives
+            // in the native addWebMessageListener call). String payloads only.
+            const droid = (window as unknown as { enoAuth?: { postMessage: (s: string) => void } }).enoAuth
+            if (droid && navigator.userAgent.includes('EnoNativeTabs')) {
+              if (session) droid.postMessage(JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token }))
+              else if (event === 'SIGNED_OUT') droid.postMessage('signout')
+            }
           } catch { /* web */ }
         })
         unsub = () => sub.subscription.unsubscribe()

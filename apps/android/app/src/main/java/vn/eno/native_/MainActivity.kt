@@ -29,6 +29,7 @@ import vn.eno.native_.ui.WebTab
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        vn.eno.native_.core.Auth.init(applicationContext)
         enableEdgeToEdge()
         setContent { EnoApp() }
     }
@@ -118,7 +119,7 @@ fun EnoApp() {
                 composable("saved") { vn.eno.native_.feed.SavedScreen(onOpen = { id -> nav.navigate("listing/$id") }) }
                 composable("post") { WebTab("/post") }
                 composable("messages") { WebTab("/messages") }
-                composable("account") { WebTab("/dashboard") }
+                composable("account") { vn.eno.native_.account.AccountScreen() }
             }
         }
     }

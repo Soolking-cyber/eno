@@ -48,11 +48,17 @@ object Api {
     val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
     @Volatile var accessToken: String? = null
 
+    /// Pre-request hook (iOS finding #5 parity): keeps the token fresh during
+    /// active use. Wired to Auth.refreshIfNeeded at startup.
+    @PublishedApi
+    internal var ensureFreshToken: (suspend () -> Unit)? = null
+
     @PublishedApi
     internal val client = OkHttpClient.Builder().build()
 
     suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T =
         withContext(Dispatchers.IO) {
+            ensureFreshToken?.invoke()
             val url = StringBuilder("https://eno.vn/").append(path)
             if (query.isNotEmpty()) {
                 url.append('?').append(query.entries.joinToString("&") {
