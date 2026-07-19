@@ -58,7 +58,12 @@ These carry invariants recorded in their own comments. Read the comments before 
 
 ## Parallel sessions (owner, 2026-07-19)
 
-Multiple Claude Code sessions may run in THIS worktree concurrently. Rules:
+Multiple Claude Code sessions may run in THIS worktree concurrently. The standing
+setup is the 4-terminal cockpit (`~/eno-cockpit.sh`, auto-ensured by the
+SessionStart hook in .claude/settings.json): workers **Kyle** and **Murat**
+(Claude Code) plus the second-opinion terminals **Codex** (GPT-5.6) and **Agy**
+(Gemini). Run `echo $ENO_SESSION` to learn your name; sign the claims board with
+it. Rules:
 - **Claims board**: `.claude/COORDINATION.md` — read it before picking up work,
   claim your item (and the TaskList task) there, release when done. Pick tasks
   the other session hasn't claimed.

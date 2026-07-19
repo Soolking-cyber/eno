@@ -17,7 +17,12 @@ sessions"):
    re-run tsc before pushing.
 4. **Release your claim** (update the row) when the item lands.
 
+**Names (owner, 2026-07-19): the two workers are KYLE and MURAT** — assigned by the
+cockpit launcher (`~/eno-cockpit.sh`, wired into the SessionStart hook; it also keeps
+the two second-opinion terminals, Codex and Agy, open). At session start run
+`echo $ENO_SESSION` to learn which one you are; sign this board with that name.
+
 | Session (started) | Claim | Files / area | Status |
 |---|---|---|---|
-| A (~2026-07-19 am, "audit" session) | Task #113 — structural extractions + §G perf + lint-zero | listings-explorer + extracted seams, forum-client rails/use-forum-feed, admin perf files, providers.tsx | DONE except two units (75043dda, f15dc2af, aa55d767, 9341756c, be385a0a + search dedupe). **UNCLAIMED remainder: post-wizard §E split + api/listings route §E split** — both landmine files, take them one at a time with full gates |
-| B (~2026-07-19 pm, "migration" session) | Task #114 — GCP cutover (DNS flips, schedulers, lockdown, Vercel decommission) + SEO wave follow-ups | Cloudflare zones, gcloud infra, docs/gcp-migration.md, sitemap/robots/footer/metadata files from 5550b99b | in progress |
+| **Kyle** (worker #1 — ex-A, audit lane) | Task #113 — structural extractions + §G perf + lint-zero | listings-explorer + extracted seams, forum-client rails/use-forum-feed, admin perf files, providers.tsx | **COMPLETE + RELEASED** (75043dda, f15dc2af, aa55d767, 9341756c, be385a0a, a3359f50 api-listings split, 0b98ce4a post-wizard split). Task #113 closed; nothing left unclaimed from the audit |
+| **Murat** (worker #2 — ex-B, migration lane) | Task #114 — GCP cutover + SEO follow-ups | Cloudflare zones, gcloud infra, docs/gcp-migration.md, forum next.config, sitemap/robots/footer/metadata files | CUTOVER COMPLETE: BOTH domains on GCP, ingress locked (run.app 404s — use domains for smoke/e2e), crons on domain URLs; remaining = 48h soak → Vercel decommission |
