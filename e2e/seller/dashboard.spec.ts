@@ -100,16 +100,18 @@ test.describe('one dashboard — rail integrity', () => {
     // exactly the "full dashboard replacement" the spec forbids.
     await rail.evaluate((el) => { (el as HTMLElement & { __e2eRailStamp?: boolean }).__e2eRailStamp = true })
 
-    const sections: [href: string, h1: RegExp][] = [
-      ['/dashboard/forum', /Forum activity|Hoạt động diễn đàn/],
-      ['/dashboard/trips', /Itineraries|Lịch trình/],
-      ['/dashboard/visa', /Vietnam e-Visa|E-Visa Việt Nam/],
+    // Since the 2026-07-18 direct-open redesign, trips/visa render their BUILDERS in
+    // place (no list h1) — assert each section's stable in-pane landmark instead.
+    const sections: [href: string, marker: (main: import('@playwright/test').Locator) => import('@playwright/test').Locator][] = [
+      ['/dashboard/forum', (main) => main.getByRole('heading', { level: 1, name: /Forum activity|Hoạt động diễn đàn/ })],
+      ['/dashboard/trips', (main) => main.getByTestId('build-itinerary')],
+      ['/dashboard/visa', (main) => main.getByRole('button', { name: /Start private application|Bắt đầu hồ sơ riêng tư/ }).or(main.getByRole('heading', { name: /Vietnam e-Visa assistance|e-Visa/i })).first()],
     ]
-    for (const [href, h1] of sections) {
+    for (const [href, marker] of sections) {
       await rail.locator(`a[href="${href}"]`).click()
       await expect(page).toHaveURL(new RegExp(href.replace(/\//g, '\\/')))
       // The right pane's content changed…
-      await expect(page.locator('#main').getByRole('heading', { level: 1, name: h1 })).toBeVisible()
+      await expect(marker(page.locator('#main'))).toBeVisible({ timeout: 15_000 })
       // …while the SAME rail node is still mounted (no shell replacement, still exactly one).
       await expect(rail).toHaveCount(1)
       expect(
