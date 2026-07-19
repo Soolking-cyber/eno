@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { ChevronRight, X } from 'lucide-react'
 import { CustomSelect } from './custom-select'
+import { RangeFacetControl } from './range-facet-control'
 import { CategoryIcon } from './category-icons'
 import { DISTRICTS } from './listings-explorer.constants'
 import { cn } from '@/lib/utils'
@@ -18,6 +19,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer'
 import { SUBCATEGORIES } from '@/lib/subcategories'
+import { facetsFor } from '@/lib/taxonomy'
 import type { SerializedCategory } from '@/lib/types'
 
 type Props = {
@@ -58,204 +60,69 @@ export function ExplorerFilters({
 }: Props) {
   const { lang, t, tr } = useLanguage()
 
+  // Category facets from the CANONICAL taxonomy (audit top-5 value): this drawer used
+  // to hand-code ~200 lines of per-category selects that had already drifted from the
+  // facet bar (its electronics "brand" offered exactly two hardcoded brands). One
+  // source now — facetsFor() — mirroring facet-bar's kind mapping in the drawer's
+  // vertical layout. `condition` is excluded: the drawer renders its own chips below.
+  const setFacet = (key: string, value: string) => {
+    setCustomFilters((prev) => {
+      const next = { ...prev }
+      if (value === 'all') delete next[key]
+      else next[key] = value
+      return next
+    })
+  }
   const renderCategorySpecificFilters = () => {
     if (activeCategory === 'all') return null
-
-    const handleSelectChange = (key: string, value: string) => {
-      setCustomFilters((prev) => {
-        const next = { ...prev }
-        if (value === 'all') {
-          delete next[key]
-        } else {
-          next[key] = value
-        }
-        return next
-      })
-    }
-
-    if (activeCategory === 'motorbike-rentals') {
-      return (
-        <>
-          {/* Transmission */}
-          <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Transmission', 'Hộp số')}
-            </label>
-            <CustomSelect
-              value={customFilters.transmission || 'all'}
-              onChange={(val) => handleSelectChange('transmission', val)}
-              options={[
-                { value: 'all', label: tr('All Transmissions', 'Tất cả loại xe') },
-                { value: 'automatic', label: tr('Automatic', 'Xe ga (Automatic)') },
-                { value: 'manual', label: tr('Manual / Semi-Auto', 'Xe số / Côn tay') },
-              ]}
-              label={tr('Transmission', 'Hộp số')}
-              placeholder={tr('Transmission', 'Hộp số')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-
-          {/* Engine Capacity */}
-          <div className="space-y-1.5 pt-1">
-            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Engine Size', 'Phân khối')}
-            </label>
-            <CustomSelect
-              value={customFilters.cc || 'all'}
-              onChange={(val) => handleSelectChange('cc', val)}
-              options={[
-                { value: 'all', label: tr('All Capacities', 'Tất cả phân khối') },
-                { value: '110-125', label: '110cc - 125cc' },
-                { value: '150-up', label: '150cc+' },
-              ]}
-              label={tr('Engine Size', 'Phân khối')}
-              placeholder={tr('Engine Size', 'Phân khối')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-        </>
-      )
-    }
-
-    if (activeCategory === 'house-rentals') {
-      return (
-        <>
-          {/* Bedrooms */}
-          <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Bedrooms', 'Số phòng ngủ')}
-            </label>
-            <CustomSelect
-              value={customFilters.bedrooms || 'all'}
-              onChange={(val) => handleSelectChange('bedrooms', val)}
-              options={[
-                { value: 'all', label: tr('All Bedrooms', 'Tất cả phòng') },
-                { value: '0', label: tr('Studio Room', 'Phòng Studio') },
-                { value: '1', label: tr('1 Bedroom', '1 Phòng ngủ') },
-                { value: '2', label: tr('2 Bedrooms', '2 Phòng ngủ') },
-                { value: '3', label: tr('3+ Bedrooms', '3+ Phòng ngủ') },
-              ]}
-              label={tr('Bedrooms', 'Số phòng ngủ')}
-              placeholder={tr('Bedrooms', 'Số phòng ngủ')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-
-          {/* Furnishing */}
-          <div className="space-y-1.5 pt-1">
-            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Furnishing', 'Nội thất')}
-            </label>
-            <CustomSelect
-              value={customFilters.furnishing || 'all'}
-              onChange={(val) => handleSelectChange('furnishing', val)}
-              options={[
-                { value: 'all', label: tr('All Furnishings', 'Tất cả trạng thái') },
-                { value: 'fully', label: tr('Fully Furnished', 'Đầy đủ nội thất') },
-                { value: 'partly', label: tr('Partially / Unfurnished', 'Đồ cơ bản / Trống') },
-              ]}
-              label={tr('Furnishing', 'Nội thất')}
-              placeholder={tr('Furnishing', 'Nội thất')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-        </>
-      )
-    }
-
-    if (activeCategory === 'moving-sale') {
-      return (
-        <>
-          {/* Material */}
-          <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Material', 'Chất liệu')}
-            </label>
-            <CustomSelect
-              value={customFilters.material || 'all'}
-              onChange={(val) => handleSelectChange('material', val)}
-              options={[
-                { value: 'all', label: tr('All Materials', 'Tất cả chất liệu') },
-                { value: 'wood', label: tr('Wood (Oak/Teak)', 'Gỗ tự nhiên (Oak/Teak)') },
-                { value: 'fabric', label: tr('Fabric / Cushion', 'Vải bọc / Nệm') },
-              ]}
-              label={tr('Material', 'Chất liệu')}
-              placeholder={tr('Material', 'Chất liệu')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-        </>
-      )
-    }
-
-    if (activeCategory === 'electronics') {
-      return (
-        <>
-          {/* Brand */}
-          <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Brand', 'Thương hiệu')}
-            </label>
-            <CustomSelect
-              value={customFilters.brand || 'all'}
-              onChange={(val) => handleSelectChange('brand', val)}
-              options={[
-                { value: 'all', label: tr('All Brands', 'Tất cả thương hiệu') },
-                { value: 'apple', label: 'Apple (iPhone/Mac/iPad)' },
-                { value: 'sony', label: 'Sony (Audio/Camera)' },
-              ]}
-              label={tr('Brand', 'Thương hiệu')}
-              placeholder={tr('Brand', 'Thương hiệu')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-
-          {/* Warranty */}
-          <div className="space-y-1.5 pt-1">
-            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('Warranty', 'Bảo hành')}
-            </label>
-            <CustomSelect
-              value={customFilters.warranty || 'all'}
-              onChange={(val) => handleSelectChange('warranty', val)}
-              options={[
-                { value: 'all', label: tr('All Warranty', 'Tất cả bảo hành') },
-                { value: 'yes', label: tr('Under Active Warranty', 'Còn bảo hành hãng') },
-              ]}
-              label={tr('Warranty', 'Bảo hành')}
-              placeholder={tr('Warranty', 'Bảo hành')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-        </>
-      )
-    }
-
-    if (activeCategory === 'jobs') {
-      return (
-        <>
-          {/* English level */}
-          <div className="space-y-1.5 pt-2 border-t border-border/80">
-            <label className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
-              {tr('English Requirement', 'Tiếng Anh')}
-            </label>
-            <CustomSelect
-              value={customFilters.english || 'all'}
-              onChange={(val) => handleSelectChange('english', val)}
-              options={[
-                { value: 'all', label: tr('Any Level', 'Bất kỳ mức độ nào') },
-                { value: 'required', label: tr('English Required', 'Yêu cầu tiếng Anh') },
-              ]}
-              label={tr('English Requirement', 'Tiếng Anh')}
-              placeholder={tr('English Requirement', 'Tiếng Anh')}
-              activeClassName="text-accent-foreground border-accent-foreground/35"
-            />
-          </div>
-        </>
-      )
-    }
-
-    return null
+    const advFacets = facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory).filter((f) => f.key !== 'condition')
+    if (!advFacets.length) return null
+    return (
+      <>
+        {advFacets.map((f, i) => {
+          const value = customFilters[f.key] || 'all'
+          const opts = f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
+          return (
+            <div key={f.key} className={cn('space-y-1.5', i === 0 ? 'pt-2 border-t border-border/80' : 'pt-1')}>
+              <label id={`drawer-facet-${f.key}`} className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
+                {tr(f.label, f.labelVi)}
+              </label>
+              {f.kind === 'range' && f.range ? (
+                <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacet(f.key, v)} />
+              ) : f.kind === 'toggle' ? (
+                <div role="group" aria-labelledby={`drawer-facet-${f.key}`} className="flex flex-wrap gap-1.5">
+                  {opts.map((o) => (
+                    <Button
+                      key={o.value}
+                      variant="bare"
+                      size="none"
+                      type="button"
+                      aria-pressed={value === o.value}
+                      onClick={() => setFacet(f.key, value === o.value ? 'all' : o.value)}
+                      className={cn(
+                        'rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
+                        value === o.value ? 'text-accent-foreground' : 'text-body hover:bg-muted',
+                      )}
+                    >
+                      {o.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <CustomSelect
+                  value={value}
+                  onChange={(v) => setFacet(f.key, v)}
+                  options={[{ value: 'all', label: tr('All', 'Tất cả') }, ...opts]}
+                  label={tr(f.label, f.labelVi)}
+                  placeholder={tr(f.label, f.labelVi)}
+                  activeClassName="text-accent-foreground border-accent-foreground/35"
+                />
+              )}
+            </div>
+          )
+        })}
+      </>
+    )
   }
 
   return (
