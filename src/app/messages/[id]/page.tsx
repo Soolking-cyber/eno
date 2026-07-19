@@ -245,12 +245,18 @@ export default function ThreadPage() {
     return () => { ro.disconnect(); root.style.removeProperty('--footer-h') }
   }, [id])
 
-  const send = async (override?: string) => {
+  // clientId per LOGICAL send (audit P2): a dropped response after a committed POST
+  // flips the bubble to retry — the retry reuses the id and the server replays the
+  // original message instead of inserting a duplicate.
+  const sendClientIds = useRef(new Map<string, string>())
+  const send = async (override?: string, reuseClientId?: string) => {
     const body = (override ?? text).trim()
     if (!body) return
     // Optimistic: show the bubble the instant Send is tapped — the POST swaps in the
     // real message; realtime ignores my own echo, so the UI never waits on the DB.
     const tempId = `temp-${Date.now()}`
+    const clientId = reuseClientId ?? crypto.randomUUID()
+    sendClientIds.current.set(tempId, clientId)
     const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true }
     setText('')
     composerRef.current?.clear() // empty the contenteditable DOM immediately (no 1-frame lag)
@@ -258,11 +264,12 @@ export default function ThreadPage() {
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
       const res = await fetch(`/api/conversations/${id}/messages`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, clientId }),
       })
       if (res.ok) {
         const m = (await res.json()) as Msg
         // Swap the temp for the real message — unless a poll already delivered it.
+        sendClientIds.current.delete(tempId)
         setThread((t) => {
           if (!t) return t
           const without = t.messages.filter((x) => x.id !== tempId)
@@ -284,8 +291,10 @@ export default function ThreadPage() {
     setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === tempId ? { ...x, pending: false, failed: true } : x)) } : t))
 
   const retry = (m: Msg) => {
+    const clientId = sendClientIds.current.get(m.id)
+    sendClientIds.current.delete(m.id)
     setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== m.id) } : t))
-    void send(m.body)
+    void send(m.body, clientId)
   }
 
   // Reveal the seller's number + Zalo on request (login-gated + rate-limited +
@@ -314,18 +323,26 @@ export default function ThreadPage() {
 
   // Send a structured offer (a message with kind='offer' + amount). Optimistic,
   // then refetch to hydrate the real offer fields + supersede prior offers.
+  const lastOfferSend = useRef<{ amount: number; clientId: string } | null>(null)
   const sendOffer = async (amount: number) => {
     const amt = Math.round(amount)
     if (!amt || amt <= 0) return
+    // Same amount re-sent (a retry after "not sent", incl. the committed-but-response-
+    // dropped case) keeps its clientId → the server replays instead of duplicating.
+    const clientId = lastOfferSend.current?.amount === amt ? lastOfferSend.current.clientId : crypto.randomUUID()
+    lastOfferSend.current = { amount: amt, clientId }
     const tempId = `temp-${Date.now()}`
     // Body stays empty — the offer card derives its label from offerAmount.
     const optimistic: Msg = { id: tempId, mine: true, body: '', createdAt: new Date().toISOString(), pending: true, kind: 'offer', offerAmount: amt, offerStatus: 'pending' }
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
       const res = await fetch(`/api/conversations/${id}/messages`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerAmount: amt }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ offerAmount: amt, clientId }),
       })
       if (res.ok) {
+        // SUCCESS clears the reuse slot — a later, genuinely new offer of the same
+        // amount must mint a fresh id (only failure-path re-taps replay).
+        lastOfferSend.current = null
         // Drop the optimistic temp BEFORE load() — load() re-appends any remaining
         // temps onto fresh server data, which would duplicate the offer card.
         setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
