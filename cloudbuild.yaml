@@ -39,7 +39,8 @@ availableSecrets:
 substitutions:
   _TAG: manual
 options:
-  machineType: E2_HIGHCPU_8
+  # No machineType pin: the project lacks E2_HIGHCPU_8 quota in the trigger
+  # region (europe-west1) — default machines build this in acceptable time.
   logging: CLOUD_LOGGING_ONLY
   dynamicSubstitutions: true
 timeout: 1800s

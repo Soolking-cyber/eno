@@ -39,7 +39,7 @@ availableSecrets:
 substitutions:
   _TAG: manual
 options:
-  machineType: E2_HIGHCPU_8
+  # No machineType pin: no E2_HIGHCPU_8 quota in the trigger region.
   logging: CLOUD_LOGGING_ONLY
   dynamicSubstitutions: true
 timeout: 1800s
