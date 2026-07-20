@@ -104,7 +104,6 @@ struct ListingDetailView: View {
             }
         }
         .background(Tokens.canvas)
-        .safeAreaInset(edge: .bottom) { ctaBar }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -648,32 +647,6 @@ struct ListingDetailView: View {
         return (a + b).uppercased()
     }
 
-    private var ctaBar: some View {
-        Button {
-            startChat()
-        } label: {
-            Group {
-                if contactBusy {
-                    ProgressView().tint(.white)
-                } else {
-                    HStack(spacing: 6) {
-                        Image(systemName: "message.fill").scaledFont(14)
-                        Text(L10n.tr("Chat now", "Chat ngay"))
-                    }
-                }
-            }
-            .scaledFont(14, weight: .semibold)
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-        }
-        .disabled(contactBusy)
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .background(.bar)
-    }
-
     // Offer composer (web parity: contact-composer.tsx) — negotiable listings get a
     // discount slider + a 70/30 "Send offer · {price}" / "Chat" split. Offers are the
     // default here; a fixed-price listing shows only the sticky "Chat now" bar.
@@ -735,6 +708,25 @@ struct ListingDetailView: View {
             .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
             // Open the slider at the web default the first time it appears.
             .onAppear { if !discountSet { discount = price >= 1_000_000_000 ? 1 : 5; discountSet = true } }
+        } else if detail != nil {
+            // Fixed-price / non-negotiable listings: an inline Chat-now button
+            // (replaces the removed sticky bottom bar — owner asked to drop the
+            // floating CTA that sat on top of the tab bar).
+            Button { startChat() } label: {
+                Group {
+                    if contactBusy { ProgressView().tint(.white) }
+                    else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "message.fill").scaledFont(14)
+                            Text(L10n.tr("Chat now", "Chat ngay"))
+                        }
+                    }
+                }
+                .scaledFont(14, weight: .semibold).foregroundStyle(.white)
+                .frame(maxWidth: .infinity).frame(height: 50)
+                .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+            }
+            .disabled(contactBusy)
         }
     }
 
