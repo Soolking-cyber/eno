@@ -35,11 +35,13 @@ enum OnDeviceAI {
                 ocr.recognitionLevel = .accurate
                 ocr.usesLanguageCorrection = true
                 try? handler.perform([classify, ocr])
-                let labels = (classify.results as? [VNClassificationObservation])?
+                // .results is already typed [VNClassificationObservation]? /
+                // [VNRecognizedTextObservation]? — the as? casts were dead (audit #13c).
+                let labels = classify.results?
                     .filter { $0.confidence > 0.1 }
                     .prefix(8)
                     .map { $0.identifier.replacingOccurrences(of: "_", with: " ") } ?? []
-                let text = (ocr.results as? [VNRecognizedTextObservation])?
+                let text = ocr.results?
                     .compactMap { $0.topCandidates(1).first?.string }
                     .filter { $0.count >= 2 }
                     .prefix(12)

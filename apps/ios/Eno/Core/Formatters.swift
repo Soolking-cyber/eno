@@ -11,12 +11,14 @@ enum Format {
         return L10n.isVi ? "\(n) đ" : "\(n) VND"
     }
 
-    private static let iso: ISO8601DateFormatter = {
+    // Configured once, only ever read via .date(from:) which is thread-safe on
+    // iOS 7+ — nonisolated(unsafe) satisfies strict concurrency (audit #13b).
+    private nonisolated(unsafe) static let iso: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
-    private static let isoNoFraction = ISO8601DateFormatter()
+    private nonisolated(unsafe) static let isoNoFraction = ISO8601DateFormatter()
 
     static func date(_ isoString: String) -> Date? {
         iso.date(from: isoString) ?? isoNoFraction.date(from: isoString)

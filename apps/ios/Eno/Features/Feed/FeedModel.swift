@@ -12,39 +12,39 @@ final class FeedModel {
     var isRefreshing = false
     var failed = false
     var category: String? {
-        didSet { if oldValue != category { Task { await reload() } } }
+        didSet { if oldValue != category { scheduleReload() } }
     }
     // Feed sort, mirroring buildFeedOrderBy's public values: newest (default =
     // the Recommended blend), recent, price-low, price-high, popular.
     var sort: String = "newest" {
-        didSet { if oldValue != sort { Task { await reload() } } }
+        didSet { if oldValue != sort { scheduleReload() } }
     }
     // Full-text query (accent-folded searchText + pg_trgm server-side).
     var query: String? {
-        didSet { if oldValue != query { Task { await reload() } } }
+        didSet { if oldValue != query { scheduleReload() } }
     }
     // Subcategory facet (slug; nil = all). Counts arrive with category pages.
     var subcategory: String? {
-        didSet { if oldValue != subcategory { Task { await reload() } } }
+        didSet { if oldValue != subcategory { scheduleReload() } }
     }
     private(set) var subcategoryCounts: [String: Int] = [:]
     // Brand + model facets (the quick-find rail): brandSlug + model params.
     var brand: String? {
-        didSet { if oldValue != brand { Task { await reload() } } }
+        didSet { if oldValue != brand { scheduleReload() } }
     }
     var model: String? {
-        didSet { if oldValue != model { Task { await reload() } } }
+        didSet { if oldValue != model { scheduleReload() } }
     }
     // Price range filter (VND), mirroring the web's priceMin/priceMax params.
     var priceMin: Int? {
-        didSet { if oldValue != priceMin { Task { await reload() } } }
+        didSet { if oldValue != priceMin { scheduleReload() } }
     }
     var priceMax: Int? {
-        didSet { if oldValue != priceMax { Task { await reload() } } }
+        didSet { if oldValue != priceMax { scheduleReload() } }
     }
     // Condition filter ("new" | "used"), mirroring the web's ?condition param.
     var condition: String? {
-        didSet { if oldValue != condition { Task { await reload() } } }
+        didSet { if oldValue != condition { scheduleReload() } }
     }
     var hasPriceFilter: Bool { priceMin != nil || priceMax != nil || condition != nil }
 
@@ -52,15 +52,25 @@ final class FeedModel {
     private var exhausted = false
     private let pageSize = 24
 
-    private static let cacheURL = URL.cachesDirectory.appending(path: "feed-v1.json")
+    // Sendable + immutable, so it can be read from a detached task without a
+    // MainActor hop (Swift-6 concurrency, audit #13a).
+    nonisolated static let cacheURL = URL.cachesDirectory.appending(path: "feed-v1.json")
+
+    // Filter/sort changes fire overlapping reloads; retain + cancel the previous
+    // one so untracked tasks don't pile up (audit #7). The reloadGen token below
+    // is what actually enforces latest-wins on the results.
+    private var reloadTask: Task<Void, Never>?
+    private func scheduleReload() {
+        reloadTask?.cancel()
+        reloadTask = Task { await reload() }
+    }
 
     func start() async {
         guard items.isEmpty else { return }
         // Instant paint from the disk cache, then revalidate. Decode off the
         // MainActor (review #11 addendum) — the cache can be hundreds of KB.
-        let cacheURL = Self.cacheURL
         let cached = await Task.detached(priority: .userInitiated) { () -> [ListingCard]? in
-            guard let data = try? Data(contentsOf: cacheURL) else { return nil }
+            guard let data = try? Data(contentsOf: Self.cacheURL) else { return nil }
             return try? JSONDecoder().decode([ListingCard].self, from: data)
         }.value
         if let cached, !cached.isEmpty, items.isEmpty {
@@ -110,7 +120,12 @@ final class FeedModel {
               let idx = items.firstIndex(of: item), idx >= items.count - 6 else { return }
         isLoading = true
         defer { isLoading = false }
+        // Pin the generation the page is fetched under (audit #7): if a filter
+        // change committed a new list while this page was in flight, discard it —
+        // otherwise stale-filter listings append and `offset` corrupts.
+        let gen = reloadGen
         if let page = try? await fetchPage(offset: offset) {
+            guard gen == reloadGen else { return }
             // De-dupe on id: the feed can shift under us between pages (bumps, new posts).
             let known = Set(items.map(\.id))
             items.append(contentsOf: page.listings.filter { !known.contains($0.id) })
