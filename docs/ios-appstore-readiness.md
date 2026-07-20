@@ -144,3 +144,24 @@ Wave 2: #8, #10, #6a+#6b(notif), #2m → build → push.
 Wave 3: #11 tests, #12k a11y, #9k image pipeline.
 Wave 4 (after owner provisions): #3 router, #4 push client, #2 identity finalize.
 Capacitor: #92 (+#90) alongside.
+
+## ⚠️ AVIF / simulator rendering (consistency sweep 2026-07-20) — DO NOT re-chase
+eno.vn's `/_next/image` optimizer serves **AVIF** (Cloudflare-cached; the `Accept`
+header can't override it). Findings from a device-matrix sweep:
+- **Real devices (incl. iOS 26) + iOS 18.x simulators decode AVIF → photos render.**
+- **The iOS 26.x SIMULATOR cannot decode AVIF → blank gray image boxes.** This is the
+  "completely different on the emulator vs my phone" the owner saw — a SIMULATOR
+  limitation, NOT an app bug. Preview on a device or an iOS 18.x sim.
+- Attempts to work around it in-app FAILED and were reverted: a custom
+  URLSession+ImageIO pipeline regressed even the working path; a nested-AsyncImage
+  webp fallback can't trigger because AsyncImage does not surface an AVIF decode
+  failure (`phase.error` stays nil — it fetched fine, the decode just silently
+  yields nothing). **Kept the plain AsyncImage (proven on device + 18.x).**
+- **Cross-device CONSISTENCY verified**: identical structure + clean layout on
+  iPhone SE (375pt, iOS 18.4, home button) and iPhone 16 Pro Max (440pt, iOS 26.5,
+  Dynamic Island) — header, category row, rails, cards, bottom nav all adapt; safe
+  areas handled; Dynamic Type scales. No breakage old↔new / small↔large.
+- Web-etalon: native PDP matches the web PDP structure; the native HOME uses native
+  patterns (inline search + category tabs + rails) vs the web mobile home (search
+  card + POPULAR chips + big category icons + businesses-first) — a deliberate native
+  adaptation, restructure only on explicit request.
