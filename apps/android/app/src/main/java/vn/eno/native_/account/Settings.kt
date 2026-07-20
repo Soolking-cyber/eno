@@ -39,7 +39,10 @@ fun SettingsScreen(onBack: () -> Unit) {
     var showDelete by remember { mutableStateOf(false) }
     var deleteConfirm by remember { mutableStateOf("") }
     var deleteMsg by remember { mutableStateOf<String?>(null) }
+    var showBusiness by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    if (showBusiness) { BusinessProfileScreen(onBack = { showBusiness = false }); return }
 
     LaunchedEffect(Unit) {
         val me = runCatching { Api.get<MeResponse>("api/me").user }.getOrNull()
@@ -119,6 +122,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                 },
                 enabled = !savingType && (accountType != "business" || businessName.trim().isNotEmpty()), modifier = Modifier.fillMaxWidth(),
             ) { if (savingType) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(L10n.tr("Save account type", "Lưu loại tài khoản")) }
+
+            if (accountType == "business") {
+                Spacer(Modifier.height(14.dp))
+                Row(Modifier.fillMaxWidth().clickable { showBusiness = true }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(L10n.tr("Business profile", "Hồ sơ doanh nghiệp"), fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground)
+                    Spacer(Modifier.weight(1f))
+                    Text("›", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
 
             Spacer(Modifier.height(24.dp))
             // ── Danger zone ──
