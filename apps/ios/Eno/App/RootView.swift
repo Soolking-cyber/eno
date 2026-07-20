@@ -37,5 +37,10 @@ struct RootView: View {
                 .tag(4)
         }
         .task { await unread.refresh() }
+        // Every button in the app draws its OWN look (brand fills, tint chips, plain
+        // text). Force .plain app-wide so no iOS version wraps them in system chrome —
+        // notably iOS 26's Liquid-Glass capsule, which put an ugly pill behind every
+        // rectangular CTA. Descendant styles (sheets, pushes) inherit this default.
+        .buttonStyle(.plain)
     }
 }
