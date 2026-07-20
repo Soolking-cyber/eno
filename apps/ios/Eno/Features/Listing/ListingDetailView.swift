@@ -54,6 +54,7 @@ struct ListingDetailView: View {
                             .font(.system(size: 15))
                             .foregroundStyle(Tokens.fg)
                             .lineSpacing(3)
+                        detailsTable(d)
                         Divider().overlay(Tokens.ring)
                         sellerCard(d.seller)
                     } else if unavailable {
@@ -223,6 +224,53 @@ struct ListingDetailView: View {
         case "fair": return L10n.tr("Fair", "Khá")
         default: return c
         }
+    }
+
+    // Details table (item 30, web parity): numeric specs (Year / Mileage / Engine,
+    // with units) first, then the free-form attributes map (camelCase keys spaced
+    // + capitalized, lowercase values capitalized). Self-hides when empty.
+    private func detailRows(_ d: ListingDetail) -> [(String, String)] {
+        var rows: [(String, String)] = []
+        if let y = d.year { rows.append((L10n.tr("Year", "Năm"), String(y))) }
+        if let km = d.mileageKm { rows.append((L10n.tr("Mileage", "Số km"), "\(km.formatted()) km")) }
+        if let e = d.engineL { rows.append((L10n.tr("Engine", "Động cơ"), "\(e) L")) }
+        for (k, v) in (d.attributes ?? [:]).sorted(by: { $0.key < $1.key }) {
+            rows.append((attrKey(k), v.prefix(1).uppercased() + v.dropFirst()))
+        }
+        return rows
+    }
+
+    @ViewBuilder
+    private func detailsTable(_ d: ListingDetail) -> some View {
+        let rows = detailRows(d)
+        if !rows.isEmpty {
+            Divider().overlay(Tokens.ring)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(L10n.tr("Details", "Thông số"))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Tokens.fg)
+                    .padding(.bottom, 4)
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    HStack(alignment: .top, spacing: 16) {
+                        Text(row.0).font(.system(size: 14)).foregroundStyle(Tokens.sub)
+                        Spacer()
+                        Text(row.1).font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Tokens.fg).multilineTextAlignment(.trailing)
+                    }
+                    .padding(.vertical, 6)
+                }
+            }
+        }
+    }
+
+    // camelCase → spaced + capitalized ("screenSize" → "Screen Size").
+    private func attrKey(_ k: String) -> String {
+        var spaced = ""
+        for ch in k {
+            if ch.isUppercase { spaced += " " }
+            spaced.append(ch)
+        }
+        return spaced.split(separator: " ").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
     }
 
     private func statsRow(_ d: ListingDetail) -> some View {

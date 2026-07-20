@@ -188,6 +188,8 @@ struct ListingDetail: Codable, Identifiable {
     let seller: DetailSeller
     let year: Int?
     let mileageKm: Int?
+    let engineL: Double?
+    let attributes: [String: String]?
 
     struct DetailSeller: Codable {
         let id: String
