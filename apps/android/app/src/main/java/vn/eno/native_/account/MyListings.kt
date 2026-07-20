@@ -117,13 +117,18 @@ fun MyListingsScreen(onBack: () -> Unit) {
             t,
             onDismiss = { editTarget = null },
             onMoreOptions = { editTarget = null; editId = t.id },
+            // Returns true only on a 2xx PATCH; the sheet stays open + shows an
+            // error otherwise. runCatching keeps an airplane-mode IOException from
+            // escaping the coroutine (which would crash the app).
             onSave = { title, price, description, negotiable ->
                 val body = org.json.JSONObject()
                     .put("title", title).put("description", description)
                     .put("price", price).put("negotiable", negotiable)
                     .toString()
-                act(t.id) { Api.send("PATCH", "api/listings/${t.id}", body) }
-                editTarget = null
+                val code = runCatching { Api.send("PATCH", "api/listings/${t.id}", body) }.getOrNull()
+                val ok = code != null && code in 200..299
+                if (ok) load()
+                ok
             },
         )
     }
@@ -247,13 +252,18 @@ private fun EditSheet(
     l: MyListing,
     onDismiss: () -> Unit,
     onMoreOptions: () -> Unit,
-    onSave: (String, Long, String, Boolean) -> Unit,
+    onSave: suspend (String, Long, String, Boolean) -> Boolean,
 ) {
     var title by remember { mutableStateOf(l.title) }
     var priceText by remember { mutableStateOf(l.price.toString()) }
     var description by remember { mutableStateOf(l.description) }
     var negotiable by remember { mutableStateOf(l.negotiable) }
-    val valid = title.trim().length >= 3
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    // Never save a 0đ (free) listing: the price must be a positive number.
+    val priceVal = priceText.filter { it.isDigit() }.toLongOrNull()
+    val valid = title.trim().length >= 3 && priceVal != null && priceVal > 0
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)
@@ -281,11 +291,26 @@ private fun EditSheet(
             TextButton(onClick = onMoreOptions) {
                 Text(L10n.tr("More options (photos, category…)", "Thêm tùy chọn (ảnh, danh mục…)"))
             }
+            error?.let {
+                Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
+            }
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = { if (valid) onSave(title.trim(), priceText.toLongOrNull() ?: 0L, description.trim(), negotiable) },
-                enabled = valid, modifier = Modifier.fillMaxWidth(),
-            ) { Text(L10n.tr("Save changes", "Lưu thay đổi")) }
+                onClick = {
+                    if (!valid || saving) return@Button
+                    saving = true; error = null
+                    scope.launch {
+                        val ok = onSave(title.trim(), priceVal ?: 0L, description.trim(), negotiable)
+                        saving = false
+                        if (ok) onDismiss()
+                        else error = L10n.tr("Couldn't save — check the fields and your connection.", "Không lưu được — kiểm tra thông tin và kết nối.")
+                    }
+                },
+                enabled = valid && !saving, modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (saving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text(L10n.tr("Save changes", "Lưu thay đổi"))
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ package vn.eno.native_.post
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -15,7 +16,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.RequestBody
+import okio.BufferedSink
+import okio.source
 import org.json.JSONArray
 import org.json.JSONObject
 import vn.eno.native_.account.MeResponse
@@ -101,7 +104,7 @@ class PostViewModel : ViewModel() {
             title.trim().length >= 3 &&
             description.trim().length >= 20 &&
             priceText.filter { it.isDigit() }.isNotEmpty() &&
-            contactPhone.count { it.isDigit() } >= 9 && !submitting
+            contactPhone.count { it.isDigit() } >= 9 && !submitting && !videoUploading
 
     fun start() {
         viewModelScope.launch {
@@ -160,21 +163,44 @@ class PostViewModel : ViewModel() {
             try {
                 val app = ctx.applicationContext
                 val mime = app.contentResolver.getType(uri) ?: "video/mp4"
-                val bytes = withContext(Dispatchers.IO) {
-                    app.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                // Gate size + duration BEFORE reading any bytes: a big clip read
+                // into a single ByteArray would OOM, and OutOfMemoryError is an
+                // Error (not Exception) — it would escape catch and crash the app.
+                val size = withContext(Dispatchers.IO) {
+                    app.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
                 }
-                if (bytes == null) {
+                if (size <= 0L) {
                     videoError = L10n.tr("Couldn't read this video.", "Không đọc được video này."); return@launch
                 }
-                if (bytes.size > 50 * 1024 * 1024) {
+                if (size > 50L * 1024 * 1024) {
                     videoError = L10n.tr("Video is too large (50MB max) — try a shorter clip.", "Video quá lớn (tối đa 50MB) — thử clip ngắn hơn."); return@launch
                 }
+                val durationMs = withContext(Dispatchers.IO) {
+                    val r = MediaMetadataRetriever()
+                    try {
+                        r.setDataSource(app, uri)
+                        r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                    } catch (_: Exception) { 0L } finally { r.release() }
+                }
+                if (durationMs > 61_000L) {
+                    videoError = L10n.tr("Video must be 60 seconds or less.", "Video phải dài tối đa 60 giây."); return@launch
+                }
                 val sign = Api.post<VideoSign>("api/upload/video/sign",
-                    JSONObject().put("type", mime).put("size", bytes.size).toString())
+                    JSONObject().put("type", mime).put("size", size).toString())
                 val ok = withContext(Dispatchers.IO) {
+                    // STREAM the bytes straight from the content Uri — never hold
+                    // the whole clip in memory.
+                    val streamBody = object : RequestBody() {
+                        override fun contentType() = mime.toMediaType()
+                        override fun contentLength() = size
+                        override fun writeTo(sink: BufferedSink) {
+                            app.contentResolver.openInputStream(uri)?.use { input -> sink.writeAll(input.source()) }
+                                ?: throw java.io.IOException("no stream")
+                        }
+                    }
                     val req = Request.Builder()
                         .url(sign.signedUrl)
-                        .put(bytes.toRequestBody(mime.toMediaType()))
+                        .put(streamBody)
                         .header("x-upsert", "false")
                         .header("cache-control", "max-age=31536000")
                         .build()
