@@ -253,6 +253,10 @@ fun FeedScreen(
     var filtered by remember { mutableStateOf(false) }
     var sort by remember { mutableStateOf("newest") }
     val feedCtx = androidx.compose.ui.platform.LocalContext.current
+    // Make the scroll-hide threshold density-independent (~10dp of committed
+    // travel) instead of a raw-px constant that's hypersensitive on 3x screens.
+    val feedDensity = androidx.compose.ui.platform.LocalDensity.current
+    remember(feedDensity) { ChromeBars.thresholdPx = with(feedDensity) { 10.dp.toPx() }; 0 }
     // Refresh the recently-viewed rail whenever the feed re-composes into view
     // (returning from a PDP changes it).
     LaunchedEffect(items.size) { vm.loadRecentlyViewed(feedCtx) }

@@ -22,19 +22,31 @@ object ChromeBars {
         private set
 
     private var acc = 0f
-    private const val THRESHOLD = 14f // px of committed same-direction travel
+    // Committed same-direction travel before flipping, in px. Seeded to a sane
+    // default and overwritten from real screen density (Feed sets it via
+    // configureThreshold) so the feel is identical across densities — a raw-px
+    // constant is hypersensitive on a 3x display (Gemini review).
+    var thresholdPx = 30f
 
     val connection = object : NestedScrollConnection {
-        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-            val dy = available.y
+        // Drive off *committed* travel in onPostScroll (consumed.y), not the
+        // offered delta in onPreScroll: an upward drag on a short/empty feed or at
+        // the list's end offers a delta the grid never consumes, which would hide
+        // the bar though nothing scrolled and leave it stuck (codex review). Gate
+        // on UserInput so pull-to-refresh snap-back and fling settle — which fire
+        // as SideEffect with a reversed delta — can't spuriously re-toggle it
+        // (Gemini review).
+        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+            if (source != NestedScrollSource.UserInput) return Offset.Zero
+            val dy = consumed.y
             when {
-                dy < 0f -> { // finger up → content scrolls up → hide chrome
+                dy < 0f -> { // list scrolled toward the end → hide chrome
                     acc = (if (acc < 0f) acc else 0f) + dy
-                    if (acc < -THRESHOLD) hidden = true
+                    if (acc < -thresholdPx) hidden = true
                 }
-                dy > 0f -> { // scrolling back up → reveal chrome
+                dy > 0f -> { // list scrolled back up → reveal chrome
                     acc = (if (acc > 0f) acc else 0f) + dy
-                    if (acc > THRESHOLD) hidden = false
+                    if (acc > thresholdPx) hidden = false
                 }
             }
             return Offset.Zero // consume nothing — the list (and pull-to-refresh) still scroll
