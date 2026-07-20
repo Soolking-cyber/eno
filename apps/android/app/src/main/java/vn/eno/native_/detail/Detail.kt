@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
@@ -30,6 +31,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import vn.eno.native_.core.*
@@ -87,19 +93,27 @@ fun DetailScreen(
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             LazyColumn(Modifier.weight(1f)) {
-                // ── gallery + save/share overlay (item 21) ──
+                // ── gallery + save/share overlay (item 21); video-first page (#22) ──
                 item {
                     Box {
-                        val pager = rememberPagerState { d.images.size.coerceAtLeast(1) }
+                        // Video (when present) is page 0, poster = first image; images follow.
+                        val hasVideo = !d.video.isNullOrEmpty()
+                        val pageCount = (if (hasVideo) 1 else 0) + d.images.size.coerceAtLeast(1)
+                        val pager = rememberPagerState { pageCount }
                         HorizontalPager(pager) { page ->
-                            AsyncImage(
-                                model = d.images.getOrNull(page)?.let { ImageUrl.optimized(it, 1080) },
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxWidth().aspectRatio(1f)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .clickable { viewerPage = page },
-                            )
+                            if (hasVideo && page == 0) {
+                                VideoPage(url = d.video!!, poster = d.images.firstOrNull())
+                            } else {
+                                val imgIdx = if (hasVideo) page - 1 else page
+                                AsyncImage(
+                                    model = d.images.getOrNull(imgIdx)?.let { ImageUrl.optimized(it, 1080) },
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxWidth().aspectRatio(1f)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .clickable { viewerPage = imgIdx },
+                                )
+                            }
                         }
                         Row(Modifier.align(Alignment.TopEnd).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             CircleIcon(if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -228,6 +242,42 @@ fun DetailScreen(
             }
         }
         viewerPage?.let { p -> GalleryOverlay(d.images, p) { viewerPage = null } }
+    }
+}
+
+// Video-first gallery page (#22, iOS VideoPage parity): the listing clip in an
+// ExoPlayer, poster = first image with a play affordance until tapped; loops,
+// player released on dispose. Muted-autoplay is avoided (data-cost on a VN feed).
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+private fun VideoPage(url: String, poster: String?) {
+    val ctx = LocalContext.current
+    var started by remember { mutableStateOf(false) }
+    val player = remember(url) {
+        ExoPlayer.Builder(ctx).build().apply {
+            setMediaItem(MediaItem.fromUri(url))
+            repeatMode = Player.REPEAT_MODE_ONE
+            prepare()
+        }
+    }
+    DisposableEffect(url) { onDispose { player.release() } }
+    Box(Modifier.fillMaxWidth().aspectRatio(1f).background(Color.Black), contentAlignment = Alignment.Center) {
+        AndroidView(
+            factory = { PlayerView(it).apply { this.player = player; useController = true } },
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (!started) {
+            AsyncImage(
+                model = poster?.let { ImageUrl.optimized(it, 1080) },
+                contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Icon(
+                Icons.Filled.PlayCircle, contentDescription = L10n.tr("Play video", "Phát video"),
+                tint = Color.White.copy(alpha = 0.92f),
+                modifier = Modifier.size(64.dp).clickable { started = true; player.playWhenReady = true },
+            )
+        }
     }
 }
 
