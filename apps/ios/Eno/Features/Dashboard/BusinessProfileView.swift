@@ -1,11 +1,11 @@
 import SwiftUI
+import PhotosUI
 
-// Native business-storefront editor (#63) — replaces the web fallback for a
-// business seller's public storefront (name / bio / location / contact) plus the
-// Đ.29 legal identity (legalName / legalAddress / idNumber / taxCode — shown to
-// buyers/authorities on request, never rendered publicly). Prefilled from
-// /api/dashboard's seller object; saved via PATCH /api/seller (updateSellerCore).
-// The logo is an image upload and stays on the web for now.
+// Native business-storefront editor (#63/#21) — the business seller's public
+// storefront (name / bio / location / contact / LOGO) plus the Đ.29 legal
+// identity (legalName / legalAddress / idNumber / taxCode — shown to buyers/
+// authorities on request, never rendered publicly). Prefilled from /api/dashboard;
+// saved via PATCH /api/seller (updateSellerCore); logo via /api/upload → PATCH avatarUrl.
 struct BusinessProfileView: View {
     @State private var loading = true
     @State private var name = ""
@@ -16,15 +16,18 @@ struct BusinessProfileView: View {
     @State private var legalAddress = ""
     @State private var idNumber = ""
     @State private var taxCode = ""
+    @State private var logoUrl: String?
+    @State private var logoPick: PhotosPickerItem?
+    @State private var logoBusy = false
     @State private var saving = false
     @State private var msg: String?
     @State private var ok = false
-    @State private var showWeb = false
 
     private struct DashEnvelope: Codable {
         struct Dashboard: Codable {
             struct Seller: Codable {
                 let name: String?; let bio: String?; let location: String?; let phone: String?
+                let avatarUrl: String?
                 let legalName: String?; let legalAddress: String?; let idNumber: String?; let taxCode: String?
             }
             let seller: Seller?
@@ -65,17 +68,48 @@ struct BusinessProfileView: View {
                     }
                     .disabled(saving || !nameValid)
                 }
-                Section {
-                    Button { showWeb = true } label: {
-                        Label(L10n.tr("Edit logo on the web", "Sửa logo trên web"), systemImage: "photo")
+                Section(L10n.tr("Logo", "Logo")) {
+                    HStack(spacing: 12) {
+                        AsyncImage(url: logoUrl.flatMap { ImageURL.optimized($0, width: 120) }) { phase in
+                            if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
+                        }
+                        .frame(width: 48, height: 48).clipShape(RoundedRectangle(cornerRadius: 8))
+                        PhotosPicker(selection: $logoPick, matching: .images) {
+                            if logoBusy { ProgressView() }
+                            else { Text(logoUrl == nil ? L10n.tr("Add logo", "Thêm logo") : L10n.tr("Change logo", "Đổi logo")) }
+                        }
+                        .disabled(logoBusy)
                     }
                 }
             }
         }
         .navigationTitle(L10n.tr("Business profile", "Hồ sơ doanh nghiệp"))
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showWeb) { WebSheet(path: "/dashboard/settings") }
+        .onChange(of: logoPick) {
+            guard let item = logoPick else { return }
+            logoPick = nil
+            Task { await uploadLogo(item) }
+        }
         .task { await load() }
+    }
+
+    private func uploadLogo(_ item: PhotosPickerItem) async {
+        logoBusy = true; msg = nil
+        defer { logoBusy = false }
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let ui = UIImage(data: data),
+              let jpeg = ui.jpegData(compressionQuality: 0.85) else {
+            ok = false; msg = L10n.tr("Couldn't read that image.", "Không đọc được ảnh."); return
+        }
+        do {
+            let urls = try await APIClient.shared.uploadImages([jpeg])
+            guard let url = urls.first else { ok = false; msg = L10n.tr("Upload failed.", "Tải lên thất bại."); return }
+            let code = try await APIClient.shared.send("PATCH", "api/seller", body: ["avatarUrl": url])
+            if (200..<300).contains(code) { logoUrl = url; ok = true; msg = L10n.tr("Logo updated", "Đã cập nhật logo") }
+            else { ok = false; msg = L10n.tr("Couldn't save the logo.", "Không lưu được logo.") }
+        } catch {
+            ok = false; msg = L10n.tr("Couldn't upload the logo.", "Không tải được logo.")
+        }
     }
 
     private func load() async {
@@ -90,6 +124,7 @@ struct BusinessProfileView: View {
         legalAddress = s.legalAddress ?? ""
         idNumber = s.idNumber ?? ""
         taxCode = s.taxCode ?? ""
+        logoUrl = s.avatarUrl
     }
 
     private func save() async {
