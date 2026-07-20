@@ -106,24 +106,34 @@ final class PostModel {
         }
     }
 
-    // ✨ AI auto-fill from the cover photo (the same /api/ai/classify the web
-    // wizard uses). Reads category/subcategory/type/condition/brand/model/title
-    // off the first photo and prefills — the seller then reviews + adds price,
-    // description, location. Login-only (the endpoint burns paid Gemini credit),
-    // so a guest gets a sign-in nudge. Title is only filled when still empty.
+    // ✨ AI auto-fill from the cover photo. ON-DEVICE FIRST (owner directive):
+    // Apple Vision + the on-device Foundation model do it free, private, offline
+    // and with NO login on capable devices (iPhone 15 Pro+/Apple Intelligence).
+    // Only when the device can't (older hardware) does it fall back to the paid,
+    // login-gated server /api/ai/classify. Title is filled only when still empty.
     func autofill() async {
         guard let image = photos.first?.image,
               let jpeg = image.jpegData(compressionQuality: 0.85) else {
             autofillError = L10n.tr("Add a photo first.", "Thêm ảnh trước đã.")
             return
         }
+        autofilling = true
+        autofillError = nil
+        defer { autofilling = false }
+
+        // 1. On-device (free, no server, no login) — the preferred path.
+        if let onDevice = await OnDeviceAI.classify(image, lang: L10n.isVi ? "vi" : "en",
+                                                     categorySlugs: Categories.all.map(\.slug)) {
+            await apply(onDevice)
+            return
+        }
+
+        // 2. Server fallback — only reached on devices without on-device AI.
+        // The endpoint burns paid Gemini credit, so it's login-gated.
         guard AuthModel.shared.isSignedIn else {
             autofillError = L10n.tr("Sign in to auto-fill with AI.", "Đăng nhập để điền tự động bằng AI.")
             return
         }
-        autofilling = true
-        autofillError = nil
-        defer { autofilling = false }
         do {
             let r = try await APIClient.shared.classify(jpeg: jpeg, lang: L10n.isVi ? "vi" : "en")
             if r.unclear == true {
@@ -131,26 +141,7 @@ final class PostModel {
                                         "Chưa nhận ra món đồ — thử chụp gần chỉ riêng sản phẩm.")
                 return
             }
-            if let slug = r.categorySlug, let cat = Categories.bySlug(slug) {
-                category = cat
-                let meta = await Taxonomy.shared.category(for: slug)
-                catMeta = meta
-                subs = meta?.subcategories ?? []
-                listingType = r.listingType ?? meta?.types?.first?.value
-                if let subSlug = r.subcategorySlug { subcategory = subs.first { $0.slug == subSlug } }
-            }
-            if let c = r.condition, c == "new" || c == "used" { condition = c }
-            if brandable, r.brandUncertain != true, let b = r.brand, !b.isEmpty {
-                brand = b
-                if let m = r.model { model = m }
-            }
-            if let attrs = r.attributes {
-                for (k, v) in attrs where chipFacets.contains(where: { $0.key == k }) { attributes[k] = v }
-            }
-            // Web parity: never overwrite a title the seller already typed.
-            if title.trimmingCharacters(in: .whitespaces).isEmpty, let t = r.title, !t.isEmpty {
-                title = String(t.prefix(140))
-            }
+            await apply(r)
         } catch APIError.http(401) {
             autofillError = L10n.tr("Sign in to auto-fill with AI.", "Đăng nhập để điền tự động bằng AI.")
         } catch APIError.http(429) {
@@ -158,6 +149,30 @@ final class PostModel {
         } catch {
             autofillError = L10n.tr("Couldn't read the photo. Fill in the details below.",
                                     "Không đọc được ảnh. Điền thông tin bên dưới.")
+        }
+    }
+
+    // Populate the form from a classify result (shared by both on-device + server).
+    private func apply(_ r: ClassifyResult) async {
+        if let slug = r.categorySlug, let cat = Categories.bySlug(slug) {
+            category = cat
+            let meta = await Taxonomy.shared.category(for: slug)
+            catMeta = meta
+            subs = meta?.subcategories ?? []
+            listingType = r.listingType ?? meta?.types?.first?.value
+            if let subSlug = r.subcategorySlug { subcategory = subs.first { $0.slug == subSlug } }
+        }
+        if let c = r.condition, c == "new" || c == "used" { condition = c }
+        if brandable, r.brandUncertain != true, let b = r.brand, !b.isEmpty {
+            brand = b
+            if let m = r.model { model = m }
+        }
+        if let attrs = r.attributes {
+            for (k, v) in attrs where chipFacets.contains(where: { $0.key == k }) { attributes[k] = v }
+        }
+        // Web parity: never overwrite a title the seller already typed.
+        if title.trimmingCharacters(in: .whitespaces).isEmpty, let t = r.title, !t.isEmpty {
+            title = String(t.prefix(140))
         }
     }
 
