@@ -100,6 +100,30 @@ struct APIErrorBodyTests {
     }
 }
 
+struct DeepLinkRouterTests {
+    private func route(_ s: String) -> DeepLinkRouter.Route? {
+        DeepLinkRouter.route(for: URL(string: s)!)
+    }
+
+    @Test func universalLinks() {
+        #expect(route("https://eno.vn/listings/abc123") == .listing("abc123"))
+        #expect(route("https://eno.vn/c/vehicles") == .category("vehicles"))
+        #expect(route("https://eno.vn/brands/honda") == .brand("honda"))
+    }
+
+    @Test func customScheme() {
+        #expect(route("enonative://listing/xyz") == .listing("xyz"))
+        #expect(route("enonative://messages/convo1") == .conversation("convo1"))
+    }
+
+    @Test func nonRoutes() {
+        #expect(route("https://eno.vn/auth/callback") == nil)   // OAuth must stay in browser
+        #expect(route("https://eno.vn/") == nil)                // no target
+        #expect(route("https://eno.vn/listings") == nil)        // missing id
+        #expect(route("https://eno.vn/random/thing") == nil)    // unknown head
+    }
+}
+
 @Suite(.serialized)
 struct RecentStoreTests {
     private func clear() {

@@ -9,6 +9,7 @@ struct FeedView: View {
     @State private var home = HomeModel()
     @State private var aiSheet = false
     @State private var notif = NotifModel.shared
+    @State private var router = DeepLinkRouter.shared
 
     // Landing = no facet/search active → show the discovery rails; else the
     // quick-find selection filters the grid in place.
@@ -17,7 +18,9 @@ struct FeedView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        // Bound to the router so deep links / notification taps push onto this stack
+        // (audit #3); manual card taps append to the same path.
+        NavigationStack(path: $router.explorePath) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     header
@@ -60,6 +63,16 @@ struct FeedView: View {
             }
             .navigationDestination(for: AppCategory.self) { cat in
                 CategoryFeedView(category: cat)
+            }
+            // Deep-link routes (audit #3): listing → native loader; category/brand →
+            // the real web page embedded in native chrome (no native brand screen yet).
+            .navigationDestination(for: DeepLinkRouter.Route.self) { route in
+                switch route {
+                case .listing(let id): ListingLoaderView(id: id)
+                case .category(let slug): WebTabView(path: "/c/\(slug)", title: L10n.tr("Category", "Danh mục"))
+                case .brand(let slug): WebTabView(path: "/brands/\(slug)", title: L10n.tr("Brand", "Thương hiệu"))
+                case .conversation: EmptyView()   // routed at the tab level
+                }
             }
             .toolbar(.hidden, for: .navigationBar)
             .task {

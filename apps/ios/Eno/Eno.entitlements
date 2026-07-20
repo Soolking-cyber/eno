@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal Links (audit #3): matches the AASA served at
+	     https://eno.vn/.well-known/apple-app-site-association (once APPLE_TEAM_ID
+	     env is set). /auth/* is deliberately NOT associated — OAuth must finish in
+	     the browser that started it. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:eno.vn</string>
+	</array>
+	<!-- Push (audit #4): 'development' here; Xcode/App Store flips to 'production'
+	     for Release/TestFlight builds under automatic signing. -->
+	<key>aps-environment</key>
+	<string>development</string>
+	<!-- Sign in with Apple (audit #5, Guideline 4.8). -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+</dict>
+</plist>
