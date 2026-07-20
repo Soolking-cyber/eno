@@ -57,3 +57,25 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: vn.eno.app.oauth
             CFBundleURLSchemes: [enonative]
+  # Unit tests (audit #11) — pure Core logic (ImageURL, Format, RecentStore,
+  # ListingCard badge rules, APIErrorBody). Swift Testing (@Test). Run:
+  # xcodebuild test -scheme Eno -destination 'platform=iOS Simulator,name=iPhone 16'
+  EnoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [EnoTests]
+    dependencies:
+      - target: Eno
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Eno:
+    build:
+      targets:
+        Eno: all
+        EnoTests: [test]
+    test:
+      targets: [EnoTests]
+    run:
+      config: Debug
