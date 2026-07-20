@@ -19,7 +19,7 @@ export async function GET() {
     TAXONOMY.map((c) => [
       c.slug,
       {
-        subcategories: c.subcategories.map((s) => ({ slug: s.slug, name: s.name, nameVi: s.nameVi })),
+        subcategories: c.subcategories.map((s) => ({ slug: s.slug, name: s.name, nameVi: s.nameVi, icon: s.icon })),
         types: c.types.map((v) => {
           const t = typeLabel.get(v)
           return { value: v, label: t?.label ?? v, labelVi: t?.labelVi ?? v }
