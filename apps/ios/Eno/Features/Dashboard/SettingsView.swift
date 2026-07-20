@@ -29,6 +29,13 @@ struct SettingsView: View {
     @State private var deleteMsg: String?
     @State private var showWeb = false
 
+    @State private var reminderOptIn = true
+    @State private var digestOptIn = true
+    @State private var prefsLoaded = false
+
+    private struct ReminderPref: Codable { let dailyReminderOptIn: Bool }
+    private struct DigestPref: Codable { let weeklyDigestOptIn: Bool }
+
     init(initial: MeResponse.User?, onChanged: @escaping () -> Void) {
         self.initial = initial
         self.onChanged = onChanged
@@ -80,13 +87,23 @@ struct SettingsView: View {
                 }
             }
 
+            Section(L10n.tr("Notifications", "Thông báo")) {
+                Toggle(L10n.tr("Daily availability reminder", "Nhắc kiểm tin mỗi ngày"), isOn: $reminderOptIn)
+                    .onChange(of: reminderOptIn) {
+                        if prefsLoaded { Task { _ = try? await APIClient.shared.send("POST", "api/profile/reminder-prefs", body: ["dailyReminderOptIn": reminderOptIn]) } }
+                    }
+                Toggle(L10n.tr("Weekly digest email", "Email tổng hợp hằng tuần"), isOn: $digestOptIn)
+                    .onChange(of: digestOptIn) {
+                        if prefsLoaded { Task { _ = try? await APIClient.shared.send("POST", "api/profile/digest-prefs", body: ["weeklyDigestOptIn": digestOptIn]) } }
+                    }
+            }
+
             Section {
                 NavigationLink { DisputesView() } label: {
                     Label(L10n.tr("Disputes", "Khiếu nại"), systemImage: "checkmark.shield")
                 }
                 Button { showWeb = true } label: {
-                    Label(L10n.tr("More settings (language, notifications)", "Thêm cài đặt (ngôn ngữ, thông báo)"),
-                          systemImage: "safari")
+                    Label(L10n.tr("Help & safety", "Trợ giúp & an toàn"), systemImage: "questionmark.circle")
                 }
             }
 
@@ -104,7 +121,12 @@ struct SettingsView: View {
         .textCase(nil) // web section headers are sentence-case, not iOS uppercase
         .navigationTitle(L10n.tr("Settings", "Cài đặt"))
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showWeb) { WebSheet(path: "/dashboard/settings") }
+        .task {
+            if let rp: ReminderPref = try? await APIClient.shared.get("api/profile/reminder-prefs") { reminderOptIn = rp.dailyReminderOptIn }
+            if let dp: DigestPref = try? await APIClient.shared.get("api/profile/digest-prefs") { digestOptIn = dp.weeklyDigestOptIn }
+            prefsLoaded = true
+        }
+        .sheet(isPresented: $showWeb) { WebSheet(path: "/help") }
         .alert(L10n.tr("Delete account?", "Xóa tài khoản?"), isPresented: $showDelete) {
             TextField("DELETE", text: $deleteConfirm)
             Button(L10n.tr("Cancel", "Hủy"), role: .cancel) { deleteConfirm = "" }
