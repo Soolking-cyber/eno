@@ -11,9 +11,9 @@ enum LucideSF {
 
     private static let map: [String: String] = [
         // vehicles
-        "Gauge": "gauge", "Bike": "bicycle", "Car": "car", "CarFront": "car.fill",
-        "Zap": "bolt.fill", "Wrench": "wrench.and.screwdriver", "Truck": "truck.box",
-        "KeyRound": "key.fill", "Fuel": "fuelpump", "Cog": "gearshape",
+        "Gauge": "gauge", "Bike": "bicycle", "Car": "car", "CarFront": "car",
+        "Zap": "bolt", "Wrench": "wrench.and.screwdriver", "Truck": "truck.box",
+        "KeyRound": "key", "Fuel": "fuelpump", "Cog": "gearshape",
         // property / rentals / home
         "Building2": "building.2", "Home": "house", "Sofa": "sofa", "BedDouble": "bed.double",
         "Refrigerator": "refrigerator", "Lamp": "lamp.desk", "Utensils": "fork.knife",
@@ -40,7 +40,7 @@ enum LucideSF {
         "Stethoscope": "stethoscope", "Truck2": "truck.box", "Laptop2": "laptopcomputer",
         // community / travel / food
         "UsersRound": "person.3", "CalendarDays": "calendar", "Plane": "airplane",
-        "Ticket": "ticket", "Hotel": "bed.double.fill", "UtensilsCrossed": "fork.knife",
+        "Ticket": "ticket", "Hotel": "bed.double", "UtensilsCrossed": "fork.knife",
         "Coffee": "cup.and.saucer", "Cake": "birthday.cake", "Wine": "wineglass",
         // generic
         "Package": "shippingbox", "PackageOpen": "shippingbox", "Tag": "tag",

@@ -124,8 +124,10 @@ struct QuickFindBar: View {
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: symbol)
+                    // Icon in the muted body tone (web text-body), NOT near-black
+                    // — line glyph matching the typography; active = brand blue.
                     .font(.system(size: 24, weight: .regular))
-                    .foregroundStyle(active ? Tokens.brand : Tokens.fg)
+                    .foregroundStyle(active ? Tokens.brand : Tokens.sub)
                     .frame(width: 44, height: 44)
                 Text(name)
                     .font(.system(size: 12, weight: .bold))

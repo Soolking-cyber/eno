@@ -191,7 +191,10 @@ data class ListingCard(
 }
 
 @Serializable
-data class FeedPage(val listings: List<ListingCard>)
+data class FeedPage(
+    val listings: List<ListingCard>,
+    val subcategoryCounts: Map<String, Int> = emptyMap(),
+)
 
 @Serializable
 data class DetailSeller(
@@ -244,9 +247,23 @@ data class WardsResponse(val wards: List<GeoUnit> = emptyList())
 // /api/categories — subcategories from the canonical TAXONOMY (optional fields
 // tolerate a stale-CDN payload, same as iOS).
 @Serializable
-data class ApiSubcategory(val slug: String, val name: String, val nameVi: String) {
+data class ApiSubcategory(val slug: String, val name: String, val nameVi: String, val icon: String? = null) {
     val displayName: String get() = if (L10n.isVi) nameVi else name
 }
+
+// /api/brands?category=&subcategory=&limit= → { brands: [{slug,name,count,iconPath}] }
+@Serializable
+data class BrandItem(val slug: String, val name: String, val count: Int = 0, val iconPath: String? = null)
+
+@Serializable
+data class BrandsResponse(val brands: List<BrandItem> = emptyList())
+
+// /api/brands/[slug]/models?category=&subcategory= → { models: [{model,count}] }
+@Serializable
+data class ModelItem(val model: String, val count: Int = 0)
+
+@Serializable
+data class ModelsResponse(val models: List<ModelItem> = emptyList())
 
 @Serializable
 data class ApiCategory(

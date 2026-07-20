@@ -46,6 +46,14 @@ class FeedViewModel : ViewModel() {
             _items.value = emptyList()
             load(reset = true)
         }
+    var subcategory: String? = null
+        set(value) { field = value; _items.value = emptyList(); load(reset = true) }
+    var brand: String? = null
+        set(value) { field = value; _items.value = emptyList(); load(reset = true) }
+    var model: String? = null
+        set(value) { field = value; _items.value = emptyList(); load(reset = true) }
+    private val _subcategoryCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val subcategoryCounts: StateFlow<Map<String, Int>> = _subcategoryCounts
     var sort: String = "newest"
         set(value) {
             field = value
@@ -99,10 +107,14 @@ class FeedViewModel : ViewModel() {
                     put("limit", "24")
                     put("offset", offset.toString())
                     category?.let { put("category", it) }
+                    subcategory?.let { put("subcategory", it) }
+                    brand?.let { put("brand", it) }
+                    model?.let { put("model", it) }
                     if (sort != "newest") put("sort", sort)
                 }
                 val page: FeedPage = Api.get("api/listings", q)
                 if (gen != loadGen) return@launch // a newer reset superseded us
+                if (page.subcategoryCounts.isNotEmpty()) _subcategoryCounts.value = page.subcategoryCounts
                 val known = _items.value.map { it.id }.toSet()
                 _items.value = if (reset) page.listings
                 else _items.value + page.listings.filter { it.id !in known }
@@ -149,7 +161,7 @@ fun FeedScreen(
 ) {
     val items by vm.items.collectAsState()
     val rails by vm.rails.collectAsState()
-    var selected by remember { mutableStateOf<String?>(null) }
+    var filtered by remember { mutableStateOf(false) }
     var sort by remember { mutableStateOf("newest") }
     val feedCtx = androidx.compose.ui.platform.LocalContext.current
     // Refresh the recently-viewed rail whenever the feed re-composes into view
@@ -212,16 +224,11 @@ fun FeedScreen(
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item {
-                        Chip(L10n.tr("All", "Tất cả"), selected == null) { selected = null; vm.category = null }
-                    }
-                    items(Categories.all) { cat ->
-                        Chip(cat.name, selected == cat.slug) { selected = cat.slug; vm.category = cat.slug }
-                    }
-                }
+                // The quick-find cascading selector (category → subcat → brand →
+                // model) replaces the plain chip rail and filters the feed in place.
+                QuickFindBar(vm, onActiveChange = { filtered = it })
                 // Rails render only on the unfiltered landing (web parity).
-                if (selected == null) {
+                if (!filtered) {
                     val recent by vm.recentlyViewed.collectAsState()
                     (listOf(L10n.tr("Recently viewed", "Đã xem gần đây") to recent).filter { it.second.isNotEmpty() } + rails)
                         .forEach { (title, cards) ->
