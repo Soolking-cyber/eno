@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -21,13 +19,7 @@ object Favorites {
 
     val ids = mutableStateListOf<String>()
     private var loaded = false
-    // Per-id debounced sync (review #11): rapid toggles no longer race the
-    // anonymous counter into the wrong order. Each toggle cancels the pending
-    // send for that id and schedules one that posts the NET final membership
-    // after a short settle — so a save→unsave double-tap sends exactly one
-    // {saved:false}, never a reordered pair that inflates savedCount.
     private val syncScope = CoroutineScope(Dispatchers.IO)
-    private val pending = mutableMapOf<String, Job>()
 
     fun ensureLoaded(ctx: Context) {
         if (loaded) return
@@ -41,15 +33,20 @@ object Favorites {
 
     fun isFavorite(id: String): Boolean = id in ids
 
+    // Send EVERY toggle as its own ±1 delta (codex #8): the /save endpoint is a
+    // COMMUTATIVE aggregate counter (increment on true, decrement clamped on
+    // false) AND is rate-limited per (ip, listing, direction) per 6h server-side,
+    // so ordering is irrelevant and dedup is handled upstream. An earlier debounce
+    // that coalesced to the NET final state broke the delta contract — a
+    // save→unsave burst sent only {saved:false} and over-decremented the count.
+    // Match the web (fire-and-forget per toggle).
     fun toggle(ctx: Context, id: String) {
-        if (id in ids) ids.remove(id) else ids.add(0, id)
+        val added: Boolean
+        if (id in ids) { ids.remove(id); added = false } else { ids.add(0, id); added = true }
         persist(ctx)
-        val finalState = id in ids // net membership AFTER this toggle
-        pending.remove(id)?.cancel()
-        pending[id] = syncScope.launch {
-            delay(450) // coalesce a rapid toggle burst into one net send
+        syncScope.launch {
             runCatching {
-                val body = """{"saved":$finalState}""".toRequestBody("application/json".toMediaType())
+                val body = """{"saved":$added}""".toRequestBody("application/json".toMediaType())
                 val req = Request.Builder()
                     .url("https://eno.vn/api/listings/$id/save")
                     .header("User-Agent", "EnoNativeApp/1 android-native")
