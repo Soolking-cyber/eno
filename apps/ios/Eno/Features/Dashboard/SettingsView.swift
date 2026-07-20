@@ -72,9 +72,17 @@ struct SettingsView: View {
                 .disabled(savingType || (accountType == "business" && businessName.trimmingCharacters(in: .whitespaces).isEmpty))
             }
 
+            if accountType == "business" {
+                Section {
+                    NavigationLink { BusinessProfileView() } label: {
+                        Label(L10n.tr("Business profile", "Hồ sơ doanh nghiệp"), systemImage: "building.2")
+                    }
+                }
+            }
+
             Section {
                 Button { showWeb = true } label: {
-                    Label(L10n.tr("More settings (storefront, disputes, language)", "Thêm cài đặt (gian hàng, khiếu nại, ngôn ngữ)"),
+                    Label(L10n.tr("More settings (disputes, language)", "Thêm cài đặt (khiếu nại, ngôn ngữ)"),
                           systemImage: "safari")
                 }
             }
