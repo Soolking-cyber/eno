@@ -275,7 +275,20 @@ data class ListingDetail(
 data class PriceBand(val n: Int, val p25: Double, val median: Double, val p75: Double)
 
 @Serializable
-data class ListingDetailEnvelope(val listing: ListingDetail, val priceBand: PriceBand? = null)
+data class ListingDetailEnvelope(
+    val listing: ListingDetail,
+    val priceBand: PriceBand? = null,
+    // Additive PDP-parity fields (#31 reviews, #92 same-seller); server-provided,
+    // optional so an older payload still decodes.
+    val reviews: ReviewsPreview? = null,
+    val sameSellerListings: List<ListingCard> = emptyList(),
+)
+
+@Serializable
+data class ReviewsPreview(val reviews: List<ReviewItem> = emptyList(), val total: Int = 0, val avg: Double = 0.0)
+
+@Serializable
+data class ReviewItem(val author: String, val rating: Int, val text: String = "", val verified: Boolean = false, val createdAt: String = "")
 
 // POST /api/conversations → find-or-create thread (id + whether it's new).
 @Serializable

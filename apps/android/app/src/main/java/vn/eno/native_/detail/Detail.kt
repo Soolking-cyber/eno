@@ -7,6 +7,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -40,6 +43,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import vn.eno.native_.core.*
 import vn.eno.native_.feed.TrustMini
+import vn.eno.native_.feed.ListingCardView
 
 // PDP v2 (Android), parity with the iOS detail: gallery (save/share overlay) →
 // price block (prevPrice strikethrough, ≈USD, urgent, market gauge) → title →
@@ -56,6 +60,8 @@ fun DetailScreen(
 ) {
     var detail by remember { mutableStateOf<ListingDetail?>(null) }
     var band by remember { mutableStateOf<PriceBand?>(null) }
+    var reviews by remember { mutableStateOf<ReviewsPreview?>(null) }
+    var sameSeller by remember { mutableStateOf<List<ListingCard>>(emptyList()) }
     var unavailable by remember { mutableStateOf(false) }
     var chatBusy by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
@@ -71,6 +77,7 @@ fun DetailScreen(
         try {
             val env = Api.get<ListingDetailEnvelope>("api/listings/$id")
             detail = env.listing; band = env.priceBand
+            reviews = env.reviews; sameSeller = env.sameSellerListings
         } catch (e: Exception) { unavailable = true } // 404 = sold/hidden/removed
     }
 
@@ -203,6 +210,43 @@ fun DetailScreen(
                                 if (sub.isNotEmpty()) Text(sub, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Icon(Icons.Outlined.ChevronRight, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        // ── reviews preview (#31): avg + top 2, tap → storefront ──
+                        reviews?.takeIf { it.reviews.isNotEmpty() }?.let { rv ->
+                            Spacer(Modifier.height(14.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outline); Spacer(Modifier.height(14.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(L10n.tr("Reviews", "Đánh giá"), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                if (rv.total > 0) {
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("★ %.1f (${rv.total})".format(rv.avg), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Spacer(Modifier.weight(1f))
+                                Text(L10n.tr("See all", "Xem tất cả"), fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { onSeller(d.seller.id) })
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            rv.reviews.take(2).forEach { r ->
+                                Column(Modifier.padding(bottom = 10.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        repeat(5) { i -> Icon(Icons.Filled.Star, null, Modifier.size(11.dp), tint = if (i < r.rating) Color(0xFFF59E0B) else MaterialTheme.colorScheme.outline) }
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(r.author, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                        if (r.verified) { Spacer(Modifier.width(5.dp)); Text(L10n.tr("Verified", "Đã xác minh"), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary) }
+                                    }
+                                    if (r.text.isNotEmpty()) Text(r.text, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp, modifier = Modifier.padding(top = 3.dp))
+                                }
+                            }
+                        }
+                        // ── more from this seller (#92): horizontal shelf → native PDP ──
+                        if (sameSeller.isNotEmpty()) {
+                            Spacer(Modifier.height(14.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outline); Spacer(Modifier.height(14.dp))
+                            Text(L10n.tr("More from this seller", "Thêm từ người bán này"), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(Modifier.height(10.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(sameSeller, key = { it.id }) { c ->
+                                    Box(Modifier.width(150.dp)) { ListingCardView(c) { onOpen(c.id) } }
+                                }
+                            }
                         }
                         // ── safety strip (item 23) ──
                         Spacer(Modifier.height(16.dp))
