@@ -144,7 +144,21 @@ struct AccountView: View {
                         Text(L10n.tr("My listings", "Tin đăng của tôi")).foregroundStyle(Tokens.fg)
                     }
                 }
-                link(L10n.tr("Settings", "Cài đặt"), icon: "gearshape", path: "/dashboard/settings")
+                NavigationLink {
+                    SettingsView(initial: me) { Task { await loadMe() } }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Tokens.brand)
+                            .frame(width: 26)
+                        Text(L10n.tr("Settings", "Cài đặt")).foregroundStyle(Tokens.fg)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Tokens.sub)
+                    }
+                }
             }
             Section {
                 Button(role: .destructive) {
