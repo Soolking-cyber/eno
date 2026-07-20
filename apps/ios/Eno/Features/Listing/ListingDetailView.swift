@@ -47,6 +47,14 @@ struct ListingDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // Web parity (PdpShopLink "shop on top"): the seller surface sits
+                // ABOVE the gallery at the top of the page.
+                if let d = detail {
+                    sellerCard(d.seller)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 6)
+                        .padding(.bottom, 8)
+                }
                 gallery
                 VStack(alignment: .leading, spacing: 12) {
                     priceBlock
@@ -69,8 +77,6 @@ struct ListingDetailView: View {
                             .foregroundStyle(Tokens.sub)   // web text-body #525252
                             .lineSpacing(4)
                         detailsTable(d)
-                        Divider().overlay(Tokens.ring)
-                        sellerCard(d.seller)
                         reviewsPreview
                     } else if unavailable {
                         VStack(spacing: 6) {
@@ -371,7 +377,7 @@ struct ListingDetailView: View {
             Divider().overlay(Tokens.ring)
             VStack(alignment: .leading, spacing: 0) {
                 Text(L10n.tr("Details", "Chi tiết"))
-                    .scaledFont(16, weight: .bold)
+                    .scaledFont(18, weight: .bold)   // web h-section
                     .foregroundStyle(Tokens.fg)
                     .padding(.bottom, 4)
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
@@ -381,7 +387,7 @@ struct ListingDetailView: View {
                         Text(row.1).scaledFont(14, weight: .medium)
                             .foregroundStyle(Tokens.fg).multilineTextAlignment(.trailing)
                     }
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 10)   // web py-2.5
                 }
             }
         }
@@ -426,38 +432,46 @@ struct ListingDetailView: View {
     private func sellerCardBody(_ seller: ListingDetail.DetailSeller) -> some View {
         HStack(spacing: 12) {
             Text(String(seller.name.prefix(1)).uppercased())
-                .scaledFont(18, weight: .bold)
+                .scaledFont(16, weight: .bold)
                 .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
+                .frame(width: 48, height: 48)   // web Avatar size lg
                 .background(Color(hexString: seller.avatarColor) ?? Tokens.brand, in: Circle())
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(seller.name)
-                        .scaledFont(15, weight: .semibold)
+                        .scaledFont(14, weight: .bold)   // web text-sm font-bold
                         .foregroundStyle(Tokens.fg)
                     TrustMini(score: seller.trustScore) { showTrust = true }
+                    if seller.isBusiness {
+                        HStack(spacing: 2) {
+                            Image(systemName: "building.2").scaledFont(10)
+                            Text(L10n.tr("Business", "Doanh nghiệp")).scaledFont(11, weight: .semibold)
+                        }
+                        .foregroundStyle(Tokens.sub)
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(Tokens.tint, in: Capsule())
+                    }
                 }
                 HStack(spacing: 4) {
                     if let rating = seller.rating, seller.reviewCount > 0 {
                         Image(systemName: "star.fill").scaledFont(10).foregroundStyle(.yellow)
                         Text("\(rating, specifier: "%.1f") (\(seller.reviewCount))")
-                            .scaledFont(12)
-                            .foregroundStyle(Tokens.sub)
+                            .scaledFont(12).foregroundStyle(Tokens.sub)
                         Text("·").foregroundStyle(Tokens.sub)
                     }
-                    if seller.isBusiness {
-                        Text(L10n.tr("Business", "Doanh nghiệp"))
-                            .scaledFont(11, weight: .semibold)
-                            .foregroundStyle(Tokens.brand)
-                    }
                     if let year = Format.date(seller.memberSince).map({ Calendar.current.component(.year, from: $0) }) {
-                        Text(L10n.tr("Member since \(String(year))", "Thành viên từ \(String(year))"))
-                            .scaledFont(12)
-                            .foregroundStyle(Tokens.sub)
+                        Text(L10n.tr("Joined \(String(year))", "Tham gia \(String(year))"))
+                            .scaledFont(12).foregroundStyle(Tokens.sub)
                     }
                 }
             }
             Spacer()
+            // Web PdpShopLink 'Shop ›' visit-storefront affordance.
+            HStack(spacing: 2) {
+                Text(L10n.tr("Shop", "Gian hàng")).scaledFont(12, weight: .semibold)
+                Image(systemName: "chevron.right").scaledFont(12, weight: .semibold)
+            }
+            .foregroundStyle(Tokens.brand)
         }
     }
 
