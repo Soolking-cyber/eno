@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import WebKit
 
 // Native session (#117): tokens arrive from the embedded web sign-in over the
 // enoAuth script bridge (one sign-in flow — phone/email OTP in the web tab),
@@ -81,6 +82,13 @@ final class AuthModel {
         Keychain.delete(key: Self.keychainKey)
         APIClient.shared.accessToken = nil
         APIClient.shared.clearCache()
+        // Also clear the embedded WebViews' cookie + localStorage jar (review
+        // parity with Android): it is process-persistent and survives a WebView's
+        // deinit, so without this the next WebSheet("/signin") restores the still-
+        // valid Supabase session and the enoAuth bridge re-adopts the PREVIOUS
+        // account with no credentials — a shared-device account leak.
+        let types = WKWebsiteDataStore.allWebsiteDataTypes()
+        WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: Date(timeIntervalSince1970: 0)) {}
     }
 
     // ── refresh ──
