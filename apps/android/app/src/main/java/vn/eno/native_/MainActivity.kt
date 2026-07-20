@@ -5,12 +5,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.runtime.*
@@ -82,6 +84,28 @@ fun EnoTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = scheme, content = content)
 }
 
+// A web route hosted inside native chrome (back bar + title) — the hybrid escape
+// hatch for surfaces without a native screen yet (e.g. the AI concierge, #14).
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WebScreen(path: String, title: String, onBack: () -> Unit) {
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text(title, fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) { WebTab(path) }
+    }
+}
+
 private data class Tab(val route: String, val label: String, val icon: @Composable () -> Unit)
 
 @Composable
@@ -141,6 +165,14 @@ fun EnoApp() {
                         onOpen = { id -> nav.navigate("listing/$id") },
                         onSearch = { nav.navigate("search") },
                         onBell = { nav.navigate("notifications") },
+                        onAiConcierge = { nav.navigate("aiconcierge") },
+                    )
+                }
+                composable("aiconcierge") {
+                    WebScreen(
+                        path = "/messages/ai",
+                        title = L10n.tr("AI shopping", "Mua sắm AI"),
+                        onBack = { nav.popBackStack() },
                     )
                 }
                 composable("notifications") {

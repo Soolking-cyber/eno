@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Notifications
@@ -51,6 +52,8 @@ class FeedViewModel : ViewModel() {
     val rails: StateFlow<List<Pair<String, List<ListingCard>>>> = _rails
     private val _recentlyViewed = MutableStateFlow<List<ListingCard>>(emptyList())
     val recentlyViewed: StateFlow<List<ListingCard>> = _recentlyViewed
+    private val _forYou = MutableStateFlow<List<ListingCard>>(emptyList())
+    val forYou: StateFlow<List<ListingCard>> = _forYou
     var category: String? = null
         set(value) {
             field = value
@@ -191,6 +194,26 @@ class FeedViewModel : ViewModel() {
         if (!exhausted && index >= _items.value.size - 6) load()
     }
 
+    // "For You" rail (#13): personalize from device-local signals — the
+    // categories of what you've viewed + your recent search terms.
+    // /api/recommendations falls back to Trending when there's no signal and
+    // returns [] on a thin catalog (rail self-hides on empty).
+    @kotlinx.serialization.Serializable
+    private data class ForYouEnvelope(val listings: List<ListingCard> = emptyList(), val personalized: Boolean = false)
+
+    fun loadForYou(ctx: android.content.Context) {
+        viewModelScope.launch {
+            val cats = _recentlyViewed.value.map { it.category.slug }.distinct().take(6)
+            val terms = RecentStore.searches(ctx).take(6)
+            val q = buildMap {
+                if (cats.isNotEmpty()) put("cats", cats.joinToString(","))
+                if (terms.isNotEmpty()) put("terms", terms.joinToString(","))
+            }
+            val res = runCatching { Api.get<ForYouEnvelope>("api/recommendations", q) }.getOrNull() ?: return@launch
+            _forYou.value = res.listings
+        }
+    }
+
     // Recently-viewed rail: device-local ids → order-preserving ids= fast path.
     fun loadRecentlyViewed(ctx: android.content.Context) {
         val ids = RecentStore.viewedIds(ctx)
@@ -218,6 +241,7 @@ fun FeedScreen(
     onOpen: (String) -> Unit,
     onSearch: () -> Unit = {},
     onBell: () -> Unit = {},
+    onAiConcierge: () -> Unit = {},
     vm: FeedViewModel = viewModel(),
 ) {
     val items by vm.items.collectAsState()
@@ -265,6 +289,19 @@ fun FeedScreen(
                             fontSize = 15.sp,
                         )
                     }
+                    // AI concierge entry (✨ → /messages/ai), web header parity.
+                    Box(
+                        Modifier
+                            .padding(start = 10.dp)
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                            .clickable(onClick = onAiConcierge),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Outlined.AutoAwesome, contentDescription = L10n.tr("AI shopping", "Mua sắm AI"),
+                            Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
                     // Notification bell with red dot while unread (web header parity).
                     Box(
                         Modifier
@@ -296,7 +333,13 @@ fun FeedScreen(
                 // Rails render only on the unfiltered landing (web parity).
                 if (!filtered) {
                     val recent by vm.recentlyViewed.collectAsState()
-                    (listOf(L10n.tr("Recently viewed", "Đã xem gần đây") to recent).filter { it.second.isNotEmpty() } + rails)
+                    val forYou by vm.forYou.collectAsState()
+                    // Re-personalize once the viewed-categories signal arrives.
+                    LaunchedEffect(recent) { vm.loadForYou(feedCtx) }
+                    (listOf(
+                        L10n.tr("For you", "Dành cho bạn") to forYou,
+                        L10n.tr("Recently viewed", "Đã xem gần đây") to recent,
+                    ).filter { it.second.isNotEmpty() } + rails)
                         .forEach { (title, cards) ->
                         Spacer(Modifier.height(16.dp))
                         Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
