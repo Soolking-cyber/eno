@@ -10,6 +10,10 @@ struct CategoryFeedView: View {
     @State private var showFilter = false
     @State private var subs: [CategoriesResponse.Sub] = []
     @State private var viewMode: ViewMode = .grid
+    // Video (#130) is a full-screen takeover, not an inline results arm: tapping the
+    // ▷ toggle opens VideoFeedView as a cover and reverts the toggle to the last mode.
+    @State private var showVideoCover = false
+    @State private var lastMode: ViewMode = .grid
     @State private var webRoute: WebRoute?
     private struct WebRoute: Identifiable { let id = UUID(); let path: String }
 
@@ -44,6 +48,15 @@ struct CategoryFeedView: View {
         .refreshable { await model.reload() }
         .sheet(isPresented: $showFilter) { PriceFilterSheet(model: model) }
         .sheet(item: $webRoute) { r in WebSheet(path: r.path) }
+        // ▷ Video → present the TikTok takeover; revert the toggle so closing it lands
+        // back on the previous view mode (web prevViewRef).
+        .onChange(of: viewMode) { _, new in
+            if new == .video { showVideoCover = true; viewMode = lastMode }
+            else { lastMode = new }
+        }
+        .fullScreenCover(isPresented: $showVideoCover) {
+            VideoFeedView(filters: model.filterItems, onClose: { showVideoCover = false })
+        }
         .task {
             if model.category != category.slug { model.category = category.slug }
             subs = await Taxonomy.shared.subs(for: category.slug)
