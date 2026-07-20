@@ -35,7 +35,7 @@ data class MeUser(
 data class MeResponse(val user: MeUser? = null)
 
 @Composable
-fun AccountScreen() {
+fun AccountScreen(onMyListings: () -> Unit = {}) {
     val signedIn = Auth.isSignedIn
     var me by remember { mutableStateOf<MeUser?>(null) }
     var showSignIn by remember { mutableStateOf(false) }
@@ -65,7 +65,7 @@ fun AccountScreen() {
                 WebTab(webPath!!)
             }
         }
-        signedIn -> Profile(me, onOpen = { webPath = it }, onSignOut = { Auth.signOut() })
+        signedIn -> Profile(me, onMyListings = onMyListings, onOpen = { webPath = it }, onSignOut = { Auth.signOut() })
         showSignIn -> Column(Modifier.fillMaxSize()) {
             Text(
                 L10n.tr("‹ Back", "‹ Quay lại"),
@@ -110,7 +110,7 @@ private fun GuestHero(onSignIn: () -> Unit) {
 }
 
 @Composable
-private fun Profile(me: MeUser?, onOpen: (String) -> Unit, onSignOut: () -> Unit) {
+private fun Profile(me: MeUser?, onMyListings: () -> Unit, onOpen: (String) -> Unit, onSignOut: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -139,21 +139,20 @@ private fun Profile(me: MeUser?, onOpen: (String) -> Unit, onSignOut: () -> Unit
             }
         }
         Spacer(Modifier.height(20.dp))
-        listOf(
-            L10n.tr("My listings", "Tin đăng của tôi") to "/dashboard/listings",
-            L10n.tr("Settings", "Cài đặt") to "/dashboard/settings",
-        ).forEach { (label, path) ->
-            Text(
-                label,
-                fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpen(path) }
-                    .padding(vertical = 14.dp),
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        }
+        Text(
+            L10n.tr("My listings", "Tin đăng của tôi"),
+            fontSize = 15.sp,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onMyListings).padding(vertical = 14.dp),
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Text(
+            L10n.tr("Settings", "Cài đặt"),
+            fontSize = 15.sp,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.fillMaxWidth().clickable { onOpen("/dashboard/settings") }.padding(vertical = 14.dp),
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Spacer(Modifier.height(20.dp))
         Text(
             L10n.tr("Sign out", "Đăng xuất"),

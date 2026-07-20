@@ -119,7 +119,12 @@ private val SORTS = listOf(
 )
 
 @Composable
-fun FeedScreen(onOpen: (String) -> Unit, onSearch: () -> Unit = {}, vm: FeedViewModel = viewModel()) {
+fun FeedScreen(
+    onOpen: (String) -> Unit,
+    onSearch: () -> Unit = {},
+    onBell: () -> Unit = {},
+    vm: FeedViewModel = viewModel(),
+) {
     val items by vm.items.collectAsState()
     val rails by vm.rails.collectAsState()
     var selected by remember { mutableStateOf<String?>(null) }
@@ -156,6 +161,28 @@ fun FeedScreen(onOpen: (String) -> Unit, onSearch: () -> Unit = {}, vm: FeedView
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 15.sp,
                         )
+                    }
+                    // Notification bell with red dot while unread (web header parity).
+                    Box(
+                        Modifier
+                            .padding(start = 10.dp)
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable(onClick = onBell),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("🔔", fontSize = 16.sp)
+                        if (vn.eno.native_.account.Notifs.unread > 0) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(6.dp)
+                                    .size(9.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.error),
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(12.dp))

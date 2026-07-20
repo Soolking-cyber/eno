@@ -118,7 +118,18 @@ fun EnoApp() {
                     FeedScreen(
                         onOpen = { id -> nav.navigate("listing/$id") },
                         onSearch = { nav.navigate("search") },
+                        onBell = { nav.navigate("notifications") },
                     )
+                }
+                composable("notifications") {
+                    vn.eno.native_.account.NotificationsScreen(
+                        onThread = { convoId -> nav.navigate("thread/$convoId") },
+                        onListing = { id -> nav.navigate("listing/$id") },
+                        onBack = { nav.popBackStack() },
+                    )
+                }
+                composable("mylistings") {
+                    vn.eno.native_.account.MyListingsScreen(onBack = { nav.popBackStack() })
                 }
                 composable("search") {
                     vn.eno.native_.feed.SearchScreen(onOpen = { id -> nav.navigate("listing/$id") })
@@ -140,7 +151,9 @@ fun EnoApp() {
                 composable("saved") { vn.eno.native_.feed.SavedScreen(onOpen = { id -> nav.navigate("listing/$id") }) }
                 composable("post") { vn.eno.native_.post.PostScreen() }
                 composable("messages") { vn.eno.native_.messages.MessagesScreen() }
-                composable("account") { vn.eno.native_.account.AccountScreen() }
+                composable("account") {
+                    vn.eno.native_.account.AccountScreen(onMyListings = { nav.navigate("mylistings") })
+                }
             }
         }
     }
