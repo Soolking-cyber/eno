@@ -25,6 +25,11 @@ struct ListingDetailView: View {
     @State private var contactBusy = false
     @State private var reportTarget: ReportTarget?
     @State private var showProtections = false
+    // Offer composer (web parity: contact-composer). Discount slider 0…50%; the
+    // default opens at a small discount (web: 1% for ≥1B đ items, else 5%).
+    @State private var discount: Double = 5
+    @State private var discountSet = false
+    @State private var offerBusy = false
 
     private struct ChatRoute: Identifiable, Hashable {
         let id: String
@@ -90,6 +95,7 @@ struct ListingDetailView: View {
                     } else {
                         ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24)
                     }
+                    offerCard
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 16)
@@ -666,6 +672,84 @@ struct ListingDetailView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .background(.bar)
+    }
+
+    // Offer composer (web parity: contact-composer.tsx) — negotiable listings get a
+    // discount slider + a 70/30 "Send offer · {price}" / "Chat" split. Offers are the
+    // default here; a fixed-price listing shows only the sticky "Chat now" bar.
+    @ViewBuilder
+    private var offerCard: some View {
+        let negotiable = detail?.negotiable ?? card.negotiable
+        if negotiable && price > 0 {
+            let offerPrice = Int((Double(price) * (1 - discount / 100)).rounded())
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.tr("Your offer", "Giá đề nghị"))
+                    .scaledFont(12, weight: .semibold).foregroundStyle(Tokens.sub)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(Format.vnd(offerPrice)).scaledFont(24, weight: .bold).foregroundStyle(Tokens.brand)
+                    Text("-\(Int(discount))%").scaledFont(12, weight: .semibold).foregroundStyle(Tokens.sub)
+                }
+                Slider(value: $discount, in: 0...50, step: 1).tint(Tokens.brand)
+                    .accessibilityLabel(L10n.tr("Discount", "Mức giảm"))
+                HStack {
+                    Text(L10n.tr("Asking", "Giá rao") + ": " + Format.vnd(price))
+                    Spacer()
+                    Text("-50%")
+                }
+                .scaledFont(11).foregroundStyle(Tokens.ink4)
+                HStack(spacing: 8) {
+                    Button { startOffer(offerPrice) } label: {
+                        Group {
+                            if offerBusy {
+                                ProgressView().tint(.white)
+                            } else {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "paperplane.fill").scaledFont(14)
+                                    Text(L10n.tr("Send offer", "Gửi đề nghị") + " · " + Format.vnd(offerPrice))
+                                        .lineLimit(1).minimumScaleFactor(0.75)
+                                }
+                            }
+                        }
+                        .scaledFont(14, weight: .semibold).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity).frame(height: 44)
+                        .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                    }
+                    .disabled(offerBusy)
+                    Button { startChat() } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "message.fill").scaledFont(14)
+                            Text(L10n.tr("Chat", "Chat"))
+                        }
+                        .scaledFont(14, weight: .bold).foregroundStyle(Tokens.brand)
+                        .frame(height: 44).padding(.horizontal, 16)
+                        .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                        .overlay(RoundedRectangle(cornerRadius: Tokens.radiusControl).strokeBorder(Tokens.ring, lineWidth: 1))
+                    }
+                }
+            }
+            .padding(12)
+            .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
+            // Open the slider at the web default the first time it appears.
+            .onAppear { if !discountSet { discount = price >= 1_000_000_000 ? 1 : 5; discountSet = true } }
+        }
+    }
+
+    // Send a structured first offer (kind='offer' card) — the same POST the web
+    // composer resolves through. Guests get the sign-in sheet; refusals fall to web.
+    private func startOffer(_ amount: Int) {
+        guard AuthModel.shared.isSignedIn else { signInSheet = true; return }
+        guard !offerBusy, !contactBusy else { return }
+        offerBusy = true
+        Task {
+            defer { offerBusy = false }
+            do {
+                let r: CreateConvoResponse = try await APIClient.shared.post(
+                    "api/conversations", body: ["listingId": card.id, "offerAmount": amount])
+                chatConvo = ChatRoute(id: r.id)
+            } catch {
+                showWeb = true
+            }
+        }
     }
 
     // Native chat entry: find-or-create the thread (the same idempotent POST the
