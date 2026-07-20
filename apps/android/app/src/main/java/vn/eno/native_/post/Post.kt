@@ -30,7 +30,9 @@ data class CreateListingResponse(val id: String, val verified: Boolean = true)
 // allowed (identity rides the phone); the Bearer attaches when signed in.
 // Per-category facets (year/km/brand) are a follow-up — the same order iOS took.
 class PostViewModel : ViewModel() {
-    data class Photo(val id: Long, val bitmap: Bitmap, var url: String? = null, var failed: Boolean = false)
+    // Immutable (review #6): updates go through .copy() so the SnapshotStateList
+    // sees a new element and recomposes.
+    data class Photo(val id: Long, val bitmap: Bitmap, val url: String? = null, val failed: Boolean = false)
 
     val photos = mutableStateListOf<Photo>()
     var categorySlug by mutableStateOf<String?>(null)
@@ -93,7 +95,11 @@ class PostViewModel : ViewModel() {
     fun removePhoto(id: Long) { photos.removeAll { it.id == id } }
 
     fun retryPhoto(id: Long) {
-        photos.find { it.id == id }?.failed = false
+        // Replace the element, don't mutate its field in place (review #6): a
+        // SnapshotStateList tracks element identity, not a data class's internal
+        // `var` — an in-place mutation wouldn't recompose the thumbnail.
+        val idx = photos.indexOfFirst { it.id == id }
+        if (idx >= 0) photos[idx] = photos[idx].copy(failed = false)
         viewModelScope.launch { upload(id) }
     }
 

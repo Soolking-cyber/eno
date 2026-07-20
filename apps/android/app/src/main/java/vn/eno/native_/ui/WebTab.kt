@@ -5,6 +5,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewCompat
@@ -25,8 +26,14 @@ import vn.eno.native_.core.Auth
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun WebTab(path: String) {
+    // key(path): a path change rebuilds the WebView (AndroidView's factory runs
+    // once, so without this a new path would never load — review #2). onRelease
+    // destroys the WebView on leave, so the Activity context AND the enoAuth
+    // message listener don't leak every time the tab is dismissed.
+    key(path) {
     AndroidView(
         modifier = Modifier.fillMaxSize(),
+        onRelease = { it.destroy() },
         factory = { ctx ->
             WebView(ctx).apply {
                 settings.javaScriptEnabled = true
@@ -50,4 +57,5 @@ fun WebTab(path: String) {
             }
         },
     )
+    }
 }

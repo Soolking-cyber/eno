@@ -57,12 +57,26 @@ object Api {
     @PublishedApi
     internal var ensureFreshToken: (suspend () -> Unit)? = null
 
+    /// A token-bearing request came back 401 (review #3): force a refresh /
+    /// sign-out so a server-revoked session can't brick the UI. Wired to
+    /// Auth.handleUnauthorized at startup.
+    @PublishedApi
+    internal var onUnauthorized: (suspend () -> Unit)? = null
+
+    // Fire the 401 hook only when we ACTUALLY sent a token (else guest 401s like
+    // auth_required would sign a real session out or loop).
+    @PublishedApi
+    internal suspend fun handleStatus(code: Int, hadToken: Boolean) {
+        if (code == 401 && hadToken) onUnauthorized?.invoke()
+    }
+
     @PublishedApi
     internal val client = OkHttpClient.Builder().build()
 
     suspend inline fun <reified T> post(path: String, jsonBody: String): T =
         withContext(Dispatchers.IO) {
             ensureFreshToken?.invoke()
+            val hadToken = accessToken != null
             val req = Request.Builder()
                 .url("https://eno.vn/$path")
                 .header("User-Agent", "EnoNativeApp/1 android-native")
@@ -70,7 +84,7 @@ object Api {
                 .post(jsonBody.toRequestBody("application/json".toMediaType()))
                 .build()
             client.newCall(req).execute().use { res ->
-                if (!res.isSuccessful) throw ApiHttpException(res.code)
+                if (!res.isSuccessful) { handleStatus(res.code, hadToken); throw ApiHttpException(res.code) }
                 json.decodeFromString<T>(res.body!!.string())
             }
         }
@@ -79,6 +93,7 @@ object Api {
     // EXIF/GPS, downscales, watermarks, fingerprints). ≤3 files/request.
     suspend fun uploadImages(jpegs: List<ByteArray>): List<String> = withContext(Dispatchers.IO) {
         ensureFreshToken?.invoke()
+        val hadToken = accessToken != null
         val urls = mutableListOf<String>()
         jpegs.chunked(3).forEach { chunk ->
             val bodyBuilder = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
@@ -95,7 +110,7 @@ object Api {
                 .post(bodyBuilder.build())
                 .build()
             client.newCall(req).execute().use { res ->
-                if (!res.isSuccessful) throw ApiHttpException(res.code)
+                if (!res.isSuccessful) { handleStatus(res.code, hadToken); throw ApiHttpException(res.code) }
                 urls += json.decodeFromString<UploadResponse>(res.body!!.string()).urls
             }
         }
@@ -105,18 +120,20 @@ object Api {
     suspend fun send(method: String, path: String, jsonBody: String? = null): Int =
         withContext(Dispatchers.IO) {
             ensureFreshToken?.invoke()
+            val hadToken = accessToken != null
             val req = Request.Builder()
                 .url("https://eno.vn/$path")
                 .header("User-Agent", "EnoNativeApp/1 android-native")
                 .apply { accessToken?.let { header("Authorization", "Bearer $it") } }
                 .method(method, jsonBody?.toRequestBody("application/json".toMediaType()))
                 .build()
-            client.newCall(req).execute().use { it.code }
+            client.newCall(req).execute().use { handleStatus(it.code, hadToken); it.code }
         }
 
     suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T =
         withContext(Dispatchers.IO) {
             ensureFreshToken?.invoke()
+            val hadToken = accessToken != null
             val url = StringBuilder("https://eno.vn/").append(path)
             if (query.isNotEmpty()) {
                 url.append('?').append(query.entries.joinToString("&") {
@@ -129,7 +146,7 @@ object Api {
                 .apply { accessToken?.let { header("Authorization", "Bearer $it") } }
                 .build()
             client.newCall(req).execute().use { res ->
-                if (!res.isSuccessful) throw RuntimeException("http ${res.code}")
+                if (!res.isSuccessful) { handleStatus(res.code, hadToken); throw ApiHttpException(res.code) }
                 json.decodeFromString<T>(res.body!!.string())
             }
         }

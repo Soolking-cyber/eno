@@ -83,18 +83,32 @@ object Auth {
             }
         }
         Api.ensureFreshToken = { refreshIfNeeded() }
+        Api.onUnauthorized = { handleUnauthorized() }
     }
 
     fun adopt(accessToken: String, refreshToken: String) {
         val current = session
         if (accessToken == current?.accessToken) return
         val exp = jwtExpiry(accessToken) ?: (now() + 3000)
-        // Stale-web-token guard (iOS finding parity): only adopt fresher tokens.
-        if (current != null && exp <= current.expiresAt) return
+        // Discriminate by user id (review #5): the stale-token guard must only
+        // reject an OLDER token of the SAME user (a stale tab re-posting rotated
+        // tokens). A DIFFERENT user is an account switch — always adopt, even if
+        // the new token expires sooner, or web and native desync.
+        if (current != null && jwtSub(accessToken) == jwtSub(current.accessToken) && exp <= current.expiresAt) return
         sessionGen++
         session = Session(accessToken, refreshToken, exp)
         persist()
         Api.accessToken = accessToken
+    }
+
+    /// A request with a token came back 401 (review #3): force a refresh — if the
+    /// token merely expired mid-flight it recovers; if the refresh token is dead
+    /// too, refresh()'s 400/401 branch signs the user out, breaking the loop.
+    suspend fun handleUnauthorized() {
+        refreshMutex.withLock {
+            val cur = session ?: return
+            refresh(cur)
+        }
     }
 
     fun signOut() {
@@ -180,9 +194,14 @@ object Auth {
 
     private fun now(): Long = System.currentTimeMillis() / 1000
 
-    private fun jwtExpiry(jwt: String): Long? = runCatching {
+    private fun jwtExpiry(jwt: String): Long? = jwtClaim(jwt) { it.optLong("exp").takeIf { e -> e > 0 } }
+
+    /// The `sub` (user id) claim — identity discriminator for account switches.
+    private fun jwtSub(jwt: String): String? = jwtClaim(jwt) { it.optString("sub").takeIf { s -> s.isNotEmpty() } }
+
+    private fun <T> jwtClaim(jwt: String, pick: (JSONObject) -> T?): T? = runCatching {
         val payload = jwt.split(".").getOrNull(1) ?: return null
         val json = String(Base64.decode(payload, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP))
-        JSONObject(json).optLong("exp").takeIf { it > 0 }
+        pick(JSONObject(json))
     }.getOrNull()
 }
