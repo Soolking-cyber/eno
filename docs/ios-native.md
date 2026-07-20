@@ -63,9 +63,17 @@ until this one reaches parity.
   counter-gated-by-negotiable, clientId-idempotent optimistic sends, 12s
   poll), tab badge 9+, PDP → native thread. v9 Saved: device-local favorites
   (base+delta count rule honored), hearts on cards/PDP, native Saved grid
-  with self-heal. REMAINING: Post wizard (WebView until designed), realtime
-  sockets, native Google OAuth (owner: Supabase redirect allowlist), strict
-  concurrency, dual external review of the Swift stack (owed).
+  with self-heal.
+- 2026-07-20 (Kyle) native GOOGLE sign-in (fdb6c45a): ASWebAuthenticationSession
+  (system Safari sheet Google allows) + native PKCE → authorize with
+  redirect_to the ALREADY-ALLOW-LISTED https://eno.vn/auth/callback?native=2 →
+  new server native=2 branch 302s the raw code to enonative:// (our scheme,
+  vs Capacitor's enovn://) → exchange at /token?grant_type=pkce → adopt to
+  Keychain. NO Supabase config change (only the allow-listed https callback is
+  hit; the scheme hop is ours). "Continue with Google" on the Account hero;
+  phone/email is the second option. REMAINING: realtime sockets, strict
+  concurrency; native Google on the Messages/Saved guest heroes too (Account
+  only for now); post-Google onboarding (accountType stays null until set).
 - 2026-07-20 (Kyle) v3–v6 (14c429fc, ad0ca74c, 20d7b312, 268880c8): PDP v2
   (AVKit video page, share sheet, market gauge via priceBand on the GET,
   stats, condition chips, similar rail, zoomable fullscreen gallery, seller
