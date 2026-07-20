@@ -147,16 +147,15 @@ struct AccountView: View {
                 NavigationLink {
                     SettingsView(initial: me) { Task { await loadMe() } }
                 } label: {
+                    // No manual chevron: a NavigationLink in a List already draws
+                    // the system disclosure arrow (matches the My listings row
+                    // above). The hand-drawn one here made it show two arrows.
                     HStack(spacing: 12) {
                         Image(systemName: "gearshape")
                             .font(.system(size: 15))
                             .foregroundStyle(Tokens.brand)
                             .frame(width: 26)
                         Text(L10n.tr("Settings", "Cài đặt")).foregroundStyle(Tokens.fg)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Tokens.sub)
                     }
                 }
             }
