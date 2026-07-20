@@ -23,12 +23,17 @@ final class HomeModel {
     func start() async {
         guard !loaded else { return }
         loaded = true
-        await Fx.shared.ensureLoaded()
+        // FX only feeds the decorative "≈ $" price — take it OFF the critical
+        // path (fire-and-forget) so the rails don't block on its round-trip
+        // (audit #8). The ≈$ fills in whenever the rate resolves.
+        Task { await Fx.shared.ensureLoaded() }
         async let a: Void = loadForYou()
         async let b: Void = loadBusinesses()
         async let c: Void = loadRails()
-        async let d: Void = loadRecentlyViewed()
-        _ = await (a, b, c, d)
+        _ = await (a, b, c)
+        // recentlyViewed is (re)loaded by FeedView.task on every appearance — it
+        // changes when you view a listing — so it is NOT fetched here, to avoid a
+        // duplicate fetch on first paint (audit #8).
     }
 
     // Refreshed on every home appearance — viewing a listing changes it.
