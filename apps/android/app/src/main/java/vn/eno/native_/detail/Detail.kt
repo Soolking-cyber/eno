@@ -158,6 +158,8 @@ fun DetailScreen(
                             Spacer(Modifier.height(14.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outline); Spacer(Modifier.height(14.dp))
                             Text(d.description, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface, lineHeight = 21.sp)
                         }
+                        // ── Details table (item 30): numeric specs then attributes ──
+                        DetailsTable(d)
                         // ── seller card (item 29) ──
                         Spacer(Modifier.height(14.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outline); Spacer(Modifier.height(14.dp))
                         Row(
@@ -241,6 +243,38 @@ private fun CircleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
 private fun Chip(text: String, bg: Color, fg: Color) {
     Text(text, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = fg,
         modifier = Modifier.clip(CircleShape).background(bg).padding(horizontal = 10.dp, vertical = 4.dp))
+}
+
+// Details table (item 30, web parity): structured numeric specs (Year / Mileage /
+// Engine, with units) first, then the free-form attributes map (camelCase keys
+// spaced + capitalized). Self-hides when there's nothing to show.
+@Composable
+private fun DetailsTable(d: ListingDetail) {
+    val specs = buildList {
+        d.year?.let { add(L10n.tr("Year", "Năm") to it.toString()) }
+        d.mileageKm?.let {
+            val grouped = "%,d".format(it).let { g -> if (L10n.isVi) g.replace(',', '.') else g }
+            add(L10n.tr("Mileage", "Số km") to "$grouped km")
+        }
+        d.engineL?.let { add(L10n.tr("Engine", "Động cơ") to "$it L") }
+    }
+    val attrs = d.attributes?.entries?.map { Format.attrKey(it.key) to Format.attrValue(it.value) } ?: emptyList()
+    if (specs.isEmpty() && attrs.isEmpty()) return
+
+    Spacer(Modifier.height(14.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outline); Spacer(Modifier.height(14.dp))
+    Text(L10n.tr("Details", "Thông số"), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+    Spacer(Modifier.height(4.dp))
+    (specs + attrs).forEach { (label, value) ->
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface,
+                textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(1f))
+        }
+    }
 }
 
 // Market gauge (web MarketPrice): p25–p75 band with the price marker; green

@@ -3,6 +3,8 @@ package vn.eno.native_.core
 import androidx.compose.ui.graphics.Color
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -56,6 +58,20 @@ object Format {
             else -> (secs / 2592000).let { L10n.tr("${it}mo ago", "$it tháng trước") }
         }
     }.getOrDefault("")
+
+    // Attribute key: camelCase → spaced + capitalize each word (web parity:
+    // k.replace(/([A-Z])/g, ' $1') + capitalize). "screenSize" → "Screen Size".
+    fun attrKey(k: String): String =
+        k.replace(Regex("([A-Z])"), " $1").trim()
+            .split(' ').filter { it.isNotEmpty() }
+            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+
+    // Attribute value: raw JSON scalar → display string, capitalized (values are
+    // stored lowercase). Objects/arrays fall back to their JSON text.
+    fun attrValue(v: JsonElement): String {
+        val raw = (v as? JsonPrimitive)?.content ?: v.toString()
+        return raw.replaceFirstChar { it.uppercase() }
+    }
 }
 
 object ImageUrl {
@@ -238,6 +254,8 @@ data class ListingDetail(
     val condition: String? = null,
     val year: Int? = null,
     val mileageKm: Int? = null,
+    val engineL: Double? = null,
+    val attributes: Map<String, JsonElement>? = null,
     val images: List<String> = emptyList(),
     val video: String? = null,
     val district: String? = null,
