@@ -101,6 +101,7 @@ struct SettingsView: View {
                 Text(L10n.tr("Permanently deletes your account and listings.", "Xóa vĩnh viễn tài khoản và tin đăng của bạn."))
             }
         }
+        .textCase(nil) // web section headers are sentence-case, not iOS uppercase
         .navigationTitle(L10n.tr("Settings", "Cài đặt"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showWeb) { WebSheet(path: "/dashboard/settings") }

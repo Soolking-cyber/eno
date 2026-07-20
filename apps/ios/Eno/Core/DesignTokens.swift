@@ -19,10 +19,13 @@ enum Tokens {
     static let ring = adaptive(0xE5E5E5, 0x363636)           // border
     static let lineStrong = adaptive(0xD4D4D4, 0x414141)     // neutral-300 (monogram border)
     static let danger = adaptive(0xB91C1C, 0xF0616B)         // destructive (red-700)
+    static let success = adaptive(0x166534, 0x4ADE80)        // green-800 / green-400 — Badge success, "Good price"
+    static let warning = adaptive(0x92400E, 0xFBBF24)        // amber-800 / amber-400 — Badge warning
 
     // ── Radius tiers (globals.css --radius 7px: card 11 / control 9 / chip 7) ──
     static let radiusCard: CGFloat = 11
     static let radiusControl: CGFloat = 9
+    static let radiusChip: CGFloat = 7                       // rounded-lg — small chips / thumbnails ≤64px
 
     private static func adaptive(_ light: UInt32, _ dark: UInt32) -> Color {
         Color(UIColor { trait in
