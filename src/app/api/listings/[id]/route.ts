@@ -6,6 +6,7 @@ import { phoneTakenByOther } from '@/lib/phone-unique'
 import { updateListingCore, deleteListingCore } from '@/lib/core/listings'
 import { serializeListing } from '@/lib/serialize'
 import { getPriceBand } from '@/lib/price-stat'
+import { topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,14 +24,22 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!listing || !listing.verified || listing.status !== 'active') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
-  // Same market-price gauge the web PDP shows (fail-safe null below the sample floor).
-  const priceBand = await getPriceBand({
-    brandSlug: listing.brandSlug,
-    model: listing.model,
-    condition: listing.condition,
-    year: listing.year,
-  })
-  const res = NextResponse.json({ listing: serializeListing(listing), priceBand })
+  // Parallelize the three PDP-parity reads (all cache()-wrapped / cheap):
+  //  - the market-price gauge (fail-safe null below the sample floor),
+  //  - the top seller reviews (#31: avg + verified-first snippets), and
+  //  - the same-seller shelf (#92: other active listings, newest first).
+  // Native decoders ignore unknown keys, so these are additive/back-compatible.
+  const [priceBand, reviews, moreFromSeller] = await Promise.all([
+    getPriceBand({
+      brandSlug: listing.brandSlug,
+      model: listing.model,
+      condition: listing.condition,
+      year: listing.year,
+    }),
+    topSellerReviews(listing.sellerId, 2, { total: listing.seller.reviewCount, avg: listing.seller.rating }),
+    sameSellerListings(listing.sellerId, listing.id, 10),
+  ])
+  const res = NextResponse.json({ listing: serializeListing(listing), priceBand, reviews, sameSellerListings: moreFromSeller })
   res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
   return res
 }

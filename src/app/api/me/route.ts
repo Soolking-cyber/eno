@@ -24,6 +24,9 @@ export async function GET() {
       phone: profile.phone ?? null,
       avatarUrl: profile.avatarUrl,
       avatarColor: profile.avatarColor,
+      // Own trust standing for the native Account card (#45/#114).
+      trustScore: profile.trustScore,
+      trustTier: profile.trustTier,
       accountType: profile.accountType ?? null,
       businessName: profile.businessName ?? null,
       handle,
