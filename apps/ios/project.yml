@@ -45,3 +45,9 @@ targets:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
+        # Our OWN OAuth callback scheme (distinct from the Capacitor app's
+        # enovn://). ASWebAuthenticationSession intercepts it in-process; the
+        # registration keeps the OS from hunting for a handler.
+        CFBundleURLTypes:
+          - CFBundleURLName: vn.eno.app.oauth
+            CFBundleURLSchemes: [enonative]
