@@ -117,7 +117,7 @@ fun PostScreen() {
         if (vm.photos.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
-                onClick = { vm.autofill() },
+                onClick = { vm.autofill(ctx) },
                 enabled = !vm.autofilling,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth(),

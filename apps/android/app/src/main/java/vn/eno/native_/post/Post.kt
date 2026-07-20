@@ -59,16 +59,17 @@ class PostViewModel : ViewModel() {
     // OCR map to the taxonomy locally — free, private, offline, no login, on
     // EVERY Android brand. Only if that can't place the item (and the user is
     // signed in) does it fall back to the paid server /api/ai/classify.
-    fun autofill() {
+    fun autofill(ctx: Context) {
         val bitmap = photos.firstOrNull()?.bitmap ?: run {
             autofillError = L10n.tr("Add a photo first.", "Thêm ảnh trước đã.")
             return
         }
+        val app = ctx.applicationContext
         autofilling = true
         autofillError = null
         viewModelScope.launch {
             try {
-                var r = OnDeviceAI.classify(bitmap)
+                var r = OnDeviceAI.classify(app, bitmap)
                 if (r == null && Auth.isSignedIn) {
                     r = OnDeviceAI.serverClassify(OnDeviceAI.jpeg(bitmap), if (L10n.isVi) "vi" else "en")
                 }

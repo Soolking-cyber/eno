@@ -1,11 +1,19 @@
 package vn.eno.native_.post
 
+import android.content.Context
 import android.graphics.Bitmap
+import com.google.mlkit.genai.common.DownloadCallback
+import com.google.mlkit.genai.common.FeatureStatus
+import com.google.mlkit.genai.common.GenAiException
+import com.google.mlkit.genai.imagedescription.ImageDescription
+import com.google.mlkit.genai.imagedescription.ImageDescriberOptions
+import com.google.mlkit.genai.imagedescription.ImageDescriptionRequest
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.guava.await as awaitFuture
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
 import okhttp3.MediaType.Companion.toMediaType
@@ -43,16 +51,23 @@ object OnDeviceAI {
     private val labeler by lazy { ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS) }
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
 
-    suspend fun classify(bitmap: Bitmap): ClassifyResult? {
+    suspend fun classify(ctx: Context, bitmap: Bitmap): ClassifyResult? {
         val input = InputImage.fromBitmap(bitmap, 0)
         val labels = runCatching { labeler.process(input).await() }.getOrNull()
             ?.filter { it.confidence > 0.5f }?.map { it.text.lowercase() } ?: emptyList()
         val ocr = runCatching { recognizer.process(input).await() }.getOrNull()?.text ?: ""
+        // Gemini Nano (flagships only) — a richer natural-language description of
+        // the photo. Null on every non-Nano device → we use labels alone there.
+        val nano = nanoDescribe(ctx, bitmap)
 
-        val slug = bestCategory(labels, ocr) ?: return null // can't place it → let the server / user decide
-        val brand = detectBrand(ocr)
-        val topLabel = labels.firstOrNull()?.replaceFirstChar { it.uppercase() }
-        val title = listOfNotNull(brand, topLabel).joinToString(" ").ifBlank { null }
+        // Nano's description is a strong extra signal for the category + brand.
+        val hay = (labels.joinToString(" ") + " " + ocr + " " + (nano ?: "")).lowercase()
+        val slug = bestCategory(hay) ?: return null // can't place it → server / user decide
+        val brand = detectBrand("$ocr ${nano ?: ""}")
+        // Title: prefer the Nano description (natural, specific) → else brand + label.
+        val heuristicTitle = listOfNotNull(brand, labels.firstOrNull()?.replaceFirstChar { it.uppercase() })
+            .joinToString(" ").ifBlank { null }
+        val title = nano?.let { cleanTitle(it) } ?: heuristicTitle
         return ClassifyResult(
             categorySlug = slug,
             title = title?.take(140),
@@ -62,9 +77,43 @@ object OnDeviceAI {
         )
     }
 
-    // Score each category by keyword hits across the labels + OCR; the best wins.
-    private fun bestCategory(labels: List<String>, ocr: String): String? {
-        val hay = (labels.joinToString(" ") + " " + ocr).lowercase()
+    // Gemini Nano image description via ML Kit GenAI (AICore). AVAILABLE only on
+    // Pixel 8+/Samsung S24+ etc.; DOWNLOADABLE → kick off the fetch for next time
+    // and skip (don't block this tap); UNAVAILABLE/anything else → null. All
+    // wrapped so a missing AICore never crashes — it just degrades to heuristic.
+    private val noopDownload = object : DownloadCallback {
+        override fun onDownloadStarted(bytesToDownload: Long) {}
+        override fun onDownloadProgress(totalBytesDownloaded: Long) {}
+        override fun onDownloadCompleted() {}
+        override fun onDownloadFailed(e: GenAiException) {}
+    }
+
+    private suspend fun nanoDescribe(ctx: Context, bitmap: Bitmap): String? = runCatching {
+        val describer = ImageDescription.getClient(ImageDescriberOptions.builder(ctx).build())
+        when (describer.checkFeatureStatus().awaitFuture()) {
+            FeatureStatus.AVAILABLE -> {
+                val req = ImageDescriptionRequest.builder(bitmap).build()
+                describer.runInference(req).awaitFuture().description?.trim()?.ifBlank { null }
+            }
+            FeatureStatus.DOWNLOADABLE -> { runCatching { describer.downloadFeature(noopDownload) }; null }
+            else -> null
+        }
+    }.getOrNull()
+
+    // Turn a Nano sentence ("A silver Apple MacBook Pro laptop on a desk.") into a
+    // concise listing title: drop the "a photo of…" preamble, first clause, cap.
+    private fun cleanTitle(desc: String): String {
+        var t = desc.trim().trimEnd('.')
+        for (p in listOf("a photo of ", "an image of ", "a picture of ", "this is ", "the image shows ", "image of ")) {
+            if (t.lowercase().startsWith(p)) { t = t.substring(p.length); break }
+        }
+        t = t.substringBefore(" on ").substringBefore(" sitting ").substringBefore(", ")
+        return t.replaceFirstChar { it.uppercase() }.take(70)
+    }
+
+    // Score each category by keyword hits across labels + OCR (+ Nano); best wins.
+    private fun bestCategory(hayRaw: String): String? {
+        val hay = hayRaw.lowercase()
         var best: String? = null
         var bestScore = 0
         for ((slug, keys) in CATEGORY_KEYWORDS) {

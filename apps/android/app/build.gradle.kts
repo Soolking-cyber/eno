@@ -47,14 +47,14 @@ dependencies {
     implementation("com.google.mlkit:image-labeling:17.0.9")
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+    // Gemini Nano (ML Kit GenAI via AICore) — flagship subset (Pixel 8+/Samsung
+    // S24+). Image Description sharpens the title; graceful UNAVAILABLE fallback
+    // to the ML Kit vision heuristic on every other device. GenAI returns Guava
+    // ListenableFuture (not a Play-Services Task), so it needs coroutines-guava.
+    implementation("com.google.mlkit:genai-image-description:1.0.0-beta1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("androidx.webkit:webkit:1.14.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.browser:browser:1.8.0")
-    // On-device AI (owner: on-device autofill for Samsung/Pixel/Oppo/etc). ML Kit
-    // image labeling + text recognition run on-device on EVERY Android brand
-    // (unlike Gemini Nano, which is Pixel/Samsung-only). Bundled models → offline.
-    implementation("com.google.mlkit:image-labeling:17.0.9")
-    implementation("com.google.mlkit:text-recognition:16.0.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 }
