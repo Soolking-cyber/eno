@@ -45,6 +45,17 @@ object Format {
         }
         return if (L10n.isVi) "$grouped đ" else "$grouped VND"
     }
+
+    // "3h ago" / "3 giờ trước" from an ISO-8601 timestamp.
+    fun ago(iso: String): String = runCatching {
+        val secs = (System.currentTimeMillis() / 1000) - java.time.Instant.parse(iso).epochSecond
+        when {
+            secs < 3600 -> (secs / 60).coerceAtLeast(1).let { L10n.tr("${it}m ago", "$it phút trước") }
+            secs < 86400 -> (secs / 3600).let { L10n.tr("${it}h ago", "$it giờ trước") }
+            secs < 2592000 -> (secs / 86400).let { L10n.tr("${it}d ago", "$it ngày trước") }
+            else -> (secs / 2592000).let { L10n.tr("${it}mo ago", "$it tháng trước") }
+        }
+    }.getOrDefault("")
 }
 
 object ImageUrl {
@@ -206,6 +217,10 @@ data class DetailSeller(
     val id: String,
     val name: String,
     val trustScore: Int = 100,
+    val trustTier: String? = null,
+    val rating: Double? = null,
+    val reviewCount: Int = 0,
+    val avatarColor: String? = null,
     val memberSince: String = "",
     val isBusiness: Boolean = false,
 )
@@ -217,9 +232,17 @@ data class ListingDetail(
     val titleVi: String? = null,
     val description: String = "",
     val price: Long,
+    val prevPrice: Long? = null,
+    val urgent: Boolean = false,
+    val negotiable: Boolean = true,
+    val condition: String? = null,
+    val year: Int? = null,
+    val mileageKm: Int? = null,
     val images: List<String> = emptyList(),
+    val video: String? = null,
     val district: String? = null,
     val city: String = "",
+    val postedAt: String = "",
     val views: Int = 0,
     val savedCount: Int = 0,
     val contactCount: Int = 0,
@@ -229,8 +252,12 @@ data class ListingDetail(
     val displayLocation: String get() = listOfNotNull(district, city.ifEmpty { null }).joinToString(", ")
 }
 
+// Market-price band (src/lib/price-stat.ts) — null below the sample floor.
 @Serializable
-data class ListingDetailEnvelope(val listing: ListingDetail)
+data class PriceBand(val n: Int, val p25: Double, val median: Double, val p75: Double)
+
+@Serializable
+data class ListingDetailEnvelope(val listing: ListingDetail, val priceBand: PriceBand? = null)
 
 // POST /api/conversations → find-or-create thread (id + whether it's new).
 @Serializable
