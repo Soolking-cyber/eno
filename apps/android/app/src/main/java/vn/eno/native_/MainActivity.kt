@@ -64,7 +64,7 @@ fun EnoTheme(content: @Composable () -> Unit) {
             onSurface = Palette.fgDark,
             onSurfaceVariant = Palette.subDark,
             outline = Palette.ringDark,
-            error = Palette.danger,
+            error = Palette.dangerDark,
         )
     } else {
         lightColorScheme(
@@ -76,7 +76,7 @@ fun EnoTheme(content: @Composable () -> Unit) {
             onSurface = Palette.fgLight,
             onSurfaceVariant = Palette.subLight,
             outline = Palette.ringLight,
-            error = Palette.danger,
+            error = Palette.dangerLight,
         )
     }
     MaterialTheme(colorScheme = scheme, content = content)

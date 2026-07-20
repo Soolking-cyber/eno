@@ -12,6 +12,11 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -210,7 +215,8 @@ fun FeedScreen(
                             .clickable(onClick = onBell),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("🔔", fontSize = 16.sp)
+                        Icon(Icons.Outlined.Notifications, null,
+                            Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onBackground)
                         if (vn.eno.native_.account.Notifs.unread > 0) {
                             Box(
                                 Modifier
@@ -281,13 +287,16 @@ fun TrustMini(score: Int) {
         score >= 60 -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.error
     }
-    Box(
+    Row(
         Modifier
             .clip(CircleShape)
             .background(band.copy(alpha = 0.12f))
             .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text("🛡 $score", color = band, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Icon(Icons.Outlined.Shield, null, Modifier.size(10.dp), tint = band)
+        Text("$score", color = band, fontSize = 9.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -327,7 +336,8 @@ fun ListingCardView(card: ListingCard, onClick: () -> Unit) {
             )
             // Top-left chip priority (card-badges.tsx): urgent > -N% > New(48h).
             val (chip, chipBg) = when {
-                card.urgent -> L10n.tr("Urgent", "Bán gấp") to MaterialTheme.colorScheme.error
+                // Solid SLATE (not red) so it doesn't collide with the red -N% drop badge (#5).
+                card.urgent -> L10n.tr("⚡ Urgent", "⚡ Bán gấp") to MaterialTheme.colorScheme.onBackground
                 card.dropPercent != null -> "-${card.dropPercent}%" to MaterialTheme.colorScheme.error
                 card.isNew -> L10n.tr("New", "Mới") to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
                 else -> null to MaterialTheme.colorScheme.error
@@ -348,11 +358,10 @@ fun ListingCardView(card: ListingCard, onClick: () -> Unit) {
             val ctx = androidx.compose.ui.platform.LocalContext.current
             LaunchedEffect(Unit) { Favorites.ensureLoaded(ctx) }
             val fav = Favorites.isFavorite(card.id)
-            Text(
-                if (fav) "♥" else "♡",
-                color = if (fav) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
+            Icon(
+                if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                contentDescription = null,
+                tint = if (fav) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.White,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
@@ -362,21 +371,29 @@ fun ListingCardView(card: ListingCard, onClick: () -> Unit) {
                         else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.25f)
                     )
                     .clickable { Favorites.toggle(ctx, card.id) }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(6.dp)
+                    .size(16.dp),
             )
             if (card.savedCount >= 3) {
-                Text(
-                    "♥ ${card.savedCount}",
-                    color = androidx.compose.ui.graphics.Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
+                Row(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(8.dp)
                         .clip(CircleShape)
                         .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f))
                         .padding(horizontal = 7.dp, vertical = 3.dp),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Icon(Icons.Filled.Favorite, null, Modifier.size(10.dp),
+                        tint = androidx.compose.ui.graphics.Color.White)
+                    Text(
+                        "${card.savedCount}",
+                        color = androidx.compose.ui.graphics.Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
         }
         Column(Modifier.padding(10.dp)) {

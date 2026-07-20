@@ -7,6 +7,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -169,11 +173,20 @@ private fun ListingRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StatusChip(l)
                 Spacer(Modifier.width(8.dp))
-                Text("👁 ${l.views} · 💬 ${l.contactCount}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val meta = MaterialTheme.colorScheme.onSurfaceVariant
+                Icon(Icons.Outlined.Visibility, null, Modifier.size(12.dp), tint = meta)
+                Spacer(Modifier.width(3.dp))
+                Text("${l.views}", fontSize = 11.sp, color = meta)
+                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Outlined.ChatBubbleOutline, null, Modifier.size(12.dp), tint = meta)
+                Spacer(Modifier.width(3.dp))
+                Text("${l.contactCount}", fontSize = 11.sp, color = meta)
             }
         }
         Box {
-            Text("⋮", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.clickable { menu = true }.padding(8.dp))
+            Icon(Icons.Filled.MoreVert, contentDescription = L10n.tr("Actions", "Tùy chọn"),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.clickable { menu = true }.padding(8.dp).size(20.dp))
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 if (l.status == "active") {
                     DropdownMenuItem(text = { Text(L10n.tr("Still available (bump)", "Còn hàng (đẩy tin)")) }, onClick = { menu = false; onConfirm() })

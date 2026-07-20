@@ -16,14 +16,19 @@ class ApiHttpException(val code: Int) : RuntimeException("http $code")
 // Design tokens mirroring docs/design-language.md (same values as apps/ios
 // Tokens.swift). Light/dark pairs resolve in EnoTheme.
 object Palette {
+    // EXACT globals.css light/dark pairs — de-blued TRUE-NEUTRAL ramp (parity #11).
     val brandLight = Color(0xFF0A66C2); val brandDark = Color(0xFF3B8EE6)
+    val accentLight = Color(0xFF0A66C2); val accentDark = Color(0xFF74B3F2)   // accent-foreground (selection)
     val canvasLight = Color(0xFFFAFAFA); val canvasDark = Color(0xFF1B1B1B)
     val cardLight = Color(0xFFFFFFFF); val cardDark = Color(0xFF242424)
-    val tintLight = Color(0xFFEEF2F6); val tintDark = Color(0xFF2E2E2E)
-    val fgLight = Color(0xFF111827); val fgDark = Color(0xFFF3F4F6)
-    val subLight = Color(0xFF6B7280); val subDark = Color(0xFF9CA3AF)
-    val ringLight = Color(0xFFE5E7EB); val ringDark = Color(0xFF333333)
-    val danger = Color(0xFFDC2626)
+    val tintLight = Color(0xFFF5F5F5); val tintDark = Color(0xFF262626)       // neutral-100
+    val fgLight = Color(0xFF171717); val fgDark = Color(0xFFF0F0F0)           // foreground/ink
+    val subLight = Color(0xFF525252); val subDark = Color(0xFFCCCCCC)         // body neutral-600
+    val ink4Light = Color(0xFF616161); val ink4Dark = Color(0xFFA0A0A0)       // meta/count
+    val ringLight = Color(0xFFE5E5E5); val ringDark = Color(0xFF363636)       // border
+    val lineStrongLight = Color(0xFFD4D4D4); val lineStrongDark = Color(0xFF414141)
+    val dangerLight = Color(0xFFB91C1C); val dangerDark = Color(0xFFF0616B)
+    val danger = dangerLight
 }
 
 // tr(en, vi) — device-language driven, mirroring the web contract.

@@ -5,21 +5,24 @@ import SwiftUI
 // single-canvas, 12/14 radius tiers). On iOS the web app already renders in the
 // system font (-apple-system), so native SF text matches web typography exactly.
 enum Tokens {
-    // ── Color (light / dark pairs match globals.css + the shell) ──
-    static let brand = adaptive(0x0A66C2, 0x3B8EE6)
-    static let brandTint = adaptive(0xE8F1FB, 0x1E2E40)
-    static let canvas = adaptive(0xFAFAFA, 0x1B1B1B)
+    // ── Color: EXACT globals.css light/dark pairs. De-blued TRUE-NEUTRAL ramp
+    // (parity #11) — the grays were blue-tinted (gray-500/700); now neutral. ──
+    static let brand = adaptive(0x0A66C2, 0x3B8EE6)          // seed (wordmark, CTAs)
+    static let accent = adaptive(0x0A66C2, 0x74B3F2)         // accent-foreground: selection text/icon
+    static let brandTint = adaptive(0xE8F1FB, 0x17314D)      // brand-50: blue-tint panels
+    static let canvas = adaptive(0xFAFAFA, 0x1B1B1B)         // background
     static let card = adaptive(0xFFFFFF, 0x242424)
-    static let tint = adaptive(0xEEF2F6, 0x2E2E2E)
-    static let fg = adaptive(0x111827, 0xF3F4F6)
-    static let sub = adaptive(0x6B7280, 0x9CA3AF)
-    static let ring = adaptive(0xE5E7EB, 0x333333)
-    static let danger = adaptive(0xDC2626, 0xEF4444)
+    static let tint = adaptive(0xF5F5F5, 0x262626)           // neutral-100 (was blue-tinted)
+    static let fg = adaptive(0x171717, 0xF0F0F0)             // foreground / ink (true neutral)
+    static let sub = adaptive(0x525252, 0xCCCCCC)            // body (neutral-600)
+    static let ink4 = adaptive(0x616161, 0xA0A0A0)           // meta/count/chevron (AA)
+    static let ring = adaptive(0xE5E5E5, 0x363636)           // border
+    static let lineStrong = adaptive(0xD4D4D4, 0x414141)     // neutral-300 (monogram border)
+    static let danger = adaptive(0xB91C1C, 0xF0616B)         // destructive (red-700)
 
-    // ── Radius tiers (canon §radius: buttons/inputs 14 ≈ rounded-xl on mobile
-    // scale, cards/panels 12, circles/chips full) ──
-    static let radiusCard: CGFloat = 12
-    static let radiusControl: CGFloat = 14
+    // ── Radius tiers (globals.css --radius 7px: card 11 / control 9 / chip 7) ──
+    static let radiusCard: CGFloat = 11
+    static let radiusControl: CGFloat = 9
 
     private static func adaptive(_ light: UInt32, _ dark: UInt32) -> Color {
         Color(UIColor { trait in

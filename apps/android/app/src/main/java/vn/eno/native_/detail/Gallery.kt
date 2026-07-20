@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,17 +54,18 @@ fun GalleryOverlay(images: List<String>, start: Int, onDismiss: () -> Unit) {
                     },
             )
         }
-        Text(
-            "✕",
-            color = Color.White,
-            fontSize = 16.sp,
+        Icon(
+            Icons.Filled.Close,
+            contentDescription = "Close",
+            tint = Color.White,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 40.dp, end = 16.dp)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.15f))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .let { m -> m.then(Modifier.pointerInput(Unit) { detectTapGestures { onDismiss() } }) },
+                .let { m -> m.then(Modifier.pointerInput(Unit) { detectTapGestures { onDismiss() } }) }
+                .padding(10.dp)
+                .size(18.dp),
         )
     }
 }
