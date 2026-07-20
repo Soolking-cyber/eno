@@ -82,16 +82,35 @@ struct SearchView: View {
         }
     }
 
-    // ── empty focus: recents + trending ──
+    // Uppercase, letter-spaced, muted eyebrow with a small leading icon (web section header).
+    private func eyebrow(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 11, weight: .bold))
+            Text(text).font(.system(size: 11, weight: .bold)).textCase(.uppercase).tracking(0.6)
+        }
+        .foregroundStyle(Tokens.sub)
+    }
+
+    // Soft rounded-xl chip — NO per-chip icon (web variant="soft").
+    private func softChip(_ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Tokens.fg)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // ── empty focus: recent + trending + popular (web search dropdown) ──
     @ViewBuilder
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 20) {
             if !recents.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text(L10n.tr("Recent searches", "Tìm kiếm gần đây"))
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(Tokens.fg)
+                        eyebrow("clock", L10n.tr("Recent", "Tìm gần đây"))
                         Spacer()
                         Button(L10n.tr("Clear", "Xóa")) {
                             RecentStore.clearSearches()
@@ -100,15 +119,30 @@ struct SearchView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Tokens.sub)
                     }
-                    flow(recents, icon: "clock") { submit($0) }
+                    FlowLayout(spacing: 8) { ForEach(recents, id: \.self) { t in softChip(t) { submit(t) } } }
                 }
             }
             if !trending.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(L10n.tr("Trending", "Xu hướng tìm kiếm"))
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Tokens.fg)
-                    flow(trending, icon: "flame") { submit($0) }
+                    eyebrow("chart.line.uptrend.xyaxis", L10n.tr("Trending", "Xu hướng tìm kiếm"))
+                    FlowLayout(spacing: 8) { ForEach(trending, id: \.self) { t in softChip(t) { submit(t) } } }
+                }
+            }
+            // Popular categories — shown when there are no recents (web fallback).
+            if recents.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    eyebrow("chart.line.uptrend.xyaxis", L10n.tr("Popular", "Phổ biến"))
+                    FlowLayout(spacing: 8) {
+                        ForEach(Array(Categories.all.prefix(8))) { cat in
+                            NavigationLink(value: cat) {
+                                Text(cat.name)
+                                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.fg)
+                                    .padding(.horizontal, 14).padding(.vertical, 8)
+                                    .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 12))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
             }
         }
@@ -116,56 +150,58 @@ struct SearchView: View {
         .padding(16)
     }
 
-    private func flow(_ terms: [String], icon: String, action: @escaping (String) -> Void) -> some View {
-        FlowLayout(spacing: 8) {
-            ForEach(terms, id: \.self) { term in
-                Button {
-                    action(term)
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: icon).font(.system(size: 11))
-                        Text(term).font(.system(size: 13, weight: .medium))
-                    }
-                    .foregroundStyle(Tokens.fg)
-                    .padding(.horizontal, 12)
-                    .frame(height: 32)
-                    .background(Tokens.tint, in: Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    // ── typeahead ──
+    // ── typeahead: query → brands → categories → listings (web search-suggest order) ──
     @ViewBuilder
     private var suggestView: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let s = suggest {
-                ForEach(s.categories) { cat in
-                    if let appCat = Categories.bySlug(cat.slug) {
-                        NavigationLink(value: appCat) {
-                            row(icon: appCat.symbol, tint: appCat.color,
-                                title: L10n.tr("in \(cat.name)", "trong \(cat.nameVi)"), subtitle: nil, thumb: nil)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                ForEach(s.listings) { l in
-                    Button {
-                        openListing(l.id)
-                    } label: {
-                        row(icon: nil, tint: Tokens.brand, title: l.displayTitle,
-                            subtitle: "\(Format.vnd(l.price)) · \(l.location)", thumb: l.image)
-                    }
-                    .buttonStyle(.plain)
-                }
-                Button {
-                    submit(query)
-                } label: {
-                    row(icon: "magnifyingglass", tint: Tokens.sub,
-                        title: L10n.tr("Search \"\(query)\"", "Tìm \"\(query)\""), subtitle: nil, thumb: nil)
+                // 1. free-text query row — ALWAYS first (Enter runs it).
+                Button { submit(query) } label: {
+                    row(icon: "magnifyingglass", title: L10n.tr("Search for “\(query)”", "Tìm “\(query)”"))
                 }
                 .buttonStyle(.plain)
+
+                let brands = s.brands ?? []
+                let cats = Array(s.categories.prefix(2))
+
+                // 2. Brands
+                if !brands.isEmpty {
+                    eyebrow("tag", L10n.tr("Brands", "Thương hiệu")).padding(.horizontal, 16).padding(.top, 10)
+                    FlowLayout(spacing: 8) { ForEach(brands) { b in softChip(b.name) { submit(b.name) } } }
+                        .padding(.horizontal, 16).padding(.top, 6)
+                }
+                // 3. Categories
+                if !cats.isEmpty {
+                    eyebrow("square.grid.2x2", L10n.tr("Categories", "Danh mục")).padding(.horizontal, 16).padding(.top, 10)
+                    FlowLayout(spacing: 8) {
+                        ForEach(cats) { cat in
+                            if let appCat = Categories.bySlug(cat.slug) {
+                                NavigationLink(value: appCat) {
+                                    Text(L10n.isVi ? cat.nameVi : cat.name)
+                                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.fg)
+                                        .padding(.horizontal, 14).padding(.vertical, 8)
+                                        .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 12))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16).padding(.top, 6)
+                }
+                // 4. Listings
+                if !s.listings.isEmpty {
+                    eyebrow("bag", L10n.tr("Listings", "Tin đăng")).padding(.horizontal, 16).padding(.top, 10)
+                    ForEach(s.listings) { l in
+                        Button { openListing(l.id) } label: { suggestListingRow(l) }
+                            .buttonStyle(.plain)
+                    }
+                }
+                // No matches
+                if brands.isEmpty && cats.isEmpty && s.listings.isEmpty {
+                    Text(L10n.tr("No matches yet", "Chưa có kết quả"))
+                        .font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                }
             } else {
                 ProgressView().frame(maxWidth: .infinity).padding(.top, 32)
             }
@@ -173,38 +209,37 @@ struct SearchView: View {
         .padding(.vertical, 4)
     }
 
-    private func row(icon: String?, tint: Color, title: String, subtitle: String?, thumb: String?) -> some View {
+    // The free-text query row (icon + title).
+    private func row(icon: String, title: String) -> some View {
         HStack(spacing: 12) {
-            if let thumb, let url = ImageURL.optimized(thumb, width: 96) {
-                AsyncImage(url: url) { phase in
-                    if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
-                }
+            Image(systemName: icon)
+                .font(.system(size: 15))
+                .foregroundStyle(Tokens.sub)
                 .frame(width: 40, height: 40)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            } else {
-                Image(systemName: icon ?? "magnifyingglass")
-                    .font(.system(size: 15))
-                    .foregroundStyle(tint)
-                    .frame(width: 40, height: 40)
-                    .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 8))
+            Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.fg).lineLimit(1)
+            Spacer()
+        }
+        .padding(.horizontal, 16).padding(.vertical, 8).contentShape(Rectangle())
+    }
+
+    // A listing suggestion row: thumbnail + title, then price (accent) · location (muted).
+    private func suggestListingRow(_ l: SuggestResponse.SuggestListing) -> some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: l.image.flatMap { ImageURL.optimized($0, width: 96) }) { phase in
+                if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
             }
+            .frame(width: 40, height: 40)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Tokens.fg)
-                    .lineLimit(1)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Tokens.sub)
-                        .lineLimit(1)
-                }
+                Text(l.displayTitle).font(.system(size: 14, weight: .medium)).foregroundStyle(Tokens.fg).lineLimit(1)
+                (Text(Format.vnd(l.price)).foregroundStyle(Tokens.brand).fontWeight(.semibold)
+                    + Text(" · \(l.location)").foregroundStyle(Tokens.sub))
+                    .font(.system(size: 12)).lineLimit(1)
             }
             Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
+        .padding(.horizontal, 16).padding(.vertical, 8).contentShape(Rectangle())
     }
 
     // ── submitted results ──

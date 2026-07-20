@@ -225,9 +225,15 @@ struct SuggestResponse: Codable {
         let nameVi: String
         var id: String { slug }
     }
+    struct SuggestBrand: Codable, Identifiable {
+        let slug: String
+        let name: String
+        var id: String { slug }
+    }
     let q: String
     let listings: [SuggestListing]
     let categories: [SuggestCategory]
+    let brands: [SuggestBrand]?   // API sends these; optional for payload tolerance
 }
 
 // /api/search/trending → { trending: [term] } (fails open to empty)
