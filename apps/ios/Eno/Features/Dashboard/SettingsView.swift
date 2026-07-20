@@ -81,8 +81,11 @@ struct SettingsView: View {
             }
 
             Section {
+                NavigationLink { DisputesView() } label: {
+                    Label(L10n.tr("Disputes", "Khiếu nại"), systemImage: "checkmark.shield")
+                }
                 Button { showWeb = true } label: {
-                    Label(L10n.tr("More settings (disputes, language)", "Thêm cài đặt (khiếu nại, ngôn ngữ)"),
+                    Label(L10n.tr("More settings (language, notifications)", "Thêm cài đặt (ngôn ngữ, thông báo)"),
                           systemImage: "safari")
                 }
             }
