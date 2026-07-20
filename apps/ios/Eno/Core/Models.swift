@@ -116,6 +116,22 @@ struct CategoriesResponse: Codable {
     let categories: [Cat]
 }
 
+// POST /api/ai/classify (multipart file+lang) → AI reads the product photo and
+// returns taxonomy-validated listing fields to prefill the post form. Every
+// field optional (unclear photo → nulls + unclear:true).
+struct ClassifyResult: Codable {
+    let categorySlug: String?
+    let subcategorySlug: String?
+    let listingType: String?
+    let condition: String?
+    let title: String?
+    let brand: String?
+    let brandUncertain: Bool?
+    let model: String?
+    let attributes: [String: String]?
+    let unclear: Bool?
+}
+
 // /api/category-rails → { rails: [{ slug, listings }] }
 struct CategoryRails: Codable {
     struct Rail: Codable {

@@ -109,6 +109,30 @@ final class APIClient: @unchecked Sendable {
         return urls
     }
 
+    /// AI photo classify: single image + lang, multipart, → taxonomy-validated
+    /// listing fields. Auth-gated server-side (aiGuard, login-only, 40/h) — a
+    /// guest call 401s. Same endpoint the web post wizard uses.
+    func classify(jpeg: Data, lang: String) async throws -> ClassifyResult {
+        let boundary = "eno-\(UUID().uuidString)"
+        var req = request(url: base.appendingPathComponent("api/ai/classify"))
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"photo.jpg\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(jpeg)
+        body.append("\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"lang\"\r\n\r\n".data(using: .utf8)!)
+        body.append(lang.data(using: .utf8)!)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        req.httpBody = body
+        let (data, status) = try await run(req)
+        guard (200..<300).contains(status) else { throw APIError.http(status) }
+        return try decode(data)
+    }
+
     private func request(url: URL) -> URLRequest {
         var req = URLRequest(url: url)
         if let token = accessToken {

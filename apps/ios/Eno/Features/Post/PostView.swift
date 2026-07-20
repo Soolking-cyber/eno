@@ -71,6 +71,29 @@ struct PostView: View {
             Text(L10n.tr("At least 3 photos from different angles.", "Ít nhất 3 ảnh chụp các góc khác nhau."))
                 .font(.system(size: 12))
                 .foregroundStyle(model.uploadedUrls.count >= 3 ? Tokens.sub : Tokens.brand)
+            // ✨ AI auto-fill — appears once there's a photo; reads the item and
+            // prefills category/condition/title (the seller reviews + adds the rest).
+            if !model.photos.isEmpty {
+                Button {
+                    Task { await model.autofill() }
+                } label: {
+                    HStack(spacing: 8) {
+                        if model.autofilling { ProgressView().tint(Tokens.brand) }
+                        else { Image(systemName: "sparkles").font(.system(size: 15)) }
+                        Text(L10n.tr("Auto-fill from photo", "Điền tự động từ ảnh"))
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundStyle(Tokens.brand)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                }
+                .buttonStyle(.plain)
+                .disabled(model.autofilling)
+                if let err = model.autofillError {
+                    Text(err).font(.system(size: 12)).foregroundStyle(Tokens.danger)
+                }
+            }
         } header: {
             Text(L10n.tr("Photos", "Hình ảnh"))
         }
