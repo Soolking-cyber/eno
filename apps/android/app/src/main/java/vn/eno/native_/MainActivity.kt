@@ -81,6 +81,8 @@ fun EnoApp() {
         )
         val backStack by nav.currentBackStackEntryAsState()
         val currentRoute = backStack?.destination?.route
+        val signedIn = vn.eno.native_.core.Auth.isSignedIn
+        LaunchedEffect(currentRoute, signedIn) { vn.eno.native_.core.Unread.refresh() }
 
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
@@ -96,7 +98,15 @@ fun EnoApp() {
                                     restoreState = true
                                 }
                             },
-                            icon = tab.icon,
+                            icon = {
+                                if (tab.route == "messages" && vn.eno.native_.core.Unread.count > 0) {
+                                    BadgedBox(badge = {
+                                        Badge { Text(if (vn.eno.native_.core.Unread.count > 9) "9+" else "${vn.eno.native_.core.Unread.count}") }
+                                    }) { tab.icon() }
+                                } else {
+                                    tab.icon()
+                                }
+                            },
                             label = { Text(tab.label) },
                         )
                     }
@@ -114,7 +124,18 @@ fun EnoApp() {
                     vn.eno.native_.feed.SearchScreen(onOpen = { id -> nav.navigate("listing/$id") })
                 }
                 composable("listing/{id}") { entry ->
-                    DetailScreen(entry.arguments?.getString("id") ?: "", onOpen = { id -> nav.navigate("listing/$id") })
+                    DetailScreen(
+                        entry.arguments?.getString("id") ?: "",
+                        onOpen = { id -> nav.navigate("listing/$id") },
+                        openThread = { convoId -> nav.navigate("thread/$convoId") },
+                        openSignIn = { nav.navigate("account") },
+                    )
+                }
+                composable("thread/{id}") { entry ->
+                    vn.eno.native_.messages.ThreadScreen(
+                        convoId = entry.arguments?.getString("id") ?: "",
+                        onBack = { nav.popBackStack() },
+                    )
                 }
                 composable("saved") { vn.eno.native_.feed.SavedScreen(onOpen = { id -> nav.navigate("listing/$id") }) }
                 composable("post") { WebTab("/post") }

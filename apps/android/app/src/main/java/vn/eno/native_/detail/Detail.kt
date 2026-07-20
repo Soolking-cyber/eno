@@ -20,15 +20,23 @@ import androidx.compose.ui.unit.sp
 import android.content.Intent
 import android.net.Uri
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import vn.eno.native_.core.*
 
 // PDP v1 (Android), mirroring the iOS detail's hierarchy: gallery pager →
 // price → title/meta → description → seller. Contact opens the listing's web
 // page (Custom-Tab-less v1: system browser) until native chat lands here.
 @Composable
-fun DetailScreen(id: String, onOpen: (String) -> Unit) {
+fun DetailScreen(
+    id: String,
+    onOpen: (String) -> Unit,
+    openThread: (String) -> Unit = {},
+    openSignIn: () -> Unit = {},
+) {
     var detail by remember { mutableStateOf<ListingDetail?>(null) }
+    var chatBusy by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     LaunchedEffect(id) {
         detail = runCatching { Api.get<ListingDetailEnvelope>("api/listings/$id").listing }.getOrNull()
@@ -105,10 +113,27 @@ fun DetailScreen(id: String, onOpen: (String) -> Unit) {
                 }
             }
         }
+        // Native chat entry (Murat's v6 follow-up): find-or-create the thread —
+        // the same idempotent POST the web resolves through — and push it.
+        // Guests go to sign-in; refusals (own listing, caps) fall back to the
+        // web page, which explains them.
         Button(
             onClick = {
-                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://eno.vn/listings/$id")))
+                if (!Auth.isSignedIn) { openSignIn(); return@Button }
+                if (chatBusy) return@Button
+                chatBusy = true
+                scope.launch {
+                    try {
+                        val r = Api.post<CreateConvoResponse>("api/conversations", """{"listingId":"$id"}""")
+                        openThread(r.id)
+                    } catch (_: Exception) {
+                        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://eno.vn/listings/$id")))
+                    } finally {
+                        chatBusy = false
+                    }
+                }
             },
+            enabled = !chatBusy,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier
@@ -116,7 +141,7 @@ fun DetailScreen(id: String, onOpen: (String) -> Unit) {
                 .padding(16.dp)
                 .height(50.dp),
         ) {
-            Text(L10n.tr("Contact seller", "Liên hệ người bán"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(L10n.tr("Chat with seller", "Nhắn tin cho người bán"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }

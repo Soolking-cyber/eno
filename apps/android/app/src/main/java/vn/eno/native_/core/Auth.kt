@@ -13,10 +13,26 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+
+// Messages tab badge (mirror of apps/ios UnreadModel): 9+ cap rendered at the
+// nav; refreshes on app start, sign-in flips, and tab visits.
+object Unread {
+    @Serializable
+    private data class UnreadResponse(val unread: Int = 0)
+
+    var count by mutableStateOf(0)
+        private set
+
+    suspend fun refresh() {
+        if (!Auth.isSignedIn) { count = 0; return }
+        count = runCatching { Api.get<UnreadResponse>("api/conversations/unread").unread }.getOrDefault(count)
+    }
+}
 
 // Native session (Android port of apps/ios AuthModel, WITH the iOS review
 // lessons baked in from day one): tokens arrive from the embedded web sign-in

@@ -3,11 +3,15 @@ package vn.eno.native_.core
 import androidx.compose.ui.graphics.Color
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+class ApiHttpException(val code: Int) : RuntimeException("http $code")
 
 // Design tokens mirroring docs/design-language.md (same values as apps/ios
 // Tokens.swift). Light/dark pairs resolve in EnoTheme.
@@ -55,6 +59,33 @@ object Api {
 
     @PublishedApi
     internal val client = OkHttpClient.Builder().build()
+
+    suspend inline fun <reified T> post(path: String, jsonBody: String): T =
+        withContext(Dispatchers.IO) {
+            ensureFreshToken?.invoke()
+            val req = Request.Builder()
+                .url("https://eno.vn/$path")
+                .header("User-Agent", "EnoNativeApp/1 android-native")
+                .apply { accessToken?.let { header("Authorization", "Bearer $it") } }
+                .post(jsonBody.toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().use { res ->
+                if (!res.isSuccessful) throw ApiHttpException(res.code)
+                json.decodeFromString<T>(res.body!!.string())
+            }
+        }
+
+    suspend fun send(method: String, path: String, jsonBody: String? = null): Int =
+        withContext(Dispatchers.IO) {
+            ensureFreshToken?.invoke()
+            val req = Request.Builder()
+                .url("https://eno.vn/$path")
+                .header("User-Agent", "EnoNativeApp/1 android-native")
+                .apply { accessToken?.let { header("Authorization", "Bearer $it") } }
+                .method(method, jsonBody?.toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(req).execute().use { it.code }
+        }
 
     suspend inline fun <reified T> get(path: String, query: Map<String, String> = emptyMap()): T =
         withContext(Dispatchers.IO) {
@@ -141,6 +172,10 @@ data class ListingDetail(
 
 @Serializable
 data class ListingDetailEnvelope(val listing: ListingDetail)
+
+// POST /api/conversations → find-or-create thread (id + whether it's new).
+@Serializable
+data class CreateConvoResponse(val id: String, val created: Boolean = false)
 
 // Card badge rules (web card-badges.tsx, same as iOS): urgent > drop% > New(48h);
 // goodPrice yields to a live drop.
