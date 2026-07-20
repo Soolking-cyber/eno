@@ -61,6 +61,7 @@ fun DetailScreen(
     val scope = rememberCoroutineScope()
     var viewerPage by remember { mutableStateOf<Int?>(null) }
     var fav by remember { mutableStateOf(false) }
+    var reportOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(id) {
         RecentStore.recordViewed(ctx, id)
@@ -214,6 +215,14 @@ fun DetailScreen(
                             Text(safetyCopy(d.categorySafetyKey()), fontSize = 12.sp, lineHeight = 17.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        // ── report entry (item 32) ──
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            L10n.tr("Report this listing", "Báo cáo tin đăng"),
+                            fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.clickable { reportOpen = true }.padding(vertical = 4.dp),
+                        )
                         Spacer(Modifier.height(24.dp))
                     }
                 }
@@ -242,6 +251,10 @@ fun DetailScreen(
             }
         }
         viewerPage?.let { p -> GalleryOverlay(d.images, p) { viewerPage = null } }
+    }
+
+    if (reportOpen) {
+        ReportSheet(listingId = id, sellerId = d.seller.id, onDismiss = { reportOpen = false })
     }
 }
 

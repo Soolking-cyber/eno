@@ -21,9 +21,15 @@ struct ListingDetailView: View {
     @State private var signInSheet = false
     @State private var chatConvo: ChatRoute?
     @State private var contactBusy = false
+    @State private var reportTarget: ReportTarget?
 
     private struct ChatRoute: Identifiable, Hashable {
         let id: String
+    }
+
+    private enum ReportTarget: Identifiable {
+        case listing, seller
+        var id: Int { hashValue }
     }
 
     private struct ViewerState: Identifiable {
@@ -91,6 +97,20 @@ struct ListingDetailView: View {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button(role: .destructive) { reportTarget = .listing } label: {
+                        Label(L10n.tr("Report listing", "Báo cáo tin"), systemImage: "flag")
+                    }
+                    if detail != nil {
+                        Button(role: .destructive) { reportTarget = .seller } label: {
+                            Label(L10n.tr("Report seller", "Báo cáo người bán"), systemImage: "flag")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+            }
         }
         .navigationDestination(for: AppCategory.self) { cat in
             CategoryFeedView(category: cat)
@@ -107,6 +127,12 @@ struct ListingDetailView: View {
         .sheet(isPresented: $sellerSheet) {
             if let sellerId = detail?.seller.id {
                 WebSheet(path: "/sellers/\(sellerId)")
+            }
+        }
+        .sheet(item: $reportTarget) { t in
+            switch t {
+            case .listing: ReportSheet(listingId: card.id)
+            case .seller: ReportSheet(sellerId: detail?.seller.id)
             }
         }
         .fullScreenCover(item: $viewer) { state in
