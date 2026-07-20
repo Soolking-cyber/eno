@@ -70,6 +70,7 @@ struct ListingCardView: View {
                 .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(favs.isFavorite(listing.id) ? L10n.tr("Saved", "Đã lưu") : L10n.tr("Save", "Lưu"))
     }
 
     @ViewBuilder

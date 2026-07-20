@@ -29,6 +29,7 @@ struct GalleryViewer: View {
                     .frame(width: 36, height: 36)
                     .background(.white.opacity(0.15), in: Circle())
             }
+            .accessibilityLabel(L10n.tr("Close", "Đóng"))
             .padding(.trailing, 16)
             .padding(.top, 8)
         }

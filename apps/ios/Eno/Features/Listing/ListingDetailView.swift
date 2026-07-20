@@ -91,11 +91,13 @@ struct ListingDetailView: View {
                     Image(systemName: favs.isFavorite(card.id) ? "heart.fill" : "heart")
                         .foregroundStyle(favs.isFavorite(card.id) ? Tokens.brand : Tokens.fg)
                 }
+                .accessibilityLabel(favs.isFavorite(card.id) ? L10n.tr("Saved", "Đã lưu") : L10n.tr("Save", "Lưu"))
             }
             ToolbarItem(placement: .topBarTrailing) {
                 ShareLink(item: URL(string: "https://eno.vn/listings/\(card.id)")!) {
                     Image(systemName: "square.and.arrow.up")
                 }
+                .accessibilityLabel(L10n.tr("Share", "Chia sẻ"))
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -110,6 +112,7 @@ struct ListingDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis")
                 }
+                .accessibilityLabel(L10n.tr("More options", "Thêm tùy chọn"))
             }
         }
         .navigationDestination(for: AppCategory.self) { cat in

@@ -102,6 +102,7 @@ struct FeedView: View {
                     .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(L10n.tr("AI shopping", "Mua sắm AI"))
             // Notification bell (web header parity) — red dot while unread.
             NavigationLink {
                 NotificationsView()
@@ -118,6 +119,8 @@ struct FeedView: View {
                     }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(L10n.tr("Notifications", "Thông báo"))
+            .accessibilityValue(notif.unread > 0 ? L10n.tr("\(notif.unread) unread", "\(notif.unread) chưa đọc") : "")
         }
         .padding(.horizontal, 12)
         .padding(.top, 14)
