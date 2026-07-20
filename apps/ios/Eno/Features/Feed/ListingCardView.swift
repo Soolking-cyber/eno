@@ -27,7 +27,9 @@ struct ListingCardView: View {
                     .foregroundStyle(Tokens.fg)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                    .frame(minHeight: 36, alignment: .topLeading)
+                    // FIXED (not min) two-line height so a 1-line and a 2-line title
+                    // produce the exact same card height — symmetric grid.
+                    .frame(height: 36, alignment: .topLeading)
                 metaRow
             }
             .padding(.horizontal, 2)
@@ -40,23 +42,26 @@ struct ListingCardView: View {
 
     // ── image + overlay chips ──
     private var photo: some View {
-        GeometryReader { geo in
-            AsyncImage(url: listing.images.first.flatMap { ImageURL.optimized($0) }) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFill()
-                default:
-                    Tokens.tint
+        // Canonical fixed-aspect image: a Color sets the exact 10:11 box, the image
+        // fills it via an overlay + scaledToFill, and clipShape trims the overflow.
+        // Replaces a GeometryReader, which sizes reliably for the placeholder but
+        // can let a LOADED image drive the height (uneven cards) on device.
+        Tokens.tint
+            .aspectRatio(10 / 11, contentMode: .fit)
+            .overlay {
+                AsyncImage(url: listing.images.first.flatMap { ImageURL.optimized($0) }) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        Tokens.tint
+                    }
                 }
             }
-            .frame(width: geo.size.width, height: geo.size.height)
-            .clipped()
-        }
-        .aspectRatio(10 / 11, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 9))   // image is its own rounded-xl (web)
-        .overlay(alignment: .topLeading) { topBadge.padding(8) }
-        .overlay(alignment: .topTrailing) { heart.padding(8) }
-        .overlay(alignment: .bottomLeading) { bottomChips.padding(8) }
+            .clipShape(RoundedRectangle(cornerRadius: 9))   // image is its own rounded-xl (web)
+            .overlay(alignment: .topLeading) { topBadge.padding(8) }
+            .overlay(alignment: .topTrailing) { heart.padding(8) }
+            .overlay(alignment: .bottomLeading) { bottomChips.padding(8) }
     }
 
     private var heart: some View {
