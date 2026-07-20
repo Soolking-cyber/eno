@@ -121,15 +121,10 @@ final class PostModel {
         autofillError = nil
         defer { autofilling = false }
 
-        // 1. On-device (free, no server, no login) — the preferred path.
-        if let onDevice = await OnDeviceAI.classify(image, lang: L10n.isVi ? "vi" : "en",
-                                                     categorySlugs: Categories.all.map(\.slug)) {
-            await apply(onDevice)
-            return
-        }
-
-        // 2. Server fallback — only reached on devices without on-device AI.
-        // The endpoint burns paid Gemini credit, so it's login-gated.
+        // Owner directive (2026-07-20): the on-device model (Apple Vision) is too
+        // weak — ALWAYS use the server Gemini 3.5-flash classifier. It's login-
+        // gated (burns paid credit), but posting is already auth-gated. The
+        // OnDeviceAI path is kept in the tree but no longer called.
         guard AuthModel.shared.isSignedIn else {
             autofillError = L10n.tr("Sign in to auto-fill with AI.", "Đăng nhập để điền tự động bằng AI.")
             return

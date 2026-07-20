@@ -54,25 +54,25 @@ class PostViewModel : ViewModel() {
 
     private var nextId = 0L
 
-    // ✨ AI auto-fill from the cover photo. ON-DEVICE FIRST (owner: "on device as
-    // much as possible… major brands samsung pixel oppo etc"): ML Kit labels +
-    // OCR map to the taxonomy locally — free, private, offline, no login, on
-    // EVERY Android brand. Only if that can't place the item (and the user is
-    // signed in) does it fall back to the paid server /api/ai/classify.
+    // ✨ AI auto-fill from the cover photo. Owner directive (2026-07-20): the
+    // on-device model (ML Kit labels + OCR) is too weak — ALWAYS use the server
+    // Gemini 3.5-flash classifier (/api/ai/classify). Login-gated (burns paid
+    // credit), but posting is already auth-gated. OnDeviceAI.classify is kept in
+    // the tree but no longer called.
     fun autofill(ctx: Context) {
         val bitmap = photos.firstOrNull()?.bitmap ?: run {
             autofillError = L10n.tr("Add a photo first.", "Thêm ảnh trước đã.")
             return
         }
-        val app = ctx.applicationContext
+        if (!Auth.isSignedIn) {
+            autofillError = L10n.tr("Sign in to auto-fill with AI.", "Đăng nhập để điền tự động bằng AI.")
+            return
+        }
         autofilling = true
         autofillError = null
         viewModelScope.launch {
             try {
-                var r = OnDeviceAI.classify(app, bitmap)
-                if (r == null && Auth.isSignedIn) {
-                    r = OnDeviceAI.serverClassify(OnDeviceAI.jpeg(bitmap), if (L10n.isVi) "vi" else "en")
-                }
+                val r = OnDeviceAI.serverClassify(OnDeviceAI.jpeg(bitmap), if (L10n.isVi) "vi" else "en")
                 if (r == null) {
                     autofillError = L10n.tr("Couldn't read the item — pick the category below.",
                                             "Chưa nhận ra món đồ — chọn danh mục bên dưới.")
