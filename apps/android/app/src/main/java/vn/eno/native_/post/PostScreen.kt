@@ -113,6 +113,25 @@ fun PostScreen() {
             color = if (vm.uploadedUrls.size >= 3) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(top = 6.dp),
         )
+        // ✨ On-device AI auto-fill — appears once a photo is added.
+        if (vm.photos.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { vm.autofill() },
+                enabled = !vm.autofilling,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (vm.autofilling) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("✨  " + L10n.tr("Auto-fill from photo", "Điền tự động từ ảnh"), fontWeight = FontWeight.SemiBold)
+                }
+            }
+            vm.autofillError?.let {
+                Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
 
         SectionTitle(L10n.tr("Category", "Danh mục"))
         Dropdown(

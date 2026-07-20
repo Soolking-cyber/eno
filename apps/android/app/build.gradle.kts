@@ -41,8 +41,20 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // On-device AI (owner: on-device autofill for Samsung/Pixel/Oppo/etc). ML Kit
+    // image labeling + text recognition run on-device on EVERY Android brand
+    // (unlike Gemini Nano, which is Pixel/Samsung-only). Bundled models → offline.
+    implementation("com.google.mlkit:image-labeling:17.0.9")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("androidx.webkit:webkit:1.14.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.browser:browser:1.8.0")
+    // On-device AI (owner: on-device autofill for Samsung/Pixel/Oppo/etc). ML Kit
+    // image labeling + text recognition run on-device on EVERY Android brand
+    // (unlike Gemini Nano, which is Pixel/Samsung-only). Bundled models → offline.
+    implementation("com.google.mlkit:image-labeling:17.0.9")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 }

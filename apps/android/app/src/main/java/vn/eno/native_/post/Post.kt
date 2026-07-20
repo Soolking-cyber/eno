@@ -49,8 +49,42 @@ class PostViewModel : ViewModel() {
     var submitting by mutableStateOf(false)
     var errorMessage by mutableStateOf<String?>(null)
     var createdId by mutableStateOf<String?>(null)
+    var autofilling by mutableStateOf(false)
+    var autofillError by mutableStateOf<String?>(null)
 
     private var nextId = 0L
+
+    // ✨ AI auto-fill from the cover photo. ON-DEVICE FIRST (owner: "on device as
+    // much as possible… major brands samsung pixel oppo etc"): ML Kit labels +
+    // OCR map to the taxonomy locally — free, private, offline, no login, on
+    // EVERY Android brand. Only if that can't place the item (and the user is
+    // signed in) does it fall back to the paid server /api/ai/classify.
+    fun autofill() {
+        val bitmap = photos.firstOrNull()?.bitmap ?: run {
+            autofillError = L10n.tr("Add a photo first.", "Thêm ảnh trước đã.")
+            return
+        }
+        autofilling = true
+        autofillError = null
+        viewModelScope.launch {
+            try {
+                var r = OnDeviceAI.classify(bitmap)
+                if (r == null && Auth.isSignedIn) {
+                    r = OnDeviceAI.serverClassify(OnDeviceAI.jpeg(bitmap), if (L10n.isVi) "vi" else "en")
+                }
+                if (r == null) {
+                    autofillError = L10n.tr("Couldn't read the item — pick the category below.",
+                                            "Chưa nhận ra món đồ — chọn danh mục bên dưới.")
+                    return@launch
+                }
+                r.categorySlug?.let { slug -> if (Categories.all.any { it.slug == slug }) categorySlug = slug }
+                r.condition?.let { if (it == "new" || it == "used") condition = it }
+                if (title.trim().isEmpty()) r.title?.let { if (it.isNotBlank()) title = it.take(140) }
+            } finally {
+                autofilling = false
+            }
+        }
+    }
 
     val uploadedUrls: List<String> get() = photos.mapNotNull { it.url }
     val canSubmit: Boolean
