@@ -52,6 +52,7 @@ fun DetailScreen(
     onOpen: (String) -> Unit,
     openThread: (String) -> Unit = {},
     openSignIn: () -> Unit = {},
+    onSeller: (String) -> Unit = {},
 ) {
     var detail by remember { mutableStateOf<ListingDetail?>(null) }
     var band by remember { mutableStateOf<PriceBand?>(null) }
@@ -179,7 +180,7 @@ fun DetailScreen(
                         Spacer(Modifier.height(14.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outline); Spacer(Modifier.height(14.dp))
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                                .clickable { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://eno.vn/sellers/${d.seller.id}"))) }
+                                .clickable { onSeller(d.seller.id) }
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {

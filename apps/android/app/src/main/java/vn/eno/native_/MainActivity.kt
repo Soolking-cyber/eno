@@ -194,6 +194,14 @@ fun EnoApp() {
                         onOpen = { id -> nav.navigate("listing/$id") },
                         openThread = { convoId -> nav.navigate("thread/$convoId") },
                         openSignIn = { nav.navigate("account") },
+                        onSeller = { sid -> nav.navigate("seller/$sid") },
+                    )
+                }
+                composable("seller/{id}") { entry ->
+                    vn.eno.native_.detail.StorefrontScreen(
+                        entry.arguments?.getString("id") ?: "",
+                        onOpen = { id -> nav.navigate("listing/$id") },
+                        onBack = { nav.popBackStack() },
                     )
                 }
                 composable("thread/{id}") { entry ->
