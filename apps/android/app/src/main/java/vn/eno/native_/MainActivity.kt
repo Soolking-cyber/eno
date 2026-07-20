@@ -7,8 +7,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
@@ -126,6 +129,9 @@ fun EnoApp() {
         // sign-in, and tab changes — the bell couldn't show a dot before opening
         // the list otherwise (codex #13).
         LaunchedEffect(currentRoute, signedIn) {
+            // A route change always brings the chrome back — switching away from a
+            // scrolled feed must never leave the tab bar stuck off-screen.
+            vn.eno.native_.feed.ChromeBars.reveal()
             vn.eno.native_.core.Unread.refresh()
             vn.eno.native_.account.Notifs.refresh()
         }
@@ -133,7 +139,18 @@ fun EnoApp() {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                // Slide the tab bar off the bottom when the feed is scrolled up
+                // (ChromeBars.hidden), sliding it back on scroll-down — the web/iOS
+                // hide-on-scroll feel. The Scaffold keeps the bar's reserved space,
+                // so content above never reflows; only the bar translates.
+                var barH by remember { mutableStateOf(0) }
+                val dy by animateIntAsState(if (vn.eno.native_.feed.ChromeBars.hidden) barH else 0, label = "navHide")
+                NavigationBar(
+                    modifier = Modifier
+                        .onSizeChanged { barH = it.height }
+                        .offset { IntOffset(0, dy) },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ) {
                     tabs.forEach { tab ->
                         NavigationBarItem(
                             selected = currentRoute == tab.route || (tab.route == "explore" && currentRoute?.startsWith("listing/") == true),

@@ -26,6 +26,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -256,9 +257,10 @@ fun FeedScreen(
     // (returning from a PDP changes it).
     LaunchedEffect(items.size) { vm.loadRecentlyViewed(feedCtx) }
 
-    PullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refresh() }) {
+    PullToRefreshBox(isRefreshing = refreshing, onRefresh = { ChromeBars.reveal(); vm.refresh() }) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
+        modifier = Modifier.nestedScroll(ChromeBars.connection),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(12.dp),
