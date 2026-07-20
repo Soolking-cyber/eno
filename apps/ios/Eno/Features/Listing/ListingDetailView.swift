@@ -49,7 +49,7 @@ struct ListingDetailView: View {
                     priceBlock
                     if let band { MarketGauge(price: price, band: band) }
                     Text(title)
-                        .font(.system(size: 20, weight: .semibold))
+                        .scaledFont(20, weight: .semibold)
                         .foregroundStyle(Tokens.fg)
                     metaRow
                     conditionChips
@@ -57,7 +57,7 @@ struct ListingDetailView: View {
                         statsRow(d)
                         Divider().overlay(Tokens.ring)
                         Text(d.description)
-                            .font(.system(size: 15))
+                            .scaledFont(15)
                             .foregroundStyle(Tokens.fg)
                             .lineSpacing(3)
                         detailsTable(d)
@@ -65,11 +65,11 @@ struct ListingDetailView: View {
                         sellerCard(d.seller)
                     } else if unavailable {
                         VStack(spacing: 6) {
-                            Text("🚫").font(.system(size: 34))
+                            Text("🚫").scaledFont(34)
                             Text(L10n.tr("This listing is no longer available", "Tin này không còn nữa"))
-                                .font(.system(size: 16, weight: .bold)).foregroundStyle(Tokens.fg)
+                                .scaledFont(16, weight: .bold).foregroundStyle(Tokens.fg)
                             Text(L10n.tr("It may have been sold or removed.", "Có thể đã bán hoặc bị gỡ."))
-                                .font(.system(size: 14)).foregroundStyle(Tokens.sub)
+                                .scaledFont(14).foregroundStyle(Tokens.sub)
                         }
                         .frame(maxWidth: .infinity).padding(.vertical, 24)
                     } else {
@@ -190,21 +190,21 @@ struct ListingDetailView: View {
     private var priceBlock: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(Format.vnd(price))
-                .font(.system(size: 26, weight: .bold))
+                .scaledFont(26, weight: .bold)
                 .foregroundStyle(Tokens.brand)
             if let prev = detail?.prevPrice ?? card.prevPrice, prev > price {
                 Text(Format.vnd(prev))
-                    .font(.system(size: 14, weight: .medium))
+                    .scaledFont(14, weight: .medium)
                     .strikethrough()
                     .foregroundStyle(Tokens.sub)
             } else if let approx = Fx.shared.approxUSD(price) {
                 Text(approx)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundStyle(Tokens.sub)
             }
             if (detail?.urgent ?? card.urgent) {
                 Text(L10n.tr("Urgent", "Bán gấp"))
-                    .font(.system(size: 11, weight: .bold))
+                    .scaledFont(11, weight: .bold)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 3)
@@ -215,10 +215,10 @@ struct ListingDetailView: View {
 
     private var metaRow: some View {
         HStack(spacing: 6) {
-            Image(systemName: "mappin.and.ellipse").font(.system(size: 12))
-            Text(detail?.displayLocation ?? card.displayLocation).font(.system(size: 13))
-            Text("·").font(.system(size: 13))
-            Text(Format.ago(detail?.postedAt ?? card.postedAt)).font(.system(size: 13))
+            Image(systemName: "mappin.and.ellipse").scaledFont(12)
+            Text(detail?.displayLocation ?? card.displayLocation).scaledFont(13)
+            Text("·").scaledFont(13)
+            Text(Format.ago(detail?.postedAt ?? card.postedAt)).scaledFont(13)
         }
         .foregroundStyle(Tokens.sub)
     }
@@ -235,7 +235,7 @@ struct ListingDetailView: View {
             HStack(spacing: 6) {
                 ForEach(facts, id: \.self) { fact in
                     Text(fact)
-                        .font(.system(size: 12, weight: .medium))
+                        .scaledFont(12, weight: .medium)
                         .foregroundStyle(Tokens.fg)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -276,14 +276,14 @@ struct ListingDetailView: View {
             Divider().overlay(Tokens.ring)
             VStack(alignment: .leading, spacing: 0) {
                 Text(L10n.tr("Details", "Thông số"))
-                    .font(.system(size: 16, weight: .bold))
+                    .scaledFont(16, weight: .bold)
                     .foregroundStyle(Tokens.fg)
                     .padding(.bottom, 4)
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     HStack(alignment: .top, spacing: 16) {
-                        Text(row.0).font(.system(size: 14)).foregroundStyle(Tokens.sub)
+                        Text(row.0).scaledFont(14).foregroundStyle(Tokens.sub)
                         Spacer()
-                        Text(row.1).font(.system(size: 14, weight: .medium))
+                        Text(row.1).scaledFont(14, weight: .medium)
                             .foregroundStyle(Tokens.fg).multilineTextAlignment(.trailing)
                     }
                     .padding(.vertical, 6)
@@ -313,8 +313,8 @@ struct ListingDetailView: View {
 
     private func stat(icon: String, value: Int, label: String) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 11))
-            Text("\(value) \(label)").font(.system(size: 12))
+            Image(systemName: icon).scaledFont(11)
+            Text("\(value) \(label)").scaledFont(12)
         }
         .foregroundStyle(Tokens.sub)
     }
@@ -331,33 +331,33 @@ struct ListingDetailView: View {
     private func sellerCardBody(_ seller: ListingDetail.DetailSeller) -> some View {
         HStack(spacing: 12) {
             Text(String(seller.name.prefix(1)).uppercased())
-                .font(.system(size: 18, weight: .bold))
+                .scaledFont(18, weight: .bold)
                 .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
                 .background(Color(hexString: seller.avatarColor) ?? Tokens.brand, in: Circle())
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(seller.name)
-                        .font(.system(size: 15, weight: .semibold))
+                        .scaledFont(15, weight: .semibold)
                         .foregroundStyle(Tokens.fg)
                     TrustMini(score: seller.trustScore) { showTrust = true }
                 }
                 HStack(spacing: 4) {
                     if let rating = seller.rating, seller.reviewCount > 0 {
-                        Image(systemName: "star.fill").font(.system(size: 10)).foregroundStyle(.yellow)
+                        Image(systemName: "star.fill").scaledFont(10).foregroundStyle(.yellow)
                         Text("\(rating, specifier: "%.1f") (\(seller.reviewCount))")
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundStyle(Tokens.sub)
                         Text("·").foregroundStyle(Tokens.sub)
                     }
                     if seller.isBusiness {
                         Text(L10n.tr("Business", "Doanh nghiệp"))
-                            .font(.system(size: 11, weight: .semibold))
+                            .scaledFont(11, weight: .semibold)
                             .foregroundStyle(Tokens.brand)
                     }
                     if let year = Format.date(seller.memberSince).map({ Calendar.current.component(.year, from: $0) }) {
                         Text(L10n.tr("Member since \(String(year))", "Thành viên từ \(String(year))"))
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundStyle(Tokens.sub)
                     }
                 }
@@ -372,14 +372,14 @@ struct ListingDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(L10n.tr("More like this", "Tin tương tự"))
-                        .font(.system(size: 18, weight: .bold))
+                        .scaledFont(18, weight: .bold)
                         .foregroundStyle(Tokens.fg)
                     Spacer()
                     if let cat = Categories.bySlug(card.category.slug) {
                         NavigationLink(value: cat) {
                             HStack(spacing: 2) {
-                                Text(L10n.tr("See all", "Xem tất cả")).font(.system(size: 13, weight: .semibold))
-                                Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
+                                Text(L10n.tr("See all", "Xem tất cả")).scaledFont(13, weight: .semibold)
+                                Image(systemName: "chevron.right").scaledFont(10, weight: .bold)
                             }
                             .foregroundStyle(Tokens.brand)
                         }
@@ -414,7 +414,7 @@ struct ListingDetailView: View {
                     Text(L10n.tr("Chat with seller", "Nhắn tin cho người bán"))
                 }
             }
-            .font(.system(size: 16, weight: .semibold))
+            .scaledFont(16, weight: .semibold)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: 50)
@@ -501,7 +501,7 @@ struct MarketGauge: View {
                 Spacer()
                 Text(Format.vnd(Int(band.p75)))
             }
-            .font(.system(size: 11))
+            .scaledFont(11)
             .foregroundStyle(Tokens.sub)
         }
         .padding(10)

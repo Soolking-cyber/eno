@@ -20,7 +20,7 @@ struct ListingCardView: View {
             VStack(alignment: .leading, spacing: 4) {
                 priceRow
                 Text(listing.displayTitle)
-                    .font(.system(size: 14, weight: .medium))
+                    .scaledFont(14, weight: .medium)
                     .foregroundStyle(Tokens.fg)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -35,6 +35,9 @@ struct ListingCardView: View {
             RoundedRectangle(cornerRadius: Tokens.radiusCard)
                 .strokeBorder(Tokens.ring, lineWidth: 1)
         )
+        // Cards live in a fixed 2-col grid, so cap text growth (audit #12) — the PDP
+        // (a scroll view) scales unclamped for full accessibility.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
     }
 
     // ── image + overlay chips ──
@@ -62,7 +65,7 @@ struct ListingCardView: View {
             favs.toggle(listing.id)
         } label: {
             Image(systemName: favs.isFavorite(listing.id) ? "heart.fill" : "heart")
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, weight: .semibold)
                 .foregroundStyle(favs.isFavorite(listing.id) ? Tokens.brand : .white)
                 .frame(width: 30, height: 30)
                 .background(.black.opacity(favs.isFavorite(listing.id) ? 0.0 : 0.25), in: Circle())
@@ -89,15 +92,15 @@ struct ListingCardView: View {
         HStack(spacing: 4) {
             if listing.video != nil {
                 Image(systemName: "play.fill")
-                    .font(.system(size: 9, weight: .bold))
+                    .scaledFont(9, weight: .bold)
                     .foregroundStyle(.white)
                     .padding(5)
                     .background(.black.opacity(0.55), in: Capsule())
             }
             if savedTotal >= 3 {
                 HStack(spacing: 3) {
-                    Image(systemName: "heart.fill").font(.system(size: 9))
-                    Text("\(savedTotal)").font(.system(size: 10, weight: .semibold))
+                    Image(systemName: "heart.fill").scaledFont(9)
+                    Text("\(savedTotal)").scaledFont(10, weight: .semibold)
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 7)
@@ -109,8 +112,8 @@ struct ListingCardView: View {
 
     private func chip(icon: String?, text: String, bg: Color, fg: Color) -> some View {
         HStack(spacing: 3) {
-            if let icon { Image(systemName: icon).font(.system(size: 9, weight: .bold)) }
-            Text(text).font(.system(size: 10, weight: .bold))
+            if let icon { Image(systemName: icon).scaledFont(9, weight: .bold) }
+            Text(text).scaledFont(10, weight: .bold)
         }
         .foregroundStyle(fg)
         .padding(.horizontal, 8)
@@ -122,25 +125,25 @@ struct ListingCardView: View {
     private var priceRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             Text(Format.vnd(listing.price))
-                .font(.system(size: 17, weight: .bold))
+                .scaledFont(17, weight: .bold)
                 .foregroundStyle(Tokens.brand)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             if let prev = listing.prevPrice, prev > listing.price {
                 Text(Format.vnd(prev))
-                    .font(.system(size: 11, weight: .medium))
+                    .scaledFont(11, weight: .medium)
                     .strikethrough()
                     .foregroundStyle(Tokens.sub)
                     .lineLimit(1)
             } else if let approx = fx.approxUSD(listing.price) {
                 Text(approx)
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundStyle(Tokens.sub)
                     .lineLimit(1)
             }
             if listing.goodPrice && listing.dropPercent == nil {
                 Text(L10n.tr("Good price", "Giá tốt"))
-                    .font(.system(size: 10, weight: .bold))
+                    .scaledFont(10, weight: .bold)
                     .foregroundStyle(.green)
             }
         }
@@ -150,14 +153,14 @@ struct ListingCardView: View {
     private var metaRow: some View {
         HStack(spacing: 4) {
             Text(listing.brandModelLine)
-                .font(.system(size: 11))
+                .scaledFont(11)
                 .foregroundStyle(Tokens.sub)
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 2)
             if listing.seller.isBusiness {
                 Image(systemName: "building.2")
-                    .font(.system(size: 10))
+                    .scaledFont(10)
                     .foregroundStyle(Tokens.sub)
             }
             TrustMini(score: listing.seller.trustScore)
@@ -204,9 +207,11 @@ struct TrustMini: View {
 
     var body: some View {
         let chip = HStack(spacing: 2) {
-            Image(systemName: "shield.fill").font(.system(size: 9))
-            Text("\(score)").font(.system(size: 10, weight: .bold))
+            Image(systemName: "shield.fill").scaledFont(9)
+            Text("\(score)").scaledFont(10, weight: .bold)
         }
+        .lineLimit(1)
+        .fixedSize()            // the score must never wrap to "10⏎0" at large Dynamic Type
         .foregroundStyle(fill != nil ? onFill : quiet)
         .padding(.horizontal, 6)
         .padding(.vertical, 2)

@@ -100,7 +100,7 @@ struct NotificationsView: View {
             }
             if model.loaded && model.items.isEmpty {
                 Text(L10n.tr("No notifications yet.", "Chưa có thông báo nào."))
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundStyle(Tokens.sub)
                     .listRowBackground(Color.clear)
             }
@@ -116,7 +116,7 @@ struct NotificationsView: View {
                     Button(L10n.tr("Clear", "Xóa hết")) {
                         Task { await model.clearAll() }
                     }
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                 }
             }
         }
@@ -154,19 +154,19 @@ struct NotificationsView: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(n.title)
-                    .font(.system(size: 14, weight: n.read ? .medium : .bold))
+                    .scaledFont(14, weight: n.read ? .medium : .bold)
                     .foregroundStyle(Tokens.fg)
                     .lineLimit(2)
                 Spacer()
                 if let d = Format.date(n.createdAt) {
                     Text(Format.ago(d.ISO8601Format()))
-                        .font(.system(size: 11))
+                        .scaledFont(11)
                         .foregroundStyle(Tokens.sub)
                 }
             }
             if let body = n.body, !body.isEmpty {
                 Text(body)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundStyle(Tokens.sub)
                     .lineLimit(2)
             }
