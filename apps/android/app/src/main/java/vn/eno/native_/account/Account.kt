@@ -40,9 +40,11 @@ fun AccountScreen(onMyListings: () -> Unit = {}) {
     val signedIn = Auth.isSignedIn
     var me by remember { mutableStateOf<MeUser?>(null) }
     var showSignIn by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var reloadKey by remember { mutableStateOf(0) }
     var webPath by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(signedIn) {
+    LaunchedEffect(signedIn, reloadKey) {
         if (signedIn) {
             showSignIn = false
             me = runCatching { Api.get<MeResponse>("api/me").user }.getOrNull()
@@ -66,7 +68,11 @@ fun AccountScreen(onMyListings: () -> Unit = {}) {
                 WebTab(webPath!!)
             }
         }
-        signedIn -> Profile(me, onMyListings = onMyListings, onOpen = { webPath = it }, onSignOut = { Auth.signOut() })
+        showSettings -> SettingsScreen(onBack = {
+            showSettings = false
+            reloadKey++ // refresh the profile header in case name/type changed
+        })
+        signedIn -> Profile(me, onMyListings = onMyListings, onSettings = { showSettings = true }, onOpen = { webPath = it }, onSignOut = { Auth.signOut() })
         showSignIn -> Column(Modifier.fillMaxSize()) {
             Text(
                 L10n.tr("‹ Back", "‹ Quay lại"),
@@ -128,7 +134,7 @@ private fun GuestHero(onSignIn: () -> Unit) {
 }
 
 @Composable
-private fun Profile(me: MeUser?, onMyListings: () -> Unit, onOpen: (String) -> Unit, onSignOut: () -> Unit) {
+private fun Profile(me: MeUser?, onMyListings: () -> Unit, onSettings: () -> Unit, onOpen: (String) -> Unit, onSignOut: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -168,7 +174,7 @@ private fun Profile(me: MeUser?, onMyListings: () -> Unit, onOpen: (String) -> U
             L10n.tr("Settings", "Cài đặt"),
             fontSize = 15.sp,
             color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.fillMaxWidth().clickable { onOpen("/dashboard/settings") }.padding(vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onSettings).padding(vertical = 14.dp),
         )
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Spacer(Modifier.height(20.dp))
