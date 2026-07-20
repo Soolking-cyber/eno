@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -19,6 +21,13 @@ object Favorites {
 
     val ids = mutableStateListOf<String>()
     private var loaded = false
+    // Per-id debounced sync (review #11): rapid toggles no longer race the
+    // anonymous counter into the wrong order. Each toggle cancels the pending
+    // send for that id and schedules one that posts the NET final membership
+    // after a short settle — so a save→unsave double-tap sends exactly one
+    // {saved:false}, never a reordered pair that inflates savedCount.
+    private val syncScope = CoroutineScope(Dispatchers.IO)
+    private val pending = mutableMapOf<String, Job>()
 
     fun ensureLoaded(ctx: Context) {
         if (loaded) return
@@ -33,18 +42,14 @@ object Favorites {
     fun isFavorite(id: String): Boolean = id in ids
 
     fun toggle(ctx: Context, id: String) {
-        val added: Boolean
-        if (id in ids) {
-            ids.remove(id)
-            added = false
-        } else {
-            ids.add(0, id)
-            added = true
-        }
+        if (id in ids) ids.remove(id) else ids.add(0, id)
         persist(ctx)
-        CoroutineScope(Dispatchers.IO).launch {
+        val finalState = id in ids // net membership AFTER this toggle
+        pending.remove(id)?.cancel()
+        pending[id] = syncScope.launch {
+            delay(450) // coalesce a rapid toggle burst into one net send
             runCatching {
-                val body = """{"saved":$added}""".toRequestBody("application/json".toMediaType())
+                val body = """{"saved":$finalState}""".toRequestBody("application/json".toMediaType())
                 val req = Request.Builder()
                     .url("https://eno.vn/api/listings/$id/save")
                     .header("User-Agent", "EnoNativeApp/1 android-native")

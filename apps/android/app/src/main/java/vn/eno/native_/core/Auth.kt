@@ -2,6 +2,8 @@ package vn.eno.native_.core
 
 import android.content.Context
 import android.util.Base64
+import android.webkit.CookieManager
+import android.webkit.WebStorage
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -117,6 +119,17 @@ object Auth {
         session = null
         prefs?.edit()?.clear()?.apply()
         Api.accessToken = null
+        // CRITICAL (review #1): also clear the WebView cookie/storage jar. It is
+        // app-global and survives WebView.destroy(); without this the embedded
+        // eno.vn /signin page restores its still-valid Supabase session from
+        // cookies+localStorage on next mount, the enoAuth bridge re-posts the
+        // tokens, and adopt() silently re-signs-in the PREVIOUS account (a
+        // shared-device account leak). Clearing both makes /signin load as a guest.
+        runCatching {
+            CookieManager.getInstance().removeAllCookies(null)
+            CookieManager.getInstance().flush()
+            WebStorage.getInstance().deleteAllData()
+        }
         if (token != null) {
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {

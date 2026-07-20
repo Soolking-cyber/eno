@@ -55,6 +55,10 @@ class FeedViewModel : ViewModel() {
     private var offset = 0
     private var exhausted = false
     private var loading = false
+    // Latest-wins generation (review #2/#5/#7): a reset (filter/sort change)
+    // always supersedes an in-flight load; a stale response drops its result
+    // instead of painting the old filter's data under the new chip.
+    private var loadGen = 0
 
     init {
         load(reset = true)
@@ -83,9 +87,12 @@ class FeedViewModel : ViewModel() {
     }
 
     fun load(reset: Boolean = false) {
-        if (loading) return
-        loading = true
+        // Pagination coalesces (one page at a time); a RESET always supersedes —
+        // it must never be dropped just because a stale filter's load is in flight.
+        if (loading && !reset) return
         if (reset) { offset = 0; exhausted = false }
+        val gen = ++loadGen
+        loading = true
         viewModelScope.launch {
             try {
                 val q = buildMap {
@@ -95,6 +102,7 @@ class FeedViewModel : ViewModel() {
                     if (sort != "newest") put("sort", sort)
                 }
                 val page: FeedPage = Api.get("api/listings", q)
+                if (gen != loadGen) return@launch // a newer reset superseded us
                 val known = _items.value.map { it.id }.toSet()
                 _items.value = if (reset) page.listings
                 else _items.value + page.listings.filter { it.id !in known }
@@ -102,7 +110,7 @@ class FeedViewModel : ViewModel() {
                 exhausted = page.listings.size < 24
             } catch (_: Exception) {
             } finally {
-                loading = false
+                if (gen == loadGen) loading = false
             }
         }
     }
