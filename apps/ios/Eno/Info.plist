@@ -33,6 +33,10 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos of your item to add them to your listing.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record sound when you capture a video for your listing.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

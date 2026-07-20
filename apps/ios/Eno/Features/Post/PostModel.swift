@@ -240,6 +240,15 @@ final class PostModel {
         }
     }
 
+    // A freshly captured camera photo — same normalize + upload path as the
+    // library picker.
+    func addCameraImage(_ image: UIImage) async {
+        guard photos.count < 8 else { return }
+        let photo = Photo(image: Self.normalize(image))
+        photos.append(photo)
+        await upload(photo.id)
+    }
+
     func retryUpload(_ id: UUID) async {
         guard let idx = photos.firstIndex(where: { $0.id == id }) else { return }
         photos[idx].failed = false

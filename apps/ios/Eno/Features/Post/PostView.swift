@@ -7,6 +7,9 @@ import PhotosUI
 struct PostView: View {
     @State private var model = PostModel()
     @State private var picker: [PhotosPickerItem] = []
+    @State private var addOptions = false
+    @State private var showCamera = false
+    @State private var showLibrary = false
     @State private var successId: String?
 
     private struct Success: Identifiable {
@@ -48,7 +51,7 @@ struct PostView: View {
         Section {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    PhotosPicker(selection: $picker, maxSelectionCount: 8 - model.photos.count, matching: .images) {
+                    Button { addOptions = true } label: {
                         VStack(spacing: 6) {
                             Image(systemName: "camera.fill").font(.system(size: 20))
                             Text(L10n.tr("Add", "Thêm")).font(.system(size: 12, weight: .semibold))
@@ -57,11 +60,7 @@ struct PostView: View {
                         .frame(width: 84, height: 84)
                         .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
                     }
-                    .onChange(of: picker) {
-                        let items = picker
-                        picker = []
-                        Task { await model.add(items: items) }
-                    }
+                    .buttonStyle(.plain)
                     ForEach(model.photos) { photo in
                         photoThumb(photo)
                     }
@@ -96,6 +95,24 @@ struct PostView: View {
             }
         } header: {
             Text(L10n.tr("Photos", "Hình ảnh"))
+        }
+        .confirmationDialog(L10n.tr("Add photos", "Thêm ảnh"), isPresented: $addOptions, titleVisibility: .visible) {
+            Button(L10n.tr("Take Photo", "Chụp ảnh")) { showCamera = true }
+            Button(L10n.tr("Photo Library", "Thư viện ảnh")) { showLibrary = true }
+            Button(L10n.tr("Cancel", "Hủy"), role: .cancel) {}
+        }
+        .photosPicker(isPresented: $showLibrary, selection: $picker,
+                      maxSelectionCount: max(1, 8 - model.photos.count), matching: .images)
+        .onChange(of: picker) {
+            let items = picker
+            picker = []
+            Task { await model.add(items: items) }
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPicker(isPresented: $showCamera) { image in
+                Task { await model.addCameraImage(image) }
+            }
+            .ignoresSafeArea()
         }
     }
 
