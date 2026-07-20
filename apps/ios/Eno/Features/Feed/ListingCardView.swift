@@ -15,9 +15,12 @@ struct ListingCardView: View {
     private var savedTotal: Int { max(0, listing.savedCount + favs.delta(listing.id)) }
 
     var body: some View {
+        // Web parity (listing-card.tsx): the card OUTER is borderless + bg-less —
+        // only the IMAGE is rounded. Text runs nearly full-width under the image
+        // (px-0.5 pt-2.5), no 10px inset, no card panel.
         VStack(alignment: .leading, spacing: 0) {
             photo
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 priceRow
                 Text(listing.displayTitle)
                     .scaledFont(14, weight: .medium)
@@ -27,14 +30,9 @@ struct ListingCardView: View {
                     .frame(minHeight: 36, alignment: .topLeading)
                 metaRow
             }
-            .padding(10)
+            .padding(.horizontal, 2)
+            .padding(.top, 10)
         }
-        .background(Tokens.card)
-        .clipShape(RoundedRectangle(cornerRadius: Tokens.radiusCard))
-        .overlay(
-            RoundedRectangle(cornerRadius: Tokens.radiusCard)
-                .strokeBorder(Tokens.ring, lineWidth: 1)
-        )
         // Cards live in a fixed 2-col grid, so cap text growth (audit #12) — the PDP
         // (a scroll view) scales unclamped for full accessibility.
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
@@ -55,6 +53,7 @@ struct ListingCardView: View {
             .clipped()
         }
         .aspectRatio(10 / 11, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 9))   // image is its own rounded-xl (web)
         .overlay(alignment: .topLeading) { topBadge.padding(8) }
         .overlay(alignment: .topTrailing) { heart.padding(8) }
         .overlay(alignment: .bottomLeading) { bottomChips.padding(8) }
@@ -64,13 +63,14 @@ struct ListingCardView: View {
         Button {
             favs.toggle(listing.id)
         } label: {
+            // Web parity: a bare 22px heart (NO circular background), white with a
+            // drop shadow at rest, brand-filled when saved.
             Image(systemName: favs.isFavorite(listing.id) ? "heart.fill" : "heart")
-                .scaledFont(14, weight: .semibold)
+                .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(favs.isFavorite(listing.id) ? Tokens.brand : .white)
-                .frame(width: 30, height: 30)
-                .background(.black.opacity(favs.isFavorite(listing.id) ? 0.0 : 0.25), in: Circle())
-                .background(favs.isFavorite(listing.id) ? AnyShapeStyle(.white) : AnyShapeStyle(.clear), in: Circle())
-                .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                .frame(width: 34, height: 34)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(favs.isFavorite(listing.id) ? L10n.tr("Saved", "Đã lưu") : L10n.tr("Save", "Lưu"))
@@ -125,7 +125,7 @@ struct ListingCardView: View {
     private var priceRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             Text(Format.vnd(listing.price))
-                .scaledFont(17, weight: .bold)
+                .scaledFont(18, weight: .bold)
                 .foregroundStyle(Tokens.brand)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -133,7 +133,7 @@ struct ListingCardView: View {
                 Text(Format.vnd(prev))
                     .scaledFont(11, weight: .medium)
                     .strikethrough()
-                    .foregroundStyle(Tokens.sub)
+                    .foregroundStyle(Tokens.ink4)
                     .lineLimit(1)
             } else if let approx = fx.approxUSD(listing.price) {
                 Text(approx)
@@ -142,16 +142,19 @@ struct ListingCardView: View {
                     .lineLimit(1)
             }
             if listing.goodPrice && listing.dropPercent == nil {
+                // Web: a success Badge chip, not bare text.
                 Text(L10n.tr("Good price", "Giá tốt"))
                     .scaledFont(10, weight: .bold)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Color(red: 0.09, green: 0.4, blue: 0.2))
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color(red: 0.09, green: 0.4, blue: 0.2).opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
             }
         }
     }
 
     // ── meta: location · brand · model + business glyph + trust shield ──
     private var metaRow: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Text(listing.brandModelLine)
                 .scaledFont(11)
                 .foregroundStyle(Tokens.sub)
@@ -160,7 +163,7 @@ struct ListingCardView: View {
             Spacer(minLength: 2)
             if listing.seller.isBusiness {
                 Image(systemName: "building.2")
-                    .scaledFont(10)
+                    .scaledFont(14)
                     .foregroundStyle(Tokens.sub)
             }
             TrustMini(score: listing.seller.trustScore)

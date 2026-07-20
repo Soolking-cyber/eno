@@ -204,14 +204,14 @@ struct FeedView: View {
                     Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.brand)
                 }
                 Text(title)
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))   // web Shelf header = text-base
                     .foregroundStyle(Tokens.fg)
                 Spacer()
                 if let seeAll {
                     NavigationLink(value: seeAll) {
                         HStack(spacing: 2) {
                             Text(L10n.tr("See all", "Xem tất cả")).font(.system(size: 14, weight: .semibold))
-                            Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
+                            Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold))
                         }
                         .foregroundStyle(Tokens.brand)
                     }
