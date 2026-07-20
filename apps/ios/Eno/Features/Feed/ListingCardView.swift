@@ -146,7 +146,7 @@ struct ListingCardView: View {
                     .foregroundStyle(Tokens.sub)
                     .lineLimit(1)
             }
-            if listing.goodPrice && listing.dropPercent == nil {
+            if listing.goodPrice == true && listing.dropPercent == nil {
                 // Web: a success Badge chip, not bare text.
                 Text(L10n.tr("Good price", "Giá tốt"))
                     .scaledFont(10, weight: .bold)

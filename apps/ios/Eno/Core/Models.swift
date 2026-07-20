@@ -19,7 +19,7 @@ struct ListingCard: Codable, Identifiable, Hashable {
     let city: String
     let images: [String]
     let video: String?
-    let goodPrice: Bool
+    let goodPrice: Bool?   // absent from the /api/sellers/[id] listing projection — optional so the storefront still decodes
     let verified: Bool
     let postedAt: String
     let savedCount: Int
