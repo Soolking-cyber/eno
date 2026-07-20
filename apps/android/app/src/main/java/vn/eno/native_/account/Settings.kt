@@ -41,10 +41,12 @@ fun SettingsScreen(onBack: () -> Unit) {
     var deleteMsg by remember { mutableStateOf<String?>(null) }
     var showBusiness by remember { mutableStateOf(false) }
     var showDisputes by remember { mutableStateOf(false) }
+    var showTrust by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     if (showBusiness) { BusinessProfileScreen(onBack = { showBusiness = false }); return }
     if (showDisputes) { DisputesScreen(onBack = { showDisputes = false }); return }
+    if (showTrust) { TrustExplainerScreen(onBack = { showTrust = false }); return }
 
     LaunchedEffect(Unit) {
         val me = runCatching { Api.get<MeResponse>("api/me").user }.getOrNull()
@@ -131,6 +133,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
             Spacer(Modifier.height(6.dp))
             NavRow(L10n.tr("Disputes", "Khiếu nại")) { showDisputes = true }
+            NavRow(L10n.tr("How trust works", "Cách tin cậy hoạt động")) { showTrust = true }
 
             Spacer(Modifier.height(24.dp))
             // ── Danger zone ──
