@@ -8,6 +8,7 @@ struct RootView: View {
     @State private var unread = UnreadModel.shared
     // Bound to the router so deep links / notification taps can switch tabs (#3).
     @State private var router = DeepLinkRouter.shared
+    @State private var favs = FavoritesStore.shared
 
     var body: some View {
         TabView(selection: $router.selectedTab) {
@@ -16,9 +17,11 @@ struct RootView: View {
                 .tag(0)
             SavedView()
                 .tabItem { Label(L10n.tr("Saved", "Đã lưu"), systemImage: "heart") }
+                // Web mobile-nav: a counter badge on Saved when favorites > 0.
+                .badge(favs.count > 0 ? Text("\(favs.count)") : nil)
                 .tag(1)
             PostView()
-                .tabItem { Label(L10n.tr("Post", "Đăng tin"), systemImage: "plus.square.fill") }
+                .tabItem { Label(L10n.tr("Post", "Đăng tin"), systemImage: "plus.circle.fill") }
                 .tag(2)
             MessagesView()
                 .tabItem { Label(L10n.tr("Messages", "Tin nhắn"), systemImage: "message") }
@@ -26,7 +29,7 @@ struct RootView: View {
                 .badge(unread.unread > 0 ? Text(unread.unread > 9 ? "9+" : "\(unread.unread)") : nil)
                 .tag(3)
             AccountView()
-                .tabItem { Label(L10n.tr("Account", "Tài khoản"), systemImage: "person.crop.circle") }
+                .tabItem { Label(L10n.tr("Account", "Tài khoản"), systemImage: "person") }
                 .tag(4)
         }
         .task { await unread.refresh() }

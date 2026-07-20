@@ -209,9 +209,9 @@ struct TrustMini: View {
     }
 
     var body: some View {
-        let chip = HStack(spacing: 2) {
-            Image(systemName: "shield.fill").scaledFont(9)
-            Text("\(score)").scaledFont(10, weight: .bold)
+        let chip = HStack(spacing: 4) {
+            Image(systemName: "shield").scaledFont(10)   // web: OUTLINE shield, not filled
+            Text("\(score)").scaledFont(11, weight: .bold)
         }
         .lineLimit(1)
         .fixedSize()            // the score must never wrap to "10⏎0" at large Dynamic Type
