@@ -10,8 +10,13 @@ struct PostView: View {
     @State private var model = PostModel()
     @State private var picker: [PhotosPickerItem] = []
     @State private var videoPick: PhotosPickerItem?
-    @State private var showCamera = false
-    @State private var showVideoCamera = false
+    // Single presentation source for the camera. Two stacked .fullScreenCover on
+    // one view node fought over the presentation slot, so the first (Take Photo)
+    // opened then tore itself down on the first tap (worked on the second). One
+    // .fullScreenCover(item:) on the Form — separate node from the .photosPickers —
+    // fixes it. Root cause + fix confirmed by codex + Gemini.
+    enum CameraRoute: Identifiable { case photo, video; var id: Self { self } }
+    @State private var cameraRoute: CameraRoute?
     @State private var showLibrary = false
     @State private var showVideoLibrary = false
     @State private var successId: String?
@@ -61,7 +66,25 @@ struct PostView: View {
             .sheet(item: $success) { s in
                 successSheet(s.id)
             }
+            // ONE camera presentation source (photo|video), attached to the Form —
+            // a different view node than the .photosPickers on photosSection — so
+            // no view has two stacked covers. This fixes Take Photo auto-closing on
+            // the first tap (codex + Gemini: stacked-presenter race).
+            .fullScreenCover(item: $cameraRoute) { route in
+                CameraPicker(
+                    isPresented: cameraPresented,
+                    video: route == .video,
+                    onImage: { image in Task { await model.addCameraImage(image) } },
+                    onVideo: { url in Task { await model.addVideo(from: url); try? FileManager.default.removeItem(at: url) } }
+                )
+                .ignoresSafeArea()
+            }
         }
+    }
+
+    // Bool binding the CameraPicker uses to dismiss itself → clears the route.
+    private var cameraPresented: Binding<Bool> {
+        Binding(get: { cameraRoute != nil }, set: { if !$0 { cameraRoute = nil } })
     }
 
     // ── photos ──
@@ -70,10 +93,10 @@ struct PostView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Menu {
-                        Button { showCamera = true } label: { Label(L10n.tr("Take Photo", "Chụp ảnh"), systemImage: "camera") }
+                        Button { cameraRoute = .photo } label: { Label(L10n.tr("Take Photo", "Chụp ảnh"), systemImage: "camera") }
                         Button { showLibrary = true } label: { Label(L10n.tr("Photo Library", "Thư viện ảnh"), systemImage: "photo.on.rectangle") }
                         if model.videoURL == nil && !model.videoUploading {
-                            Button { showVideoCamera = true } label: { Label(L10n.tr("Record Video", "Quay video"), systemImage: "video") }
+                            Button { cameraRoute = .video } label: { Label(L10n.tr("Record Video", "Quay video"), systemImage: "video") }
                             Button { showVideoLibrary = true } label: { Label(L10n.tr("Choose Video", "Chọn video"), systemImage: "film") }
                         }
                     } label: {
@@ -156,18 +179,6 @@ struct PostView: View {
                     try? FileManager.default.removeItem(at: movie.url)
                 }
             }
-        }
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraPicker(isPresented: $showCamera, onImage: { image in
-                Task { await model.addCameraImage(image) }
-            })
-            .ignoresSafeArea()
-        }
-        .fullScreenCover(isPresented: $showVideoCamera) {
-            CameraPicker(isPresented: $showVideoCamera, video: true, onVideo: { url in
-                Task { await model.addVideo(from: url); try? FileManager.default.removeItem(at: url) }
-            })
-            .ignoresSafeArea()
         }
     }
 
