@@ -4,12 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Whatshot
 import androidx.compose.material3.*
@@ -62,6 +64,10 @@ fun SearchScreen(onOpen: (String) -> Unit) {
     var loadingMore by remember { mutableStateOf(false) }
     var recents by remember { mutableStateOf(RecentStore.searches(ctx)) }
     var trending by remember { mutableStateOf<List<String>>(emptyList()) }
+    var sort by remember { mutableStateOf("newest") }
+    var priceMin by remember { mutableStateOf<Long?>(null) }
+    var priceMax by remember { mutableStateOf<Long?>(null) }
+    var showPriceSheet by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -82,6 +88,9 @@ fun SearchScreen(onOpen: (String) -> Unit) {
         Api.get<FeedPage>("api/listings", buildMap {
             put("q", query.trim()); put("limit", "24"); put("offset", off.toString())
             categoryFilter?.let { put("category", it) }
+            if (sort != "newest") put("sort", sort)            // #15 sort tabs
+            priceMin?.let { put("priceMin", it.toString()) }   // #16 price filter
+            priceMax?.let { put("priceMax", it.toString()) }
         }).listings
     } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() }
 
@@ -93,8 +102,8 @@ fun SearchScreen(onOpen: (String) -> Unit) {
         submitted = true
     }
 
-    // Fresh results whenever the (query, category) submission changes.
-    LaunchedEffect(submitted, query, categoryFilter) {
+    // Fresh results whenever the (query, category, sort, price) submission changes.
+    LaunchedEffect(submitted, query, categoryFilter, sort, priceMin, priceMax) {
         if (!submitted) return@LaunchedEffect
         searching = true; offset = 0; exhausted = false
         val page = fetchPage(0)
@@ -125,11 +134,145 @@ fun SearchScreen(onOpen: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(12.dp),
         )
         when {
-            submitted -> ResultsGrid(results, searching, query, onOpen, onLoadMore = { loadMore() })
+            submitted -> Column {
+                // #15 sort tabs + #16 price filter chip — over the ranked grid.
+                SearchFilterBar(
+                    sort = sort, onSort = { sort = it },
+                    priceMin = priceMin, priceMax = priceMax,
+                    onPrice = { showPriceSheet = true },
+                    onClearPrice = { priceMin = null; priceMax = null },
+                )
+                ResultsGrid(results, searching, query, onOpen, onLoadMore = { loadMore() })
+            }
             query.trim().length >= 2 -> SuggestList(suggest, query, onOpen,
                 onCategory = { slug, label -> submit(query.ifBlank { label }.ifBlank { " " }, slug) },
                 onSubmit = { submit(query) })
             else -> EmptyState(recents, trending, onPick = { submit(it) }, onClear = { RecentStore.clearSearches(ctx); recents = emptyList() })
+        }
+    }
+
+    if (showPriceSheet) {
+        PriceSheet(priceMin, priceMax, onDismiss = { showPriceSheet = false }) { lo, hi ->
+            priceMin = lo; priceMax = hi; showPriceSheet = false
+        }
+    }
+}
+
+private val SEARCH_SORTS = listOf(
+    "newest" to ("Recommended" to "Đề xuất"),
+    "recent" to ("Newest" to "Mới nhất"),
+    "price-low" to ("Price: low" to "Giá thấp trước"),
+    "price-high" to ("Price: high" to "Giá cao trước"),
+    "popular" to ("Most contacted" to "Được quan tâm"),
+)
+
+// Sort chips (5, web/iOS parity) + a price-range chip. The price chip reflects
+// the active bounds and offers a one-tap clear (× shown only when set).
+@Composable
+private fun SearchFilterBar(
+    sort: String,
+    onSort: (String) -> Unit,
+    priceMin: Long?,
+    priceMax: Long?,
+    onPrice: () -> Unit,
+    onClearPrice: () -> Unit,
+) {
+    val priceActive = priceMin != null || priceMax != null
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        item {
+            // Price chip first so the recurring filter is always reachable.
+            val label = when {
+                priceMin != null && priceMax != null -> "${Format.vnd(priceMin)} – ${Format.vnd(priceMax)}"
+                priceMin != null -> "≥ ${Format.vnd(priceMin)}"
+                priceMax != null -> "≤ ${Format.vnd(priceMax)}"
+                else -> L10n.tr("Price", "Giá")
+            }
+            Row(
+                Modifier.clip(CircleShape)
+                    .background(if (priceActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable(onClick = onPrice)
+                    .padding(start = 13.dp, end = if (priceActive) 8.dp else 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(
+                    label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    color = if (priceActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(vertical = 7.dp),
+                )
+                if (priceActive) {
+                    Icon(
+                        Icons.Outlined.Close, contentDescription = L10n.tr("Clear price", "Xóa giá"),
+                        modifier = Modifier.size(15.dp).clickable(onClick = onClearPrice),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            }
+        }
+        items(SEARCH_SORTS) { (value, labels) ->
+            val active = sort == value
+            Text(
+                L10n.tr(labels.first, labels.second),
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.clip(CircleShape)
+                    .background(if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { onSort(value) }
+                    .padding(horizontal = 13.dp, vertical = 7.dp),
+            )
+        }
+    }
+}
+
+// Price-range bottom sheet: two numeric fields (VND); Apply commits, Clear resets.
+// Blank field = unbounded on that side; min>max is swapped on apply.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PriceSheet(
+    initialMin: Long?,
+    initialMax: Long?,
+    onDismiss: () -> Unit,
+    onApply: (Long?, Long?) -> Unit,
+) {
+    var lo by remember { mutableStateOf(initialMin?.toString() ?: "") }
+    var hi by remember { mutableStateOf(initialMax?.toString() ?: "") }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            Text(L10n.tr("Price range", "Khoảng giá"), fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = lo, onValueChange = { lo = it.filter(Char::isDigit) },
+                    label = { Text(L10n.tr("Min", "Tối thiểu")) }, singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = hi, onValueChange = { hi = it.filter(Char::isDigit) },
+                    label = { Text(L10n.tr("Max", "Tối đa")) }, singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = { lo = ""; hi = "" }, modifier = Modifier.weight(1f)) {
+                    Text(L10n.tr("Clear", "Xóa"))
+                }
+                Button(
+                    onClick = {
+                        var a = lo.toLongOrNull(); var b = hi.toLongOrNull()
+                        if (a != null && b != null && a > b) { val t = a; a = b; b = t }
+                        onApply(a, b)
+                    },
+                    modifier = Modifier.weight(1f),
+                ) { Text(L10n.tr("Apply", "Áp dụng")) }
+            }
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
