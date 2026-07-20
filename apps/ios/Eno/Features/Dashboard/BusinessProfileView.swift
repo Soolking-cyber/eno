@@ -107,7 +107,7 @@ struct BusinessProfileView: View {
         ]
         do {
             let code = try await APIClient.shared.send("PATCH", "api/seller", body: body)
-            if code == 200 { ok = true; msg = L10n.tr("Saved", "Đã lưu") }
+            if (200..<300).contains(code) { ok = true; msg = L10n.tr("Saved", "Đã lưu") }
             else { ok = false; msg = error(code) }
         } catch APIError.http(let c) {
             ok = false; msg = error(c)

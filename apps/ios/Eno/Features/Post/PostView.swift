@@ -10,7 +10,6 @@ struct PostView: View {
     @State private var model = PostModel()
     @State private var picker: [PhotosPickerItem] = []
     @State private var videoPick: PhotosPickerItem?
-    @State private var addOptions = false
     @State private var showCamera = false
     @State private var showVideoCamera = false
     @State private var showLibrary = false
@@ -70,7 +69,14 @@ struct PostView: View {
         Section {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    Button { addOptions = true } label: {
+                    Menu {
+                        Button { showCamera = true } label: { Label(L10n.tr("Take Photo", "Chụp ảnh"), systemImage: "camera") }
+                        Button { showLibrary = true } label: { Label(L10n.tr("Photo Library", "Thư viện ảnh"), systemImage: "photo.on.rectangle") }
+                        if model.videoURL == nil && !model.videoUploading {
+                            Button { showVideoCamera = true } label: { Label(L10n.tr("Record Video", "Quay video"), systemImage: "video") }
+                            Button { showVideoLibrary = true } label: { Label(L10n.tr("Choose Video", "Chọn video"), systemImage: "film") }
+                        }
+                    } label: {
                         VStack(spacing: 6) {
                             Image(systemName: "camera.fill").font(.system(size: 20))
                             Text(L10n.tr("Add", "Thêm")).font(.system(size: 12, weight: .semibold))
@@ -133,15 +139,6 @@ struct PostView: View {
         } header: {
             Text(L10n.tr("Photos", "Hình ảnh"))
         }
-        .confirmationDialog(L10n.tr("Add media", "Thêm ảnh/video"), isPresented: $addOptions, titleVisibility: .visible) {
-            Button(L10n.tr("Take Photo", "Chụp ảnh")) { showCamera = true }
-            Button(L10n.tr("Photo Library", "Thư viện ảnh")) { showLibrary = true }
-            if model.videoURL == nil {
-                Button(L10n.tr("Record Video", "Quay video")) { showVideoCamera = true }
-                Button(L10n.tr("Choose Video", "Chọn video")) { showVideoLibrary = true }
-            }
-            Button(L10n.tr("Cancel", "Hủy"), role: .cancel) {}
-        }
         .photosPicker(isPresented: $showLibrary, selection: $picker,
                       maxSelectionCount: max(1, 8 - model.photos.count), matching: .images)
         .photosPicker(isPresented: $showVideoLibrary, selection: $videoPick, matching: .videos)
@@ -168,7 +165,7 @@ struct PostView: View {
         }
         .fullScreenCover(isPresented: $showVideoCamera) {
             CameraPicker(isPresented: $showVideoCamera, video: true, onVideo: { url in
-                Task { await model.addVideo(from: url) }
+                Task { await model.addVideo(from: url); try? FileManager.default.removeItem(at: url) }
             })
             .ignoresSafeArea()
         }

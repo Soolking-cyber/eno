@@ -92,7 +92,7 @@ struct EditListingView: View {
         ]
         do {
             let code = try await APIClient.shared.send("PATCH", "api/listings/\(listing.id)", body: body)
-            if code == 200 { onSaved(); dismiss() } else { errorText = message(for: code) }
+            if (200..<300).contains(code) { onSaved(); dismiss() } else { errorText = message(for: code) }
         } catch APIError.http(let code) {
             errorText = message(for: code)
         } catch {

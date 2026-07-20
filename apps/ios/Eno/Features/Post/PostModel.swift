@@ -93,7 +93,7 @@ final class PostModel {
         (conditionFacet == nil || condition != nil) &&
         chipFacets.allSatisfy { !(attributes[$0.key] ?? "").isEmpty } &&
         Int(priceText.filter(\.isNumber)) != nil &&
-        contactPhone.filter(\.isNumber).count >= 9 && !submitting
+        contactPhone.filter(\.isNumber).count >= 9 && !submitting && !videoUploading
     }
 
     func start() async {
@@ -284,17 +284,26 @@ final class PostModel {
             }
             let mp4 = try await Self.exportMP4(asset)
             defer { try? FileManager.default.removeItem(at: mp4) }
-            let data = try Data(contentsOf: mp4)
-            guard data.count <= 50 * 1024 * 1024 else {
+            // Check the exported size from the file attribute BEFORE reading any
+            // bytes, and STREAM the upload from the file — never load the whole
+            // clip into memory (a Data(contentsOf:) on a large clip trips Jetsam).
+            let size = ((try? FileManager.default.attributesOfItem(atPath: mp4.path))?[.size] as? Int) ?? 0
+            guard size > 0 else {
+                videoError = L10n.tr("Couldn't read this video — try another.", "Không đọc được video này — thử video khác."); return
+            }
+            guard size <= 50 * 1024 * 1024 else {
                 videoError = L10n.tr("Video is too large — try a shorter clip.", "Video quá lớn — thử clip ngắn hơn."); return
             }
-            let sign: VideoSign = try await APIClient.shared.post("api/upload/video/sign", body: ["type": "video/mp4", "size": data.count])
-            var put = URLRequest(url: URL(string: sign.signedUrl)!)
+            let sign: VideoSign = try await APIClient.shared.post("api/upload/video/sign", body: ["type": "video/mp4", "size": size])
+            guard let signedURL = URL(string: sign.signedUrl) else {
+                videoError = L10n.tr("Upload failed. Try again.", "Tải lên thất bại. Thử lại."); return
+            }
+            var put = URLRequest(url: signedURL)
             put.httpMethod = "PUT"
             put.setValue("video/mp4", forHTTPHeaderField: "Content-Type")
             put.setValue("false", forHTTPHeaderField: "x-upsert")
             put.setValue("max-age=31536000", forHTTPHeaderField: "cache-control")
-            let (_, resp) = try await URLSession.shared.upload(for: put, from: data)
+            let (_, resp) = try await URLSession.shared.upload(for: put, fromFile: mp4)
             guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 videoError = L10n.tr("Upload failed. Try again.", "Tải lên thất bại. Thử lại."); return
             }
@@ -320,6 +329,9 @@ final class PostModel {
         session.outputURL = out
         session.outputFileType = .mp4
         session.shouldOptimizeForNetworkUse = true
+        // Strip GPS/identifying metadata — the clip is publicly downloadable, so a
+        // video recorded at home must not ship its ISO-6709 coordinates.
+        session.metadataItemFilter = .forSharing()
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             session.exportAsynchronously { cont.resume() }
         }
@@ -456,6 +468,8 @@ final class PostModel {
         rangeTexts = [:]
         brand = ""
         model = ""
+        videoURL = nil
+        videoError = nil
     }
 
     private static func explain(code: String?, status: Int) -> String {

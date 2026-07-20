@@ -122,7 +122,7 @@ struct SettingsView: View {
         ]
         do {
             let code = try await APIClient.shared.send("PATCH", "api/profile", body: body)
-            if code == 200 { profileOk = true; profileMsg = L10n.tr("Saved", "Đã lưu"); onChanged() }
+            if (200..<300).contains(code) { profileOk = true; profileMsg = L10n.tr("Saved", "Đã lưu"); onChanged() }
             else { profileOk = false; profileMsg = profileError(code) }
         } catch APIError.http(let c) {
             profileOk = false; profileMsg = profileError(c)
@@ -146,7 +146,7 @@ struct SettingsView: View {
         if accountType == "business" { body["businessName"] = businessName.trimmingCharacters(in: .whitespaces) }
         do {
             let code = try await APIClient.shared.send("POST", "api/profile/account-type", body: body)
-            if code == 200 { typeOk = true; typeMsg = L10n.tr("Saved", "Đã lưu"); onChanged() }
+            if (200..<300).contains(code) { typeOk = true; typeMsg = L10n.tr("Saved", "Đã lưu"); onChanged() }
             else { typeOk = false; typeMsg = L10n.tr("Couldn't update. Try again.", "Không cập nhật được. Thử lại.") }
         } catch {
             typeOk = false; typeMsg = L10n.tr("Couldn't update. Try again.", "Không cập nhật được. Thử lại.")
@@ -158,9 +158,19 @@ struct SettingsView: View {
             deleteMsg = L10n.tr("Type DELETE to confirm.", "Nhập DELETE để xác nhận."); return
         }
         deleteMsg = nil
+        // Identity guard (critical): delete acts on the CURRENT bearer token; a
+        // web/native tab could have adopted a DIFFERENT account since this screen
+        // loaded, while it still shows the old profile. Re-fetch /api/me and abort
+        // unless it's still the exact account shown — never delete blind.
+        guard let now: MeResponse = try? await APIClient.shared.get("api/me"),
+              now.user?.email == initial?.email, now.user?.phone == initial?.phone else {
+            deleteMsg = L10n.tr("Couldn't verify your account — reopen Settings and try again.",
+                                "Không xác minh được tài khoản — mở lại Cài đặt và thử lại.")
+            return
+        }
         do {
             let code = try await APIClient.shared.send("POST", "api/account/delete", body: ["confirm": "DELETE"])
-            if code == 200 { auth.signOut(); dismiss() }
+            if (200..<300).contains(code) { auth.signOut(); dismiss() }
             else { deleteMsg = L10n.tr("Couldn't delete the account. Try again.", "Không xóa được tài khoản. Thử lại.") }
         } catch {
             deleteMsg = L10n.tr("Couldn't delete the account. Try again.", "Không xóa được tài khoản. Thử lại.")
