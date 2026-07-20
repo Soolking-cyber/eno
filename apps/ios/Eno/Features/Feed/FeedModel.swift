@@ -28,6 +28,13 @@ final class FeedModel {
         didSet { if oldValue != subcategory { Task { await reload() } } }
     }
     private(set) var subcategoryCounts: [String: Int] = [:]
+    // Brand + model facets (the quick-find rail): brandSlug + model params.
+    var brand: String? {
+        didSet { if oldValue != brand { Task { await reload() } } }
+    }
+    var model: String? {
+        didSet { if oldValue != model { Task { await reload() } } }
+    }
     // Price range filter (VND), mirroring the web's priceMin/priceMax params.
     var priceMin: Int? {
         didSet { if oldValue != priceMin { Task { await reload() } } }
@@ -115,6 +122,8 @@ final class FeedModel {
         ]
         if let category { q.append(URLQueryItem(name: "category", value: category)) }
         if let subcategory { q.append(URLQueryItem(name: "subcategory", value: subcategory)) }
+        if let brand { q.append(URLQueryItem(name: "brand", value: brand)) }
+        if let model { q.append(URLQueryItem(name: "model", value: model)) }
         if let query { q.append(URLQueryItem(name: "q", value: query)) }
         if sort != "newest" { q.append(URLQueryItem(name: "sort", value: sort)) }
         if let priceMin { q.append(URLQueryItem(name: "priceMin", value: String(priceMin))) }

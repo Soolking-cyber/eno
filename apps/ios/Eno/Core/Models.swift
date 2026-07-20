@@ -69,6 +69,7 @@ struct CategoriesResponse: Codable {
         let slug: String
         let name: String
         let nameVi: String
+        let icon: String?   // lucide name (quick-find subcategory chip glyph)
         var id: String { slug }
         var displayName: String { L10n.tr(name, nameVi) }
     }
@@ -230,6 +231,28 @@ struct SuggestResponse: Codable {
 // /api/search/trending → { trending: [term] } (fails open to empty)
 struct TrendingResponse: Codable {
     let trending: [String]
+}
+
+// /api/brands?category=&subcategory=&limit= → { brands: [{slug,name,count,iconPath}] }
+// (iconPath ignored client-side — the native rail loads /api/brands/<slug>/logo).
+struct BrandsResponse: Codable {
+    struct Brand: Codable, Identifiable, Hashable {
+        let slug: String
+        let name: String
+        let count: Int
+        var id: String { slug }
+    }
+    let brands: [Brand]
+}
+
+// /api/brands/[slug]/models?category=&subcategory= → { models: [{model,count}] }
+struct ModelsResponse: Codable {
+    struct ModelItem: Codable, Identifiable, Hashable {
+        let model: String
+        let count: Int
+        var id: String { model }
+    }
+    let models: [ModelItem]
 }
 
 // Market band (src/lib/price-stat.ts PriceBand): null below the sample floor.

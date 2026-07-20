@@ -10,24 +10,36 @@ struct FeedView: View {
     @State private var aiSheet = false
     @State private var notif = NotifModel.shared
 
+    // Landing = no facet/search active → show the discovery rails; else the
+    // quick-find selection filters the grid in place.
+    private var isLanding: Bool {
+        feed.category == nil && feed.brand == nil && (feed.query ?? "").isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     header
-                    categoryGrid
-                    if !home.recentlyViewed.isEmpty {
-                        railSection(title: L10n.tr("Recently viewed", "Đã xem gần đây"), items: home.recentlyViewed)
-                    }
-                    if !home.forYou.isEmpty {
-                        railSection(title: L10n.tr("For you", "Dành cho bạn"), items: home.forYou)
-                    }
-                    if !home.businesses.isEmpty {
-                        railSection(title: L10n.tr("Outstanding businesses", "Doanh nghiệp nổi bật"), items: home.businesses)
-                    }
-                    ForEach(home.rails, id: \.slug) { rail in
-                        if let cat = Categories.bySlug(rail.slug), !rail.listings.isEmpty {
-                            railSection(title: cat.name, items: rail.listings, seeAll: cat)
+                    // The quick-find cascading selector (category → subcat → brand
+                    // → model) replaces the old icon grid and filters the feed in
+                    // place. Landing rails show only on the unfiltered home.
+                    QuickFindBar(feed: feed)
+                        .padding(.top, 4)
+                    if isLanding {
+                        if !home.recentlyViewed.isEmpty {
+                            railSection(title: L10n.tr("Recently viewed", "Đã xem gần đây"), items: home.recentlyViewed)
+                        }
+                        if !home.forYou.isEmpty {
+                            railSection(title: L10n.tr("For you", "Dành cho bạn"), items: home.forYou)
+                        }
+                        if !home.businesses.isEmpty {
+                            railSection(title: L10n.tr("Outstanding businesses", "Doanh nghiệp nổi bật"), items: home.businesses)
+                        }
+                        ForEach(home.rails, id: \.slug) { rail in
+                            if let cat = Categories.bySlug(rail.slug), !rail.listings.isEmpty {
+                                railSection(title: cat.name, items: rail.listings, seeAll: cat)
+                            }
                         }
                     }
                     latestHeading
