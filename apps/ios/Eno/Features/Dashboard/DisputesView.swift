@@ -41,7 +41,7 @@ struct DisputesView: View {
         }
         .navigationTitle(L10n.tr("Disputes", "Khiếu nại"))
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $room) { r in WebSheet(path: "/disputes/\(r.id)") }
+        .sheet(item: $room) { r in DisputeRoomView(caseId: r.id) }
         .task { await load() }
     }
 
