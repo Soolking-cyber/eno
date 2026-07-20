@@ -40,11 +40,17 @@ targets:
     info:
       path: Eno/Info.plist
       properties:
-        CFBundleDisplayName: eno native
+        CFBundleDisplayName: eno.vn
         UILaunchScreen:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
+        # Purpose strings are REQUIRED — camera/mic are used by the listing photo
+        # + video capture. xcodegen regenerates Info.plist from THESE properties
+        # (it is the source of truth), so keys must live here, not only in the
+        # generated plist, or a regen silently drops them (App Review rejection).
+        NSCameraUsageDescription: Take photos of your item to add them to your listing.
+        NSMicrophoneUsageDescription: Record sound when you capture a video for your listing.
         # Our OWN OAuth callback scheme (distinct from the Capacitor app's
         # enovn://). ASWebAuthenticationSession intercepts it in-process; the
         # registration keeps the OS from hunting for a handler.

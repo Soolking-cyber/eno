@@ -15,6 +15,21 @@ or native listing-edit files — that is Kyle-SERVER's live claim.
 - **#7 reload() already has a `reloadGen` latest-wins token.** Only `loadMoreIfNeeded` (line 108) lacks the guard, so a stale page can append.
 - **#3 AASA route + rewrite already exist and are correct** — the route returns 404 *by design* until `APPLE_TEAM_ID` env is set. No server code change; just env.
 
+## ✅ OWNER DECISIONS (2026-07-20)
+- **Bundle ID: a NEW dedicated App ID** for the native app (not `vn.eno.app`, not the Capacitor `com.mk1e3.enovn`). Proposed: **`vn.eno.ios`** (consistent with the `vn.eno.*` family + Android `vn.eno.native`) — owner to confirm the exact string when registering.
+- **Display name: `eno.vn`** (done — Info.plist + project.yml).
+- **Enable all three Apple capabilities** (Associated Domains + Push/APNs + Sign in with Apple) — native code built dormant now, live once the portal + env land.
+
+### 🔧 OWNER PORTAL CHECKLIST (do these in the Apple Developer portal / Xcode)
+1. **Register the new App ID `vn.eno.ios`** (or your chosen string) under team `S4VCY6N8QR`, with capabilities: **Associated Domains, Push Notifications, Sign in with Apple**.
+2. **Create an APNs Auth Key (.p8)** — note the Key ID. (One key covers all your apps.)
+3. **Generate a provisioning profile** for `vn.eno.ios` (open `Eno.xcodeproj` in Xcode once with Automatic signing, or create manually).
+4. **Sign in with Apple**: create an Apple **Services ID** + key, and configure the **Apple provider in Supabase Auth** (client id = Services ID, team id, key id, .p8).
+5. Tell me the confirmed bundle-ID string → I flip `PRODUCT_BUNDLE_IDENTIFIER`, add the entitlements, and set env: `APPLE_TEAM_ID=S4VCY6N8QR`, `APNS_KEY_ID/APNS_TEAM_ID/APNS_KEY/APNS_BUNDLE_ID=<new id>/APNS_PRODUCTION`.
+6. **DB**: create the `NativePushToken` table (`prisma db push` flow) for #4.
+
+Until #1–#3 land I keep signing on `vn.eno.app` so headless device builds/installs keep working (a new ID can't be provisioned headlessly). Entitlement-dependent code (#3 router, #4 push, #5 Apple button) is written but its entitlement is NOT wired into the signed build until the profile supports the capabilities.
+
 ## OWNER-BLOCKED — needs your decision / Apple Developer portal (gates #2/#3/#4/#5)
 1. **Bundle-ID strategy + store display name (#2).** Three IDs today: native `vn.eno.app`, Capacitor source `vn.eno.app`, Capacitor Xcode target `com.mk1e3.enovn`. Decide the ONE production ID + real public name ("eno native" is a coexistence dev placeholder). This ID drives APNs topic, OAuth callback, Keychain service, AASA app-id.
 2. **Associated Domains capability (#3)** on the shipping App ID + set prod env `APPLE_TEAM_ID=S4VCY6N8QR` → AASA serves 200, Universal Links work.
