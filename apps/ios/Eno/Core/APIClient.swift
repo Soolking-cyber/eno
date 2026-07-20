@@ -10,6 +10,16 @@ enum APIError: Error {
     case decoding(Error)
 }
 
+/// Common server error envelope — `{ "error": "code" }` (some routes use `code`
+/// / `message`). Lets callers read a machine code (contact_in_text, banned_words,
+/// photos_min…) off a non-2xx body via APIClient.requestData (audit #6).
+struct APIErrorBody: Decodable {
+    let error: String?
+    let code: String?
+    let message: String?
+    var reason: String? { error ?? code }
+}
+
 final class APIClient: @unchecked Sendable {
     static let shared = APIClient()
 
@@ -37,7 +47,19 @@ final class APIClient: @unchecked Sendable {
         // Native marker, same convention as the Android forum UA ('EnoNativeApp/1').
         cfg.httpAdditionalHeaders = ["User-Agent": "EnoNativeApp/1 ios-native"]
         cfg.urlCache = cache
+        // Bounded timeouts (audit #6) — a stalled request must not hang a screen's
+        // spinner forever; the resource cap covers slow uploads too.
+        cfg.timeoutIntervalForRequest = 30
+        cfg.timeoutIntervalForResource = 90
         session = URLSession(configuration: cfg)
+    }
+
+    // A brief network blip is worth one immediate retry for idempotent GETs.
+    private static func isTransient(_ e: URLError) -> Bool {
+        switch e.code {
+        case .timedOut, .networkConnectionLost, .cannotConnectToHost: return true
+        default: return false
+        }
     }
 
     /// Privacy: wipe cached responses (called on sign-out — review #4).
@@ -48,16 +70,24 @@ final class APIClient: @unchecked Sendable {
     func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
         var comps = URLComponents(url: base.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { comps.queryItems = query }
-        let (data, status) = try await run(request(url: comps.url!))
-        guard (200..<300).contains(status) else { throw APIError.http(status) }
-        return try decode(data)
+        let url = comps.url!
+        do {
+            let (data, status) = try await run(request(url: url))
+            guard (200..<300).contains(status) else { throw APIError.http(status) }
+            return try decode(data)
+        } catch let e as URLError where Self.isTransient(e) {
+            // One retry on a transient blip (audit #6) — GET is safe to repeat.
+            let (data, status) = try await run(request(url: url))
+            guard (200..<300).contains(status) else { throw APIError.http(status) }
+            return try decode(data)
+        }
     }
 
     func post<T: Decodable>(_ path: String, body: [String: Any]) async throws -> T {
         var req = request(url: base.appendingPathComponent(path))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)   // throw, don't silently send nil (audit #6)
         let (data, status) = try await run(req)
         guard (200..<300).contains(status) else { throw APIError.http(status) }
         return try decode(data)
@@ -70,10 +100,25 @@ final class APIClient: @unchecked Sendable {
         req.httpMethod = method
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            req.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
         let (_, status) = try await run(req)
         return status
+    }
+
+    /// Full authed request returning the raw (body, status) through the SAME
+    /// pipeline (token refresh, UA, cache policy). Callers read the error body on
+    /// a non-2xx status — e.g. the publish route's machine codes — WITHOUT
+    /// bypassing APIClient with a bare URLSession (audit #6). Does not throw on
+    /// non-2xx; the caller inspects `status` and decodes `APIErrorBody` as needed.
+    func requestData(_ method: String, _ path: String, body: [String: Any]? = nil) async throws -> (Data, Int) {
+        var req = request(url: base.appendingPathComponent(path))
+        req.httpMethod = method
+        if let body {
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+        return try await run(req)
     }
 
     /// Listing-photo upload: multipart 'files' to /api/upload (server strips

@@ -50,14 +50,21 @@ final class NotifModel {
     }
 
     func delete(_ item: NotificationItem) async {
+        // Optimistic remove, but roll back if the server rejects it (audit #6) —
+        // otherwise a failed DELETE silently drops the row from the UI only.
+        let prior = items
         items.removeAll { $0.id == item.id }
-        _ = try? await APIClient.shared.send("DELETE", "api/notifications/\(item.id)")
+        let status = (try? await APIClient.shared.send("DELETE", "api/notifications/\(item.id)")) ?? -1
+        if !(200..<300).contains(status) { items = prior }
     }
 
     func clearAll() async {
+        let priorItems = items
+        let priorUnread = unread
         items = []
         unread = 0
-        _ = try? await APIClient.shared.send("DELETE", "api/notifications")
+        let status = (try? await APIClient.shared.send("DELETE", "api/notifications")) ?? -1
+        if !(200..<300).contains(status) { items = priorItems; unread = priorUnread }
     }
 }
 
