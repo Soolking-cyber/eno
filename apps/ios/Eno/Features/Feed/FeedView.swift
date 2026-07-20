@@ -118,18 +118,22 @@ struct FeedView: View {
             LazyHGrid(rows: [GridItem(.fixed(84), spacing: 4), GridItem(.fixed(84), spacing: 4)], spacing: 4) {
                 ForEach(Categories.all) { cat in
                     NavigationLink(value: cat) {
+                        // Web parity (FINN-style grid, listings-explorer.tsx): a
+                        // monochrome icon + bold label, NO colored tile — every
+                        // category uses the one brand identity, not per-category
+                        // colors (CATEGORY_COLOR_CLASSES collapses all to brand).
                         VStack(spacing: 6) {
                             Image(systemName: cat.symbol)
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundStyle(cat.color)
+                                .font(.system(size: 26, weight: .regular))
+                                .foregroundStyle(Tokens.fg)
                                 .frame(width: 44, height: 44)
-                                .background(cat.color.opacity(0.12), in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
                             Text(cat.name)
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.system(size: 13, weight: .bold))
                                 .foregroundStyle(Tokens.fg)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.85)
                         }
-                        .frame(width: 96)
+                        .frame(width: 92)
                     }
                     .buttonStyle(.plain)
                 }
