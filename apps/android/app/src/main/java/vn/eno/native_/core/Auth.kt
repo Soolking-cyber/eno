@@ -51,12 +51,20 @@ object Auth {
         private set
     val isSignedIn: Boolean get() = session != null
 
-    private var sessionGen = 0
+    // @Volatile: the generation guard is read on IO (refresh) and written on
+    // main (adopt/signOut) — visibility matters for the guard to actually fire.
+    @Volatile private var sessionGen = 0
     private val refreshMutex = Mutex()
     private var prefs: android.content.SharedPreferences? = null
+    private var initDone = false
 
     fun init(ctx: Context) {
-        if (prefs != null) return
+        if (initDone) return
+        initDone = true
+        // FAIL CLOSED on encryption unavailability: tokens are NEVER written in
+        // plaintext. If the keystore is unavailable (rare), the session lives in
+        // memory only for this run — the user re-signs-in after a restart, which
+        // is the safe tradeoff for auth material vs. a plaintext downgrade.
         prefs = runCatching {
             val master = MasterKey.Builder(ctx).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
             EncryptedSharedPreferences.create(
@@ -64,13 +72,15 @@ object Auth {
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )
-        }.getOrElse { ctx.getSharedPreferences("eno-auth-fallback", Context.MODE_PRIVATE) }
-        val p = prefs ?: return
-        val at = p.getString("access", null)
-        val rt = p.getString("refresh", null)
-        if (at != null && rt != null) {
-            session = Session(at, rt, p.getLong("exp", 0L))
-            Api.accessToken = at
+        }.getOrNull()
+        val p = prefs
+        if (p != null) {
+            val at = p.getString("access", null)
+            val rt = p.getString("refresh", null)
+            if (at != null && rt != null) {
+                session = Session(at, rt, p.getLong("exp", 0L))
+                Api.accessToken = at
+            }
         }
         Api.ensureFreshToken = { refreshIfNeeded() }
     }
@@ -136,21 +146,26 @@ object Auth {
                 }
             }.getOrNull()
         } ?: return
-        // The world moved while suspended (adopt/signOut): drop this result.
-        if (sessionGen != gen || session == null) return
-        val (code, text) = result
-        if (code in 200..299) {
-            runCatching {
-                val o = JSONObject(text)
-                val at = o.getString("access_token")
-                val rt = o.getString("refresh_token")
-                sessionGen++
-                session = Session(at, rt, o.optLong("expires_at").takeIf { it > 0 } ?: jwtExpiry(at) ?: (now() + 3000))
-                persist()
-                Api.accessToken = at
+        // Apply the outcome on Main so the generation re-check + session write is
+        // serialized with adopt()/signOut() (both main-thread) — matches iOS's
+        // @MainActor model, no torn session state.
+        withContext(Dispatchers.Main.immediate) {
+            // The world moved while suspended (adopt/signOut): drop this result.
+            if (sessionGen != gen || session == null) return@withContext
+            val (code, text) = result
+            if (code in 200..299) {
+                runCatching {
+                    val o = JSONObject(text)
+                    val at = o.getString("access_token")
+                    val rt = o.getString("refresh_token")
+                    sessionGen++
+                    session = Session(at, rt, o.optLong("expires_at").takeIf { it > 0 } ?: jwtExpiry(at) ?: (now() + 3000))
+                    persist()
+                    Api.accessToken = at
+                }
+            } else if (code == 400 || code == 401) {
+                signOut()
             }
-        } else if (code == 400 || code == 401) {
-            signOut()
         }
     }
 
