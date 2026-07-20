@@ -17,6 +17,7 @@ struct ListingDetailView: View {
     @State private var viewer: ViewerState?
     @State private var favs = FavoritesStore.shared
     @State private var sellerSheet = false
+    @State private var showTrust = false
     @State private var signInSheet = false
     @State private var chatConvo: ChatRoute?
     @State private var contactBusy = false
@@ -97,6 +98,7 @@ struct ListingDetailView: View {
             ThreadView(convoId: route.id)
         }
         .sheet(isPresented: $signInSheet) { WebSheet(path: "/signin") }
+        .sheet(isPresented: $showTrust) { WebSheet(path: "/trust") }
         .task { await load() }
         .sheet(isPresented: $showWeb) {
             WebSheet(path: "/listings/\(card.id)")
@@ -261,7 +263,7 @@ struct ListingDetailView: View {
                     Text(seller.name)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Tokens.fg)
-                    TrustMini(score: seller.trustScore)
+                    TrustMini(score: seller.trustScore) { showTrust = true }
                 }
                 HStack(spacing: 4) {
                     if let rating = seller.rating, seller.reviewCount > 0 {

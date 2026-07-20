@@ -165,26 +165,56 @@ struct ListingCardView: View {
 }
 
 // The card's trust shield chip (trust-score.tsx variant='mini'): shield glyph +
-// rounded score, colored by band — exceptional ≥110 gold, trusted ≥85 blue,
-// standard ≥60 quiet slate, below = red. Always rendered, no threshold.
+// Trust ladder chip (web trust-score.tsx). Thresholds match src/lib/trust-score.ts
+// (60/85/110/160). The EARNED tiers (Trusted/Exceptional/Elite) carry the vivid
+// glossy gradient FILL from globals.css .trust-fill-*; Building/Restricted stay a
+// quiet currentColor tint. onTap (optional) opens the /trust explainer — PDP/chat
+// pass it; cards leave it nil so the card itself owns the tap.
 struct TrustMini: View {
     let score: Int
+    var onTap: (() -> Void)? = nil
 
-    private var band: Color {
-        if score >= 110 { return Color(red: 0.72, green: 0.53, blue: 0.04) }
-        if score >= 85 { return Tokens.brand }
-        if score >= 60 { return Tokens.sub }
-        return Tokens.danger
+    private enum Tier { case elite, exceptional, trusted, standard, restricted }
+    private var tier: Tier {
+        if score >= 160 { return .elite }
+        if score >= 110 { return .exceptional }
+        if score >= 85 { return .trusted }
+        if score >= 60 { return .standard }
+        return .restricted
+    }
+
+    private func hex(_ v: UInt32) -> Color {
+        Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
+    }
+    private var fill: [Color]? {
+        switch tier {
+        case .elite: return [hex(0x7C3AED), hex(0x6D28D9), hex(0x5B21B6)]
+        case .exceptional: return [hex(0xFDE047), hex(0xFACC15), hex(0xF59E0B)]
+        case .trusted: return [hex(0x3B82F6), hex(0x2563EB), hex(0x1D4ED8)]
+        default: return nil
+        }
+    }
+    private var quiet: Color { tier == .restricted ? Tokens.danger : Tokens.sub }
+    private var onFill: Color { tier == .exceptional ? hex(0x713F12) : .white }
+    private var bgStyle: AnyShapeStyle {
+        if let fill { return AnyShapeStyle(LinearGradient(colors: fill, startPoint: .topLeading, endPoint: .bottomTrailing)) }
+        return AnyShapeStyle(quiet.opacity(0.12))
     }
 
     var body: some View {
-        HStack(spacing: 2) {
+        let chip = HStack(spacing: 2) {
             Image(systemName: "shield.fill").font(.system(size: 9))
             Text("\(score)").font(.system(size: 10, weight: .bold))
         }
-        .foregroundStyle(band)
+        .foregroundStyle(fill != nil ? onFill : quiet)
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
-        .background(band.opacity(0.12), in: Capsule())
+        .background(bgStyle, in: Capsule())
+
+        if let onTap {
+            Button(action: onTap) { chip }.buttonStyle(.plain)
+        } else {
+            chip
+        }
     }
 }

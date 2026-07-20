@@ -1,8 +1,10 @@
 package vn.eno.native_.feed
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -18,10 +20,13 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,6 +64,12 @@ class FeedViewModel : ViewModel() {
         set(value) { field = value; _items.value = emptyList(); load(reset = true) }
     private val _subcategoryCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
     val subcategoryCounts: StateFlow<Map<String, Int>> = _subcategoryCounts
+    // First-paint skeleton (#10) vs pull-to-refresh spinner (#6): initialLoading
+    // is true until the very first load settles; refreshing drives PullToRefreshBox.
+    private val _initialLoading = MutableStateFlow(true)
+    val initialLoading: StateFlow<Boolean> = _initialLoading
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing
     var sort: String = "newest"
         set(value) {
             field = value
@@ -127,7 +138,39 @@ class FeedViewModel : ViewModel() {
                 exhausted = page.listings.size < 24
             } catch (_: Exception) {
             } finally {
+                if (gen == loadGen) { loading = false; _initialLoading.value = false }
+            }
+        }
+    }
+
+    // Pull-to-refresh (#6): re-pull the first page + rails, hold the spinner
+    // until both settle. Reuses the reset path so filters/sort are preserved.
+    fun refresh() {
+        if (_refreshing.value) return
+        _refreshing.value = true
+        val gen = ++loadGen
+        loading = true
+        viewModelScope.launch {
+            try {
+                val q = buildMap {
+                    put("limit", "24"); put("offset", "0")
+                    category?.let { put("category", it) }
+                    subcategory?.let { put("subcategory", it) }
+                    brand?.let { put("brand", it) }
+                    model?.let { put("model", it) }
+                    if (sort != "newest") put("sort", sort)
+                }
+                val page: FeedPage = Api.get("api/listings", q)
+                if (gen != loadGen) return@launch
+                if (page.subcategoryCounts.isNotEmpty()) _subcategoryCounts.value = page.subcategoryCounts
+                _items.value = page.listings
+                offset = page.listings.size
+                exhausted = page.listings.size < 24
+                loadRails()
+            } catch (_: Exception) {
+            } finally {
                 if (gen == loadGen) loading = false
+                _refreshing.value = false
             }
         }
     }
@@ -157,6 +200,7 @@ private val SORTS = listOf(
     "popular" to ("Most contacted" to "Được quan tâm"),
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
     onOpen: (String) -> Unit,
@@ -166,6 +210,8 @@ fun FeedScreen(
 ) {
     val items by vm.items.collectAsState()
     val rails by vm.rails.collectAsState()
+    val refreshing by vm.refreshing.collectAsState()
+    val initialLoading by vm.initialLoading.collectAsState()
     var filtered by remember { mutableStateOf(false) }
     var sort by remember { mutableStateOf("newest") }
     val feedCtx = androidx.compose.ui.platform.LocalContext.current
@@ -173,6 +219,7 @@ fun FeedScreen(
     // (returning from a PDP changes it).
     LaunchedEffect(items.size) { vm.loadRecentlyViewed(feedCtx) }
 
+    PullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refresh() }) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -269,34 +316,100 @@ fun FeedScreen(
                 Spacer(Modifier.height(4.dp))
             }
         }
-        items(items.size) { idx ->
-            val card = items[idx]
-            LaunchedEffect(card.id) { vm.loadMoreIfNeeded(idx) }
-            ListingCardView(card) { onOpen(card.id) }
+        if (items.isEmpty() && initialLoading) {
+            items(6) { SkeletonCard() }
+        } else {
+            items(items.size) { idx ->
+                val card = items[idx]
+                LaunchedEffect(card.id) { vm.loadMoreIfNeeded(idx) }
+                ListingCardView(card) { onOpen(card.id) }
+            }
+        }
+    }
+    }
+}
+
+// First-paint skeleton card (#10/#96): matches ListingCardView geometry — 10:11
+// image + two text lines — with a left-to-right shimmer sweep.
+@Composable
+fun SkeletonCard() {
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp)),
+    ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(10f / 11f).shimmer())
+        Column(Modifier.padding(10.dp)) {
+            Box(Modifier.fillMaxWidth(0.55f).height(15.dp).clip(RoundedCornerShape(4.dp)).shimmer())
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth(0.85f).height(12.dp).clip(RoundedCornerShape(4.dp)).shimmer())
         }
     }
 }
 
-// Trust shield chip (web trust-score.tsx mini): band colors ≥110 gold, ≥85
-// brand, ≥60 slate, else red.
+// Animated shimmer sweep for skeletons — reduced-motion is honored by the
+// static base tint if the transition is disabled by the platform.
 @Composable
-fun TrustMini(score: Int) {
-    val band = when {
-        score >= 110 -> androidx.compose.ui.graphics.Color(0xFFB8860B)
-        score >= 85 -> MaterialTheme.colorScheme.primary
-        score >= 60 -> MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.error
+fun Modifier.shimmer(): Modifier {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "shimmer")
+    val x by transition.animateFloat(
+        initialValue = -2f, targetValue = 2f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(1100, easing = androidx.compose.animation.core.LinearEasing),
+        ),
+        label = "shimmerX",
+    )
+    val base = MaterialTheme.colorScheme.surfaceVariant
+    val hi = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+    return this.background(
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            colors = listOf(base, hi, base),
+            start = androidx.compose.ui.geometry.Offset(x * 300f, 0f),
+            end = androidx.compose.ui.geometry.Offset((x + 1f) * 300f, 300f),
+        ),
+    )
+}
+
+// Trust ladder chip (web trust-score.tsx). Thresholds match src/lib/trust-score.ts
+// (60/85/110/160). The EARNED tiers (Trusted/Exceptional/Elite) carry the vivid
+// glossy gradient FILL from globals.css .trust-fill-*; Building/Restricted stay a
+// quiet currentColor tint. onTap (optional) opens the /trust explainer — PDP/chat
+// pass it; cards leave it null so the card itself owns the tap.
+private class TrustBandStyle(val text: Color, val fill: List<Color>?, val onFill: Color)
+
+@Composable
+fun TrustMini(score: Int, onTap: (() -> Unit)? = null) {
+    val dark = isSystemInDarkTheme()
+    val b = when {
+        score >= 160 -> TrustBandStyle(               // Elite — violet
+            text = if (dark) Color(0xFFA78BFA) else Color(0xFF6D28D9),
+            fill = listOf(Color(0xFF7C3AED), Color(0xFF6D28D9), Color(0xFF5B21B6)), onFill = Color.White)
+        score >= 110 -> TrustBandStyle(               // Exceptional — gold
+            text = if (dark) Color(0xFFFACC15) else Color(0xFFA16207),
+            fill = listOf(Color(0xFFFDE047), Color(0xFFFACC15), Color(0xFFF59E0B)), onFill = Color(0xFF713F12))
+        score >= 85 -> TrustBandStyle(                // Trusted — brand blue
+            text = if (dark) Color(0xFF60A5FA) else Color(0xFF1D4ED8),
+            fill = listOf(Color(0xFF3B82F6), Color(0xFF2563EB), Color(0xFF1D4ED8)), onFill = Color.White)
+        score >= 60 -> TrustBandStyle(                // Building — neutral slate, quiet
+            text = if (dark) Color(0xFFA3A3A3) else Color(0xFF525252), fill = null, onFill = Color.Unspecified)
+        else -> TrustBandStyle(                        // Restricted — red, quiet
+            text = if (dark) Color(0xFFF87171) else Color(0xFFB91C1C), fill = null, onFill = Color.Unspecified)
     }
+    val content = if (b.fill != null) b.onFill else b.text
+    val fillMod = if (b.fill != null) Modifier.background(Brush.linearGradient(b.fill), CircleShape)
+                  else Modifier.background(b.text.copy(alpha = 0.12f), CircleShape)
     Row(
         Modifier
             .clip(CircleShape)
-            .background(band.copy(alpha = 0.12f))
+            .then(fillMod)
+            .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier)
             .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Icon(Icons.Outlined.Shield, null, Modifier.size(10.dp), tint = band)
-        Text("$score", color = band, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Icon(Icons.Outlined.Shield, null, Modifier.size(10.dp), tint = content)
+        Text("$score", color = content, fontSize = 9.sp, fontWeight = FontWeight.Bold)
     }
 }
 
