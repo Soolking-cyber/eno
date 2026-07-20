@@ -8,6 +8,7 @@ struct FeedView: View {
     @State private var feed = FeedModel()
     @State private var home = HomeModel()
     @State private var aiSheet = false
+    @State private var mapSheet = false
     @State private var notif = NotifModel.shared
     @State private var router = DeepLinkRouter.shared
 
@@ -29,19 +30,20 @@ struct FeedView: View {
                     // discovery rails. The QuickFind facet cascade appears only once
                     // you're inside a category (like the web's FacetBar).
                     if isLanding {
-                        popularChips
+                        categoryGrid
                         if !home.recentlyViewed.isEmpty {
-                            railSection(title: L10n.tr("Recently viewed", "Đã xem gần đây"), items: home.recentlyViewed)
+                            railSection(icon: "clock.arrow.circlepath", title: L10n.tr("Recently viewed", "Đã xem gần đây"), items: home.recentlyViewed)
                         }
                         if !home.forYou.isEmpty {
-                            railSection(title: L10n.tr("For you", "Dành cho bạn"), items: home.forYou)
+                            // Web for-you-rail default (guest / no personalization): "Trending now".
+                            railSection(icon: "chart.line.uptrend.xyaxis", title: L10n.tr("Trending now", "Đang thịnh hành"), items: home.forYou)
                         }
                         if !home.businesses.isEmpty {
-                            railSection(title: L10n.tr("Outstanding businesses", "Doanh nghiệp nổi bật"), items: home.businesses)
+                            railSection(icon: "rosette", title: L10n.tr("Outstanding businesses", "Doanh nghiệp nổi bật"), items: home.businesses)
                         }
                         ForEach(home.rails, id: \.slug) { rail in
                             if let cat = Categories.bySlug(rail.slug), !rail.listings.isEmpty {
-                                railSection(title: cat.name, items: rail.listings, seeAll: cat)
+                                railSection(icon: cat.symbol, title: cat.name, items: rail.listings, seeAll: cat)
                             }
                         }
                     } else {
@@ -60,6 +62,9 @@ struct FeedView: View {
             }
             .sheet(isPresented: $aiSheet) {
                 WebSheet(path: "/messages/ai")
+            }
+            .sheet(isPresented: $mapSheet) {
+                WebSheet(path: "/?view=map")
             }
             .navigationDestination(for: ListingCard.self) { card in
                 ListingDetailView(card: card)
@@ -87,96 +92,70 @@ struct FeedView: View {
         }
     }
 
-    // ── hero: wordmark + search pill ──
-    // The web landing's "Popular" quick-category chips (listings-explorer): the
-    // demand-ordered categories as rounded pills; tapping filters the feed in place.
-    private var popularChips: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .bold))
-                Text(L10n.tr("Popular", "Phổ biến"))
-                    .font(.system(size: 11, weight: .bold))
-                    .textCase(.uppercase)
-                    .kerning(0.5)
-            }
-            .foregroundStyle(Tokens.sub)
-            .padding(.horizontal, 12)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(Categories.all.prefix(8)) { cat in
-                        Button { feed.category = cat.slug } label: {
-                            Text(cat.name)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Tokens.fg)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 12))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 12)
-            }
-        }
-        .padding(.top, 10)
-        .padding(.bottom, 2)
-    }
-
+    // Web parity (listings-explorer hero): a top row (wordmark + bell) over a wide,
+    // prominent search bar that holds the search field, the ✨ AI entry, a divider,
+    // and the map button — all inside one rounded-2xl tint bar.
     private var header: some View {
-        HStack(spacing: 12) {
-            Text("eno")
-                .font(.system(size: 26, weight: .heavy))
-                .kerning(-1)
-                .foregroundStyle(Tokens.brand)
-            NavigationLink {
-                SearchView()
-            } label: {
-                HStack {
-                    Image(systemName: "magnifyingglass").font(.system(size: 14, weight: .semibold))
-                    // Exact web copy (listings-explorer hero placeholder).
-                    Text(L10n.tr("Search motorbikes, apartments, moving sales...", "Tìm xe máy, căn hộ, đồ thanh lý..."))
-                        .font(.system(size: 15)).lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                .foregroundStyle(Tokens.sub)
-                .padding(.horizontal, 14)
-                .frame(height: 40)
-                .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-            }
-            // The web header's ✨ AI-shopping entry (AISearchButton → /messages/ai).
-            Button {
-                aiSheet = true
-            } label: {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 16, weight: .semibold))
+        VStack(spacing: 10) {
+            HStack {
+                Text("eno")
+                    .font(.system(size: 26, weight: .heavy))
+                    .kerning(-1)
                     .foregroundStyle(Tokens.brand)
-                    .frame(width: 40, height: 40)
-                    .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L10n.tr("AI shopping", "Mua sắm AI"))
-            // Notification bell (web header parity) — red dot while unread.
-            NavigationLink {
-                NotificationsView()
-            } label: {
-                Image(systemName: "bell")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Tokens.fg)
-                    .frame(width: 40, height: 40)
-                    .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-                    .overlay(alignment: .topTrailing) {
-                        if notif.unread > 0 {
-                            Circle().fill(Tokens.danger).frame(width: 9, height: 9).offset(x: -6, y: 6)
+                Spacer()
+                NavigationLink {
+                    NotificationsView()
+                } label: {
+                    Image(systemName: "bell")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Tokens.fg)
+                        .frame(width: 40, height: 40)
+                        .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                        .overlay(alignment: .topTrailing) {
+                            if notif.unread > 0 {
+                                Circle().fill(Tokens.danger).frame(width: 9, height: 9).offset(x: -6, y: 6)
+                            }
                         }
-                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.tr("Notifications", "Thông báo"))
+                .accessibilityValue(notif.unread > 0 ? L10n.tr("\(notif.unread) unread", "\(notif.unread) chưa đọc") : "")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L10n.tr("Notifications", "Thông báo"))
-            .accessibilityValue(notif.unread > 0 ? L10n.tr("\(notif.unread) unread", "\(notif.unread) chưa đọc") : "")
+            // The wide hero search bar.
+            HStack(spacing: 10) {
+                NavigationLink {
+                    SearchView()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass").font(.system(size: 19, weight: .semibold)).foregroundStyle(Tokens.ink4)
+                        Text(L10n.tr("Search motorbikes, apartments, moving sales...", "Tìm xe máy, căn hộ, đồ thanh lý..."))
+                            .font(.system(size: 16, weight: .medium)).foregroundStyle(Tokens.ink4).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                // ✨ AI-shopping entry (web AISearchButton → /messages/ai), inside the bar.
+                Button { aiSheet = true } label: {
+                    Image(systemName: "sparkles").font(.system(size: 19, weight: .semibold)).foregroundStyle(Tokens.brand)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.tr("AI shopping", "Mua sắm AI"))
+                Rectangle().fill(Tokens.ring).frame(width: 1, height: 24)
+                // Map view (web opens the map surface).
+                Button { mapSheet = true } label: {
+                    Image(systemName: "map").font(.system(size: 19, weight: .semibold)).foregroundStyle(Tokens.ink4)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.tr("Map", "Bản đồ"))
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 52)
+            .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 16))
         }
         .padding(.horizontal, 12)
         .padding(.top, 14)
-        .padding(.bottom, 10)
+        .padding(.bottom, 6)
     }
 
     // ── two-row horizontally scrolling icon grid (the FINN-style web grid) ──
@@ -191,8 +170,8 @@ struct FeedView: View {
                         // colors (CATEGORY_COLOR_CLASSES collapses all to brand).
                         VStack(spacing: 6) {
                             Image(systemName: cat.symbol)
-                                .font(.system(size: 26, weight: .regular))
-                                .foregroundStyle(Tokens.fg)
+                                .font(.system(size: 28, weight: .regular))
+                                .foregroundStyle(Tokens.sub)   // muted at rest (web text-body), like the FINN grid
                                 .frame(width: 44, height: 44)
                             Text(cat.name)
                                 .font(.system(size: 13, weight: .bold))
@@ -211,18 +190,27 @@ struct FeedView: View {
         .padding(.bottom, 8)
     }
 
-    // ── horizontal card rail with "See all" ──
-    private func railSection(title: String, items: [ListingCard], seeAll: AppCategory? = nil) -> some View {
+    // A rail card equals exactly one feed-grid column (12pt gutters + 8pt gap), so
+    // rails line up pixel-perfect with the 2-col grid below — web shelf.tsx parity.
+    private var railCardWidth: CGFloat {
+        (UIScreen.main.bounds.width - 24 - 8) / 2
+    }
+
+    // ── horizontal card rail: leading icon + title + "See all" (web Shelf) ──
+    private func railSection(icon: String? = nil, title: String, items: [ListingCard], seeAll: AppCategory? = nil) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 6) {
+                if let icon {
+                    Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.brand)
+                }
                 Text(title)
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(Tokens.fg)
                 Spacer()
                 if let seeAll {
                     NavigationLink(value: seeAll) {
                         HStack(spacing: 2) {
-                            Text(L10n.tr("See all", "Xem tất cả")).font(.system(size: 13, weight: .semibold))
+                            Text(L10n.tr("See all", "Xem tất cả")).font(.system(size: 14, weight: .semibold))
                             Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
                         }
                         .foregroundStyle(Tokens.brand)
@@ -235,7 +223,7 @@ struct FeedView: View {
                     ForEach(items) { item in
                         NavigationLink(value: item) {
                             ListingCardView(listing: item)
-                                .frame(width: 168)
+                                .frame(width: railCardWidth)
                         }
                         .buttonStyle(.plain)
                     }
@@ -243,19 +231,16 @@ struct FeedView: View {
                 .padding(.horizontal, 12)
             }
         }
-        .padding(.top, 16)
+        .padding(.top, 28)
     }
 
+    // Web parity: the landing feed grid follows the rails with NO visible heading
+    // (the web's 'Latest listings' h2 is sr-only). The sort bar is kept as a small
+    // native affordance since the grid IS the ranked feed here.
     private var latestHeading: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(L10n.tr("Latest listings", "Tin mới nhất"))
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(Tokens.fg)
-                .padding(.horizontal, 12)
-            SortBar(model: feed)
-        }
-        .padding(.top, 20)
-        .padding(.bottom, 8)
+        SortBar(model: feed)
+            .padding(.top, 20)
+            .padding(.bottom, 8)
     }
 
     @ViewBuilder
