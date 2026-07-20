@@ -63,8 +63,8 @@ struct ListingDetailView: View {
                         .scaledFont(18, weight: .medium)   // web text-lg font-medium leading-snug
                         .foregroundStyle(Tokens.fg)
                         .lineSpacing(2)
+                    specBadges
                     metaRow
-                    conditionChips
                     protectionsRow
                     safetyStrip
                     if let d = detail {
@@ -349,26 +349,41 @@ struct ListingDetailView: View {
         ]
     }
 
-    // Condition / year / mileage facts as quiet chips (vehicles get year+km).
+    // Web meta badge row (page.tsx:432-447): brand badge FIRST, then condition +
+    // numeric specs as inline badges (spec label muted in ink-4, value in fg).
+    // Wraps like the web flex row; self-hides when there's nothing to show.
     @ViewBuilder
-    private var conditionChips: some View {
-        let facts: [String] = [
-            detail?.condition.map { conditionLabel($0) },
-            detail?.year.map { String($0) },
-            detail?.mileageKm.map { "\($0.formatted()) km" },
-        ].compactMap { $0 }
-        if !facts.isEmpty {
-            HStack(spacing: 6) {
-                ForEach(facts, id: \.self) { fact in
-                    Text(fact)
-                        .scaledFont(12, weight: .medium)
-                        .foregroundStyle(Tokens.fg)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Tokens.tint, in: Capsule())
+    private var specBadges: some View {
+        let brand = card.brand?.trimmingCharacters(in: .whitespaces)
+        let specs: [(String?, String)] = [
+            (nil, detail?.condition.map { conditionLabel($0) } ?? ""),
+            (L10n.tr("Year", "Năm"), detail?.year.map { String($0) } ?? ""),
+            (L10n.tr("Mileage", "Số km"), detail?.mileageKm.map { "\($0.formatted()) km" } ?? ""),
+            (L10n.tr("Engine", "Động cơ"), detail?.engineL.map { "\($0) L" } ?? ""),
+        ].filter { !$0.1.isEmpty }
+        if (brand?.isEmpty == false) || !specs.isEmpty {
+            FlowLayout(spacing: 6) {
+                if let brand, !brand.isEmpty {
+                    specChip { Text(brand.capitalized).foregroundStyle(Tokens.fg) }
+                }
+                ForEach(specs, id: \.1) { spec in
+                    specChip {
+                        HStack(spacing: 4) {
+                            if let label = spec.0 { Text(label).foregroundStyle(Tokens.ink4) }
+                            Text(spec.1).foregroundStyle(Tokens.fg)
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private func specChip<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .scaledFont(12, weight: .semibold)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Tokens.tint, in: Capsule())
     }
 
     private func conditionLabel(_ c: String) -> String {
