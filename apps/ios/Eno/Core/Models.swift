@@ -274,4 +274,22 @@ struct PriceBand: Codable {
 struct ListingDetailEnvelope: Codable {
     let listing: ListingDetail
     let priceBand: PriceBand?
+    // GET /api/listings/[id] already returns these — the PDP reviews preview + the
+    // "More from this seller" shelf (web page.tsx). Optional for payload tolerance.
+    let reviews: ReviewsPreview?
+    let sameSellerListings: [ListingCard]?
+}
+
+struct ReviewsPreview: Codable {
+    let reviews: [Review]
+    let total: Int
+    let avg: Double
+    struct Review: Codable, Identifiable {
+        let author: String
+        let rating: Int
+        let text: String
+        let verified: Bool
+        let createdAt: String
+        var id: String { author + createdAt }
+    }
 }

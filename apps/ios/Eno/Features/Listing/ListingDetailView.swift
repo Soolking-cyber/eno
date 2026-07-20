@@ -13,6 +13,8 @@ struct ListingDetailView: View {
     @State private var band: PriceBand?
     @State private var unavailable = false
     @State private var more: [ListingCard] = []
+    @State private var reviews: ReviewsPreview?
+    @State private var sameSeller: [ListingCard] = []
     @State private var showWeb = false
     @State private var viewer: ViewerState?
     @State private var favs = FavoritesStore.shared
@@ -56,6 +58,8 @@ struct ListingDetailView: View {
                     if let d = detail {
                         statsRow(d)
                         Divider().overlay(Tokens.ring)
+                        // Description (web page.tsx order-8: 'Description' heading).
+                        Text(L10n.tr("Description", "Mô tả")).scaledFont(16, weight: .bold).foregroundStyle(Tokens.fg)
                         Text(d.description)
                             .scaledFont(15)
                             .foregroundStyle(Tokens.fg)
@@ -63,6 +67,7 @@ struct ListingDetailView: View {
                         detailsTable(d)
                         Divider().overlay(Tokens.ring)
                         sellerCard(d.seller)
+                        reviewsPreview
                     } else if unavailable {
                         VStack(spacing: 6) {
                             Text("🚫").scaledFont(34)
@@ -77,6 +82,7 @@ struct ListingDetailView: View {
                     }
                 }
                 .padding(16)
+                sameSellerRail
                 moreRail
             }
         }
@@ -150,6 +156,8 @@ struct ListingDetailView: View {
                 let env: ListingDetailEnvelope = try await APIClient.shared.get("api/listings/\(card.id)")
                 detail = env.listing
                 band = env.priceBand
+                reviews = env.reviews
+                sameSeller = (env.sameSellerListings ?? []).filter { $0.id != card.id }
             } catch {
                 // 404 = sold/hidden/removed → show the "no longer available"
                 // note instead of a perpetual spinner (P0 #3).
@@ -275,7 +283,7 @@ struct ListingDetailView: View {
         if !rows.isEmpty {
             Divider().overlay(Tokens.ring)
             VStack(alignment: .leading, spacing: 0) {
-                Text(L10n.tr("Details", "Thông số"))
+                Text(L10n.tr("Details", "Chi tiết"))
                     .scaledFont(16, weight: .bold)
                     .foregroundStyle(Tokens.fg)
                     .padding(.bottom, 4)
@@ -403,6 +411,87 @@ struct ListingDetailView: View {
         }
     }
 
+    // "More from this seller" shelf (web SameSellerShelf) — above "More like this",
+    // hidden when the seller has < 2 other active listings.
+    @ViewBuilder
+    private var sameSellerRail: some View {
+        if sameSeller.count >= 2 {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(L10n.tr("More from this seller", "Tin khác từ người bán này"))
+                        .scaledFont(17, weight: .bold)
+                        .foregroundStyle(Tokens.fg)
+                    Spacer()
+                    Button { sellerSheet = true } label: {
+                        HStack(spacing: 2) {
+                            Text(L10n.tr("See all", "Xem tất cả")).scaledFont(14, weight: .semibold)
+                            Image(systemName: "chevron.right").scaledFont(10, weight: .bold)
+                        }
+                        .foregroundStyle(Tokens.brand)
+                    }
+                }
+                .padding(.horizontal, 12)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(sameSeller) { item in
+                            NavigationLink(value: item) {
+                                ListingCardView(listing: item).frame(width: 168)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+            }
+            .padding(.bottom, 16)
+        }
+    }
+
+    // Buyer reviews preview (web reviews-preview.tsx): avg + up to 2 verified-first.
+    @ViewBuilder
+    private var reviewsPreview: some View {
+        if let r = reviews, r.total > 0, !r.reviews.isEmpty {
+            Divider().overlay(Tokens.ring)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Text(L10n.tr("Buyer reviews", "Đánh giá về người bán")).scaledFont(16, weight: .bold).foregroundStyle(Tokens.fg)
+                    Text("(\(r.total))").scaledFont(14).foregroundStyle(Tokens.sub)
+                    Spacer()
+                    Image(systemName: "star.fill").scaledFont(12).foregroundStyle(.yellow)
+                    Text(String(format: "%.1f", r.avg)).scaledFont(14, weight: .semibold).foregroundStyle(Tokens.fg)
+                }
+                ForEach(r.reviews.prefix(2)) { rev in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(initials(rev.author)).scaledFont(12, weight: .bold).foregroundStyle(.white)
+                            .frame(width: 32, height: 32).background(Tokens.brand, in: Circle())
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(rev.author).scaledFont(14, weight: .semibold).foregroundStyle(Tokens.fg)
+                                if rev.verified {
+                                    Text(L10n.tr("Verified buyer", "Đã mua")).scaledFont(10, weight: .bold)
+                                        .foregroundStyle(Tokens.brand).padding(.horizontal, 6).padding(.vertical, 1)
+                                        .background(Tokens.brandTint, in: Capsule())
+                                }
+                            }
+                            Text(rev.text).scaledFont(13).foregroundStyle(Tokens.sub).lineLimit(3)
+                        }
+                        Spacer()
+                    }
+                }
+                Button { sellerSheet = true } label: {
+                    Text(L10n.tr("See all", "Xem tất cả")).scaledFont(14, weight: .semibold).foregroundStyle(Tokens.brand)
+                }
+            }
+        }
+    }
+
+    private func initials(_ name: String) -> String {
+        let words = name.split(separator: " ")
+        let a = words.first?.first.map(String.init) ?? ""
+        let b = words.count > 1 ? (words.last?.first.map(String.init) ?? "") : ""
+        return (a + b).uppercased()
+    }
+
     private var ctaBar: some View {
         Button {
             startChat()
@@ -411,7 +500,7 @@ struct ListingDetailView: View {
                 if contactBusy {
                     ProgressView().tint(.white)
                 } else {
-                    Text(L10n.tr("Chat with seller", "Nhắn tin cho người bán"))
+                    Text(L10n.tr("Chat now", "Chat ngay"))
                 }
             }
             .scaledFont(16, weight: .semibold)
