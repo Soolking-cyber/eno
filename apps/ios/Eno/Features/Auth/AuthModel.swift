@@ -47,12 +47,16 @@ final class AuthModel {
     /// Adopt tokens handed over by the embedded web sign-in. Web pages re-post
     /// their session on EVERY load, and a stale tab can carry OLDER (already
     /// rotated, i.e. burned) tokens than the native session — adopting those
-    /// would break the next refresh and sign the user out. Only adopt tokens
-    /// that expire LATER than what we hold.
+    /// would break the next refresh and sign the user out. The stale-token guard
+    /// must discriminate by user id (the Android Gemini review's finding #5,
+    /// ported for parity): only reject an OLDER token of the SAME user (a
+    /// rotation); a DIFFERENT user is an account switch — always adopt.
     func adopt(accessToken: String, refreshToken: String) {
         guard accessToken != session?.accessToken else { return }
         let expiresAt = Self.jwtExpiry(accessToken) ?? (Date().timeIntervalSince1970 + 3000)
-        if let current = session, expiresAt <= current.expiresAt { return }
+        if let current = session,
+           Self.jwtSub(accessToken) == Self.jwtSub(current.accessToken),
+           expiresAt <= current.expiresAt { return }
         sessionGen += 1
         session = StoredSession(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
         persist()
@@ -147,13 +151,21 @@ final class AuthModel {
     /// exp claim from a JWT payload (base64url, no verification — expiry only;
     /// the SERVER verifies signatures, the client just schedules refreshes).
     private static func jwtExpiry(_ jwt: String) -> TimeInterval? {
+        jwtClaim(jwt)["exp"] as? TimeInterval
+    }
+
+    /// sub (user id) claim — identity discriminator for account switches.
+    private static func jwtSub(_ jwt: String) -> String? {
+        jwtClaim(jwt)["sub"] as? String
+    }
+
+    private static func jwtClaim(_ jwt: String) -> [String: Any] {
         let parts = jwt.split(separator: ".")
-        guard parts.count == 3 else { return nil }
+        guard parts.count == 3 else { return [:] }
         var b64 = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
         while b64.count % 4 != 0 { b64 += "=" }
         guard let data = Data(base64Encoded: b64),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let exp = obj["exp"] as? TimeInterval else { return nil }
-        return exp
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return obj
     }
 }
