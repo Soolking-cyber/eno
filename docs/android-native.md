@@ -51,7 +51,13 @@ condition/price/negotiable/location via /api/geo/contact, ≥20-char + ≥3-phot
 gates, publish-error mapping) — **5/5 tabs native**. v9 notifications (feed bell
 + red-dot unread + list, deep links) + My Listings (stats + confirm/sold/hide/
 reactivate/delete). v10 recently-viewed rail + search v2 (recents/trending/
-ranked typeahead). Under dual-external review (Kyle, 2026-07-20).
+ranked typeahead). v11 fullscreen zoomable PDP gallery. v12 auth
+hardening (self-review: fail-closed encryption, @Volatile sessionGen +
+Main-confined refresh). v13 Gemini dual-external review — all 6 findings
+addressed (2 pre-fixed in v12): WebTab key(path)+onRelease (leak/reload),
+global 401→forced-refresh-or-signout, adopt() JWT-sub account-switch
+guard, retryPhoto snapshot copy. GPT-5.6 review pending. Every step
+assembleDebug-green; no device test yet.
 
 ## Backlog
 
