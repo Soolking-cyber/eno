@@ -24,12 +24,12 @@ struct FeedView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     header
-                    // The quick-find cascading selector (category → subcat → brand
-                    // → model) replaces the old icon grid and filters the feed in
-                    // place. Landing rails show only on the unfiltered home.
-                    QuickFindBar(feed: feed)
-                        .padding(.top, 4)
+                    // Web-parity landing (src/app/(home)): the home has NO persistent
+                    // category tabs — it shows the search hero + "Popular" chips + the
+                    // discovery rails. The QuickFind facet cascade appears only once
+                    // you're inside a category (like the web's FacetBar).
                     if isLanding {
+                        popularChips
                         if !home.recentlyViewed.isEmpty {
                             railSection(title: L10n.tr("Recently viewed", "Đã xem gần đây"), items: home.recentlyViewed)
                         }
@@ -44,6 +44,9 @@ struct FeedView: View {
                                 railSection(title: cat.name, items: rail.listings, seeAll: cat)
                             }
                         }
+                    } else {
+                        QuickFindBar(feed: feed)
+                            .padding(.top, 4)
                     }
                     latestHeading
                     grid
@@ -85,6 +88,40 @@ struct FeedView: View {
     }
 
     // ── hero: wordmark + search pill ──
+    // The web landing's "Popular" quick-category chips (listings-explorer): the
+    // demand-ordered categories as rounded pills; tapping filters the feed in place.
+    private var popularChips: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .bold))
+                Text(L10n.tr("Popular", "Phổ biến"))
+                    .font(.system(size: 11, weight: .bold))
+                    .textCase(.uppercase)
+                    .kerning(0.5)
+            }
+            .foregroundStyle(Tokens.sub)
+            .padding(.horizontal, 12)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(Categories.all.prefix(8)) { cat in
+                        Button { feed.category = cat.slug } label: {
+                            Text(cat.name)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Tokens.fg)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 2)
+    }
+
     private var header: some View {
         HStack(spacing: 12) {
             Text("eno")
@@ -96,8 +133,10 @@ struct FeedView: View {
             } label: {
                 HStack {
                     Image(systemName: "magnifyingglass").font(.system(size: 14, weight: .semibold))
-                    Text(L10n.tr("Find products…", "Tìm sản phẩm…")).font(.system(size: 15))
-                    Spacer()
+                    // Exact web copy (listings-explorer hero placeholder).
+                    Text(L10n.tr("Search motorbikes, apartments, moving sales...", "Tìm xe máy, căn hộ, đồ thanh lý..."))
+                        .font(.system(size: 15)).lineLimit(1)
+                    Spacer(minLength: 0)
                 }
                 .foregroundStyle(Tokens.sub)
                 .padding(.horizontal, 14)
