@@ -13,6 +13,9 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import vn.eno.native_.account.MeResponse
@@ -51,6 +54,11 @@ class PostViewModel : ViewModel() {
     var createdId by mutableStateOf<String?>(null)
     var autofilling by mutableStateOf(false)
     var autofillError by mutableStateOf<String?>(null)
+    // Optional single clip (≤60s). No client compression yet (media3-transformer
+    // is a follow-up), so a clip over the 50MB Supabase ceiling is refused.
+    var videoUrl by mutableStateOf<String?>(null)
+    var videoUploading by mutableStateOf(false)
+    var videoError by mutableStateOf<String?>(null)
 
     private var nextId = 0L
 
@@ -137,6 +145,54 @@ class PostViewModel : ViewModel() {
 
     fun removePhoto(id: Long) { photos.removeAll { it.id == id } }
 
+    @kotlinx.serialization.Serializable
+    private data class VideoSign(val path: String, val token: String, val signedUrl: String)
+    @kotlinx.serialization.Serializable
+    private data class VideoDone(val url: String)
+
+    // Add a single clip: read bytes → sign → PUT (raw, storage-js raw-body path)
+    // → complete → canonical URL. The export step iOS does isn't available here
+    // yet, so anything over the 50MB ceiling is refused rather than compressed.
+    fun addVideo(ctx: Context, uri: Uri) {
+        videoUploading = true
+        videoError = null
+        viewModelScope.launch {
+            try {
+                val app = ctx.applicationContext
+                val mime = app.contentResolver.getType(uri) ?: "video/mp4"
+                val bytes = withContext(Dispatchers.IO) {
+                    app.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                }
+                if (bytes == null) {
+                    videoError = L10n.tr("Couldn't read this video.", "Không đọc được video này."); return@launch
+                }
+                if (bytes.size > 50 * 1024 * 1024) {
+                    videoError = L10n.tr("Video is too large (50MB max) — try a shorter clip.", "Video quá lớn (tối đa 50MB) — thử clip ngắn hơn."); return@launch
+                }
+                val sign = Api.post<VideoSign>("api/upload/video/sign",
+                    JSONObject().put("type", mime).put("size", bytes.size).toString())
+                val ok = withContext(Dispatchers.IO) {
+                    val req = Request.Builder()
+                        .url(sign.signedUrl)
+                        .put(bytes.toRequestBody(mime.toMediaType()))
+                        .header("x-upsert", "false")
+                        .header("cache-control", "max-age=31536000")
+                        .build()
+                    Api.client.newCall(req).execute().use { it.isSuccessful }
+                }
+                if (!ok) { videoError = L10n.tr("Upload failed. Try again.", "Tải lên thất bại. Thử lại."); return@launch }
+                val done = Api.post<VideoDone>("api/upload/video/complete", JSONObject().put("path", sign.path).toString())
+                videoUrl = done.url
+            } catch (e: Exception) {
+                videoError = L10n.tr("Couldn't add the video. Try again.", "Không thêm được video. Thử lại.")
+            } finally {
+                videoUploading = false
+            }
+        }
+    }
+
+    fun removeVideo() { videoUrl = null; videoError = null }
+
     fun retryPhoto(id: Long) {
         // Replace the element, don't mutate its field in place (review #6): a
         // SnapshotStateList tracks element identity, not a data class's internal
@@ -178,6 +234,7 @@ class PostViewModel : ViewModel() {
                     put("contactPhone", contactPhone)
                     put("negotiable", negotiable)
                     put("images", JSONArray(uploadedUrls))
+                    videoUrl?.let { put("video", it) }
                     if (description.trim().isNotEmpty()) put("description", description.trim())
                     condition?.let { put("condition", it) }
                     province?.let {
@@ -202,6 +259,7 @@ class PostViewModel : ViewModel() {
 
     private fun reset() {
         photos.clear(); title = ""; description = ""; priceText = ""; negotiable = true; condition = null
+        videoUrl = null; videoError = null
     }
 
     private fun explain(code: Int): String = when (code) {

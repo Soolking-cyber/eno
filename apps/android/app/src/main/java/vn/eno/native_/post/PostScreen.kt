@@ -42,6 +42,9 @@ fun PostScreen() {
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(8),
     ) { uris -> uris.forEach { vm.addPhoto(ctx, it) } }
+    val videoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> uri?.let { vm.addVideo(ctx, it) } }
 
     vm.createdId?.let {
         SuccessCard { vm.createdId = null }
@@ -113,6 +116,30 @@ fun PostScreen() {
             color = if (vm.uploadedUrls.size >= 3) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(top = 6.dp),
         )
+        // Optional single clip (≤60s).
+        if (vm.videoUploading) {
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text(L10n.tr("Uploading video…", "Đang tải video…"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else if (vm.videoUrl != null) {
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(L10n.tr("✓ Video added", "✓ Đã thêm video"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.weight(1f))
+                Text(L10n.tr("Remove", "Xóa"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.error, modifier = Modifier.clickable { vm.removeVideo() })
+            }
+        } else {
+            Text(L10n.tr("+ Add video (optional)", "+ Thêm video (tùy chọn)"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 8.dp).clickable {
+                    videoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+                })
+        }
+        vm.videoError?.let {
+            Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
+        }
         // ✨ On-device AI auto-fill — appears once a photo is added.
         if (vm.photos.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
