@@ -75,4 +75,10 @@ assembleDebug-green; no device test yet.
    app crashes/ANRs (a "System UI isn't responding" popup was an emulator-host
    artifact under concurrent-build load, not the app). Screenshots captured.
    Owner device test still worthwhile but the app is proven functional.
-6. Remaining polish: Post facets, subcategory chips + price filter on category.
+6. Native GOOGLE sign-in (7b0e7a3d): parity with iOS — Custom Tab + native
+   PKCE, redirect_to the allow-listed https://eno.vn/auth/callback?native=2 →
+   the SAME server hop iOS uses 302s the code to enonative://auth-callback →
+   a singleTask intent-filter on MainActivity catches it → exchange at
+   /token?grant_type=pkce → Auth.adopt. "Continue with Google" on the Account
+   hero; phone/email second. No Supabase config change.
+7. Remaining polish: Post facets, subcategory chips + price filter on category.
