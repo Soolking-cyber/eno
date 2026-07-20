@@ -47,7 +47,7 @@ extension ListingDetail {
             currency: currency, negotiable: negotiable, prevPrice: prevPrice, urgent: urgent,
             location: location, district: district, city: city, images: images, video: video,
             goodPrice: false, verified: true, postedAt: postedAt, savedCount: savedCount,
-            contactCount: contactCount, brandSlug: nil, model: nil, category: category,
+            contactCount: contactCount, brandSlug: nil, model: nil, lat: nil, lng: nil, category: category,
             seller: ListingCard.CardSeller(trustScore: seller.trustScore, isBusiness: seller.isBusiness)
         )
     }

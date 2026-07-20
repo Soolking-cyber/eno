@@ -26,6 +26,10 @@ struct ListingCard: Codable, Identifiable, Hashable {
     let contactCount: Int
     let brandSlug: String?
     let model: String?
+    // Exact coordinates when the card projection carries them (map view #129);
+    // optional so older payloads / the storefront projection still decode.
+    let lat: Double?
+    let lng: Double?
     let category: CategoryRef
     let seller: CardSeller
 
@@ -46,6 +50,8 @@ struct ListingCard: Codable, Identifiable, Hashable {
 
 struct FeedPage: Codable {
     let listings: [ListingCard]
+    // Total matching the current filter — powers the "Found N listings" count row.
+    let total: Int?
     // Present on category queries: live inventory per subcategory slug.
     let subcategoryCounts: [String: Int]?
 }

@@ -8,6 +8,9 @@ import Observation
 @Observable
 final class FeedModel {
     var items: [ListingCard] = []
+    // Total matching the active filter (from the API) for the "Found N listings"
+    // count row above the explorer results (#128).
+    var totalCount: Int?
     var isLoading = false
     var isRefreshing = false
     var failed = false
@@ -93,6 +96,7 @@ final class FeedModel {
             let page = try await fetchPage(offset: 0)
             guard gen == reloadGen else { return }
             items = page.listings
+            totalCount = page.total
             offset = page.listings.count
             exhausted = page.listings.count < pageSize
             failed = false
@@ -134,11 +138,10 @@ final class FeedModel {
         }
     }
 
-    private func fetchPage(offset: Int) async throws -> FeedPage {
-        var q = [
-            URLQueryItem(name: "limit", value: String(pageSize)),
-            URLQueryItem(name: "offset", value: String(offset)),
-        ]
+    // Every active filter/sort param EXCEPT limit/offset — reused by fetchPage and
+    // (Step 2) the price-histogram probe + (Step 3 #129) the map fetch.
+    var filterItems: [URLQueryItem] {
+        var q: [URLQueryItem] = []
         if let category { q.append(URLQueryItem(name: "category", value: category)) }
         if let subcategory { q.append(URLQueryItem(name: "subcategory", value: subcategory)) }
         if let brand { q.append(URLQueryItem(name: "brand", value: brand)) }
@@ -148,6 +151,15 @@ final class FeedModel {
         if let priceMin { q.append(URLQueryItem(name: "priceMin", value: String(priceMin))) }
         if let priceMax { q.append(URLQueryItem(name: "priceMax", value: String(priceMax))) }
         if let condition { q.append(URLQueryItem(name: "condition", value: condition)) }
+        return q
+    }
+
+    private func fetchPage(offset: Int) async throws -> FeedPage {
+        var q = [
+            URLQueryItem(name: "limit", value: String(pageSize)),
+            URLQueryItem(name: "offset", value: String(offset)),
+        ]
+        q.append(contentsOf: filterItems)
         return try await APIClient.shared.get("api/listings", query: q)
     }
 }

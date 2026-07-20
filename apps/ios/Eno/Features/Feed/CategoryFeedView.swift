@@ -9,6 +9,9 @@ struct CategoryFeedView: View {
     @State private var model = FeedModel()
     @State private var showFilter = false
     @State private var subs: [CategoriesResponse.Sub] = []
+    @State private var viewMode: ViewMode = .grid
+    @State private var webRoute: WebRoute?
+    private struct WebRoute: Identifiable { let id = UUID(); let path: String }
 
     var body: some View {
         ScrollView {
@@ -19,19 +22,15 @@ struct CategoryFeedView: View {
                     .padding(.trailing, 12)
             }
             .padding(.top, 8)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                ForEach(model.items) { item in
-                    NavigationLink(value: item) {
-                        ListingCardView(listing: item)
-                    }
-                    .buttonStyle(.plain)
-                    .task { await model.loadMoreIfNeeded(current: item) }
-                }
-                if model.items.isEmpty && model.isRefreshing {
-                    ForEach(0..<6, id: \.self) { _ in SkeletonCard() }
-                }
+            // Count + view toggles (web explorer count row).
+            HStack {
+                Text(countLabel).font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                Spacer()
+                ViewToggles(mode: $viewMode)
             }
-            .padding(12)
+            .padding(.horizontal, 12)
+            .padding(.top, 2)
+            resultsView
             if !model.isRefreshing && model.items.isEmpty {
                 Text(L10n.tr("Nothing here yet", "Chưa có tin nào"))
                     .font(.system(size: 15))
@@ -44,10 +43,69 @@ struct CategoryFeedView: View {
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await model.reload() }
         .sheet(isPresented: $showFilter) { PriceFilterSheet(model: model) }
+        .sheet(item: $webRoute) { r in WebSheet(path: r.path) }
         .task {
             if model.category != category.slug { model.category = category.slug }
             subs = await Taxonomy.shared.subs(for: category.slug)
         }
+    }
+
+    private var countLabel: String {
+        let n = model.totalCount ?? model.items.count
+        return L10n.tr("\(n) listings", "\(n) tin đăng")
+    }
+
+    // Results per view mode. compact + grid are native; map (#129) + video (#130)
+    // are placeholders the owning sessions replace with native inline views.
+    @ViewBuilder
+    private var resultsView: some View {
+        switch viewMode {
+        case .grid:
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                ForEach(model.items) { item in
+                    NavigationLink(value: item) { ListingCardView(listing: item) }
+                        .buttonStyle(.plain)
+                        .task { await model.loadMoreIfNeeded(current: item) }
+                }
+                if model.items.isEmpty && model.isRefreshing {
+                    ForEach(0..<6, id: \.self) { _ in SkeletonCard() }
+                }
+            }
+            .padding(12)
+        case .compact:
+            LazyVStack(spacing: 0) {
+                ForEach(model.items) { item in
+                    CompactListingRowView(listing: item)
+                        .task { await model.loadMoreIfNeeded(current: item) }
+                    Divider().opacity(0.5)
+                }
+                if model.items.isEmpty && model.isRefreshing {
+                    ForEach(0..<8, id: \.self) { _ in CompactSkeletonRow() }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
+        case .map, .video:
+            modePlaceholder(viewMode)
+        }
+    }
+
+    private func modePlaceholder(_ m: ViewMode) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: m.icon).font(.system(size: 40)).foregroundStyle(Tokens.sub)
+            Text(L10n.tr(m.label.0, m.label.1)).font(.system(size: 16, weight: .semibold)).foregroundStyle(Tokens.fg)
+            Text(L10n.tr("Native view coming soon.", "Bản trong ứng dụng sắp có."))
+                .font(.system(size: 13)).foregroundStyle(Tokens.sub)
+            Button {
+                webRoute = WebRoute(path: "/?view=\(m.rawValue)&category=\(category.slug)")
+            } label: {
+                Text(L10n.tr("Open on web", "Mở trên web"))
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                    .padding(.horizontal, 20).padding(.vertical, 10)
+                    .background(Tokens.brand, in: Capsule())
+            }
+        }
+        .frame(maxWidth: .infinity).padding(.top, 60)
     }
 
     // "All · Motorbike (12) · Bicycle (4) · …" — counts from subcategoryCounts.
