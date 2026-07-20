@@ -35,6 +35,8 @@
 	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Take photos of your item to add them to your listing.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Fill your listing's area from your current location. Used once when you tap it; your location is not stored.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Record sound when you capture a video for your listing.</string>
 	<key>UILaunchScreen</key>

@@ -3,9 +3,10 @@
 <plist version="1.0">
 <dict>
 	<!-- eno native (SwiftUI app, vn.eno.app). Privacy manifest for App Store
-	     submission. Mirrors the Capacitor app's manifest but drops CoarseLocation
-	     (the native app has no CoreLocation). Only required-reason API: UserDefaults
-	     (favorites / recent searches / FX rate cache), app-only access = CA92.1. -->
+	     submission. Precise Location is used ONCE, on demand, by the post wizard's
+	     "Use my current location" (WhenInUse; resolved to a city/ward and NOT stored
+	     or linked). Only required-reason API: UserDefaults (favorites / recent
+	     searches / FX rate cache), app-only access = CA92.1. -->
 	<key>NSPrivacyTracking</key>
 	<false/>
 	<key>NSPrivacyTrackingDomains</key>
@@ -65,6 +66,18 @@
 			<string>NSPrivacyCollectedDataTypeUserID</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePreciseLocation</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>
 			<false/>
 			<key>NSPrivacyCollectedDataTypePurposes</key>

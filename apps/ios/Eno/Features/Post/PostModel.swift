@@ -3,6 +3,7 @@ import Observation
 import SwiftUI
 import PhotosUI
 import AVFoundation
+import CoreLocation
 
 // Post-a-listing state over the existing APIs: photos upload immediately on
 // selection (multipart /api/upload — server watermarks + fingerprints), then
@@ -60,6 +61,10 @@ final class PostModel {
     var createdId: String?
     var autofilling = false
     var autofillError: String?
+    // "Use my current location" (web parity: post-wizard useMyLocation).
+    var locating = false
+    var locationError: String?
+    @ObservationIgnored private let locator = LocationProvider()
 
     // Fallback condition labels when the taxonomy meta hasn't loaded (stale CDN):
     // same vocabulary as taxonomy.ts COND — never invent values beyond new|used.
@@ -233,10 +238,77 @@ final class PostModel {
         }
     }
 
+    // One-tap "Use my current location" (web parity: post-wizard useMyLocation):
+    // geolocate → reverse-geocode → resolve the province/ward NAMES to real /api/geo
+    // codes and fill the pickers. Any failure leaves the manual pickers untouched.
+    func useMyLocation() async {
+        guard !locating else { return }
+        locating = true
+        locationError = nil
+        defer { locating = false }
+        let coord: CLLocationCoordinate2D
+        do {
+            coord = try await locator.current()
+        } catch LocationProvider.LocationError.denied {
+            locationError = L10n.tr("Allow location access in Settings to use this.", "Cho phép truy cập vị trí trong Cài đặt để dùng.")
+            return
+        } catch {
+            locationError = L10n.tr("Could not get your location. Try again.", "Không lấy được vị trí. Thử lại nhé.")
+            return
+        }
+        // Provinces must be loaded to resolve the name → code (start() usually has them).
+        if provinces.isEmpty {
+            if let r: ProvincesResponse = try? await APIClient.shared.get("api/geo", query: [URLQueryItem(name: "type", value: "provinces")]) {
+                provinces = r.provinces
+            }
+        }
+        guard let geo: ReverseGeocode = try? await APIClient.shared.get("api/reverse-geocode", query: [
+            URLQueryItem(name: "lat", value: String(coord.latitude)),
+            URLQueryItem(name: "lng", value: String(coord.longitude)),
+            URLQueryItem(name: "lang", value: L10n.isVi ? "vi" : "en"),
+        ]), !geo.province.isEmpty, let p = Self.findUnit(provinces, geo.province) else {
+            locationError = L10n.tr("Couldn't match your area — pick it below.", "Không khớp khu vực — hãy chọn bên dưới.")
+            return
+        }
+        // Select the province, load its wards, then match the ward from the geocoder's
+        // candidate names (the precise top result often omits the official ward).
+        province = p
+        ward = nil
+        wards = []
+        if let r: WardsResponse = try? await APIClient.shared.get("api/geo", query: [
+            URLQueryItem(name: "type", value: "wards"),
+            URLQueryItem(name: "province", value: p.code),
+        ]) {
+            wards = r.wards
+            let candidates = geo.wardCandidates.isEmpty ? (geo.ward.isEmpty ? [] : [geo.ward]) : geo.wardCandidates
+            for cand in candidates {
+                if let w = Self.findUnit(wards, cand) { ward = w; break }
+            }
+        }
+    }
+
+    // Normalize a VN admin name for matching (mirrors area-filter norm): fold
+    // diacritics, đ→d, drop the administrative prefix, keep alphanumerics.
+    static func norm(_ s: String) -> String {
+        var t = s.folding(options: .diacriticInsensitive, locale: Locale(identifier: "en")).lowercased()
+        t = t.replacingOccurrences(of: "đ", with: "d")
+        t = t.replacingOccurrences(of: #"\b(tinh|thanh pho|tp|quan|huyen|phuong|xa|thi tran|thi xa)\b\.?"#, with: "", options: .regularExpression)
+        t = t.replacingOccurrences(of: #"[^a-z0-9]+"#, with: " ", options: .regularExpression)
+        return t.trimmingCharacters(in: .whitespaces)
+    }
+    // Resolve a geocoder name to one of our GeoUnits (exact-normalized first, then a
+    // containment match). Native GeoUnit carries only the VI name.
+    static func findUnit(_ list: [GeoUnit], _ raw: String) -> GeoUnit? {
+        let n = norm(raw)
+        guard !n.isEmpty else { return nil }
+        if let exact = list.first(where: { norm($0.name) == n }) { return exact }
+        return list.first(where: { let un = norm($0.name); return un.contains(n) || n.contains(un) })
+    }
+
     // ── photos ──
     func add(items: [PhotosPickerItem]) async {
         for item in items {
-            guard photos.count < 8 else { break }
+            guard photos.count < 6 else { break }
             guard let data = try? await item.loadTransferable(type: Data.self),
                   let ui = UIImage(data: data) else { continue }
             let normalized = Self.normalize(ui)
@@ -249,7 +321,7 @@ final class PostModel {
     // A freshly captured camera photo — same normalize + upload path as the
     // library picker.
     func addCameraImage(_ image: UIImage) async {
-        guard photos.count < 8 else { return }
+        guard photos.count < 6 else { return }
         let photo = Photo(image: Self.normalize(image))
         photos.append(photo)
         await upload(photo.id)
@@ -515,6 +587,22 @@ struct GeoUnit: Codable, Identifiable, Hashable {
     let code: String
     let name: String
     var id: String { code }
+}
+
+// GET /api/reverse-geocode?lat=&lng=&lang= → { address, district, province, ward,
+// wardCandidates } (Google/Nominatim display names, resolved to /api/geo codes).
+struct ReverseGeocode: Codable {
+    let province: String
+    let ward: String
+    let wardCandidates: [String]
+    // address/district also returned but unused by the wizard fill.
+    enum CodingKeys: String, CodingKey { case province, ward, wardCandidates }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        province = (try? c.decode(String.self, forKey: .province)) ?? ""
+        ward = (try? c.decode(String.self, forKey: .ward)) ?? ""
+        wardCandidates = (try? c.decode([String].self, forKey: .wardCandidates)) ?? []
+    }
 }
 
 struct ProvincesResponse: Codable {

@@ -351,7 +351,28 @@ struct PostView: View {
 
     // ── location ──
     private var locationSection: some View {
-        Section(L10n.tr("Location", "Khu vực")) {
+        Section {
+            // Web parity: a one-tap "Use my current location" that geolocates and
+            // fills Province + Ward, above the manual pickers.
+            Button {
+                Task { await model.useMyLocation() }
+            } label: {
+                HStack(spacing: 8) {
+                    if model.locating {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "location.fill")
+                    }
+                    Text(L10n.tr("Use my current location", "Dùng vị trí hiện tại"))
+                        .fontWeight(.semibold)
+                    Spacer()
+                }
+                .foregroundStyle(Tokens.brand)
+            }
+            .disabled(model.locating)
+            if let err = model.locationError {
+                Text(err).font(.system(size: 12)).foregroundStyle(Tokens.danger)
+            }
             Picker(L10n.tr("Province", "Tỉnh / Thành"), selection: Binding(
                 get: { model.province?.code ?? "" },
                 set: { code in if let p = model.provinces.first(where: { $0.code == code }) { model.pickProvince(p) } }
