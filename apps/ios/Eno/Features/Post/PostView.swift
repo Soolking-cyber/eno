@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import CoreTransferable
 import UniformTypeIdentifiers
+import UIKit
 
 // The Post tab, native: photos → category → details → price → location →
 // contact → submit. Uploads start the moment photos are picked; the submit
@@ -57,8 +58,29 @@ struct PostView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Tokens.canvas)
+            .scrollDismissesKeyboard(.interactively) // drag down to dismiss
+            .hideKeyboardOnTapAnywhere()              // tap outside a field to dismiss
             .navigationTitle(L10n.tr("Post a listing", "Đăng tin"))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Post is a tab root (nothing pushed it), so it has no automatic
+                // back button. Add an explicit leading control to leave the form
+                // back to browsing — parity with the arrow every pushed page has.
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { DeepLinkRouter.shared.selectedTab = 0 } label: {
+                        Image(systemName: "chevron.left")
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Tokens.brand)
+                    }
+                }
+                // Explicit dismiss above the keyboard (the numeric price/phone pads
+                // have no return key to hide it).
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button(L10n.tr("Done", "Xong")) { KeyboardDismissGesture.resign() }
+                        .foregroundStyle(Tokens.brand)
+                }
+            }
             .task { await model.start() }
             .onChange(of: model.createdId) {
                 if let id = model.createdId {
@@ -499,5 +521,58 @@ struct PostView: View {
         }
         .padding(24)
         .presentationDetents([.height(320)])
+    }
+}
+
+// Tap-anywhere-to-dismiss the keyboard, working even inside Form/List (whose row
+// backgrounds swallow SwiftUI's own tap gestures). A window-level tap recognizer
+// observes touches via its delegate: on a touch that ISN'T a text input or the
+// keyboard, it resigns first responder as a side effect and returns false, so the
+// touch is never captured — Form rows, Buttons and Pickers still act, and a tap on
+// a control both dismisses AND fires it. Pattern validated by Gemini 3.1 Pro +
+// GPT-5.6 (both also endorse .scrollDismissesKeyboard + the keyboard Done button).
+final class KeyboardDismissGesture: NSObject, UIGestureRecognizerDelegate {
+    static let shared = KeyboardDismissGesture()
+    private var installed = false
+
+    static func resign() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    func installOnce() {
+        guard !installed,
+              let window = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .flatMap({ $0.windows })
+                .first(where: { $0.isKeyWindow })
+        else { return }
+        let tap = UITapGestureRecognizer(target: nil, action: nil)
+        tap.delegate = self
+        tap.cancelsTouchesInView = false
+        window.addGestureRecognizer(tap)
+        installed = true
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        // Skip text inputs so focusing / switching fields isn't broken — walk UP
+        // from the hit view, which can be a subview of the field.
+        var v = touch.view
+        while let cur = v {
+            if cur is UITextField || cur is UITextView { return false }
+            v = cur.superview
+        }
+        // Skip the keyboard's own window.
+        if let w = touch.window, NSStringFromClass(type(of: w)).contains("UIRemoteKeyboardWindow") { return false }
+        KeyboardDismissGesture.resign()
+        return false // never capture the touch — controls still act
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith o: UIGestureRecognizer) -> Bool { true }
+}
+
+extension View {
+    /// Install the window-level tap-to-dismiss once, when this view appears.
+    func hideKeyboardOnTapAnywhere() -> some View {
+        onAppear { KeyboardDismissGesture.shared.installOnce() }
     }
 }
