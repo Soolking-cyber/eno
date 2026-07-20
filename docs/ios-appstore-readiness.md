@@ -91,6 +91,53 @@ path (Murat's lane)** — 8×2000px full-res UIImages on the main actor (>100MB)
 is a genuine problem worth the off-main downsample + bounded uploads. If feed scroll
 CPU ever becomes an issue, revisit the pipeline with **on-device** visual verification.
 
+## 🚀 PORTAL RUNBOOK (native code is READY — 2026-07-20)
+The native halves of #3 (router + entitlements) and #4 (push client) are committed
+and dormant (`3ead98ae`). Everything below is the owner's portal/env work; when it's
+done I do ONE finishing commit (flip bundle id, wire entitlements, `PushManager.enabled=true`,
+set `APPLE_BUNDLE_ID`).
+
+**Decide the bundle id first.** Recommended: **`vn.eno.ios`** (confirm or give another).
+Everything below uses `<BUNDLE>` = that id and team `S4VCY6N8QR`.
+
+### A. App ID + capabilities — easiest via Xcode (it auto-registers)
+1. Tell me the confirmed `<BUNDLE>`. I flip `PRODUCT_BUNDLE_IDENTIFIER` + wire
+   `CODE_SIGN_ENTITLEMENTS` and push. (Until then device builds stay on vn.eno.app.)
+2. Open `apps/ios/Eno.xcodeproj` in **Xcode**, sign in with your Apple ID, select the
+   Eno target → Signing & Capabilities → "Automatically manage signing", team =
+   your team. Because `Eno.entitlements` already declares them, Xcode **registers the
+   App ID and enables Associated Domains + Push Notifications + Sign in with Apple**
+   and makes the profile. (One-time; headless builds then work again.)
+
+### B. APNs Auth Key (Xcode can't make this) — https://developer.apple.com/account → Keys
+3. Keys → **+** → enable **Apple Push Notifications service (APNs)** → Continue →
+   Register → **download the `.p8`** (you can only download once) and note the **Key ID**.
+
+### C. Sign in with Apple service (for Supabase) — Certificates, IDs & Profiles
+4. Identifiers → **+** → **Services IDs** → register one (e.g. `vn.eno.signin`); enable
+   **Sign in with Apple**, configure it with your domain `eno.vn` + return URL
+   `https://<project>.supabase.co/auth/v1/callback`.
+5. Keys → **+** → enable **Sign in with Apple** → download that `.p8` + Key ID.
+6. In **Supabase → Auth → Providers → Apple**: enable it; Client ID = the Services ID,
+   Team ID = `S4VCY6N8QR`, Key ID + the Sign-in `.p8` from step 5.
+
+### D. Env + DB (I can help wire once you have the values)
+7. Prod env (Cloud Run secret): `APPLE_TEAM_ID=S4VCY6N8QR`, `APPLE_BUNDLE_ID=<BUNDLE>`,
+   `APNS_KEY_ID=<from step 3>`, `APNS_TEAM_ID=S4VCY6N8QR`, `APNS_KEY=<the p8 contents,
+   base64 — sh-safe per the GCP rule>`, `APNS_BUNDLE_ID=<BUNDLE>`, `APNS_PRODUCTION=true`.
+   → the AASA endpoint starts serving 200 and push can send.
+8. Create the `NativePushToken` table (it's in `prisma/schema.prisma` already) via the
+   schema-push flow (drop FK → `prisma db push` → re-add FK). (server lane — Murat/me.)
+
+### E. I finish (one commit)
+9. Flip `PRODUCT_BUNDLE_IDENTIFIER` → `<BUNDLE>`, wire `CODE_SIGN_ENTITLEMENTS`,
+   `PushManager.enabled = true`; rebuild + install. Deep links (share a listing / tap a
+   push) open the native PDP; push permission is requested after sign-in; tokens upload.
+
+**Verify:** `curl https://eno.vn/.well-known/apple-app-site-association` → 200 with
+`S4VCY6N8QR.<BUNDLE>`; tap a `https://eno.vn/listings/<id>` link → opens the app on the PDP;
+sign in → allow notifications → a test push (cron/admin) deep-links correctly.
+
 ## Sequence
 Wave 1 (GO, ship first): #1, #7, #13 → build → review → push.
 Wave 2: #8, #10, #6a+#6b(notif), #2m → build → push.
