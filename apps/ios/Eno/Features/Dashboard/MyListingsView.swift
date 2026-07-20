@@ -166,6 +166,24 @@ struct MyListingsView: View {
         .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
     }
 
+    // Row action chip visual (web dashboard-listing-row.tsx chips): bg-tint,
+    // rounded-lg, accent icon+label (destructive = red). Split from the Button so a
+    // ShareLink can reuse the same look.
+    private func chipLabel(_ text: String, _ icon: String, destructive: Bool = false) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 14))
+            Text(text).font(.system(size: 13, weight: .semibold))
+        }
+        .foregroundStyle(destructive ? Tokens.danger : Tokens.accent)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 8))
+    }
+    private func actionChip(_ text: String, _ icon: String, destructive: Bool = false, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) { chipLabel(text, icon, destructive: destructive) }
+            .buttonStyle(.plain)
+    }
+
     private func row(_ l: MyListing) -> some View {
         HStack(spacing: 12) {
             AsyncImage(url: l.images.first.flatMap { ImageURL.optimized($0, width: 96) }) { phase in
@@ -208,58 +226,26 @@ struct MyListingsView: View {
                     }
                 }
                 .foregroundStyle(Tokens.ink4)
+                // Inline action chips (web dashboard-listing-row.tsx:126-164): every
+                // action visible as a bg-tint chip, not hidden behind an ellipsis Menu.
+                FlowLayout(spacing: 6) {
+                    if l.status == "active" {
+                        actionChip(L10n.tr("Still available", "Còn hàng"), "arrow.up.circle") { Task { await model.confirm(l.id) } }
+                        actionChip(L10n.tr("Mark sold", "Đã bán"), "checkmark.seal") { Task { await model.setStatus(l.id, "sold") } }
+                        actionChip(L10n.tr("Lower price", "Giảm giá"), "tag") { discountTarget = l }
+                        actionChip(L10n.tr("Hide", "Ẩn tin"), "eye.slash") { Task { await model.setStatus(l.id, "hidden") } }
+                    } else {
+                        actionChip(L10n.tr("Reactivate", "Đăng lại"), "arrow.counterclockwise") { Task { await model.setStatus(l.id, "active") } }
+                    }
+                    actionChip(L10n.tr("Edit", "Sửa"), "square.and.pencil") { editPath = EditRoute(id: l.id) }
+                    if l.status == "active", l.verified, let url = URL(string: "https://eno.vn/listings/\(l.id)") {
+                        ShareLink(item: url) { chipLabel(L10n.tr("Share", "Chia sẻ"), "square.and.arrow.up") }
+                    }
+                    actionChip(L10n.tr("Delete", "Xóa"), "trash", destructive: true) { deleteTarget = l }
+                }
+                .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Menu {
-                if l.status == "active" {
-                    Button {
-                        Task { await model.confirm(l.id) }
-                    } label: {
-                        Label(L10n.tr("Still available (bump)", "Còn hàng (đẩy tin)"), systemImage: "arrow.up.circle")
-                    }
-                    Button {
-                        Task { await model.setStatus(l.id, "sold") }
-                    } label: {
-                        Label(L10n.tr("Mark sold", "Đã bán"), systemImage: "checkmark.seal")
-                    }
-                    Button {
-                        discountTarget = l
-                    } label: {
-                        Label(L10n.tr("Lower the price", "Giảm giá"), systemImage: "tag")
-                    }
-                    Button {
-                        Task { await model.setStatus(l.id, "hidden") }
-                    } label: {
-                        Label(L10n.tr("Hide", "Ẩn tin"), systemImage: "eye.slash")
-                    }
-                } else {
-                    Button {
-                        Task { await model.setStatus(l.id, "active") }
-                    } label: {
-                        Label(L10n.tr("Reactivate", "Đăng lại"), systemImage: "arrow.counterclockwise")
-                    }
-                }
-                Button {
-                    editPath = EditRoute(id: l.id)
-                } label: {
-                    Label(L10n.tr("View / edit", "Xem / sửa"), systemImage: "square.and.pencil")
-                }
-                if l.status == "active", l.verified, let url = URL(string: "https://eno.vn/listings/\(l.id)") {
-                    ShareLink(item: url) {
-                        Label(L10n.tr("Share", "Chia sẻ"), systemImage: "square.and.arrow.up")
-                    }
-                }
-                Button(role: .destructive) {
-                    deleteTarget = l
-                } label: {
-                    Label(L10n.tr("Delete", "Xóa"), systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Tokens.sub)
-                    .frame(width: 32, height: 32)
-            }
         }
         .padding(.vertical, 2)
     }
