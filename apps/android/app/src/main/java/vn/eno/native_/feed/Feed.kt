@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -264,16 +265,22 @@ fun FeedScreen(
     // (returning from a PDP changes it).
     LaunchedEffect(items.size) { vm.loadRecentlyViewed(feedCtx) }
 
-    Box(Modifier.fillMaxSize()) {
     // Sticky top bar: hides on feed scroll-down, reveals on scroll-up like the web
     // header. Its measured height becomes the grid's top inset so content sits
     // below it; when it slides away (offset) the inset stays, so nothing reflows.
-    var topBarH by remember { mutableStateOf(with(feedDensity) { 64.dp.roundToPx() }) }
+    // It may only hide once the feed is scrolled PAST the header height, else
+    // sliding it up would expose that still-in-place inset as an empty gap (review).
+    val gridState = rememberLazyGridState()
+    var topBarH by remember { mutableStateOf(with(feedDensity) { 60.dp.roundToPx() }) }
     val topBarHdp = with(feedDensity) { topBarH.toDp() }
-    val topBarDy by animateIntAsState(if (ChromeBars.hidden) -topBarH else 0, label = "topBarHide")
+    val topBarScrolledPast by remember(topBarH) {
+        derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > topBarH }
+    }
+    val topBarDy by animateIntAsState(if (ChromeBars.hidden && topBarScrolledPast) -topBarH else 0, label = "topBarHide")
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = { ChromeBars.reveal(); vm.refresh() }) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
+        state = gridState,
         modifier = Modifier.nestedScroll(ChromeBars.connection),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -340,11 +347,11 @@ fun FeedScreen(
             }
         }
     }
-    }
-    // Sticky header overlay — drawn above the grid; slides up out of view when the
-    // feed is scrolled down (ChromeBars.hidden) and back on scroll-up. Opaque
-    // background so content scrolls invisibly underneath; onSizeChanged feeds its
-    // true height back as the grid's top inset.
+    // Sticky header overlay — LAST child of PullToRefreshBox so its pull-refresh
+    // indicator still draws on top; slides up out of view once the feed is scrolled
+    // past the header (ChromeBars.hidden) and back on scroll-up. Opaque background
+    // hides content scrolling underneath; onSizeChanged feeds its true height back
+    // as the grid's top inset.
     FeedHeaderBar(
         onSearch = onSearch,
         onBell = onBell,
