@@ -9,11 +9,15 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -220,28 +224,29 @@ private fun EmptyState(recents: List<String>, trending: List<String>, onPick: (S
                 Text(L10n.tr("Clear", "Xóa"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.clickable(onClick = onClear))
             }
             Spacer(Modifier.height(8.dp))
-            TermFlow(recents, "🕘", onPick)
+            TermFlow(recents, Icons.Outlined.History, onPick)
             Spacer(Modifier.height(18.dp))
         }
         if (trending.isNotEmpty()) {
             Text(L10n.tr("Trending", "Xu hướng tìm kiếm"), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
             Spacer(Modifier.height(8.dp))
-            TermFlow(trending, "🔥", onPick)
+            TermFlow(trending, Icons.Outlined.Whatshot, onPick)
         }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TermFlow(terms: List<String>, icon: String, onPick: (String) -> Unit) {
+private fun TermFlow(terms: List<String>, icon: ImageVector, onPick: (String) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         terms.forEach { term ->
             Row(
                 Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)
                     .clickable { onPick(term) }.padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                Text("$icon ", fontSize = 12.sp)
+                Icon(icon, null, Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(term, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
             }
         }
