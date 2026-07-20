@@ -10,11 +10,22 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|uiMode"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Native Google OAuth callback (enonative:// — our scheme, distinct
+                 from the Capacitor app's enovn://). The server 302s the code here
+                 after Google auth in a Custom Tab. singleTask so the redirect
+                 re-enters the SAME task instead of a new activity. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="enonative" android:host="auth-callback" />
             </intent-filter>
         </activity>
     </application>

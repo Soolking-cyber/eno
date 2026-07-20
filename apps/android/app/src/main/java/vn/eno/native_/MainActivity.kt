@@ -32,6 +32,22 @@ class MainActivity : ComponentActivity() {
         vn.eno.native_.core.Auth.init(applicationContext)
         enableEdgeToEdge()
         setContent { EnoApp() }
+        handleAuthRedirect(intent)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleAuthRedirect(intent)
+    }
+
+    // The Google-OAuth Custom Tab redirects to enonative://auth-callback?code=…;
+    // hand the code to GoogleAuth to finish the native PKCE exchange.
+    private fun handleAuthRedirect(intent: android.content.Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme == "enonative" && data.host == "auth-callback") {
+            vn.eno.native_.core.GoogleAuth.handleRedirect(data)
+        }
     }
 }
 

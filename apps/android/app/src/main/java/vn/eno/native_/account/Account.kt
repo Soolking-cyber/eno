@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -83,6 +84,8 @@ fun AccountScreen(onMyListings: () -> Unit = {}) {
 
 @Composable
 private fun GuestHero(onSignIn: () -> Unit) {
+    val ctx = LocalContext.current
+    var googleBusy by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -99,12 +102,27 @@ private fun GuestHero(onSignIn: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(16.dp))
+        // Native Google (Custom Tab + PKCE — works where the WebView button can't).
+        OutlinedButton(
+            onClick = {
+                googleBusy = true
+                GoogleAuth.onResult = { googleBusy = false }
+                GoogleAuth.start(ctx)
+            },
+            enabled = !googleBusy,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+        ) {
+            if (googleBusy) CircularProgressIndicator(Modifier.size(20.dp))
+            else Text(L10n.tr("Continue with Google", "Tiếp tục với Google"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.height(10.dp))
         Button(
             onClick = onSignIn,
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth().height(50.dp),
         ) {
-            Text(L10n.tr("Sign in", "Đăng nhập"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(L10n.tr("Phone or email", "Số điện thoại hoặc email"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
