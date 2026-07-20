@@ -403,18 +403,23 @@ struct ListingDetailView: View {
         return spaced.split(separator: " ").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
     }
 
+    // Web social proof: shown ONLY when savedCount≥3 OR views≥20, and only
+    // saved + views (no 'contacted' count).
+    @ViewBuilder
     private func statsRow(_ d: ListingDetail) -> some View {
-        HStack(spacing: 14) {
-            stat(icon: "eye", value: d.views, label: L10n.tr("views", "lượt xem"))
-            stat(icon: "heart", value: max(0, d.savedCount + favs.delta(card.id)), label: L10n.tr("saved", "đã lưu"))
-            stat(icon: "message", value: d.contactCount, label: L10n.tr("contacted", "đã liên hệ"))
-            Spacer()
+        let saved = max(0, d.savedCount + favs.delta(card.id))
+        if saved >= 3 || d.views >= 20 {
+            HStack(spacing: 14) {
+                if d.views >= 20 { stat(icon: "eye", value: d.views, label: L10n.tr("views", "lượt xem")) }
+                if saved >= 3 { stat(icon: "heart", value: saved, label: L10n.tr("saved", "đã lưu")) }
+                Spacer()
+            }
         }
     }
 
     private func stat(icon: String, value: Int, label: String) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: icon).scaledFont(11)
+            Image(systemName: icon).scaledFont(14)
             Text("\(value) \(label)").scaledFont(12)
         }
         .foregroundStyle(Tokens.sub)
@@ -601,10 +606,13 @@ struct ListingDetailView: View {
                 if contactBusy {
                     ProgressView().tint(.white)
                 } else {
-                    Text(L10n.tr("Chat now", "Chat ngay"))
+                    HStack(spacing: 6) {
+                        Image(systemName: "message.fill").scaledFont(14)
+                        Text(L10n.tr("Chat now", "Chat ngay"))
+                    }
                 }
             }
-            .scaledFont(16, weight: .semibold)
+            .scaledFont(14, weight: .semibold)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: 50)
