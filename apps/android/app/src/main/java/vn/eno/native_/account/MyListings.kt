@@ -3,6 +3,9 @@ package vn.eno.native_.account
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -18,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -39,6 +43,9 @@ data class MyListing(
     val verified: Boolean = true,
     val views: Int = 0,
     val contactCount: Int = 0,
+    // Prefill fields for the native quick-edit (#131) — the dashboard carries them.
+    val description: String = "",
+    val negotiable: Boolean = true,
 ) {
     val displayTitle: String get() = if (L10n.isVi) (titleVi ?: title) else title
 }
@@ -60,6 +67,7 @@ fun MyListingsScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { load() }
 
     var editId by remember { mutableStateOf<String?>(null) }
+    var editTarget by remember { mutableStateOf<MyListing?>(null) }
     var deleteTarget by remember { mutableStateOf<MyListing?>(null) }
     var discountTarget by remember { mutableStateOf<MyListing?>(null) }
 
@@ -104,6 +112,22 @@ fun MyListingsScreen(onBack: () -> Unit) {
         }
     }
 
+    editTarget?.let { t ->
+        EditSheet(
+            t,
+            onDismiss = { editTarget = null },
+            onMoreOptions = { editTarget = null; editId = t.id },
+            onSave = { title, price, description, negotiable ->
+                val body = org.json.JSONObject()
+                    .put("title", title).put("description", description)
+                    .put("price", price).put("negotiable", negotiable)
+                    .toString()
+                act(t.id) { Api.send("PATCH", "api/listings/${t.id}", body) }
+                editTarget = null
+            },
+        )
+    }
+
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -133,7 +157,7 @@ fun MyListingsScreen(onBack: () -> Unit) {
                     onHide = { act(l.id) { Api.send("POST", "api/listings/${l.id}/status", """{"status":"hidden"}""") } },
                     onReactivate = { act(l.id) { Api.send("POST", "api/listings/${l.id}/status", """{"status":"active"}""") } },
                     onDiscount = { discountTarget = l },
-                    onEdit = { editId = l.id },
+                    onEdit = { editTarget = l },
                     onDelete = { deleteTarget = l },
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -209,6 +233,59 @@ private fun ListingRow(
                 DropdownMenuItem(text = { Text(L10n.tr("View / edit", "Xem / sửa")) }, onClick = { menu = false; onEdit() })
                 DropdownMenuItem(text = { Text(L10n.tr("Delete", "Xóa")) }, onClick = { menu = false; onDelete() })
             }
+        }
+    }
+}
+
+// Native quick-edit (#131) — replaces the web edit fallback for the fields
+// sellers change most: title / price / negotiable / description, saved via
+// PATCH. Photos + category stay on the web wizard behind "More options". The
+// PATCH body is JSON-encoded (JSONObject escapes the free text safely).
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditSheet(
+    l: MyListing,
+    onDismiss: () -> Unit,
+    onMoreOptions: () -> Unit,
+    onSave: (String, Long, String, Boolean) -> Unit,
+) {
+    var title by remember { mutableStateOf(l.title) }
+    var priceText by remember { mutableStateOf(l.price.toString()) }
+    var description by remember { mutableStateOf(l.description) }
+    var negotiable by remember { mutableStateOf(l.negotiable) }
+    val valid = title.trim().length >= 3
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Text(L10n.tr("Edit listing", "Sửa tin"), fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(value = title, onValueChange = { title = it },
+                label = { Text(L10n.tr("Title", "Tiêu đề")) }, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(value = priceText, onValueChange = { v -> priceText = v.filter { it.isDigit() } },
+                label = { Text(L10n.tr("Price (₫)", "Giá (₫)")) }, singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = negotiable, onCheckedChange = { negotiable = it })
+                Spacer(Modifier.width(8.dp))
+                Text(L10n.tr("Accept offers", "Cho phép trả giá"), color = MaterialTheme.colorScheme.onSurface)
+            }
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(value = description, onValueChange = { description = it },
+                label = { Text(L10n.tr("Description", "Mô tả")) }, minLines = 3, maxLines = 8, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(6.dp))
+            TextButton(onClick = onMoreOptions) {
+                Text(L10n.tr("More options (photos, category…)", "Thêm tùy chọn (ảnh, danh mục…)"))
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = { if (valid) onSave(title.trim(), priceText.toLongOrNull() ?: 0L, description.trim(), negotiable) },
+                enabled = valid, modifier = Modifier.fillMaxWidth(),
+            ) { Text(L10n.tr("Save changes", "Lưu thay đổi")) }
         }
     }
 }
