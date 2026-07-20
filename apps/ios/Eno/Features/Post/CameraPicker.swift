@@ -2,17 +2,27 @@ import SwiftUI
 import UIKit
 
 // Camera capture for the Post wizard — SwiftUI's PhotosPicker only reaches the
-// library, so "Take Photo" needs UIImagePickerController with the .camera source
-// (requires NSCameraUsageDescription in Info.plist). Returns the captured UIImage.
+// library, so "Take Photo"/"Take Video" need UIImagePickerController with the
+// .camera source (requires NSCameraUsageDescription, plus NSMicrophoneUsageDescription
+// for video). Returns either the captured UIImage or a temp movie file URL.
 struct CameraPicker: UIViewControllerRepresentable {
     @Binding var isPresented: Bool
-    var onCapture: (UIImage) -> Void
+    var video = false
+    var onImage: ((UIImage) -> Void)? = nil
+    var onVideo: ((URL) -> Void)? = nil
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
-        picker.mediaTypes = ["public.image"]
         picker.delegate = context.coordinator
+        if video {
+            picker.mediaTypes = ["public.movie"]
+            picker.cameraCaptureMode = .video
+            picker.videoMaximumDuration = 60
+            picker.videoQuality = .typeMedium
+        } else {
+            picker.mediaTypes = ["public.image"]
+        }
         return picker
     }
 
@@ -26,7 +36,11 @@ struct CameraPicker: UIViewControllerRepresentable {
 
         func imagePickerController(_ picker: UIImagePickerController,
                                    didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            if let image = info[.originalImage] as? UIImage { parent.onCapture(image) }
+            if parent.video, let url = info[.mediaURL] as? URL {
+                parent.onVideo?(url)
+            } else if let image = info[.originalImage] as? UIImage {
+                parent.onImage?(image)
+            }
             parent.isPresented = false
         }
 

@@ -44,7 +44,9 @@ export async function POST(req: NextRequest) {
       console.error('[POST /api/upload/video/sign]', error?.message)
       return NextResponse.json({ error: 'sign_failed' }, { status: 500 })
     }
-    return NextResponse.json({ path: data.path, token: data.token })
+    // signedUrl is the full direct-upload endpoint (the web SDK derives it from
+    // its Supabase config; native clients have no SDK, so hand it over). Additive.
+    return NextResponse.json({ path: data.path, token: data.token, signedUrl: data.signedUrl })
   } catch (e) {
     console.error('[POST /api/upload/video/sign]', e)
     return NextResponse.json({ error: 'sign_failed' }, { status: 500 })

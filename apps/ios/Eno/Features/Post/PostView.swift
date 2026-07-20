@@ -1,5 +1,7 @@
 import SwiftUI
 import PhotosUI
+import CoreTransferable
+import UniformTypeIdentifiers
 
 // The Post tab, native: photos → category → details → price → location →
 // contact → submit. Uploads start the moment photos are picked; the submit
@@ -7,10 +9,27 @@ import PhotosUI
 struct PostView: View {
     @State private var model = PostModel()
     @State private var picker: [PhotosPickerItem] = []
+    @State private var videoPick: PhotosPickerItem?
     @State private var addOptions = false
     @State private var showCamera = false
+    @State private var showVideoCamera = false
     @State private var showLibrary = false
+    @State private var showVideoLibrary = false
     @State private var successId: String?
+
+    // Copies a picked movie out of the Photos sandbox into a temp file we can read.
+    private struct MovieFile: Transferable {
+        let url: URL
+        static var transferRepresentation: some TransferRepresentation {
+            FileRepresentation(contentType: .movie) { SentTransferredFile($0.url) } importing: { received in
+                let copy = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString + "." + received.file.pathExtension)
+                try? FileManager.default.removeItem(at: copy)
+                try FileManager.default.copyItem(at: received.file, to: copy)
+                return MovieFile(url: copy)
+            }
+        }
+    }
 
     private struct Success: Identifiable {
         let id: String
@@ -70,6 +89,24 @@ struct PostView: View {
             Text(L10n.tr("At least 3 photos from different angles.", "Ít nhất 3 ảnh chụp các góc khác nhau."))
                 .font(.system(size: 12))
                 .foregroundStyle(model.uploadedUrls.count >= 3 ? Tokens.sub : Tokens.brand)
+            // Optional single clip status (≤60s).
+            if model.videoUploading {
+                HStack(spacing: 8) {
+                    ProgressView().tint(Tokens.brand)
+                    Text(L10n.tr("Uploading video…", "Đang tải video…")).font(.system(size: 13)).foregroundStyle(Tokens.sub)
+                }
+            } else if model.videoURL != nil {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Text(L10n.tr("Video added", "Đã thêm video")).font(.system(size: 13)).foregroundStyle(Tokens.fg)
+                    Spacer()
+                    Button(L10n.tr("Remove", "Xóa")) { model.removeVideo() }
+                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Tokens.danger)
+                }
+            }
+            if let vErr = model.videoError {
+                Text(vErr).font(.system(size: 12)).foregroundStyle(Tokens.danger)
+            }
             // ✨ AI auto-fill — appears once there's a photo; reads the item and
             // prefills category/condition/title (the seller reviews + adds the rest).
             if !model.photos.isEmpty {
@@ -96,22 +133,43 @@ struct PostView: View {
         } header: {
             Text(L10n.tr("Photos", "Hình ảnh"))
         }
-        .confirmationDialog(L10n.tr("Add photos", "Thêm ảnh"), isPresented: $addOptions, titleVisibility: .visible) {
+        .confirmationDialog(L10n.tr("Add media", "Thêm ảnh/video"), isPresented: $addOptions, titleVisibility: .visible) {
             Button(L10n.tr("Take Photo", "Chụp ảnh")) { showCamera = true }
             Button(L10n.tr("Photo Library", "Thư viện ảnh")) { showLibrary = true }
+            if model.videoURL == nil {
+                Button(L10n.tr("Record Video", "Quay video")) { showVideoCamera = true }
+                Button(L10n.tr("Choose Video", "Chọn video")) { showVideoLibrary = true }
+            }
             Button(L10n.tr("Cancel", "Hủy"), role: .cancel) {}
         }
         .photosPicker(isPresented: $showLibrary, selection: $picker,
                       maxSelectionCount: max(1, 8 - model.photos.count), matching: .images)
+        .photosPicker(isPresented: $showVideoLibrary, selection: $videoPick, matching: .videos)
         .onChange(of: picker) {
             let items = picker
             picker = []
             Task { await model.add(items: items) }
         }
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraPicker(isPresented: $showCamera) { image in
-                Task { await model.addCameraImage(image) }
+        .onChange(of: videoPick) {
+            guard let item = videoPick else { return }
+            videoPick = nil
+            Task {
+                if let movie = try? await item.loadTransferable(type: MovieFile.self) {
+                    await model.addVideo(from: movie.url)
+                    try? FileManager.default.removeItem(at: movie.url)
+                }
             }
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPicker(isPresented: $showCamera, onImage: { image in
+                Task { await model.addCameraImage(image) }
+            })
+            .ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $showVideoCamera) {
+            CameraPicker(isPresented: $showVideoCamera, video: true, onVideo: { url in
+                Task { await model.addVideo(from: url) }
+            })
             .ignoresSafeArea()
         }
     }

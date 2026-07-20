@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import SwiftUI
 import PhotosUI
+import AVFoundation
 
 // Post-a-listing state over the existing APIs: photos upload immediately on
 // selection (multipart /api/upload — server watermarks + fingerprints), then
@@ -28,6 +29,11 @@ final class PostModel {
     }
 
     var photos: [Photo] = []
+    // Optional single clip (≤60s). Uploaded on pick via sign→PUT→complete; the
+    // native export is already H.264 mp4 so the server's transcode step is skipped.
+    var videoURL: String?
+    var videoUploading = false
+    var videoError: String?
     var category: AppCategory?
     var catMeta: CategoriesResponse.Cat?
     var subcategory: CategoriesResponse.Sub?
@@ -255,6 +261,74 @@ final class PostModel {
         await upload(id)
     }
 
+    // ── video (single optional clip, ≤60s) ──
+    private struct VideoSign: Decodable { let path: String; let token: String; let signedUrl: String }
+    private struct VideoDone: Decodable { let url: String }
+
+    // Pick/capture → duration-gate → export to a compact H.264 mp4 → sign → PUT
+    // to the signed Supabase URL → complete (server verifies magic bytes, returns
+    // the canonical URL). The export both compresses (iPhone HEVC clips blow past
+    // the 50MB ceiling raw) and normalizes to mp4, so no server transcode is needed.
+    func addVideo(from sourceURL: URL) async {
+        videoUploading = true
+        videoError = nil
+        defer { videoUploading = false }
+        do {
+            let asset = AVURLAsset(url: sourceURL)
+            let seconds = try await CMTimeGetSeconds(asset.load(.duration))
+            guard seconds.isFinite else {
+                videoError = L10n.tr("Couldn't read this video — try another.", "Không đọc được video này — thử video khác."); return
+            }
+            guard seconds <= 61 else {
+                videoError = L10n.tr("Video must be 60 seconds or less.", "Video phải dài tối đa 60 giây."); return
+            }
+            let mp4 = try await Self.exportMP4(asset)
+            defer { try? FileManager.default.removeItem(at: mp4) }
+            let data = try Data(contentsOf: mp4)
+            guard data.count <= 50 * 1024 * 1024 else {
+                videoError = L10n.tr("Video is too large — try a shorter clip.", "Video quá lớn — thử clip ngắn hơn."); return
+            }
+            let sign: VideoSign = try await APIClient.shared.post("api/upload/video/sign", body: ["type": "video/mp4", "size": data.count])
+            var put = URLRequest(url: URL(string: sign.signedUrl)!)
+            put.httpMethod = "PUT"
+            put.setValue("video/mp4", forHTTPHeaderField: "Content-Type")
+            put.setValue("false", forHTTPHeaderField: "x-upsert")
+            put.setValue("max-age=31536000", forHTTPHeaderField: "cache-control")
+            let (_, resp) = try await URLSession.shared.upload(for: put, from: data)
+            guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                videoError = L10n.tr("Upload failed. Try again.", "Tải lên thất bại. Thử lại."); return
+            }
+            let done: VideoDone = try await APIClient.shared.post("api/upload/video/complete", body: ["path": sign.path])
+            videoURL = done.url
+        } catch {
+            videoError = L10n.tr("Couldn't add the video. Try again.", "Không thêm được video. Thử lại.")
+        }
+    }
+
+    func removeVideo() {
+        videoURL = nil
+        videoError = nil
+    }
+
+    // Compress + normalize to an mp4 that fits the 50MB ceiling and plays in the
+    // browser (H.264). 720p is plenty for a marketplace clip.
+    private static func exportMP4(_ asset: AVAsset) async throws -> URL {
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
+        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1280x720) else {
+            throw NSError(domain: "video", code: 1)
+        }
+        session.outputURL = out
+        session.outputFileType = .mp4
+        session.shouldOptimizeForNetworkUse = true
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            session.exportAsynchronously { cont.resume() }
+        }
+        guard session.status == .completed else {
+            throw session.error ?? NSError(domain: "video", code: 2)
+        }
+        return out
+    }
+
     func remove(_ id: UUID) {
         photos.removeAll { $0.id == id }
     }
@@ -307,6 +381,7 @@ final class PostModel {
             "urgent": urgent,
             "images": uploadedUrls,
         ]
+        if let videoURL { body["video"] = videoURL }
         let name = contactName.trimmingCharacters(in: .whitespaces)
         if !name.isEmpty { body["contactName"] = name }
         if let subcategory { body["subcategorySlug"] = subcategory.slug }
