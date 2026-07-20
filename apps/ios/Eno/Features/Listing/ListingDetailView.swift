@@ -702,8 +702,6 @@ struct MarketGauge: View {
             .scaledFont(11)
             .foregroundStyle(Tokens.sub)
         }
-        .padding(10)
-        .background(Tokens.tint.opacity(0.5), in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
     }
 }
 
