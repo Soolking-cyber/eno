@@ -1,7 +1,10 @@
 package vn.eno.native_.feed
 
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.foundation.background
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -261,78 +264,25 @@ fun FeedScreen(
     // (returning from a PDP changes it).
     LaunchedEffect(items.size) { vm.loadRecentlyViewed(feedCtx) }
 
+    Box(Modifier.fillMaxSize()) {
+    // Sticky top bar: hides on feed scroll-down, reveals on scroll-up like the web
+    // header. Its measured height becomes the grid's top inset so content sits
+    // below it; when it slides away (offset) the inset stays, so nothing reflows.
+    var topBarH by remember { mutableStateOf(with(feedDensity) { 64.dp.roundToPx() }) }
+    val topBarHdp = with(feedDensity) { topBarH.toDp() }
+    val topBarDy by animateIntAsState(if (ChromeBars.hidden) -topBarH else 0, label = "topBarHide")
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = { ChromeBars.reveal(); vm.refresh() }) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = Modifier.nestedScroll(ChromeBars.connection),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(12.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 12.dp, top = topBarHdp),
     ) {
         item(span = { GridItemSpan(2) }) {
             Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "eno",
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable(onClick = onSearch)
-                            .padding(horizontal = 14.dp),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        Text(
-                            L10n.tr("Find products…", "Tìm sản phẩm…"),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 15.sp,
-                        )
-                    }
-                    // AI concierge entry (✨ → /messages/ai), web header parity.
-                    Box(
-                        Modifier
-                            .padding(start = 10.dp)
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
-                            .clickable(onClick = onAiConcierge),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Outlined.AutoAwesome, contentDescription = L10n.tr("AI shopping", "Mua sắm AI"),
-                            Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-                    }
-                    // Notification bell with red dot while unread (web header parity).
-                    Box(
-                        Modifier
-                            .padding(start = 10.dp)
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable(onClick = onBell),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Outlined.Notifications, null,
-                            Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onBackground)
-                        if (vn.eno.native_.account.Notifs.unread > 0) {
-                            Box(
-                                Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(6.dp)
-                                    .size(9.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.error),
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
+                // Header (logo/search/AI/bell) is now the sticky hide-on-scroll
+                // overlay below — the grid's top inset leaves room for it.
                 // The quick-find cascading selector (category → subcat → brand →
                 // model) replaces the plain chip rail and filters the feed in place.
                 QuickFindBar(vm, onActiveChange = { filtered = it })
@@ -390,6 +340,86 @@ fun FeedScreen(
             }
         }
     }
+    }
+    // Sticky header overlay — drawn above the grid; slides up out of view when the
+    // feed is scrolled down (ChromeBars.hidden) and back on scroll-up. Opaque
+    // background so content scrolls invisibly underneath; onSizeChanged feeds its
+    // true height back as the grid's top inset.
+    FeedHeaderBar(
+        onSearch = onSearch,
+        onBell = onBell,
+        onAiConcierge = onAiConcierge,
+        modifier = Modifier
+            .fillMaxWidth()
+            .offset { IntOffset(0, topBarDy) }
+            .onSizeChanged { topBarH = it.height }
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 12.dp)
+            .padding(top = 12.dp, bottom = 8.dp),
+    )
+    }
+}
+
+// Feed header (logo + search entry + AI concierge + notification bell) — web
+// header parity. Rendered by FeedScreen as a sticky hide-on-scroll overlay; the
+// caller supplies the offset/background/padding via `modifier`.
+@Composable
+private fun FeedHeaderBar(
+    onSearch: () -> Unit,
+    onBell: () -> Unit,
+    onAiConcierge: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text("eno", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(12.dp))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(40.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable(onClick = onSearch)
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(L10n.tr("Find products…", "Tìm sản phẩm…"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
+        }
+        // AI concierge entry (✨ → /messages/ai), web header parity.
+        Box(
+            Modifier
+                .padding(start = 10.dp)
+                .size(40.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                .clickable(onClick = onAiConcierge),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Outlined.AutoAwesome, contentDescription = L10n.tr("AI shopping", "Mua sắm AI"),
+                Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+        }
+        // Notification bell with red dot while unread (web header parity).
+        Box(
+            Modifier
+                .padding(start = 10.dp)
+                .size(40.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable(onClick = onBell),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Outlined.Notifications, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onBackground)
+            if (vn.eno.native_.account.Notifs.unread > 0) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.error),
+                )
+            }
+        }
     }
 }
 
