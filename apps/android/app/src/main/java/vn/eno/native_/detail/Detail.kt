@@ -39,6 +39,7 @@ fun DetailScreen(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     LaunchedEffect(id) {
+        RecentStore.recordViewed(ctx, id)
         detail = runCatching { Api.get<ListingDetailEnvelope>("api/listings/$id").listing }.getOrNull()
     }
 

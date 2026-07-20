@@ -38,6 +38,8 @@ class FeedViewModel : ViewModel() {
     val items: StateFlow<List<ListingCard>> = _items
     private val _rails = MutableStateFlow<List<Pair<String, List<ListingCard>>>>(emptyList())
     val rails: StateFlow<List<Pair<String, List<ListingCard>>>> = _rails
+    private val _recentlyViewed = MutableStateFlow<List<ListingCard>>(emptyList())
+    val recentlyViewed: StateFlow<List<ListingCard>> = _recentlyViewed
     var category: String? = null
         set(value) {
             field = value
@@ -108,6 +110,18 @@ class FeedViewModel : ViewModel() {
     fun loadMoreIfNeeded(index: Int) {
         if (!exhausted && index >= _items.value.size - 6) load()
     }
+
+    // Recently-viewed rail: device-local ids → order-preserving ids= fast path.
+    fun loadRecentlyViewed(ctx: android.content.Context) {
+        val ids = RecentStore.viewedIds(ctx)
+        if (ids.isEmpty()) { _recentlyViewed.value = emptyList(); return }
+        viewModelScope.launch {
+            val page = runCatching { Api.get<FeedPage>("api/listings", mapOf("ids" to ids.joinToString(","))) }.getOrNull()
+                ?: return@launch
+            val byId = page.listings.associateBy { it.id }
+            _recentlyViewed.value = ids.mapNotNull { byId[it] }
+        }
+    }
 }
 
 private val SORTS = listOf(
@@ -129,6 +143,10 @@ fun FeedScreen(
     val rails by vm.rails.collectAsState()
     var selected by remember { mutableStateOf<String?>(null) }
     var sort by remember { mutableStateOf("newest") }
+    val feedCtx = androidx.compose.ui.platform.LocalContext.current
+    // Refresh the recently-viewed rail whenever the feed re-composes into view
+    // (returning from a PDP changes it).
+    LaunchedEffect(items.size) { vm.loadRecentlyViewed(feedCtx) }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -196,7 +214,9 @@ fun FeedScreen(
                 }
                 // Rails render only on the unfiltered landing (web parity).
                 if (selected == null) {
-                    rails.forEach { (title, cards) ->
+                    val recent by vm.recentlyViewed.collectAsState()
+                    (listOf(L10n.tr("Recently viewed", "Đã xem gần đây") to recent).filter { it.second.isNotEmpty() } + rails)
+                        .forEach { (title, cards) ->
                         Spacer(Modifier.height(16.dp))
                         Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
                         Spacer(Modifier.height(8.dp))
