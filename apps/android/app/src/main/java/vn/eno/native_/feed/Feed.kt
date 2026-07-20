@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Shield
@@ -70,6 +71,10 @@ class FeedViewModel : ViewModel() {
     val initialLoading: StateFlow<Boolean> = _initialLoading
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
+    // Offline/failed first load (#17): true only when a load errored AND we have
+    // nothing to show — drives the Try-again panel instead of a blank grid.
+    private val _failed = MutableStateFlow(false)
+    val failed: StateFlow<Boolean> = _failed
     var sort: String = "newest"
         set(value) {
             field = value
@@ -134,9 +139,13 @@ class FeedViewModel : ViewModel() {
                 val known = _items.value.map { it.id }.toSet()
                 _items.value = if (reset) page.listings
                 else _items.value + page.listings.filter { it.id !in known }
+                // Fresh bases arrived — drop these listings' save-deltas (#26).
+                if (reset) Favorites.clearDeltas(page.listings.map { it.id })
                 offset += page.listings.size
                 exhausted = page.listings.size < 24
+                _failed.value = false
             } catch (_: Exception) {
+                if (_items.value.isEmpty()) _failed.value = true
             } finally {
                 if (gen == loadGen) { loading = false; _initialLoading.value = false }
             }
@@ -164,10 +173,13 @@ class FeedViewModel : ViewModel() {
                 if (gen != loadGen) return@launch
                 if (page.subcategoryCounts.isNotEmpty()) _subcategoryCounts.value = page.subcategoryCounts
                 _items.value = page.listings
+                Favorites.clearDeltas(page.listings.map { it.id })
                 offset = page.listings.size
                 exhausted = page.listings.size < 24
+                _failed.value = false
                 loadRails()
             } catch (_: Exception) {
+                if (_items.value.isEmpty()) _failed.value = true
             } finally {
                 if (gen == loadGen) loading = false
                 _refreshing.value = false
@@ -212,6 +224,7 @@ fun FeedScreen(
     val rails by vm.rails.collectAsState()
     val refreshing by vm.refreshing.collectAsState()
     val initialLoading by vm.initialLoading.collectAsState()
+    val failed by vm.failed.collectAsState()
     var filtered by remember { mutableStateOf(false) }
     var sort by remember { mutableStateOf("newest") }
     val feedCtx = androidx.compose.ui.platform.LocalContext.current
@@ -318,6 +331,8 @@ fun FeedScreen(
         }
         if (items.isEmpty() && initialLoading) {
             items(6) { SkeletonCard() }
+        } else if (items.isEmpty() && failed) {
+            item(span = { GridItemSpan(2) }) { OfflineRetry { vm.load(reset = true) } }
         } else {
             items(items.size) { idx ->
                 val card = items[idx]
@@ -326,6 +341,31 @@ fun FeedScreen(
             }
         }
     }
+    }
+}
+
+// Offline / failed-load panel (#17): shown only when the first load errored and
+// there's nothing cached — a friendly message + a Try-again that re-pulls page 0.
+@Composable
+private fun OfflineRetry(onRetry: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(Icons.Outlined.CloudOff, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(12.dp))
+        Text(L10n.tr("Couldn't load listings", "Không tải được tin"),
+            fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.height(4.dp))
+        Text(L10n.tr("Check your connection and try again.", "Kiểm tra kết nối rồi thử lại."),
+            fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(16.dp))
+        Box(
+            Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.primary)
+                .clickable(onClick = onRetry).padding(horizontal = 20.dp, vertical = 10.dp),
+        ) {
+            Text(L10n.tr("Try again", "Thử lại"), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
@@ -487,7 +527,10 @@ fun ListingCardView(card: ListingCard, onClick: () -> Unit) {
                     .padding(6.dp)
                     .size(16.dp),
             )
-            if (card.savedCount >= 3) {
+            // Landmine (web/iOS parity): displayed saves = server base + session
+            // delta, floored — never derived from the favorited flag (#26).
+            val savedShown = (card.savedCount + Favorites.delta(card.id)).coerceAtLeast(0)
+            if (savedShown >= 3) {
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -501,7 +544,7 @@ fun ListingCardView(card: ListingCard, onClick: () -> Unit) {
                     Icon(Icons.Filled.Favorite, null, Modifier.size(10.dp),
                         tint = androidx.compose.ui.graphics.Color.White)
                     Text(
-                        "${card.savedCount}",
+                        "$savedShown",
                         color = androidx.compose.ui.graphics.Color.White,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,

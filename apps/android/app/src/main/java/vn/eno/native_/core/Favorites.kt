@@ -2,6 +2,7 @@ package vn.eno.native_.core
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -18,8 +19,22 @@ object Favorites {
     private const val KEY = "eno-favorites"
 
     val ids = mutableStateListOf<String>()
+    // Display landmine (web/iOS parity): a card's saved count = server base +
+    // session-local signed DELTA (floored at 0), NEVER "+1 because favorited".
+    // Snapshot-backed so a toggle recomposes every card showing that listing.
+    private val deltas = mutableStateMapOf<String, Int>()
     private var loaded = false
     private val syncScope = CoroutineScope(Dispatchers.IO)
+
+    fun delta(id: String): Int = deltas[id] ?: 0
+
+    // Fresh server bases arrived for THESE ids — their persisted counts already
+    // include prior saves, so keeping the deltas would double-count. Scoped
+    // (mirror of FavoritesStore.clearDeltas): deltas for ids still shown with an
+    // older base on another surface (PDP, Saved) must survive.
+    fun clearDeltas(ids: List<String>) {
+        ids.forEach { deltas.remove(it) }
+    }
 
     fun ensureLoaded(ctx: Context) {
         if (loaded) return
@@ -43,6 +58,7 @@ object Favorites {
     fun toggle(ctx: Context, id: String) {
         val added: Boolean
         if (id in ids) { ids.remove(id); added = false } else { ids.add(0, id); added = true }
+        deltas[id] = (deltas[id] ?: 0) + (if (added) 1 else -1)
         persist(ctx)
         syncScope.launch {
             runCatching {
