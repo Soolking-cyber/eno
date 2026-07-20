@@ -85,7 +85,7 @@ fun MyListingsScreen(onBack: () -> Unit) {
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { editId = null; scope.launch { load() } }.padding(14.dp),
             )
-            vn.eno.native_.ui.WebTab("/listings/$id")
+            vn.eno.native_.ui.WebTab("/listings/$id/edit")
         }
         return
     }

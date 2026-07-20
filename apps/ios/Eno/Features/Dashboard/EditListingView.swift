@@ -74,7 +74,7 @@ struct EditListingView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showWeb) { WebSheet(path: "/listings/\(listing.id)") }
+            .sheet(isPresented: $showWeb) { WebSheet(path: "/listings/\(listing.id)/edit") }
         }
     }
 

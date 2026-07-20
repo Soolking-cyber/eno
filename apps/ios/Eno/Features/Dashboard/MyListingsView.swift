@@ -121,7 +121,7 @@ struct MyListingsView: View {
             if let l = model.listings.first(where: { $0.id == r.id }) {
                 EditListingView(listing: l) { Task { await model.load() } }
             } else {
-                WebSheet(path: "/listings/\(r.id)")
+                WebSheet(path: "/listings/\(r.id)/edit")
             }
         }
         .sheet(item: $discountTarget) { l in
