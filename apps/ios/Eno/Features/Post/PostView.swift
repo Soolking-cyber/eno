@@ -385,7 +385,7 @@ struct PostView: View {
             if !model.wards.isEmpty {
                 Picker(L10n.tr("Ward", "Phường / Xã"), selection: Binding(
                     get: { model.ward?.code ?? "" },
-                    set: { code in model.ward = model.wards.first { $0.code == code } }
+                    set: { code in model.pickWard(code) }
                 )) {
                     Text(L10n.tr("All", "Tất cả")).tag("")
                     ForEach(model.wards) { w in

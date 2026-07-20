@@ -65,6 +65,11 @@ final class PostModel {
     var locating = false
     var locationError: String?
     @ObservationIgnored private let locator = LocationProvider()
+    // Bumped on every location action (manual pick OR geolocate). An in-flight
+    // geolocation checks it after each await and bails if a newer action superseded
+    // it — so a late reverse-geocode can't clobber a manual pick, or pair a province
+    // with another province's wards (codex review, 2026-07-20).
+    @ObservationIgnored private var geoGen = 0
 
     // Fallback condition labels when the taxonomy meta hasn't loaded (stale CDN):
     // same vocabulary as taxonomy.ts COND — never invent values beyond new|used.
@@ -225,6 +230,8 @@ final class PostModel {
     }
 
     func pickProvince(_ p: GeoUnit) {
+        geoGen &+= 1                 // a manual pick cancels any in-flight geolocation fill
+        let gen = geoGen
         province = p
         ward = nil
         wards = []
@@ -233,9 +240,17 @@ final class PostModel {
                 URLQueryItem(name: "type", value: "wards"),
                 URLQueryItem(name: "province", value: p.code),
             ]) {
+                guard geoGen == gen else { return }   // superseded by a newer action
                 wards = r.wards
             }
         }
+    }
+
+    // Manual ward pick — also invalidates any in-flight geolocation fill so a late
+    // reverse-geocode can't overwrite the user's explicit choice.
+    func pickWard(_ code: String) {
+        geoGen &+= 1
+        ward = wards.first { $0.code == code }
     }
 
     // One-tap "Use my current location" (web parity: post-wizard useMyLocation):
@@ -245,6 +260,8 @@ final class PostModel {
         guard !locating else { return }
         locating = true
         locationError = nil
+        geoGen &+= 1                 // claim the location state; a manual pick will supersede
+        let gen = geoGen
         defer { locating = false }
         let coord: CLLocationCoordinate2D
         do {
@@ -256,6 +273,8 @@ final class PostModel {
             locationError = L10n.tr("Could not get your location. Try again.", "Không lấy được vị trí. Thử lại nhé.")
             return
         }
+        // User manually changed the area while we were locating → abandon (don't clobber).
+        guard geoGen == gen else { return }
         // Provinces must be loaded to resolve the name → code (start() usually has them).
         if provinces.isEmpty {
             if let r: ProvincesResponse = try? await APIClient.shared.get("api/geo", query: [URLQueryItem(name: "type", value: "provinces")]) {
@@ -267,9 +286,12 @@ final class PostModel {
             URLQueryItem(name: "lng", value: String(coord.longitude)),
             URLQueryItem(name: "lang", value: L10n.isVi ? "vi" : "en"),
         ]), !geo.province.isEmpty, let p = Self.findUnit(provinces, geo.province) else {
+            guard geoGen == gen else { return }   // don't overwrite a manual pick's error state
             locationError = L10n.tr("Couldn't match your area — pick it below.", "Không khớp khu vực — hãy chọn bên dưới.")
             return
         }
+        // Bail if superseded before we commit the province (a manual pick raced in).
+        guard geoGen == gen else { return }
         // Select the province, load its wards, then match the ward from the geocoder's
         // candidate names (the precise top result often omits the official ward).
         province = p
@@ -279,6 +301,7 @@ final class PostModel {
             URLQueryItem(name: "type", value: "wards"),
             URLQueryItem(name: "province", value: p.code),
         ]) {
+            guard geoGen == gen else { return }   // a manual pick superseded us mid-wards-load
             wards = r.wards
             let candidates = geo.wardCandidates.isEmpty ? (geo.ward.isEmpty ? [] : [geo.ward]) : geo.wardCandidates
             for cand in candidates {
