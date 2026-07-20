@@ -122,7 +122,7 @@ struct ListingDetailView: View {
             ThreadView(convoId: route.id)
         }
         .sheet(isPresented: $signInSheet) { WebSheet(path: "/signin") }
-        .sheet(isPresented: $showTrust) { WebSheet(path: "/trust") }
+        .sheet(isPresented: $showTrust) { NavigationStack { TrustExplainerView() } }
         .task { await load() }
         .sheet(isPresented: $showWeb) {
             WebSheet(path: "/listings/\(card.id)")
