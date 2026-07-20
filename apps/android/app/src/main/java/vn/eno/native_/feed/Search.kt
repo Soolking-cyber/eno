@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import vn.eno.native_.core.*
 
@@ -48,51 +49,70 @@ fun SearchScreen(onOpen: (String) -> Unit) {
     val ctx = LocalContext.current
     var query by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
+    var categoryFilter by remember { mutableStateOf<String?>(null) }
     var results by remember { mutableStateOf<List<ListingCard>>(emptyList()) }
     var suggest by remember { mutableStateOf<SuggestResponse?>(null) }
     var searching by remember { mutableStateOf(false) }
+    var offset by remember { mutableStateOf(0) }
+    var exhausted by remember { mutableStateOf(false) }
+    var loadingMore by remember { mutableStateOf(false) }
     var recents by remember { mutableStateOf(RecentStore.searches(ctx)) }
     var trending by remember { mutableStateOf<List<String>>(emptyList()) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         trending = runCatching { Api.get<TrendingResponse>("api/search/trending").trending }.getOrDefault(emptyList())
     }
 
-    // Typeahead (debounced) — only when not showing submitted results.
     LaunchedEffect(query, submitted) {
         if (submitted) return@LaunchedEffect
         val q = query.trim()
         if (q.length < 2) { suggest = null; return@LaunchedEffect }
         delay(200)
-        // Must NOT swallow CancellationException (codex #18): a cancelled slow
-        // request would otherwise resume and clear the newer query's suggestions.
         suggest = try {
             Api.get<SuggestResponse>("api/search/suggest", mapOf("q" to q))
         } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
     }
 
-    fun submit(term: String) {
+    suspend fun fetchPage(off: Int): List<ListingCard> = try {
+        Api.get<FeedPage>("api/listings", buildMap {
+            put("q", query.trim()); put("limit", "24"); put("offset", off.toString())
+            categoryFilter?.let { put("category", it) }
+        }).listings
+    } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() }
+
+    fun submit(term: String, category: String? = null) {
         val q = term.trim()
         if (q.length < 2) return
-        query = q
-        RecentStore.recordSearch(ctx, q)
-        recents = RecentStore.searches(ctx)
+        query = q; categoryFilter = category
+        RecentStore.recordSearch(ctx, q); recents = RecentStore.searches(ctx)
         submitted = true
     }
 
-    LaunchedEffect(submitted, query) {
+    // Fresh results whenever the (query, category) submission changes.
+    LaunchedEffect(submitted, query, categoryFilter) {
         if (!submitted) return@LaunchedEffect
-        searching = true
-        results = try {
-            Api.get<FeedPage>("api/listings", mapOf("q" to query.trim(), "limit" to "24")).listings
-        } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() }
+        searching = true; offset = 0; exhausted = false
+        val page = fetchPage(0)
+        results = page; offset = page.size; exhausted = page.size < 24
         searching = false
+    }
+
+    fun loadMore() {
+        if (loadingMore || exhausted) return
+        loadingMore = true
+        scope.launch {
+            val page = fetchPage(offset)
+            val known = results.map { it.id }.toSet()
+            results = results + page.filter { it.id !in known }
+            offset += page.size; exhausted = page.size < 24; loadingMore = false
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = query,
-            onValueChange = { query = it; submitted = false },
+            onValueChange = { query = it; submitted = false; categoryFilter = null },
             placeholder = { Text(L10n.tr("Find products…", "Tìm sản phẩm…")) },
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
@@ -101,15 +121,17 @@ fun SearchScreen(onOpen: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(12.dp),
         )
         when {
-            submitted -> ResultsGrid(results, searching, query, onOpen)
-            query.trim().length >= 2 -> SuggestList(suggest, query, onOpen, onSubmit = { submit(query) })
+            submitted -> ResultsGrid(results, searching, query, onOpen, onLoadMore = { loadMore() })
+            query.trim().length >= 2 -> SuggestList(suggest, query, onOpen,
+                onCategory = { slug, label -> submit(query.ifBlank { label }.ifBlank { " " }, slug) },
+                onSubmit = { submit(query) })
             else -> EmptyState(recents, trending, onPick = { submit(it) }, onClear = { RecentStore.clearSearches(ctx); recents = emptyList() })
         }
     }
 }
 
 @Composable
-private fun ResultsGrid(results: List<ListingCard>, searching: Boolean, query: String, onOpen: (String) -> Unit) {
+private fun ResultsGrid(results: List<ListingCard>, searching: Boolean, query: String, onOpen: (String) -> Unit, onLoadMore: () -> Unit) {
     if (searching && results.isEmpty()) {
         Box(Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
     } else if (results.isEmpty()) {
@@ -124,14 +146,39 @@ private fun ResultsGrid(results: List<ListingCard>, searching: Boolean, query: S
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(12.dp),
         ) {
-            items(results.size) { idx -> ListingCardView(results[idx]) { onOpen(results[idx].id) } }
+            items(results.size) { idx ->
+                // Infinite scroll: load the next page as the tail approaches.
+                if (idx >= results.size - 6) LaunchedEffect(results.size) { onLoadMore() }
+                ListingCardView(results[idx]) { onOpen(results[idx].id) }
+            }
         }
     }
 }
 
 @Composable
-private fun SuggestList(suggest: SuggestResponse?, query: String, onOpen: (String) -> Unit, onSubmit: () -> Unit) {
+private fun SuggestList(
+    suggest: SuggestResponse?,
+    query: String,
+    onOpen: (String) -> Unit,
+    onCategory: (String, String) -> Unit,
+    onSubmit: () -> Unit,
+) {
     LazyColumn {
+        // Category matches (were parsed then dropped — P0 #2): tap scopes the
+        // search to that category.
+        suggest?.categories?.let { cats ->
+            items(cats) { c ->
+                val label = if (L10n.isVi) c.nameVi else c.name
+                Row(
+                    Modifier.fillMaxWidth().clickable { onCategory(c.slug, label) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(LucideIcons.forCategory(c.slug), null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(12.dp))
+                    Text(L10n.tr("in $label", "trong $label"), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground)
+                }
+            }
+        }
         suggest?.listings?.let { list ->
             items(list) { l ->
                 Row(

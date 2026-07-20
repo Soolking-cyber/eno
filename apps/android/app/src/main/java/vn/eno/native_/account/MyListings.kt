@@ -55,9 +55,41 @@ fun MyListingsScreen(onBack: () -> Unit) {
     }
     LaunchedEffect(Unit) { load() }
 
+    var editId by remember { mutableStateOf<String?>(null) }
+    var deleteTarget by remember { mutableStateOf<MyListing?>(null) }
+
     fun act(id: String, block: suspend () -> Unit) = scope.launch {
         block()
         load()
+    }
+
+    // Edit opens the listing's web page in a sheet (the full edit wizard).
+    editId?.let { id ->
+        Column(Modifier.fillMaxSize()) {
+            Text(
+                L10n.tr("‹ Back", "‹ Quay lại"),
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable { editId = null; scope.launch { load() } }.padding(14.dp),
+            )
+            vn.eno.native_.ui.WebTab("/listings/$id")
+        }
+        return
+    }
+
+    deleteTarget?.let { t ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text(L10n.tr("Delete this listing?", "Xóa tin này?")) },
+            text = { Text(L10n.tr("This can't be undone.", "Không thể hoàn tác.")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    act(t.id) { Api.send("DELETE", "api/listings/${t.id}") }
+                    deleteTarget = null
+                }) { Text(L10n.tr("Delete", "Xóa"), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(L10n.tr("Cancel", "Hủy")) } },
+        )
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -88,7 +120,8 @@ fun MyListingsScreen(onBack: () -> Unit) {
                     onSold = { act(l.id) { Api.send("POST", "api/listings/${l.id}/status", """{"status":"sold"}""") } },
                     onHide = { act(l.id) { Api.send("POST", "api/listings/${l.id}/status", """{"status":"hidden"}""") } },
                     onReactivate = { act(l.id) { Api.send("POST", "api/listings/${l.id}/status", """{"status":"active"}""") } },
-                    onDelete = { act(l.id) { Api.send("DELETE", "api/listings/${l.id}") } },
+                    onEdit = { editId = l.id },
+                    onDelete = { deleteTarget = l },
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             }
@@ -118,6 +151,7 @@ private fun ListingRow(
     onSold: () -> Unit,
     onHide: () -> Unit,
     onReactivate: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -148,6 +182,7 @@ private fun ListingRow(
                 } else {
                     DropdownMenuItem(text = { Text(L10n.tr("Reactivate", "Đăng lại")) }, onClick = { menu = false; onReactivate() })
                 }
+                DropdownMenuItem(text = { Text(L10n.tr("View / edit", "Xem / sửa")) }, onClick = { menu = false; onEdit() })
                 DropdownMenuItem(text = { Text(L10n.tr("Delete", "Xóa")) }, onClick = { menu = false; onDelete() })
             }
         }

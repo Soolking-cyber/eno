@@ -35,6 +35,7 @@ fun DetailScreen(
     openSignIn: () -> Unit = {},
 ) {
     var detail by remember { mutableStateOf<ListingDetail?>(null) }
+    var unavailable by remember { mutableStateOf(false) }
     var chatBusy by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -42,12 +43,28 @@ fun DetailScreen(
 
     LaunchedEffect(id) {
         RecentStore.recordViewed(ctx, id)
-        detail = runCatching { Api.get<ListingDetailEnvelope>("api/listings/$id").listing }.getOrNull()
+        try { detail = Api.get<ListingDetailEnvelope>("api/listings/$id").listing }
+        catch (e: Exception) { unavailable = true }   // 404 = sold/hidden/removed
     }
 
     val d = detail
     if (d == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (unavailable) {
+                // Graceful "no longer available" state — kills the infinite spinner (P0 #3).
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🚫", fontSize = 40.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Text(L10n.tr("This listing is no longer available", "Tin này không còn nữa"),
+                        fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    Spacer(Modifier.height(6.dp))
+                    Text(L10n.tr("It may have been sold or removed.", "Có thể đã bán hoặc bị gỡ."),
+                        fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                CircularProgressIndicator()
+            }
+        }
         return
     }
 

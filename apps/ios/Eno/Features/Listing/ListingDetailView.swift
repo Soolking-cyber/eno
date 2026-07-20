@@ -11,6 +11,7 @@ struct ListingDetailView: View {
     let card: ListingCard
     @State private var detail: ListingDetail?
     @State private var band: PriceBand?
+    @State private var unavailable = false
     @State private var more: [ListingCard] = []
     @State private var showWeb = false
     @State private var viewer: ViewerState?
@@ -54,6 +55,15 @@ struct ListingDetailView: View {
                             .lineSpacing(3)
                         Divider().overlay(Tokens.ring)
                         sellerCard(d.seller)
+                    } else if unavailable {
+                        VStack(spacing: 6) {
+                            Text("🚫").font(.system(size: 34))
+                            Text(L10n.tr("This listing is no longer available", "Tin này không còn nữa"))
+                                .font(.system(size: 16, weight: .bold)).foregroundStyle(Tokens.fg)
+                            Text(L10n.tr("It may have been sold or removed.", "Có thể đã bán hoặc bị gỡ."))
+                                .font(.system(size: 14)).foregroundStyle(Tokens.sub)
+                        }
+                        .frame(maxWidth: .infinity).padding(.vertical, 24)
                     } else {
                         ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24)
                     }
@@ -103,9 +113,16 @@ struct ListingDetailView: View {
 
     private func load() async {
         RecentStore.recordViewed(card.id)
-        if detail == nil, let env: ListingDetailEnvelope = try? await APIClient.shared.get("api/listings/\(card.id)") {
-            detail = env.listing
-            band = env.priceBand
+        if detail == nil {
+            do {
+                let env: ListingDetailEnvelope = try await APIClient.shared.get("api/listings/\(card.id)")
+                detail = env.listing
+                band = env.priceBand
+            } catch {
+                // 404 = sold/hidden/removed → show the "no longer available"
+                // note instead of a perpetual spinner (P0 #3).
+                if case APIError.http(let s) = error, s == 404 { unavailable = true }
+            }
         }
         if more.isEmpty, let page: FeedPage = try? await APIClient.shared.get("api/listings", query: [
             URLQueryItem(name: "category", value: card.category.slug),
