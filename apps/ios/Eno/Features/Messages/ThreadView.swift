@@ -52,22 +52,27 @@ final class ThreadModel {
     func send(text: String) async {
         let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty, body.count <= 2000 else { return }
-        await deliver(payload: ["body": body, "clientId": UUID().uuidString], localBody: body, offerAmount: nil)
+        await deliver(body: body, offerAmount: nil, clientId: UUID().uuidString)
     }
 
     func counter(amount: Int) async {
         guard amount > 0 else { return }
-        await deliver(payload: ["offerAmount": amount, "clientId": UUID().uuidString], localBody: "", offerAmount: amount)
+        await deliver(body: "", offerAmount: amount, clientId: UUID().uuidString)
     }
 
-    private func deliver(payload: [String: Any], localBody: String, offerAmount: Int?) async {
+    private func deliver(body localBody: String, offerAmount: Int?, clientId: String) async {
         let localId = "local-\(UUID().uuidString)"
+        // The clientId is the server's idempotency key AND is stored on the local
+        // bubble so retry() reuses it (never mints a new one — that would dodge
+        // the server ledger and duplicate the message/offer).
+        var payload: [String: Any] = ["clientId": clientId]
+        if let offerAmount { payload["offerAmount"] = offerAmount } else { payload["body"] = localBody }
         let local = ChatMsg(
             id: localId, mine: true, body: localBody,
             createdAt: ISO8601DateFormatter().string(from: Date()),
             kind: offerAmount != nil ? "offer" : "text",
             offerAmount: offerAmount, offerStatus: offerAmount != nil ? "pending" : nil,
-            pending: true, failed: nil
+            pending: true, failed: nil, clientId: clientId
         )
         thread?.messages.append(local)
         do {
@@ -82,7 +87,9 @@ final class ThreadModel {
     func retry(_ msg: ChatMsg) async {
         guard msg.failed == true else { return }
         thread?.messages.removeAll { $0.id == msg.id }
-        if let amt = msg.offerAmount { await counter(amount: amt) } else { await send(text: msg.body) }
+        // Reuse the ORIGINAL clientId so a retry of a send whose response was
+        // dropped is deduped by the server, not re-inserted as a duplicate.
+        await deliver(body: msg.body, offerAmount: msg.offerAmount, clientId: msg.clientId ?? UUID().uuidString)
     }
 
     func act(on msg: ChatMsg, action: String) async {

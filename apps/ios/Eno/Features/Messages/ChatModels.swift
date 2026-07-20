@@ -69,6 +69,10 @@ struct ChatMsg: Codable, Identifiable, Equatable {
     // Client-side send states (not from the server).
     var pending: Bool? = nil
     var failed: Bool? = nil
+    // The idempotency key sent with this message (review: retry MUST reuse it —
+    // a fresh clientId defeats the server's msgid NX ledger and duplicates the
+    // message/offer when the original response was dropped mid-network).
+    var clientId: String? = nil
 
     var isOffer: Bool { kind == "offer" }
 }
