@@ -63,6 +63,7 @@ struct SellerStorefrontView: View {
             .navigationTitle(data?.seller.name ?? L10n.tr("Storefront", "Gian hàng"))
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ListingCard.self) { ListingDetailView(card: $0) }
+            .refreshable { await load() }
         }
         .task { await load() }
     }
