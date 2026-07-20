@@ -140,7 +140,7 @@ struct PostView: View {
             Text(L10n.tr("Photos", "Hình ảnh"))
         }
         .photosPicker(isPresented: $showLibrary, selection: $picker,
-                      maxSelectionCount: max(1, 8 - model.photos.count), matching: .images)
+                      maxSelectionCount: max(1, 6 - model.photos.count), matching: .images)
         .photosPicker(isPresented: $showVideoLibrary, selection: $videoPick, matching: .videos)
         .onChange(of: picker) {
             let items = picker
