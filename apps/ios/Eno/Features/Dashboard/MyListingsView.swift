@@ -18,6 +18,10 @@ struct MyListing: Codable, Identifiable {
     let contactCount: Int
     let savedCount: Int
     let postedAt: String
+    // Prefill fields for the native quick-edit (#131) — the dashboard payload
+    // carries them; optional so an older payload still decodes.
+    let description: String?
+    let negotiable: Bool?
 
     var displayTitle: String { L10n.isVi ? (titleVi ?? title) : title }
 }
@@ -112,7 +116,13 @@ struct MyListingsView: View {
         .refreshable { await model.load() }
         .task { await model.load() }
         .sheet(item: $editPath) { r in
-            WebSheet(path: "/listings/\(r.id)")
+            // Native quick-edit (#131) — title/price/description/negotiable via
+            // PATCH; falls back to the web wizard if the row isn't in memory.
+            if let l = model.listings.first(where: { $0.id == r.id }) {
+                EditListingView(listing: l) { Task { await model.load() } }
+            } else {
+                WebSheet(path: "/listings/\(r.id)")
+            }
         }
         .sheet(item: $discountTarget) { l in
             DiscountSheet(currentPrice: l.price) { newPrice in
