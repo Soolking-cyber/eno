@@ -26,10 +26,19 @@ struct PriceFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var minText = ""
     @State private var maxText = ""
+    @State private var condition = ""
 
     var body: some View {
         NavigationStack {
             Form {
+                Section(L10n.tr("Condition", "Tình trạng")) {
+                    Picker(L10n.tr("Condition", "Tình trạng"), selection: $condition) {
+                        Text(L10n.tr("Any", "Tất cả")).tag("")
+                        Text(L10n.tr("New", "Mới")).tag("new")
+                        Text(L10n.tr("Used", "Đã dùng")).tag("used")
+                    }
+                    .pickerStyle(.segmented)
+                }
                 Section(L10n.tr("Price (VND)", "Giá (đ)")) {
                     TextField(L10n.tr("From", "Từ"), text: $minText)
                         .keyboardType(.numberPad)
@@ -40,6 +49,7 @@ struct PriceFilterSheet: View {
                     Button(L10n.tr("Apply", "Áp dụng")) {
                         model.priceMin = Int(minText.filter(\.isNumber))
                         model.priceMax = Int(maxText.filter(\.isNumber))
+                        model.condition = condition.isEmpty ? nil : condition
                         dismiss()
                     }
                     .font(.system(size: 16, weight: .semibold))
@@ -48,6 +58,7 @@ struct PriceFilterSheet: View {
                         Button(L10n.tr("Clear filter", "Xóa bộ lọc"), role: .destructive) {
                             model.priceMin = nil
                             model.priceMax = nil
+                            model.condition = nil
                             dismiss()
                         }
                     }
@@ -63,6 +74,7 @@ struct PriceFilterSheet: View {
             .onAppear {
                 minText = model.priceMin.map(String.init) ?? ""
                 maxText = model.priceMax.map(String.init) ?? ""
+                condition = model.condition ?? ""
             }
         }
         .presentationDetents([.height(320)])

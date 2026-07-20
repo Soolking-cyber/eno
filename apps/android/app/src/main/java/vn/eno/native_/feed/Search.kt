@@ -67,6 +67,7 @@ fun SearchScreen(onOpen: (String) -> Unit) {
     var sort by remember { mutableStateOf("newest") }
     var priceMin by remember { mutableStateOf<Long?>(null) }
     var priceMax by remember { mutableStateOf<Long?>(null) }
+    var condition by remember { mutableStateOf<String?>(null) }   // #28: null | "new" | "used"
     var showPriceSheet by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -91,6 +92,7 @@ fun SearchScreen(onOpen: (String) -> Unit) {
             if (sort != "newest") put("sort", sort)            // #15 sort tabs
             priceMin?.let { put("priceMin", it.toString()) }   // #16 price filter
             priceMax?.let { put("priceMax", it.toString()) }
+            condition?.let { put("condition", it) }            // #28 condition filter
         }).listings
     } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() }
 
@@ -102,8 +104,8 @@ fun SearchScreen(onOpen: (String) -> Unit) {
         submitted = true
     }
 
-    // Fresh results whenever the (query, category, sort, price) submission changes.
-    LaunchedEffect(submitted, query, categoryFilter, sort, priceMin, priceMax) {
+    // Fresh results whenever the (query, category, sort, price, condition) changes.
+    LaunchedEffect(submitted, query, categoryFilter, sort, priceMin, priceMax, condition) {
         if (!submitted) return@LaunchedEffect
         searching = true; offset = 0; exhausted = false
         val page = fetchPage(0)
@@ -141,6 +143,8 @@ fun SearchScreen(onOpen: (String) -> Unit) {
                     priceMin = priceMin, priceMax = priceMax,
                     onPrice = { showPriceSheet = true },
                     onClearPrice = { priceMin = null; priceMax = null },
+                    condition = condition,
+                    onCondition = { condition = if (condition == it) null else it },
                 )
                 ResultsGrid(results, searching, query, onOpen, onLoadMore = { loadMore() })
             }
@@ -176,12 +180,26 @@ private fun SearchFilterBar(
     priceMax: Long?,
     onPrice: () -> Unit,
     onClearPrice: () -> Unit,
+    condition: String?,
+    onCondition: (String) -> Unit,
 ) {
     val priceActive = priceMin != null || priceMax != null
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
     ) {
+        // Condition toggles (#28): New / Used — tap again to clear.
+        items(listOf("new" to (L10n.tr("New", "Mới")), "used" to (L10n.tr("Used", "Đã dùng")))) { (value, label) ->
+            val active = condition == value
+            Text(
+                label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.clip(CircleShape)
+                    .background(if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { onCondition(value) }
+                    .padding(horizontal = 13.dp, vertical = 7.dp),
+            )
+        }
         item {
             // Price chip first so the recurring filter is always reachable.
             val label = when {

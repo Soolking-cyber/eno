@@ -42,7 +42,11 @@ final class FeedModel {
     var priceMax: Int? {
         didSet { if oldValue != priceMax { Task { await reload() } } }
     }
-    var hasPriceFilter: Bool { priceMin != nil || priceMax != nil }
+    // Condition filter ("new" | "used"), mirroring the web's ?condition param.
+    var condition: String? {
+        didSet { if oldValue != condition { Task { await reload() } } }
+    }
+    var hasPriceFilter: Bool { priceMin != nil || priceMax != nil || condition != nil }
 
     private var offset = 0
     private var exhausted = false
@@ -128,6 +132,7 @@ final class FeedModel {
         if sort != "newest" { q.append(URLQueryItem(name: "sort", value: sort)) }
         if let priceMin { q.append(URLQueryItem(name: "priceMin", value: String(priceMin))) }
         if let priceMax { q.append(URLQueryItem(name: "priceMax", value: String(priceMax))) }
+        if let condition { q.append(URLQueryItem(name: "condition", value: condition)) }
         return try await APIClient.shared.get("api/listings", query: q)
     }
 }
