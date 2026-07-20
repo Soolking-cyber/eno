@@ -75,6 +75,33 @@ object Api {
             }
         }
 
+    // Listing-photo upload: multipart 'files' to /api/upload (server strips
+    // EXIF/GPS, downscales, watermarks, fingerprints). ≤3 files/request.
+    suspend fun uploadImages(jpegs: List<ByteArray>): List<String> = withContext(Dispatchers.IO) {
+        ensureFreshToken?.invoke()
+        val urls = mutableListOf<String>()
+        jpegs.chunked(3).forEach { chunk ->
+            val bodyBuilder = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
+            chunk.forEachIndexed { i, bytes ->
+                bodyBuilder.addFormDataPart(
+                    "files", "photo$i.jpg",
+                    bytes.toRequestBody("image/jpeg".toMediaType()),
+                )
+            }
+            val req = Request.Builder()
+                .url("https://eno.vn/api/upload")
+                .header("User-Agent", "EnoNativeApp/1 android-native")
+                .apply { accessToken?.let { header("Authorization", "Bearer $it") } }
+                .post(bodyBuilder.build())
+                .build()
+            client.newCall(req).execute().use { res ->
+                if (!res.isSuccessful) throw ApiHttpException(res.code)
+                urls += json.decodeFromString<UploadResponse>(res.body!!.string()).urls
+            }
+        }
+        urls
+    }
+
     suspend fun send(method: String, path: String, jsonBody: String? = null): Int =
         withContext(Dispatchers.IO) {
             ensureFreshToken?.invoke()
@@ -176,6 +203,49 @@ data class ListingDetailEnvelope(val listing: ListingDetail)
 // POST /api/conversations → find-or-create thread (id + whether it's new).
 @Serializable
 data class CreateConvoResponse(val id: String, val created: Boolean = false)
+
+@Serializable
+data class UploadResponse(val urls: List<String> = emptyList(), val failed: Int = 0)
+
+// /api/geo?type=provinces|wards (VN admin units; two-level).
+@Serializable
+data class GeoUnit(val code: String, val name: String, val nameEn: String = "")
+
+@Serializable
+data class ProvincesResponse(val provinces: List<GeoUnit> = emptyList())
+
+@Serializable
+data class WardsResponse(val wards: List<GeoUnit> = emptyList())
+
+// /api/categories — subcategories from the canonical TAXONOMY (optional fields
+// tolerate a stale-CDN payload, same as iOS).
+@Serializable
+data class ApiSubcategory(val slug: String, val name: String, val nameVi: String) {
+    val displayName: String get() = if (L10n.isVi) nameVi else name
+}
+
+@Serializable
+data class ApiCategory(
+    val slug: String,
+    val name: String,
+    val nameVi: String,
+    val subcategories: List<ApiSubcategory> = emptyList(),
+)
+
+@Serializable
+data class CategoriesResponse(val categories: List<ApiCategory> = emptyList())
+
+// One cached taxonomy fetch per app run (mirror of iOS Taxonomy).
+object Taxonomy {
+    private var cats: List<ApiCategory>? = null
+
+    suspend fun subs(slug: String): List<ApiSubcategory> {
+        if (cats == null) {
+            cats = runCatching { Api.get<CategoriesResponse>("api/categories").categories }.getOrNull()
+        }
+        return cats?.firstOrNull { it.slug == slug }?.subcategories ?: emptyList()
+    }
+}
 
 // Card badge rules (web card-badges.tsx, same as iOS): urgent > drop% > New(48h);
 // goodPrice yields to a live drop.
