@@ -106,6 +106,24 @@ final class PostModel {
         contactPhone.filter(\.isNumber).count >= 9 && !submitting && !videoUploading
     }
 
+    // The required-field checks broken out per FORM SECTION in visual (top-to-bottom)
+    // order, so the view can red-highlight each unmet one and scroll to the first on
+    // a failed Post tap (web post-wizard scrollToMissing parity). Kept in lockstep
+    // with canSubmit above.
+    enum FormField: Hashable { case photos, category, details, specifics, price, contact }
+    var missingFields: [FormField] {
+        var m: [FormField] = []
+        if uploadedUrls.count < 3 { m.append(.photos) }
+        if category == nil { m.append(.category) }
+        if title.trimmingCharacters(in: .whitespaces).count < 3 ||
+           descriptionText.trimmingCharacters(in: .whitespacesAndNewlines).count < 20 { m.append(.details) }
+        if (conditionFacet != nil && condition == nil) ||
+           !chipFacets.allSatisfy({ !(attributes[$0.key] ?? "").isEmpty }) { m.append(.specifics) }
+        if Int(priceText.filter(\.isNumber)) == nil { m.append(.price) }
+        if contactPhone.filter(\.isNumber).count < 9 { m.append(.contact) }
+        return m
+    }
+
     func start() async {
         if AuthModel.shared.isSignedIn, contactPhone.isEmpty || contactName.isEmpty,
            let me: MeResponse = try? await APIClient.shared.get("api/me"),

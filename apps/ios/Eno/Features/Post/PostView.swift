@@ -39,18 +39,21 @@ struct PostView: View {
         let id: String
     }
     @State private var success: Success?
+    // Set on a Post tap while the form is incomplete → turns on the red highlights.
+    @State private var attemptedSubmit = false
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             Form {
-                photosSection
-                categorySection
-                detailsSection
-                specificsSection
-                priceSection
+                photosSection.id(PostModel.FormField.photos).listRowBackground(rowBG(.photos))
+                categorySection.id(PostModel.FormField.category).listRowBackground(rowBG(.category))
+                detailsSection.id(PostModel.FormField.details).listRowBackground(rowBG(.details))
+                specificsSection.id(PostModel.FormField.specifics).listRowBackground(rowBG(.specifics))
+                priceSection.id(PostModel.FormField.price).listRowBackground(rowBG(.price))
                 locationSection
-                contactSection
-                submitSection
+                contactSection.id(PostModel.FormField.contact).listRowBackground(rowBG(.contact))
+                submitSection(proxy)
             }
             .scrollContentBackground(.hidden)
             .background(Tokens.canvas)
@@ -79,7 +82,14 @@ struct PostView: View {
                 )
                 .ignoresSafeArea()
             }
+            } // ScrollViewReader
         }
+    }
+
+    // Red-tint a required section's rows once the user tried to Post while it's
+    // still incomplete (web parity: missed fields become obvious). nil = default.
+    private func rowBG(_ f: PostModel.FormField) -> Color? {
+        (attemptedSubmit && model.missingFields.contains(f)) ? Color.red.opacity(0.12) : nil
     }
 
     // Bool binding the CameraPicker uses to dismiss itself → clears the route.
@@ -422,10 +432,19 @@ struct PostView: View {
     }
 
     // ── submit ──
-    private var submitSection: some View {
+    private func submitSection(_ proxy: ScrollViewProxy) -> some View {
         Section {
             Button {
-                Task { await model.submit() }
+                if model.canSubmit {
+                    Task { await model.submit() }
+                } else {
+                    // Web scrollToMissing parity: reveal the gaps (red highlights)
+                    // and jump to the first incomplete section.
+                    attemptedSubmit = true
+                    if let first = model.missingFields.first {
+                        withAnimation { proxy.scrollTo(first, anchor: .top) }
+                    }
+                }
             } label: {
                 Group {
                     if model.submitting {
@@ -440,7 +459,9 @@ struct PostView: View {
                 .frame(height: 48)
                 .background(model.canSubmit ? Tokens.brand : Tokens.sub, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
             }
-            .disabled(!model.canSubmit)
+            // Stays tappable when incomplete — the tap reveals what's missing and
+            // scrolls to it, instead of a dead disabled button (web parity).
+            .disabled(model.submitting)
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
             if let err = model.errorMessage {
