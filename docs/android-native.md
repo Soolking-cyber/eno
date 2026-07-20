@@ -65,5 +65,14 @@ assembleDebug-green; no device test yet.
    my-listings~~ (v9) · ~~recently-viewed / typeahead~~ (v10) — DONE.
 2. Post wizard facets (year/km/brand from /api/categories) — same follow-up iOS took.
 3. PDP gallery zoom, category subcategory chips + price filter (iOS has these).
-4. Android review findings (in flight) → fix pass.
-5. Device testing (no Android hardware known — emulator or owner's device TBD).
+4. Android review findings — Kyle-lane FIXED (both external families; codex
+   caught the null-body crash + backup corruption + favorites-delta regression
+   the first pass missed). Murat closing messages/ + account/ findings.
+5. ~~Device testing~~ **RUNTIME-VERIFIED 2026-07-20 on the `eno_pixel` emulator
+   (API 36, dark mode)**: feed + Outstanding-businesses/category rails + trust
+   shields (100/82) + saved chips + New badges + ≈USD render live; tap→PDP
+   works (gallery, price, description via /api/listings/[id], Chat CTA); zero
+   app crashes/ANRs (a "System UI isn't responding" popup was an emulator-host
+   artifact under concurrent-build load, not the app). Screenshots captured.
+   Owner device test still worthwhile but the app is proven functional.
+6. Remaining polish: Post facets, subcategory chips + price filter on category.
