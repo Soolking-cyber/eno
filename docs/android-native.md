@@ -43,15 +43,21 @@ green; not device-tested. FOLLOW-UPS: unread tab badge (needs EnoApp wiring),
 "Message seller" on the PDP → open the native thread (find-or-create POST
 /api/conversations, currently contact→browser in Detail.kt).
 
-## Backlog (mirror the iOS ladder)
+## Status (v7–v10, 2026-07-20 — Kyle) — ALL 5 TABS NATIVE + management surfaces
 
-1. ~~Auth~~ DONE (v5, Kyle): origin-scoped WebMessageListener bridge +
-   EncryptedSharedPreferences + sessionGen refresh guard + Bearer.
-2. ~~Native Messages~~ DONE (v6, Murat).
-3. Native Post wizard (upload multipart + facets from /api/categories)
-2. Native Messages (inbox/thread/offers) — port from iOS ThreadModel semantics
-   (clientId idempotency, poll backstop, offer state machine)
-3. Native Post wizard (upload multipart + facets from /api/categories)
-4. Notifications, My Listings management, subcategory chips, price filter
-5. Recently-viewed rail, typeahead suggest, gallery zoom
-6. Device testing (no Android hardware known — emulator or owner's device TBD)
+v7 unread tab badge (9+ cap) + PDP→native chat (find-or-create POST). v8
+native **Post wizard** (Photo Picker → multipart upload w/ retry, category/
+condition/price/negotiable/location via /api/geo/contact, ≥20-char + ≥3-photo
+gates, publish-error mapping) — **5/5 tabs native**. v9 notifications (feed bell
++ red-dot unread + list, deep links) + My Listings (stats + confirm/sold/hide/
+reactivate/delete). v10 recently-viewed rail + search v2 (recents/trending/
+ranked typeahead). Under dual-external review (Kyle, 2026-07-20).
+
+## Backlog
+
+1. ~~Auth~~ (v5) · ~~Messages~~ (v6) · ~~Post wizard~~ (v8) · ~~notifications /
+   my-listings~~ (v9) · ~~recently-viewed / typeahead~~ (v10) — DONE.
+2. Post wizard facets (year/km/brand from /api/categories) — same follow-up iOS took.
+3. PDP gallery zoom, category subcategory chips + price filter (iOS has these).
+4. Android review findings (in flight) → fix pass.
+5. Device testing (no Android hardware known — emulator or owner's device TBD).
