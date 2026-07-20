@@ -208,22 +208,47 @@ struct ListingDetailView: View {
     }
 
     private var priceBlock: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(Format.vnd(price))
-                .scaledFont(30, weight: .bold)   // web text-3xl
-                .foregroundStyle(Tokens.brand)
-            // Web shows NO ≈USD in the price block — only a struck previous price.
-            if let prev = detail?.prevPrice ?? card.prevPrice, prev > price {
-                Text(Format.vnd(prev))
-                    .scaledFont(16)
-                    .strikethrough()
-                    .foregroundStyle(Tokens.ink4)
+        let prev = detail?.prevPrice ?? card.prevPrice
+        let drop: Int? = {
+            guard let prev, prev > price, price > 0 else { return nil }
+            return Int((Double(prev - price) / Double(prev) * 100).rounded())
+        }()
+        let negotiable = detail?.negotiable ?? card.negotiable
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(Format.vnd(price))
+                    .scaledFont(30, weight: .bold)   // web text-3xl
+                    .foregroundStyle(Tokens.brand)
+                // Web shows NO ≈USD in the price block — only a struck previous price.
+                if let prev, prev > price {
+                    Text(Format.vnd(prev))
+                        .scaledFont(16)
+                        .strikethrough()
+                        .foregroundStyle(Tokens.ink4)
+                }
+                // Price-drop % badge — matches the card's red drop chip (page.tsx:407).
+                if let drop {
+                    Text("-\(drop)%")
+                        .scaledFont(11, weight: .bold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Tokens.danger, in: Capsule())
+                }
+                if (detail?.urgent ?? card.urgent) {
+                    // Web: a Zap lightning icon, not a text pill.
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(Tokens.danger)
+                }
             }
-            if (detail?.urgent ?? card.urgent) {
-                // Web: a Zap lightning icon, not a text pill.
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 26))
-                    .foregroundStyle(Tokens.danger)
+            // Fixed-price badge — web page.tsx:416: a Tag icon + 'Fixed price' when
+            // the listing is not negotiable (offers are the default, so this is rare).
+            if !negotiable {
+                HStack(spacing: 4) {
+                    Image(systemName: "tag").scaledFont(11)
+                    Text(L10n.tr("Fixed price", "Giá cố định")).scaledFont(11, weight: .semibold)
+                }
+                .foregroundStyle(Tokens.sub)
             }
         }
     }
@@ -678,29 +703,51 @@ struct MarketGauge: View {
         if Double(price) > band.p75 { return Tokens.sub }
         return Tokens.brand
     }
+    // Web position label (market-price.tsx): below p25 = a good deal, above p75 =
+    // higher than typical, otherwise typical.
+    private var positionLabel: (String, String) {
+        if Double(price) < band.p25 { return ("Good price", "Giá tốt") }
+        if Double(price) > band.p75 { return ("Above typical", "Cao hơn thường") }
+        return ("Typical price", "Giá phổ biến")
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Tokens.tint).frame(height: 6)
-                    Circle()
-                        .fill(accent)
-                        .frame(width: 12, height: 12)
-                        .offset(x: position * (geo.size.width - 12))
-                }
-            }
-            .frame(height: 12)
+        VStack(alignment: .leading, spacing: 6) {
+            // Header row: 'Market price' label LEFT + position verdict RIGHT.
             HStack {
+                Text(L10n.tr("Market price", "Giá thị trường"))
+                    .scaledFont(12, weight: .semibold)
+                    .foregroundStyle(Tokens.sub)
+                Spacer()
+                Text(L10n.tr(positionLabel.0, positionLabel.1))
+                    .scaledFont(11, weight: .semibold)
+                    .foregroundStyle(accent)
+            }
+            // p25 – p75 range: one 14px bold line ABOVE the track (dash in ink-4).
+            HStack(spacing: 4) {
                 Text(Format.vnd(Int(band.p25)))
-                Spacer()
-                Text(L10n.tr("Market median \(Format.vnd(Int(band.median)))", "Giá thị trường \(Format.vnd(Int(band.median)))"))
-                    .fontWeight(.semibold)
-                Spacer()
+                Text("–").fontWeight(.regular).foregroundStyle(Tokens.ink4)
                 Text(Format.vnd(Int(band.p75)))
             }
-            .scaledFont(11)
-            .foregroundStyle(Tokens.sub)
+            .scaledFont(14, weight: .bold)
+            .foregroundStyle(Tokens.fg)
+            // Track (8px) + bordered marker (14px, card-ring + soft shadow).
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Tokens.tint).frame(height: 8)
+                    Circle()
+                        .fill(accent)
+                        .frame(width: 14, height: 14)
+                        .overlay(Circle().strokeBorder(Tokens.card, lineWidth: 2))
+                        .shadow(color: .black.opacity(0.15), radius: 1.5, y: 1)
+                        .offset(x: position * (geo.size.width - 14))
+                }
+            }
+            .frame(height: 14)
+            // Sample-count caption (web shows no median; it shows the basis).
+            Text(L10n.tr("Based on \(band.n) similar listings", "Dựa trên \(band.n) tin tương tự"))
+                .scaledFont(11)
+                .foregroundStyle(Tokens.ink4)
         }
     }
 }
