@@ -129,7 +129,7 @@ struct ListingDetailView: View {
         }
         .sheet(isPresented: $sellerSheet) {
             if let sellerId = detail?.seller.id {
-                WebSheet(path: "/sellers/\(sellerId)")
+                SellerStorefrontView(sellerId: sellerId)
             }
         }
         .sheet(item: $reportTarget) { t in
