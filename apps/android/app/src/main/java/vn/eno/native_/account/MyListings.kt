@@ -61,6 +61,7 @@ fun MyListingsScreen(onBack: () -> Unit) {
 
     var editId by remember { mutableStateOf<String?>(null) }
     var deleteTarget by remember { mutableStateOf<MyListing?>(null) }
+    var discountTarget by remember { mutableStateOf<MyListing?>(null) }
 
     fun act(id: String, block: suspend () -> Unit) = scope.launch {
         block()
@@ -96,6 +97,13 @@ fun MyListingsScreen(onBack: () -> Unit) {
         )
     }
 
+    discountTarget?.let { t ->
+        DiscountSheet(t.price, onDismiss = { discountTarget = null }) { newPrice ->
+            act(t.id) { Api.send("PATCH", "api/listings/${t.id}", """{"price":$newPrice}""") }
+            discountTarget = null
+        }
+    }
+
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -124,6 +132,7 @@ fun MyListingsScreen(onBack: () -> Unit) {
                     onSold = { act(l.id) { Api.send("POST", "api/listings/${l.id}/status", """{"status":"sold"}""") } },
                     onHide = { act(l.id) { Api.send("POST", "api/listings/${l.id}/status", """{"status":"hidden"}""") } },
                     onReactivate = { act(l.id) { Api.send("POST", "api/listings/${l.id}/status", """{"status":"active"}""") } },
+                    onDiscount = { discountTarget = l },
                     onEdit = { editId = l.id },
                     onDelete = { deleteTarget = l },
                 )
@@ -155,6 +164,7 @@ private fun ListingRow(
     onSold: () -> Unit,
     onHide: () -> Unit,
     onReactivate: () -> Unit,
+    onDiscount: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -191,6 +201,7 @@ private fun ListingRow(
                 if (l.status == "active") {
                     DropdownMenuItem(text = { Text(L10n.tr("Still available (bump)", "Còn hàng (đẩy tin)")) }, onClick = { menu = false; onConfirm() })
                     DropdownMenuItem(text = { Text(L10n.tr("Mark sold", "Đã bán")) }, onClick = { menu = false; onSold() })
+                    DropdownMenuItem(text = { Text(L10n.tr("Lower the price", "Giảm giá")) }, onClick = { menu = false; onDiscount() })
                     DropdownMenuItem(text = { Text(L10n.tr("Hide", "Ẩn tin")) }, onClick = { menu = false; onHide() })
                 } else {
                     DropdownMenuItem(text = { Text(L10n.tr("Reactivate", "Đăng lại")) }, onClick = { menu = false; onReactivate() })
@@ -198,6 +209,65 @@ private fun ListingRow(
                 DropdownMenuItem(text = { Text(L10n.tr("View / edit", "Xem / sửa")) }, onClick = { menu = false; onEdit() })
                 DropdownMenuItem(text = { Text(L10n.tr("Delete", "Xóa")) }, onClick = { menu = false; onDelete() })
             }
+        }
+    }
+}
+
+// QuickDiscount picker (#33, web quick-discount.tsx parity): preset % cuts + a
+// slider; the new price is tidy-rounded (never 3.599.910 đ). Sends ONLY the new
+// price via PATCH { price } — the server owns the drop-badge decision against its
+// own 30-day reference; ≥20% is hinted as the badge floor.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DiscountSheet(currentPrice: Long, onDismiss: () -> Unit, onApply: (Long) -> Unit) {
+    var pct by remember { mutableStateOf(20f) }
+    fun tidy(raw: Long): Long {
+        val step = when { raw >= 1_000_000 -> 100_000L; raw >= 100_000 -> 10_000L; else -> 1_000L }
+        return maxOf(1000L, Math.round(raw.toDouble() / step) * step)
+    }
+    val newPrice = tidy((currentPrice * (1 - pct / 100)).toLong())
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            Text(L10n.tr("Lower the price", "Giảm giá"), fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(14.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                Column {
+                    Text(L10n.tr("Current price", "Giá hiện tại"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(Format.vnd(currentPrice), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("-${pct.toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                    Text(Format.vnd(newPrice), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(10, 20, 30).forEach { p ->
+                    val active = pct.toInt() == p
+                    Text(
+                        "-$p%", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.weight(1f).clip(CircleShape)
+                            .background(if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { pct = p.toFloat() }.padding(vertical = 9.dp),
+                    )
+                }
+            }
+            Slider(value = pct, onValueChange = { pct = it }, valueRange = 1f..90f, steps = 88)
+            if (pct >= 20) {
+                Text(L10n.tr("A cut of 20% or more usually earns the price-drop badge.",
+                             "Giảm từ 20% trở lên thường được gắn nhãn giảm giá."),
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = { onApply(newPrice) }, modifier = Modifier.fillMaxWidth()) {
+                Text(L10n.tr("Apply new price", "Áp dụng giá mới"))
+            }
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

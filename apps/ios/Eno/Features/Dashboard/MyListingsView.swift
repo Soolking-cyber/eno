@@ -61,6 +61,14 @@ final class MyListingsModel {
         await load()
     }
 
+    // QuickDiscount (#33): sends ONLY the new (lower) price through the same PATCH
+    // edit path — the server auto-earns the buyer-facing drop badge against its
+    // 30-day reference; no seller "was" price is ever entered.
+    func discount(_ id: String, to newPrice: Int) async {
+        _ = try? await APIClient.shared.send("PATCH", "api/listings/\(id)", body: ["price": newPrice])
+        await load()
+    }
+
     func delete(_ id: String) async {
         listings.removeAll { $0.id == id }
         _ = try? await APIClient.shared.send("DELETE", "api/listings/\(id)")
@@ -72,6 +80,7 @@ struct MyListingsView: View {
     @State private var model = MyListingsModel()
     @State private var editPath: EditRoute?
     @State private var deleteTarget: MyListing?
+    @State private var discountTarget: MyListing?
 
     struct EditRoute: Identifiable {
         let id: String
@@ -104,6 +113,13 @@ struct MyListingsView: View {
         .task { await model.load() }
         .sheet(item: $editPath) { r in
             WebSheet(path: "/listings/\(r.id)")
+        }
+        .sheet(item: $discountTarget) { l in
+            DiscountSheet(currentPrice: l.price) { newPrice in
+                Task { await model.discount(l.id, to: newPrice) }
+                discountTarget = nil
+            }
+            .presentationDetents([.height(340)])
         }
         .confirmationDialog(
             L10n.tr("Delete this listing?", "Xóa tin này?"),
@@ -172,6 +188,11 @@ struct MyListingsView: View {
                         Label(L10n.tr("Mark sold", "Đã bán"), systemImage: "checkmark.seal")
                     }
                     Button {
+                        discountTarget = l
+                    } label: {
+                        Label(L10n.tr("Lower the price", "Giảm giá"), systemImage: "tag")
+                    }
+                    Button {
                         Task { await model.setStatus(l.id, "hidden") }
                     } label: {
                         Label(L10n.tr("Hide", "Ẩn tin"), systemImage: "eye.slash")
@@ -219,5 +240,77 @@ struct MyListingsView: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(color.opacity(0.12), in: Capsule())
+    }
+}
+
+// QuickDiscount picker (#33, web quick-discount.tsx parity): preset % cuts +
+// a slider; the new price is tidy-rounded (never 3,599,910 đ). A ≥20% cut is
+// hinted as the drop-badge floor. Applies via PATCH { price } — the server owns
+// the badge decision against its own 30-day reference.
+struct DiscountSheet: View {
+    let currentPrice: Int
+    let onApply: (Int) -> Void
+    @State private var pct: Double = 20
+    @Environment(\.dismiss) private var dismiss
+
+    private static let presets = [10, 20, 30]
+
+    private func tidy(_ raw: Int) -> Int {
+        let step = raw >= 1_000_000 ? 100_000 : raw >= 100_000 ? 10_000 : 1_000
+        return max(1000, Int((Double(raw) / Double(step)).rounded()) * step)
+    }
+    private var newPrice: Int { tidy(Int(Double(currentPrice) * (1 - pct / 100))) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(L10n.tr("Lower the price", "Giảm giá"))
+                .font(.system(size: 18, weight: .bold)).foregroundStyle(Tokens.fg)
+
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.tr("Current price", "Giá hiện tại")).font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                    Text(Format.vnd(currentPrice)).font(.system(size: 15, weight: .semibold)).strikethrough().foregroundStyle(Tokens.sub)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("-\(Int(pct))%").font(.system(size: 12, weight: .bold)).foregroundStyle(Tokens.danger)
+                    Text(Format.vnd(newPrice)).font(.system(size: 20, weight: .bold)).foregroundStyle(Tokens.brand)
+                }
+            }
+
+            HStack(spacing: 8) {
+                ForEach(Self.presets, id: \.self) { p in
+                    Button { pct = Double(p) } label: {
+                        Text("-\(p)%")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Int(pct) == p ? .white : Tokens.fg)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .background(Int(pct) == p ? Tokens.brand : Tokens.tint, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Slider(value: $pct, in: 1...90, step: 1).tint(Tokens.brand)
+            if pct >= 20 {
+                Text(L10n.tr("A cut of 20% or more usually earns the price-drop badge.",
+                             "Giảm từ 20% trở lên thường được gắn nhãn giảm giá."))
+                    .font(.system(size: 12)).foregroundStyle(Tokens.sub)
+            }
+
+            Button {
+                onApply(newPrice)
+            } label: {
+                Text(L10n.tr("Apply new price", "Áp dụng giá mới"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(20)
+        .presentationDragIndicator(.visible)
     }
 }
