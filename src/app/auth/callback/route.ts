@@ -43,6 +43,23 @@ export async function GET(request: Request) {
     })
   }
 
+  // NATIVE-2: the pure-SwiftUI app (apps/ios, NOT Capacitor). It runs the OAuth
+  // in ASWebAuthenticationSession with its OWN PKCE verifier (no WebView cookie
+  // jar), so we must NOT exchange here — 302 the raw code to the app's own
+  // scheme (enonative://, distinct from Capacitor's enovn://) and let the app
+  // exchange it directly against Supabase's PKCE token endpoint. Same reason
+  // this isn't in the Supabase allow-list: Supabase only redirects to the
+  // allow-listed https://eno.vn/auth/callback; the scheme hop is ours.
+  if (url.searchParams.get('native') === '2') {
+    const q = new URLSearchParams()
+    if (code) q.set('code', code)
+    q.set('next', next)
+    return new NextResponse(null, {
+      status: 302,
+      headers: { Location: `enonative://auth-callback?${q.toString()}`, 'Cache-Control': 'private, no-store, max-age=0' },
+    })
+  }
+
   if (code) {
     const supabase = await createSupabaseServer()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)

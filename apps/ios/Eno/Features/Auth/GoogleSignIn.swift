@@ -1,0 +1,105 @@
+import AuthenticationServices
+import CryptoKit
+import UIKit
+
+// Native Google sign-in (owner: "ios google sign in doesnt work"). Google
+// REJECTS OAuth inside a raw WKWebView, which is why the web /signin sheet hides
+// the button in the native tabs — so we run it in ASWebAuthenticationSession
+// (a system Safari sheet Google DOES allow) with a full native PKCE exchange:
+//
+//   1. generate code_verifier + code_challenge, open Supabase's /authorize for
+//      Google with redirect_to = the ALREADY-ALLOW-LISTED https://eno.vn/auth/
+//      callback?native=2 (no Supabase config change needed),
+//   2. Google → Supabase → 302 to that callback, which (native=2 branch) 302s
+//      the raw code to enonative://auth-callback — OUR scheme, distinct from the
+//      Capacitor app's enovn://,
+//   3. ASWebAuthenticationSession intercepts enonative:// and hands us the code,
+//   4. exchange code + verifier at /token?grant_type=pkce → access+refresh,
+//      adopt() into the Keychain like any other session.
+@MainActor
+final class GoogleSignIn: NSObject, ASWebAuthenticationPresentationContextProviding {
+    static let shared = GoogleSignIn()
+
+    private let supabase = "https://xihiryllwmjoouipkyhw.supabase.co"
+    private let publishableKey = "sb_publishable_He0wwlDfz9YW35sjys3O5Q_qyJ5qwB1" // public by design
+    private let scheme = "enonative"
+    private var session: ASWebAuthenticationSession?
+
+    /// completion(true) on a successful adopt, (false) on cancel/error.
+    func start(completion: @escaping (Bool) -> Void) {
+        let verifier = Self.randomVerifier()
+        let challenge = Self.challenge(for: verifier)
+        var comps = URLComponents(string: "\(supabase)/auth/v1/authorize")!
+        comps.queryItems = [
+            URLQueryItem(name: "provider", value: "google"),
+            URLQueryItem(name: "redirect_to", value: "https://eno.vn/auth/callback?native=2"),
+            URLQueryItem(name: "code_challenge", value: challenge),
+            URLQueryItem(name: "code_challenge_method", value: "s256"),
+        ]
+        guard let authURL = comps.url else { completion(false); return }
+
+        let s = ASWebAuthenticationSession(url: authURL, callbackURLScheme: scheme) { [weak self] callbackURL, error in
+            guard let self else { return }
+            guard error == nil, let callbackURL,
+                  let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+                      .queryItems?.first(where: { $0.name == "code" })?.value else {
+                completion(false)
+                return
+            }
+            Task {
+                let ok = await self.exchange(code: code, verifier: verifier)
+                completion(ok)
+            }
+        }
+        s.presentationContextProvider = self
+        // Share Safari's session so an already-signed-in Google account is one tap
+        // (iOS shows a one-time "wants to sign in using eno.vn" consent).
+        s.prefersEphemeralWebBrowserSession = false
+        session = s
+        s.start()
+    }
+
+    private func exchange(code: String, verifier: String) async -> Bool {
+        guard let url = URL(string: "\(supabase)/auth/v1/token?grant_type=pkce") else { return false }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue(publishableKey, forHTTPHeaderField: "apikey")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["auth_code": code, "code_verifier": verifier])
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let access = obj["access_token"] as? String,
+              let refresh = obj["refresh_token"] as? String else {
+            return false
+        }
+        AuthModel.shared.adopt(accessToken: access, refreshToken: refresh)
+        return true
+    }
+
+    // MARK: PKCE
+    private static func randomVerifier() -> String {
+        var bytes = [UInt8](repeating: 0, count: 64)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return base64URL(Data(bytes))
+    }
+
+    private static func challenge(for verifier: String) -> String {
+        base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
+    }
+
+    private static func base64URL(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    // MARK: presentation
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+    }
+}

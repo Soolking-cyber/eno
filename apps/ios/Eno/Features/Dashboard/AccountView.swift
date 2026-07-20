@@ -9,6 +9,7 @@ struct AccountView: View {
     @State private var auth = AuthModel.shared
     @State private var me: MeResponse.User?
     @State private var signInSheet = false
+    @State private var googleBusy = false
 
     private struct WebPath: Identifiable {
         let id: String
@@ -66,10 +67,34 @@ struct AccountView: View {
                 .foregroundStyle(Tokens.sub)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+            // Native Google (ASWebAuthenticationSession — works where the web
+            // sheet's button can't, since Google blocks OAuth in a WKWebView).
+            Button {
+                googleBusy = true
+                GoogleSignIn.shared.start { ok in
+                    googleBusy = false
+                    if ok { Task { await loadMe() } }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if googleBusy { ProgressView().tint(Tokens.fg) }
+                    else { Image(systemName: "g.circle.fill").font(.system(size: 18)) }
+                    Text(L10n.tr("Continue with Google", "Tiếp tục với Google"))
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                .foregroundStyle(Tokens.fg)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                .overlay(RoundedRectangle(cornerRadius: Tokens.radiusControl).strokeBorder(Tokens.ring, lineWidth: 1))
+            }
+            .disabled(googleBusy)
+            .padding(.horizontal, 32)
+
             Button {
                 signInSheet = true
             } label: {
-                Text(L10n.tr("Sign in", "Đăng nhập"))
+                Text(L10n.tr("Phone or email", "Số điện thoại hoặc email"))
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
