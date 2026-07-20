@@ -317,7 +317,7 @@ struct ThreadView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Tokens.fg)
                 if t.listing.price > 0 {
-                    Text("\(Int((Double(amt) / Double(t.listing.price) * 100).rounded()))% \(L10n.tr("of asking", "của giá rao"))")
+                    Text("\(Int((Double(amt) / Double(t.listing.price) * 100).rounded()))% \(L10n.tr("of asking", "của giá rao")) · \(Format.vnd(t.listing.price))")
                         .font(.system(size: 12))
                         .foregroundStyle(Tokens.sub)
                 }

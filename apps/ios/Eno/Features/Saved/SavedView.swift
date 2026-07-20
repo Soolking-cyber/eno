@@ -8,13 +8,24 @@ struct SavedView: View {
     @State private var favs = FavoritesStore.shared
     @State private var listings: [ListingCard] = []
     @State private var loaded = false
+    @State private var failed = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 if favs.ids.isEmpty {
                     empty
+                } else if failed && listings.isEmpty {
+                    errorState
                 } else {
+                    if loaded {
+                        Text(savedCountLabel)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Tokens.sub)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 8)
+                    }
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                         ForEach(listings) { item in
                             NavigationLink(value: item) {
@@ -23,7 +34,7 @@ struct SavedView: View {
                             .buttonStyle(.plain)
                         }
                         if !loaded {
-                            ForEach(0..<min(max(favs.count, 2), 6), id: \.self) { _ in SkeletonCard() }
+                            ForEach(0..<min(max(favs.count, 2), 24), id: \.self) { _ in SkeletonCard() }
                         }
                     }
                     .padding(12)
@@ -43,12 +54,14 @@ struct SavedView: View {
 
     private func load() async {
         let requested = favs.ids
-        guard !requested.isEmpty else { listings = []; loaded = true; return }
+        guard !requested.isEmpty else { listings = []; loaded = true; failed = false; return }
+        failed = false
         guard let page: FeedPage = try? await APIClient.shared.get("api/listings", query: [
             URLQueryItem(name: "ids", value: requested.joined(separator: ",")),
-        ]) else { return }
+        ]) else { loaded = true; failed = true; return }
         listings = page.listings
         loaded = true
+        failed = false
         favs.prune(requested: requested, returned: Set(page.listings.map(\.id)))
     }
 
@@ -67,5 +80,31 @@ struct SavedView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 100)
+    }
+
+    private var errorState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 36))
+                .foregroundStyle(Tokens.sub)
+            Text(L10n.tr("Couldn't load listings.", "Không tải được tin đăng."))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Tokens.fg)
+            Button { Task { await load() } } label: {
+                Text(L10n.tr("Try again", "Thử lại"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Tokens.brand, in: Capsule())
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 100)
+    }
+
+    private var savedCountLabel: String {
+        let n = listings.count
+        return L10n.tr("\(n) saved \(n == 1 ? "listing" : "listings")", "\(n) tin đã lưu")
     }
 }

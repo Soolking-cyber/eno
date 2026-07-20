@@ -111,11 +111,16 @@ struct AccountView: View {
         List {
             Section {
                 HStack(spacing: 14) {
-                    Text(String((me?.displayName ?? "e").prefix(1)).uppercased())
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(.white)
+                    if let urlStr = me?.avatarUrl, let url = ImageURL.optimized(urlStr, width: 112) {
+                        AsyncImage(url: url) { phase in
+                            if case .success(let img) = phase { img.resizable().scaledToFill() }
+                            else { initialAvatar }
+                        }
                         .frame(width: 56, height: 56)
-                        .background(Color(hexString: me?.avatarColor) ?? Tokens.brand, in: Circle())
+                        .clipShape(Circle())
+                    } else {
+                        initialAvatar
+                    }
                     VStack(alignment: .leading, spacing: 3) {
                         Text(me?.displayName ?? "…")
                             .font(.system(size: 17, weight: .semibold))
@@ -170,6 +175,14 @@ struct AccountView: View {
         .scrollContentBackground(.hidden)
     }
 
+    private var initialAvatar: some View {
+        Text(String((me?.displayName ?? "e").prefix(1)).uppercased())
+            .font(.system(size: 22, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 56, height: 56)
+            .background(Color(hexString: me?.avatarColor) ?? Tokens.brand, in: Circle())
+    }
+
     private func link(_ title: String, icon: String, path: String) -> some View {
         Button {
             sheetPath = WebPath(id: path)
@@ -195,6 +208,7 @@ struct MeResponse: Codable {
         let email: String?
         let phone: String?
         let avatarColor: String?
+        let avatarUrl: String?
         let accountType: String?
         let businessName: String?
     }

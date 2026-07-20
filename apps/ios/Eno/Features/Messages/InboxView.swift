@@ -126,13 +126,26 @@ struct InboxView: View {
         .task { await model.load() }
     }
 
+    private func convoInitial(_ c: InboxConvo) -> some View {
+        Text(String(c.counterpart.name.prefix(1)).uppercased())
+            .font(.system(size: 17, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 44, height: 44)
+            .background(Color(hexString: c.counterpart.avatarColor) ?? Tokens.brand, in: Circle())
+    }
+
     private func row(_ c: InboxConvo) -> some View {
         HStack(spacing: 12) {
-            Text(String(c.counterpart.name.prefix(1)).uppercased())
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(.white)
+            if let urlStr = c.counterpart.avatarUrl, let url = ImageURL.optimized(urlStr, width: 88) {
+                AsyncImage(url: url) { phase in
+                    if case .success(let img) = phase { img.resizable().scaledToFill() }
+                    else { convoInitial(c) }
+                }
                 .frame(width: 44, height: 44)
-                .background(Color(hexString: c.counterpart.avatarColor) ?? Tokens.brand, in: Circle())
+                .clipShape(Circle())
+            } else {
+                convoInitial(c)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(c.counterpart.name)

@@ -219,6 +219,11 @@ struct MyListingsView: View {
                 } label: {
                     Label(L10n.tr("View / edit", "Xem / sửa"), systemImage: "square.and.pencil")
                 }
+                if l.status == "active", l.verified, let url = URL(string: "https://eno.vn/listings/\(l.id)") {
+                    ShareLink(item: url) {
+                        Label(L10n.tr("Share", "Chia sẻ"), systemImage: "square.and.arrow.up")
+                    }
+                }
                 Button(role: .destructive) {
                     deleteTarget = l
                 } label: {
