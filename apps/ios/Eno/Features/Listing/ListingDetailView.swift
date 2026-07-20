@@ -679,8 +679,12 @@ struct ListingDetailView: View {
     // default here; a fixed-price listing shows only the sticky "Chat now" bar.
     @ViewBuilder
     private var offerCard: some View {
-        let negotiable = detail?.negotiable ?? card.negotiable
-        if negotiable && price > 0 {
+        // Gate on the loaded DETAIL, never the cached card: a stale card.negotiable
+        // (seller later switched to fixed-price) would briefly expose "Send offer" and
+        // an offer on a fixed-price listing 409s AND docks the buyer's trust. So the
+        // composer only appears once the network confirms negotiable (dual-reviewer
+        // finding, 2026-07-20).
+        if detail?.negotiable == true && price > 0 {
             let offerPrice = Int((Double(price) * (1 - discount / 100)).rounded())
             VStack(alignment: .leading, spacing: 8) {
                 Text(L10n.tr("Your offer", "Giá đề nghị"))
@@ -737,6 +741,9 @@ struct ListingDetailView: View {
     // Send a structured first offer (kind='offer' card) — the same POST the web
     // composer resolves through. Guests get the sign-in sheet; refusals fall to web.
     private func startOffer(_ amount: Int) {
+        // Belt-and-suspenders: never send an offer unless the loaded detail says the
+        // listing is negotiable (the server 409s + docks trust otherwise).
+        guard detail?.negotiable == true else { return }
         guard AuthModel.shared.isSignedIn else { signInSheet = true; return }
         guard !offerBusy, !contactBusy else { return }
         offerBusy = true
