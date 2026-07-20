@@ -73,6 +73,24 @@ Native code for #3/#4/#5 can be written now and sits dormant until the portal ca
 - **#90** delete the private `WKContentView` runtime-subclass hack (App-Review surface, "app mirrors web" direction). **GO, low urgency.**
 - **#91 / #93** — recommend **DEFER** (owner just settled local-shell; refresh-timer is inherently approximate under Next's `router.refresh()`).
 
+## #9 feed image pipeline — ATTEMPTED, REVERTED (2026-07-20)
+Built an ImageIO downsampling pipeline (`RemoteImage` + decoded NSCache + request
+coalescing) and swapped the feed card. **Reverted**, for two reasons found while
+verifying:
+1. **The optimizer always serves AVIF** (`/_next/image` → `image/avif`, ~25KB;
+   Cloudflare-cached so `Accept` can't force webp/jpeg). **iOS simulators cannot
+   decode AVIF** — a known gap — so the feed is blank in the simulator with EITHER
+   AsyncImage or a custom pipeline. It renders on-device (device ImageIO decodes
+   AVIF). Net: a custom image path **can't be visually verified in the simulator**.
+2. The win is marginal here — the fetched AVIF is already ~640px/25KB, so decoded-
+   bitmap downsampling saves little; AsyncImage + URLCache already handles it fine
+   on-device.
+Shipping an unverifiable image path to the owner's daily-driver phone for a marginal
+gain isn't worth it. **AsyncImage kept.** The REAL #9 memory win is the **POST image
+path (Murat's lane)** — 8×2000px full-res UIImages on the main actor (>100MB), which
+is a genuine problem worth the off-main downsample + bounded uploads. If feed scroll
+CPU ever becomes an issue, revisit the pipeline with **on-device** visual verification.
+
 ## Sequence
 Wave 1 (GO, ship first): #1, #7, #13 → build → review → push.
 Wave 2: #8, #10, #6a+#6b(notif), #2m → build → push.
