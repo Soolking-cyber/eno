@@ -24,6 +24,7 @@ struct ListingDetailView: View {
     @State private var chatConvo: ChatRoute?
     @State private var contactBusy = false
     @State private var reportTarget: ReportTarget?
+    @State private var showProtections = false
 
     private struct ChatRoute: Identifiable, Hashable {
         let id: String
@@ -56,6 +57,8 @@ struct ListingDetailView: View {
                         .lineSpacing(2)
                     metaRow
                     conditionChips
+                    protectionsRow
+                    safetyStrip
                     if let d = detail {
                         statsRow(d)
                         Divider().overlay(Tokens.ring)
@@ -146,6 +149,7 @@ struct ListingDetailView: View {
             case .seller: ReportSheet(sellerId: detail?.seller.id)
             }
         }
+        .sheet(isPresented: $showProtections) { protectionsSheet }
         .fullScreenCover(item: $viewer) { state in
             GalleryViewer(images: images, page: state.id)
         }
@@ -226,6 +230,92 @@ struct ListingDetailView: View {
             Text(L10n.tr("Posted ", "Đăng ") + Format.ago(detail?.postedAt ?? card.postedAt)).scaledFont(14)
         }
         .foregroundStyle(Tokens.sub)
+    }
+
+    // Buyer-protections row (web protections-row.tsx) — tappable, opens the sheet.
+    private var protectionsRow: some View {
+        Button { showProtections = true } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.shield").font(.system(size: 18)).foregroundStyle(Tokens.brand)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(L10n.tr("ENO protects you", "ENO bảo vệ bạn")).scaledFont(13, weight: .bold).foregroundStyle(Tokens.fg)
+                    Text(L10n.tr("Disputes handled in 72h · listings screened", "Tranh chấp xử lý trong 72 giờ · tin đã kiểm duyệt"))
+                        .scaledFont(11).foregroundStyle(Tokens.sub).lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").scaledFont(12).foregroundStyle(Tokens.sub)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 11))
+            .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Tokens.ring, lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // Category-aware safety strip (web safety-strip.tsx) — amber warning line.
+    private var safetyStrip: some View {
+        let amber = Color(red: 0.57, green: 0.25, blue: 0.05)
+        let slug = detail?.category.slug ?? card.category.slug
+        let line: String = {
+            switch slug {
+            case "vehicles":
+                return L10n.tr("Check the papers match the chassis and engine number before paying — and never pay a deposit through a link.",
+                               "Kiểm tra giấy tờ trùng số khung, số máy trước khi trả tiền — và đừng bao giờ đặt cọc qua link.")
+            case "property", "rentals":
+                return L10n.tr("View the place in person and verify ownership before any deposit.",
+                               "Xem tận nơi và xác minh chủ sở hữu trước khi đặt cọc.")
+            default:
+                return L10n.tr("Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link.",
+                               "Gặp ở nơi công cộng và kiểm tra món hàng trước khi trả tiền. eno.vn không bao giờ yêu cầu đặt cọc qua link.")
+            }
+        }()
+        return HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.shield").font(.system(size: 16)).foregroundStyle(amber)
+            Text(line).scaledFont(12).foregroundStyle(Tokens.fg).lineSpacing(2)
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(amber.opacity(0.1), in: RoundedRectangle(cornerRadius: 11))
+    }
+
+    private var protectionsSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(protectionItems, id: \.0) { item in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: item.2).font(.system(size: 18)).foregroundStyle(Tokens.brand).frame(width: 28)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.0).scaledFont(15, weight: .semibold).foregroundStyle(Tokens.fg)
+                                Text(item.1).scaledFont(13).foregroundStyle(Tokens.sub)
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .navigationTitle(L10n.tr("How ENO protects you", "ENO bảo vệ bạn thế nào"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(L10n.tr("Done", "Xong")) { showProtections = false } } }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private var protectionItems: [(String, String, String)] {
+        [
+            (L10n.tr("Screened listings", "Tin đã kiểm duyệt"),
+             L10n.tr("Every listing passes automated checks before it goes live.", "Mọi tin đều qua kiểm tra tự động trước khi đăng."), "checkmark.seal"),
+            (L10n.tr("Evidence-based Trust score", "Điểm uy tín theo bằng chứng"),
+             L10n.tr("Sellers earn a score from a real track record, not badges.", "Người bán có điểm từ lịch sử thực tế, không phải huy hiệu."), "shield.lefthalf.filled"),
+            (L10n.tr("Dispute center", "Trung tâm tranh chấp"),
+             L10n.tr("Report a problem and we handle it within 72 hours.", "Báo cáo sự cố và chúng tôi xử lý trong 72 giờ."), "exclamationmark.bubble"),
+            (L10n.tr("Admin-reviewed reports", "Báo cáo có quản trị viên xét"),
+             L10n.tr("Confirmed reports lower a seller's trust; false ones are penalized.", "Báo cáo đúng làm giảm uy tín; báo cáo sai bị phạt."), "person.badge.shield.checkmark"),
+            (L10n.tr("Never pay via a link", "Không trả tiền qua link"),
+             L10n.tr("eno.vn never asks for a deposit through a link — meet in person.", "eno.vn không bao giờ yêu cầu đặt cọc qua link — hãy gặp trực tiếp."), "hand.raised"),
+        ]
     }
 
     // Condition / year / mileage facts as quiet chips (vehicles get year+km).
