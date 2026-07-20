@@ -1,6 +1,7 @@
 package vn.eno.native_.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
@@ -37,6 +38,7 @@ fun DetailScreen(
     var chatBusy by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var viewerPage by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(id) {
         RecentStore.recordViewed(ctx, id)
@@ -49,6 +51,7 @@ fun DetailScreen(
         return
     }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.weight(1f)) {
             item {
@@ -61,7 +64,8 @@ fun DetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(1f)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { viewerPage = page },
                     )
                 }
             }
@@ -144,5 +148,9 @@ fun DetailScreen(
         ) {
             Text(L10n.tr("Chat with seller", "Nhắn tin cho người bán"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
+    }
+    viewerPage?.let { p ->
+        GalleryOverlay(d.images, p) { viewerPage = null }
+    }
     }
 }
