@@ -114,6 +114,11 @@ struct SettingsView: View {
                 if let deleteMsg {
                     Text(deleteMsg).font(.system(size: 12)).foregroundStyle(Tokens.danger)
                 }
+            } header: {
+                Text(L10n.tr("Danger zone", "Vùng nguy hiểm"))
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Tokens.danger)
+                    .textCase(nil)
             } footer: {
                 Text(L10n.tr("Permanently deletes your account and listings.", "Xóa vĩnh viễn tài khoản và tin đăng của bạn."))
             }

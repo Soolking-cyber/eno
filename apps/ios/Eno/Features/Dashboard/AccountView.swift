@@ -127,7 +127,7 @@ struct AccountView: View {
                             .foregroundStyle(Tokens.fg)
                         Text(me?.phone ?? me?.email ?? "")
                             .font(.system(size: 13))
-                            .foregroundStyle(Tokens.sub)
+                            .foregroundStyle(Tokens.ink4)
                         if me?.accountType == "business" {
                             Text(me?.businessName ?? L10n.tr("Business", "Doanh nghiệp"))
                                 .font(.system(size: 12, weight: .semibold))

@@ -144,22 +144,26 @@ struct MyListingsView: View {
     }
 
     private func statsStrip(_ s: DashboardResponse.Stats) -> some View {
-        HStack(spacing: 8) {
-            statCard("\(s.totalViews)", L10n.tr("Views", "Lượt xem"))
-            statCard("\(s.totalLeads)", L10n.tr("Leads", "Liên hệ"))
-            statCard("\(s.activeCount)", L10n.tr("Active", "Đang đăng"))
-            statCard("\(s.soldCount)", L10n.tr("Sold", "Đã bán"))
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                statCard("\(s.totalViews)", L10n.tr("Views", "Lượt xem"))
+                statCard("\(s.totalLeads)", L10n.tr("Leads", "Liên hệ"))
+            }
+            HStack(spacing: 8) {
+                statCard("\(s.activeCount)", L10n.tr("Active", "Đang đăng"))
+                statCard("\(s.soldCount)", L10n.tr("Sold", "Đã bán"))
+            }
         }
     }
 
     private func statCard(_ value: String, _ label: String) -> some View {
         VStack(spacing: 2) {
-            Text(value).font(.system(size: 17, weight: .bold)).foregroundStyle(Tokens.fg)
-            Text(label).font(.system(size: 11)).foregroundStyle(Tokens.sub)
+            Text(value).font(.system(size: 18, weight: .bold)).foregroundStyle(Tokens.fg)
+            Text(label).font(.system(size: 12)).foregroundStyle(Tokens.sub)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
+        .padding(.vertical, 12)
+        .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
     }
 
     private func row(_ l: MyListing) -> some View {
@@ -167,24 +171,45 @@ struct MyListingsView: View {
             AsyncImage(url: l.images.first.flatMap { ImageURL.optimized($0, width: 96) }) { phase in
                 if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
             }
-            .frame(width: 56, height: 56)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(width: 80, height: 80)
+            .clipShape(RoundedRectangle(cornerRadius: Tokens.radiusControl))
             VStack(alignment: .leading, spacing: 3) {
-                Text(l.displayTitle)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Tokens.fg)
-                    .lineLimit(1)
-                Text(Format.vnd(l.price))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Tokens.brand)
-                HStack(spacing: 8) {
+                // Title row: title truncates left, status Badge pinned top-right
+                // (web title row is `flex items-start justify-between gap-2`,
+                // dashboard-listing-row.tsx:205-207).
+                HStack(alignment: .top, spacing: 8) {
+                    Text(l.displayTitle)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Tokens.fg)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
                     statusChip(l)
-                    Text("👁 \(l.views) · 💬 \(l.contactCount)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Tokens.sub)
                 }
+                Text(Format.vnd(l.price))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Tokens.brand)
+                // Meta row: lucide-parity SF icons (size-4 = 16pt) + 12pt labels,
+                // gap-x-3 / gap-1 (dashboard-listing-row.tsx:91-97). Heart shown
+                // only when savedCount > 0.
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "eye").font(.system(size: 16))
+                        Text("\(l.views)").font(.system(size: 12))
+                    }
+                    HStack(spacing: 4) {
+                        Image(systemName: "text.bubble").font(.system(size: 16))
+                        Text("\(l.contactCount) \(L10n.tr("leads", "liên hệ"))").font(.system(size: 12))
+                    }
+                    if l.savedCount > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "heart").font(.system(size: 16))
+                            Text("\(l.savedCount) \(L10n.tr("saved", "đã lưu"))").font(.system(size: 12))
+                        }
+                    }
+                }
+                .foregroundStyle(Tokens.ink4)
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
             Menu {
                 if l.status == "active" {
                     Button {
@@ -246,11 +271,11 @@ struct MyListingsView: View {
             switch l.status {
             case "sold": return (L10n.tr("Sold", "Đã bán"), Tokens.sub)
             case "hidden": return (L10n.tr("Hidden", "Đã ẩn"), Tokens.sub)
-            default: return (L10n.tr("Active", "Đang đăng"), .green)
+            default: return (L10n.tr("Live", "Đang hiển thị"), Tokens.accent)
             }
         }()
         Text(label)
-            .font(.system(size: 10, weight: .bold))
+            .font(.system(size: 11, weight: .bold))
             .foregroundStyle(color)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
