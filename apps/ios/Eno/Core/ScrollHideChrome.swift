@@ -52,7 +52,9 @@ extension View {
     /// Attach to a ScrollView/List to drive `ChromeState.shared` from its vertical
     /// content offset. iOS 18+ uses the precise scroll-geometry signal; on 17 it's
     /// a no-op (chrome stays visible — acceptable degrade).
-    @ViewBuilder
+    // @MainActor so the default `.shared` (a main-actor-isolated static) is
+    // referenced from a main-actor context — otherwise a Swift 6 hard error.
+    @ViewBuilder @MainActor
     func tracksChromeHide(_ chrome: ChromeState = .shared) -> some View {
         if #available(iOS 18.0, *) {
             self.onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in
