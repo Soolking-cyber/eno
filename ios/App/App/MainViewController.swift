@@ -1,7 +1,6 @@
 import UIKit
 import WebKit
 import Capacitor
-import ObjectiveC.runtime
 
 /// Self-healing WebView shell for the REMOTE-SERVER build (the app loads https://eno.vn live).
 ///
@@ -21,20 +20,12 @@ class MainViewController: CAPBridgeViewController {
         super.viewDidLoad()
         configureNativeFeel()
         scheduleWatchdog(after: 3.0)
-        // The private WKContentView that hosts text input only exists once the WebView has content,
-        // so drop the keyboard accessory bar after the first load settles (and once more as a
-        // backstop). Idempotent — object_setClass to the same subclass is a no-op.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.removeKeyboardAccessoryBar() }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in self?.removeKeyboardAccessoryBar() }
         // UIKit does NOT call viewDidAppear on background→foreground, so the blank-page re-check
-        // must hang off the app lifecycle. Foregrounding is also when a killed web process comes
-        // back — a fresh WKContentView without our runtime subclass — so re-apply the accessory
-        // removal too.
+        // must hang off the app lifecycle.
         foregroundObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             self?.scheduleWatchdog(after: 1.5)
-            self?.removeKeyboardAccessoryBar()
         }
     }
 
@@ -78,35 +69,6 @@ class MainViewController: CAPBridgeViewController {
         }
     }
 
-    /// Remove the keyboard input-accessory bar (the gray "Done / ‹ › / suggestions" toolbar above the
-    /// keyboard) — a dead giveaway of a WebView; native text fields don't show it. WebKit's text input
-    /// lives in a private WKContentView; we give that instance a runtime subclass whose
-    /// `inputAccessoryView` returns nil. Best-effort + reversible: if WebKit's internals ever change,
-    /// the guard just no-ops (typing is unaffected — this only nils the ACCESSORY, not the input).
-    private func removeKeyboardAccessoryBar() {
-        guard let wv = webView,
-              let contentView = wv.scrollView.subviews.first(where: {
-                  String(describing: type(of: $0)).hasPrefix("WKContentView")
-              }) else { return }
-        let className = "eno_WKContentViewNoAccessory"
-        if let existing = NSClassFromString(className) {
-            object_setClass(contentView, existing)
-            return
-        }
-        guard let baseClass = object_getClass(contentView),
-              let subclass = objc_allocateClassPair(baseClass, className, 0) else { return }
-        let sel = NSSelectorFromString("inputAccessoryView")
-        let block: @convention(block) (AnyObject) -> UIView? = { _ in nil }
-        let imp = imp_implementationWithBlock(block)
-        if let method = class_getInstanceMethod(baseClass, sel), let enc = method_getTypeEncoding(method) {
-            class_addMethod(subclass, sel, imp, enc)
-        } else {
-            class_addMethod(subclass, sel, imp, "@@:") // id (^)(id, SEL)
-        }
-        objc_registerClassPair(subclass)
-        object_setClass(contentView, subclass)
-    }
-
     // First presentation only (foreground returns are covered by the didBecomeActive observer).
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -124,12 +86,24 @@ class MainViewController: CAPBridgeViewController {
 
     private func recoverIfBlank() {
         guard let wv = webView else { return }
-        // A committed page has a non-nil URL → healthy; reset the counter and stop watching.
-        if wv.url != nil { reloadAttempts = 0; return }
         // Still fetching the first response → give it more time.
         if wv.isLoading { scheduleWatchdog(after: 2.0); return }
-        // Blank: no URL and not loading → the provisional load failed. Reload from the server URL.
-        guard reloadAttempts < 6 else { return }
+        // No URL and not loading → the provisional load failed. Reload from server.
+        if wv.url == nil { reloadFromServer(); return }
+        // URL present, but that alone is NOT proof of health (audit #92): when the
+        // render process is jetsammed under memory pressure the WKWebView keeps a
+        // stale non-nil url while showing a blank page. Capacitor owns the
+        // navigationDelegate (so we can't add webContentProcessDidTerminate without
+        // stomping the bridge) — instead probe the live process with a trivial JS
+        // eval. A dead process makes the eval error; that IS the crash signal.
+        wv.evaluateJavaScript("1") { [weak self] _, error in
+            guard let self = self else { return }
+            if error != nil { self.reloadFromServer() } else { self.reloadAttempts = 0 }
+        }
+    }
+
+    private func reloadFromServer() {
+        guard let wv = webView, reloadAttempts < 6 else { return }
         reloadAttempts += 1
         if let serverURL = bridge?.config.serverURL {
             _ = wv.load(URLRequest(url: serverURL))
