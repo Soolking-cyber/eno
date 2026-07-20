@@ -352,25 +352,29 @@ struct ListingDetailView: View {
     // Web meta badge row (page.tsx:432-447): brand badge FIRST, then condition +
     // numeric specs as inline badges (spec label muted in ink-4, value in fg).
     // Wraps like the web flex row; self-hides when there's nothing to show.
+    // (label?, value) pairs — nil label = single-value chip (brand, condition).
+    private var specPairs: [(label: String?, value: String)] {
+        var out: [(label: String?, value: String)] = []
+        if let slug = card.brandSlug, !slug.isEmpty {
+            out.append((nil, slug.replacingOccurrences(of: "-", with: " ").capitalized))
+        }
+        if let c = detail?.condition { out.append((nil, conditionLabel(c))) }
+        if let y = detail?.year { out.append((L10n.tr("Year", "Năm"), String(y))) }
+        if let km = detail?.mileageKm { out.append((L10n.tr("Mileage", "Số km"), "\(km.formatted()) km")) }
+        if let e = detail?.engineL { out.append((L10n.tr("Engine", "Động cơ"), "\(e) L")) }
+        return out
+    }
+
     @ViewBuilder
     private var specBadges: some View {
-        let brand = card.brand?.trimmingCharacters(in: .whitespaces)
-        let specs: [(String?, String)] = [
-            (nil, detail?.condition.map { conditionLabel($0) } ?? ""),
-            (L10n.tr("Year", "Năm"), detail?.year.map { String($0) } ?? ""),
-            (L10n.tr("Mileage", "Số km"), detail?.mileageKm.map { "\($0.formatted()) km" } ?? ""),
-            (L10n.tr("Engine", "Động cơ"), detail?.engineL.map { "\($0) L" } ?? ""),
-        ].filter { !$0.1.isEmpty }
-        if (brand?.isEmpty == false) || !specs.isEmpty {
+        let pairs = specPairs
+        if !pairs.isEmpty {
             FlowLayout(spacing: 6) {
-                if let brand, !brand.isEmpty {
-                    specChip { Text(brand.capitalized).foregroundStyle(Tokens.fg) }
-                }
-                ForEach(specs, id: \.1) { spec in
+                ForEach(Array(pairs.enumerated()), id: \.offset) { _, spec in
                     specChip {
                         HStack(spacing: 4) {
-                            if let label = spec.0 { Text(label).foregroundStyle(Tokens.ink4) }
-                            Text(spec.1).foregroundStyle(Tokens.fg)
+                            if let label = spec.label { Text(label).foregroundStyle(Tokens.ink4) }
+                            Text(spec.value).foregroundStyle(Tokens.fg)
                         }
                     }
                 }
