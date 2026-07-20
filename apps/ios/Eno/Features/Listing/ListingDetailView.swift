@@ -51,19 +51,20 @@ struct ListingDetailView: View {
                     priceBlock
                     if let band { MarketGauge(price: price, band: band) }
                     Text(title)
-                        .scaledFont(20, weight: .semibold)
+                        .scaledFont(18, weight: .medium)   // web text-lg font-medium leading-snug
                         .foregroundStyle(Tokens.fg)
+                        .lineSpacing(2)
                     metaRow
                     conditionChips
                     if let d = detail {
                         statsRow(d)
                         Divider().overlay(Tokens.ring)
-                        // Description (web page.tsx order-8: 'Description' heading).
-                        Text(L10n.tr("Description", "Mô tả")).scaledFont(16, weight: .bold).foregroundStyle(Tokens.fg)
+                        // Description (web page.tsx order-8: h-section 18px heading + body).
+                        Text(L10n.tr("Description", "Mô tả")).scaledFont(18, weight: .bold).foregroundStyle(Tokens.fg)
                         Text(d.description)
-                            .scaledFont(15)
-                            .foregroundStyle(Tokens.fg)
-                            .lineSpacing(3)
+                            .scaledFont(16)
+                            .foregroundStyle(Tokens.sub)   // web text-body #525252
+                            .lineSpacing(4)
                         detailsTable(d)
                         Divider().overlay(Tokens.ring)
                         sellerCard(d.seller)
@@ -81,7 +82,8 @@ struct ListingDetailView: View {
                         ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24)
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 16)
                 sameSellerRail
                 moreRail
             }
@@ -190,7 +192,7 @@ struct ListingDetailView: View {
             }
         }
         .tabViewStyle(.page)
-        .aspectRatio(1, contentMode: .fit)
+        .aspectRatio(4 / 3, contentMode: .fit)   // web gallery slides are aspect-[4/3]
         .clipped()
         .background(Tokens.tint)
     }
@@ -198,35 +200,30 @@ struct ListingDetailView: View {
     private var priceBlock: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(Format.vnd(price))
-                .scaledFont(26, weight: .bold)
+                .scaledFont(30, weight: .bold)   // web text-3xl
                 .foregroundStyle(Tokens.brand)
+            // Web shows NO ≈USD in the price block — only a struck previous price.
             if let prev = detail?.prevPrice ?? card.prevPrice, prev > price {
                 Text(Format.vnd(prev))
-                    .scaledFont(14, weight: .medium)
+                    .scaledFont(16)
                     .strikethrough()
-                    .foregroundStyle(Tokens.sub)
-            } else if let approx = Fx.shared.approxUSD(price) {
-                Text(approx)
-                    .scaledFont(14)
-                    .foregroundStyle(Tokens.sub)
+                    .foregroundStyle(Tokens.ink4)
             }
             if (detail?.urgent ?? card.urgent) {
-                Text(L10n.tr("Urgent", "Bán gấp"))
-                    .scaledFont(11, weight: .bold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 3)
-                    .background(Tokens.danger, in: Capsule())
+                // Web: a Zap lightning icon, not a text pill.
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Tokens.danger)
             }
         }
     }
 
     private var metaRow: some View {
         HStack(spacing: 6) {
-            Image(systemName: "mappin.and.ellipse").scaledFont(12)
-            Text(detail?.displayLocation ?? card.displayLocation).scaledFont(13)
-            Text("·").scaledFont(13)
-            Text(Format.ago(detail?.postedAt ?? card.postedAt)).scaledFont(13)
+            Image(systemName: "mappin.and.ellipse").scaledFont(16).foregroundStyle(Tokens.ink4)
+            Text(detail?.displayLocation ?? card.displayLocation).scaledFont(14)
+            Text("·").scaledFont(14)
+            Text(L10n.tr("Posted ", "Đăng ") + Format.ago(detail?.postedAt ?? card.postedAt)).scaledFont(14)
         }
         .foregroundStyle(Tokens.sub)
     }
