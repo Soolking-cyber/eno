@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backup + device-transfer rules (Android 12+). Same exclusion as
+     backup_rules.xml: the encrypted auth store must not be backed up or
+     transferred — its Keystore key stays on-device, so a copied file is dead. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="eno-auth.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="eno-auth.xml" />
+    </device-transfer>
+</data-extraction-rules>

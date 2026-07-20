@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup rules (pre-Android 12). Exclude the encrypted auth store: its
+     Keystore key does NOT travel with the backup, so a restored eno-auth file
+     is undecryptable and permanently breaks EncryptedSharedPreferences (codex
+     #7). Tokens shouldn't leave the device anyway. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="eno-auth.xml" />
+</full-backup-content>

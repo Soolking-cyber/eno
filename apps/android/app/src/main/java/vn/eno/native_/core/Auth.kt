@@ -67,14 +67,15 @@ object Auth {
         // plaintext. If the keystore is unavailable (rare), the session lives in
         // memory only for this run — the user re-signs-in after a restart, which
         // is the safe tradeoff for auth material vs. a plaintext downgrade.
-        prefs = runCatching {
-            val master = MasterKey.Builder(ctx).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
-            EncryptedSharedPreferences.create(
-                ctx, "eno-auth", master,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-            )
-        }.getOrNull()
+        prefs = openEncryptedPrefs(ctx) ?: run {
+            // Post-restore corruption (codex #7): Auto Backup can restore the
+            // eno-auth file WITHOUT its Keystore key, so create() fails forever
+            // on the undecryptable file. Delete the stale file and retry once —
+            // a fresh file + fresh key works, self-healing persistence. (The app
+            // also excludes eno-auth from backup so this shouldn't recur.)
+            ctx.deleteSharedPreferences("eno-auth")
+            openEncryptedPrefs(ctx)
+        }
         val p = prefs
         if (p != null) {
             val at = p.getString("access", null)
@@ -87,6 +88,15 @@ object Auth {
         Api.ensureFreshToken = { refreshIfNeeded() }
         Api.onUnauthorized = { handleUnauthorized() }
     }
+
+    private fun openEncryptedPrefs(ctx: Context): android.content.SharedPreferences? = runCatching {
+        val master = MasterKey.Builder(ctx).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        EncryptedSharedPreferences.create(
+            ctx, "eno-auth", master,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }.getOrNull()
 
     fun adopt(accessToken: String, refreshToken: String) {
         val current = session
