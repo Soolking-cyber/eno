@@ -91,12 +91,13 @@ struct SearchView: View {
         .foregroundStyle(Tokens.sub)
     }
 
-    // Soft rounded-xl chip — NO per-chip icon (web variant="soft").
+    // Soft rounded-xl chip — NO per-chip icon (web variant="soft"). Web chip text is
+    // text-body (#525252), not near-black.
     private func softChip(_ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Tokens.fg)
+                .foregroundStyle(Tokens.sub)
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 12))
         }
@@ -106,9 +107,9 @@ struct SearchView: View {
     // ── empty focus: recent + trending + popular (web search dropdown) ──
     @ViewBuilder
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             if !recents.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         eyebrow("clock", L10n.tr("Recent", "Tìm gần đây"))
                         Spacer()
@@ -116,27 +117,27 @@ struct SearchView: View {
                             RecentStore.clearSearches()
                             recents = []
                         }
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Tokens.sub)
                     }
-                    FlowLayout(spacing: 8) { ForEach(recents, id: \.self) { t in softChip(t) { submit(t) } } }
+                    FlowLayout(spacing: 6) { ForEach(recents, id: \.self) { t in softChip(t) { submit(t) } } }
                 }
             }
             if !trending.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
                     eyebrow("chart.line.uptrend.xyaxis", L10n.tr("Trending", "Xu hướng tìm kiếm"))
-                    FlowLayout(spacing: 8) { ForEach(trending, id: \.self) { t in softChip(t) { submit(t) } } }
+                    FlowLayout(spacing: 6) { ForEach(trending, id: \.self) { t in softChip(t) { submit(t) } } }
                 }
             }
             // Popular categories — shown when there are no recents (web fallback).
             if recents.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
                     eyebrow("chart.line.uptrend.xyaxis", L10n.tr("Popular", "Phổ biến"))
-                    FlowLayout(spacing: 8) {
+                    FlowLayout(spacing: 6) {
                         ForEach(Array(Categories.all.prefix(8))) { cat in
                             NavigationLink(value: cat) {
                                 Text(cat.name)
-                                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.fg)
+                                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.sub)
                                     .padding(.horizontal, 14).padding(.vertical, 8)
                                     .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 12))
                             }
@@ -167,13 +168,13 @@ struct SearchView: View {
                 // 2. Brands
                 if !brands.isEmpty {
                     eyebrow("tag", L10n.tr("Brands", "Thương hiệu")).padding(.horizontal, 16).padding(.top, 10)
-                    FlowLayout(spacing: 8) { ForEach(brands) { b in softChip(b.name) { submit(b.name) } } }
+                    FlowLayout(spacing: 6) { ForEach(brands) { b in softChip(b.name) { submit(b.name) } } }
                         .padding(.horizontal, 16).padding(.top, 6)
                 }
                 // 3. Categories
                 if !cats.isEmpty {
                     eyebrow("square.grid.2x2", L10n.tr("Categories", "Danh mục")).padding(.horizontal, 16).padding(.top, 10)
-                    FlowLayout(spacing: 8) {
+                    FlowLayout(spacing: 6) {
                         ForEach(cats) { cat in
                             if let appCat = Categories.bySlug(cat.slug) {
                                 NavigationLink(value: appCat) {
