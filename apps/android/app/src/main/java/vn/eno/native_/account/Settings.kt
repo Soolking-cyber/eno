@@ -40,9 +40,11 @@ fun SettingsScreen(onBack: () -> Unit) {
     var deleteConfirm by remember { mutableStateOf("") }
     var deleteMsg by remember { mutableStateOf<String?>(null) }
     var showBusiness by remember { mutableStateOf(false) }
+    var showDisputes by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     if (showBusiness) { BusinessProfileScreen(onBack = { showBusiness = false }); return }
+    if (showDisputes) { DisputesScreen(onBack = { showDisputes = false }); return }
 
     LaunchedEffect(Unit) {
         val me = runCatching { Api.get<MeResponse>("api/me").user }.getOrNull()
@@ -125,12 +127,10 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             if (accountType == "business") {
                 Spacer(Modifier.height(14.dp))
-                Row(Modifier.fillMaxWidth().clickable { showBusiness = true }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(L10n.tr("Business profile", "Hồ sơ doanh nghiệp"), fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground)
-                    Spacer(Modifier.weight(1f))
-                    Text("›", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                NavRow(L10n.tr("Business profile", "Hồ sơ doanh nghiệp")) { showBusiness = true }
             }
+            Spacer(Modifier.height(6.dp))
+            NavRow(L10n.tr("Disputes", "Khiếu nại")) { showDisputes = true }
 
             Spacer(Modifier.height(24.dp))
             // ── Danger zone ──
@@ -176,6 +176,15 @@ fun SettingsScreen(onBack: () -> Unit) {
 }
 
 private val Color0xFF16A34A = androidx.compose.ui.graphics.Color(0xFF16A34A)
+
+@Composable
+private fun NavRow(label: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.weight(1f))
+        Text("›", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
 
 @Composable
 private fun TypePill(label: String, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
