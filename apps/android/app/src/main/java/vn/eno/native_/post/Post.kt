@@ -72,20 +72,28 @@ class PostViewModel : ViewModel() {
         }
     }
 
+    private var wardGen = 0
     fun pickProvince(p: GeoUnit) {
         province = p
         ward = null
         wards.clear()
+        // Latest-wins (codex #11): switching provinces while a ward request is in
+        // flight must not let the old province's wards populate the new one.
+        val gen = ++wardGen
         viewModelScope.launch {
-            runCatching { Api.get<WardsResponse>("api/geo", mapOf("type" to "wards", "province" to p.code)).wards }
-                .getOrNull()?.let { wards.addAll(it) }
+            val w = runCatching { Api.get<WardsResponse>("api/geo", mapOf("type" to "wards", "province" to p.code)).wards }.getOrNull()
+            if (gen == wardGen && w != null) { wards.clear(); wards.addAll(w) }
         }
     }
 
     fun addPhoto(ctx: Context, uri: Uri) {
+        // Re-check the cap AFTER the async decode (codex #12): the pre-decode
+        // check alone let a burst of picks with 7 present overshoot to 15 while
+        // the server keeps only 8.
         if (photos.size >= 8) return
         viewModelScope.launch {
             val bmp = withContext(Dispatchers.IO) { decodeDownscaled(ctx, uri) } ?: return@launch
+            if (photos.size >= 8) return@launch
             val photo = Photo(nextId++, bmp)
             photos.add(photo)
             upload(photo.id)

@@ -121,11 +121,18 @@ object Api {
         withContext(Dispatchers.IO) {
             ensureFreshToken?.invoke()
             val hadToken = accessToken != null
+            // OkHttp REQUIRES a non-null body for POST/PUT/PATCH — a null body
+            // throws ("method POST must have a request body"), which crashed the
+            // confirm-bump path and silently broke notification-read (codex
+            // review, uncaught by the other pass). Supply an empty body for the
+            // body-required verbs; DELETE stays bodyless.
+            val body = jsonBody?.toRequestBody("application/json".toMediaType())
+                ?: if (method in setOf("POST", "PUT", "PATCH")) ByteArray(0).toRequestBody(null) else null
             val req = Request.Builder()
                 .url("https://eno.vn/$path")
                 .header("User-Agent", "EnoNativeApp/1 android-native")
                 .apply { accessToken?.let { header("Authorization", "Bearer $it") } }
-                .method(method, jsonBody?.toRequestBody("application/json".toMediaType()))
+                .method(method, body)
                 .build()
             client.newCall(req).execute().use { handleStatus(it.code, hadToken); it.code }
         }

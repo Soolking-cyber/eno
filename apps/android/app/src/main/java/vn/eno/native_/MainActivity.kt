@@ -82,7 +82,13 @@ fun EnoApp() {
         val backStack by nav.currentBackStackEntryAsState()
         val currentRoute = backStack?.destination?.route
         val signedIn = vn.eno.native_.core.Auth.isSignedIn
-        LaunchedEffect(currentRoute, signedIn) { vn.eno.native_.core.Unread.refresh() }
+        // Refresh the message-unread AND notification-unread badges on startup,
+        // sign-in, and tab changes — the bell couldn't show a dot before opening
+        // the list otherwise (codex #13).
+        LaunchedEffect(currentRoute, signedIn) {
+            vn.eno.native_.core.Unread.refresh()
+            vn.eno.native_.account.Notifs.refresh()
+        }
 
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,

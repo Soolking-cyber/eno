@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
 import vn.eno.native_.core.*
@@ -63,7 +64,11 @@ fun SearchScreen(onOpen: (String) -> Unit) {
         val q = query.trim()
         if (q.length < 2) { suggest = null; return@LaunchedEffect }
         delay(200)
-        suggest = runCatching { Api.get<SuggestResponse>("api/search/suggest", mapOf("q" to q)) }.getOrNull()
+        // Must NOT swallow CancellationException (codex #18): a cancelled slow
+        // request would otherwise resume and clear the newer query's suggestions.
+        suggest = try {
+            Api.get<SuggestResponse>("api/search/suggest", mapOf("q" to q))
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
     }
 
     fun submit(term: String) {
@@ -78,9 +83,9 @@ fun SearchScreen(onOpen: (String) -> Unit) {
     LaunchedEffect(submitted, query) {
         if (!submitted) return@LaunchedEffect
         searching = true
-        results = runCatching {
+        results = try {
             Api.get<FeedPage>("api/listings", mapOf("q" to query.trim(), "limit" to "24")).listings
-        }.getOrDefault(emptyList())
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() }
         searching = false
     }
 
