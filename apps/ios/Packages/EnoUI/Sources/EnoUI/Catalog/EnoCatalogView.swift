@@ -23,8 +23,12 @@ public struct EnoCatalogView: View {
                     EnoButton("Secondary", variant: .secondary, action: {})
                     EnoButton("Tertiary", variant: .tertiary, action: {})
                     EnoButton("Destructive", icon: "trash", variant: .destructive, action: {})
+                    EnoButton("Accent", icon: "sparkles", variant: .accent, action: {})
                     EnoButton("Loading", loading: true, action: {})
                     EnoButton("Disabled", action: {}).disabled(true)
+                    // Blocked ≠ disabled: it LOOKS inactive but still fires, so the tap can
+                    // say what's missing instead of leaving the user stuck on a dead control.
+                    EnoButton("Blocked (still tappable)", blocked: true, action: {})
                     HStack(spacing: EnoSpacing.s2) {
                         EnoButton("Compact", size: .compact, fullWidth: false, action: {})
                         EnoIconButton("heart", label: "Save", action: {})
@@ -90,6 +94,10 @@ public struct EnoCatalogView: View {
                              helper: "At least 8 characters.")
                     EnoTextArea("Description", placeholder: "Describe your item…",
                                 text: .constant(""), characterLimit: 500)
+                    EnoToggle("Open to offers", isOn: .constant(true))
+                    EnoToggle("Daily availability reminder",
+                              description: "We'll nudge you once a day to confirm what's still for sale.",
+                              isOn: .constant(false))
                 }
 
                 Section("Rows & selection") {

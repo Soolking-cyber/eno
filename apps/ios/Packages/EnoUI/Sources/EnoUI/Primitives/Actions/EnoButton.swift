@@ -6,7 +6,9 @@ import SwiftUI
 public struct EnoButton: View {
     /// `.text` is a bare text action ("Clear", "See all") — no fill, no border. It still
     /// carries a real tap target, unlike the naked `Button("Clear")` it replaces.
-    public enum Variant { case primary, secondary, tertiary, destructive, text }
+    /// `.accent` is the soft brand action (brand-tint fill, brand label) for a supporting
+    /// CTA that shouldn't compete with `.primary` — e.g. "Auto-fill from photo".
+    public enum Variant { case primary, secondary, tertiary, destructive, text, accent }
     public enum Size {
         case compact, regular, large
         var minHeight: CGFloat { self == .compact ? 36 : self == .large ? 50 : 44 }
@@ -18,16 +20,24 @@ public struct EnoButton: View {
     private let size: Size
     private let loading: Bool
     private let fullWidth: Bool
+    private let blocked: Bool
     private let action: () -> Void
     @Environment(\.isEnabled) private var isEnabled
 
+    /// - Parameter blocked: the action isn't available YET, but the button stays TAPPABLE so
+    ///   the tap can explain why (scroll to the first missing field, surface a validation
+    ///   message). This is deliberately NOT `.disabled()`: a dead button teaches the user
+    ///   nothing and is skipped by VoiceOver, which is how forms become unsolvable puzzles.
+    ///   It reads as inactive (muted fill) but still fires `action`.
     public init(
         _ title: String, icon: String? = nil, variant: Variant = .primary,
         size: Size = .regular, loading: Bool = false, fullWidth: Bool = true,
+        blocked: Bool = false,
         action: @escaping () -> Void
     ) {
         self.title = title; self.icon = icon; self.variant = variant
-        self.size = size; self.loading = loading; self.fullWidth = fullWidth; self.action = action
+        self.size = size; self.loading = loading; self.fullWidth = fullWidth
+        self.blocked = blocked; self.action = action
     }
 
     public var body: some View {
@@ -67,6 +77,8 @@ public struct EnoButton: View {
     }
 
     private var bg: Color {
+        // Blocked reads as inactive without being dead — a muted fill, but the tap survives.
+        if blocked { return EnoColor.sub }
         switch variant {
         case .primary:            return EnoColor.brand
         // card, NOT clear: a BORDERED secondary must read as a control on any backdrop —
@@ -75,13 +87,16 @@ public struct EnoButton: View {
         case .secondary:          return EnoColor.card
         case .text:               return .clear
         case .tertiary:           return EnoColor.tint
+        case .accent:             return EnoColor.brandTint
         case .destructive:        return EnoColor.danger
         }
     }
     private var fg: Color {
+        if blocked { return EnoColor.onBrand }
         switch variant {
         case .primary, .destructive: return EnoColor.onBrand
         case .secondary, .text:      return EnoColor.brand
+        case .accent:                return EnoColor.brand
         case .tertiary:              return EnoColor.fg
         }
     }

@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Native quick-edit for a seller's OWN listing (#131) — replaces the web wizard
 // fallback for the fields sellers change most: title, price, negotiable, and
@@ -40,7 +41,7 @@ struct EditListingView: View {
                 }
                 Section(L10n.tr("Price (₫)", "Giá (₫)")) {
                     TextField("0", text: $priceText).keyboardType(.numberPad)
-                    Toggle(L10n.tr("Accept offers", "Cho phép trả giá"), isOn: $negotiable)
+                    EnoToggle(L10n.tr("Accept offers", "Cho phép trả giá"), isOn: $negotiable)
                 }
                 Section(L10n.tr("Description", "Mô tả")) {
                     TextField(L10n.tr("Description", "Mô tả"), text: $descriptionText, axis: .vertical)

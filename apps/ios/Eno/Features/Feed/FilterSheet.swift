@@ -40,7 +40,7 @@ struct PriceFilterSheet: View {
             Form {
                 Section(L10n.tr("Verified", "Xác thực")) {
                     // TODO(EnoUI): EnoUI ships no toggle primitive yet — native Toggle stays.
-                    Toggle(L10n.tr("Verified listings only", "Chỉ tin đã xác thực"), isOn: bindVerified)
+                    EnoToggle(L10n.tr("Verified listings only", "Chỉ tin đã xác thực"), isOn: bindVerified)
                 }
                 Section(L10n.tr("Condition", "Tình trạng")) {
                     // Same three tags ("" / new / used) as before — only the control is

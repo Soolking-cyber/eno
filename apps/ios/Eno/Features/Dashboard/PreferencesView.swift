@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Theme / language / currency switchers (web parity: the settings preferences).
 // Reads + writes AppSettings.shared, which the app observes app-wide.
@@ -30,7 +31,7 @@ struct PreferencesView: View {
                              "Toàn bộ ứng dụng — gồm cả tiêu đề và mô tả tin đăng — hiển thị bằng ngôn ngữ của bạn, dịch tự động."))
             }
             Section(L10n.tr("Currency", "Tiền tệ")) {
-                Toggle(L10n.tr("Show ≈ USD on prices", "Hiện ≈ USD trên giá"), isOn: $settings.showUSD)
+                EnoToggle(L10n.tr("Show ≈ USD on prices", "Hiện ≈ USD trên giá"), isOn: $settings.showUSD)
             }
         }
         .textCase(nil)

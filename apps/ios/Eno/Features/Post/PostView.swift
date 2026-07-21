@@ -374,11 +374,11 @@ struct PostView: View {
                     .keyboardType(.numberPad)
                 Text("đ").foregroundStyle(Tokens.sub)
             }
-            Toggle(L10n.tr("Open to offers", "Cho phép trả giá"), isOn: Binding(
+            EnoToggle(L10n.tr("Open to offers", "Cho phép trả giá"), isOn: Binding(
                 get: { model.negotiable },
                 set: { model.setNegotiable($0) }
             ))
-            Toggle(L10n.tr("Urgent sale", "Bán gấp"), isOn: Binding(
+            EnoToggle(L10n.tr("Urgent sale", "Bán gấp"), isOn: Binding(
                 get: { model.urgent },
                 set: { model.setUrgent($0) }
             ))

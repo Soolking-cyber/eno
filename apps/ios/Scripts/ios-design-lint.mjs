@@ -51,20 +51,38 @@ const stripComment = (line) => {
   return i >= 0 ? line.slice(0, i) : line
 }
 
+// An inline allowance must NAME the rule and give a REASON — a bare "ignore this" comment
+// is how a lint dies. Format:  // eno-lint-allow: raw-button — native Menu item
+const ALLOW_RE = /\/\/\s*eno-lint-allow:\s*([a-z-]+)\s*[—-]+\s*\S/
+
 function scan() {
   const found = new Map() // key -> {rule, file, source}
   if (!existsSync(SCAN_DIR)) return found
   for (const file of swiftFiles(SCAN_DIR)) {
     const rel = relative(APP_ROOT, file)
     const lines = readFileSync(file, 'utf8').split('\n')
+    let depth = 0 // running brace depth
+    let menuDepth = null // brace depth at which the innermost `Menu {` opened
+
     for (const raw of lines) {
       const line = stripComment(raw)
+      const allowed = ALLOW_RE.exec(raw)?.[1] ?? null
+      // A `Button` inside a `Menu { }` is the ONLY way to build a native menu item, so it
+      // is NOT a hand-roll. Same for a Picker's option rows. Suppress inside that block.
+      const opensMenu = /\bMenu\s*[({]/.test(line)
+
       for (const [rule, re, msg] of RULES) {
+        if (rule === allowed) continue
+        if (menuDepth !== null && (rule === 'raw-button' || rule === 'plain-button-style')) continue
         if (re.test(line)) {
           const source = line.trim()
           found.set(`${rule}|${rel}|${source}`, { rule, file: rel, source, msg })
         }
       }
+
+      if (opensMenu && menuDepth === null) menuDepth = depth
+      depth += (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length
+      if (menuDepth !== null && depth <= menuDepth) menuDepth = null
     }
   }
   return found
