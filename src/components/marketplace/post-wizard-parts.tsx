@@ -160,7 +160,7 @@ export function Preview({ cover, title, price, priceUnit, area, categoryIcon, t 
   const { lang } = useLanguage() // preview price mirrors what buyers in this language will see
   return (
     <div className="w-full">
-      <div className="relative aspect-[10/11] w-full overflow-hidden rounded-xl bg-tint">
+      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-tint">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={cover} alt="" className="h-full w-full object-cover" />

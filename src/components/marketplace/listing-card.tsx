@@ -168,7 +168,7 @@ function ListingCardImpl({
       <div
         data-protected
         data-rail-media
-        className="relative aspect-[10/11] w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
+        className="relative aspect-square w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
         onClick={(e) => {
           // Image-area click → open the listing. It bubbles up from the photo, scrims,
           // badges and dots (none of which stopPropagation); the action buttons DO

@@ -11,8 +11,12 @@ export function ListingCardSkeleton({ className }: { className?: string }) {
     // (text-lg), two title lines (text-sm line-clamp-2), location line (text-2xs).
     // The old 3 thin bars ran ~40px short, so every rail GREW when data landed —
     // measured as the homepage's dominant CLS.
+    // ⚠️ The photo box is aspect-SQUARE and must stay identical to ListingCard's
+    // (owner 2026-07-21: cards are square, no odd ratios). Five places share this
+    // ratio and must move together or CLS regresses: listing-card, this skeleton,
+    // seo-landing, the wizard Preview, and capacitor/www/index.html's .ph.
     <div className={cn('space-y-3', className)}>
-      <div className="aspect-[10/11] w-full rounded-xl shimmer skeleton-photo" />
+      <div className="aspect-square w-full rounded-xl shimmer skeleton-photo" />
       <div>
         <Skeleton className="h-[22px] w-1/2" />
         <div className="mt-2 space-y-1.5">
