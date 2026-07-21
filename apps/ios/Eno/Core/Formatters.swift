@@ -11,6 +11,22 @@ enum Format {
         return L10n.isVi ? "\(n) đ" : "\(n) VND"
     }
 
+    // Compact price for the grid card — VN convention (k / tr / tỷ), full magnitude,
+    // uniform short width so it never truncates in a 2-column card (port of web
+    // vnd.ts compactPrice). The full price stays on the list row + PDP.
+    static func compactVnd(_ amount: Int) -> String {
+        func short(_ v: Double) -> String {
+            let r = (v * 10).rounded() / 10
+            if r == r.rounded() { return String(Int(r)) }
+            let s = String(format: "%.1f", r)
+            return L10n.isVi ? s.replacingOccurrences(of: ".", with: ",") : s
+        }
+        if amount >= 1_000_000_000 { return "\(short(Double(amount) / 1_000_000_000)) tỷ" }
+        if amount >= 1_000_000 { return "\(short(Double(amount) / 1_000_000))tr" }
+        if amount >= 1_000 { return "\(amount / 1_000)k" }
+        return "\(amount)"
+    }
+
     // Configured once, only ever read via .date(from:) which is thread-safe on
     // iOS 7+ — nonisolated(unsafe) satisfies strict concurrency (audit #13b).
     private nonisolated(unsafe) static let iso: ISO8601DateFormatter = {

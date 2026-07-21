@@ -129,13 +129,13 @@ struct ListingCardView: View {
     // ── price ──
     private var priceRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(Format.vnd(listing.price))
+            Text(Format.compactVnd(listing.price))
                 .scaledFont(18, weight: .bold)
                 .foregroundStyle(Tokens.brand)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.8)
             if let prev = listing.prevPrice, prev > listing.price {
-                Text(Format.vnd(prev))
+                Text(Format.compactVnd(prev))
                     .scaledFont(11, weight: .medium)
                     .strikethrough()
                     .foregroundStyle(Tokens.ink4)
