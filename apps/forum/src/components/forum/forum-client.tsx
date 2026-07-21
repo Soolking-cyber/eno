@@ -295,7 +295,7 @@ export function ForumClient({
 
   return (
     <div data-forum-page data-hydrated={hydrated ? 'true' : 'false'} className="min-h-screen bg-background pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-0">
-      <ForumHeader query={query} onQueryChange={setQuery} onCreatePost={openCreatePost} />
+      <ForumHeader query={query} onQueryChange={setQuery} onCreatePost={openCreatePost} allowSignIn />
 
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="mb-4 flex items-center rounded-2xl bg-tint px-3 sm:hidden">

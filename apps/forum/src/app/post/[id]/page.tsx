@@ -213,7 +213,8 @@ export default async function ForumPostPage({ params }: { params: Promise<{ id: 
     <div className="flex min-h-screen flex-col bg-background">
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(discussionLd)} />
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(breadcrumbLd)} />
-      <ForumHeader />
+      {/* Post permalinks are where organic search lands — a cold visitor needs a way in. */}
+      <ForumHeader allowSignIn />
 
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 py-6 sm:px-6">
         <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-xs text-body">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Bookmark, Flame, Home, Plus, Store, UserRound } from 'lucide-react'
+import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { ENO_DASHBOARD_URL } from '@/lib/eno-dashboard'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
@@ -34,6 +35,7 @@ export function MobileForumNav({
   onSaved: () => void
 }) {
   const { tr } = useLanguage()
+  const { user, openSignIn } = useAuth()
   const { open: keyboardOpen } = useVirtualKeyboard()
   // App-mode is decided after mount (UA/bridge globals are client-only) so the
   // server markup — and therefore the web experience — stays the 5-tab nav.
@@ -80,13 +82,23 @@ export function MobileForumNav({
           </span>
           <span>{tr('Saved', 'Đã lưu')}</span>
         </Button>
-        {/* Plain external link on purpose: the ONE eno dashboard lives on eno.vn.
-            Inside the native app the WebView keeps eno.vn in-app (allowNavigation)
-            and the eno.vn side owns reverse-SSO. */}
-        <a href={ENO_DASHBOARD_URL} className={cn(itemClass, 'text-body')}>
-          <UserRound className="h-5 w-5" />
-          <span>{tr('Account', 'Tài khoản')}</span>
-        </a>
+        {/* SIGNED IN → the ONE eno dashboard on eno.vn (plain external link on purpose;
+            inside the native app the WebView keeps eno.vn in-app via allowNavigation).
+            SIGNED OUT → the forum's OWN sign-in dialog, NOT eno.vn. Sessions are per-origin
+            cookies, so sending a logged-out visitor to eno.vn/dashboard walked them through
+            a login there and returned them still logged out here — a dead end that only
+            showed up once organic traffic started landing on the forum. */}
+        {user ? (
+          <a href={ENO_DASHBOARD_URL} className={cn(itemClass, 'text-body')}>
+            <UserRound className="h-5 w-5" />
+            <span>{tr('Account', 'Tài khoản')}</span>
+          </a>
+        ) : (
+          <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={openSignIn}>
+            <UserRound className="h-5 w-5" />
+            <span>{tr('Log in', 'Đăng nhập')}</span>
+          </Button>
+        )}
       </div>
     </nav>
   )
@@ -102,6 +114,7 @@ export function AppForumNav() {
   const router = useRouter()
   const pathname = usePathname()
   const { tr } = useLanguage()
+  const { user, openSignIn } = useAuth()
   const { open: keyboardOpen } = useVirtualKeyboard()
   const [app, setApp] = useState(false)
   useEffect(() => { setApp(isEnoApp()) }, [])
@@ -132,11 +145,19 @@ export function AppForumNav() {
             <Store className="h-5 w-5" />
             <span>{tr('Market', 'Chợ')}</span>
           </a>
-          {/* Plain external link on purpose: the ONE eno dashboard lives on eno.vn. */}
-          <a href={ENO_DASHBOARD_URL} className={cn(itemClass, 'text-body')}>
-            <UserRound className="h-5 w-5" />
-            <span>{tr('Account', 'Tài khoản')}</span>
-          </a>
+          {/* Same split as the feed bar: dashboard when signed in, the FORUM's own sign-in
+              when not — eno.vn's login cannot create a session on this origin. */}
+          {user ? (
+            <a href={ENO_DASHBOARD_URL} className={cn(itemClass, 'text-body')}>
+              <UserRound className="h-5 w-5" />
+              <span>{tr('Account', 'Tài khoản')}</span>
+            </a>
+          ) : (
+            <Button type="button" variant="bare" size="none" className={cn(itemClass, 'text-body')} onClick={openSignIn}>
+              <UserRound className="h-5 w-5" />
+              <span>{tr('Log in', 'Đăng nhập')}</span>
+            </Button>
+          )}
         </div>
       </nav>
     </>
