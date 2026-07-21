@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 import Observation
 
 // A category landing: subcategory facet chips (live counts from the feed
@@ -34,7 +35,7 @@ struct CategoryFeedView: View {
             .padding(.top, 8)
             // Count + view toggles (web explorer count row).
             HStack {
-                Text(countLabel).font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                Text(countLabel).enoText(.caption, color: EnoColor.sub)
                 Spacer()
                 ViewToggles(mode: $viewMode)
             }
@@ -44,8 +45,7 @@ struct CategoryFeedView: View {
             resultsView
             if !model.isRefreshing && model.items.isEmpty {
                 Text(L10n.tr("Nothing here yet", "Chưa có tin nào"))
-                    .font(.system(size: 15))
-                    .foregroundStyle(Tokens.sub)
+                    .enoText(.label, color: EnoColor.sub)
                     .padding(.top, 40)
             }
         }
@@ -117,18 +117,13 @@ struct CategoryFeedView: View {
     }
 
     private func modePlaceholder(_ m: ViewMode) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: m.icon).font(.system(size: 40)).foregroundStyle(Tokens.sub)
-            Text(L10n.tr(m.label.0, m.label.1)).font(.system(size: 16, weight: .semibold)).foregroundStyle(Tokens.fg)
+        VStack(spacing: EnoSpacing.s3) {
+            Image(systemName: m.icon).enoIcon(.xl, color: EnoColor.sub)
+            Text(L10n.tr(m.label.0, m.label.1)).enoText(.headline)
             Text(L10n.tr("Native view coming soon.", "Bản trong ứng dụng sắp có."))
-                .font(.system(size: 13)).foregroundStyle(Tokens.sub)
-            Button {
+                .enoText(.caption, color: EnoColor.sub)
+            EnoButton(L10n.tr("Open on web", "Mở trên web"), size: .compact, fullWidth: false) {
                 webRoute = WebRoute(path: "/?view=\(m.rawValue)&category=\(category.slug)")
-            } label: {
-                Text(L10n.tr("Open on web", "Mở trên web"))
-                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                    .padding(.horizontal, 20).padding(.vertical, 10)
-                    .background(Tokens.brand, in: Capsule())
             }
         }
         .frame(maxWidth: .infinity).padding(.top, 60)
@@ -144,27 +139,14 @@ struct CategoryFeedView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(chips) { chip in
-                        Button(action: chip.clear) {
-                            HStack(spacing: 4) {
-                                Text(chip.label).font(.system(size: 13, weight: .semibold)).foregroundStyle(Tokens.fg)
-                                Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Tokens.ink4)
-                            }
-                            .padding(.leading, 12).padding(.trailing, 10).frame(height: 30)
-                            .background(Tokens.tint, in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(L10n.tr("Remove filter", "Bỏ bộ lọc") + ": \(chip.label)")
+                        EnoChip(chip.label, trailingIcon: "xmark", action: chip.clear)
+                            .accessibilityLabel(L10n.tr("Remove filter", "Bỏ bộ lọc") + ": \(chip.label)")
                     }
                     if chips.count > 1 {
-                        Button {
+                        EnoButton(L10n.tr("Clear all", "Xóa tất cả"), variant: .text, size: .compact, fullWidth: false) {
                             model.priceMin = nil; model.priceMax = nil
                             model.condition = nil; model.customFilters = [:]
-                        } label: {
-                            Text(L10n.tr("Clear all", "Xóa tất cả"))
-                                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Tokens.brand)
-                                .padding(.horizontal, 10).frame(height: 30)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -235,24 +217,9 @@ struct CategoryFeedView: View {
     }
 
     private func subChip(label: String, slug: String?, count: Int?) -> some View {
-        let active = model.subcategory == slug
-        return Button {
+        EnoChip(label, selected: model.subcategory == slug, count: count) {
             model.subcategory = slug
-        } label: {
-            HStack(spacing: 4) {
-                Text(label).font(.system(size: 13, weight: .semibold))
-                if let count, count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(active ? Color.white.opacity(0.8) : Tokens.sub)
-                }
-            }
-            .foregroundStyle(active ? Color.white : Tokens.fg)
-            .padding(.horizontal, 13)
-            .frame(height: 32)
-            .background(active ? Tokens.brand : Tokens.tint, in: Capsule())
         }
-        .buttonStyle(.plain)
     }
 }
 
