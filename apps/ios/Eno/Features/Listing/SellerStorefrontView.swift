@@ -1,3 +1,4 @@
+import EnoUI
 import SwiftUI
 
 // Native seller storefront (#9) — replaces the WebSheet(/sellers/[id]) redirect.
@@ -55,11 +56,12 @@ struct SellerStorefrontView: View {
                 } else if loading {
                     ProgressView().frame(maxWidth: .infinity).padding(.vertical, 40)
                 } else {
+                    // TODO(EnoUI): EnoEmptyState — symbol + title + guidance + one recovery action.
                     Text(L10n.tr("This storefront isn't available.", "Gian hàng này không có sẵn."))
-                        .font(.system(size: 14)).foregroundStyle(Tokens.sub).padding(40)
+                        .enoText(.subheadline, color: EnoColor.sub).padding(40)
                 }
             }
-            .background(Tokens.canvas)
+            .background(EnoColor.canvas)
             .navigationTitle(data?.seller.name ?? L10n.tr("Storefront", "Gian hàng"))
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ListingCard.self) { ListingDetailView(card: $0) }
@@ -71,27 +73,28 @@ struct SellerStorefrontView: View {
     private func header(_ s: Storefront.Seller) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 14) {
+                // TODO(EnoUI): EnoAvatar — image → initials fallback at the canon 24/32/40/56 sizes.
                 AsyncImage(url: s.avatarUrl.flatMap { ImageURL.optimized($0, width: 160) }) { phase in
                     if case .success(let img) = phase { img.resizable().scaledToFill() }
                     else {
                         Text(String(s.name.prefix(1)).uppercased())
-                            .font(.system(size: 24, weight: .bold)).foregroundStyle(.white)
+                            .enoText(.title, color: EnoColor.onBrand)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color(hexString: s.avatarColor) ?? Tokens.brand)
+                            .background(Color(hexString: s.avatarColor) ?? EnoColor.brand)
                     }
                 }
                 .frame(width: 64, height: 64).clipShape(Circle())
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(s.name).font(.system(size: 18, weight: .bold)).foregroundStyle(Tokens.fg)
-                        if s.isBusiness { Image(systemName: "building.2").font(.system(size: 11)).foregroundStyle(Tokens.sub) }
+                        Text(s.name).font(EnoTextRole.headline.font.weight(.bold)).foregroundStyle(EnoColor.fg)
+                        if s.isBusiness { Image(systemName: "building.2").enoIcon(.xs, color: EnoColor.sub) }
                     }
                     HStack(spacing: 8) {
                         TrustMini(score: s.trustScore)
                         if s.reviewCount > 0 {
                             HStack(spacing: 3) {
-                                Image(systemName: "star.fill").font(.system(size: 10)).foregroundStyle(.yellow)
-                                Text("\(s.rating, specifier: "%.1f") (\(s.reviewCount))").font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                                Image(systemName: "star.fill").enoIcon(.xs, color: .yellow)
+                                Text("\(s.rating, specifier: "%.1f") (\(s.reviewCount))").enoText(.caption, color: EnoColor.sub)
                             }
                         }
                     }
@@ -100,37 +103,37 @@ struct SellerStorefrontView: View {
             }
             HStack(spacing: 10) {
                 Text(L10n.tr("Since \(String(s.memberSinceYear))", "Từ \(String(s.memberSinceYear))"))
-                    .font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                    .enoText(.caption, color: EnoColor.sub)
                 if let r = s.responseLabel {
-                    Text("· \(L10n.isVi ? r.vi : r.en)").font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                    Text("· \(L10n.isVi ? r.vi : r.en)").enoText(.caption, color: EnoColor.sub)
                 }
                 if let loc = s.location, !loc.isEmpty {
-                    Text("· \(loc)").font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                    Text("· \(loc)").enoText(.caption, color: EnoColor.sub)
                 }
             }
             if let bio = s.bio, !bio.isEmpty {
-                Text(bio).font(.system(size: 14)).foregroundStyle(Tokens.fg).lineSpacing(2)
+                Text(bio).enoText(.subheadline, color: EnoColor.fg).lineSpacing(2)
             }
         }
     }
 
     private func reviewsBlock(_ r: Storefront.Reviews) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Divider().overlay(Tokens.ring)
-            Text(L10n.tr("Reviews", "Đánh giá")).font(.system(size: 16, weight: .bold)).foregroundStyle(Tokens.fg)
+            Divider().overlay(EnoColor.ring)
+            Text(L10n.tr("Reviews", "Đánh giá")).font(EnoTextRole.callout.font.weight(.bold)).foregroundStyle(EnoColor.fg)
             ForEach(r.reviews.prefix(3)) { rv in
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 4) {
                         ForEach(0..<5) { i in
                             Image(systemName: i < rv.rating ? "star.fill" : "star")
-                                .font(.system(size: 10)).foregroundStyle(i < rv.rating ? .yellow : Tokens.ring)
+                                .enoIcon(.xs, color: i < rv.rating ? .yellow : EnoColor.ring)
                         }
-                        Text(rv.author).font(.system(size: 12, weight: .semibold)).foregroundStyle(Tokens.fg)
+                        Text(rv.author).font(EnoTextRole.caption.font.weight(.semibold)).foregroundStyle(EnoColor.fg)
                         if rv.verified {
-                            Text(L10n.tr("Verified", "Đã xác minh")).font(.system(size: 10, weight: .semibold)).foregroundStyle(Tokens.brand)
+                            Text(L10n.tr("Verified", "Đã xác minh")).enoText(.micro, color: EnoColor.brand)
                         }
                     }
-                    if !rv.text.isEmpty { Text(rv.text).font(.system(size: 13)).foregroundStyle(Tokens.sub) }
+                    if !rv.text.isEmpty { Text(rv.text).enoText(.caption, color: EnoColor.sub) }
                 }
                 .padding(.vertical, 2)
             }
@@ -139,8 +142,8 @@ struct SellerStorefrontView: View {
 
     private func listingsGrid(_ items: [ListingCard]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Divider().overlay(Tokens.ring)
-            Text(L10n.tr("Listings", "Tin đăng")).font(.system(size: 16, weight: .bold)).foregroundStyle(Tokens.fg)
+            Divider().overlay(EnoColor.ring)
+            Text(L10n.tr("Listings", "Tin đăng")).font(EnoTextRole.callout.font.weight(.bold)).foregroundStyle(EnoColor.fg)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                 ForEach(items) { card in
                     NavigationLink(value: card) { ListingCardView(listing: card) }

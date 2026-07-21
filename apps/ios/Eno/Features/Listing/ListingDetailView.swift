@@ -771,21 +771,13 @@ struct ListingDetailView: View {
             // Fixed-price / non-negotiable listings: an inline Chat-now button
             // (replaces the removed sticky bottom bar — owner asked to drop the
             // floating CTA that sat on top of the tab bar).
-            Button { startChat() } label: {
-                Group {
-                    if contactBusy { ProgressView().tint(.white) }
-                    else {
-                        HStack(spacing: 6) {
-                            Image(systemName: "message.fill").font(EnoTextRole.subheadline.font)
-                            Text(L10n.tr("Chat now", "Chat ngay"))
-                        }
-                    }
-                }
-                .font(EnoTextRole.subheadline.font.weight(.semibold)).foregroundStyle(.white)
-                .frame(maxWidth: .infinity).frame(height: 50)
-                .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-            }
-            .disabled(contactBusy)
+            EnoButton(
+                L10n.tr("Chat now", "Chat ngay"),
+                icon: "message.fill",
+                variant: .primary,
+                size: .large,
+                loading: contactBusy
+            ) { startChat() }
         }
     }
 

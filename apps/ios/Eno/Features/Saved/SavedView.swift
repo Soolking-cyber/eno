@@ -23,10 +23,10 @@ struct SavedView: View {
                         Text(savedCountLabel)
                             .enoText(.caption, color: EnoColor.sub)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 12)
-                            .padding(.top, 8)
+                            .padding(.horizontal, EnoSpacing.s3)
+                            .padding(.top, EnoSpacing.s2)
                     }
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: EnoSpacing.s2), GridItem(.flexible(), spacing: EnoSpacing.s2)], spacing: EnoSpacing.s2) {
                         ForEach(listings) { item in
                             NavigationLink(value: item) {
                                 ListingCardView(listing: item)
@@ -37,7 +37,7 @@ struct SavedView: View {
                             ForEach(0..<min(max(favs.count, 2), 24), id: \.self) { _ in SkeletonCard() }
                         }
                     }
-                    .padding(12)
+                    .padding(EnoSpacing.s3)
                 }
             }
             .background(EnoColor.canvas)

@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 import UIKit
 
 // Fullscreen gallery: swipeable pages, pinch-to-zoom + double-tap (a real
@@ -20,18 +21,21 @@ struct GalleryViewer: View {
             }
             .tabViewStyle(.page(indexDisplayMode: images.count > 1 ? .automatic : .never))
             .ignoresSafeArea()
-            Button {
+            // Web parity: the lightbox close is a bare white X with a legibility shadow
+            // (IconButton variant="overlay"), NOT a scrim circle — that is exactly what
+            // EnoIconButton(.onImage) draws. Insets drop 16/8 → 12/4 because the primitive's
+            // 44pt target is 8pt wider than the old 36pt frame, so the glyph keeps its spot.
+            EnoIconButton(
+                "xmark",
+                size: 17,
+                color: .white,
+                variant: .onImage,
+                label: L10n.tr("Close", "Đóng")
+            ) {
                 dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(.white.opacity(0.15), in: Circle())
             }
-            .accessibilityLabel(L10n.tr("Close", "Đóng"))
-            .padding(.trailing, 16)
-            .padding(.top, 8)
+            .padding(.trailing, EnoSpacing.s3)
+            .padding(.top, EnoSpacing.s1)
         }
     }
 }

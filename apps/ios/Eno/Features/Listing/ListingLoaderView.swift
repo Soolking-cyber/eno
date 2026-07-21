@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Deep-link target for /listings/<id> (audit #3): a shared link or notification
 // carries only an id, but ListingDetailView paints from a ListingCard — so load the
@@ -15,10 +16,11 @@ struct ListingLoaderView: View {
             if let card {
                 ListingDetailView(card: card)
             } else if unavailable {
+                // TODO(EnoUI): EnoEmptyState — glyph + title state block, awaiting the primitive.
                 VStack(spacing: 6) {
-                    Text("🚫").font(.system(size: 34))
+                    Text("🚫").enoText(.titleXL)
                     Text(L10n.tr("This listing is no longer available", "Tin này không còn nữa"))
-                        .font(.system(size: 16, weight: .bold)).foregroundStyle(Tokens.fg)
+                        .enoText(.callout, color: EnoColor.fg).fontWeight(.bold)
                 }
                 .frame(maxWidth: .infinity).padding(.vertical, 40)
             } else {

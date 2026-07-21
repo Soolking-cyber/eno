@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Native "How trust works" screen (#20) — replaces the WebSheet(/trust) redirect.
 // Mirrors src/app/trust/page.tsx: one Trust Score per account, the five colored
@@ -32,52 +33,52 @@ struct TrustExplainerView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text(L10n.tr("Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It's recomputed every day from what an account actually does on eno.vn, and recent behavior counts more than the past.",
                              "Mỗi tài khoản có một Điểm tin cậy — một con số duy nhất, hiển thị bằng màu — thay cho sao và huy hiệu. Điểm được tính lại mỗi ngày dựa trên hành vi thực tế, và hành vi gần đây có trọng số cao hơn."))
-                    .font(.system(size: 14)).foregroundStyle(Tokens.sub)
+                    .enoText(.subheadline, color: EnoColor.sub)
 
                 section(L10n.tr("What the colors mean", "Ý nghĩa các màu"))
                 Text(L10n.tr("Every account starts at 60 — a neutral 'Building' state, not a warning. The upper tiers are earned with real volume.",
                              "Mỗi tài khoản bắt đầu ở 60 — trạng thái 'Đang tích lũy', không phải cảnh báo. Các hạng trên phải kiếm được bằng khối lượng thực."))
-                    .font(.system(size: 13)).foregroundStyle(Tokens.sub)
+                    .enoText(.caption, color: EnoColor.sub)
                 ForEach(bands.indices, id: \.self) { i in
                     let b = bands[i]
-                    HStack(alignment: .top, spacing: 12) {
+                    HStack(alignment: .top, spacing: EnoSpacing.s3) {
                         TrustMini(score: b.score)
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
-                                Text(b.name).font(.system(size: 14, weight: .bold)).foregroundStyle(Tokens.fg)
-                                Text(b.range).font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                                Text(b.name).font(EnoTextRole.subheadline.font.weight(.bold)).foregroundStyle(EnoColor.fg)
+                                Text(b.range).enoText(.caption, color: EnoColor.sub)
                             }
-                            Text(b.note).font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                            Text(b.note).enoText(.caption, color: EnoColor.sub)
                         }
                     }
-                    .padding(12)
+                    .padding(EnoSpacing.s3)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                    .background(EnoColor.card, in: RoundedRectangle(cornerRadius: EnoRadius.control))
                 }
 
                 section(L10n.tr("How the score is built", "Điểm được tính thế nào"))
                 Text(L10n.tr("The score starts at 60 and adds four components — verification, real completed deals, reviews from different buyers, and fast replies — each with a hard ceiling so no single tactic can be farmed. Everything except verification is windowed: only recent behavior moves it.",
                              "Điểm bắt đầu ở 60 và cộng bốn thành phần — xác minh, giao dịch hoàn tất thực, đánh giá từ nhiều người mua, và phản hồi nhanh — mỗi phần có giới hạn cứng. Trừ xác minh, mọi thứ đều theo cửa sổ thời gian: chỉ hành vi gần đây mới thay đổi điểm."))
-                    .font(.system(size: 13)).foregroundStyle(Tokens.sub)
+                    .enoText(.caption, color: EnoColor.sub)
 
                 section(L10n.tr("What costs you trust", "Điều gì làm mất tin cậy"))
                 Text(L10n.tr("Only admin-confirmed reports move a score down, weighted by severity — a confirmed scam costs the most. Reports only pull a tier down when they come from at least two different people and exceed 2% of the seller's deals, or when a scam is confirmed.",
                              "Chỉ báo cáo được quản trị viên xác nhận mới làm giảm điểm, theo mức độ nghiêm trọng — lừa đảo đã xác nhận mất nhiều nhất. Báo cáo chỉ hạ hạng khi đến từ ít nhất hai người khác nhau và vượt 2% số giao dịch, hoặc khi lừa đảo được xác nhận."))
-                    .font(.system(size: 13)).foregroundStyle(Tokens.sub)
+                    .enoText(.caption, color: EnoColor.sub)
 
                 section(L10n.tr("Fair by design", "Công bằng theo thiết kế"))
                 Text(L10n.tr("One hostile buyer can never sink a seller alone. Nothing heals by waiting — scores rise only through verification, real deals, real reviews, and fast replies. Daily gains are capped, so trust is built the slow, honest way. Higher trust ranks higher in search and the feed.",
                              "Một người mua thù địch không thể một mình hạ gục người bán. Không gì tự lành theo thời gian — điểm chỉ tăng qua xác minh, giao dịch thực, đánh giá thực và phản hồi nhanh. Mức tăng mỗi ngày bị giới hạn. Tin cậy cao xếp hạng cao hơn trong tìm kiếm và bảng tin."))
-                    .font(.system(size: 13)).foregroundStyle(Tokens.sub)
+                    .enoText(.caption, color: EnoColor.sub)
             }
-            .padding(16)
+            .padding(EnoSpacing.screenGutter)
         }
-        .background(Tokens.canvas)
+        .background(EnoColor.canvas)
         .navigationTitle(L10n.tr("How trust works", "Cách tin cậy hoạt động"))
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private func section(_ title: String) -> some View {
-        Text(title).font(.system(size: 17, weight: .bold)).foregroundStyle(Tokens.fg).padding(.top, 4)
+        Text(title).font(EnoTextRole.headline.font.weight(.bold)).foregroundStyle(EnoColor.fg).padding(.top, EnoSpacing.s1)
     }
 }

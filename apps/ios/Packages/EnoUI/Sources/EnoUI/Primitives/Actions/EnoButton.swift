@@ -38,7 +38,13 @@ public struct EnoButton: View {
                 } else if let icon {
                     Image(systemName: icon).font(.system(size: 16, weight: .semibold))
                 }
-                Text(title).font(EnoTextRole.label.font)
+                // A button label must never wrap to a second line — it shrinks instead.
+                // (A long CTA like "Send offer · 12.000.000 đ" in a half-width slot would
+                // otherwise reflow and change the control's height.)
+                Text(title)
+                    .font(EnoTextRole.label.font)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
             .foregroundStyle(fg)
             .frame(maxWidth: fullWidth ? .infinity : nil)

@@ -1,9 +1,12 @@
 import SwiftUI
 
 public extension View {
-    /// Apply a semantic type role (+ color). The ONLY way to set text style in the app.
-    func enoText(_ role: EnoTextRole, color: Color = EnoColor.fg) -> some View {
-        self.font(role.font).foregroundStyle(color)
+    /// Apply a semantic type role (+ color, + an optional weight override). The ONLY way to
+    /// set text style in the app. `weight:` exists because a few call sites legitimately need
+    /// a role at a non-default weight (a semibold heading in body copy) — without it they
+    /// would have to drop back to a raw font and lose the role.
+    func enoText(_ role: EnoTextRole, color: Color = EnoColor.fg, weight: Font.Weight? = nil) -> some View {
+        self.font(weight.map { role.font.weight($0) } ?? role.font).foregroundStyle(color)
     }
 }
 

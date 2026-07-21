@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Light-markdown renderer for listing descriptions — mirrors the web
 // listing-content.tsx formatDescription: blank-line paragraphs, `#` headings,
@@ -10,7 +11,7 @@ struct ListingDescriptionView: View {
     enum Block: Equatable { case paragraph(String), heading(String), bullets([String]), numbered([String]) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: EnoSpacing.s2) {
             ForEach(Array(parse(text).enumerated()), id: \.offset) { _, block in
                 render(block)
             }
@@ -22,9 +23,9 @@ struct ListingDescriptionView: View {
     @ViewBuilder private func render(_ block: Block) -> some View {
         switch block {
         case .paragraph(let s):
-            inline(s).scaledFont(16).foregroundStyle(Tokens.sub).lineSpacing(4)
+            inline(s).enoText(.callout, color: EnoColor.sub).lineSpacing(4)
         case .heading(let s):
-            inline(s).scaledFont(16, weight: .semibold).foregroundStyle(Tokens.fg)
+            inline(s).enoText(.headline, color: EnoColor.fg)
         case .bullets(let items):
             listRows(items) { _ in "•" }
         case .numbered(let items):
@@ -33,11 +34,11 @@ struct ListingDescriptionView: View {
     }
 
     private func listRows(_ items: [String], marker: @escaping (Int) -> String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: EnoSpacing.s1) {
             ForEach(items.indices, id: \.self) { i in
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(marker(i)).scaledFont(16).foregroundStyle(Tokens.ink4)
-                    inline(items[i]).scaledFont(16).foregroundStyle(Tokens.sub).lineSpacing(4)
+                HStack(alignment: .firstTextBaseline, spacing: EnoSpacing.s1 + 2) {
+                    Text(marker(i)).enoText(.callout, color: EnoColor.ink4)
+                    inline(items[i]).enoText(.callout, color: EnoColor.sub).lineSpacing(4)
                 }
             }
         }
