@@ -6,5 +6,5 @@
  * detected, never lagging behind a coalesced boolean. A plain server element — no hook.
  */
 export function BottomNavSpacer() {
-  return <div aria-hidden className="bottom-nav-spacer lg:hidden h-[calc(4rem+env(safe-area-inset-bottom))] bg-card" />
+  return <div aria-hidden className="bottom-nav-spacer lg:hidden h-[calc(4.5rem+env(safe-area-inset-bottom))] bg-card" />
 }

@@ -336,11 +336,16 @@
   * {
     @apply border-border outline-ring/50;
   }
-  /* The iOS rubber-band overscroll exposes the <html> canvas at the top & bottom
-     edges. Paint it WHITE (the header & bottom-nav colour) — not the #fafafa page
-     canvas — so a swipe past either edge stays seamless with the chrome instead of
-     flashing a grey band. overscroll-behavior-y also kills the bounce/pull-to-
-     refresh on Android for an app-like feel. */
+  /* The <html> background IS the canvas: it paints the whole viewport, including the strip a
+     rubber-band overscroll exposes past either edge and the area below a page shorter than the
+     screen. --card is right for the second case (an empty /saved sits on the card surface) and
+     for the BOTTOM edge (mobile-nav is bg-card). It is NOT the header colour — the header went
+     flat, bg-background, on 2026-07-17 — so `html.native-ios` further down repaints the canvas
+     to match the header for the one context where the top edge is actually reachable. Read that
+     rule before touching this one; they are a pair.
+     overscroll-behavior-y: none also kills the bounce/pull-to-refresh on Android for an app-like
+     feel, and on the web everywhere — which is why the exposed-strip problem is a native-iOS-only
+     concern at all. */
   html {
     background-color: var(--card);
     overscroll-behavior-y: none;
@@ -892,23 +897,70 @@ html.native-ios .back-to-top-chevron {
 }
 /* iOS native pull-to-refresh (UIRefreshControl, wired in MainViewController) needs the WebView to
    over-scroll past the top — which the base `overscroll-behavior-y: none` (the grey-band fix)
-   suppresses. Re-allow it on native iOS ONLY: the <html> background is var(--card), so the bounce
-   reveals the SAME colour as the header/nav (still seamless, no grey band), while letting the native
-   refresh spinner appear. Android keeps `none` on purpose: its PTR is a native-view-level
-   SwipeRefreshLayout wrapping the WebView (MainActivity), so it never needs web overscroll. */
+   suppresses. Re-allow it on native iOS ONLY, so the native refresh spinner can appear. Android
+   keeps `none` on purpose: its PTR is a native-view-level SwipeRefreshLayout wrapping the WebView
+   (MainActivity), so it never needs web overscroll.
+
+   ⚠️ THIS RULE IS THE ONLY REASON AN OVERSCROLL BAND EXISTS ANYWHERE IN THE APP. Everywhere else
+   `overscroll-behavior-y: none` means there is no bounce and nothing to paint — which is why the
+   canvas repaint below is scoped to .native-ios and needs to be nowhere else. */
 html.native-ios {
   overscroll-behavior-y: auto;
 }
+/* …and repaint the canvas that the bounce exposes, so the pull-to-refresh drag doesn't uncover a
+   mismatched strip above the header. The base `html` rule paints --card, which WAS the header
+   colour; the header went FLAT (bg-background) on 2026-07-17 and this was never updated, so every
+   pull-to-refresh dragged a --card band into view above a --background header. Invisible in light
+   (#fff vs #fafafa), an obvious seam in dark (#242424 vs #1b1b1b).
+   ⚠️ KEEP IN SYNC WITH THE HEADER — this must equal #app-header's background (header.tsx), which
+   is also what #status-bar-backdrop paints.
+   ⚠️ SCOPED TO .native-ios ON PURPOSE, not applied to the base `html` rule. The canvas is visible
+   on the WEB too, below a short page (an empty /saved), where --card is the intended surface and
+   nothing bounces. Widening this would repaint that for every visitor to fix a native-only band.
 
-/* Android has TWO safe-area delivery paths under Capacitor's edge-to-edge handling
-   (Android 15/16): on WebView ≥ 140, env(safe-area-inset-*) passes real values
-   through; on WebView < 140, Capacitor core pads the WebView parent and injects
-   --safe-area-inset-* custom properties instead — env() reads 0 there.
-   max(env(X), var(--X, 0px)) serves both: on the passthrough path both operands are
-   equal (no double-pad), on the padded path env() is 0 and the var wins. Applied
-   only to the insets that matter on NATIVE (header top, bottom-nav bottom + its
-   spacer) and scoped to .native so web/PWA rules keep plain env(). iOS always has
-   env() passthrough; the var is undefined there, so these are exact no-ops. */
+   KNOWN, ACCEPTED LIMITATION — the two edges want DIFFERENT colours. The bottom tab bar is
+   bg-card, and a fixed bar does not stay pinned through a rubber-band, so a bottom over-flick now
+   shows --background under a --card nav: the same seam, moved to the edge users reach far less
+   often (the feed paginates forever; pull-to-refresh is a designed, daily gesture). Fixing BOTH
+   needs a second painted surface — an `html.native-ios::before { position: absolute; bottom: 100%;
+   height: 100vh }` sentinel sitting in negative document space, which rides down with the document
+   during a top bounce. That is the right shape (Gemini 3.1 Pro confirmed the geometry, the paint
+   behaviour and that it adds no scrollable overflow) and it was deliberately NOT shipped here:
+   it paints web content into the exact strip where UIKit reveals the native UIRefreshControl
+   (MainViewController wires `wv.scrollView.refreshControl`), and whether the content layer lands
+   above or below that control cannot be settled without a device. Losing the refresh spinner is a
+   worse regression than a rare bottom seam. Verify on a device first, then swap. */
+html.native-ios {
+  background-color: var(--background);
+}
+
+/* Android safe areas under Capacitor's edge-to-edge handling. Corrected 2026-07-21 against
+   the actual source — node_modules/@capacitor/android/…/com/getcapacitor/plugin/SystemBars.java
+   (@capacitor/android 8.x). The earlier note here said the --safe-area-inset-* custom properties
+   are injected "instead of" env() on old WebViews. They are not: Capacitor writes them on
+   <html>'s inline style on BOTH paths, unconditionally, whenever `insetsHandling` is "css"
+   (the default). What actually differs is whether env() ALSO carries a value:
+
+     PASSTHROUGH  — requires BOTH `WebView major ≥ 140` AND the page's last <meta name=viewport>
+                    containing `viewport-fit=cover` (we qualify: layout.tsx sets viewportFit
+                    "cover"). Capacitor forwards the real insets, so env() and the var agree.
+     PADDED       — anything else (older WebView, or no viewport-fit=cover). Capacitor zeroes
+                    the systemBars|displayCutout insets it hands the WebView and instead pads
+                    the WebView's PARENT view (that padding step only runs on Android 15 / API
+                    35+; below that the system already insets the window). env() reads 0 there
+                    and the injected var is the only source.
+
+   So max(env(X), var(--X, 0px)) is still exactly right, and for the same reason as before: the
+   operands are equal on the passthrough path (no double-pad) and env() is 0 on the padded one.
+   Two further facts worth knowing, both from the same file:
+     · the injected values are TRUNCATED to whole CSS px — `(int)` of the density-scaled value —
+       so they can be up to 1px shy of what env() reports on the passthrough path;
+     · --safe-area-inset-BOTTOM is forced to 0 while the IME is up (calcSafeAreaInsets), which is
+       why the third term of --kb-safe-bottom collapses while typing. Harmless: --kb-h dominates
+       that max() exactly then.
+   Applied only to the insets that matter on NATIVE (header top, bottom-nav bottom + its spacer)
+   and scoped to .native so web/PWA rules keep plain env(). iOS always has env() passthrough and
+   never defines the var, so `var(--…, 0px)` resolves to 0 and these are exact no-ops there. */
 html.native #app-header {
   padding-top: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px));
 }
@@ -916,7 +968,10 @@ html.native .mobile-nav {
   padding-bottom: max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
 }
 html.native .bottom-nav-spacer {
-  height: calc(4rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)));
+  /* ⚠️ 4.5rem must equal the bar's min-h in mobile-nav.tsx. They are two separate
+     declarations of ONE number: if this is smaller the bar covers the bottom of every
+     page, if larger a dead strip appears above it. */
+  height: calc(4.5rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)));
 }
 
 /* Embedded web tabs INSIDE the native SwiftUI app (html.native-tabs, set from the
@@ -987,14 +1042,41 @@ html.native-tabs .bottom-nav-spacer {
 /* .press — tactile press for buttons/tappables. ASYMMETRIC timing: press-down is
    near-instant, release SPRINGS back. 0.96 reads "pressed", not the toy-ish 0.90. The
    base transition also lists colour/opacity/shadow so a button's existing hover:bg-*
-   still animates (a bare `transition: transform` would clobber Tailwind's transition-*). */
+   still animates (a bare `transition: transform` would clobber Tailwind's transition-*).
+
+   ⚠️ THE SHRINK USES THE `scale` PROPERTY, AND LIVES IN @layer components. Both are
+   load-bearing; this rule used to be an unlayered `transform: scale(0.96)` and BOTH halves
+   of that were wrong:
+     · `scale`, not `transform: scale()`. They are INDEPENDENT CSS properties, and the used
+       transform is translate → rotate → scale → transform, i.e. they MULTIPLY instead of
+       overriding. Every Tailwind `scale-*` utility compiles to the `scale` property, so a
+       `transform` here COMPOUNDED with it: `.press` on a ui/button (whose base carries
+       `active:scale-[0.97]`) pressed to 0.96 × 0.97 = 0.931, and map-travel's
+       `.press … active:scale-90` to 0.96 × 0.90 = 0.864 — deeper than anything anyone wrote.
+       One property ⇒ one winning declaration ⇒ no compounding, ever.
+     · @layer components sits BELOW Tailwind's utilities layer, so ANY `active:scale-*` on
+       the element beats this outright — layer order decides before specificity is even
+       consulted. THAT is what makes `active:scale-100` a working opt-out. Unlayered (the old
+       home of this rule) it beat every utility no matter what the call site wrote, so four
+       call sites carried an `active:scale-100` that did precisely nothing.
+   The two `transition` declarations deliberately stay UNLAYERED: half the .press call sites
+   also carry `transition-colors`, and if a utility could win there the press would lose its
+   spring. VERIFY IN THE BUILT CSS after changing this — a layer mistake is invisible:
+     grep -o '@layer components{[^@]*\.press:active{[^}]*}' .next/static/chunks/*.css */
 .press {
-  transition: transform 220ms var(--ease-spring-snappy),
+  transition: scale 220ms var(--ease-spring-snappy),
+              transform 220ms var(--ease-spring-snappy),
               background-color 150ms linear, color 150ms linear,
               opacity 150ms linear, box-shadow 150ms linear;
   touch-action: manipulation; /* also removes the legacy 300ms tap delay */
 }
-.press:active { transform: scale(0.96); transition: transform 40ms var(--ease-spring-snappy); }
+.press:active {
+  transition: scale 40ms var(--ease-spring-snappy),
+              transform 40ms var(--ease-spring-snappy);
+}
+@layer components {
+  .press:active { scale: 0.96; }
+}
 
 /* Chat bubbles rise + fade in as they arrive (own + incoming). Subtle, one-shot. */
 @keyframes bubble-in {

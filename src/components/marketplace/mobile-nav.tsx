@@ -53,17 +53,24 @@ function TabStack({ icon, label }: { icon: React.ReactNode; label: string }) {
   )
 }
 
-// gap-0.5 (not gap-1) so the taller Post chip (h-12) + its label sit as one tight unit.
+// gap-0.5 (not gap-1) so the taller Post chip + its label sit as one tight unit.
 const STACK = 'relative flex h-full w-full flex-col items-center justify-center gap-0.5 transition-colors'
+
+// The Post tab only. Its chip is the tallest thing in the bar, and centring it left the
+// chip's top edge FLUSH with the bar's top border — exactly where the active/pending
+// indicator draws its 2px line, so the two merged into one smudge on tap (owner report,
+// 2026-07-21). Bottom-weighting the stack pushes the whole tab DOWN, which parks all of
+// the bar's slack above the chip and gives the indicator its own clear band.
+const STACK_POST = 'relative flex h-full w-full flex-col items-center justify-end gap-0.5 pb-0.5 transition-colors'
 
 /** Content of a navigating tab: the icon + micro-label stack. Active = the whole stack turns
  *  brand + a short bar sits at the top of the bar. Lives INSIDE <Link> so useLinkStatus lights
  *  it the instant it's tapped — feedback before the destination loads. */
-function TabBody({ active, icon, label }: { active: boolean; icon: React.ReactNode; label: string }) {
+function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon: React.ReactNode; label: string; stack?: string }) {
   const { pending } = useLinkStatus()
   const on = active || pending
   return (
-    <span className={cn(STACK, on ? 'text-accent-foreground' : 'text-body')}>
+    <span className={cn(stack, on ? 'text-accent-foreground' : 'text-body')}>
       {on && <span aria-hidden className="absolute top-0 h-0.5 w-8 rounded-full bg-accent-foreground" />}
       <TabStack icon={icon} label={label} />
     </span>
@@ -75,12 +82,12 @@ function TabBody({ active, icon, label }: { active: boolean; icon: React.ReactNo
  *  to a page that would gate inconsistently — so every gated action on mobile
  *  meets the SAME card. While auth is still resolving (or signed in) it's a normal
  *  Link, so a logged-in user is never wrongly shown the modal. */
-function GatedTab({ href, active, icon, label, gate, onClick, prefetch }: { href: string; active: boolean; icon: React.ReactNode; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false }) {
+function GatedTab({ href, active, icon, label, gate, onClick, prefetch, stack }: { href: string; active: boolean; icon: React.ReactNode; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false; stack?: string }) {
   const { openSignIn } = useAuth()
   if (gate) {
     return (
       <Button type="button" variant="bare" size="none" onClick={() => openSignIn()} aria-label={label} className={TAB}>
-        <span className={cn(STACK, 'text-body')}>
+        <span className={cn(stack ?? STACK, 'text-body')}>
           <TabStack icon={icon} label={label} />
         </span>
       </Button>
@@ -90,7 +97,7 @@ function GatedTab({ href, active, icon, label, gate, onClick, prefetch }: { href
   // handles the taps that are NOT a navigation, and preventDefault()s those.
   return (
     <Link href={href} prefetch={prefetch} aria-label={label} aria-current={active ? 'page' : undefined} className={TAB} onClick={onClick}>
-      <TabBody active={active} icon={icon} label={label} />
+      <TabBody active={active} icon={icon} label={label} stack={stack} />
     </Link>
   )
 }
@@ -223,7 +230,7 @@ export function MobileNav() {
           bar grow instead of clipping when the label needs the room.
           The safe-area padding sits BELOW the row (filled) so the home-indicator inset never
           compresses the icons out of the bar. */}
-      <div className="flex min-h-16 items-stretch">
+      <div className="flex min-h-[4.5rem] items-stretch">
       <Link href="/" aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
         <TabBody active={at('/')} label={tr('Explore', 'Khám phá')} icon={<Compass className="h-7 w-7" strokeWidth={STROKE} />} />
       </Link>
@@ -256,9 +263,10 @@ export function MobileNav() {
         // Emphasised but FLAT: a soft tinted chip (canon chip = rounded-full + tint, §2) with a
         // brand-blue plus — no shadow, no FAB lift, no heavy solid fill. It reads as the primary
         // action while staying part of the same flat canvas as the other tabs.
+        stack={STACK_POST}
         icon={
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-tint text-brand">
-            <Plus className="h-6 w-6" strokeWidth={STROKE} />
+          <span className="flex size-13 items-center justify-center rounded-full bg-tint text-brand">
+            <Plus className="h-7 w-7" strokeWidth={STROKE} />
           </span>
         }
       />
