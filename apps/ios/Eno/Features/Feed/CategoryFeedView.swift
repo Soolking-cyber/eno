@@ -21,7 +21,11 @@ struct CategoryFeedView: View {
 
     var body: some View {
         ScrollView {
-            if !subs.isEmpty { subBar }
+            // The full cascade (category rail → subcategory 3-row grid → brand rail
+            // → model 3-row grid), the same one the home uses — mirrors the web
+            // explorer. Replaces the plain subcategory chip bar so the category page
+            // is a real drill-down (owner: "3x3 grid for subcats and model").
+            QuickFindBar(feed: model)
             HStack(spacing: 8) {
                 SortBar(model: model)
                 FilterChip(active: model.hasPriceFilter) { showFilter = true }
