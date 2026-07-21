@@ -49,13 +49,18 @@ final class FeedModel {
     var condition: String? {
         didSet { if oldValue != condition { scheduleReload() } }
     }
+    // Verified-only (web default = true → the server's implicit verified-only feed).
+    // OFF sends verified=all to reveal unverified/held listings (web setVerifiedOnly).
+    var verifiedOnly = true {
+        didSet { if oldValue != verifiedOnly { scheduleReload() } }
+    }
     // Per-category facet filters, already keyed as the server expects:
     // attr_{facetKey}=value for chip/select facets, range_{column}="min-max" for
     // range facets. The filter sheet builds these from the taxonomy facet defs.
     var customFilters: [String: String] = [:] {
         didSet { if oldValue != customFilters { scheduleReload() } }
     }
-    var hasPriceFilter: Bool { priceMin != nil || priceMax != nil || condition != nil || !customFilters.isEmpty }
+    var hasPriceFilter: Bool { priceMin != nil || priceMax != nil || condition != nil || !customFilters.isEmpty || !verifiedOnly }
 
     private var offset = 0
     private var exhausted = false
@@ -157,6 +162,7 @@ final class FeedModel {
         if let priceMin { q.append(URLQueryItem(name: "priceMin", value: String(priceMin))) }
         if let priceMax { q.append(URLQueryItem(name: "priceMax", value: String(priceMax))) }
         if let condition { q.append(URLQueryItem(name: "condition", value: condition)) }
+        if !verifiedOnly { q.append(URLQueryItem(name: "verified", value: "all")) }
         for (k, v) in customFilters.sorted(by: { $0.key < $1.key }) {
             q.append(URLQueryItem(name: k, value: v))
         }

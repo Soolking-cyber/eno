@@ -9,6 +9,7 @@ struct CategoryFeedView: View {
     @State private var model = FeedModel()
     @State private var showFilter = false
     @State private var subs: [CategoriesResponse.Sub] = []
+    @State private var facets: [CategoriesResponse.Facet] = []
     @State private var viewMode: ViewMode = .grid
     // Video (#130) is a full-screen takeover, not an inline results arm: tapping the
     // ▷ toggle opens VideoFeedView as a cover and reverts the toggle to the last mode.
@@ -35,6 +36,7 @@ struct CategoryFeedView: View {
             }
             .padding(.horizontal, 12)
             .padding(.top, 2)
+            appliedChipsBar
             resultsView
             if !model.isRefreshing && model.items.isEmpty {
                 Text(L10n.tr("Nothing here yet", "Chưa có tin nào"))
@@ -64,7 +66,9 @@ struct CategoryFeedView: View {
         }
         .task {
             if model.category != category.slug { model.category = category.slug }
-            subs = await Taxonomy.shared.subs(for: category.slug)
+            let cat = await Taxonomy.shared.category(for: category.slug)
+            subs = cat?.subcategories ?? []
+            facets = cat?.facets ?? []
         }
     }
 
@@ -124,6 +128,92 @@ struct CategoryFeedView: View {
             }
         }
         .frame(maxWidth: .infinity).padding(.top, 60)
+    }
+
+    // Applied-filter chips (web explorer active-filter row): each removes its own
+    // filter live; "Clear all" resets them. Surfaces the price / condition / facet
+    // filters set in the sheet, which are otherwise invisible once it closes.
+    @ViewBuilder
+    private var appliedChipsBar: some View {
+        let chips = activeFilterChips
+        if !chips.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(chips) { chip in
+                        Button(action: chip.clear) {
+                            HStack(spacing: 4) {
+                                Text(chip.label).font(.system(size: 13, weight: .semibold)).foregroundStyle(Tokens.fg)
+                                Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Tokens.ink4)
+                            }
+                            .padding(.leading, 12).padding(.trailing, 10).frame(height: 30)
+                            .background(Tokens.tint, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(L10n.tr("Remove filter", "Bỏ bộ lọc") + ": \(chip.label)")
+                    }
+                    if chips.count > 1 {
+                        Button {
+                            model.priceMin = nil; model.priceMax = nil
+                            model.condition = nil; model.customFilters = [:]
+                        } label: {
+                            Text(L10n.tr("Clear all", "Xóa tất cả"))
+                                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Tokens.brand)
+                                .padding(.horizontal, 10).frame(height: 30)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private struct FilterChipModel: Identifiable {
+        let id: String
+        let label: String
+        let clear: () -> Void
+    }
+
+    private var activeFilterChips: [FilterChipModel] {
+        var chips: [FilterChipModel] = []
+        if model.priceMin != nil || model.priceMax != nil {
+            let label: String
+            if let lo = model.priceMin, let hi = model.priceMax { label = "\(Format.vnd(lo)) – \(Format.vnd(hi))" }
+            else if let lo = model.priceMin { label = "≥ \(Format.vnd(lo))" }
+            else if let hi = model.priceMax { label = "≤ \(Format.vnd(hi))" }
+            else { label = "" }
+            chips.append(FilterChipModel(id: "price", label: label) { model.priceMin = nil; model.priceMax = nil })
+        }
+        if let c = model.condition {
+            chips.append(FilterChipModel(id: "condition", label: c == "new" ? L10n.tr("New", "Mới") : L10n.tr("Used", "Đã dùng")) { model.condition = nil })
+        }
+        for (k, v) in model.customFilters.sorted(by: { $0.key < $1.key }) {
+            chips.append(FilterChipModel(id: k, label: facetChipLabel(key: k, value: v)) { model.customFilters[k] = nil })
+        }
+        return chips
+    }
+
+    // Human label for an attr_/range_ customFilter, resolved via the loaded facets.
+    private func facetChipLabel(key: String, value: String) -> String {
+        if key.hasPrefix("attr_") {
+            let fk = String(key.dropFirst(5))
+            if let f = facets.first(where: { $0.key == fk }) {
+                let opt = f.options.first(where: { $0.value == value })?.displayName ?? value
+                return "\(f.displayLabel): \(opt)"
+            }
+            return value
+        }
+        if key.hasPrefix("range_") {
+            let col = String(key.dropFirst(6))
+            let f = facets.first(where: { $0.range?.column == col })
+            let parts = value.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            let lo = parts.first ?? "", hi = parts.count > 1 ? parts[1] : ""
+            let unit = f?.range?.unit.map { " \($0)" } ?? ""
+            let range = lo.isEmpty ? "≤ \(hi)\(unit)" : hi.isEmpty ? "≥ \(lo)\(unit)" : "\(lo)–\(hi)\(unit)"
+            return f.map { "\($0.displayLabel): \(range)" } ?? range
+        }
+        return value
     }
 
     // "All · Motorbike (12) · Bicycle (4) · …" — counts from subcategoryCounts.
