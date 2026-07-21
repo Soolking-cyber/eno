@@ -13,6 +13,7 @@ struct CategoryFeedView: View {
     // Video (#130) is a full-screen takeover, not an inline results arm: tapping the
     // ▷ toggle opens VideoFeedView as a cover and reverts the toggle to the last mode.
     @State private var showVideoCover = false
+    @State private var showMapCover = false
     @State private var lastMode: ViewMode = .grid
     @State private var webRoute: WebRoute?
     private struct WebRoute: Identifiable { let id = UUID(); let path: String }
@@ -52,10 +53,14 @@ struct CategoryFeedView: View {
         // back on the previous view mode (web prevViewRef).
         .onChange(of: viewMode) { _, new in
             if new == .video { showVideoCover = true; viewMode = lastMode }
+            else if new == .map { showMapCover = true; viewMode = lastMode }
             else { lastMode = new }
         }
         .fullScreenCover(isPresented: $showVideoCover) {
             VideoFeedView(filters: model.filterItems, onClose: { showVideoCover = false })
+        }
+        .fullScreenCover(isPresented: $showMapCover) {
+            ExplorerMapView(listings: model.items, onClose: { showMapCover = false })
         }
         .task {
             if model.category != category.slug { model.category = category.slug }

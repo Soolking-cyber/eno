@@ -77,10 +77,9 @@ struct ListingDetailView: View {
                         Divider().overlay(Tokens.ring)
                         // Description (web page.tsx order-8: h-section 18px heading + body).
                         Text(L10n.tr("Description", "Mô tả")).scaledFont(18, weight: .bold).foregroundStyle(Tokens.fg)
-                        Text(d.description)
-                            .scaledFont(16)
-                            .foregroundStyle(Tokens.sub)   // web text-body #525252
-                            .lineSpacing(4)
+                        // Light-markdown render (web listing-content.tsx): bullets,
+                        // numbered lists, headings, inline **bold**.
+                        ListingDescriptionView(text: d.description)
                         detailsTable(d)
                         reviewsPreview
                     } else if unavailable {
