@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { findBannedWord, containsContactInfo, assertPublishable, PublishBlockedError, type PublishBlockCode } from './publish-guard'
+import { findBannedWord, containsContactInfo, assertPublishable, assertCleanContactName, publicSafeName, PublishBlockedError, type PublishBlockCode } from './publish-guard'
 
 // publish-guard is the automated gate every new/edited listing passes. False NEGATIVES let
 // illegal goods or off-platform contact through; false POSITIVES block legitimate sellers
@@ -126,5 +126,56 @@ describe('assertPublishable — gate priority & happy path', () => {
     try { assertPublishable({ ...ok, texts: ['gọi 0901234567'] }) } catch (e) {
       expect((e as PublishBlockedError).detail).toBe('phone')
     }
+  })
+})
+
+// ── The seller's own CONTACT NAME ──────────────────────────────────────────────────
+// Regression suite for a reported dead end: an account whose displayName was its raw
+// email ("leagues1111@gmail.com") could not publish ANY listing. The wizard concatenated
+// title + description + contactName into one blob, so the email tripped the contact rule
+// and the seller was told to remove contact details from a LISTING whose title and
+// description were completely clean — and the offending text wasn't editable from that
+// screen. Root cause: PATCH /api/profile screened displayName for a PHONE but not for an
+// EMAIL, while the publish gate rejected both.
+describe('publish-guard · seller contact name', () => {
+  it('reports an email in the contact name as contact_in_name, NOT contact_in_text', () => {
+    // The distinct code is the whole point: it routes the message to Settings instead of
+    // telling the seller to edit a listing that has nothing wrong with it.
+    expect(blockCodeOf(() => assertCleanContactName('leagues1111@gmail.com'))).toBe('contact_in_name')
+  })
+
+  it('reports a phone in the contact name as contact_in_name', () => {
+    expect(blockCodeOf(() => assertCleanContactName('0901234567'))).toBe('contact_in_name')
+  })
+
+  it('lets ordinary names through', () => {
+    for (const name of ['Nguyễn Văn A', 'Saigon Visa Services', 'Minh', 'Anh Tuấn Motorbikes']) {
+      expect(() => assertCleanContactName(name)).not.toThrow()
+    }
+  })
+
+  it('publicSafeName masks a name that IS contact info, so a legacy account can still post', () => {
+    expect(publicSafeName('leagues1111@gmail.com')).toBe('le***')
+    expect(publicSafeName('0906104247')).toBe('09***')
+  })
+
+  it('publicSafeName leaves a real name untouched', () => {
+    expect(publicSafeName('Nguyễn Văn A')).toBe('Nguyễn Văn A')
+    expect(publicSafeName('Saigon Visa Services')).toBe('Saigon Visa Services')
+  })
+
+  it('a masked name passes the gate — the repair actually unblocks publishing', () => {
+    expect(() => assertCleanContactName(publicSafeName('leagues1111@gmail.com'))).not.toThrow()
+  })
+
+  it('the reported listing text was never the problem', () => {
+    // Exactly the title/description from the report: clean under every rule.
+    const title = 'Vietnam Single Entry E-Visa - 1 Business Day'
+    expect(containsContactInfo(title)).toBe(false)
+    expect(() => assertPublishable({
+      trustTier: 'standard',
+      images: ['a.webp', 'b.webp', 'c.webp'],
+      texts: [title, 'Official assistance. Secure application. Expert support.'],
+    })).not.toThrow()
   })
 })

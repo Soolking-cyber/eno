@@ -29,7 +29,7 @@ import { syndicateListing } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
-import { assertPublishable, assertCleanTexts, assertEnoughAngles, PublishBlockedError } from '@/lib/publish-guard'
+import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
@@ -369,8 +369,11 @@ export async function updateListingCore(
   // all publicly rendered).
   try {
     const attrTexts = data.attributes ? Object.values(JSON.parse(data.attributes as string) as Record<string, string>) : []
+    // Same split as create: the contact name gets its own code so the edit screen can
+    // point at Settings rather than at the listing body.
+    assertCleanContactName(contactName)
     assertCleanTexts([
-      title, description, contactName,
+      title, description,
       data.district as string | null | undefined,
       data.condition as string | null | undefined,
       data.model as string | null | undefined,
@@ -523,8 +526,12 @@ export async function createListingCore(input: {
   // them (the wizard maps these codes to inline messages). Throws PublishBlockedError; the
   // caller turns it into an HTTP error. Pass → the listing goes live instantly.
   const description = String(body.description || '').trim().slice(0, 5000)
+  // The contact NAME is screened first and on its own, so "your name is an email"
+  // reports as contact_in_name (fixable in Settings) instead of being folded into
+  // contact_in_text, which tells the seller to edit a listing that is already clean.
   const guardName = body.contactName ? String(body.contactName).trim().slice(0, 80) : null
-  assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description, guardName] })
+  assertCleanContactName(guardName)
+  assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description] })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category
   // (else its primary type); subcategory falls back to keyword-suggest.

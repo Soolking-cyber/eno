@@ -13,7 +13,13 @@ export const MIN_IMAGE_ANGLES = 3
 // and bulk import so every path enforces the same rules. Returned codes map to clear
 // messages in the post wizard.
 
-export type PublishBlockCode = 'account_restricted' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'duplicate_listing'
+// `contact_in_name` is deliberately SEPARATE from `contact_in_text`. Both mean "off-platform
+// contact info would go public", but they are fixed in completely different places: one by
+// editing the listing, the other in account Settings. Folding them together produced a real
+// dead end — a seller whose account display name was their raw email got "remove the phone
+// number/email from your LISTING" on a listing whose title and description were clean, with
+// no hint that the offending text was their own name and no way to change it from that screen.
+export type PublishBlockCode = 'account_restricted' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing'
 
 export class PublishBlockedError extends Error {
   code: PublishBlockCode
@@ -129,6 +135,35 @@ const LINK = /\b(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]{2,}\.(?:com|net|org|io|info
 const HANDLE = /(?:^|\s)@[a-z0-9._]{3,}/
 const SOCIAL = /\b(?:zalo|whatsapp|telegram|wechat|viber|messenger|facebook|instagram|tiktok)\b\s*[:@#]\s*[\w.+-]{2,}/i
 const HOUSE = /\bsố\s*nhà\s*\d{1,4}\b/iu
+
+/**
+ * The seller's public contact NAME, screened with the same rules as listing text and
+ * reported under its own code so the message can point at Settings rather than the listing.
+ * Called before the listing-text screens so the more specific diagnosis wins.
+ */
+export function assertCleanContactName(name: string | null | undefined) {
+  if (!name) return
+  if (containsPhoneNumber(name)) throw new PublishBlockedError('contact_in_name', 'phone')
+  if (containsContactInfo(name)) throw new PublishBlockedError('contact_in_name', 'contact')
+  const banned = findBannedWord(name)
+  if (banned) throw new PublishBlockedError('banned_words', banned)
+}
+
+/**
+ * A public-safe rendering of an account name. When the stored name IS contact info — an
+ * email typed into the display-name field, which /api/profile used to accept because it
+ * only screened for PHONE numbers — fall back to the masked handle that ensureProfile()
+ * would have created ("le***"). This is what keeps a legacy row from being unpublishable:
+ * the seller does not have to repair their account before they can post, and their email
+ * still never reaches a public listing.
+ */
+export function publicSafeName(name: string | null | undefined): string {
+  const trimmed = (name || '').trim()
+  if (!trimmed) return ''
+  if (!containsContactInfo(trimmed) && !containsPhoneNumber(trimmed)) return trimmed
+  const local = trimmed.split('@')[0]?.trim()
+  return local && local.length >= 2 ? `${local.slice(0, 2)}***` : ''
+}
 
 /** True if the text embeds off-platform contact info (incl. obfuscated email) or a house number. */
 export function containsContactInfo(text: string | null | undefined): boolean {

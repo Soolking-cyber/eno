@@ -4,6 +4,7 @@ import { getCurrentProfile } from '@/lib/admin'
 import { containsPhoneNumber, normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { isListingImageUrl } from '@/lib/listing-image'
+import { containsContactInfo } from '@/lib/publish-guard'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
@@ -29,6 +30,12 @@ export async function PATCH(req: NextRequest) {
     const name = String(body.displayName).trim().slice(0, 80)
     if (name.length < 2) return NextResponse.json({ error: 'name_too_short' }, { status: 400 })
     if (containsPhoneNumber(name)) return NextResponse.json({ error: 'no_phone_in_name' }, { status: 400 })
+    // ⚠️ This screened for a PHONE but not for an EMAIL, while the publish gate rejects
+    // both — so the app happily saved a display name it would later refuse to publish
+    // with, and the seller got a "fix your listing" error on a clean listing. The two
+    // rules must stay symmetric: displayName is public (chat counterparty, review author,
+    // listing contact), so contact info in it is the same leak either way.
+    if (containsContactInfo(name)) return NextResponse.json({ error: 'no_contact_in_name' }, { status: 400 })
     data.displayName = name
   }
   if (body.avatarUrl !== undefined) {

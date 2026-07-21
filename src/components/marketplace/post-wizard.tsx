@@ -17,7 +17,7 @@ import { haptic } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { containsPhoneNumber } from '@/lib/phone'
-import { containsContactInfo, findBannedWord } from '@/lib/publish-guard'
+import { containsContactInfo, findBannedWord, publicSafeName } from '@/lib/publish-guard'
 import { trackPostListing } from '@/lib/analytics'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
 import { subcategoriesFor, typesFor, facetsFor, rangeFacetsFor, categoryHasBrand, LISTING_TYPES } from '@/lib/taxonomy'
@@ -338,7 +338,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     fetch('/api/me', { signal: ctrl.signal }).then((r) => r.json()).then((d) => {
       const u = d.user
       if (u) {
-        setContactName(u.seller?.name || u.displayName || '')
+        // publicSafeName masks an account name that IS contact info (an email typed into
+        // the display-name field — /api/profile used to allow it because it only screened
+        // for phone numbers). Seeding the raw value made the account unpublishable: the
+        // publish gate rejected the name, but the error named the listing, which was clean.
+        setContactName(publicSafeName(u.seller?.name || u.displayName || ''))
         setContactPhone(u.seller?.phone || u.phone || '')
         if (u.accountType === 'business') setPostingAs(u.businessName || u.seller?.name || null)
       }
@@ -504,11 +508,20 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // Catch fixable issues client-side so they're noted BEFORE submitting (the server
     // enforces the same rules). Contact info / addresses stay off the public listing —
     // buyers reach sellers in-app.
-    const blob = `${title} ${description} ${contactName}`
-    if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsPhoneNumber(contactName) || containsContactInfo(blob)) {
+    // Screen the contact NAME on its own and FIRST. It was previously concatenated into
+    // one blob with the title and description, so an email in the account's name produced
+    // "remove it from your listing" on a listing that was already clean — an unfixable
+    // dead end, because the name isn't editable from this screen.
+    if (containsPhoneNumber(contactName) || containsContactInfo(contactName)) {
+      setError(t('Tên liên hệ của bạn không được là email hay số điện thoại. Hãy đổi tên hiển thị trong Cài đặt rồi đăng lại.', "Your contact name can't be an email address or phone number. Change your display name in Settings, then post again."))
+      return
+    }
+    const listingText = `${title} ${description}`
+    if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsContactInfo(listingText)) {
       setError(t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post."))
       return
     }
+    const blob = `${title} ${description} ${contactName}`
     if (findBannedWord(blob)) {
       setError(t('Tin của bạn có từ ngữ không được phép. Vui lòng chỉnh sửa rồi đăng lại.', "Your listing contains a word that isn't allowed. Please edit it and try again."))
       return
@@ -593,6 +606,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? t('Không tải được video, vui lòng thử lại.', 'Could not upload your video — please try again.')
           : msg === 'video_hevc'
           ? t('Không xử lý được video HEVC này. Hãy xuất lại dạng MP4 (H.264): trên iPhone bật Cài đặt → Camera → Định dạng → Tương thích nhất.', "Couldn't process this HEVC video. Export it as MP4 (H.264) — on iPhone: Settings → Camera → Formats → Most Compatible.")
+          : msg === 'contact_in_name'
+          ? t('Tên liên hệ của bạn không được là email hay số điện thoại. Hãy đổi tên hiển thị trong Cài đặt rồi đăng lại.', "Your contact name can't be an email address or phone number. Change your display name in Settings, then post again.")
           : msg === 'no_phone_in_listing' || msg === 'contact_in_text'
           ? t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post.")
           : msg === 'banned_words'
