@@ -83,14 +83,32 @@ it. Rules:
 
 ## Shipping
 
-**Forum/itinerary deployment boundary — cutover complete (owner, 2026-07-18):**
+**Forum/itinerary deployment boundary — cutover complete (owner, 2026-07-18; narrowed 2026-07-21):**
 `/Users/mk1e3/eno.vn/apps/forum` is the only source of truth for `eno.forum`, including
-the forum, itinerary, concierge, and Vietnam e-Visa surfaces. Make all such changes
-only under `apps/forum/**`. The former `/Users/mk1e3/eno-forum` checkout and
-`Soolking-cyber/eno-forum` repository are retired migration history: never edit, push,
-or deploy from them. The existing `eno-forum` Vercel project remains separate because
-it owns the forum domains and environment variables, but it now deploys
-`Soolking-cyber/eno` with Root Directory `apps/forum`.
+the forum, itinerary, and concierge surfaces (**e-Visa was removed from this list —
+see "Visa ownership" below**). Make all such changes only under `apps/forum/**`. The
+former `/Users/mk1e3/eno-forum` checkout and `Soolking-cyber/eno-forum` repository are
+retired migration history: never edit, push, or deploy from them. The `eno.forum`
+deployment stays a separate service (it owns the forum domains and environment
+variables) but builds from `Soolking-cyber/eno` with root directory `apps/forum`.
+
+**Visa ownership — eno.vn owns the WHOLE feature (owner, 2026-07-21):** the Vietnam
+e-Visa service belongs to **eno.vn (repo root)** end to end — applicant flow, AI
+passport extraction, payments, the in-DM experience, and the admin/operator queue.
+Build every visa change under `src/**`; **`apps/forum` must not gain new visa
+surfaces.** The visa code still under `apps/forum/**` is legacy awaiting an
+owner-approved retirement plan — **do not delete any of it yet**: two capabilities
+still exist ONLY there (the PII retention cron `/api/cron/visa-retention`, and the
+Browserbase hosted-prefill operator flow), and so do the visa table/bucket migrations.
+Per-file inventory and the migration order live in `apps/forum/docs/VISA_ASSISTANCE.md`.
+The visa admin identity is **`support@eno.vn`** (`apps/forum/src/lib/visa/auth.ts:5`) —
+`support@eno.forum` in any doc or env is stale.
+⚠️ `src/lib/sync-pairs.test.ts` byte-couples six `src/lib/visa/*` files
+(`mrz` · `image-quality` · `image-normalization` · `checkpoints` · `schema` · `crypto`)
+to their forum copies, so editing one of those on the eno.vn side **fails the root
+vitest suite** until the pair is mirrored or retired from the test. Check that list
+before touching `src/lib/visa/**`, and prefer putting new visa logic in files that are
+not sync-paired.
 
 **Codex handoff boundary (owner, 2026-07-18):** Codex only edits and validates
 `apps/forum/**`; it must not commit, push, trigger Vercel, or run the shipping workflow.

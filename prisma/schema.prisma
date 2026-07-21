@@ -395,9 +395,9 @@ model Listing {
   // ── Sale attribution (seller marks sold via the native confirm sheet) ──────────
   // Recorded when status→'sold'; cleared on reactivate. Additive scalars (no FK),
   // applied via scripts/sold-attribution-cols.mjs.
-  soldChannel             String?   // 'eno' (in-app buyer) | 'external' | null
+  soldChannel             String? // 'eno' (in-app buyer) | 'external' | null
   soldToProfileId         String?            @db.Uuid // the in-app buyer, when soldChannel='eno' (scalar; display resolves at read)
-  soldPlatform            String?   // free text external marketplace, when soldChannel='external'
+  soldPlatform            String? // free text external marketplace, when soldChannel='external'
   soldAt                  DateTime?
   postedAt                DateTime           @default(now()) // also the feed-recency key; "confirm availability" bumps it
   views                   Int                @default(0)
@@ -498,27 +498,42 @@ model ContactReveal {
 // claims their business profile, at which point existing threads light up.
 // Denormalized last-message + unread counts power the inbox/badge without N+1.
 model Conversation {
-  id              String    @id @default(cuid())
-  listingId       String
-  listing         Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  buyerProfileId  String    @db.Uuid
-  buyer           Profile   @relation("BuyerConversations", fields: [buyerProfileId], references: [id], onDelete: Cascade)
-  sellerId        String
-  seller          Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  sellerProfileId String?   @db.Uuid // null until the seller claims their account
-  sellerProfile   Profile?  @relation("SellerConversations", fields: [sellerProfileId], references: [id], onDelete: SetNull)
-  messages        Message[]
-  lastMessageAt   DateTime  @default(now())
-  lastMessageText String?
-  buyerUnread     Int       @default(0)
-  sellerUnread    Int       @default(0)
+  id                String    @id @default(cuid())
+  listingId         String
+  listing           Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyerProfileId    String    @db.Uuid
+  buyer             Profile   @relation("BuyerConversations", fields: [buyerProfileId], references: [id], onDelete: Cascade)
+  sellerId          String
+  seller            Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sellerProfileId   String?   @db.Uuid // null until the seller claims their account
+  sellerProfile     Profile?  @relation("SellerConversations", fields: [sellerProfileId], references: [id], onDelete: SetNull)
+  messages          Message[]
+  lastMessageAt     DateTime  @default(now())
+  lastMessageText   String?
+  buyerUnread       Int       @default(0)
+  sellerUnread      Int       @default(0)
   // Per-user inbox hide ("delete conversation"): set to now() when that side
   // deletes the thread. The inbox query hides it until a newer message arrives
   // (lastMessageAt > the timestamp), so it reappears if the other party replies.
   // Non-destructive — the conversation + messages stay intact for the other side.
-  buyerDeletedAt  DateTime?
-  sellerDeletedAt DateTime?
-  createdAt       DateTime  @default(now())
+  buyerDeletedAt    DateTime?
+  sellerDeletedAt   DateTime?
+  // Visa-in-DM: binds ONE thread to ONE row in the Supabase-side visa_applications
+  // table (e-Visa cases live outside this schema — service-role/PostgREST, never
+  // Prisma), so a structured visa card can only ever speak for the application its
+  // thread is bound to. Deliberately a SCALAR with no relation/FK: the target table
+  // isn't in this datamodel, and an additive nullable column is safe outside the
+  // profile_auth_fk push flow (same class as the sold-attribution scalars).
+  // Set server-side ONLY, after verifying visa_applications.user_id == buyerProfileId.
+  // @unique = at most ONE thread per case (Postgres treats NULLs as distinct, so every
+  // ordinary conversation still fits), which also makes the payment-confirm callback's
+  // application→thread lookup a findUnique instead of an ambiguous scan.
+  // A thread MAY be rebound (a repeat applicant opens a second case in the same
+  // buyer↔seller thread). Cards from the previous case stay in the timeline and are
+  // self-describing — renderers must treat a card whose meta.applicationId ≠ this
+  // column as HISTORY (never actionable).
+  visaApplicationId String?   @unique @db.Uuid
+  createdAt         DateTime  @default(now())
 
   @@unique([listingId, buyerProfileId]) // one thread per buyer per listing
   @@index([buyerProfileId])
@@ -539,11 +554,21 @@ model Message {
   senderProfileId String       @db.Uuid
   sender          Profile      @relation(fields: [senderProfileId], references: [id], onDelete: Cascade)
   body            String
-  // Structured offers live in the message timeline: kind 'offer' carries an amount
-  // + status the recipient can accept/decline/counter. 'text' = a normal chat message.
-  kind            String       @default("text") // 'text' | 'offer'
+  // Structured cards live in the message timeline. `kind` is a plain TEXT column
+  // (never a DB enum) so a new card type is an additive code change, not a DDL one.
+  //   'text'          — a normal chat message
+  //   'offer'         — carries offerAmount + offerStatus (accept/decline/counter)
+  //   'visa_step'     — one step of the in-thread e-Visa wizard (metaJson)
+  //   'visa_checkout' — the in-thread pay card (metaJson)
+  kind            String       @default("text") // 'text' | 'offer' | 'visa_step' | 'visa_checkout'
   offerAmount     Float? // VND, set when kind='offer'
   offerStatus     String? // 'pending' | 'accepted' | 'declined' | 'countered'
+  // Structured card payload as a JSON string; NULL for 'text'/'offer'. Validated on
+  // WRITE against the versioned shapes in src/lib/messages.ts — nothing else may
+  // write it. ⚠️ NEVER holds visa PII: ids, step numbers, a money amount and payload
+  // FIELD NAMES only. The applicant's answers stay in the encrypted
+  // visa_applications payload and are fetched per-render.
+  metaJson        String?
   createdAt       DateTime     @default(now())
 
   @@index([conversationId, createdAt])
