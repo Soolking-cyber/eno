@@ -61,7 +61,7 @@ struct FeedView: View {
                 _ = await (f, h)
             }
             .sheet(isPresented: $aiSheet) {
-                WebSheet(path: "/messages/ai")
+                AIConciergeView()
             }
             .sheet(isPresented: $mapSheet) {
                 WebSheet(path: "/?view=map")
