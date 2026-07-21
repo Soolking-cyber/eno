@@ -134,13 +134,18 @@ struct ListingCardView: View {
                 .foregroundStyle(Tokens.brand)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+            // The struck "was" (live only inside the 3-day drop window) and the ≈USD
+            // are INDEPENDENT — a discounted card still shows its USD value (they used
+            // to be either/or, so any drop hid the USD). After the drop window the
+            // server drops prevPrice and it reads as a normal price + USD.
             if let prev = listing.prevPrice, prev > listing.price {
                 Text(Format.compactVnd(prev))
                     .scaledFont(11, weight: .medium)
                     .strikethrough()
                     .foregroundStyle(Tokens.ink4)
                     .lineLimit(1)
-            } else if AppSettings.shared.showUSD, let approx = fx.approxUSD(listing.price) {
+            }
+            if AppSettings.shared.showUSD, let approx = fx.approxUSD(listing.price) {
                 Text(approx)
                     .scaledFont(12)
                     .foregroundStyle(Tokens.sub)

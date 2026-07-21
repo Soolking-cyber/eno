@@ -18,14 +18,19 @@ final class AppSettings {
     // formatters see it; RootView's .id(language) then re-renders the whole tree.
     var language: LangMode { didSet { defaults.set(language.rawValue, forKey: Key.language); L10n.isVi = isVi } }
     var showUSD: Bool { didSet { defaults.set(showUSD, forKey: Key.showUSD) } }
+    // Local mirror of the server's dailyReminderOptIn — so the daily availability
+    // review popup (AvailabilityReviewView) can gate itself on launch without a
+    // round-trip. SettingsView keeps it in sync (on load + on toggle).
+    var dailyReminderOptIn: Bool { didSet { defaults.set(dailyReminderOptIn, forKey: Key.dailyReminder) } }
 
     private let defaults = UserDefaults.standard
-    private enum Key { static let theme = "pref.theme", language = "pref.language", showUSD = "pref.showUSD" }
+    private enum Key { static let theme = "pref.theme", language = "pref.language", showUSD = "pref.showUSD", dailyReminder = "pref.dailyReminder" }
 
     private init() {
         theme = ThemeMode(rawValue: defaults.string(forKey: Key.theme) ?? "") ?? .system
         language = LangMode(rawValue: defaults.string(forKey: Key.language) ?? "") ?? .system
         showUSD = defaults.object(forKey: Key.showUSD) as? Bool ?? true
+        dailyReminderOptIn = defaults.object(forKey: Key.dailyReminder) as? Bool ?? true
         // didSet doesn't fire during init — seed the mirror from the persisted choice.
         L10n.isVi = isVi
     }

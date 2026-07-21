@@ -84,7 +84,6 @@ struct MyListingsView: View {
     @State private var model = MyListingsModel()
     @State private var editPath: EditRoute?
     @State private var deleteTarget: MyListing?
-    @State private var discountTarget: MyListing?
 
     struct EditRoute: Identifiable {
         let id: String
@@ -123,13 +122,6 @@ struct MyListingsView: View {
             } else {
                 WebSheet(path: "/listings/\(r.id)/edit")
             }
-        }
-        .sheet(item: $discountTarget) { l in
-            DiscountSheet(currentPrice: l.price) { newPrice in
-                Task { await model.discount(l.id, to: newPrice) }
-                discountTarget = nil
-            }
-            .presentationDetents([.height(340)])
         }
         .confirmationDialog(
             L10n.tr("Delete this listing?", "Xóa tin này?"),
@@ -228,19 +220,17 @@ struct MyListingsView: View {
                 .foregroundStyle(Tokens.ink4)
                 // Inline action chips (web dashboard-listing-row.tsx:126-164): every
                 // action visible as a bg-tint chip, not hidden behind an ellipsis Menu.
+                // Exactly four actions per the owner: Mark sold · Hide · Edit · Delete.
+                // "Still available" (availability confirmation) moved to the once-a-day
+                // review popup (AvailabilityReviewView); "Lower price"/"Share" removed.
                 FlowLayout(spacing: 6) {
                     if l.status == "active" {
-                        actionChip(L10n.tr("Still available", "Còn hàng"), "arrow.up.circle") { Task { await model.confirm(l.id) } }
                         actionChip(L10n.tr("Mark sold", "Đã bán"), "checkmark.seal") { Task { await model.setStatus(l.id, "sold") } }
-                        actionChip(L10n.tr("Lower price", "Giảm giá"), "tag") { discountTarget = l }
                         actionChip(L10n.tr("Hide", "Ẩn tin"), "eye.slash") { Task { await model.setStatus(l.id, "hidden") } }
                     } else {
                         actionChip(L10n.tr("Reactivate", "Đăng lại"), "arrow.counterclockwise") { Task { await model.setStatus(l.id, "active") } }
                     }
                     actionChip(L10n.tr("Edit", "Sửa"), "square.and.pencil") { editPath = EditRoute(id: l.id) }
-                    if l.status == "active", l.verified, let url = URL(string: "https://eno.vn/listings/\(l.id)") {
-                        ShareLink(item: url) { chipLabel(L10n.tr("Share", "Chia sẻ"), "square.and.arrow.up") }
-                    }
                     actionChip(L10n.tr("Delete", "Xóa"), "trash", destructive: true) { deleteTarget = l }
                 }
                 .padding(.top, 2)

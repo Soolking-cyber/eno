@@ -9,6 +9,10 @@ struct RootView: View {
     // Bound to the router so deep links / notification taps can switch tabs (#3).
     @State private var router = DeepLinkRouter.shared
     @State private var favs = FavoritesStore.shared
+    // Once-a-day availability review popup (owner: sellers confirm / tick off what's
+    // still available each day). auth drives a re-check when a sign-in completes.
+    @State private var auth = AuthModel.shared
+    @State private var availability = AvailabilityReviewModel()
 
     var body: some View {
         TabView(selection: $router.selectedTab) {
@@ -43,7 +47,18 @@ struct RootView: View {
         // reset boundary — otherwise a language switch would restart .task and a
         // theme change would tear the tree down instead of recoloring smoothly.
         .id(AppSettings.shared.language)
-        .task { await unread.refresh() }
+        // OUTSIDE the .id reset boundary on purpose: these run once, not on every
+        // language switch. Refresh unread + decide whether to surface the daily
+        // availability review.
+        .task {
+            await unread.refresh()
+            await availability.maybePresent()
+        }
+        // A sign-in that lands after launch (guest → account) re-checks the review.
+        .onChange(of: auth.isSignedIn) { if auth.isSignedIn { Task { await availability.maybePresent() } } }
+        .sheet(isPresented: $availability.present) {
+            AvailabilityReviewView(model: availability)
+        }
         // Every button in the app draws its OWN look (brand fills, tint chips, plain
         // text). Force .plain app-wide so no iOS version wraps them in system chrome —
         // notably iOS 26's Liquid-Glass capsule, which put an ugly pill behind every

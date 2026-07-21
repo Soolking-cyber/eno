@@ -91,6 +91,9 @@ struct SettingsView: View {
             Section(L10n.tr("Notifications", "Thông báo")) {
                 Toggle(L10n.tr("Daily availability reminder", "Nhắc kiểm tin mỗi ngày"), isOn: $reminderOptIn)
                     .onChange(of: reminderOptIn) {
+                        // Mirror locally so the daily review popup (AvailabilityReviewView)
+                        // can gate itself on launch without a round-trip.
+                        AppSettings.shared.dailyReminderOptIn = reminderOptIn
                         if prefsLoaded { Task { _ = try? await APIClient.shared.send("POST", "api/profile/reminder-prefs", body: ["dailyReminderOptIn": reminderOptIn]) } }
                     }
                 Toggle(L10n.tr("Weekly digest email", "Email tổng hợp hằng tuần"), isOn: $digestOptIn)
@@ -131,7 +134,7 @@ struct SettingsView: View {
         .navigationTitle(L10n.tr("Settings", "Cài đặt"))
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            if let rp: ReminderPref = try? await APIClient.shared.get("api/profile/reminder-prefs") { reminderOptIn = rp.dailyReminderOptIn }
+            if let rp: ReminderPref = try? await APIClient.shared.get("api/profile/reminder-prefs") { reminderOptIn = rp.dailyReminderOptIn; AppSettings.shared.dailyReminderOptIn = rp.dailyReminderOptIn }
             if let dp: DigestPref = try? await APIClient.shared.get("api/profile/digest-prefs") { digestOptIn = dp.weeklyDigestOptIn }
             prefsLoaded = true
         }
