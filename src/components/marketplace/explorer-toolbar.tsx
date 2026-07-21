@@ -117,7 +117,12 @@ export function SortStrip({
     cn(
       'h-auto flex-none border-0 outline-none after:hidden duration-100 active:scale-[0.97]',
       'data-active:bg-transparent data-active:text-accent-foreground dark:data-active:bg-transparent dark:data-active:text-accent-foreground dark:text-body',
-      '-mb-px flex shrink-0 items-center gap-1 rounded-none border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
+      // px-2 on mobile (px-3 from sm up): at 393px the four labels + px-3 came to ~417px, so the
+      // strip overflowed by ~24px — just enough to be nudged and then REST MID-WORD ("evance").
+      // Trimming 8px per tab reclaims 32px, so the full strip fits and there is nothing to scroll.
+      // snap-start pairs with the list's snap-mandatory: if it ever DOES overflow (accessibility
+      // text sizes), it can only come to rest on a tab boundary, never halfway through a label.
+      '-mb-px flex shrink-0 snap-start items-center gap-1 rounded-none border-b-2 px-2 py-2.5 text-sm font-semibold transition-colors cursor-pointer sm:px-3',
       selected
         // hover:* on the selected branch is not new paint: it kills the base's
         // hover:text-foreground so the active tab keeps its colour on hover, as it always did.
@@ -185,7 +190,11 @@ export function SortStrip({
           // underline. group-data-horizontal/tabs:h-auto matches the base's modifier verbatim so
           // tailwind-merge removes h-8 rather than racing it on specificity.
           'flex w-full justify-start p-0 group-data-horizontal/tabs:h-auto',
-          'scrollbar-none flex-nowrap items-center gap-1 overflow-x-auto',
+          // The strip is sized to FIT (see sortTab's px-2), so overflow-x-auto normally yields no
+          // scroller at all — it reads as solid chrome. snap-mandatory + overscroll-x-contain only
+          // matter when text scaling forces overflow: it then scrolls tab-by-tab instead of feeling
+          // like a loose draggable rail, and a sideways flick can't chain out to the page.
+          'scrollbar-none flex-nowrap items-center gap-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain',
         )}
       >
         <TabsTrigger value="newest" type="button" className={sortTab(sort === 'newest')}>
