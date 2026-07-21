@@ -14,15 +14,19 @@ struct ExplorerMapView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                Map(position: $camera) {
-                    ForEach(listings) { l in
+                // MapKit's native selection binding — a custom .onTapGesture on the
+                // Map swallows pin taps (review). Tapping a pin sets `selected` via
+                // its .tag; tapping empty map clears it automatically. Cap pins so a
+                // huge feed doesn't render hundreds of live SwiftUI annotations.
+                Map(position: $camera, selection: $selected) {
+                    ForEach(listings.prefix(200)) { l in
                         Annotation("", coordinate: Geo.coordinates(l)) {
                             pricePin(l)
                         }
+                        .tag(l)
                     }
                 }
                 .ignoresSafeArea()
-                .onTapGesture { withAnimation(.spring(duration: 0.2)) { selected = nil } }
 
                 // Close + count chrome.
                 HStack {
@@ -52,7 +56,7 @@ struct ExplorerMapView: View {
 
     private func pricePin(_ l: ListingCard) -> some View {
         let sel = selected?.id == l.id
-        return Text(compact(l.price))
+        return Text(Format.compactVnd(l.price))
             .font(.system(size: 12, weight: .bold))
             .foregroundStyle(sel ? .white : Tokens.brand)
             .padding(.horizontal, 8).padding(.vertical, 4)
@@ -60,7 +64,7 @@ struct ExplorerMapView: View {
             .overlay(Capsule().strokeBorder(Tokens.brand, lineWidth: 1.5))
             .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
             .scaleEffect(sel ? 1.15 : 1)
-            .onTapGesture { withAnimation(.spring(duration: 0.25)) { selected = l } }
+            .animation(.spring(duration: 0.25), value: sel)
     }
 
     private func popup(_ l: ListingCard) -> some View {
@@ -85,11 +89,4 @@ struct ExplorerMapView: View {
         .buttonStyle(.plain)
     }
 
-    // Compact price for map pins (VN scale: k / tr / tỷ).
-    private func compact(_ price: Int) -> String {
-        if price >= 1_000_000_000 { return String(format: "%.1ftỷ", Double(price) / 1_000_000_000) }
-        if price >= 1_000_000 { return "\(price / 1_000_000)tr" }
-        if price >= 1_000 { return "\(price / 1_000)k" }
-        return "\(price)"
-    }
 }

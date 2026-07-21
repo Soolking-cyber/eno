@@ -23,7 +23,7 @@ enum Format {
         }
         if amount >= 1_000_000_000 { return "\(short(Double(amount) / 1_000_000_000)) tỷ" }
         if amount >= 1_000_000 { return "\(short(Double(amount) / 1_000_000))tr" }
-        if amount >= 1_000 { return "\(amount / 1_000)k" }
+        if amount >= 1_000 { return "\(Int((Double(amount) / 1_000).rounded()))k" } // round, not truncate
         return "\(amount)"
     }
 

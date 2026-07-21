@@ -13,12 +13,12 @@ enum Geo {
         let district = (l.district ?? "").lowercased()
         var baseLat = 10.7769, baseLng = 106.7009 // HCMC center
 
-        if city.contains("hanoi") || city.contains("hà nội") {
+        if city.contains("hanoi") || city.contains("ha noi") || city.contains("hà nội") {
             baseLat = 21.0285; baseLng = 105.8542
             if district.contains("tay ho") || district.contains("tây hồ") { baseLat = 21.0718; baseLng = 105.8152 }
             else if district.contains("hoan kiem") || district.contains("hoàn kiếm") { baseLat = 21.0285; baseLng = 105.8522 }
             else if district.contains("cau giay") || district.contains("cầu giấy") { baseLat = 21.0264; baseLng = 105.7977 }
-        } else if city.contains("danang") || city.contains("đà nẵng") {
+        } else if city.contains("danang") || city.contains("da nang") || city.contains("đà nẵng") {
             baseLat = 16.0471; baseLng = 108.2068
             if district.contains("son tra") || district.contains("sơn trà") { baseLat = 16.0820; baseLng = 108.2435 }
             else if district.contains("ngu hanh son") || district.contains("ngũ hành sơn") { baseLat = 16.0279; baseLng = 108.2494 }
