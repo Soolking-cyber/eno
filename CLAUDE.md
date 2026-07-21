@@ -14,7 +14,7 @@ Vietnamese expat marketplace. Next.js 16 (App Router) · Tailwind v4 · Prisma 7
 | UI diff → canon drift | `canon-reviewer` | Opus · high |
 | Copy → bilingual contract | `i18n-reviewer` | Opus · high |
 | A bug that already survived one plausible fix | `deep-debugger` | Opus · xhigh |
-| **Second opinion — run BOTH** | `codex` + `antigravity` | **GPT-5.6 + Gemini 3.1 Pro (High) — two non-Anthropic families** |
+| **Second opinion (external)** | `antigravity` | **Gemini 3.1 Pro (High)** — ⛔ codex/ChatGPT REMOVED (owner, 2026-07-21) |
 | Second opinion — Anthropic-lineage | `fable-reviewer` | Fable 5 · xhigh — **budget-limited, use sparingly** |
 | Shipping to prod (the whole ritual) | `/ship` | Opus · medium |
 | Seller/admin e2e suite | `/authed-e2e` | Opus · low |
@@ -24,17 +24,16 @@ Three habits that follow:
 
 - **Delegate search to `scout`.** Not to save money — to keep bulk grep output out of the main context. You get the conclusion, not the file dump.
 - **Escalate, don't grind.** A fix that didn't hold goes to `deep-debugger` (Opus, xhigh), not to a second guess at the same altitude.
-- **Four families, not one.** Main thread is Opus, `fable-reviewer` is Fable 5, and the two DEFAULT external reviewers are **codex (GPT-5.6)** and **antigravity (Gemini 3.1 Pro, High)** — run BOTH on substantive code (owner 2026-07-15). They fail differently, which is the whole point: an Opus review of Opus code shares its blind spots, and even codex+Opus missed things Gemini caught (the `use-dashboard` hydration-snapshot ref, e.g.). **Anything irreversible or money/trust-adjacent — offers, publish gate, contact reveals, conversations, payments, anything that writes to prod — gets at least one non-Opus reviewer before it ships.** When everyone agrees, that's when to ask the dissenter, not when to relax.
+- **Different families, not one.** Main thread is Opus, `fable-reviewer` is Fable 5, and the DEFAULT external reviewer is **antigravity (Gemini 3.1 Pro, High)**. ⛔ **codex/ChatGPT is REMOVED (owner, 2026-07-21) — we don't need its second opinion. Do not call `codex exec`; it also now fails on this machine (the ChatGPT account rejects every model: "not supported when using Codex with a ChatGPT account").** The principle stands and is the whole point: an Opus review of Opus code shares its blind spots, so a substantive change gets a NON-Opus reviewer — Gemini first, `fable-reviewer` (Fable 5) when a second independent family is genuinely warranted. **Anything irreversible or money/trust-adjacent — offers, publish gate, contact reveals, conversations, payments, anything that writes to prod — gets at least one non-Opus reviewer before it ships.** When everyone agrees, that's when to ask the dissenter, not when to relax.
 
-**How to invoke the two external reviewers (both read-only, non-interactive):**
-- **codex** — pipe the prompt via STDIN, never as an argument (the arg form hangs waiting on stdin):
-  `echo "<review prompt>" | codex exec -m gpt-5.6-sol --sandbox read-only`  (or heredoc into stdin).
+**How to invoke the external reviewer (read-only, non-interactive):**
 - **antigravity** — `agy -p "<prompt>" --model "Gemini 3.1 Pro (High)"`. Feed the file CONTENT inline in the
   prompt (its agentic file-reading mode times out on `--print-timeout`); use `--print-timeout 240s`.
+- ⛔ **codex — DO NOT USE.** Removed by the owner 2026-07-21, and broken here anyway.
 
 In a `Workflow`, pass `model` and `effort` per `agent()` call for the Opus/Fable fan-out, and shell out to
-`codex exec` / `agy -p` from inside agents (or the main thread) for the two external families. Cross-family
-verification is the highest-value use: find with one family, have the other three try to refute.
+`agy -p` from inside agents (or the main thread) for the external family. Cross-family verification is the
+highest-value use: find with one family, have another try to refute it.
 
 ## Non-negotiables
 
