@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ForumFooter } from '@/components/forum/forum-footer'
+import { MarketplaceLinks } from '@/components/forum/marketplace-links'
 import { ForumHeader } from '@/components/forum/forum-header'
 import { ForumTrustBadgeIcon } from '@/components/forum/trust-badge'
 import {
@@ -294,6 +295,10 @@ export default async function ForumPostPage({ params }: { params: Promise<{ id: 
             </Button>
           </div>
         </article>
+
+        {/* Contextual, in-content backlinks to eno.vn. Sits directly under the post body —
+            inside the main content a crawler weighs, not in the sitewide footer. */}
+        <MarketplaceLinks />
 
         <div className="my-6 flex items-center gap-3">
           <Separator className="flex-1" />

@@ -2,8 +2,8 @@ import { redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/lib/admin'
 
 // There is NO dedicated dashboard home (owner 2026-07-18): the rail's sections ARE the
-// dashboard — visa on /dashboard/visa, trips on /dashboard/trips, forum on
-// /dashboard/forum, and the marketplace stats live at the top of /dashboard/listings.
+// dashboard — visa on /dashboard/visa, trips on /dashboard/trips, the Help Center on
+// /dashboard/help, and the marketplace stats live at the top of /dashboard/listings.
 // This route only lands people somewhere sensible and resolves legacy ?tab= links.
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +11,9 @@ const TAB_TO_ROUTE: Record<string, string> = {
   listings: '/dashboard/listings',
   account: '/dashboard/settings',
   disputes: '/dashboard/disputes',
-  forum: '/dashboard/forum',
+  // 'Forum activity' was removed 2026-07-21; the Help Center replaced it as the one
+  // community surface, so a bookmarked ?tab=forum lands there instead of nowhere.
+  forum: '/dashboard/help',
   trips: '/dashboard/trips',
   visa: '/dashboard/visa',
   dev: '/dashboard/dev',

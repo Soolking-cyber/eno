@@ -284,8 +284,10 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
             </div>
           </div>
 
+          {/* Help is NOT here anymore — it graduated to a real rail section (Community →
+              Help center, dashboard-nav.tsx) when Forum activity was removed. Rendering it
+              in both places would show the same row twice in this panel. */}
           {renderNav({ href: '/dashboard/settings', label: tr('Settings', 'Cài đặt'), icon: Settings })}
-          {renderNav({ href: '/dashboard/help', label: tr('Help', 'Trợ giúp'), icon: CircleHelp })}
 
           {/* Language + theme — quiet device prefs. Only meaningful expanded (a horizontal control has
               no collapsed icon form), so it's hidden on the collapsed desktop rail; full on mobile.

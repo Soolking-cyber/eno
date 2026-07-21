@@ -14,7 +14,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   House, Store, MessageSquareText, Heart, Scale, Upload, Code2,
-  UsersRound, Route, FileCheck2,
+  CircleHelp, Route, FileCheck2,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp,
 } from 'lucide-react'
 
@@ -82,12 +82,19 @@ export const DASHBOARD_NAV: NavGroup[] = [
   {
     ...tr('Community', 'Cộng đồng'),
     role: 'all',
-    // Community DATA sections are dashboard pages (owner 2026-07-18) — the forum's
-    // posts/itineraries/visa state renders in <main> like every marketplace section. The rail
-    // itself never leaves for eno.forum: each section carries its own explicit "Open the
-    // forum/planner/assistant" handoff CTA (goToForum) inside its content area.
+    // Community DATA sections are dashboard pages (owner 2026-07-18) — itinerary/visa state
+    // renders in <main> like every marketplace section. The rail itself never leaves for
+    // eno.forum: each section carries its own explicit "Open the planner/assistant" handoff
+    // CTA (goToForum) inside its content area.
+    //
+    // "Forum activity" (a posts/comments/saved tab set) was REMOVED 2026-07-21 (owner:
+    // "remove forum activity page in dashboard and have only help center"). The Help Center
+    // is the one community surface now — it reads the same Forum* tables, and a member's
+    // votes and replies there are the same rows eno.forum renders. Help is a real SECTION
+    // here rather than an account-footer row, which also closes the old gap where the file
+    // that calls itself the single source of truth for the rail had no Help entry at all.
     items: [
-      { href: '/dashboard/forum', ...tr('Forum activity', 'Hoạt động diễn đàn'), icon: UsersRound },
+      { href: '/dashboard/help', ...tr('Help center', 'Trung tâm trợ giúp'), icon: CircleHelp },
       { href: '/dashboard/trips', ...tr('Itineraries', 'Lịch trình'), icon: Route },
       { href: '/dashboard/visa', ...tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2 },
     ],

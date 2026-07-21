@@ -2,6 +2,7 @@
 
 import { Facebook, Instagram, Youtube } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { MARKETPLACE_BASE, MARKETPLACE_CATEGORIES } from '@/components/forum/marketplace-links'
 import { COMPANY } from '@/lib/site-legal'
 
 const MARKETPLACE_URL = (process.env.NEXT_PUBLIC_MARKETPLACE_URL || 'https://eno.vn').replace(/\/$/, '')
@@ -52,6 +53,21 @@ export function ForumFooter() {
               <a href="https://www.instagram.com/eno.vn/" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Instagram" className="text-body transition-colors hover:text-accent-foreground"><Instagram className="h-5 w-5" /></a>
               <a href="https://www.youtube.com/@enovietnam" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on YouTube" className="text-body transition-colors hover:text-accent-foreground"><Youtube className="h-5 w-5" /></a>
             </div>
+          </div>
+
+          {/* Explore — deep links to every eno.vn category landing. eno.vn's own footer
+              carries this block for internal linking; the forum was missing it, so the only
+              backlinks here were to top-level pages. Fifteen category landings are worth far
+              more than fifteen more links to the homepage. */}
+          <div className="col-span-2 space-y-3">
+            <h2 className="text-sm font-bold text-foreground">{tr('Explore eno.vn', 'Khám phá eno.vn')}</h2>
+            <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
+              {MARKETPLACE_CATEGORIES.map((category) => (
+                <li key={category.slug}>
+                  <a href={`${MARKETPLACE_BASE}/c/${category.slug}`} className="text-xs text-body transition-colors hover:text-accent-foreground">{tr(category.en, category.vi)}</a>
+                </li>
+              ))}
+            </ul>
           </div>
 
           {columns.map((column) => (

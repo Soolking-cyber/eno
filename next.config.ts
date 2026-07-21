@@ -100,6 +100,11 @@ const nextConfig: NextConfig = {
         destination: 'https://eno.vn/:path*',
         permanent: true,
       },
+      // /dashboard/forum was the "Forum activity" section (posts/comments/saved), removed
+      // 2026-07-21 in favour of the Help Center — which reads the SAME Forum* tables, so
+      // nothing a member did there became unreachable. 308 so bookmarks and any indexed
+      // URL move instead of 404ing.
+      { source: '/dashboard/forum', destination: '/dashboard/help', permanent: true },
     ];
   },
   async rewrites() {
