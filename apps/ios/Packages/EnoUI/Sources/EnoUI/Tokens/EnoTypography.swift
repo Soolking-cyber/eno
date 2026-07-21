@@ -9,8 +9,9 @@ public enum EnoTextRole {
     case title
     case headline  // card titles, list headers
     case body
-    case callout   // secondary info
-    case label     // buttons & fields
+    case callout     // secondary info
+    case subheadline // dense secondary body — the PDP/detail workhorse
+    case label       // buttons & fields
     case caption   // metadata & tags
     case micro     // badges only
 
@@ -22,6 +23,7 @@ public enum EnoTextRole {
         case .headline: return .system(.headline)             // semibold by default
         case .body:     return .system(.body)
         case .callout:  return .system(.callout)
+        case .subheadline: return .system(.subheadline)
         case .label:    return .system(.subheadline).weight(.semibold)
         case .caption:  return .system(.footnote)
         case .micro:    return .system(.caption2).weight(.semibold)

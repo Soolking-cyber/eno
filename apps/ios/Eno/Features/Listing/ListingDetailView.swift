@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 import AVKit
 
 // Native PDP v2, mirroring the web page's price-first hierarchy: gallery pager
@@ -70,7 +71,7 @@ struct ListingDetailView: View {
                     priceBlock
                     if let band { MarketGauge(price: price, band: band) }
                     LocalizedText(source: rawTitle, preferred: L10n.isVi ? rawTitleVi : nil)
-                        .scaledFont(18, weight: .medium)   // web text-lg font-medium leading-snug
+                        .font(EnoTextRole.headline.font.weight(.medium))   // web text-lg font-medium leading-snug
                         .foregroundStyle(Tokens.fg)
                         .lineSpacing(2)
                     specBadges
@@ -81,7 +82,7 @@ struct ListingDetailView: View {
                         statsRow(d)
                         Divider().overlay(Tokens.ring)
                         // Description (web page.tsx order-8: h-section 18px heading + body).
-                        Text(L10n.tr("Description", "Mô tả")).scaledFont(18, weight: .bold).foregroundStyle(Tokens.fg)
+                        Text(L10n.tr("Description", "Mô tả")).font(EnoTextRole.headline.font.weight(.bold)).foregroundStyle(Tokens.fg)
                         // Light-markdown render (web listing-content.tsx): bullets,
                         // numbered lists, headings, inline **bold** — auto-translated
                         // into the selected language (web parity: LocalizedText).
@@ -90,11 +91,11 @@ struct ListingDetailView: View {
                         reviewsPreview
                     } else if unavailable {
                         VStack(spacing: 6) {
-                            Text("🚫").scaledFont(34)
+                            Text("🚫").font(EnoTextRole.titleXL.font.weight(.regular))
                             Text(L10n.tr("This listing is no longer available", "Tin này không còn nữa"))
-                                .scaledFont(16, weight: .bold).foregroundStyle(Tokens.fg)
+                                .font(EnoTextRole.callout.font.weight(.bold)).foregroundStyle(Tokens.fg)
                             Text(L10n.tr("It may have been sold or removed.", "Có thể đã bán hoặc bị gỡ."))
-                                .scaledFont(14).foregroundStyle(Tokens.sub)
+                                .font(EnoTextRole.subheadline.font).foregroundStyle(Tokens.sub)
                         }
                         .frame(maxWidth: .infinity).padding(.vertical, 24)
                     } else {
@@ -248,33 +249,33 @@ struct ListingDetailView: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(Format.vnd(price))
-                    .scaledFont(30, weight: .bold)   // web text-3xl
+                    .font(EnoTextRole.titleL.font)   // web text-3xl
                     .foregroundStyle(Tokens.brand)
                 // Web shows NO ≈USD in the price block — only a struck previous price.
                 if let prev, prev > price {
                     Text(Format.vnd(prev))
-                        .scaledFont(16)
+                        .font(EnoTextRole.callout.font)
                         .strikethrough()
                         .foregroundStyle(Tokens.ink4)
                 }
                 // Price-drop % badge — matches the card's red drop chip (page.tsx:407).
                 if let drop {
                     Text("-\(drop)%")
-                        .scaledFont(11, weight: .bold)
+                        .font(EnoTextRole.micro.font.weight(.bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Tokens.danger, in: Capsule())
                     // "· còn N ngày" countdown (web DropCountdown) — beside the drop pill.
                     if let daysLeft {
                         Text(L10n.tr("· \(daysLeft) \(daysLeft == 1 ? "day" : "days") left", "· còn \(daysLeft) ngày"))
-                            .scaledFont(11, weight: .semibold)
+                            .font(EnoTextRole.micro.font)
                             .foregroundStyle(Tokens.danger)
                     }
                 }
                 if (detail?.urgent ?? card.urgent) {
                     // Web: a Zap lightning icon, not a text pill.
                     Image(systemName: "bolt.fill")
-                        .font(.system(size: 26))
+                        .font(EnoTextRole.titleL.font.weight(.regular))
                         .foregroundStyle(Tokens.danger)
                 }
             }
@@ -282,8 +283,8 @@ struct ListingDetailView: View {
             // the listing is not negotiable (offers are the default, so this is rare).
             if !negotiable {
                 HStack(spacing: 4) {
-                    Image(systemName: "tag").scaledFont(11)
-                    Text(L10n.tr("Fixed price", "Giá cố định")).scaledFont(11, weight: .semibold)
+                    Image(systemName: "tag").font(EnoTextRole.micro.font.weight(.regular))
+                    Text(L10n.tr("Fixed price", "Giá cố định")).font(EnoTextRole.micro.font)
                 }
                 .foregroundStyle(Tokens.sub)
             }
@@ -292,10 +293,10 @@ struct ListingDetailView: View {
 
     private var metaRow: some View {
         HStack(spacing: 6) {
-            Image(systemName: "mappin.and.ellipse").scaledFont(16).foregroundStyle(Tokens.ink4)
-            Text(detail?.displayLocation ?? card.displayLocation).scaledFont(14)
-            Text("·").scaledFont(14)
-            Text(L10n.tr("Posted ", "Đăng ") + Format.ago(detail?.postedAt ?? card.postedAt)).scaledFont(14)
+            Image(systemName: "mappin.and.ellipse").font(EnoTextRole.callout.font).foregroundStyle(Tokens.ink4)
+            Text(detail?.displayLocation ?? card.displayLocation).font(EnoTextRole.subheadline.font)
+            Text("·").font(EnoTextRole.subheadline.font)
+            Text(L10n.tr("Posted ", "Đăng ") + Format.ago(detail?.postedAt ?? card.postedAt)).font(EnoTextRole.subheadline.font)
         }
         .foregroundStyle(Tokens.sub)
     }
@@ -304,18 +305,18 @@ struct ListingDetailView: View {
     private var protectionsRow: some View {
         Button { showProtections = true } label: {
             HStack(spacing: 10) {
-                Image(systemName: "checkmark.shield").font(.system(size: 18)).foregroundStyle(Tokens.brand)
+                Image(systemName: "checkmark.shield").font(EnoTextRole.headline.font.weight(.regular)).foregroundStyle(Tokens.brand)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(L10n.tr("ENO protects you", "ENO bảo vệ bạn")).scaledFont(13, weight: .bold).foregroundStyle(Tokens.fg)
+                    Text(L10n.tr("ENO protects you", "ENO bảo vệ bạn")).font(EnoTextRole.caption.font.weight(.bold)).foregroundStyle(Tokens.fg)
                     Text(L10n.tr("Disputes handled in 72h · listings screened", "Tranh chấp xử lý trong 72 giờ · tin đã kiểm duyệt"))
-                        .scaledFont(11).foregroundStyle(Tokens.sub).lineLimit(1)
+                        .font(EnoTextRole.micro.font.weight(.regular)).foregroundStyle(Tokens.sub).lineLimit(1)
                 }
                 Spacer()
-                Image(systemName: "chevron.right").scaledFont(12).foregroundStyle(Tokens.sub)
+                Image(systemName: "chevron.right").font(EnoTextRole.caption.font).foregroundStyle(Tokens.sub)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 11))
-            .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Tokens.ring, lineWidth: 1))
+            .background(Tokens.tint, in: RoundedRectangle(cornerRadius: EnoRadius.card))
+            .overlay(RoundedRectangle(cornerRadius: EnoRadius.card).strokeBorder(Tokens.ring, lineWidth: 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -323,7 +324,7 @@ struct ListingDetailView: View {
 
     // Category-aware safety strip (web safety-strip.tsx) — amber warning line.
     private var safetyStrip: some View {
-        let amber = Color(red: 0.57, green: 0.25, blue: 0.05)
+        let amber = EnoColor.warning
         let slug = detail?.category.slug ?? card.category.slug
         let line: String = {
             switch slug {
@@ -339,12 +340,12 @@ struct ListingDetailView: View {
             }
         }()
         return HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.shield").font(.system(size: 16)).foregroundStyle(amber)
-            Text(line).scaledFont(12).foregroundStyle(Tokens.fg).lineSpacing(2)
+            Image(systemName: "exclamationmark.shield").font(EnoTextRole.callout.font).foregroundStyle(amber)
+            Text(line).font(EnoTextRole.caption.font).foregroundStyle(Tokens.fg).lineSpacing(2)
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(amber.opacity(0.1), in: RoundedRectangle(cornerRadius: 11))
+        .background(amber.opacity(0.1), in: RoundedRectangle(cornerRadius: EnoRadius.card))
     }
 
     private var protectionsSheet: some View {
@@ -353,10 +354,10 @@ struct ListingDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     ForEach(protectionItems, id: \.0) { item in
                         HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: item.2).font(.system(size: 18)).foregroundStyle(Tokens.brand).frame(width: 28)
+                            Image(systemName: item.2).font(EnoTextRole.headline.font.weight(.regular)).foregroundStyle(Tokens.brand).frame(width: 28)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(item.0).scaledFont(15, weight: .semibold).foregroundStyle(Tokens.fg)
-                                Text(item.1).scaledFont(13).foregroundStyle(Tokens.sub)
+                                Text(item.0).font(EnoTextRole.subheadline.font.weight(.semibold)).foregroundStyle(Tokens.fg)
+                                Text(item.1).font(EnoTextRole.caption.font).foregroundStyle(Tokens.sub)
                             }
                         }
                     }
@@ -421,7 +422,7 @@ struct ListingDetailView: View {
 
     private func specChip<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         content()
-            .scaledFont(12, weight: .semibold)
+            .font(EnoTextRole.caption.font.weight(.semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background(Tokens.tint, in: Capsule())
@@ -458,14 +459,14 @@ struct ListingDetailView: View {
             Divider().overlay(Tokens.ring)
             VStack(alignment: .leading, spacing: 0) {
                 Text(L10n.tr("Details", "Chi tiết"))
-                    .scaledFont(18, weight: .bold)   // web h-section
+                    .font(EnoTextRole.headline.font.weight(.bold))   // web h-section
                     .foregroundStyle(Tokens.fg)
                     .padding(.bottom, 4)
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     HStack(alignment: .top, spacing: 16) {
-                        Text(row.0).scaledFont(14).foregroundStyle(Tokens.sub)
+                        Text(row.0).font(EnoTextRole.subheadline.font).foregroundStyle(Tokens.sub)
                         Spacer()
-                        Text(row.1).scaledFont(14, weight: .medium)
+                        Text(row.1).font(EnoTextRole.subheadline.font.weight(.medium))
                             .foregroundStyle(Tokens.fg).multilineTextAlignment(.trailing)
                     }
                     .padding(.vertical, 10)   // web py-2.5
@@ -500,8 +501,8 @@ struct ListingDetailView: View {
 
     private func stat(icon: String, value: Int, label: String) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: icon).scaledFont(14)
-            Text("\(value) \(label)").scaledFont(12)
+            Image(systemName: icon).font(EnoTextRole.subheadline.font)
+            Text("\(value) \(label)").font(EnoTextRole.caption.font)
         }
         .foregroundStyle(Tokens.sub)
     }
@@ -518,20 +519,20 @@ struct ListingDetailView: View {
     private func sellerCardBody(_ seller: ListingDetail.DetailSeller) -> some View {
         HStack(spacing: 12) {
             Text(String(seller.name.prefix(1)).uppercased())
-                .scaledFont(16, weight: .bold)
+                .font(EnoTextRole.callout.font.weight(.bold))
                 .foregroundStyle(.white)
                 .frame(width: 48, height: 48)   // web Avatar size lg
                 .background(Color(hexString: seller.avatarColor) ?? Tokens.brand, in: Circle())
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(seller.name)
-                        .scaledFont(14, weight: .bold)   // web text-sm font-bold
+                        .font(EnoTextRole.subheadline.font.weight(.bold))   // web text-sm font-bold
                         .foregroundStyle(Tokens.fg)
                     TrustMini(score: seller.trustScore) { showTrust = true }
                     if seller.isBusiness {
                         HStack(spacing: 2) {
-                            Image(systemName: "building.2").scaledFont(10)
-                            Text(L10n.tr("Business", "Doanh nghiệp")).scaledFont(11, weight: .semibold)
+                            Image(systemName: "building.2").font(EnoTextRole.micro.font.weight(.regular))
+                            Text(L10n.tr("Business", "Doanh nghiệp")).font(EnoTextRole.micro.font)
                         }
                         .foregroundStyle(Tokens.sub)
                         .padding(.horizontal, 6).padding(.vertical, 1)
@@ -540,22 +541,22 @@ struct ListingDetailView: View {
                 }
                 HStack(spacing: 4) {
                     if let rating = seller.rating, seller.reviewCount > 0 {
-                        Image(systemName: "star.fill").scaledFont(10).foregroundStyle(.yellow)
+                        Image(systemName: "star.fill").font(EnoTextRole.micro.font.weight(.regular)).foregroundStyle(.yellow)
                         Text("\(rating, specifier: "%.1f") (\(seller.reviewCount))")
-                            .scaledFont(12).foregroundStyle(Tokens.sub)
+                            .font(EnoTextRole.caption.font).foregroundStyle(Tokens.sub)
                         Text("·").foregroundStyle(Tokens.sub)
                     }
                     if let year = Format.date(seller.memberSince).map({ Calendar.current.component(.year, from: $0) }) {
                         Text(L10n.tr("Joined \(String(year))", "Tham gia \(String(year))"))
-                            .scaledFont(12).foregroundStyle(Tokens.sub)
+                            .font(EnoTextRole.caption.font).foregroundStyle(Tokens.sub)
                     }
                 }
             }
             Spacer()
             // Web PdpShopLink 'Shop ›' visit-storefront affordance.
             HStack(spacing: 2) {
-                Text(L10n.tr("Shop", "Gian hàng")).scaledFont(12, weight: .semibold)
-                Image(systemName: "chevron.right").scaledFont(12, weight: .semibold)
+                Text(L10n.tr("Shop", "Gian hàng")).font(EnoTextRole.caption.font.weight(.semibold))
+                Image(systemName: "chevron.right").font(EnoTextRole.caption.font.weight(.semibold))
             }
             .foregroundStyle(Tokens.brand)
         }
@@ -567,14 +568,14 @@ struct ListingDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(L10n.tr("More like this", "Tin tương tự"))
-                        .scaledFont(18, weight: .bold)
+                        .font(EnoTextRole.headline.font.weight(.bold))
                         .foregroundStyle(Tokens.fg)
                     Spacer()
                     if let cat = Categories.bySlug(card.category.slug) {
                         NavigationLink(value: cat) {
                             HStack(spacing: 2) {
-                                Text(L10n.tr("See all", "Xem tất cả")).scaledFont(13, weight: .semibold)
-                                Image(systemName: "chevron.right").scaledFont(10, weight: .bold)
+                                Text(L10n.tr("See all", "Xem tất cả")).font(EnoTextRole.caption.font.weight(.semibold))
+                                Image(systemName: "chevron.right").font(EnoTextRole.micro.font.weight(.bold))
                             }
                             .foregroundStyle(Tokens.brand)
                         }
@@ -606,13 +607,13 @@ struct ListingDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(L10n.tr("More from this seller", "Tin khác từ người bán này"))
-                        .scaledFont(17, weight: .bold)
+                        .font(EnoTextRole.headline.font.weight(.bold))
                         .foregroundStyle(Tokens.fg)
                     Spacer()
                     Button { sellerSheet = true } label: {
                         HStack(spacing: 2) {
-                            Text(L10n.tr("See all", "Xem tất cả")).scaledFont(14, weight: .semibold)
-                            Image(systemName: "chevron.right").scaledFont(10, weight: .bold)
+                            Text(L10n.tr("See all", "Xem tất cả")).font(EnoTextRole.subheadline.font.weight(.semibold))
+                            Image(systemName: "chevron.right").font(EnoTextRole.micro.font.weight(.bold))
                         }
                         .foregroundStyle(Tokens.brand)
                     }
@@ -641,7 +642,7 @@ struct ListingDetailView: View {
         if !recentlyViewed.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text(L10n.tr("Recently viewed", "Đã xem gần đây"))
-                    .scaledFont(18, weight: .bold)
+                    .font(EnoTextRole.headline.font.weight(.bold))
                     .foregroundStyle(Tokens.fg)
                     .padding(.horizontal, 12)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -667,32 +668,32 @@ struct ListingDetailView: View {
             Divider().overlay(Tokens.ring)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 6) {
-                    Text(L10n.tr("Buyer reviews", "Đánh giá về người bán")).scaledFont(16, weight: .bold).foregroundStyle(Tokens.fg)
-                    Text("(\(r.total))").scaledFont(14).foregroundStyle(Tokens.sub)
+                    Text(L10n.tr("Buyer reviews", "Đánh giá về người bán")).font(EnoTextRole.callout.font.weight(.bold)).foregroundStyle(Tokens.fg)
+                    Text("(\(r.total))").font(EnoTextRole.subheadline.font).foregroundStyle(Tokens.sub)
                     Spacer()
-                    Image(systemName: "star.fill").scaledFont(12).foregroundStyle(.yellow)
-                    Text(String(format: "%.1f", r.avg)).scaledFont(14, weight: .semibold).foregroundStyle(Tokens.fg)
+                    Image(systemName: "star.fill").font(EnoTextRole.caption.font).foregroundStyle(.yellow)
+                    Text(String(format: "%.1f", r.avg)).font(EnoTextRole.subheadline.font.weight(.semibold)).foregroundStyle(Tokens.fg)
                 }
                 ForEach(r.reviews.prefix(2)) { rev in
                     HStack(alignment: .top, spacing: 10) {
-                        Text(initials(rev.author)).scaledFont(12, weight: .bold).foregroundStyle(.white)
+                        Text(initials(rev.author)).font(EnoTextRole.caption.font.weight(.bold)).foregroundStyle(.white)
                             .frame(width: 32, height: 32).background(Tokens.brand, in: Circle())
                         VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 6) {
-                                Text(rev.author).scaledFont(14, weight: .semibold).foregroundStyle(Tokens.fg)
+                                Text(rev.author).font(EnoTextRole.subheadline.font.weight(.semibold)).foregroundStyle(Tokens.fg)
                                 if rev.verified {
-                                    Text(L10n.tr("Verified buyer", "Đã mua")).scaledFont(10, weight: .bold)
+                                    Text(L10n.tr("Verified buyer", "Đã mua")).font(EnoTextRole.micro.font.weight(.bold))
                                         .foregroundStyle(Tokens.brand).padding(.horizontal, 6).padding(.vertical, 1)
                                         .background(Tokens.brandTint, in: Capsule())
                                 }
                             }
-                            Text(rev.text).scaledFont(13).foregroundStyle(Tokens.sub).lineLimit(3)
+                            Text(rev.text).font(EnoTextRole.caption.font).foregroundStyle(Tokens.sub).lineLimit(3)
                         }
                         Spacer()
                     }
                 }
                 Button { sellerSheet = true } label: {
-                    Text(L10n.tr("See all", "Xem tất cả")).scaledFont(14, weight: .semibold).foregroundStyle(Tokens.brand)
+                    Text(L10n.tr("See all", "Xem tất cả")).font(EnoTextRole.subheadline.font.weight(.semibold)).foregroundStyle(Tokens.brand)
                 }
             }
         }
@@ -719,10 +720,10 @@ struct ListingDetailView: View {
             let offerPrice = Int((Double(price) * (1 - discount / 100)).rounded())
             VStack(alignment: .leading, spacing: 8) {
                 Text(L10n.tr("Your offer", "Giá đề nghị"))
-                    .scaledFont(12, weight: .semibold).foregroundStyle(Tokens.sub)
+                    .font(EnoTextRole.caption.font.weight(.semibold)).foregroundStyle(Tokens.sub)
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(Format.vnd(offerPrice)).scaledFont(24, weight: .bold).foregroundStyle(Tokens.brand)
-                    Text("-\(Int(discount))%").scaledFont(12, weight: .semibold).foregroundStyle(Tokens.sub)
+                    Text(Format.vnd(offerPrice)).font(EnoTextRole.title.font).foregroundStyle(Tokens.brand)
+                    Text("-\(Int(discount))%").font(EnoTextRole.caption.font.weight(.semibold)).foregroundStyle(Tokens.sub)
                 }
                 Slider(value: $discount, in: 0...50, step: 1).tint(Tokens.brand)
                     .accessibilityLabel(L10n.tr("Discount", "Mức giảm"))
@@ -731,7 +732,7 @@ struct ListingDetailView: View {
                     Spacer()
                     Text("-50%")
                 }
-                .scaledFont(11).foregroundStyle(Tokens.ink4)
+                .font(EnoTextRole.micro.font.weight(.regular)).foregroundStyle(Tokens.ink4)
                 HStack(spacing: 8) {
                     Button { startOffer(offerPrice) } label: {
                         Group {
@@ -739,23 +740,23 @@ struct ListingDetailView: View {
                                 ProgressView().tint(.white)
                             } else {
                                 HStack(spacing: 6) {
-                                    Image(systemName: "paperplane.fill").scaledFont(14)
+                                    Image(systemName: "paperplane.fill").font(EnoTextRole.subheadline.font)
                                     Text(L10n.tr("Send offer", "Gửi đề nghị") + " · " + Format.vnd(offerPrice))
                                         .lineLimit(1).minimumScaleFactor(0.75)
                                 }
                             }
                         }
-                        .scaledFont(14, weight: .semibold).foregroundStyle(.white)
+                        .font(EnoTextRole.subheadline.font.weight(.semibold)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).frame(height: 44)
                         .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
                     }
                     .disabled(offerBusy)
                     Button { startChat() } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "message.fill").scaledFont(14)
+                            Image(systemName: "message.fill").font(EnoTextRole.subheadline.font)
                             Text(L10n.tr("Chat", "Chat"))
                         }
-                        .scaledFont(14, weight: .bold).foregroundStyle(Tokens.brand)
+                        .font(EnoTextRole.subheadline.font.weight(.bold)).foregroundStyle(Tokens.brand)
                         .frame(height: 44).padding(.horizontal, 16)
                         .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
                         .overlay(RoundedRectangle(cornerRadius: Tokens.radiusControl).strokeBorder(Tokens.ring, lineWidth: 1))
@@ -775,12 +776,12 @@ struct ListingDetailView: View {
                     if contactBusy { ProgressView().tint(.white) }
                     else {
                         HStack(spacing: 6) {
-                            Image(systemName: "message.fill").scaledFont(14)
+                            Image(systemName: "message.fill").font(EnoTextRole.subheadline.font)
                             Text(L10n.tr("Chat now", "Chat ngay"))
                         }
                     }
                 }
-                .scaledFont(14, weight: .semibold).foregroundStyle(.white)
+                .font(EnoTextRole.subheadline.font.weight(.semibold)).foregroundStyle(.white)
                 .frame(maxWidth: .infinity).frame(height: 50)
                 .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
             }
@@ -880,11 +881,11 @@ struct MarketGauge: View {
             // Header row: 'Market price' label LEFT + position verdict RIGHT.
             HStack {
                 Text(L10n.tr("Market price", "Giá thị trường"))
-                    .scaledFont(12, weight: .semibold)
+                    .font(EnoTextRole.caption.font.weight(.semibold))
                     .foregroundStyle(Tokens.sub)
                 Spacer()
                 Text(L10n.tr(positionLabel.0, positionLabel.1))
-                    .scaledFont(11, weight: .semibold)
+                    .font(EnoTextRole.micro.font)
                     .foregroundStyle(accent)
             }
             // p25 – p75 range: one 14px bold line ABOVE the track (dash in ink-4).
@@ -893,7 +894,7 @@ struct MarketGauge: View {
                 Text("–").fontWeight(.regular).foregroundStyle(Tokens.ink4)
                 Text(Format.vnd(Int(band.p75)))
             }
-            .scaledFont(14, weight: .bold)
+            .font(EnoTextRole.subheadline.font.weight(.bold))
             .foregroundStyle(Tokens.fg)
             // Track (8px) + bordered marker (14px, card-ring + soft shadow).
             GeometryReader { geo in
@@ -919,7 +920,7 @@ struct MarketGauge: View {
             .frame(height: 14)
             // Sample-count caption (web shows no median; it shows the basis).
             Text(L10n.tr("Based on \(band.n) similar listings", "Dựa trên \(band.n) tin tương tự"))
-                .scaledFont(11)
+                .font(EnoTextRole.micro.font.weight(.regular))
                 .foregroundStyle(Tokens.ink4)
         }
     }
