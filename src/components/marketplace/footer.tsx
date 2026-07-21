@@ -3,6 +3,7 @@
 import { Facebook, Instagram, Youtube } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
+import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import { COMPANY } from '@/lib/site-legal'
 import { TAXONOMY } from '@/lib/taxonomy'
 
@@ -49,10 +50,16 @@ export function Footer() {
     },
     {
       title: tr('Community', 'Cộng đồng'),
+      // ⚠️ These three leave the origin. They MUST carry forumPath so the click is
+      // intercepted by goToForum() below — a plain cross-origin anchor drops the
+      // native app on eno.forum as a GUEST (sessions are per-origin cookies; the
+      // forum mints its own only via the /auth/bridge handoff). That was a live bug
+      // here: every dashboard forum CTA already routed through goToForum, and only
+      // the footer still handed users a raw URL.
       links: [
-        { label: tr('Expat forum', 'Diễn đàn cộng đồng'), href: 'https://www.eno.forum' },
-        { label: tr('Trip planner', 'Lập kế hoạch chuyến đi'), href: 'https://www.eno.forum/itinerary' },
-        { label: tr('Vietnam e-Visa help', 'Hỗ trợ e-Visa Việt Nam'), href: 'https://www.eno.forum/visa' },
+        { label: tr('Community forum', 'Diễn đàn cộng đồng'), href: `${FORUM_URL}/`, forumPath: '/' },
+        { label: tr('Trip planner', 'Lập kế hoạch chuyến đi'), href: `${FORUM_URL}/itinerary`, forumPath: '/itinerary' },
+        { label: tr('Vietnam e-Visa help', 'Hỗ trợ e-Visa Việt Nam'), href: `${FORUM_URL}/visa`, forumPath: '/visa' },
       ],
     },
   ]
@@ -97,7 +104,20 @@ export function Footer() {
               <ul className="space-y-2">
                 {col.links.map((link) => (
                   <li key={link.label}>
-                    <a href={link.href} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{link.label}</a>
+                    {/* href stays a REAL url for a11y / middle-click / cmd-click; a plain
+                        left-click on a forum link is intercepted so the native app takes
+                        the single-use SSO handoff instead of arriving signed out. */}
+                    <a
+                      href={link.href}
+                      onClick={'forumPath' in link && link.forumPath
+                        ? (e) => {
+                            if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+                            e.preventDefault()
+                            goToForum(link.forumPath)
+                          }
+                        : undefined}
+                      className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground"
+                    >{link.label}</a>
                   </li>
                 ))}
               </ul>

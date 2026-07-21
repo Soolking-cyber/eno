@@ -37,6 +37,9 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
   const [done, setDone] = useState(false)
   const [caseId, setCaseId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  // Distinguishes the reporter-ladder block from ordinary failures, so only that
+  // message grows the Help link its own copy promises.
+  const [blocked, setBlocked] = useState(false)
 
   const submit = async () => {
     if (!reason) return
@@ -62,6 +65,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
         // Surface WHY instead of a generic failure — a self-report or non-participant
         // report otherwise just looks broken.
         const code = (await res.json().catch(() => null))?.error as string | undefined
+        setBlocked(code === 'reporting_blocked')
         setError(
           code === 'cannot_report_self'
             ? t("You can't report your own listing or account.", 'Bạn không thể báo cáo nội dung của chính mình.')
@@ -200,7 +204,22 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
                 className="px-3 py-2 focus:ring-brand/20"
               />
 
-              {error && <p role="alert" className="text-center text-xs font-semibold text-destructive">{error}</p>}
+              {error && (
+                <p role="alert" className="text-center text-xs font-semibold text-destructive">
+                  {error}
+                  {/* The blocked-reporter copy tells the user to "reach us through Help"
+                      but shipped with no way to get there — a dead end in the one flow
+                      where someone most needs support. Give the sentence its link. */}
+                  {blocked && (
+                    <>
+                      {' '}
+                      <Link href="/help" className="underline underline-offset-2">
+                        {t('Open the Help center', 'Mở Trung tâm trợ giúp')}
+                      </Link>
+                    </>
+                  )}
+                </p>
+              )}
 
               <Button
                 variant="cta"

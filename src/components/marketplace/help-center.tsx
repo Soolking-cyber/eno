@@ -1,29 +1,70 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Tr } from '@/context/language-context'
+import {
+  BadgeCheck,
+  ChevronRight,
+  Mail,
+  MessageCircle,
+  Plane,
+  Rocket,
+  Search,
+  SearchX,
+  ShieldCheck,
+  ShoppingBag,
+  Star,
+  Tag,
+  UserRoundCog,
+  UsersRound,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { Tr, useLanguage, useTr } from '@/context/language-context'
 import { HelpFeedback } from '@/components/marketplace/help-feedback'
+import { HelpVote } from '@/components/marketplace/help-vote'
+import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
+import { Avatar } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Rocket, BadgeCheck, ShieldCheck, Mail, ChevronRight } from 'lucide-react'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
+import { HELP_TOPICS } from '@/lib/help-center'
+import { FORUM_URL, goToForum } from '@/lib/forum-nav'
+import type { HelpCenterData, HelpPost, HelpReview } from '@/lib/help-center-data'
+import { cn } from '@/lib/utils'
 
-// The Help Center body — shared by the standalone /help page AND the dashboard "Help"
-// tab (so the tab opens inline, no redirect). Fills the caller's container (the /help
-// page + dashboard both provide the canonical max-w-7xl); FAQ sections flow as
-// borderless chunks in a 2-col grid at lg so the width is actually used.
+// The Help Center body — shared by the public /help page AND the dashboard "Help" tab.
+//
+// It is DB-backed (owner 2026-07-21: "turn the forum into help center"). Every answer is
+// a real ForumPost in one of the help topics, so it can be upvoted, commented on and
+// moderated by the machinery eno.forum already has, and the same rows render on
+// www.eno.forum as the public web face. The old hard-coded SECTIONS array is gone: its 22
+// Q&A pairs were rewritten, fact-checked against the code and seeded as posts by
+// scripts/sync-help-center.ts. That fixed several answers that were simply WRONG
+// (we are live in all 34 provinces, not "HCMC with Hanoi and Da Nang coming soon";
+// saving a listing needs no account; blocked posts are rejected with a fixable error
+// rather than "held for review").
+//
+// i18n: chrome uses LITERAL tr()/<Tr text="…"> so scripts/gen-ui-strings.mjs can harvest
+// it — the previous version rendered its FAQ through <Tr text={variable}>, which the
+// harvester cannot see, so every question paid a lazy per-string translation round trip.
+// Post titles/bodies are user content and go through useTr(), whose Vietnamese is
+// pre-seeded into the Translation cache by the sync script.
 
-const TOPICS: { Icon: typeof Rocket; label: string; href: string }[] = [
-  { Icon: Rocket, label: 'How eno.vn works', href: '/guide' },
-  { Icon: BadgeCheck, label: 'Trust & reputation', href: '/guide#verification' },
-  { Icon: ShieldCheck, label: 'Safe trading', href: '/safety' },
-  { Icon: Mail, label: 'Contact support', href: 'mailto:support@eno.vn' },
-]
+const TOPIC_ICONS: Record<string, LucideIcon> = {
+  'help-getting-started': Rocket,
+  'help-buying': ShoppingBag,
+  'help-selling': Tag,
+  'help-trust-safety': ShieldCheck,
+  'help-account': UserRoundCog,
+  'vietnam-travel': Plane,
+}
 
 const MORE_LINKS: { label: string; href: string }[] = [
-  { label: 'About eno.vn', href: '/about' },
-  { label: 'How it works', href: '/guide' },
+  { label: 'How eno.vn works', href: '/guide' },
   { label: 'How trust works', href: '/trust' },
   { label: 'Safe trading', href: '/safety' },
-  { label: 'Report a listing', href: '/safety' },
+  { label: 'About eno.vn', href: '/about' },
   { label: 'Post a listing', href: '/post' },
   { label: 'Saved listings', href: '/saved' },
   { label: 'Browse by brand', href: '/brands' },
@@ -32,105 +73,343 @@ const MORE_LINKS: { label: string; href: string }[] = [
   { label: 'Privacy policy', href: '/privacy' },
 ]
 
-const SECTIONS: { title: string; items: [string, string][] }[] = [
-  {
-    title: 'Getting started',
-    items: [
-      ['What is eno.vn?', 'eno.vn is a trusted classifieds marketplace for Vietnam’s international community — housing, motorbikes, furniture, jobs and services. Every seller has a public trust score and buyers can report bad listings, so the feed stays free of fakes and bait prices.'],
-      ['Do I need an account to browse?', 'No. Browsing and searching are open to everyone. You only sign in to message a seller, save a listing, make an offer, or post your own.'],
-      ['Is eno.vn free to use?', 'Yes. Browsing and saving are always free, and posting a listing is free during the launch period.'],
-      ['What areas do you cover?', 'We’re live across Ho Chi Minh City, with Hanoi, Da Nang and more coming soon.'],
-      ['Which languages does eno.vn support?', 'The whole app and every listing auto-translate into 11 languages. Set yours in Account → Language; by default we follow your device language.'],
-    ],
-  },
-  {
-    title: 'Buying, messaging & offers',
-    items: [
-      ['How do I contact a seller?', 'Open a listing and tap “Message”. You chat in-app — the seller’s phone or Zalo is shared inside the conversation once they reply, never published on the listing.'],
-      ['How do offers work?', 'On a listing, tap “Make an offer”, type your price (the input has quick chips so VND is fast to enter), and send. Your offer lands in the chat for the seller to accept or counter.'],
-      ['Where do I see replies?', 'In Messages (the chat tab in the bottom bar) and via the notification bell at the top-right — you’re notified the moment a seller replies or sends an offer.'],
-      ['How do I save a listing for later?', 'Tap the heart on any card or on the listing page. Saved items live in the Saved tab and stay on your device.'],
-    ],
-  },
-  {
-    title: 'Selling & posting',
-    items: [
-      ['How do I post a listing?', 'Tap “Post”, choose a category, then add title, description, price, area and up to 6 photos. Submit and it goes live right away after automated checks.'],
-      ['Why isn’t my listing visible yet?', 'Most listings go live instantly. A few are held briefly by an automated safety check (for example, missing photos or contact details in the text) — fix the issue and it appears.'],
-      ['Can I edit or remove my listing?', 'Yes — manage your listings from your account. Mark items sold or remove them anytime.'],
-      ['Why can’t I put my phone number in the listing?', 'Contact details aren’t allowed in the public fields — buyers reach you in-app, which protects you from spam and keeps every conversation in one place. You can share your number inside the chat.'],
-    ],
-  },
-  {
-    title: 'Trust & reputation',
-    items: [
-      ['What do the trust badges mean?', 'Every seller has a public trust score. A blue Trusted badge and a gold Exceptional badge are earned through a clean track record and good service; a low score flags a risky seller.'],
-      ['Does a trust badge guarantee the item?', 'No — it reflects a seller’s track record, not a guarantee. Always inspect the item yourself before paying — see our Safe trading guide.'],
-      ['How fast does my listing go live?', 'Right away — automated checks run instantly. Only a small number of posts are held for a quick safety review.'],
-    ],
-  },
-  {
-    title: 'Account & notifications',
-    items: [
-      ['How do I sign in?', 'Tap the account icon and sign in with your phone number, Google, or email. If you posted before with a phone number, sign in with that number to claim those listings.'],
-      ['How do notifications work?', 'The bell at the top-right shows new messages and offers in real time. Opening it marks them read; each one links straight to the conversation.'],
-      ['How do I change my language?', 'Account → Language. Your choice is remembered on this device.'],
-    ],
-  },
-  {
-    title: 'Safety & payments',
-    items: [
-      ['How do I trade safely?', 'Meet in a public place, inspect before you pay, and never send a deposit through a link. eno.vn never asks for a deposit. Read the full Safe trading guide.'],
-      ['Someone is asking for a deposit via a link — is that normal?', 'No — that’s a classic scam. Don’t pay, and report the listing so we can remove it.'],
-      ['How do I report a listing or user?', 'Use the “Report” button on any listing. Our team reviews reports quickly.'],
-    ],
-  },
-]
+function matches(post: HelpPost, needle: string): boolean {
+  if (!needle) return true
+  return `${post.title} ${post.body} ${post.flair}`.toLocaleLowerCase().includes(needle)
+}
 
-export function HelpCenter() {
+/** One FAQ answer. The question is the accordion trigger; the answer body, the upvote and
+ *  the discussion link live in the panel. */
+function AnswerItem({ post }: { post: HelpPost }) {
+  const { tr } = useLanguage()
+  const title = useTr(post.title)
+  const body = useTr(post.body)
+
+  return (
+    <AccordionItem value={post.id}>
+      <AccordionTrigger>{title}</AccordionTrigger>
+      <AccordionPanel>
+        {/* Bodies are plain text with "•" bullets — nothing in the stack renders
+            markdown, so whitespace-pre-line is what preserves the authored shape. */}
+        <p className="whitespace-pre-line">{body}</p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <HelpVote id={post.id} kind="post" score={post.score} viewerVote={post.viewerVote} size="sm" />
+          <span className="text-xs text-muted-foreground">
+            {tr('Was this helpful?', 'Câu trả lời này có hữu ích không?')}
+          </span>
+          <Link
+            href={`/help/${encodeURIComponent(post.id)}`}
+            className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-accent-foreground hover:underline"
+          >
+            {post.commentCount > 0
+              ? tr(`Discussion (${post.commentCount})`, `Thảo luận (${post.commentCount})`)
+              : tr('Ask a follow-up', 'Hỏi thêm')}
+            <ChevronRight className="size-3.5" aria-hidden />
+          </Link>
+        </div>
+      </AccordionPanel>
+    </AccordionItem>
+  )
+}
+
+/** A community question asked inside a help topic — the Reddit half of the page. */
+function QuestionCard({ post }: { post: HelpPost }) {
+  const { tr } = useLanguage()
+  const title = useTr(post.title)
+
+  return (
+    <li>
+      <div className="flex items-start gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+        <HelpVote id={post.id} kind="post" score={post.score} viewerVote={post.viewerVote} size="sm" className="mt-0.5" />
+        <div className="min-w-0 flex-1">
+          <Link href={`/help/${encodeURIComponent(post.id)}`} className="block">
+            <p className="line-clamp-2 text-sm font-semibold text-foreground hover:text-accent-foreground">{title}</p>
+          </Link>
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+            <span className="truncate">{post.author.name}</span>
+            <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-1">
+              <MessageCircle className="size-3.5" aria-hidden />
+              {post.commentCount}
+              <span className="sr-only">{tr('replies', 'phản hồi')}</span>
+            </span>
+          </p>
+        </div>
+      </div>
+    </li>
+  )
+}
+
+/** Business reviews are READ-ONLY here (owner decision): the card links to the seller's
+ *  storefront, which stays the canonical, moderated home of the review. */
+function ReviewCard({ review }: { review: HelpReview }) {
+  const { tr } = useLanguage()
+  const text = useTr(review.text)
+
+  return (
+    <li>
+      <Link
+        href={`/sellers/${encodeURIComponent(review.sellerId)}`}
+        className="press flex h-full flex-col rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-muted"
+      >
+        <div className="flex items-center gap-2">
+          <Avatar name={review.sellerName} url={review.sellerAvatarUrl} color={review.sellerAvatarColor} size="sm" />
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{review.sellerName}</span>
+          {review.sellerVerified && <BadgeCheck className="size-4 shrink-0 text-accent-foreground" aria-hidden />}
+        </div>
+        {/* --rating is a deliberate token, held apart from --warning so a caution
+            colour change never repaints review stars (globals.css). */}
+        <div className="mt-2 flex items-center gap-1" aria-label={tr(`${review.rating} out of 5`, `${review.rating} trên 5`)}>
+          {[1, 2, 3, 4, 5].map((star) => (
+            <Star
+              key={star}
+              aria-hidden
+              className={cn('size-3.5', star <= review.rating ? 'fill-rating text-rating' : 'text-muted-foreground')}
+            />
+          ))}
+        </div>
+        <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-body">{text}</p>
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="truncate">{review.author}</span>
+          {review.verifiedBuyer && (
+            <Badge variant="brand" size="sm">
+              <Tr text="Verified buyer" />
+            </Badge>
+          )}
+        </p>
+      </Link>
+    </li>
+  )
+}
+
+export function HelpCenter({ data }: { data: HelpCenterData }) {
+  const { tr } = useLanguage()
+  const [query, setQuery] = useState('')
+  const [topic, setTopic] = useState<string | null>(null)
+
+  const needle = query.trim().toLocaleLowerCase()
+
+  const answers = useMemo(
+    () => data.answers.filter((post) => (!topic || post.community === topic) && matches(post, needle)),
+    [data.answers, topic, needle],
+  )
+  const questions = useMemo(
+    () => data.questions.filter((post) => (!topic || post.community === topic) && matches(post, needle)),
+    [data.questions, topic, needle],
+  )
+
+  // Grouped by topic when browsing everything; a flat list once the reader has
+  // narrowed by topic or typed a query (grouping one bucket is just noise).
+  const grouped = !topic && !needle
+  const groups = useMemo(
+    () =>
+      HELP_TOPICS.map((item) => ({
+        topic: item,
+        posts: answers.filter((post) => post.community === item.slug),
+      })).filter((group) => group.posts.length > 0),
+    [answers],
+  )
+
+  // Two BALANCED columns, packed here rather than by the grid.
+  //
+  // A plain `lg:grid-cols-2` lays the groups out row by row, so each row grows to its
+  // tallest cell and a short topic leaves a visible hole beside a long one — with
+  // 3-question "Getting started" next to 6-question "Buying & offers" the gap was
+  // most of a screen. CSS `columns-2` fixes the packing but can slice an accordion
+  // across the column break as panels open. Distributing greedily by question count
+  // gives independent columns with neither problem.
+  const columns = useMemo(() => {
+    const left: typeof groups = []
+    const right: typeof groups = []
+    let leftCount = 0
+    let rightCount = 0
+    for (const group of groups) {
+      // +1 per group for its heading, so a topic's fixed chrome is weighed too.
+      const weight = group.posts.length + 1
+      if (leftCount <= rightCount) {
+        left.push(group)
+        leftCount += weight
+      } else {
+        right.push(group)
+        rightCount += weight
+      }
+    }
+    return [left, right]
+  }, [groups])
+
+  const resetFilters = () => {
+    setQuery('')
+    setTopic(null)
+  }
+
   return (
     <div className="w-full">
       <p className="eyebrow text-accent-foreground mb-2"><Tr text="Help center" /></p>
       <h1 className="h-display text-foreground"><Tr text="How can we help?" /></h1>
-      <p className="mt-3 text-sm leading-relaxed text-body">
-        <Tr text="Answers to common questions about buying, selling, verification and staying safe on eno.vn." />
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-body">
+        <Tr text="Answers about buying, selling, trust and staying safe on eno.vn — plus practical guides for getting around Vietnam. Upvote what helped you, and ask anything that is missing." />
       </p>
 
-      {/* Quick-link topic cards */}
-      <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {TOPICS.map(({ Icon, label, href }) => (
-          <Link key={label} href={href} className="group flex flex-col gap-2 rounded-2xl p-4 transition-colors hover:bg-muted">
-            <span className="flex h-9 w-9 items-center justify-center text-accent-foreground"><Icon className="h-5 w-5" /></span>
-            <span className="text-xs font-bold leading-snug text-foreground group-hover:text-accent-foreground"><Tr text={label} /></span>
-          </Link>
-        ))}
+      {/* Search */}
+      <div className="mt-6 flex items-center rounded-2xl bg-tint px-3">
+        <Search className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <Input
+          variant="unstyled"
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={tr('Search help', 'Tìm trong trợ giúp')}
+          aria-label={tr('Search the help center', 'Tìm trong trung tâm trợ giúp')}
+          className="min-w-0 flex-1 px-3 py-3 text-base"
+        />
       </div>
 
-      {/* Categorized FAQ — chunked, two columns at lg */}
-      <div className="mt-10 grid gap-x-14 gap-y-10 lg:grid-cols-2">
-        {SECTIONS.map((section) => (
-          <section key={section.title}>
-            <h2 className="h-section text-foreground"><Tr text={section.title} /></h2>
-            <div className="mt-3 space-y-5">
-              {section.items.map(([q, a]) => (
-                <div key={q}>
-                  <h3 className="text-base font-bold text-foreground"><Tr text={q} /></h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-body"><Tr text={a} /></p>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
+      {/* Topics */}
+      <div className="no-scrollbar -mx-3 mt-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+        <Button
+          type="button"
+          variant="bare"
+          size="none"
+          aria-pressed={topic === null}
+          onClick={() => setTopic(null)}
+          className={cn(
+            'h-10 shrink-0 rounded-full border border-border px-4 text-xs font-semibold transition-colors',
+            topic === null ? 'border-brand bg-accent text-accent-foreground' : 'bg-transparent text-body hover:bg-muted',
+          )}
+        >
+          <Tr text="All topics" />
+        </Button>
+        {HELP_TOPICS.map((item) => {
+          const Icon = TOPIC_ICONS[item.slug] ?? UsersRound
+          const active = topic === item.slug
+          return (
+            <Button
+              key={item.slug}
+              type="button"
+              variant="bare"
+              size="none"
+              aria-pressed={active}
+              onClick={() => setTopic(active ? null : item.slug)}
+              className={cn(
+                'h-10 shrink-0 gap-2 rounded-full border border-border px-4 text-xs font-semibold transition-colors',
+                active ? 'border-brand bg-accent text-accent-foreground' : 'bg-transparent text-body hover:bg-muted',
+              )}
+            >
+              <Icon className="size-4" aria-hidden />
+              {tr(item.name, item.nameVi)}
+            </Button>
+          )
+        })}
       </div>
+
+      {/* Answers */}
+      <section className="mt-8" aria-labelledby="help-answers-title">
+        <h2 id="help-answers-title" className="h-section text-foreground">
+          <Tr text="Answers" />
+        </h2>
+        {answers.length === 0 ? (
+          <EmptyState
+            icon={SearchX}
+            title={tr('No answers match your search.', 'Không có câu trả lời phù hợp.')}
+            subtitle={tr('Try another wording or topic — or ask the community below.', 'Thử từ khóa hoặc chủ đề khác — hoặc hỏi cộng đồng bên dưới.')}
+            action={
+              <Button type="button" variant="outline" onClick={resetFilters}>
+                <Tr text="Reset search" />
+              </Button>
+            }
+            className="mt-3 bg-transparent ring-0"
+          />
+        ) : grouped ? (
+          <div className="mt-2 grid items-start gap-x-14 lg:grid-cols-2">
+            {columns.map((column, index) => (
+              <div key={index}>
+                {column.map((group) => (
+                  <section key={group.topic.slug} className="mt-6">
+                    <h3 className="text-base font-bold text-foreground">{tr(group.topic.name, group.topic.nameVi)}</h3>
+                    <Accordion className="mt-1">
+                      {group.posts.map((post) => (
+                        <AnswerItem key={post.id} post={post} />
+                      ))}
+                    </Accordion>
+                  </section>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Accordion className="mt-3">
+            {answers.map((post) => (
+              <AnswerItem key={post.id} post={post} />
+            ))}
+          </Accordion>
+        )}
+      </section>
+
+      {/* Community questions */}
+      <section className="mt-12" aria-labelledby="help-community-title">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="help-community-title" className="h-section text-foreground">
+            <Tr text="From the community" />
+          </h2>
+          {/* A real cross-origin URL for a11y / middle-click, with a left-click
+              intercepted so the native app takes the SSO handoff instead of landing
+              signed out. Posting stays on eno.forum on purpose — it owns the
+              composer, the media bucket and its storage RLS. */}
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={`${FORUM_URL}/`}
+              onClick={(event) => {
+                if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                event.preventDefault()
+                goToForum('/')
+              }}
+            >
+              <Tr text="Ask the community" />
+            </a>
+          </Button>
+        </div>
+        {questions.length === 0 ? (
+          <p className="mt-3 text-sm text-body">
+            <Tr text="No community questions here yet — be the first to ask." />
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2.5">
+            {questions.map((post) => (
+              <QuestionCard key={post.id} post={post} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Business reviews */}
+      {data.reviews.length > 0 && (
+        <section className="mt-12" aria-labelledby="help-reviews-title">
+          <h2 id="help-reviews-title" className="h-section text-foreground">
+            <Tr text="Recent business reviews" />
+          </h2>
+          <p className="mt-1.5 text-sm text-body">
+            <Tr text="Left by buyers after a completed deal. Open a seller to read every review on their storefront." />
+          </p>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {data.reviews.map((review) => (
+              <ReviewCard key={review.id} review={review} />
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* More from eno.vn */}
       <section className="mt-12 border-t border-border pt-8">
         <h2 className="h-section text-foreground"><Tr text="More from eno.vn" /></h2>
         <div className="mt-3 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
           {MORE_LINKS.map(({ label, href }) => (
-            <Link key={label} href={href} className="group flex items-center justify-between border-b border-border/60 py-3 text-sm font-semibold text-foreground transition-colors hover:text-accent-foreground">
+            <Link
+              key={label}
+              href={href}
+              className="group flex items-center justify-between border-b border-border/60 py-3 text-sm font-semibold text-foreground transition-colors hover:text-accent-foreground"
+            >
               <Tr text={label} />
-              <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-accent-foreground" />
+              <ChevronRight className="size-4 text-muted-foreground transition-colors group-hover:text-accent-foreground" />
             </Link>
           ))}
         </div>
@@ -145,7 +424,8 @@ export function HelpCenter() {
         <HelpFeedback />
       </section>
 
-      {/* Footer CTA */}
+      {/* Escalation. Kept as the LAST thing on the page on purpose: a reader who got
+          here did not find their answer above, and this is the human path out. */}
       <div className="mt-12 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
@@ -153,17 +433,10 @@ export function HelpCenter() {
         </div>
         <Button asChild variant="cta" size="none">
           <a href="mailto:support@eno.vn" className="shrink-0 px-5 py-2.5">
-            <Mail className="h-4 w-4" /> support@eno.vn
+            <Mail className="size-4" /> support@eno.vn
           </a>
         </Button>
       </div>
-
-      <p className="mt-6 text-sm text-body">
-        <Tr text="New to eno.vn?" />{' '}
-        <Link href="/guide" className="inline-flex items-center gap-0.5 font-semibold text-accent-foreground hover:underline">
-          <Tr text="Read the quick guide" /> <ChevronRight className="h-3.5 w-3.5" />
-        </Link>
-      </p>
     </div>
   )
 }

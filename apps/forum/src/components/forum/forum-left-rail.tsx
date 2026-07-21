@@ -13,7 +13,13 @@ import {
   Home,
   House,
   MessageSquareText,
+  Plane,
+  Rocket,
+  ShieldCheck,
+  ShoppingBag,
   Sparkles,
+  Tag,
+  UserRoundCog,
   Users,
   Waves,
 } from 'lucide-react'
@@ -35,6 +41,13 @@ const COMMUNITY_ICONS: Record<string, LucideIcon> = {
   danang: Waves,
   'families-schools': Users,
   'events-meetups': CalendarDays,
+  // Help Center topics — mirrors TOPIC_ICONS in eno.vn's help-center.tsx.
+  'help-getting-started': Rocket,
+  'help-buying': ShoppingBag,
+  'help-selling': Tag,
+  'help-trust-safety': ShieldCheck,
+  'help-account': UserRoundCog,
+  'vietnam-travel': Plane,
 }
 
 export function CommunityIcon({ community, className }: { community: ForumCommunity; className?: string }) {
@@ -128,7 +141,12 @@ export function ForumLeftRail({
               >
                 <CommunityIcon community={community} className="h-7 w-7" />
                 <span className="min-w-0 flex-1 truncate">{tr(community.name, community.nameVi)}</span>
-                <span className="text-2xs tabular-nums text-ink-4">{formatForumCount(community.members)}</span>
+                {/* Suppress-when-empty: a brand-new topic has no members yet, and
+                    rendering a bare "0" next to neighbours showing "42.8k" reads as
+                    "nobody is here" rather than "this is new". */}
+                {community.members > 0 && (
+                  <span className="text-2xs tabular-nums text-ink-4">{formatForumCount(community.members)}</span>
+                )}
               </Button>
             ))}
           </div>

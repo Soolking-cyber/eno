@@ -150,6 +150,69 @@ export const FORUM_COMMUNITIES: ForumCommunity[] = [
     members: 16200,
     online: 117,
   },
+  // ── Help Center topics (owner 2026-07-21) ──────────────────────────────────
+  // Mirrors src/lib/help-center.ts, which is the canonical taxonomy and the source
+  // scripts/sync-help-center.ts upserts from. They are duplicated HERE because this
+  // array gates what the forum can render at all (page.tsx maps over it, so a DB
+  // community missing from this list is invisible) — keep the two in step.
+  //
+  // members/online are 0, not invented. The counts above are hardcoded marketing
+  // numbers from the pre-launch mock; a help topic that says "42.8k members" on day
+  // one is a lie the rail would repeat forever. The rail now hides a 0 instead.
+  {
+    slug: 'help-getting-started',
+    name: 'Getting started',
+    nameVi: 'Bắt đầu',
+    description: 'What eno.vn is and how to find your way around.',
+    descriptionVi: 'eno.vn là gì và cách sử dụng cơ bản.',
+    members: 0,
+    online: 0,
+  },
+  {
+    slug: 'help-buying',
+    name: 'Buying & offers',
+    nameVi: 'Mua hàng & trả giá',
+    description: 'Messaging sellers, making offers, saving listings.',
+    descriptionVi: 'Nhắn tin cho người bán, trả giá, lưu tin đăng.',
+    members: 0,
+    online: 0,
+  },
+  {
+    slug: 'help-selling',
+    name: 'Selling & listings',
+    nameVi: 'Bán hàng & tin đăng',
+    description: 'Posting, pricing, photos and managing what you sell.',
+    descriptionVi: 'Đăng tin, định giá, hình ảnh và quản lý tin đăng.',
+    members: 0,
+    online: 0,
+  },
+  {
+    slug: 'help-trust-safety',
+    name: 'Trust & safety',
+    nameVi: 'Uy tín & an toàn',
+    description: 'Trust scores, safe meet-ups, scams and reporting.',
+    descriptionVi: 'Điểm uy tín, gặp mặt an toàn, lừa đảo và báo cáo.',
+    members: 0,
+    online: 0,
+  },
+  {
+    slug: 'help-account',
+    name: 'Account & app',
+    nameVi: 'Tài khoản & ứng dụng',
+    description: 'Signing in, notifications, language and settings.',
+    descriptionVi: 'Đăng nhập, thông báo, ngôn ngữ và cài đặt.',
+    members: 0,
+    online: 0,
+  },
+  {
+    slug: 'vietnam-travel',
+    name: 'Vietnam travel',
+    nameVi: 'Du lịch Việt Nam',
+    description: 'Arriving, getting around, eating well and staying safe.',
+    descriptionVi: 'Nhập cảnh, đi lại, ăn uống và giữ an toàn.',
+    members: 0,
+    online: 0,
+  },
 ]
 
 export const INITIAL_FORUM_POSTS: ForumPost[] = [
