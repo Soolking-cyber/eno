@@ -73,7 +73,13 @@ test.describe('eno.forum deployable workspace', () => {
   test('renders the forum shell and a useful discussion feed', async ({ page }) => {
     await expect(page).toHaveTitle(/eno\.forum/i)
     await expect(page.getByRole('heading', { level: 1, name: /Vietnam feels easier together/i })).toBeVisible()
-    await expect(page.getByRole('button', { name: /New to Vietnam\? Start with these 8 things/i }).first()).toBeVisible()
+    // A feed card's title is a real ANCHOR, not a button — 5550b99b made threads indexable by
+    // giving every card a permalink (<Button asChild><a href>), which is correct for SEO and
+    // for middle/modified clicks. Scoped to <main>, because the right rail lists the same
+    // titles as buttons: querying role=button unscoped matched the RAIL on desktop and passed
+    // while asserting nothing about the feed, and failed on mobile only because the rail is
+    // hidden there. Same bug, two different-looking symptoms.
+    await expect(page.locator('main').getByRole('link', { name: /New to Vietnam\? Start with these 8 things/i }).first()).toBeVisible()
     await expect(page.getByRole('tablist')).toBeVisible()
     await expect(page.locator('nav[aria-label="Forum tools"]')).toHaveCount(0)
     await expect(page.locator('nav[aria-label="Account"]')).toHaveCount(0)
@@ -112,7 +118,7 @@ test.describe('eno.forum deployable workspace', () => {
     const search = page.locator('input[aria-label="Search the forum"]:visible')
     await search.fill('deposit')
 
-    const post = page.getByRole('button', { name: /Landlord wants a 3-month deposit/i })
+    const post = page.locator('main').getByRole('link', { name: /Landlord wants a 3-month deposit/i })
     await expect(post).toBeVisible()
     await post.click()
 
