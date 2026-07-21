@@ -25,15 +25,21 @@ final class BrandRailModel {
     func loadBrands(category: String?, subcategory: String?) async {
         let key = "\(category ?? "")|\(subcategory ?? "")"
         guard key != scopeKey else { return }
-        scopeKey = key
         models = []
-        guard let category, Self.brandable.contains(category) else { brands = []; return }
+        guard let category, Self.brandable.contains(category) else { scopeKey = key; brands = []; return }
         let q = [
             URLQueryItem(name: "category", value: category),
             URLQueryItem(name: "subcategory", value: subcategory ?? "all"),
             URLQueryItem(name: "limit", value: "40"),
         ]
-        brands = (try? await APIClient.shared.get("api/brands", query: q) as BrandsResponse)?.brands ?? []
+        let fetched = (try? await APIClient.shared.get("api/brands", query: q) as BrandsResponse)?.brands ?? []
+        // Commit the scope ONLY after a live (non-superseded) fetch — otherwise a
+        // programmatic category-set whose fetch was cancelled would strand the rail
+        // empty and block the retry (owner: brands don't show under "All" until a
+        // subcategory is tapped).
+        guard !Task.isCancelled else { return }
+        scopeKey = key
+        brands = fetched
     }
 
     func loadModels(brand: String, category: String?, subcategory: String?) async {
@@ -62,8 +68,15 @@ struct QuickFindBar: View {
                 brandRail
             }
         }
-        .task(id: "\(feed.category ?? "")|\(feed.subcategory ?? "")") {
-            await rail.loadBrands(category: feed.category, subcategory: feed.subcategory)
+        // Load on appear AND on every category/subcategory change — explicit onChange
+        // is more reliable than .task(id:) for a programmatic category-set (the case
+        // where the category page opens on a category the user didn't tap).
+        .task { await rail.loadBrands(category: feed.category, subcategory: feed.subcategory) }
+        .onChange(of: feed.category) {
+            Task { await rail.loadBrands(category: feed.category, subcategory: feed.subcategory) }
+        }
+        .onChange(of: feed.subcategory) {
+            Task { await rail.loadBrands(category: feed.category, subcategory: feed.subcategory) }
         }
     }
 
