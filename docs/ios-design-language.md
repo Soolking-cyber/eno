@@ -1,7 +1,7 @@
 # eno.vn iOS — design language & EnoUI plan (the canon)
 
 Status: **APPROVED (owner, 2026-07-21) — direction: "diverge: brand + native chrome".**
-Authored by Kyle, synthesized from a dual external review (codex GPT-5.6 · Gemini 3.1 Pro) +
+Authored by Murat, synthesized from a dual external review (codex GPT-5.6 · Gemini 3.1 Pro) +
 a measured survey of `apps/ios`. This is the single source of truth; where it conflicts with
 older feature code, **this document and `EnoUI` win**. The earlier "page-by-page web copy"
 rule is now explicitly relaxed for **chrome** (nav/tabs/sheets/menus/icons go native); the
@@ -164,16 +164,16 @@ delete the baseline when it hits zero. Runs as an xcodegen build phase + in CI.
 
 | Owner | Library | Feature lane |
 |---|---|---|
-| **Kyle** | Tokens, typography, `EnoButton`/`EnoIconButton`, `EnoCard`, `EnoChip`/`EnoBadge`, **lint**, package + `project.yml` integration | `Feed`, `Listing`, `Search`, `Saved` |
-| **Murat** | `EnoField`/`EnoTextArea`, `EnoAvatar`, `EnoListRow`, `EnoSegmentedControl`, `EnoSheetScaffold`, `EnoEmptyState`/`EnoSkeleton`/`EnoPageState` | `Post`, `Messages`, `Dashboard`, `Notifications`, `Shared` |
+| **Murat** (built Phase 0) | Tokens, typography, `EnoButton`/`EnoIconButton`, `EnoCard`, `EnoChip`/`EnoBadge`, **lint**, package + `project.yml` integration | `Feed`, `Listing`, `Search`, `Saved` |
+| **Kyle** | `EnoField`/`EnoTextArea`, `EnoAvatar`, `EnoListRow`, `EnoSegmentedControl`, `EnoSheetScaffold`, `EnoEmptyState`/`EnoSkeleton`/`EnoPageState` | `Post`, `Messages`, `Dashboard`, `Notifications`, `Shared` |
 
-Kyle exclusively owns the conflict hotspots during migration: `project.yml`, `RootView.swift`,
+Murat exclusively owns the conflict hotspots during migration: `project.yml`, `RootView.swift`,
 legacy `DesignTokens.swift`/`ScaledFont.swift`, the lint baseline, the catalog, this doc.
-Murat *requests* primitive changes rather than editing Kyle-owned component files.
+Kyle *requests* primitive changes rather than editing Murat-owned component files.
 
 **Waves:** (1) **Contract freeze** — agree names/variants/token values, scaffold the package,
-install the baseline, no restyling yet. (2) **Reference slices in parallel** — Kyle: listing
-card + feed filter/view selector; Murat: post form + one sheet → fix & freeze the primitive
+install the baseline, no restyling yet. (2) **Reference slices in parallel** — Murat: listing
+card + feed filter/view selector; Kyle: post form + one sheet → fix & freeze the primitive
 APIs against two demanding flows. (3) **Lane migration** — migrate *whole files*, drop each
 from the baseline immediately, never mix behavioral refactors with visual migration. (4)
 **Convergence** — remove remaining raw controls, delete `scaledFont` + legacy token aliases,
