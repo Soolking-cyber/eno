@@ -67,6 +67,25 @@ public struct EnoCatalogView: View {
                     }
                     .enoSkeleton(true)
                 }
+
+                Section("States") {
+                    EnoEmptyState(
+                        icon: "heart",
+                        title: "Nothing saved yet",
+                        message: "Tap the heart on a listing to keep it here.",
+                        actionTitle: "Browse listings",
+                        action: {}
+                    )
+                    EnoEmptyState(
+                        icon: "wifi.slash",
+                        title: "Couldn't load",
+                        message: "Check your connection and try again.",
+                        tone: .error,
+                        actionTitle: "Try again",
+                        action: {}
+                    )
+                    EnoLoadingState(label: "Loading…")
+                }
             }
             .navigationTitle("EnoUI catalog")
         }

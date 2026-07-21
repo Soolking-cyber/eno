@@ -68,31 +68,25 @@ struct SavedView: View {
     // NOTE: these two are the EnoEmptyState / EnoPageState shape — swap them onto that
     // primitive when Kyle's lane ships it; the tokens below are already canon.
     private var empty: some View {
-        VStack(spacing: EnoSpacing.s3) {
-            Image(systemName: "heart")
-                .enoIcon(.xl, color: EnoColor.sub)
-            Text(L10n.tr("Nothing saved yet", "Chưa lưu tin nào"))
-                .enoText(.headline)
-            Text(L10n.tr("Tap the heart on any listing to keep it here.", "Nhấn trái tim trên tin đăng để lưu lại đây."))
-                .enoText(.callout, color: EnoColor.sub)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 100)
+        EnoEmptyState(
+            icon: "heart",
+            title: L10n.tr("Nothing saved yet", "Chưa lưu tin nào"),
+            message: L10n.tr("Tap the heart on any listing to keep it here.",
+                             "Nhấn trái tim trên tin đăng để lưu lại đây.")
+        )
+        .padding(.top, EnoSpacing.s12)
     }
 
     private var errorState: some View {
-        VStack(spacing: EnoSpacing.s3) {
-            Image(systemName: "wifi.slash")
-                .enoIcon(.xl, color: EnoColor.sub)
-            Text(L10n.tr("Couldn't load listings.", "Không tải được tin đăng."))
-                .enoText(.label)
-            EnoButton(L10n.tr("Try again", "Thử lại"), size: .compact, fullWidth: false) {
-                Task { await load() }
-            }
+        EnoEmptyState(
+            icon: "wifi.slash",
+            title: L10n.tr("Couldn't load listings.", "Không tải được tin đăng."),
+            tone: .error,
+            actionTitle: L10n.tr("Try again", "Thử lại")
+        ) {
+            Task { await load() }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 100)
+        .padding(.top, EnoSpacing.s12)
     }
 
     private var savedCountLabel: String {
