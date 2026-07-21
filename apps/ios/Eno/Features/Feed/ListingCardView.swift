@@ -59,37 +59,40 @@ struct ListingCardView: View {
                     }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 9))   // image is its own rounded-xl (web)
+            .clipShape(RoundedRectangle(cornerRadius: EnoRadius.control))   // image is its own rounded-xl (web)
             .overlay(alignment: .topLeading) { topBadge.padding(8) }
-            .overlay(alignment: .topTrailing) { heart.padding(8) }
+            // padding 2 (not 8): EnoIconButton carries its own 44pt target, so the glyph
+            // lands in the same visual spot the old 34pt frame + 8pt inset did.
+            .overlay(alignment: .topTrailing) { heart.padding(2) }
             .overlay(alignment: .bottomLeading) { bottomChips.padding(8) }
     }
 
+    // Web parity: a bare 22px heart (NO circular background), white with a legibility
+    // shadow at rest, brand-filled when saved. EnoIconButton also lifts the tap target
+    // from 34pt (below the 44pt minimum) to a compliant 44.
     private var heart: some View {
-        Button {
+        let saved = favs.isFavorite(listing.id)
+        return EnoIconButton(
+            saved ? "heart.fill" : "heart",
+            size: 22,
+            color: saved ? EnoColor.brand : .white,
+            variant: .onImage,
+            label: saved ? L10n.tr("Saved", "Đã lưu") : L10n.tr("Save", "Lưu")
+        ) {
             favs.toggle(listing.id)
-        } label: {
-            // Web parity: a bare 22px heart (NO circular background), white with a
-            // drop shadow at rest, brand-filled when saved.
-            Image(systemName: favs.isFavorite(listing.id) ? "heart.fill" : "heart")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(favs.isFavorite(listing.id) ? Tokens.brand : .white)
-                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
-                .frame(width: 34, height: 34)
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(favs.isFavorite(listing.id) ? L10n.tr("Saved", "Đã lưu") : L10n.tr("Save", "Lưu"))
     }
 
+    // Cover badges — priority urgent → -N% drop → New(48h). EnoOverlayChip (not EnoBadge):
+    // these sit ON the photo, so they need opaque/scrim fills to stay legible.
     @ViewBuilder
     private var topBadge: some View {
         if listing.urgent {
-            chip(icon: "bolt.fill", text: L10n.tr("Urgent", "Bán gấp"), bg: Tokens.fg, fg: Tokens.card)
+            EnoOverlayChip(L10n.tr("Urgent", "Bán gấp"), icon: "bolt.fill", kind: .ink)
         } else if let pct = listing.dropPercent {
-            chip(icon: nil, text: "-\(pct)%", bg: Tokens.danger, fg: .white)
+            EnoOverlayChip("-\(pct)%", kind: .danger)
         } else if listing.isNew {
-            chip(icon: nil, text: L10n.tr("New", "Mới"), bg: Tokens.fg.opacity(0.85), fg: Tokens.card)
+            EnoOverlayChip(L10n.tr("New", "Mới"), kind: .inkMuted)
         }
     }
 
@@ -97,34 +100,12 @@ struct ListingCardView: View {
     private var bottomChips: some View {
         HStack(spacing: 4) {
             if listing.video != nil {
-                Image(systemName: "play.fill")
-                    .scaledFont(9, weight: .bold)
-                    .foregroundStyle(.white)
-                    .padding(5)
-                    .background(.black.opacity(0.55), in: Capsule())
+                EnoOverlayChip(icon: "play.fill", kind: .scrim)
             }
             if savedTotal >= 3 {
-                HStack(spacing: 3) {
-                    Image(systemName: "heart.fill").scaledFont(9)
-                    Text("\(savedTotal)").scaledFont(10, weight: .semibold)
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(.black.opacity(0.55), in: Capsule())
+                EnoOverlayChip("\(savedTotal)", icon: "heart.fill", kind: .scrim)
             }
         }
-    }
-
-    private func chip(icon: String?, text: String, bg: Color, fg: Color) -> some View {
-        HStack(spacing: 3) {
-            if let icon { Image(systemName: icon).scaledFont(9, weight: .bold) }
-            Text(text).scaledFont(10, weight: .bold)
-        }
-        .foregroundStyle(fg)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(bg, in: Capsule())
     }
 
     // ── price ──
@@ -215,8 +196,8 @@ struct TrustMini: View {
 
     var body: some View {
         let chip = HStack(spacing: 4) {
-            Image(systemName: "shield").scaledFont(10)   // web: OUTLINE shield, not filled
-            Text("\(score)").scaledFont(11, weight: .bold)
+            Image(systemName: "shield").font(EnoTextRole.micro.font)   // web: OUTLINE shield, not filled
+            Text("\(score)").font(EnoTextRole.micro.font).monospacedDigit()
         }
         .lineLimit(1)
         .fixedSize()            // the score must never wrap to "10⏎0" at large Dynamic Type

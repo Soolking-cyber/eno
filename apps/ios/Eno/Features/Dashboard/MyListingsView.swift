@@ -85,6 +85,9 @@ struct MyListingsView: View {
     @State private var editPath: EditRoute?
     @State private var deleteTarget: MyListing?
     @State private var soldTarget: MyListing?
+    // QuickDiscount (#33). The owner wants exactly four visible chips, so the price cut
+    // lives in a native long-press context menu on the row instead of a fifth button.
+    @State private var discountTarget: MyListing?
 
     struct EditRoute: Identifiable {
         let id: String
@@ -100,6 +103,23 @@ struct MyListingsView: View {
             ForEach(model.listings) { l in
                 row(l)
                     .listRowBackground(Tokens.card)
+                    // Native long-press menu — keeps the row at four visible chips while
+                    // still exposing the price cut (and a quick re-list for sold/hidden).
+                    .contextMenu {
+                        if l.status == "active" {
+                            Button {
+                                discountTarget = l
+                            } label: {
+                                Label(L10n.tr("Lower price", "Giảm giá"), systemImage: "tag")
+                            }
+                        } else {
+                            Button {
+                                Task { await model.setStatus(l.id, "active") }
+                            } label: {
+                                Label(L10n.tr("Reactivate", "Đăng lại"), systemImage: "arrow.counterclockwise")
+                            }
+                        }
+                    }
             }
             if model.loaded && model.listings.isEmpty {
                 Text(L10n.tr("You haven't posted anything yet.", "Bạn chưa đăng tin nào."))
@@ -127,6 +147,13 @@ struct MyListingsView: View {
         .sheet(item: $soldTarget) { l in
             MarkSoldSheet(listing: l) { Task { await model.load() } }
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(item: $discountTarget) { l in
+            DiscountSheet(currentPrice: l.price) { newPrice in
+                Task { await model.discount(l.id, to: newPrice) }
+                discountTarget = nil
+            }
+            .presentationDetents([.height(340)])
         }
         .confirmationDialog(
             L10n.tr("Delete this listing?", "Xóa tin này?"),
