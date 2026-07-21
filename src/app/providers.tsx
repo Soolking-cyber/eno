@@ -21,6 +21,7 @@ import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
 import { NativePush } from "@/components/native/native-push";
+import { NativeBadge } from "@/components/native/native-badge";
 
 // The app's provider pyramid + persistent chrome, extracted VERBATIM from
 // src/app/layout.tsx (audit §E) so the layout keeps only document concerns
@@ -45,6 +46,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <NativePush />
             <NotificationsProvider>
               <ChatProvider>
+                {/* App-icon badge. Must sit INSIDE both providers — it reads the notification
+                    and chat unread counts — and inside AuthProvider so sign-out clears it.
+                    No-op on web and on any build predating the badge plugin. */}
+                <NativeBadge />
                 <FavoritesProvider>
                   <QueryProvider>
                     {/* One delay group for every ui/tooltip in the app: moving between adjacent
