@@ -59,19 +59,41 @@ test.describe('Guest · help center', () => {
     const answers = page.locator('[data-slot="accordion-trigger"]')
     const before = await answers.count()
 
-    await page.getByRole('button', { name: /Vietnam travel/i }).click()
-    await expect.poll(() => answers.count()).toBeLessThan(before)
-    expect(await answers.count()).toBeGreaterThan(0)
+    // "Shorter but non-empty" is true of ANY filter, including a wrong one. The real
+    // invariant: filtering to a topic must leave EXACTLY the answers that topic's group
+    // held in the unfiltered view. Count that group first (the unfiltered page groups by
+    // topic under an h3), then compare after the chip is applied — the filtered view is a
+    // flat list, so the h3 is gone and only the count can be compared.
+    // `section:has(> h3)` targets the TOPIC section specifically — the outer "Answers"
+    // section also contains that h3 as a descendant, so an unanchored :has matched both and
+    // counted all 40 answers instead of the topic's 10.
+    const group = page.locator('main section:has(> h3)').filter({ has: page.getByRole('heading', { level: 3, name: /Vietnam travel|Du lịch Việt Nam/i }) })
+    const expected = await group.locator('[data-slot="accordion-trigger"]').count()
+    expect(expected).toBeGreaterThan(0)
+
+    const chip = page.getByRole('button', { name: /Vietnam travel/i })
+    await chip.click()
+    await expect(chip).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(() => answers.count()).toBe(expected)
+    expect(expected).toBeLessThan(before)
   })
 
   test('an answer opens its own thread page', async ({ page }) => {
     await openHelp(page)
-    await page.locator('[data-slot="accordion-trigger"]').first().click()
+    const trigger = page.locator('[data-slot="accordion-trigger"]').first()
+    // Capture the question we clicked, so we can prove the thread that opens is THAT one.
+    const question = ((await trigger.textContent()) ?? '').trim()
+    expect(question.length).toBeGreaterThan(0)
+    await trigger.click()
     await page.getByRole('link', { name: /Ask a follow-up|Discussion/i }).first().click()
 
     await expect(page).toHaveURL(/\/help\/[^/]+$/)
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    // The thread must offer the way back into the Help Center it came from.
+    // ⚠️ Every assertion here used to be satisfied by the global 404 PAGE — it has an <h1>,
+    // and footer.tsx:18 renders a site-wide "Help center" link. Proven by breaking the thread
+    // route and watching this test stay green. Assert the ANSWER, not the page furniture:
+    // the h1 must be the question we clicked, and the reply composer must exist.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(question)
+    await expect(page.getByRole('textbox', { name: /write a reply/i })).toBeVisible()
     await expect(page.getByRole('link', { name: /help center/i }).first()).toBeVisible()
   })
 

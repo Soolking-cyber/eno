@@ -25,9 +25,13 @@ test.describe('Guest · homepage', () => {
   })
 
   test('shows home rails', async ({ page }) => {
+    // ⚠️ "Latest listings" is an always-rendered sr-only <h2> (listings-explorer.tsx:1704),
+    // so heading-only assertions passed with EVERY rail removed — proven by deleting them
+    // and watching this test stay green. A rail is its CARDS; assert those.
     const trending = page.getByRole('heading', { name: /Trending now/i })
     const latest = page.getByRole('heading', { name: /Latest listings/i })
     await expect(trending.or(latest).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add favorite' }).first()).toBeVisible()
   })
 
   test('content images decode (no broken cards)', async ({ page }) => {
