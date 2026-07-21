@@ -221,9 +221,10 @@ export function NativeBootstrap() {
   }, [router])
 
   // Long-press a listing card → native action sheet (Share / Copy link / Open) — the native gesture
-  // users reach for on a card. Non-invasive: a global capture keyed off the card's `data-card-link`
-  // attr, native-only, so it never touches ListingCard. A 500ms hold that survives no finger movement
-  // fires the sheet; the follow-up tap (which would navigate) is swallowed once.
+  // users reach for on a card. A global, native-only touch capture: nothing is wired per-card, the
+  // card just exposes `data-card-root` / `data-card-link` (see cardLinkFor). A 500ms hold that
+  // survives no finger movement fires the sheet; the follow-up tap (which would navigate) is
+  // swallowed once.
   useEffect(() => {
     if (!isNative()) return
     let timer: ReturnType<typeof setTimeout> | null = null
@@ -262,19 +263,56 @@ export function NativeBootstrap() {
       setTimeout(() => { suppressClick = false }, 700)
     }
 
-    let startX = 0, startY = 0
+    // The card's OWN controls keep their own gesture. Without this, a slow tap on the save heart (or
+    // a carousel arrow, or the offer slider) would pop the sheet AND get its click swallowed — i.e.
+    // holding the heart a beat too long would silently fail to save. `a:not([data-card-link])` is
+    // the same rule for links: resolving DOWN from the card root means any OTHER anchor the card
+    // ever grows (a seller link, a category chip) would otherwise hand the sheet the LISTING's url
+    // and eat the tap that was meant for it.
+    const CARD_CONTROL = 'button,[role="button"],[role="slider"],input,textarea,select,a:not([data-card-link])'
+
+    /**
+     * The card link under a touch — the ONE thing that makes the whole card a long-press target.
+     *
+     * ⚠️ `closest('a[data-card-link]')` from the touch target is NOT enough, and that was the bug:
+     * the stretched card link is a SIBLING of the photo, not its ancestor (listing-card.tsx puts the
+     * <a> UNDER the image on purpose, so the image's action buttons stay clickable). Over the photo
+     * — ~70% of the card, and where a long-press actually lands — the walk therefore found nothing
+     * and the sheet never opened. Resolve through the card ROOT instead, which IS an ancestor of the
+     * photo, the body and the link alike. The `closest` arm stays as the fallback for any
+     * data-card-link surface that isn't a ListingCard.
+     */
+    const cardLinkFor = (target: EventTarget | null): HTMLAnchorElement | null => {
+      if (!(target instanceof Element)) return null
+      if (target.closest(CARD_CONTROL)) return null
+      const root = target.closest('[data-card-root]')
+      const link = root?.querySelector('a[data-card-link]') ?? target.closest('a[data-card-link]')
+      return link as HTMLAnchorElement | null
+    }
+
+    let startX = 0, startY = 0, startId = -1
     const onStart = (e: TouchEvent) => {
-      const link = (e.target as Element | null)?.closest?.('a[data-card-link]') as HTMLAnchorElement | null
+      clear() // any new contact abandons a hold in progress
+      // A second finger is never a long press — and it would BLIND the move-cancel below: while one
+      // finger rests on a card, `touches[0]` is that motionless finger, not the one doing the
+      // scrolling, so a thumb parked on a photo while the other hand scrolls would sail past the
+      // 10px check and pop the sheet mid-scroll. Now that the photo is a target (it wasn't before),
+      // that parked thumb is a realistic gesture, so bail on multi-touch outright.
+      if (e.touches.length > 1) return
+      const link = cardLinkFor(e.target)
       if (!link) return
       const t = e.touches[0]
-      startX = t?.clientX ?? 0; startY = t?.clientY ?? 0
-      clear()
+      if (!t) return
+      startX = t.clientX; startY = t.clientY; startId = t.identifier
       timer = setTimeout(() => { void openSheet(link) }, 500)
     }
     // Only cancel the hold if the finger actually MOVES (a scroll/drag) — small jitter while holding
-    // still must not kill it. 10px threshold matches the platform's own long-press slop.
+    // still must not kill it. 10px threshold matches the platform's own long-press slop. Tracked by
+    // touch IDENTITY, not by `touches[0]`: the list is ordered by contact, not by who started this.
     const onMove = (e: TouchEvent) => {
-      const t = e.touches[0]; if (!t) return
+      if (!timer) return
+      const t = Array.from(e.touches).find((c) => c.identifier === startId)
+      if (!t) { clear(); return } // our finger left the surface mid-gesture
       if (Math.abs(t.clientX - startX) > 10 || Math.abs(t.clientY - startY) > 10) clear()
     }
     const onClickCapture = (e: MouseEvent) => {

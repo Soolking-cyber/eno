@@ -11,7 +11,39 @@ import { KeyboardResize } from '@capacitor/keyboard'
 // is EXACTLY the pre-Phase-2 remote-server mode. Build variants:
 //   remote (default):  npx cap copy ios
 //   local shell:       ENO_LOCAL_SHELL=1 npx cap copy ios
+//
+// ⛔ THE FLAG IS iOS-ONLY, AND IT IS NOT A STYLE PREFERENCE — DO NOT MAKE IT THE DEFAULT.
+// Dropping `server.url` is what lets Capacitor serve webDir, and on ANDROID that single change
+// moves the bridge off the live site. Verified in @capacitor/android 8.x sources and confirmed
+// by two external reviewers (GPT-5.6 + Gemini 3.1 Pro, 2026-07-21):
+//   · Bridge.loadWebView() registers native-bridge.js with
+//     `WebViewCompat.addDocumentStartJavaScript(webView, …, Collections.singleton(allowedOrigin))`,
+//     where allowedOrigin is derived from `appUrl` — ONE origin, and only that one.
+//   · `appUrl` is `server.url` when set (today: https://eno.vn ⇒ the live site IS the injection
+//     origin). With no server.url it becomes `localUrl` = `<androidScheme>://<hostname>` =
+//     https://localhost, i.e. the SHELL is the only origin that gets the bridge.
+//   · On success that call sets `injector = null`, which also disables WebViewLocalServer's legacy
+//     response-rewriting fallback. `allowNavigation` only permits navigation; it does not widen the
+//     document-start origin set.
+//   ⇒ After the shell's `location.replace('https://eno.vn/')`, the live document would have NO
+//     `window.Capacitor` on Android: no splash hide, no keyboard geometry, no hardware-back
+//     handling, no status-bar sync, no Preferences (which is also how error.html learns where to
+//     put the user back), no deep links, no haptics/share/camera — and no `html.native` class, so
+//     the safe-area CSS goes too. Every Wave 2–4 Android fix dies with it.
+// iOS is unaffected: there the bridge is a WKUserScript on the WKUserContentController
+// (forMainFrameOnly, no origin allowlist), so every main-frame document gets it.
+//
+// Hence the guard below rather than a wider default: opting in must name the platform, so a bare
+// `cap sync` / `cap copy` (which copies BOTH platforms) can never silently produce an Android build
+// whose bridge never reaches eno.vn.
 const LOCAL_SHELL = process.env.ENO_LOCAL_SHELL === '1'
+if (LOCAL_SHELL && !process.argv.includes('ios')) {
+  throw new Error(
+    'ENO_LOCAL_SHELL is iOS-ONLY: it drops server.url, and on Android that moves the Capacitor ' +
+      'bridge injection origin off https://eno.vn, leaving the live site with no window.Capacitor. ' +
+      'Name the platform explicitly, e.g. `ENO_LOCAL_SHELL=1 npx cap copy ios`.',
+  )
+}
 
 const config: CapacitorConfig = {
   appId: 'vn.eno.app',

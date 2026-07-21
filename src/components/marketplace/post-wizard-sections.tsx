@@ -475,6 +475,9 @@ export function ContactSection({
                   <Input
                     value={contactName}
                     maxLength={80}
+                    // Same field as the profile editor's name — it deserves the same autofill
+                    // token, so the seller taps their own name instead of retyping it.
+                    autoComplete="name"
                     onChange={(e) => setContactName(e.target.value)}
                     placeholder={t('Tên hiển thị cho người mua', 'Name buyers will see')}
                     className={cn('max-w-md', errContactName && 'ring-2 ring-destructive/60')}
@@ -500,6 +503,10 @@ export function ContactSection({
                   <Input
                     type="tel"
                     inputMode="tel"
+                    // This is the seller's OWN number, exactly like profile-editor / business-profile-editor
+                    // (both `autoComplete="tel"`). It was the only twin missing the token, so the one place
+                    // the number is asked for mid-flow was also the one place autofill didn't offer it.
+                    autoComplete="tel"
                     value={contactPhone}
                     onChange={(e) => setContactPhone(e.target.value)}
                     placeholder="+84…"

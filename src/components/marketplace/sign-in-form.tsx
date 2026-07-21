@@ -301,7 +301,7 @@ export function SignInForm({ className }: { className?: string }) {
           {/* Enter submits, and the on-screen keyboard's return key SAYS so (enterKeyHint) —
               identical to the phone field below. The guard mirrors the button's `disabled`
               exactly, so Enter can never fire a send the button itself would refuse. */}
-          <Input type="email" autoComplete="email" enterKeyHint="send" aria-label={tr('Email')} value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !loading && email.includes('@')) sendEmail() }} placeholder="you@email.com" />
+          <Input type="email" inputMode="email" autoComplete="email" enterKeyHint="send" aria-label={tr('Email')} value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !loading && email.includes('@')) sendEmail() }} placeholder="you@email.com" />
           <Button variant="cta" size="none" onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send magic link', 'Gửi liên kết đăng nhập')}
           </Button>
@@ -312,7 +312,7 @@ export function SignInForm({ className }: { className?: string }) {
         <TabsContent value="phone">
           {stage === 'input' && (
             <div className="space-y-2">
-              <Input type="tel" autoComplete="tel" enterKeyHint="send" aria-label={t('Phone', 'Điện thoại')} value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !loading && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" />
+              <Input type="tel" inputMode="tel" autoComplete="tel" enterKeyHint="send" aria-label={t('Phone', 'Điện thoại')} value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !loading && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" />
               {/* onMouseDown + preventDefault — the composer focus-hold invariant (see
                   messages/[id]/page.tsx + CLAUDE.md). Tapping this button would otherwise blur
                   the number field, so iOS tears the keyboard down mid-send; the OTP field then
@@ -339,6 +339,28 @@ export function SignInForm({ className }: { className?: string }) {
                     : `${t('Sent to your', 'Đã gửi tới')} ${sentChannel === 'telegram' ? 'Telegram' : sentChannel === 'whatsapp' ? 'WhatsApp' : 'Zalo'}.`}
                 </p>
               )}
+              {/* autoFocus lands in the commit that swaps input→code — i.e. AFTER the awaited send,
+                  outside any user gesture. Two DIFFERENT platforms, and the difference is why this
+                  is written down (an earlier reading of it was wrong in both directions):
+                   · NATIVE (Capacitor): the keyboard opens anyway. @capacitor/ios swizzles
+                     WKContentView's _elementDidFocus and calls
+                     setKeyboardShouldRequireUserInteraction(false) on every WebView it builds
+                     (CAPBridgeViewController.swift) — so a programmatic .focus() raises the
+                     keyboard with no gesture. Nothing to fix here.
+                   · MOBILE SAFARI / iOS PWA (web): it does NOT. There the only reason the keyboard
+                     survives is that the keyboard is ALREADY up — the Send button holds the number
+                     field's focus (see its comment), making this a focus TRANSFER inside one
+                     keyboard session. So don't "fix" the autoFocus (focusing earlier, or on a
+                     timer, can't help on web and isn't needed on native) — protect the focus-hold.
+                  KNOWN GAP on both, deliberately not papered over: `disabled={loading}` blurs this
+                  field for the length of a verify (and of a resend), so a REJECTED code returns to a
+                  field that is enabled but unfocused — no keyboard until the user taps a slot. The
+                  obvious "fix" is to drop `disabled`; don't. It is also the only PROGRESS cue here
+                  (ui/input-otp dims the whole strip via has-disabled:opacity-50), so the strip would
+                  sit inert and identical while the network call runs. Note what is NOT the reason:
+                  a concurrent verify is already blocked by onCodeComplete's own `loading` guard, so
+                  dropping `disabled` would cost the feedback, not the guard. One extra tap after a
+                  wrong code is the cheaper bug. */}
               <InputOTP maxLength={6} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
                 <InputOTPGroup>
                   {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -352,6 +374,12 @@ export function SignInForm({ className }: { className?: string }) {
               <div className="flex items-center justify-between px-1 text-xs">
                 {/* text-xs on both: the base is text-sm and this row is text-xs. disabled:opacity-100 cancels the base's disabled:opacity-50 (would double-dim with disabled:text-ink-4). */}
                 <Button variant="bare" size="none" onClick={reset} className="text-xs font-semibold text-muted-foreground hover:text-accent-foreground cursor-pointer">{t('Change number', 'Đổi số')}</Button>
+                {/* Deliberately NO onMouseDown focus-hold here, unlike "Send code" above — it would
+                    be theatre. sendPhone() flips `loading`, which DISABLES the OTP field above, and
+                    disabling the focused element blurs it anyway; holding focus through the tap only
+                    delays the same blur by one render. The hold is worth it exactly where the field
+                    it protects stays ENABLED across the await — the number field in the input
+                    stage — and nowhere else. */}
                 <Button variant="bare" size="none" onClick={sendPhone} disabled={countdown > 0 || loading} className="text-xs font-semibold text-accent-foreground hover:underline disabled:opacity-100 disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
                   {countdown > 0 ? `${t('Resend in', 'Gửi lại sau')} ${fmtCountdown(countdown)}` : t('Resend code', 'Gửi lại mã')}
                 </Button>

@@ -332,6 +332,13 @@ export function Header() {
                 inputMode="search"
                 enterKeyHint="search"
                 autoComplete="off"
+                // Keyboard contract, identical to the hero bar's twin (listings-explorer's
+                // #listings-search-input) — these were only on the hero, so the same query typed
+                // into the header got autocapitalised + autocorrected on mobile: "iphone" became
+                // "Iphone", and iOS "corrected" Vietnamese model names mid-word.
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 // Inside a chat thread, drop this out of the focus order so the composer is
                 // the ONLY navigable form field — that greys out the iOS keyboard's prev/next
                 // chevrons over the composer (the accessory bar's "Done" itself is a native

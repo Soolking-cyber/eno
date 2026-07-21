@@ -999,7 +999,7 @@ function PersonalStep({ payload, set, tr }: { payload: VisaPayload; set: <K exte
       <Text id="nationality" label={tr('Current nationality', 'Quốc tịch hiện tại')} value={payload.nationality} onChange={(v) => set('nationality', v)} />
       <Text id="placeOfBirth" label={tr('Place of birth', 'Nơi sinh')} value={payload.placeOfBirth} onChange={(v) => set('placeOfBirth', v)} />
       <Text id="identityNumber" label={tr('National ID (if any)', 'Số định danh (nếu có)')} value={payload.identityNumber} onChange={(v) => set('identityNumber', v)} />
-      <Text id="email" type="email" label="Email" value={payload.email} onChange={(v) => set('email', v)} />
+      <Text id="email" type="email" inputMode="email" autoComplete="email" label="Email" value={payload.email} onChange={(v) => set('email', v)} />
       <Text id="religion" label={tr('Religion', 'Tôn giáo')} value={payload.religion} onChange={(v) => set('religion', v)} />
       <YesNo id="otherNationality" label={tr('Any other nationality?', 'Có quốc tịch khác?')} value={payload.hasOtherNationalities} onChange={(v) => set('hasOtherNationalities', v)} />
       {payload.hasOtherNationalities === 'yes' && <Text id="otherNationalities" label={tr('Other nationalities', 'Quốc tịch khác')} value={payload.otherNationalities} onChange={(v) => set('otherNationalities', v)} />}
@@ -1019,15 +1019,15 @@ function PersonalStep({ payload, set, tr }: { payload: VisaPayload; set: <K exte
     </CardContent></Card>
     <Card><CardHeader><CardTitle>{tr('Contact and work', 'Liên hệ và công việc')}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">
       <Text id="permanentAddress" label={tr('Permanent address', 'Địa chỉ thường trú')} value={payload.permanentAddress} onChange={(v) => set('permanentAddress', v)} />
-      <Text id="phone" type="tel" label={tr('Phone', 'Điện thoại')} value={payload.phone} onChange={(v) => set('phone', v)} />
+      <Text id="phone" type="tel" inputMode="tel" autoComplete="tel" label={tr('Phone', 'Điện thoại')} value={payload.phone} onChange={(v) => set('phone', v)} />
       <Text id="emergencyName" label={tr('Emergency contact name', 'Tên liên hệ khẩn cấp')} value={payload.emergencyName} onChange={(v) => set('emergencyName', v)} />
       <Text id="emergencyRelationship" label={tr('Relationship', 'Mối quan hệ')} value={payload.emergencyRelationship} onChange={(v) => set('emergencyRelationship', v)} />
       <Text id="emergencyAddress" label={tr('Emergency contact address', 'Địa chỉ liên hệ khẩn cấp')} value={payload.emergencyAddress} onChange={(v) => set('emergencyAddress', v)} />
-      <Text id="emergencyPhone" type="tel" label={tr('Emergency contact phone', 'Điện thoại liên hệ khẩn cấp')} value={payload.emergencyPhone} onChange={(v) => set('emergencyPhone', v)} />
+      <Text id="emergencyPhone" type="tel" inputMode="tel" label={tr('Emergency contact phone', 'Điện thoại liên hệ khẩn cấp')} value={payload.emergencyPhone} onChange={(v) => set('emergencyPhone', v)} />
       <Text id="occupation" label={tr('Occupation', 'Nghề nghiệp')} value={payload.occupation} onChange={(v) => set('occupation', v)} />
       <Text id="employerName" label={tr('Employer/school (if any)', 'Cơ quan/trường học (nếu có)')} value={payload.employerName} onChange={(v) => set('employerName', v)} />
       <Text id="employerAddress" label={tr('Employer address', 'Địa chỉ cơ quan')} value={payload.employerAddress} onChange={(v) => set('employerAddress', v)} />
-      <Text id="employerPhone" type="tel" label={tr('Employer phone', 'Điện thoại cơ quan')} value={payload.employerPhone} onChange={(v) => set('employerPhone', v)} />
+      <Text id="employerPhone" type="tel" inputMode="tel" label={tr('Employer phone', 'Điện thoại cơ quan')} value={payload.employerPhone} onChange={(v) => set('employerPhone', v)} />
     </CardContent></Card>
   </div>
 }
@@ -1059,7 +1059,7 @@ function TripStep({ payload, set, tr }: { payload: VisaPayload; set: <K extends 
       <Text id="purpose" label={tr('Purpose of entry', 'Mục đích nhập cảnh')} value={payload.purposeOfEntry} onChange={(v) => set('purposeOfEntry', v)} />
       <YesNo id="outsideVietnam" label={tr('Are you currently outside Vietnam?', 'Hiện bạn có ở ngoài Việt Nam?')} value={payload.currentlyOutsideVietnam} onChange={(v) => set('currentlyOutsideVietnam', v)} />
       <Text id="entryDate" type="date" min={payload.visaValidFrom || undefined} max={payload.visaValidTo || undefined} label={tr('Intended entry date', 'Ngày dự kiến nhập cảnh')} value={payload.intendedEntryDate} onChange={setEntryDate} />
-      <FormField id="stayLength" label={tr('Length of stay (days)', 'Thời gian lưu trú (ngày)')}><Input id="stayLength" variant="outline" type="number" min={1} max={90} value={payload.stayLengthDays || ''} onChange={(event) => set('stayLengthDays', Math.min(90, Math.max(0, Number(event.target.value))))} className="h-11 py-0" /></FormField>
+      <FormField id="stayLength" label={tr('Length of stay (days)', 'Thời gian lưu trú (ngày)')}><Input id="stayLength" variant="outline" type="number" inputMode="numeric" min={1} max={90} value={payload.stayLengthDays || ''} onChange={(event) => set('stayLengthDays', Math.min(90, Math.max(0, Number(event.target.value))))} className="h-11 py-0" /></FormField>
       <Text id="temporaryAddress" label={tr('First Vietnam address/hotel', 'Địa chỉ/khách sạn đầu tiên')} value={payload.temporaryAddress} onChange={(v) => set('temporaryAddress', v)} />
       <Text id="province" label={tr('Province/city', 'Tỉnh/thành phố')} value={payload.temporaryProvince} onChange={(v) => set('temporaryProvince', v)} />
       <Text id="ward" label={tr('Ward/commune (if known)', 'Phường/xã (nếu biết)')} value={payload.temporaryWard} onChange={(v) => set('temporaryWard', v)} />
@@ -1067,7 +1067,7 @@ function TripStep({ payload, set, tr }: { payload: VisaPayload; set: <K extends 
       <CheckpointCombobox id="exitGate" label={tr('Exit checkpoint', 'Cửa khẩu xuất cảnh')} value={payload.exitGate} onChange={(v) => set('exitGate', v)} tr={tr} />
       <Text id="localContactName" label={tr('Inviting/local contact (if any)', 'Liên hệ tại Việt Nam (nếu có)')} value={payload.localContactName} onChange={(v) => set('localContactName', v)} />
       <Text id="localContactAddress" label={tr('Local contact address', 'Địa chỉ liên hệ tại Việt Nam')} value={payload.localContactAddress} onChange={(v) => set('localContactAddress', v)} />
-      <Text id="localContactPhone" type="tel" label={tr('Local contact phone', 'Điện thoại liên hệ tại Việt Nam')} value={payload.localContactPhone} onChange={(v) => set('localContactPhone', v)} />
+      <Text id="localContactPhone" type="tel" inputMode="tel" label={tr('Local contact phone', 'Điện thoại liên hệ tại Việt Nam')} value={payload.localContactPhone} onChange={(v) => set('localContactPhone', v)} />
       <YesNo id="visited" label={tr('Visited Vietnam in the last year?', 'Đã đến Việt Nam trong năm qua?')} value={payload.visitedVietnamLastYear} onChange={(v) => set('visitedVietnamLastYear', v)} />
       {payload.visitedVietnamLastYear === 'yes' && <Text id="previousVisits" label={tr('Previous visit dates/places', 'Ngày/nơi từng đến')} value={payload.previousVisitDetails} onChange={(v) => set('previousVisitDetails', v)} />}
       <YesNo id="relatives" label={tr('Relatives in Vietnam?', 'Có người thân tại Việt Nam?')} value={payload.hasRelativesInVietnam} onChange={(v) => set('hasRelativesInVietnam', v)} />
@@ -1076,14 +1076,14 @@ function TripStep({ payload, set, tr }: { payload: VisaPayload; set: <K extends 
       {payload.hasChildrenOnPassport === 'yes' && <Text id="childrenDetails" label={tr('Each child’s full name, date of birth, and sex', 'Họ tên, ngày sinh và giới tính của từng trẻ')} value={payload.childrenOnPassportDetails} onChange={(v) => set('childrenOnPassportDetails', v)} />}
     </CardContent></Card>
     <Card><CardHeader><CardTitle>{tr('Expenses and insurance', 'Chi phí và bảo hiểm')}</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <FormField id="expenses" label={tr('Estimated expenses', 'Chi phí dự kiến')}><Input id="expenses" variant="outline" type="number" min={0} value={payload.estimatedExpenses || ''} onChange={(event) => set('estimatedExpenses', Math.max(0, Number(event.target.value)))} className="h-11 py-0" /></FormField>
+      <FormField id="expenses" label={tr('Estimated expenses', 'Chi phí dự kiến')}><Input id="expenses" variant="outline" type="number" inputMode="numeric" min={0} value={payload.estimatedExpenses || ''} onChange={(event) => set('estimatedExpenses', Math.max(0, Number(event.target.value)))} className="h-11 py-0" /></FormField>
       <Text id="currency" label={tr('Currency', 'Tiền tệ')} value={payload.expensesCurrency} onChange={(v) => set('expensesCurrency', v.toUpperCase().slice(0, 3))} />
       <FormField id="payer" label={tr('Who pays?', 'Ai chi trả?')}><VisaSelect id="payer" value={payload.expensesPayer} onChange={(v) => { set('expensesPayer', v as VisaPayload['expensesPayer']); if (v !== 'self' && payload.paymentMethod === 'travellers_cheques') set('paymentMethod', 'credit_card') }}><option value="self">{tr('Self', 'Tự chi trả')}</option><option value="organization">{tr('Organization', 'Tổ chức')}</option><option value="other">{tr('Other person', 'Người khác')}</option></VisaSelect></FormField>
       <FormField id="paymentMethod" label={tr('Payment method', 'Hình thức chi trả')}><VisaSelect id="paymentMethod" value={payload.paymentMethod} onChange={(v) => set('paymentMethod', v as VisaPayload['paymentMethod'])}><option value="credit_card">{tr('Credit card', 'Thẻ tín dụng')}</option><option value="cash">{tr('Cash', 'Tiền mặt')}</option>{payload.expensesPayer === 'self' && <option value="travellers_cheques">{tr("Traveller's cheques", 'Séc du lịch')}</option>}</VisaSelect></FormField>
       {payload.expensesPayer !== 'self' && <>
         <Text id="payerName" label={tr('Payer name', 'Tên người/tổ chức chi trả')} value={payload.payerName} onChange={(v) => set('payerName', v)} />
         <Text id="payerAddress" label={tr('Payer address', 'Địa chỉ người/tổ chức chi trả')} value={payload.payerAddress} onChange={(v) => set('payerAddress', v)} />
-        <Text id="payerPhone" type="tel" label={tr('Payer phone', 'Điện thoại người/tổ chức chi trả')} value={payload.payerPhone} onChange={(v) => set('payerPhone', v)} />
+        <Text id="payerPhone" type="tel" inputMode="tel" label={tr('Payer phone', 'Điện thoại người/tổ chức chi trả')} value={payload.payerPhone} onChange={(v) => set('payerPhone', v)} />
       </>}
       <YesNo id="insurance" label={tr('Travel insurance?', 'Có bảo hiểm du lịch?')} value={payload.hasTravelInsurance} onChange={(v) => set('hasTravelInsurance', v)} />
       {payload.hasTravelInsurance === 'yes' && <Text id="insuranceDetails" label={tr('Insurance provider/policy', 'Nhà cung cấp/hợp đồng bảo hiểm')} value={payload.insuranceDetails} onChange={(v) => set('insuranceDetails', v)} />}
@@ -1092,8 +1092,19 @@ function TripStep({ payload, set, tr }: { payload: VisaPayload; set: <K extends 
   </div>
 }
 
-function Text({ id, label, value, onChange, type = 'text', min, max }: { id: string; label: string; value: string; onChange: (value: string) => void; type?: string; min?: string; max?: string }) {
-  return <FormField id={id} label={label}><Input id={id} variant="outline" type={type} min={min} max={max} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 py-0" /></FormField>
+// `type` alone doesn't settle the keyboard: type="tel" picks the phone pad but carries no
+// autofill token, and every other field here defaulted to type="text" — a full QWERTY even
+// where only digits are ever entered. inputMode + autoComplete are therefore passed per
+// call site (the same pair the marketplace's own phone/email fields carry — see
+// profile-editor and change-email-form).
+// autoComplete is granted ONLY where the mapping is exact and the value is one atom —
+// the applicant's own email and phone. Deliberately NOT the name fields: `given-name`
+// means the FIRST name, and this form's field is "Given and middle names", so autofill
+// would drop the middle names into a legal identity document and look complete. And NOT
+// the emergency / employer / local-contact / payer numbers: those are somebody ELSE's,
+// so tagging them `tel` invites the browser to offer the applicant's own number.
+function Text({ id, label, value, onChange, type = 'text', min, max, inputMode, autoComplete }: { id: string; label: string; value: string; onChange: (value: string) => void; type?: string; min?: string; max?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']; autoComplete?: string }) {
+  return <FormField id={id} label={label}><Input id={id} variant="outline" type={type} min={min} max={max} inputMode={inputMode} autoComplete={autoComplete} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 py-0" /></FormField>
 }
 
 function CheckpointCombobox({ id, label, value, onChange, tr }: { id: string; label: string; value: string; onChange: (value: string) => void; tr: (en: string, vi: string) => string }) {

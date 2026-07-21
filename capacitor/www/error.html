@@ -2,7 +2,13 @@
 <html lang="vi">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <!-- No `maximum-scale=1`, deliberately. The app's text-scaling policy (src/lib/native-text-zoom.ts
+         + src/components/marketplace/keyboard-viewport-sync.tsx) locks the scale ONLY on iOS, ONLY to
+         stop the focus auto-zoom on <input>s, and pays for it with @capacitor/text-zoom honouring the
+         OS Dynamic Type setting. This page has no inputs (so nothing to auto-zoom) and no bundle (so
+         no text-zoom to compensate) — and it is the ONE screen a user sees when everything else has
+         failed, so it must stay readable at any text size. Pinch stays available instead. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <title>eno</title>
     <style>

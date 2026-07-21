@@ -136,7 +136,17 @@ function ListingCardImpl({
   const hasDrop = listing.prevPrice != null && !!dropPercent(listing.prevPrice, listing.price)
 
   return (
-    <div className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.985] [touch-action:manipulation]">
+    // `data-card-root` is the hook for the NATIVE long-press action sheet (native-bootstrap.tsx),
+    // and it has to hang on the ROOT rather than on the card link: the stretched <a data-card-link>
+    // is a SIBLING of the photo (see below — it deliberately sits UNDER the image so the image's own
+    // buttons stay clickable), so a touch on the photo can never `closest()` its way to the anchor,
+    // and the sheet was unreachable over the ~70% of the card the photo covers. The root IS an
+    // ancestor of both, so the handler resolves the link from here and the whole card — photo
+    // included — is one long-press target. Inert on web.
+    <div
+      data-card-root
+      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.985] [touch-action:manipulation]"
+    >
       {/* Card = link, actions = siblings. The whole card navigates via this ONE real,
           keyboard-focusable stretched <a> (the card link). Every IconButton below is a
           SIBLING that paints ABOVE it (z-10 vs this z-0), so NO interactive control is

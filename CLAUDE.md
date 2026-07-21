@@ -28,9 +28,10 @@ Three habits that follow:
 - **Ask it to REFUTE, not to "review".** The highest-signal second opinion adjudicates a specific claim ("confirm or refute this, with evidence") rather than requesting a fresh opinion. That framing caught a ship-blocker on 2026-07-21 that an open-ended review would have missed.
 
 **How to invoke the two external reviewers (both read-only, non-interactive):**
-- **codex** — pipe the prompt via STDIN, never as an argument (the arg form hangs waiting on stdin):
-  `echo "<review prompt>" | codex exec --sandbox read-only`  (or heredoc into stdin). The model is pinned in
-  `~/.codex/config.toml`; do NOT pass `-m` unless you know the account serves that model.
+- **codex** — pipe the prompt via STDIN, never as an argument (the arg form hangs waiting on stdin).
+  **Owner-set invocation (2026-07-21) — use exactly this:**
+  `echo "<review prompt>" | codex exec -m gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only`
+  (or heredoc into stdin). Verify the banner echoes `model: gpt-5.6-sol` / `reasoning effort: high`.
 - **antigravity** — `agy -p "<prompt>" --model "Gemini 3.1 Pro (High)"`. Feed the file CONTENT inline in the
   prompt (its agentic file-reading mode times out on `--print-timeout`); use `--print-timeout 240s`.
 - Dispatch them **directly and in PARALLEL** as background jobs — never sequenced, never wrapped in an Opus
