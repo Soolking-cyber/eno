@@ -2,6 +2,7 @@
 
 import { Switch as BaseSwitch } from '@base-ui/react/switch'
 import { cn } from '@/lib/utils'
+import { hapticTap } from '@/lib/haptics'
 
 // Shared toggle switch — Base UI's Switch (role="switch" + a hidden input beside it) so we get the
 // real semantics for free: Space/Enter activation, form + Field integration, disabled that actually
@@ -55,10 +56,20 @@ export function Switch({
   'checked' | 'onChange' | 'onCheckedChange' | 'disabled' | 'className' | 'children'
 >) {
   const s = SIZES[size]
+  // Selection tick on the CHANGE, not on touch — a physical switch clicks when it flips,
+  // not when your finger lands. Base UI fires onCheckedChange only for real user
+  // interaction (pointer / Space / Enter), never for a controlled `checked` update pushed
+  // down by the parent, so a programmatic flip stays silent. No handler = a locked /
+  // read-only row where nothing actually changes → no tick there either.
+  const handleCheckedChange = (next: boolean) => {
+    if (!onChange) return
+    hapticTap(10)
+    onChange(next)
+  }
   return (
     <BaseSwitch.Root
       checked={checked}
-      onCheckedChange={(next) => onChange?.(next)}
+      onCheckedChange={handleCheckedChange}
       disabled={disabled}
       aria-label={label}
       className={cn(

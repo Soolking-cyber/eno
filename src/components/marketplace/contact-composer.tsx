@@ -9,6 +9,7 @@ import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { EnoSlider } from './eno-slider'
 import { Button } from '@/components/ui/button'
 import { stashCompose } from '@/lib/quick-contact'
+import { hapticTap, hapticConfirm } from '@/lib/haptics'
 
 const MAX_DISCOUNT = 50 // % off the asking price the slider allows
 export { COMPOSE_KEY } from '@/lib/quick-contact' // re-export: the key + writer live in the lib
@@ -84,8 +85,20 @@ export function ContactComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading])
 
-  const chatNow = () => send({ body: opener() })
-  const sendOffer = () => { if (canOffer) send({ offerAmount: offerPrice }) }
+  // Touch feedback on the two highest-commitment taps in the app. Fired in the gesture
+  // handler (never in send(), which also runs from the deferred auth drain — a buzz
+  // arriving after the fact would confirm a tap the user has already forgotten about).
+  //  · Chat now = a light tap: it acknowledges the press, the thread is the real payoff.
+  //  · Send offer = the success texture, but ONLY when the offer will actually go out.
+  //    A signed-out tap just opens sign-in — a normal gate, neither a success (lying) nor
+  //    an error (punishing a guest for being a guest) — so it gets the same light tap.
+  const chatNow = () => { hapticTap(); send({ body: opener() }) }
+  const sendOffer = () => {
+    if (!canOffer) return
+    if (user) hapticConfirm()
+    else hapticTap()
+    send({ offerAmount: offerPrice })
+  }
 
   // Deep-link (/listings/id#contact): scroll the composer into view. ?offer=N (a card
   // quick-offer) pre-sets the slider to that discount; a plain #contact just brings the

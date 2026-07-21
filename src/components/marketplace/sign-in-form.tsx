@@ -298,7 +298,10 @@ export function SignInForm({ className }: { className?: string }) {
         </TabsList>
 
         <TabsContent value="email" className="space-y-2">
-          <Input type="email" autoComplete="email" aria-label={tr('Email')} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" />
+          {/* Enter submits, and the on-screen keyboard's return key SAYS so (enterKeyHint) —
+              identical to the phone field below. The guard mirrors the button's `disabled`
+              exactly, so Enter can never fire a send the button itself would refuse. */}
+          <Input type="email" autoComplete="email" enterKeyHint="send" aria-label={tr('Email')} value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !loading && email.includes('@')) sendEmail() }} placeholder="you@email.com" />
           <Button variant="cta" size="none" onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
             {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send magic link', 'Gửi liên kết đăng nhập')}
           </Button>
@@ -309,8 +312,16 @@ export function SignInForm({ className }: { className?: string }) {
         <TabsContent value="phone">
           {stage === 'input' && (
             <div className="space-y-2">
-              <Input type="tel" autoComplete="tel" aria-label={t('Phone', 'Điện thoại')} value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" />
-              <Button variant="cta" size="none" onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+              <Input type="tel" autoComplete="tel" enterKeyHint="send" aria-label={t('Phone', 'Điện thoại')} value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !loading && phone.replace(/\D/g, '').length >= 9) sendPhone() }} placeholder="0901 234 567" />
+              {/* onMouseDown + preventDefault — the composer focus-hold invariant (see
+                  messages/[id]/page.tsx + CLAUDE.md). Tapping this button would otherwise blur
+                  the number field, so iOS tears the keyboard down mid-send; the OTP field then
+                  mounts and autoFocuses OUTSIDE any user gesture, which on iOS focuses the field
+                  without ever re-opening the keyboard. Holding focus here keeps the keyboard up
+                  across the handoff. NEVER onPointerDown — that fires before focus and does not
+                  hold it. Click is unaffected (preventDefault on mousedown does not cancel it),
+                  and keyboard activation goes through keydown, so Tab+Enter is untouched. */}
+              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send code', 'Gửi mã')}
               </Button>
             </div>

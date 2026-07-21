@@ -18,6 +18,79 @@ const cap = (): CapGlobal | undefined =>
   typeof window === 'undefined' ? undefined : (window as unknown as { Capacitor?: CapGlobal }).Capacitor
 const isNative = () => !!cap()?.isNativePlatform?.()
 
+// Where the offline page should put the user back. Read by capacitor/www/error.html, which lives on
+// the LOCAL origin (capacitor://localhost) and can therefore see none of eno.vn's storage — native
+// Preferences is the one store both sides share. Keep the key in sync with that file.
+const LAST_URL_KEY = 'eno:last-url'
+
+// Overlays that must swallow the Android hardware back press instead of letting it navigate.
+// Deliberately role-scoped rather than a bare `[data-open]`: Base UI puts `data-open` on
+// Collapsible/Accordion panels too, and an open accordion must not eat a back press. This covers
+// Dialog/AlertDialog/Sheet/Drawer/Popover (role=dialog|alertdialog), Menu/ContextMenu/Menubar
+// (role=menu) and Select/Combobox (role=listbox) — i.e. every `src/components/ui/*` floating layer.
+const BASE_UI_OPEN = [
+  '[data-open][role="dialog"]',
+  '[data-open][role="alertdialog"]',
+  '[data-open][role="menu"]',
+  '[data-open][role="listbox"]',
+].join(',')
+
+// The hand-rolled modals that predate the Base UI sweep (the mobile account rail, the PDP
+// lightbox). `aria-modal` is set nowhere else in src, and `:not([data-open])` keeps this strictly
+// disjoint from the Base UI set above.
+const HANDROLLED_MODAL = '[role="dialog"][aria-modal="true"]:not([data-open])'
+
+/**
+ * Android hardware back → close the top layer, don't navigate the page out from under it.
+ *
+ * Base UI registers its Escape dismissal on the DOCUMENT (floating-ui-react's `useDismiss`), so one
+ * document-targeted Escape closes exactly the topmost open layer — nesting is Base UI's own problem
+ * and it already solves it (only the innermost layer consumes the key).
+ *
+ * Two deliberate details:
+ *  · `bubbles: false` — the synthetic key must reach DOCUMENT listeners only. The fullscreen video
+ *    takeover and the PDP lightbox listen for Escape on WINDOW *and* already push their own history
+ *    entry, so back closes them correctly today; letting the key bubble to window would close them
+ *    AND spend the entry, i.e. go back twice.
+ *  · we don't trust "an overlay was open" as proof it closed. Base UI calls `preventDefault()` only
+ *    when the layer actually dismissed (floating-ui-react's `closeOnEscapeKeyDown`), so that answers
+ *    synchronously; for anything else we re-check shortly after and fall through to normal
+ *    navigation if the overlay is still there. Back is never allowed to become a dead key.
+ *
+ * Exit animations are not a hazard here: Base UI swaps `data-open` for `data-closed` at the moment
+ * it closes (not when the animation ends), the lightbox unmounts, and the account rail drops
+ * `aria-modal` with its state — so a layer on its way out stops matching immediately.
+ */
+const backConsumedByOverlay = (navigate: () => void): boolean => {
+  const dismiss = (overlay: Element, selector: string) => {
+    const esc = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: false, cancelable: true })
+    document.dispatchEvent(esc)
+    if (esc.defaultPrevented) return // Base UI took it
+    // A hand-rolled overlay closes on the same document-level Escape but doesn't preventDefault, so
+    // its answer is a React commit we can only observe. Generous on purpose: the only cost of
+    // waiting is a barely-perceptible delay on the rare press that finds a layer refusing to close.
+    setTimeout(() => {
+      if (document.querySelector(selector) === overlay) navigate()
+    }, 160)
+  }
+
+  // A Base UI layer is always the topmost thing on screen — even when it was opened from inside one
+  // of the history-owning takeovers below — so it gets first refusal on the press.
+  const popup = document.querySelector(BASE_UI_OPEN)
+  if (popup) { dismiss(popup, BASE_UI_OPEN); return true }
+
+  // Surfaces that PUSH their own history entry (the fullscreen video takeover, the PDP lightbox)
+  // already turn back into a close via popstate. Dismissing them here would close them AND leave
+  // their entry behind for the next back press to spend — one press, two steps back.
+  const state = window.history.state as { lightbox?: unknown; takeover?: unknown } | null
+  if (state && (state.lightbox || state.takeover)) return false
+
+  const modal = document.querySelector(HANDROLLED_MODAL)
+  if (!modal) return false
+  dismiss(modal, HANDROLLED_MODAL)
+  return true
+}
+
 /**
  * Native-shell bootstrap (Capacitor). A NO-OP on web/desktop: it reads the injected
  * `window.Capacitor` global and never imports `@capacitor/*` unless we're actually on-device, so
@@ -204,12 +277,18 @@ export function NativeBootstrap() {
         setNativeKeyboard(false, 0)
       }))
 
-      // Android hardware back: navigate back if we can, else background the app. minimizeApp
+      // Android hardware back: close an open overlay first (see backConsumedByOverlay — a back
+      // press that walks the page out from under an open sheet is the single most un-native thing
+      // a wrapped app does), then navigate back if we can, else background the app. minimizeApp
       // (moveTaskToBack) keeps the process warm — exitApp() would kill it and force a cold
       // reload of the remote WebView on the next launch.
       adopt(await App.addListener('backButton', ({ canGoBack }) => {
-        if (canGoBack) window.history.back()
-        else App.minimizeApp()
+        const navigate = () => {
+          if (canGoBack) window.history.back()
+          else App.minimizeApp()
+        }
+        if (backConsumedByOverlay(navigate)) return
+        navigate()
       }))
 
       // Resume. A wrapped web app that sits in the background for an hour comes back showing
@@ -357,6 +436,46 @@ export function NativeBootstrap() {
       cleanups.forEach((c) => c())
     }
   }, [router]) // stable identity — effectively mount-once
+
+  // Offline recovery target. When the remote load fails, Capacitor swaps the WebView to the local
+  // errorPath page (capacitor/www/error.html) — and hands it NO information about what failed, so it
+  // used to retry the site root: one dropped packet on a listing, a chat or a half-filled post
+  // wizard and the user was dumped on the home feed. That page can't read eno.vn's storage either
+  // (it runs on capacitor://localhost), so publish where we are through native Preferences, the one
+  // store both origins share, and let it retry THAT.
+  // Contract mirrors MainViewController.rememberURL (the iOS blank-page watchdog): pages only —
+  // never /auth/* (a PKCE code is single-use, replaying it lands on an error) and never /api/*.
+  // Skipping those deliberately LEAVES the previous good URL in place as the target.
+  useEffect(() => {
+    if (!isNative()) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const publish = () => {
+      const { pathname: here, href } = window.location
+      if (here.startsWith('/auth/') || here.startsWith('/api/')) return
+      if (timer) clearTimeout(timer)
+      // Debounced: a route change can settle through more than one pathname (redirects), and this
+      // is a native bridge round-trip — no reason to pay for the intermediate steps.
+      timer = setTimeout(() => {
+        void import('@capacitor/preferences')
+          .then(({ Preferences }) => {
+            if (cancelled) return
+            return Preferences.set({ key: LAST_URL_KEY, value: JSON.stringify({ u: href, t: Date.now() }) })
+          })
+          .catch(() => {})
+      }, 500)
+    }
+    publish()
+    // Re-stamp on every foregrounding: error.html only restores a RECENT location, and a long read
+    // on one screen would otherwise age out of that window and silently fall back to the home feed.
+    const onVisible = () => { if (document.visibilityState === 'visible') publish() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [pathname]) // query-only changes don't re-stamp; the path is the part worth restoring
 
   // Status bar follows the in-app theme: dark text on the light card, light text on the dark card.
   useEffect(() => {

@@ -4,6 +4,7 @@ import * as React from "react"
 import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer"
 
 import { cn } from "@/lib/utils"
+import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard"
 
 type DrawerContextProps = {
   hasSnapPoints: boolean
@@ -105,6 +106,17 @@ function DrawerContent({
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer()
   const swipeAxis =
     swipeDirection === "down" || swipeDirection === "up" ? "y" : "x"
+  // KEYBOARD-AWARE GEOMETRY (mobile web + the Capacitor shell) — see the same block in
+  // ui/dialog.tsx. A bottom sheet pinned to the LAYOUT viewport's bottom sits UNDER the
+  // on-screen keyboard on iOS (which overlays rather than resizes), so its footer action
+  // is unreachable the moment a field inside it takes focus. `--kb-inset` below is the
+  // strip the keyboard covers; the sheet is lifted by it through the EXISTING --translate-y
+  // formula (so the lift rides the drawer's own 450ms transform transition instead of
+  // reflowing) and its max-height is clamped to what is still visible.
+  // The React boolean is only the on/off switch (one re-render per keyboard toggle — natively it
+  // flips on `keyboardWillShow`, so the lift runs CONCURRENTLY with the keyboard animation).
+  // Per-frame geometry stays in CSS: a per-frame render aborts the iOS keyboard.
+  const { open: keyboardOpen } = useVirtualKeyboard()
 
   return (
     <DrawerPortal data-slot="drawer-portal">
@@ -120,15 +132,24 @@ function DrawerContent({
           data-slot="drawer-popup"
           data-swipe-axis={swipeAxis}
           data-snap-points={hasSnapPoints ? "" : undefined}
+          data-kb-open={keyboardOpen ? "" : undefined}
           className={cn(
             // Base.
             "group/drawer-popup pointer-events-auto fixed z-50 m-(--drawer-inset,0px) flex h-(--drawer-content-height) max-h-(--drawer-content-max-height,none) min-h-0 w-(--drawer-content-width,auto) transform-[translate3d(var(--translate-x,0px),var(--translate-y,0px),0)_scale(var(--stack-scale))] flex-col bg-popover text-sm text-popover-foreground transition-[transform,height,opacity,filter] duration-450 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform outline-none select-none [interpolate-size:allow-keywords] data-[swipe-direction=down]:rounded-t-2xl data-[swipe-direction=down]:border-t data-[swipe-direction=left]:rounded-r-2xl data-[swipe-direction=left]:border-r data-[swipe-direction=right]:rounded-l-2xl data-[swipe-direction=right]:border-l data-[swipe-direction=up]:rounded-b-2xl data-[swipe-direction=up]:border-b",
             // Nested.
             "data-nested-drawer-open:overflow-hidden data-nested-drawer-open:brightness-95",
+            // Keyboard. --kb-inset = how much of the layout viewport the on-screen keyboard
+            // covers, derived from the visible-viewport vars the app publishes on <html>.
+            // It stays 0px with no keyboard, so every formula below that consumes it resolves
+            // to exactly what it resolved to before.
+            "[--kb-inset:0px] data-kb-open:[--kb-inset:max(0px,calc(100dvh-var(--vvt,0px)-var(--vvh,100dvh)))]",
             // Bleed.
             "after:pointer-events-none after:absolute after:bg-(--drawer-bleed-background,var(--color-popover)) data-[swipe-axis=x]:after:inset-y-0 data-[swipe-axis=x]:after:w-(--bleed) data-[swipe-axis=y]:after:inset-x-0 data-[swipe-axis=y]:after:h-(--bleed) data-[swipe-direction=down]:after:top-full data-[swipe-direction=left]:after:right-full data-[swipe-direction=right]:after:left-full data-[swipe-direction=up]:after:bottom-full",
-            // Sizing.
-            "[--drawer-content-height:var(--drawer-height,auto)] data-[swipe-axis=x]:[--drawer-content-width:75%] data-[swipe-axis=y]:[--drawer-content-max-height:calc(100dvh-6rem)] data-[swipe-axis=y]:data-snap-points:[--drawer-content-height:100dvh] data-[swipe-axis=x]:sm:[--drawer-content-width:24rem]",
+            // Sizing. The y-axis max-height takes whichever is SMALLER: the original
+            // 100dvh-6rem, or what is left above the keyboard (2rem clear of the visible top).
+            // With no keyboard --kb-inset/--vvt are 0px and the min() picks 100dvh-6rem, i.e.
+            // the previous value unchanged.
+            "[--drawer-content-height:var(--drawer-height,auto)] data-[swipe-axis=x]:[--drawer-content-width:75%] data-[swipe-axis=y]:[--drawer-content-max-height:min(calc(100dvh-6rem),calc(100dvh-var(--kb-inset)-var(--vvt,0px)-2rem))] data-[swipe-axis=y]:data-snap-points:[--drawer-content-height:100dvh] data-[swipe-axis=x]:sm:[--drawer-content-width:24rem]",
             // Stack.
             "[--bleed:3rem] [--peek:1rem] [--stack-height:var(--drawer-frontmost-height,var(--drawer-height,0px))] [--stack-peek-offset:max(0px,calc((var(--nested-drawers)-var(--stack-progress))*var(--peek)))] [--stack-progress:clamp(0,var(--drawer-swipe-progress),1)] [--stack-scale-base:max(0,calc(1-(var(--nested-drawers)*var(--stack-step))))] [--stack-scale:clamp(0,calc(var(--stack-scale-base)+(var(--stack-step)*var(--stack-progress))),1)] [--stack-shrink:calc(1-var(--stack-scale))] [--stack-step:0.05]",
             // Transitions.
@@ -137,8 +158,9 @@ function DrawerContent({
             "data-[swipe-axis=y]:inset-x-0 data-[swipe-axis=y]:data-nested-drawer-open:h-(--stack-height)",
             // Axis: x.
             "data-[swipe-axis=x]:inset-y-0 data-[swipe-axis=x]:flex-row",
-            // Direction: down.
-            "data-[swipe-direction=down]:bottom-0 data-[swipe-direction=down]:origin-bottom data-[swipe-direction=down]:[--closed-transform:translate3d(0,calc(100%+var(--drawer-inset,0px)+2px),0)] data-[swipe-direction=down]:[--translate-y:calc(var(--drawer-snap-point-offset,0px)+var(--drawer-swipe-movement-y)-var(--stack-peek-offset)-(var(--stack-shrink)*var(--stack-height)))]",
+            // Direction: down. The trailing `-var(--kb-inset)` is the keyboard lift: it rides
+            // the popup's existing transform transition (GPU, no reflow) and is 0px otherwise.
+            "data-[swipe-direction=down]:bottom-0 data-[swipe-direction=down]:origin-bottom data-[swipe-direction=down]:[--closed-transform:translate3d(0,calc(100%+var(--drawer-inset,0px)+2px),0)] data-[swipe-direction=down]:[--translate-y:calc(var(--drawer-snap-point-offset,0px)+var(--drawer-swipe-movement-y)-var(--stack-peek-offset)-(var(--stack-shrink)*var(--stack-height))-var(--kb-inset))]",
             // Direction: up.
             "data-[swipe-direction=up]:top-0 data-[swipe-direction=up]:origin-top data-[swipe-direction=up]:[--closed-transform:translate3d(0,calc(-100%-var(--drawer-inset,0px)-2px),0)] data-[swipe-direction=up]:[--translate-y:calc(var(--drawer-snap-point-offset,0px)+var(--drawer-swipe-movement-y)+var(--stack-peek-offset)+(var(--stack-shrink)*var(--stack-height)))]",
             // Direction: left.
@@ -181,7 +203,11 @@ function DrawerFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="drawer-footer"
-      className={cn("mt-auto flex shrink-0 flex-col gap-2 p-4 pt-0 pb-[max(1rem,env(safe-area-inset-bottom))]", className)}
+      // While the keyboard is up the sheet's bottom edge sits ON the keyboard, so the
+      // home-indicator inset below it is covered anyway — reclaiming it keeps the action
+      // snug against the keyboard instead of floating a safe-area above it (same trick as
+      // `html.kb-open .chat-composer` in globals.css).
+      className={cn("mt-auto flex shrink-0 flex-col gap-2 p-4 pt-0 pb-[max(1rem,env(safe-area-inset-bottom))] group-data-kb-open/drawer-popup:pb-4", className)}
       {...props}
     />
   )

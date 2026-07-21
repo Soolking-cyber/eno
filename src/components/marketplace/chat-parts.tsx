@@ -24,7 +24,13 @@ export function ChatSendButton({ className, ...props }: React.ButtonHTMLAttribut
 
 /** A chat text bubble. `mine` = right-aligned brand bubble; `failed`/`pending` are the
  *  person-to-person optimistic-send states (the AI thread never sets them). Caller sets the
- *  max-width via className (text thread 78%, AI thread 85%). */
+ *  max-width via className (text thread 78%, AI thread 85%).
+ *
+ *  `allow-select`: message text is CONTENT, not chrome. html.native kills selection + the
+ *  long-press callout app-wide so buttons and labels behave natively, which over-applied
+ *  here — every native chat app lets you long-press a message to copy it (an address, a
+ *  price, a Zalo handle). This opts the bubble back in, exactly like the listing
+ *  description and the offer card in the text thread already do. */
 export function MessageBubble({
   mine,
   failed,
@@ -41,7 +47,7 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        'rounded-2xl px-3.5 py-2 text-sm leading-relaxed',
+        'allow-select rounded-2xl px-3.5 py-2 text-sm leading-relaxed',
         failed ? 'border border-destructive/30 bg-destructive/10 text-destructive' : mine ? 'bg-primary text-white' : 'bg-card text-foreground',
         pending && 'opacity-70',
         className,

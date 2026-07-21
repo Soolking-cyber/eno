@@ -1,16 +1,30 @@
 /** Progressive-enhancement haptics. Android Chrome buzzes via the Vibration API; iOS
  *  Safari has NO Vibration API but fires a real system "tick" when a native
  *  <input type="checkbox" switch> toggles (Safari 17.4+, incl. standalone PWA) — so we
- *  keep one hidden switch and toggle it. All paths are reduced-motion-guarded, SSR-safe,
- *  and throttled so rapid taps never machine-gun. Silently no-ops where unsupported
- *  (older iOS, iOS 26.5+ which restricts the switch tick to a direct finger tap — for the
- *  few highest-value controls that must survive that, use attachHaptic()).
+ *  keep one hidden switch and toggle it. All paths are SSR-safe and throttled so rapid
+ *  taps never machine-gun. Silently no-ops where unsupported (older iOS, iOS 26.5+ which
+ *  restricts the switch tick to a direct finger tap — for the few highest-value controls
+ *  that must survive that, use attachHaptic()).
+ *
+ *  ⚠️ NOT gated on prefers-reduced-motion (decoupled 2026-07-21). Reduced MOTION is an
+ *  ANIMATION preference; a user who turns off animation still expects a switch to click.
+ *  Nothing here animates, so the guard only ever silenced touch feedback the user never
+ *  asked to silence. There is deliberately NO app-level kill switch either, because the
+ *  OS already enforces the user's real preference BELOW every path we use:
+ *    · iOS/Android native (@capacitor/haptics) — UIFeedbackGenerator / VibrationEffect are
+ *      silenced system-wide by Settings → Sounds & Haptics (iOS) and Sound & vibration →
+ *      Vibration & haptics (Android). We never see the call refused; it just doesn't play.
+ *    · Android Chrome (navigator.vibrate) — same system vibration setting applies.
+ *    · iOS Safari (the hidden native <input switch>) — it IS a system control, so the
+ *      system haptic setting governs it by construction.
+ *  There is no `prefers-reduced-haptics` media query to consult, and an in-app toggle
+ *  would duplicate an OS control that already works — so we defer to the OS.
+ *
+ *  User-gesture note: hapticConfirm/hapticError's non-native fallbacks schedule follow-up
+ *  ticks on a timer. On iOS Safari (web, not the app) that loses the transient activation
+ *  token and the extra ticks silently don't play — harmless degradation, and irrelevant in
+ *  the Capacitor app where the real Taptic Engine plays the whole pattern.
  */
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined'
-    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-}
 
 function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false
@@ -73,7 +87,7 @@ function fire(ms: number) {
 
 /** One subtle system tap on a deliberate action. Progressive enhancement; throttled. */
 export function hapticTap(ms = 12): void {
-  if (typeof window === 'undefined' || prefersReducedMotion()) return
+  if (typeof window === 'undefined') return
   const now = Date.now()
   if (now - lastFiredAt < REPEAT_GAP_MS) return
   lastFiredAt = now
@@ -85,17 +99,26 @@ export function haptic(ms = 12): void {
   hapticTap(ms)
 }
 
-/** A "success" texture — a double tick (a listing published, a review posted). */
+/** A "success" texture — a double tick. ONLY for a real completion the user was waiting
+ *  on: a listing published, an offer sent or accepted, a review posted. Never on an
+ *  ordinary tap or a navigation — over-firing is exactly what makes an app feel cheap.
+ *  Deliberately NOT throttled (a success must never be swallowed by a preceding tap), but
+ *  it stamps the shared clock so a stray tap right after it can't overlap. */
 export function hapticConfirm(): void {
-  if (typeof window === 'undefined' || prefersReducedMotion()) return
+  if (typeof window === 'undefined') return
+  lastFiredAt = Date.now()
   if (isNativeCap()) { void nativeNotify('Success'); return } // real Taptic success pattern
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) { try { navigator.vibrate([10, 50, 10]) } catch { /* ignore */ }; return }
   fire(10); setTimeout(() => fire(10), 90) // iOS: two spaced ticks
 }
 
-/** An "error" texture — a triple tick (blocked action). Use sparingly. */
+/** An "error" texture — a triple tick. ONLY for a submission the app REJECTED: a failed
+ *  publish, a failed send, a validation the user has to go back and fix. A sign-in prompt
+ *  or any other normal gate is NOT an error — buzzing there reads as punishment. Same
+ *  no-throttle / stamp-the-clock rule as hapticConfirm. */
 export function hapticError(): void {
-  if (typeof window === 'undefined' || prefersReducedMotion()) return
+  if (typeof window === 'undefined') return
+  lastFiredAt = Date.now()
   if (isNativeCap()) { void nativeNotify('Error'); return } // real Taptic error pattern
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) { try { navigator.vibrate([12, 40, 12, 40, 12]) } catch { /* ignore */ }; return }
   fire(12); setTimeout(() => fire(12), 70); setTimeout(() => fire(12), 140)
@@ -109,7 +132,7 @@ export function attachHaptic(host: HTMLElement | null, radius = '999px'): void {
   // switch-overlay hack is redundant (and a stray transparent <input> over a control could swallow
   // native gestures). Skip it entirely.
   if (isNativeCap()) return
-  if (!host || typeof document === 'undefined' || !isIOS() || prefersReducedMotion()) return
+  if (!host || typeof document === 'undefined' || !isIOS()) return
   if (host.querySelector('input[data-haptic]')) return
   if (getComputedStyle(host).position === 'static') host.style.position = 'relative'
   const el = document.createElement('input')

@@ -160,7 +160,17 @@ export function SortStrip({
         // Swapping `top` (vs transform) is a no-op while still in normal flow, so it never
         // jolts the layout above — it only glides once actually stuck.
         'sticky z-30 border-b border-border bg-background/95 backdrop-blur transition-[top] duration-[250ms] ease-out motion-reduce:transition-none',
-        headerHidden ? 'top-0' : 'top-[calc(env(safe-area-inset-top)+4rem)]',
+        // ⚠️ The hidden-header offset is NOT top-0. Once the header slides away this strip is
+        // the TOP-MOST element on the app's primary surface, and the native WebView is
+        // edge-to-edge (capacitor.config ios.contentInset:'never') — at top-0 the sort tabs
+        // sit under the Dynamic Island / notch. It has to reclaim the inset itself, exactly
+        // as the header does when it pins at y=0 (see globals.css "Safe-area top").
+        // max(env(), var()) is the same dual-path inset as `html.native #app-header`: env()
+        // on iOS + Android WebView ≥ 140, Capacitor's injected custom property on older
+        // Android WebViews. Both operands are 0 on the web, so this is a no-op in a browser.
+        headerHidden
+          ? 'top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]'
+          : 'top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+4rem)]',
         // Edge bleed coupled to the page gutter (max-w-7xl px-3 sm:px-6 lg:px-8).
         '-mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8',
       )}

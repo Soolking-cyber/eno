@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
-import { haptic } from '@/lib/haptics'
+import { hapticTap } from '@/lib/haptics'
 
 const KEY = 'eno:favorites'
 const SAVED_KEY = 'eno-saved-cache' // { idKey, list } — device-local functional cache
@@ -76,8 +76,13 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => {})
     // The heart filling IS the confirmation — no toast (user decision 2026-07-06:
     // success popups only where nothing else visibly changes).
+    // Touch feedback is SYMMETRIC — un-saving used to be silent, so the two directions
+    // felt like different controls. Both tick; the weights differ (firmer landing in
+    // Saved, lighter leaving it) so the direction is legible without looking. A tap, not
+    // hapticConfirm: the heart is a cheap, repeatable gesture down a feed and a
+    // success pattern on every one of them is exactly the over-firing to avoid.
+    hapticTap(added ? 18 : 10)
     if (added) {
-      haptic()
       // First save = the contextual-signup moment (5a #10). The sheet component
       // decides whether to show (guest + not shown before); we just announce.
       window.dispatchEvent(new Event('eno:first-save'))

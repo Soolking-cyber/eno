@@ -29,19 +29,218 @@
     Capacitor server.errorPath target. Shown when the remote load (https://eno.vn) fails — a branded
     "offline" state instead of a blank WebView. Auto-retries in the background and when connectivity
     returns; a manual button is always available. All self-contained (no network needed to render).
+
+    Two things this page must get right, because it is the app's whole personality during a wobble:
+
+    1) WHERE it puts the user back. This page is served from the LOCAL bundle, i.e. a different
+       origin (capacitor://localhost) than the app (https://eno.vn) — it can read none of eno.vn's
+       storage, and Capacitor hands it no failure URL. So it used to retry the site ROOT, and one
+       dropped packet on a listing / a chat / a half-filled post wizard evicted the user to the home
+       feed. Native Preferences IS shared across origins (UserDefaults / SharedPreferences behind
+       the bridge — the same channel index.html reads the theme through), so src/components/native/
+       native-bootstrap.tsx publishes the current URL there and we retry THAT.
+
+    2) HOW OFTEN it tries. A blind timer that navigates is a reload loop in airplane mode: every
+       attempt fails, Capacitor re-loads this page, the screen flashes and the radio is poked
+       forever. Retries are now gated on real reachability (a no-cors probe, which needs no
+       navigation and therefore no flash) and back off; airplane mode idles instead of hammering.
   -->
   <body>
     <h1>Không có kết nối mạng<span class="en" lang="en">You're offline</span></h1>
     <p>Chưa kết nối được với eno. Chúng tôi sẽ tự thử lại — bạn kiểm tra lại mạng giúp nhé.</p>
     <button id="retry" type="button">Thử lại</button>
     <script>
-      var URL_ = 'https://eno.vn';
-      function retry() { location.href = URL_; }
-      document.getElementById('retry').addEventListener('click', retry);
-      // Recover the instant connectivity returns, and auto-retry periodically as a backstop
-      // (a failed retry just reloads this page, so the loop self-heals when the network is back).
-      window.addEventListener('online', retry);
-      setTimeout(retry, 6000);
+      (function () {
+        'use strict'
+
+        var ORIGIN = 'https://eno.vn'
+        // Mirrors capacitor.config.ts server.allowNavigation — the only hosts we may send the
+        // WebView to. A stored target that isn't one of these is ignored, not followed.
+        var HOSTS = { 'eno.vn': 1, 'www.eno.vn': 1, 'eno.forum': 1, 'www.eno.forum': 1 }
+        var LAST_URL_KEY = 'eno:last-url'   // written by native-bootstrap over the Capacitor bridge
+        var NAV_KEY = 'eno:offline-navs'    // this page's own origin; survives its reloads
+        // A location this old is not "where I was", it's "where I was last time" — past it we go
+        // home instead. native-bootstrap re-stamps the record on every route change AND on every
+        // foregrounding, so a long read on one screen never ages out of this window.
+        var FRESH_MS = 6 * 60 * 60 * 1000
+        var STALE_NAVS_MS = 120000          // no attempt for this long ⇒ we recovered; reset backoff
+        var BACKOFF = [3000, 6000, 12000, 24000, 30000]
+        var OFFLINE_POLL_MS = 5000
+        var PROBE_TIMEOUT_MS = 8000
+        var FIRST_TRY_MS = 1200
+
+        var target = ORIGIN + '/'
+        var step = 0
+        var timer = null
+        var probing = false
+        var leaving = false
+
+        /* ---------- where to put the user back ---------- */
+
+        // Same contract as MainViewController.rememberURL (the iOS blank-page watchdog): first-party
+        // https pages only, never /auth/* (a PKCE code is single-use — replaying it lands on an
+        // error) and never /api/* (not a page).
+        function firstParty(raw) {
+          try {
+            var u = new URL(String(raw))
+            if (u.protocol !== 'https:' || HOSTS[u.hostname] !== 1) return null
+            if (u.pathname.indexOf('/auth/') === 0 || u.pathname.indexOf('/api/') === 0) return null
+            return u.href
+          } catch (e) { return null }
+        }
+
+        // The bridge read is async, so nothing may navigate until it has settled (or timed out) —
+        // otherwise the very first retry would race it and land on the root we're trying to avoid.
+        var settled = false
+        var queued = []
+        function whenReady(fn) { if (settled) fn(); else queued.push(fn) }
+        function markReady() {
+          if (settled) return
+          settled = true
+          var q = queued; queued = []
+          for (var i = 0; i < q.length; i++) { try { q[i]() } catch (e) {} }
+        }
+
+        // ⚠️ `Capacitor.Plugins.<Name>` does NOT exist here. That object is built by @capacitor/core's
+        // registerPlugin() when a JS BUNDLE imports the plugin; the native bridge injected into every
+        // WebView (native-bridge.js) only ever *reads* `cap.Plugins` — it never creates it. This page
+        // has no bundle, so the low-level `Capacitor.nativePromise(plugin, method, options)` the
+        // bridge always defines is the real channel. It resolves with the plugin's own result object
+        // (`{ value }` for Preferences.get), i.e. the same shape the SDK returns. The Plugins branch
+        // stays as a no-cost fast path in case this file is ever loaded inside the app bundle.
+        // Note nativePromise NEVER settles when the bridge is missing (toNative just warns), which is
+        // exactly why the caller owns a timeout.
+        function nativeCall(plugin, method, options) {
+          var C = window.Capacitor
+          if (!C) return null
+          try {
+            var P = C.Plugins && C.Plugins[plugin]
+            if (P && typeof P[method] === 'function') return P[method](options)
+            if (typeof C.nativePromise === 'function') return C.nativePromise(plugin, method, options)
+          } catch (e) { /* fall through */ }
+          return null
+        }
+
+        function resolveTarget() {
+          var giveUp = setTimeout(markReady, 700) // a hung bridge must never strand this page
+          var done = function () { clearTimeout(giveUp); markReady() }
+          var p = nativeCall('Preferences', 'get', { key: LAST_URL_KEY })
+          if (!p || typeof p.then !== 'function') { done(); return }
+          p.then(function (r) {
+            try {
+              var rec = r && r.value ? JSON.parse(r.value) : null
+              var url = rec ? firstParty(rec.u) : null
+              if (url && typeof rec.t === 'number' && Date.now() - rec.t < FRESH_MS) target = url
+            } catch (e) { /* corrupt record — keep the root */ }
+            done()
+          }).catch(done)
+        }
+
+        /* ---------- how often to try ---------- */
+
+        // Each failed NAVIGATION reloads this page from scratch, wiping `step`. An origin that
+        // answers but whose page load still fails (captive portal, bad deploy) would therefore
+        // retry forever at the shortest interval. Persist how many navigations we've already
+        // burned — sessionStorage on capacitor://localhost survives those reloads — and start the
+        // backoff there. Best-effort: storage can be unavailable on a custom scheme.
+        function navCount() {
+          try {
+            var rec = JSON.parse(sessionStorage.getItem(NAV_KEY) || 'null')
+            if (!rec || typeof rec.n !== 'number') return 0
+            return Date.now() - (rec.t || 0) > STALE_NAVS_MS ? 0 : rec.n
+          } catch (e) { return 0 }
+        }
+        function bumpNavCount() {
+          try { sessionStorage.setItem(NAV_KEY, JSON.stringify({ n: navCount() + 1, t: Date.now() })) } catch (e) {}
+        }
+
+        function clear() { if (timer) { clearTimeout(timer); timer = null } }
+        function schedule(ms) { clear(); if (!leaving) timer = setTimeout(tick, ms) }
+
+        function go() {
+          if (leaving) return
+          leaving = true
+          clear()
+          bumpNavCount()
+          // replace(), not assign(): this page must not sit in the back stack once we recover,
+          // or Android's hardware back would walk the user into the offline screen.
+          window.location.replace(target)
+        }
+
+        function tick() {
+          timer = null
+          if (leaving) return
+          // Airplane mode: a navigation is guaranteed to fail and Capacitor would just re-load this
+          // page — the flashing loop we're removing. Idle and re-check; the 'online' event below
+          // usually beats the poll to it. (navigator.onLine is a hint, so we keep polling rather
+          // than waiting on the event alone.)
+          if (navigator.onLine === false) { schedule(OFFLINE_POLL_MS); return }
+          probe()
+        }
+
+        // Reachability WITHOUT navigating: a no-cors request resolves (opaque) on any HTTP answer
+        // and rejects on a network error. A failed attempt is therefore invisible — no white flash,
+        // no reloaded page — which is also what lets the backoff above survive between attempts.
+        function probe() {
+          if (leaving) return
+          if (probing) { schedule(1000); return }
+          if (typeof fetch !== 'function') { whenReady(go); return } // no probe available: best effort
+          probing = true
+          var ctrl = null
+          var kill = null
+          var opts = { mode: 'no-cors', cache: 'no-store', credentials: 'omit' }
+          try {
+            ctrl = new AbortController()
+            opts.signal = ctrl.signal
+            kill = setTimeout(function () { try { ctrl.abort() } catch (e) {} }, PROBE_TIMEOUT_MS)
+          } catch (e) { /* no AbortController — rely on the platform timeout */ }
+          var url
+          // Probe the target's OWN origin (it may be eno.forum), and bust any cache so a stored
+          // response can't report a network that isn't there.
+          try { url = new URL('/favicon.ico?p=' + Date.now(), target).href }
+          catch (e) { url = ORIGIN + '/favicon.ico?p=' + Date.now() }
+          var fail = function () {
+            if (kill) clearTimeout(kill)
+            probing = false
+            schedule(BACKOFF[Math.min(step++, BACKOFF.length - 1)])
+          }
+          try {
+            fetch(url, opts).then(function () {
+              if (kill) clearTimeout(kill)
+              probing = false
+              whenReady(go)
+            }).catch(fail)
+          } catch (e) { fail() }
+        }
+
+        function tryNow() {
+          if (leaving) return
+          step = navCount()
+          schedule(300)
+        }
+
+        /* ---------- wiring ---------- */
+
+        document.getElementById('retry').addEventListener('click', function () {
+          // An explicit tap is intent, not a guess: go straight there rather than probing first.
+          // If it fails Capacitor re-shows this page, which is the honest answer to "try again".
+          step = navCount()
+          whenReady(go)
+        })
+        window.addEventListener('online', tryNow)
+        // Coming back to the app is as good a signal as any that the network changed.
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'visible') tryNow()
+        })
+
+        resolveTarget()
+        // First attempt is quick when this is the first failure. But when navigations have already
+        // been burned recently — the origin answers the probe while the page load keeps failing, so
+        // every attempt re-loads THIS page — resume the backoff where it left off instead of
+        // flashing through error pages once a second.
+        step = navCount()
+        schedule(step ? BACKOFF[Math.min(step - 1, BACKOFF.length - 1)] : FIRST_TRY_MS)
+      })()
     </script>
   </body>
 </html>

@@ -8,12 +8,22 @@ import { useEffect, useState } from 'react'
 //
 // iOS Safari OVERLAYS the keyboard: it does NOT shrink innerHeight/dvh — it shrinks only
 // visualViewport.height and SCROLLS the page up (exposed as visualViewport.offsetTop) so
-// the focused field clears the keyboard. Two numbers matter:
-//   --vvh = visualViewport.height   → the visible height while the keyboard is up
-//   --vvt = visualViewport.offsetTop → how far iOS scrolled the visual viewport
+// the focused field clears the keyboard. Three numbers matter:
+//   --vvh  = visualViewport.height    → the visible height while the keyboard is up
+//   --vvt  = visualViewport.offsetTop → how far iOS scrolled the visual viewport
+//   --kb-h = how much of the LAYOUT viewport the keyboard covers (0 when closed)
 // A position:fixed shell of height var(--vvh) translated by translateY(var(--vvt)) sits
 // EXACTLY over the visible area: its bottom == keyboard top (flush, zero gap), its top ==
 // header pinned. Missing the offsetTop term is why the composer floated over a gap.
+//
+// --kb-h is the APP-WIDE contract (see globals.css "KEYBOARD-AWARE SURFACES"): any sticky
+// footer / CTA / bottom sheet anywhere in the app can lift itself clear of the keyboard with
+// `.kb-bottom` / `.kb-lift` / `.kb-pad` / var(--kb-safe-bottom) without knowing the geometry above.
+// It is deliberately SELF-CORRECTING across platforms: it is derived from how much of the
+// layout viewport is left UNSEEN below the visual viewport, so on any engine that shrinks the
+// layout viewport instead of overlaying (Android Chrome with interactiveWidget:resizes-content,
+// some standalone-PWA webviews) it evaluates to ~0 — which is right, because there `bottom: 0`
+// is ALREADY above the keyboard and lifting again would double-compensate.
 type KB = { open: boolean; height: number | null }
 const CLOSED: KB = { open: false, height: null }
 
@@ -52,6 +62,10 @@ function syncVars() {
   // Only apply the scroll offset while the keyboard is up; on close snap back to 0 so a
   // stale offsetTop (iOS 26 regression, WebKit #297779) can't strand the shell.
   root.style.setProperty('--vvt', `${open ? vv.offsetTop : 0}px`)
+  // The slice of the LAYOUT viewport that is not visible below the visual viewport = exactly
+  // how far a `position: fixed; bottom: 0` bar has to rise to sit on the keyboard. Clamped at
+  // 0 and forced to 0 while closed (a stale offsetTop must never leave a phantom lift).
+  root.style.setProperty('--kb-h', `${open ? Math.max(0, window.innerHeight - vv.offsetTop - vv.height) : 0}px`)
   root.classList.toggle('kb-open', open)
 }
 
@@ -111,6 +125,47 @@ export function ensureKeyboardWired() {
   recompute()
 }
 
+// ── NATIVE --kb-h: the plugin height MINUS WebKit's own pan ──────────────────────────
+// The chat surface can hardcode --vvt to 0 because it LOCKS the document (html.chat-locked →
+// touch-action:none), so WebKit never pans and offsetTop stays ~0. The app-wide contract has
+// no such luxury: on an ordinary form WebKit pans the page up to reveal the focused field,
+// which ALREADY lifts a position:fixed bar by visualViewport.offsetTop. Lifting it by the full
+// keyboardHeight on top of that floats the CTA offsetTop px ABOVE the keyboard (Gemini 3.1 Pro
+// caught this). The geometry, in CSS px, with the WebView never resized (Keyboard resize:'none'):
+//   fixed;bottom:0 sits at layout y = innerHeight; screen y = innerHeight - offsetTop
+//   keyboard top   sits at screen y = innerHeight - keyboardHeight
+//   ⇒ lift = keyboardHeight - offsetTop
+// This is the SAME quantity the web path computes as innerHeight - offsetTop - vv.height, since
+// vv.height == innerHeight - keyboardHeight. It degrades safely in every regime: if WebKit never
+// learned about the keyboard it also never pans (offsetTop 0 ⇒ lift = keyboardHeight), and if it
+// pans via a plain document scroll instead, offsetTop is likewise 0 and fixed elements don't move.
+let nativeKbHeight = 0
+let nativePanWired = false
+let nativeRafId = 0
+
+function syncNativeKbVar() {
+  nativeRafId = 0
+  const offsetTop = window.visualViewport?.offsetTop ?? 0
+  const lift = nativeKbHeight > 0 ? Math.max(0, nativeKbHeight - offsetTop) : 0
+  document.documentElement.style.setProperty('--kb-h', `${lift}px`)
+}
+
+function scheduleNativeSync() {
+  if (nativeRafId) return
+  nativeRafId = requestAnimationFrame(syncNativeKbVar)
+}
+
+/** Track WebKit's pan while the native keyboard is up. rAF-coalesced and writing ONE custom
+ *  property, so it costs a style invalidation per frame and never a React render — the same
+ *  budget the web path's syncVars already spends. Idempotent; never removed (the listener is
+ *  a no-op while nativeKbHeight is 0). */
+function wireNativePan() {
+  if (nativePanWired || typeof window === 'undefined' || !window.visualViewport) return
+  nativePanWired = true
+  window.visualViewport.addEventListener('scroll', scheduleNativeSync)
+  window.visualViewport.addEventListener('resize', scheduleNativeSync)
+}
+
 /** NATIVE bridge: on the Capacitor shell the @capacitor/keyboard plugin's willShow/willHide
  *  events call this to drive the SAME store the web path uses — so mobile-nav's `off =
  *  keyboardOpen` slides the bar away, and the chat composer's --vvh/--vvt geometry tracks the
@@ -128,6 +183,12 @@ export function setNativeKeyboard(open: boolean, height: number) {
   // height minus the keyboard — the same shape the iOS-overlay web path produces.
   root.style.setProperty('--vvh', `${open ? window.innerHeight - height : window.innerHeight}px`)
   root.style.setProperty('--vvt', '0px')
+  // App-wide lift contract (globals.css "KEYBOARD-AWARE SURFACES"). NOT simply `height`:
+  // see syncNativeKbVar — outside the chat surface WebKit is free to PAN the page to reveal
+  // the focused field, which already lifts a fixed bar by visualViewport.offsetTop.
+  nativeKbHeight = open ? height : 0
+  wireNativePan()
+  syncNativeKbVar()
   root.classList.toggle('kb-open', open)
   const next: KB = open ? { open: true, height: window.innerHeight - height } : CLOSED
   if (next.open === current.open && next.height === current.height) return

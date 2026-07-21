@@ -239,6 +239,21 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
 
+  /* ── KEYBOARD GEOMETRY (app-wide contract) ─────────────────────────────────
+     --kb-h is written every frame onto <html>'s INLINE style by
+     src/hooks/use-virtual-keyboard.ts (wired app-wide by <KeyboardViewportSync/>
+     in providers.tsx, and fed by the native @capacitor/keyboard bridge inside the
+     app). Inline style beats this rule, so the declaration here is only the
+     resting/pre-hydration value — it exists so `var(--kb-h)` is ALWAYS resolvable
+     and every keyboard-aware rule is a guaranteed no-op before JS runs.
+     See the "KEYBOARD-AWARE SURFACES" block further down for how to consume it. */
+  --kb-h: 0px;
+  /* The bottom inset a pinned CTA/footer should reserve: the KEYBOARD while it is up,
+     the home-indicator safe area while it is not (they are mutually exclusive — the
+     keyboard already covers the home indicator, which is why the chat composer zeroes
+     its own safe-area padding while typing). The third term is the Android < WebView-140
+     delivery path Capacitor injects, mirroring `html.native .mobile-nav` below. */
+  --kb-safe-bottom: max(var(--kb-h, 0px), env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
 }
 
 /* ============================================================
@@ -555,6 +570,114 @@ html.kb-open .bottom-nav-spacer { display: none; }
 
 /* Imperceptible repaint trigger for the fixed footer on focus. */
 @keyframes kbblink { from { opacity: 0.999; } to { opacity: 1; } }
+
+/* ============================================================
+   KEYBOARD-AWARE SURFACES — the APP-WIDE contract (Wave 3)
+   The block above is the chat shell's bespoke, pixel-flush pin. This block is the
+   GENERAL version every other surface should use: sign-in, the post-wizard footer,
+   the offer composer, any bottom sheet or sticky CTA. It exists because the native
+   app runs with `Keyboard: { resize: None }` (capacitor.config.ts) — the WebView is
+   NEVER resized when the keyboard opens, so without an explicit lift a
+   `position: fixed; bottom: 0` button simply sits BEHIND the keyboard.
+
+   THE CONTRACT — three things, nothing else to know:
+     html.kb-open        present for exactly as long as the keyboard is up (all platforms)
+     var(--kb-h)         px of the layout viewport the keyboard covers; 0 when closed. It is
+                         the exact distance a `bottom: 0` element must rise, ALREADY net of
+                         WebKit's own pan (see use-virtual-keyboard.ts) — never add the raw
+                         plugin keyboardHeight yourself, that double-lifts by the pan.
+     var(--kb-safe-bottom)  max(--kb-h, safe-area-inset-bottom) — the bottom inset a pinned
+                         element should reserve in BOTH states (see :root)
+
+   PICK ONE:
+     .kb-bottom ⭐ THE DEFAULT for a `position: fixed; bottom: 0` action bar. Sets
+                padding-bottom to --kb-safe-bottom, so ONE declaration handles both states:
+                it clears the home indicator at rest and grows onto the keyboard while typing
+                (its content bottom lands exactly on the keyboard top; the extra background
+                extends behind the keyboard, invisible). No transform ⇒ no containing-block
+                trap, and no stale home-indicator gap above the keyboard. It REPLACES the
+                element's own bottom padding — drop any `pb-[env(safe-area-inset-bottom)]`
+                when adopting it, and express extra resting padding as `[--kb-bottom-extra:…]`.
+     .kb-lift   for a bar that must not change height (or a sticky one). Compositor-only
+                transform, so it never reflows per animation frame.
+                ⚠️ Two known traps, both from Gemini 3.1 Pro's review, and both reasons to
+                reach for .kb-bottom first: (1) it sets `transform`, so it CLOBBERS a Tailwind
+                transform utility on the same element AND makes that element a containing
+                block for any `position: fixed` descendant (a dropdown inside the bar would
+                then anchor to the bar); (2) a `pb-[env(safe-area-inset-bottom)]` already on
+                the element stays put once lifted, leaving a home-indicator-sized gap between
+                the bar and the keyboard — swap that padding for .kb-bottom if it has one.
+     .kb-pad    on the SCROLLER (or form) behind the bar → adds the keyboard height as
+                bottom padding while the keyboard is up, so the last field/CTA can still be
+                scrolled into view. Gated on kb-open, so it never fights the resting `pb-*`.
+
+   PRIOR ART / FOLLOW-UP: ui/dialog.tsx and ui/drawer.tsx are ALREADY keyboard-aware — each
+   hand-rolls this same quantity as a LOCAL custom property they both call `--kb-inset`
+   (`max(0px,calc(100dvh - var(--vvt) - var(--vvh)))`), which is identical to --kb-h on the
+   WEB. It is NOT identical inside the native app: there --vvt is pinned to 0 (correct only
+   for the document-locked chat surface), so their lift is the raw keyboard height and
+   over-lifts by WebKit's pan. Those two primitives should eventually just read var(--kb-h);
+   left alone here only because they are outside this change's ownership. Don't add a third
+   copy of the formula — consume --kb-h.
+
+   ⚠️ WebKit's OWN auto-pan (the one that reveals a focused input) ignores CSS scroll-padding
+   and aims the field at the bare keyboard top — i.e. it can park it UNDER a lifted bar. The
+   scroll-padding rule below only fixes PROGRAMMATIC scrolls (scrollIntoView, anchor jumps).
+   A surface whose fields sit behind its own tall action bar still needs to scrollIntoView the
+   focused field itself on focus.
+
+   Everything here is a literal no-op when the keyboard is down and on desktop (kb-open never
+   fires without a virtual keyboard), so adopting it is risk-free at any call site.
+   ============================================================ */
+/* ⚠️ Named .kb-bottom, NOT .kb-inset: ui/dialog + ui/drawer already own a local custom
+   property called --kb-inset, and two things called "kb-inset" meaning different halves of
+   the same idea is how this gets misused. */
+.kb-bottom {
+  padding-bottom: calc(var(--kb-bottom-extra, 0px) + var(--kb-safe-bottom));
+}
+html.kb-open .kb-lift {
+  transform: translateY(calc(-1 * var(--kb-h, 0px)));
+}
+html.kb-open .kb-pad {
+  padding-bottom: calc(var(--kb-h, 0px) + 1rem);
+}
+/* Programmatic scrolls (scrollIntoView on a validation error, `scrollToMissing()` in the
+   post wizard, anchor jumps) target the DOCUMENT scroller, which iOS does not shrink for
+   the keyboard — without this they happily park the target under it. */
+html.kb-open {
+  scroll-padding-bottom: calc(var(--kb-h, 0px) + 1rem);
+}
+
+/* ============================================================
+   STATUS-BAR BACKDROP — global, every route
+   The native WebView is EDGE-TO-EDGE (capacitor.config ios.contentInset: 'never'), and so
+   is the installed PWA, so the WEB app owns the top safe area. The sticky #app-header pads
+   itself by env(safe-area-inset-top), but it AUTO-HIDES on scroll-down (and several surfaces
+   pin their own bar below it), so at exactly the moment the header slides away the page's
+   scrolling content shows through the Dynamic Island / notch strip.
+   This is the one opaque strip that covers it on EVERY route. Rendered once from
+   providers.tsx; z-30 keeps it BELOW the header (z-40), the bottom nav (z-40) and every
+   overlay (z-50+), and above page content + the z-30 sticky sort strip (which comes earlier
+   in the DOM). Height collapses to 0 on desktop/browser web, where the inset is 0, so it is
+   a no-op there — and `pointer-events: none` means it can never eat a tap even so.
+   /dashboard shipped its OWN identical strip first (see src/app/dashboard/layout.tsx); the
+   :has() guard below stands it down there rather than stacking two of them.
+   ============================================================ */
+#status-bar-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Same dual-path inset as `html.native #app-header` — env() on iOS and Android
+     WebView ≥ 140, Capacitor's injected custom property on older Android WebViews. */
+  height: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px));
+  background: var(--background);
+  z-index: 30;
+  pointer-events: none;
+}
+body:has(.dashboard-canvas) #status-bar-backdrop {
+  display: none;
+}
 
 /* ============================================================
    SCROLLBARS — hidden EVERYWHERE (scrolling still works). User preference:

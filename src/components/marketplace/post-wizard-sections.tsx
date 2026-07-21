@@ -14,10 +14,12 @@
 // are load-bearing: scrollToMissing() in post-wizard.tsx does
 // getElementById('pw-' + checkKey). Don't rename them.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video } from 'lucide-react'
+import { toast } from 'sonner'
+import { ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, Camera } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { captureNativePhoto, nativePhotoCaptureAvailable } from '@/lib/native-photos'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
@@ -50,6 +52,46 @@ export function MediaSection({
 }) {
   const { photos, setPhotos, addPhotos, movePhoto, bindPhoto, draggingPhoto, converting, video, videoBusy, addVideo, removeVideo } = media
   const [dragOver, setDragOver] = useState(false)
+
+  // ── Native camera (Capacitor) ───────────────────────────────────────────────
+  // On Android the file input below CANNOT reach the camera: Capacitor only launches
+  // ACTION_IMAGE_CAPTURE for inputs carrying `capture`, and adding that attribute would make
+  // the input capture-ONLY and kill multi-select. So a seller on Android literally cannot
+  // photograph their own item. On native we therefore add a SECOND tile that goes straight to
+  // @capacitor/camera (src/lib/native-photos.ts — read its header for why capture comes back as
+  // base64 and why the gallery deliberately stays on the file input).
+  //
+  // ⚠️ Why a separate tile and not one tile + a native action sheet: opening the file dialog
+  // via input.click() requires live user activation, and awaiting a native sheet consumes it —
+  // the "choose from library" branch of a sheet would silently do nothing. Two tiles keep the
+  // library path on the label's OWN activation, which is never lost.
+  //
+  // Resolved AFTER mount so the server and the first client render emit identical markup (the
+  // extra tile appears on-device only, where there is no SSR mismatch to create).
+  const [nativeCamera, setNativeCamera] = useState(false)
+  useEffect(() => { setNativeCamera(nativePhotoCaptureAvailable()) }, [])
+  // Two guards, deliberately. The REF is the real one: `capturing` state is read from a render
+  // closure, so a double-tap inside one tick sees the stale `false` and launches the camera
+  // twice — Capacitor keeps a single pending call per plugin, so the second launch orphans the
+  // first. The state exists only to paint the spinner + disable the tile.
+  const capturingRef = useRef(false)
+  const [capturing, setCapturing] = useState(false)
+  const takeNativePhoto = async () => {
+    if (capturingRef.current) return
+    capturingRef.current = true
+    setCapturing(true)
+    try {
+      const res = await captureNativePhoto()
+      if (res.status === 'ok') await addPhotos([res.file])
+      else if (res.status === 'denied') toast.error(t('eno cần quyền máy ảnh — bật trong Cài đặt để chụp ảnh.', 'eno needs camera access — turn it on in Settings to take photos.'))
+      else if (res.status === 'failed' || res.status === 'unavailable') toast.error(t('Không chụp được ảnh — thử lại hoặc chọn ảnh từ thư viện.', "Couldn't take that photo — try again, or pick one from your library."))
+      // 'cancelled' → the seller backed out on purpose; say nothing.
+    } finally {
+      capturingRef.current = false
+      setCapturing(false)
+    }
+  }
+
   return (
     <Section id="pw-photo" title={t('Ảnh', 'Photos')} hint={t('Tối thiểu 3 ảnh từ các góc khác nhau, tối đa 6. Ảnh đầu là ảnh bìa. Tin nhiều ảnh được xem nhiều hơn hẳn.', 'At least 3 photos from different angles, up to 6. The first is your cover. Listings with more photos get far more views.')}>
       {/* A photo grid is not a labelable control, so it can't go in a <Field>. Same
@@ -96,10 +138,26 @@ export function MediaSection({
             </IconButton>
           </div>
         ))}
+        {/* Native only — the direct camera. Sits BEFORE the library tile: photographing the item
+            you're holding is the primary act on a phone, picking an old screenshot is not. */}
+        {nativeCamera && photos.length < 6 && (
+          <Button
+            type="button"
+            variant="bare"
+            size="none"
+            onClick={() => { void takeNativePhoto() }}
+            disabled={capturing}
+            aria-label={t('Chụp ảnh', 'Take photo')}
+            className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground"
+          >
+            {capturing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
+            <span className="text-3xs font-semibold">{t('Chụp ảnh', 'Take photo')}</span>
+          </Button>
+        )}
         {photos.length < 6 && (
           <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
             {converting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}
-            <span className="text-3xs font-semibold">{converting ? t('Đang xử lý…', 'Processing…') : t('Thêm ảnh', 'Add')}</span>
+            <span className="text-3xs font-semibold">{converting ? t('Đang xử lý…', 'Processing…') : nativeCamera ? t('Thư viện', 'Library') : t('Thêm ảnh', 'Add')}</span>
             <input type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
           </label>
         )}

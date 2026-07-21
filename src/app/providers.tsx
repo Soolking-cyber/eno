@@ -59,6 +59,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
                         shift themselves instead. */}
                     <BackToTop />
                     </AccountPanelShell>
+                    {/* GLOBAL status-bar backdrop. The app is EDGE-TO-EDGE in the native
+                        WebView (capacitor.config ios.contentInset:'never') and in the
+                        installed PWA, so the web side owns the top safe area. #app-header
+                        pads itself by env(safe-area-inset-top) — but it AUTO-HIDES on
+                        scroll-down, and that is exactly when scrolling content would show
+                        through the Dynamic Island strip. Only /dashboard used to cover it
+                        (its own copy, dashboard/layout.tsx); this covers EVERY route.
+                        Deliberately AFTER {children} in the DOM so it paints over the
+                        page's own z-30 sticky bars, and styled at z-30 in globals.css so it
+                        stays under the header (z-40) and every overlay (z-50+). Height is
+                        env(safe-area-inset-top) → 0 on desktop/browser web, i.e. a no-op
+                        there. Presentational only: aria-hidden + pointer-events:none. */}
+                    <div aria-hidden id="status-bar-backdrop" />
                     {/* Reserve room for the fixed mobile bottom-nav. A WHITE
                         spacer (not body padding) so when the nav auto-hides at
                         the page bottom it blends with the footer instead of

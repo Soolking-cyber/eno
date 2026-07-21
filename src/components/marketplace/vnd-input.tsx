@@ -44,6 +44,18 @@ export function VndInput({
   const set = (d: number | string) => onChange(String(d).replace(/\D/g, ''))
   const mul = (factor: number) => { if (n > 0) set(Math.min(n * factor, CAP)) }
 
+  // FOCUS-HOLD for the helper chips. Same invariant as the chat send button (see
+  // messages/[id]/page.tsx + CLAUDE.md): a tap that lets the browser move focus to the
+  // chip BLURS the amount field, so iOS tears the numeric keyboard down — the user taps
+  // "×1.000.000" mid-entry and has to re-tap the field to keep typing, and the layout
+  // reflow slides the next chip out from under their finger. preventDefault on MOUSEDOWN
+  // suppresses the focus transfer while leaving `click` intact.
+  // ⚠️ onMouseDown, NEVER onPointerDown — pointerdown fires before the browser has decided
+  // focus and preventing it does not hold the field. That distinction is the invariant.
+  // Keyboard users are unaffected: Tab still focuses the chips, Enter/Space still activate
+  // them (both go through keydown, not mousedown).
+  const holdFocus = (e: React.MouseEvent) => e.preventDefault()
+
   return (
     <div className={className}>
       <div className="relative">
@@ -75,15 +87,15 @@ export function VndInput({
 
       {/* Fast-entry chips */}
       <div className="mt-1.5 flex flex-wrap gap-1.5">
-        <Button type="button" variant="ghost" size="none" onClick={() => mul(1_000)} disabled={!digits} className={chip}>×{groupVnd('1000', locale)}</Button>
-        <Button type="button" variant="ghost" size="none" onClick={() => mul(1_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000', locale)}</Button>
+        <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000)} disabled={!digits} className={chip}>×{groupVnd('1000', locale)}</Button>
+        <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000', locale)}</Button>
         {/* tỷ / billion — completes the VN unit ladder (nghìn → triệu → tỷ) so cars,
             property and other big-ticket VND amounts are one tap (type "3" → 3 tỷ). */}
-        <Button type="button" variant="ghost" size="none" onClick={() => mul(1_000_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000000', locale)}</Button>
+        <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000000', locale)}</Button>
         {(presets ?? []).map((p) => (
-          <Button type="button" variant="ghost" size="none" key={p.label} onClick={() => set(p.value)} className={chip}>{p.label}</Button>
+          <Button type="button" variant="ghost" size="none" key={p.label} onMouseDown={holdFocus} onClick={() => set(p.value)} className={chip}>{p.label}</Button>
         ))}
-        {digits ? <Button type="button" variant="ghost" size="none" onClick={() => set('')} className={cn(chip, 'text-ink-4')}>{tr('Clear', 'Xóa')}</Button> : null}
+        {digits ? <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => set('')} className={cn(chip, 'text-ink-4')}>{tr('Clear', 'Xóa')}</Button> : null}
       </div>
     </div>
   )
