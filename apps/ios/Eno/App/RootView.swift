@@ -9,6 +9,8 @@ struct RootView: View {
     // Bound to the router so deep links / notification taps can switch tabs (#3).
     @State private var router = DeepLinkRouter.shared
     @State private var favs = FavoritesStore.shared
+    // Theme / language preferences, applied app-wide below.
+    @State private var settings = AppSettings.shared
 
     var body: some View {
         TabView(selection: $router.selectedTab) {
@@ -42,5 +44,14 @@ struct RootView: View {
         // notably iOS 26's Liquid-Glass capsule, which put an ugly pill behind every
         // rectangular CTA. Descendant styles (sheets, pushes) inherit this default.
         .buttonStyle(.plain)
+        // Theme override: System (nil) follows the OS; Light/Dark force it. The
+        // Tokens.adaptive dynamic UIColors re-resolve against this automatically.
+        .preferredColorScheme(settings.colorScheme)
+        // Locale for system-formatted dates/pickers.
+        .environment(\.locale, Locale(identifier: settings.isVi ? "vi" : "en"))
+        // Language is read app-wide via L10n's mirror (not @Observable), so a switch
+        // won't invalidate already-built tabs on its own. Re-key the whole tree on
+        // language change to rebuild every screen in the new language at once.
+        .id(settings.language)
     }
 }

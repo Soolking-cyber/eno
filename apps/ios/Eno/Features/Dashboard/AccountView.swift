@@ -28,6 +28,18 @@ struct AccountView: View {
             .background(Tokens.canvas)
             .navigationTitle(L10n.tr("Account", "Tài khoản"))
             .navigationBarTitleDisplayMode(.inline)
+            // Theme / language / currency — reachable whether or not you're signed in.
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        PreferencesView()
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .foregroundStyle(Tokens.fg)
+                    }
+                    .accessibilityLabel(L10n.tr("Preferences", "Tùy chọn"))
+                }
+            }
         }
         .sheet(isPresented: $signInSheet) {
             WebSheet(path: "/signin")

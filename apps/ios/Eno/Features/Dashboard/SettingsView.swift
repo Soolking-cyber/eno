@@ -3,8 +3,9 @@ import SwiftUI
 // Native Settings — replaces the web /dashboard/settings sheet for the common
 // actions: edit profile (#59, PATCH /api/profile), switch account type
 // (#46, POST /api/profile/account-type), and delete account (#60, POST
-// /api/account/delete with a typed DELETE confirm). Heavier surfaces (business
-// storefront, disputes, language/theme) stay on the web behind "More settings".
+// /api/account/delete with a typed DELETE confirm). Theme / language / currency
+// are native too now → PreferencesView. Heavier surfaces (business storefront,
+// disputes) stay on their own native/web screens.
 struct SettingsView: View {
     let initial: MeResponse.User?
     var onChanged: () -> Void
@@ -99,6 +100,9 @@ struct SettingsView: View {
             }
 
             Section {
+                NavigationLink { PreferencesView() } label: {
+                    Label(L10n.tr("Appearance & language", "Giao diện & ngôn ngữ"), systemImage: "slider.horizontal.3")
+                }
                 NavigationLink { DisputesView() } label: {
                     Label(L10n.tr("Disputes", "Khiếu nại"), systemImage: "checkmark.shield")
                 }

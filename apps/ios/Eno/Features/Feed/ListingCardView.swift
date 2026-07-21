@@ -140,7 +140,7 @@ struct ListingCardView: View {
                     .strikethrough()
                     .foregroundStyle(Tokens.ink4)
                     .lineLimit(1)
-            } else if let approx = fx.approxUSD(listing.price) {
+            } else if AppSettings.shared.showUSD, let approx = fx.approxUSD(listing.price) {
                 Text(approx)
                     .scaledFont(12)
                     .foregroundStyle(Tokens.sub)
