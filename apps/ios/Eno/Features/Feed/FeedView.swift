@@ -164,15 +164,21 @@ struct FeedView: View {
 
     // ── two-row horizontally scrolling icon grid (the FINN-style web grid) ──
     private var categoryGrid: some View {
+        // Spacing (owner: "some spacing between category icons"): 4pt gaps read as one
+        // cramped block. Tiles are 80 wide on 12pt gaps inside the 12pt page gutter, so
+        // four sit comfortably across and the FIFTH PEEKS at the edge — the gap does the
+        // breathing AND the peek advertises that the row scrolls (at 92/4 the row exactly
+        // filled the screen, so it looked complete and nobody scrolled it).
         ScrollView(.horizontal, showsIndicators: false) {
-            LazyHGrid(rows: [GridItem(.fixed(84), spacing: 4), GridItem(.fixed(84), spacing: 4)], spacing: 4) {
+            LazyHGrid(rows: [GridItem(.fixed(84), spacing: EnoSpacing.s3), GridItem(.fixed(84), spacing: EnoSpacing.s3)],
+                      spacing: EnoSpacing.s3) {
                 ForEach(Categories.all) { cat in
                     NavigationLink(value: cat) {
                         // Web parity (FINN-style grid, listings-explorer.tsx): a
                         // monochrome icon + bold label, NO colored tile — every
                         // category uses the one brand identity, not per-category
                         // colors (CATEGORY_COLOR_CLASSES collapses all to brand).
-                        VStack(spacing: 6) {
+                        VStack(spacing: EnoSpacing.s2) {
                             Image(systemName: cat.symbol)
                                 .enoIcon(.lg, color: EnoColor.sub)   // muted at rest (web text-body), like the FINN grid
                                 .frame(width: 44, height: 44)
@@ -182,15 +188,17 @@ struct FeedView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.85)
                         }
-                        .frame(width: 92)
+                        .frame(width: 80)
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, EnoSpacing.s3)
         }
-        .frame(height: 176)
-        .padding(.bottom, 8)
+        // 84 + 84 + the 12pt row gap — the old 176 clipped once the rows were spaced.
+        .frame(height: 180)
+        .enoEdgeFade()
+        .padding(.bottom, EnoSpacing.s2)
     }
 
     // A rail card equals exactly one feed-grid column (12pt gutters + 8pt gap), so

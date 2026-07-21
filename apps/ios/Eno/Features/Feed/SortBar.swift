@@ -43,8 +43,11 @@ struct SortBar: View {
                 .buttonStyle(.plain)
                 tab(L10n.tr("Most contacted", "Được quan tâm"), active: model.sort == "popular") { model.sort = "popular" }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, EnoSpacing.s3)
         }
+        // "Most contacted" used to be guillotined mid-word by the adjacent Filter button,
+        // which looked like a bug rather than a scrollable strip.
+        .enoEdgeFade()
     }
 
     // TODO(EnoUI): EnoSegmentedControl — an underline tab, deliberately NOT a pill/EnoChip

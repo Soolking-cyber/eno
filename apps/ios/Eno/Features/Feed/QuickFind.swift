@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 import Observation
 
 // The web mobile "quick find" cascading selector (spec: docs-derived from
@@ -103,6 +104,9 @@ struct QuickFindBar: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
             }
+            // The tinted subcategory panel ran flush off the right edge with a chip sliced
+            // in half; the fade makes the overflow read as scrollable, not broken.
+            .enoEdgeFade()
             .onChange(of: feed.category) {
                 guard let c = feed.category else { return }
                 withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("cat-\(c)", anchor: .leading) }
@@ -125,6 +129,7 @@ struct QuickFindBar: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
             }
+            .enoEdgeFade()
             .onChange(of: feed.brand) {
                 guard let b = feed.brand else { return }
                 withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("brand-\(b)", anchor: .leading) }
