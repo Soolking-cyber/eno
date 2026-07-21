@@ -733,34 +733,21 @@ struct ListingDetailView: View {
                     Text("-50%")
                 }
                 .font(EnoTextRole.micro.font.weight(.regular)).foregroundStyle(Tokens.ink4)
-                HStack(spacing: 8) {
-                    Button { startOffer(offerPrice) } label: {
-                        Group {
-                            if offerBusy {
-                                ProgressView().tint(.white)
-                            } else {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "paperplane.fill").font(EnoTextRole.subheadline.font)
-                                    Text(L10n.tr("Send offer", "Gửi đề nghị") + " · " + Format.vnd(offerPrice))
-                                        .lineLimit(1).minimumScaleFactor(0.75)
-                                }
-                            }
-                        }
-                        .font(EnoTextRole.subheadline.font.weight(.semibold)).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).frame(height: 44)
-                        .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-                    }
-                    .disabled(offerBusy)
-                    Button { startChat() } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "message.fill").font(EnoTextRole.subheadline.font)
-                            Text(L10n.tr("Chat", "Chat"))
-                        }
-                        .font(EnoTextRole.subheadline.font.weight(.bold)).foregroundStyle(Tokens.brand)
-                        .frame(height: 44).padding(.horizontal, 16)
-                        .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-                        .overlay(RoundedRectangle(cornerRadius: Tokens.radiusControl).strokeBorder(Tokens.ring, lineWidth: 1))
-                    }
+                // Offer (primary, flexes) + Chat (secondary, hugs). `loading:` carries both
+                // the spinner AND the disable, so the offer can't be double-submitted.
+                HStack(spacing: EnoSpacing.s2) {
+                    EnoButton(
+                        L10n.tr("Send offer", "Gửi đề nghị") + " · " + Format.vnd(offerPrice),
+                        icon: "paperplane.fill",
+                        variant: .primary,
+                        loading: offerBusy
+                    ) { startOffer(offerPrice) }
+                    EnoButton(
+                        L10n.tr("Chat", "Chat"),
+                        icon: "message.fill",
+                        variant: .secondary,
+                        fullWidth: false
+                    ) { startChat() }
                 }
             }
             .padding(12)

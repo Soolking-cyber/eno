@@ -36,7 +36,9 @@ public struct EnoButton: View {
                 if loading {
                     ProgressView().tint(fg)
                 } else if let icon {
-                    Image(systemName: icon).font(.system(size: 16, weight: .semibold))
+                    // The role font (not a fixed 16pt) so the glyph scales WITH the label
+                    // under Dynamic Type instead of shrinking beside it.
+                    Image(systemName: icon).font(EnoTextRole.label.font)
                 }
                 // A button label must never wrap to a second line — it shrinks instead.
                 // (A long CTA like "Send offer · 12.000.000 đ" in a half-width slot would
@@ -49,7 +51,9 @@ public struct EnoButton: View {
             .foregroundStyle(fg)
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .frame(minHeight: size.minHeight)
-            .padding(.horizontal, fullWidth ? 0 : EnoSpacing.s4)
+            // Even a full-width button keeps side padding: a long label that truncates
+            // (e.g. "Send offer · 12.000.000 đ") would otherwise run into its own edge.
+            .padding(.horizontal, fullWidth ? EnoSpacing.s3 : EnoSpacing.s4)
             .background(bg, in: RoundedRectangle(cornerRadius: EnoRadius.control))
             .overlay(
                 RoundedRectangle(cornerRadius: EnoRadius.control)
@@ -65,7 +69,11 @@ public struct EnoButton: View {
     private var bg: Color {
         switch variant {
         case .primary:            return EnoColor.brand
-        case .secondary, .text:   return .clear
+        // card, NOT clear: a BORDERED secondary must read as a control on any backdrop —
+        // with a transparent fill it vanishes into a tinted panel (the PDP offer card).
+        // `.text` stays transparent by definition (no fill, no border).
+        case .secondary:          return EnoColor.card
+        case .text:               return .clear
         case .tertiary:           return EnoColor.tint
         case .destructive:        return EnoColor.danger
         }
