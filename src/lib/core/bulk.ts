@@ -2,7 +2,7 @@ import 'server-only'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { containsPhoneNumber } from '@/lib/phone'
-import { containsContactInfo, findBannedWord, MIN_IMAGE_ANGLES } from '@/lib/publish-guard'
+import { containsContactInfo, findBannedWord, minPhotosFor } from '@/lib/publish-guard'
 import { countDistinctAngles } from '@/lib/image-hash-url'
 import { buildSearchText, fold } from '@/lib/fold'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
@@ -141,10 +141,18 @@ export async function bulkImportCore(
         if (h) hosted.push(h)
       }
 
-      // Same bar as the wizard/API: ≥3 DIFFERENT angles (re-hosted images carry their dHash in
-      // the URL, so the same photo repeated counts once).
-      if (countDistinctAngles(hosted) < MIN_IMAGE_ANGLES) {
-        results.push({ row: rowNo, error: `Needs at least ${MIN_IMAGE_ANGLES} photos from different angles` }); continue
+      // Same bar as the wizard/API, INCLUDING the per-category minimum — service rows need
+      // one photo, goods need 3 different angles (re-hosted images carry their dHash in the
+      // URL, so the same photo repeated counts once). Importing services through this path
+      // would otherwise be held to a stricter rule than posting them in the wizard.
+      const minPhotos = minPhotosFor(categorySlug)
+      if (countDistinctAngles(hosted) < minPhotos) {
+        results.push({
+          row: rowNo,
+          error: minPhotos === 1
+            ? 'Needs at least 1 photo'
+            : `Needs at least ${minPhotos} photos from different angles`,
+        }); continue
       }
       // Probation cap: creations beyond the remaining active-listing budget fail with
       // the same stable code the single-create gate uses.

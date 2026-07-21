@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   BadgeCheck,
@@ -186,6 +186,13 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
   const { tr } = useLanguage()
   const [query, setQuery] = useState('')
   const [topic, setTopic] = useState<string | null>(null)
+  // Explicit hydration signal (same idiom as the forum's data-hydrated). The page is
+  // fully server-rendered, so search and the topic chips LOOK ready before React has
+  // attached: a keystroke or tap before then is swallowed and no amount of assertion
+  // retrying recovers it, because the event is simply gone. Tests wait on this instead
+  // of sleeping, and it costs one attribute.
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => { setHydrated(true) }, [])
 
   const needle = query.trim().toLocaleLowerCase()
 
@@ -243,7 +250,7 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
   }
 
   return (
-    <div className="w-full">
+    <div data-help-center data-hydrated={hydrated ? 'true' : 'false'} className="w-full">
       <p className="eyebrow text-accent-foreground mb-2"><Tr text="Help center" /></p>
       <h1 className="h-display text-foreground"><Tr text="How can we help?" /></h1>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-body">

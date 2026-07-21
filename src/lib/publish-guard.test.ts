@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { findBannedWord, containsContactInfo, assertPublishable, assertCleanContactName, publicSafeName, PublishBlockedError, type PublishBlockCode } from './publish-guard'
+import { findBannedWord, containsContactInfo, assertPublishable, assertCleanContactName, assertEnoughAngles, minPhotosFor, publicSafeName, PublishBlockedError, type PublishBlockCode } from './publish-guard'
 
 // publish-guard is the automated gate every new/edited listing passes. False NEGATIVES let
 // illegal goods or off-platform contact through; false POSITIVES block legitimate sellers
@@ -177,5 +177,50 @@ describe('publish-guard · seller contact name', () => {
       images: ['a.webp', 'b.webp', 'c.webp'],
       texts: [title, 'Official assistance. Secure application. Expert support.'],
     })).not.toThrow()
+  })
+})
+
+// ── Photo minimum is per-CATEGORY ──────────────────────────────────────────────────
+// Owner, 2026-07-21: "services category can have 1 image not 3, multiple is optional;
+// products 3 enforced but services 1 is ok". The 3-angle rule is about letting a buyer
+// inspect a physical object; a visa service or a language lesson has nothing to shoot
+// from three sides, so the rule could only be met by padding with duplicates.
+describe('publish-guard · photo minimum by category', () => {
+  const one = ['a.webp']
+  const goods = { trustTier: 'standard', texts: ['Like new iPhone 15'] }
+
+  it('services publish with a single photo', () => {
+    expect(minPhotosFor('services')).toBe(1)
+    expect(() => assertEnoughAngles(one, 'services')).not.toThrow()
+    expect(blockCodeOf(() => assertPublishable({ ...goods, images: one, categorySlug: 'services' }))).toBeNull()
+  })
+
+  it('physical categories still need 3 DISTINCT angles', () => {
+    for (const slug of ['electronics', 'vehicles', 'property', 'fashion', 'rentals']) {
+      expect(minPhotosFor(slug)).toBe(3)
+      expect(blockCodeOf(() => assertPublishable({ ...goods, images: one, categorySlug: slug }))).toBe('photos_min')
+    }
+  })
+
+  it('an unknown or missing category keeps the STRICT bar — relaxing must be opt-in', () => {
+    expect(minPhotosFor(undefined)).toBe(3)
+    expect(minPhotosFor(null)).toBe(3)
+    expect(minPhotosFor('not-a-real-category')).toBe(3)
+    expect(blockCodeOf(() => assertPublishable({ ...goods, images: one }))).toBe('photos_min')
+  })
+
+  it('services still need at least ONE photo', () => {
+    expect(blockCodeOf(() => assertPublishable({ ...goods, images: [], categorySlug: 'services' }))).toBe('photo_required')
+  })
+
+  it('extra photos remain allowed for services (the minimum is a floor, not a cap)', () => {
+    expect(() => assertEnoughAngles(['a.webp', 'b.webp', 'c.webp', 'd.webp'], 'services')).not.toThrow()
+  })
+
+  it('a service may repeat the same photo — the angle rule is what got relaxed', () => {
+    // Goods reject this (one distinct angle < 3); services only need one photo at all.
+    const dup = 'x-habcdef0123456789.webp'
+    expect(() => assertEnoughAngles([dup, dup], 'services')).not.toThrow()
+    expect(blockCodeOf(() => assertPublishable({ ...goods, images: [dup, dup], categorySlug: 'electronics' }))).toBe('photos_min')
   })
 })

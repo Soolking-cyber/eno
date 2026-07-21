@@ -7,6 +7,19 @@ import { countDistinctAngles } from './image-hash-url'
 // low-effort/scam filter. Enforced server-side via the perceptual hash baked into each image URL.
 export const MIN_IMAGE_ANGLES = 3
 
+// Categories that sell WORK, not an object — one photo is enough (owner, 2026-07-21).
+// The 3-angle rule exists so a buyer can inspect a physical item's condition before
+// paying. A visa service, a language lesson or a cleaner has no object to photograph
+// from three sides, so the rule can only be satisfied by padding: the same shot three
+// times, or unrelated stock images. That is strictly worse than one honest photo, and
+// it was blocking real service listings. Extra photos stay welcome, just not required.
+const SINGLE_PHOTO_CATEGORIES = new Set(['services'])
+
+/** Minimum DISTINCT photos required to publish in this category. */
+export function minPhotosFor(categorySlug: string | null | undefined): number {
+  return categorySlug && SINGLE_PHOTO_CATEGORIES.has(categorySlug) ? 1 : MIN_IMAGE_ANGLES
+}
+
 // The single publish gate. Listings go LIVE instantly — there is NO held-for-review queue.
 // Instead a post is REJECTED up-front so the seller can fix it (or, for a Restricted
 // account, wait for their trust to recover). Used by the session post route, /api/v1, MCP,
@@ -178,19 +191,23 @@ export function containsContactInfo(text: string | null | undefined): boolean {
  *  2. No photo, 3. banned words, 4. phone/contact/address in text → fixable while posting.
  * `trustTier` optional so a pre-seller-resolution caller can run the content checks early.
  */
-export function assertPublishable(input: { trustTier?: string; images: unknown[]; texts: (string | null | undefined)[] }) {
+export function assertPublishable(input: { trustTier?: string; images: unknown[]; texts: (string | null | undefined)[]; categorySlug?: string | null }) {
   if (input.trustTier === 'restricted') throw new PublishBlockedError('account_restricted')
-  assertEnoughAngles(input.images)
+  assertEnoughAngles(input.images, input.categorySlug)
   assertCleanTexts(input.texts)
 }
 
-/** ≥1 photo (photo_required) AND ≥MIN_IMAGE_ANGLES DISTINCT angles (photos_min) — the same
- *  photo uploaded N times still counts as one angle. Shared by CREATE and EDIT so an edit can't
- *  drop a live listing below the bar. Images are the listing's stored URLs (their dHash is in
- *  the URL); older/unhashed images fail open (counted as distinct). */
-export function assertEnoughAngles(images: unknown[]) {
+/** ≥1 photo (photo_required) AND ≥minPhotosFor(category) DISTINCT angles (photos_min) — the
+ *  same photo uploaded N times still counts as one angle. Shared by CREATE and EDIT so an edit
+ *  can't drop a live listing below the bar. Images are the listing's stored URLs (their dHash is
+ *  in the URL); older/unhashed images fail open (counted as distinct).
+ *  `categorySlug` relaxes the bar to a single photo for service categories — pass it on every
+ *  path, or a service listing gets held to the physical-goods rule. */
+export function assertEnoughAngles(images: unknown[], categorySlug?: string | null) {
   if (images.length < 1) throw new PublishBlockedError('photo_required')
-  if (countDistinctAngles(images as string[]) < MIN_IMAGE_ANGLES) throw new PublishBlockedError('photos_min')
+  // One required photo means the distinct-angle check is vacuous — a single image is
+  // always one distinct angle — so this collapses to the photo_required check above.
+  if (countDistinctAngles(images as string[]) < minPhotosFor(categorySlug)) throw new PublishBlockedError('photos_min')
 }
 
 /** The content screens alone (phone / contact / banned words) — shared by CREATE

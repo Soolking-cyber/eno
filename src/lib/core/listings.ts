@@ -295,7 +295,9 @@ export async function updateListingCore(
     // (unchanged, already-compliant) photos too. Steady-state listings all pass (same create
     // gate); only pre-rule sub-3 data (wiped pre-launch) would be blocked from editing.
     try {
-      assertEnoughAngles(images)
+      // The listing's OWN category — an edit cannot move a listing between categories,
+      // so this is the same bar create used, and a 1-photo service listing stays editable.
+      assertEnoughAngles(images, current.category.slug)
     } catch (e) {
       if (e instanceof PublishBlockedError) return { ok: false, code: 400, error: e.code }
       throw e
@@ -531,7 +533,7 @@ export async function createListingCore(input: {
   // contact_in_text, which tells the seller to edit a listing that is already clean.
   const guardName = body.contactName ? String(body.contactName).trim().slice(0, 80) : null
   assertCleanContactName(guardName)
-  assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description] })
+  assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description], categorySlug })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category
   // (else its primary type); subcategory falls back to keyword-suggest.

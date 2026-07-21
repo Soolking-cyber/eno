@@ -17,7 +17,7 @@ import { haptic } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { containsPhoneNumber } from '@/lib/phone'
-import { containsContactInfo, findBannedWord, publicSafeName } from '@/lib/publish-guard'
+import { containsContactInfo, findBannedWord, minPhotosFor, publicSafeName } from '@/lib/publish-guard'
 import { trackPostListing } from '@/lib/analytics'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
 import { subcategoriesFor, typesFor, facetsFor, rangeFacetsFor, categoryHasBrand, LISTING_TYPES } from '@/lib/taxonomy'
@@ -431,11 +431,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const district = ward?.name || province?.name || ''
   const areaLabel = ward ? `${ward.name}${province ? `, ${province.name}` : ''}` : province ? province.name : (nearby ? t('Vị trí của bạn', 'Your location') : '')
   const hasLocation = !!(province || ward || nearby)
+  const minPhotos = minPhotosFor(categorySlug)
   const priceUnit = listingType === 'rent' || listingType === 'job' ? t('/ tháng', '/ month') : listingType === 'service' ? t('/ dịch vụ', '/ service') : ''
 
   // Required-field checklist (drives the Publish button + the "what's left" hint).
   const checks = [
-    { key: 'photo', ok: photos.length >= 3, label: t('Thêm 3 ảnh', 'Add 3 photos') },
+    // Services sell WORK, not an object, so one photo is the bar there (owner
+    // 2026-07-21). minPhotosFor is the same function the server gate uses, so the
+    // checklist can never promise a listing the API will then reject.
+    { key: 'photo', ok: photos.length >= minPhotos, label: minPhotos === 1 ? t('Thêm 1 ảnh', 'Add 1 photo') : t(`Thêm ${minPhotos} ảnh`, `Add ${minPhotos} photos`) },
     { key: 'category', ok: !!categorySlug, label: t('Chọn danh mục', 'Pick a category') },
     { key: 'title', ok: title.trim().length >= 3, label: t('Nhập tiêu đề', 'Add a title') },
     // Details are REQUIRED (user decision 2026-07-14): listings without a real
@@ -621,7 +625,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           : msg === 'photo_required'
           ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
           : msg === 'photos_min'
-          ? t('Cần ít nhất 3 ảnh từ các góc khác nhau (không phải cùng một ảnh lặp lại).', 'You need at least 3 photos from different angles (not the same photo repeated).')
+          ? (minPhotos === 1
+              ? t('Cần ít nhất 1 ảnh.', 'You need at least 1 photo.')
+              : t('Cần ít nhất 3 ảnh từ các góc khác nhau (không phải cùng một ảnh lặp lại).', 'You need at least 3 photos from different angles (not the same photo repeated).'))
           : msg === 'account_restricted'
           ? t('Tài khoản của bạn đang bị hạn chế do điểm uy tín thấp. Bạn có thể đăng lại khi điểm uy tín phục hồi.', "Your account is restricted due to a low trust score. You can post again once your trust score recovers.")
           : msg === 'account_held'
@@ -671,7 +677,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         {/* ── FORM ── */}
         <div className="min-w-0 space-y-10">
           {/* Photos (+ optional video) — moved verbatim to post-wizard-sections.tsx */}
-          <MediaSection media={media} errPhoto={err.photo} aiEnabled={aiEnabled} aiBusy={aiBusy} autofillFromPhoto={autofillFromPhoto} t={t} />
+          <MediaSection media={media} errPhoto={err.photo} minPhotos={minPhotos} aiEnabled={aiEnabled} aiBusy={aiBusy} autofillFromPhoto={autofillFromPhoto} t={t} />
 
           {/* Category & type */}
           <Section id="pw-category" title={t('Danh mục', 'Category')} hint={t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>

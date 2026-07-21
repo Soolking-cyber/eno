@@ -38,6 +38,7 @@ type T = (vi: string, en: string) => string
 export function MediaSection({
   media,
   errPhoto,
+  minPhotos,
   aiEnabled,
   aiBusy,
   autofillFromPhoto,
@@ -45,6 +46,8 @@ export function MediaSection({
 }: {
   media: PostMedia
   errPhoto: boolean
+  /** Category-dependent photo minimum (services = 1, goods = 3). */
+  minPhotos: number
   aiEnabled: boolean
   aiBusy: 'photo' | 'desc' | null
   autofillFromPhoto: () => void
@@ -93,7 +96,15 @@ export function MediaSection({
   }
 
   return (
-    <Section id="pw-photo" title={t('Ảnh', 'Photos')} hint={t('Tối thiểu 3 ảnh từ các góc khác nhau, tối đa 6. Ảnh đầu là ảnh bìa. Tin nhiều ảnh được xem nhiều hơn hẳn.', 'At least 3 photos from different angles, up to 6. The first is your cover. Listings with more photos get far more views.')}>
+    <Section
+      id="pw-photo"
+      title={t('Ảnh', 'Photos')}
+      hint={minPhotos === 1
+        // Services: one photo is enough, but say that more still help — the ask is
+        // "optional", not "don't bother".
+        ? t('Cần 1 ảnh, tối đa 6. Ảnh đầu là ảnh bìa. Thêm ảnh là tuỳ chọn nhưng tin nhiều ảnh được xem nhiều hơn hẳn.', 'One photo is enough, up to 6. The first is your cover. More are optional, but listings with more photos get far more views.')
+        : t('Tối thiểu 3 ảnh từ các góc khác nhau, tối đa 6. Ảnh đầu là ảnh bìa. Tin nhiều ảnh được xem nhiều hơn hẳn.', 'At least 3 photos from different angles, up to 6. The first is your cover. Listings with more photos get far more views.')}
+    >
       {/* A photo grid is not a labelable control, so it can't go in a <Field>. Same
           contract by hand: it names itself, reports invalid, and points at its error. */}
       <div
@@ -187,7 +198,7 @@ export function MediaSection({
           )}
         </div>
       </div>
-      {errPhoto && <p id="pw-photo-error" role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
+      {errPhoto && <p id="pw-photo-error" role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{minPhotos === 1 ? t('Thêm ít nhất 1 ảnh', 'Add at least 1 photo') : t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
       {/* Media hint covers the video square in the grid above. */}
       <p id="pw-photo-hint" className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.', 'First photo is your cover. A video (optional) autoplays on hover and in the Video feed.')}</p>
       {aiEnabled && photos.length > 0 && (
