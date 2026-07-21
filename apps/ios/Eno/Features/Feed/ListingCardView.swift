@@ -167,8 +167,10 @@ struct TrustMini: View {
     let score: Int
     var onTap: (() -> Void)? = nil
 
-    private enum Tier { case elite, exceptional, trusted, standard, restricted }
-    private var tier: Tier {
+    // The tier THRESHOLDS are business rules (mirroring src/lib/trust-score.ts: 60/85/110/160),
+    // so they stay here in the app. EnoTrustChip is told the tier and owns only the look —
+    // which keeps the trust policy reviewable in one place instead of buried in a view.
+    private var tier: EnoTrustChip.Tier {
         if score >= 160 { return .elite }
         if score >= 110 { return .exceptional }
         if score >= 85 { return .trusted }
@@ -176,40 +178,7 @@ struct TrustMini: View {
         return .restricted
     }
 
-    private func hex(_ v: UInt32) -> Color {
-        Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
-    }
-    private var fill: [Color]? {
-        switch tier {
-        case .elite: return [hex(0x7C3AED), hex(0x6D28D9), hex(0x5B21B6)]
-        case .exceptional: return [hex(0xFDE047), hex(0xFACC15), hex(0xF59E0B)]
-        case .trusted: return [hex(0x3B82F6), hex(0x2563EB), hex(0x1D4ED8)]
-        default: return nil
-        }
-    }
-    private var quiet: Color { tier == .restricted ? Tokens.danger : Tokens.sub }
-    private var onFill: Color { tier == .exceptional ? hex(0x713F12) : .white }
-    private var bgStyle: AnyShapeStyle {
-        if let fill { return AnyShapeStyle(LinearGradient(colors: fill, startPoint: .topLeading, endPoint: .bottomTrailing)) }
-        return AnyShapeStyle(quiet.opacity(0.12))
-    }
-
     var body: some View {
-        let chip = HStack(spacing: 4) {
-            Image(systemName: "shield").font(EnoTextRole.micro.font)   // web: OUTLINE shield, not filled
-            Text("\(score)").font(EnoTextRole.micro.font).monospacedDigit()
-        }
-        .lineLimit(1)
-        .fixedSize()            // the score must never wrap to "10⏎0" at large Dynamic Type
-        .foregroundStyle(fill != nil ? onFill : quiet)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(bgStyle, in: Capsule())
-
-        if let onTap {
-            Button(action: onTap) { chip }.buttonStyle(.plain)
-        } else {
-            chip
-        }
+        EnoTrustChip(tier: tier, score: score, onTap: onTap)
     }
 }

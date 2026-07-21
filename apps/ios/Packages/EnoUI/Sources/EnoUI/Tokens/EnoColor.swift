@@ -21,6 +21,18 @@ public enum EnoColor {
     public static let warning = adaptive(0x92400E, 0xFBBF24)    // warning
     public static let onBrand = Color.white                     // text/icon on a brand fill
 
+    // ── Trust-ladder fills (web globals.css .trust-fill-*) ──────────────────────────
+    // Only the EARNED tiers get a vivid gradient; Standard/Restricted stay a quiet tint,
+    // so a badge always reads as earned rather than granted. Deliberately theme-INDEPENDENT:
+    // an earned badge must look identical in light and dark.
+    public static let trustTrusted: [Color] = [rgb(0x3B82F6), rgb(0x2563EB), rgb(0x1D4ED8)]
+    public static let trustExceptional: [Color] = [rgb(0xFDE047), rgb(0xFACC15), rgb(0xF59E0B)]
+    public static let trustElite: [Color] = [rgb(0x7C3AED), rgb(0x6D28D9), rgb(0x5B21B6)]
+    /// Dark ink for text sitting on the gold Exceptional fill (white would fail contrast).
+    public static let onTrustExceptional = rgb(0x713F12)
+
+    static func rgb(_ v: UInt32) -> Color { Color(UIColor(enoRGB: v)) }
+
     static func adaptive(_ light: UInt32, _ dark: UInt32) -> Color {
         Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(enoRGB: dark) : UIColor(enoRGB: light) })
     }

@@ -46,6 +46,20 @@ public struct EnoCatalogView: View {
                     }
                 }
 
+                Section("Trust ladder") {
+                    // Only the EARNED tiers get a gradient — that contrast is the point.
+                    HStack(spacing: EnoSpacing.s2) {
+                        EnoTrustChip(tier: .restricted, score: 42)
+                        EnoTrustChip(tier: .standard, score: 74)
+                        EnoTrustChip(tier: .trusted, score: 96)
+                    }
+                    HStack(spacing: EnoSpacing.s2) {
+                        EnoTrustChip(tier: .exceptional, score: 128)
+                        EnoTrustChip(tier: .elite, score: 172)
+                        EnoTrustChip(tier: .trusted, score: 91, onTap: {})
+                    }
+                }
+
                 Section("Cards") {
                     EnoCard {
                         VStack(alignment: .leading, spacing: EnoSpacing.s2) {
