@@ -392,6 +392,13 @@ model Listing {
   // live band (getPriceBand). Added via raw ALTER (additive, no FK) — see image-hash-index.mjs.
   marketPosition          String?
   availabilityConfirmedAt DateTime? // last seller "still available" confirmation (reminder targeting)
+  // ── Sale attribution (seller marks sold via the native confirm sheet) ──────────
+  // Recorded when status→'sold'; cleared on reactivate. Additive scalars (no FK),
+  // applied via scripts/sold-attribution-cols.mjs.
+  soldChannel             String?   // 'eno' (in-app buyer) | 'external' | null
+  soldToProfileId         String?            @db.Uuid // the in-app buyer, when soldChannel='eno' (scalar; display resolves at read)
+  soldPlatform            String?   // free text external marketplace, when soldChannel='external'
+  soldAt                  DateTime?
   postedAt                DateTime           @default(now()) // also the feed-recency key; "confirm availability" bumps it
   views                   Int                @default(0)
   savedCount              Int                @default(0)

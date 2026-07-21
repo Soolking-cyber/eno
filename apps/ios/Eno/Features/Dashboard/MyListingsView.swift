@@ -84,6 +84,7 @@ struct MyListingsView: View {
     @State private var model = MyListingsModel()
     @State private var editPath: EditRoute?
     @State private var deleteTarget: MyListing?
+    @State private var soldTarget: MyListing?
 
     struct EditRoute: Identifiable {
         let id: String
@@ -122,6 +123,10 @@ struct MyListingsView: View {
             } else {
                 WebSheet(path: "/listings/\(r.id)/edit")
             }
+        }
+        .sheet(item: $soldTarget) { l in
+            MarkSoldSheet(listing: l) { Task { await model.load() } }
+                .presentationDetents([.medium, .large])
         }
         .confirmationDialog(
             L10n.tr("Delete this listing?", "Xóa tin này?"),
@@ -225,7 +230,7 @@ struct MyListingsView: View {
                 // review popup (AvailabilityReviewView); "Lower price"/"Share" removed.
                 FlowLayout(spacing: 6) {
                     if l.status == "active" {
-                        actionChip(L10n.tr("Mark sold", "Đã bán"), "checkmark.seal") { Task { await model.setStatus(l.id, "sold") } }
+                        actionChip(L10n.tr("Mark sold", "Đã bán"), "checkmark.seal") { soldTarget = l }
                         actionChip(L10n.tr("Hide", "Ẩn tin"), "eye.slash") { Task { await model.setStatus(l.id, "hidden") } }
                     } else {
                         actionChip(L10n.tr("Reactivate", "Đăng lại"), "arrow.counterclockwise") { Task { await model.setStatus(l.id, "active") } }

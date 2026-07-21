@@ -122,14 +122,35 @@ export function parseVideoField(raw: unknown): { action: 'set'; url: string } | 
  * (pulled from the public feed, kept in the dashboard). Re-activating also stamps an
  * availability confirmation. Purges the cached detail page + (re)indexes for AI search.
  */
+export type SoldMeta = { channel?: string | null; buyerProfileId?: string | null; platform?: string | null }
+
 export async function setStatusCore(
   listingId: string,
   status: string,
+  soldMeta?: SoldMeta,
 ): Promise<{ ok: true; status: string } | { ok: false; code: number; error: string }> {
   if (!LISTING_STATUSES.has(status)) return { ok: false, code: 400, error: 'invalid_status' }
+  // Sale attribution: stamp it when a listing is marked sold; CLEAR it on reactivate
+  // so a resold-then-relisted item never carries a stale buyer/channel.
+  const saleData =
+    status === 'sold'
+      ? soldMeta === undefined
+        // Generic sold (partner sync, /status, MCP, the daily-review quick tick-off):
+        // the caller isn't attributing, so DON'T touch existing sold* / soldAt — a
+        // re-sync must never erase attribution captured via the native Mark-sold sheet.
+        ? {}
+        : {
+            soldAt: new Date(),
+            soldChannel: soldMeta.channel === 'external' ? 'external' : soldMeta.buyerProfileId ? 'eno' : null,
+            soldToProfileId: soldMeta.channel === 'external' ? null : (soldMeta.buyerProfileId ?? null),
+            soldPlatform: soldMeta.channel === 'external' ? (soldMeta.platform ?? null) : null,
+          }
+      : status === 'active'
+        ? { soldAt: null, soldChannel: null, soldToProfileId: null, soldPlatform: null }
+        : {}
   await db.listing.update({
     where: { id: listingId },
-    data: { status, ...(status === 'active' ? { availabilityConfirmedAt: new Date() } : {}) },
+    data: { status, ...(status === 'active' ? { availabilityConfirmedAt: new Date() } : {}), ...saleData },
   })
   revalidatePath(`/listings/${listingId}`) // sold/hidden must drop from the cached page (it 404s non-active)
   after(() => reindexListing(listingId)) // active → (re)index for AI search; sold/hidden → remove
@@ -148,10 +169,16 @@ export async function setStatusCore(
  */
 export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' }> {
   const now = new Date()
-  const current = await db.listing.findUnique({ where: { id: listingId }, select: { postedAt: true, sellerTrustScore: true, featured: true, views: true, contactCount: true } })
+  const current = await db.listing.findUnique({ where: { id: listingId }, select: { postedAt: true, status: true, sellerTrustScore: true, featured: true, views: true, contactCount: true } })
   // Typed 404 instead of letting the update's P2025 surface as a 500 — the row can
   // vanish between the route's ownership check and this call (delete race).
   if (!current) return { ok: false, code: 404, error: 'not_found' }
+  // Confirm normally runs on an already-active listing. If it ever runs on a sold/hidden
+  // one it's a REACTIVATION — which must clear any sale attribution and re-expose the
+  // listing (reindex + revalidate + webhook), exactly like setStatusCore's active branch.
+  // Otherwise the listing goes live still de-indexed, its page still 404ing, carrying a
+  // stale buyer/channel.
+  const wasInactive = current.status !== 'active'
   const bump = canBump(current.postedAt, now.getTime())
   try {
     await db.listing.update({
@@ -159,6 +186,7 @@ export async function confirmCore(listingId: string, profileId: string): Promise
       data: {
         status: 'active',
         availabilityConfirmedAt: now,
+        ...(wasInactive ? { soldChannel: null, soldToProfileId: null, soldPlatform: null, soldAt: null } : {}),
         // A bump resets recency (postedAt=now) → recompute rankScore at age 0 so the listing
         // jumps up immediately. No bump (within cooldown) leaves recency to the daily decay.
         ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current.sellerTrustScore ?? 100, postedAt: now, featured: current.featured, views: current.views, contactCount: current.contactCount }) } : {}),
@@ -167,6 +195,11 @@ export async function confirmCore(listingId: string, profileId: string): Promise
   } catch (e) {
     if ((e as { code?: string })?.code === 'P2025') return { ok: false, code: 404, error: 'not_found' }
     throw e
+  }
+  if (wasInactive) {
+    revalidatePath(`/listings/${listingId}`)
+    after(() => reindexListing(listingId))
+    after(() => dispatchListingEvent('listing.status_changed', listingId, undefined, { status: 'active' }))
   }
   after(() => recordEngagement(profileId).catch(() => {})) // reward keeping listings fresh (daily-capped)
   return { ok: true, bumped: bump }
