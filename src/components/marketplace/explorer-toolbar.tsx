@@ -117,12 +117,19 @@ export function SortStrip({
     cn(
       'h-auto flex-none border-0 outline-none after:hidden duration-100 active:scale-[0.97]',
       'data-active:bg-transparent data-active:text-accent-foreground dark:data-active:bg-transparent dark:data-active:text-accent-foreground dark:text-body',
-      // px-2 on mobile (px-3 from sm up): at 393px the four labels + px-3 came to ~417px, so the
-      // strip overflowed by ~24px — just enough to be nudged and then REST MID-WORD ("evance").
-      // Trimming 8px per tab reclaims 32px, so the full strip fits and there is nothing to scroll.
-      // snap-start pairs with the list's snap-mandatory: if it ever DOES overflow (accessibility
-      // text sizes), it can only come to rest on a tab boundary, never halfway through a label.
-      '-mb-px flex shrink-0 snap-start items-center gap-1 rounded-none border-b-2 px-2 py-2.5 text-sm font-semibold transition-colors cursor-pointer sm:px-3',
+      // Padding is the ORIGINAL px-3 — narrowing it was not the fix. Overflowing horizontally is
+      // fine and expected (OS text scaling makes it unavoidable anyway); the strip just has to
+      // scroll like a rail instead of dragging like a loose object. See the list for that.
+      //
+      // snap-start pairs with the list's snap-mandatory so a scrolled strip can only come to rest
+      // on a tab boundary, never halfway through a label ("…vance").
+      //
+      // ⚠️ The -1px that overlaps the root's bottom border lives on the LIST, not here. On the tab
+      // it made the tab's border box (42px) exactly 1px taller than its margin box (41px), which
+      // sized the scroller to 41 and left scrollHeight at 42 — a permanent 1px VERTICAL overflow.
+      // overflow-x-auto forces overflow-y to compute to auto, so that 1px turned the strip into a
+      // two-axis scroller that swallowed vertical drags. Same pixel, moved one level up, no overflow.
+      'flex shrink-0 snap-start items-center gap-1 rounded-none border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer',
       selected
         // hover:* on the selected branch is not new paint: it kills the base's
         // hover:text-foreground so the active tab keeps its colour on hover, as it always did.
@@ -190,11 +197,23 @@ export function SortStrip({
           // underline. group-data-horizontal/tabs:h-auto matches the base's modifier verbatim so
           // tailwind-merge removes h-8 rather than racing it on specificity.
           'flex w-full justify-start p-0 group-data-horizontal/tabs:h-auto',
-          // The strip is sized to FIT (see sortTab's px-2), so overflow-x-auto normally yields no
-          // scroller at all — it reads as solid chrome. snap-mandatory + overscroll-x-contain only
-          // matter when text scaling forces overflow: it then scrolls tab-by-tab instead of feeling
-          // like a loose draggable rail, and a sideways flick can't chain out to the page.
-          'scrollbar-none flex-nowrap items-center gap-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain',
+          // HORIZONTAL RAIL, NOT A DRAGGABLE OBJECT. Three things are load-bearing here:
+          //
+          //   touch-pan-x   The one that actually fixes it. overflow-x-auto forces overflow-y to
+          //                 compute to `auto` (CSS: once one axis is non-visible the other can't
+          //                 stay visible), so the strip was a TWO-AXIS scroller with the default
+          //                 touch-action:auto — it captured vertical drags and rubber-banded them
+          //                 instead of letting the page scroll. pan-x hands every vertical gesture
+          //                 back to the page and keeps only left/right for the strip.
+          //   -mb-px        Moved here off the tabs (see sortTab): on the tab it left a permanent
+          //                 1px scrollHeight > clientHeight, i.e. a live vertical scroller. On the
+          //                 list the same pixel overlaps the root's border with zero overflow.
+          //   snap-*        With px-3 restored the strip DOES overflow (~24px at 393px, far more
+          //                 under OS text scaling). Mandatory snap means it lands on a tab edge
+          //                 rather than resting mid-label.
+          //
+          // overscroll-x-contain stops a sideways flick chaining out to the page/back-gesture.
+          '-mb-px scrollbar-none flex-nowrap items-center gap-1 snap-x snap-mandatory touch-pan-x overflow-x-auto overscroll-x-contain',
         )}
       >
         <TabsTrigger value="newest" type="button" className={sortTab(sort === 'newest')}>
