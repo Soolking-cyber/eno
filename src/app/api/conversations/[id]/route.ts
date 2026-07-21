@@ -8,9 +8,18 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // GET one conversation + its messages (participant-only). Marks the caller's
-// unread count to 0 (opening the thread = read).
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+// unread count to 0 (opening the thread = read) — UNLESS ?peek=1.
+//
+// ⚠️ ?peek=1 is not an optimisation, it is a correctness fix. The inbox warms its
+// cache by fetching threads the user has NOT opened: chat-context prefetches the top
+// three the moment the list loads, and each row prefetches on touchstart. Every one of
+// those hit this route and silently cleared unread, so the newest threads — precisely
+// the ones that should carry a badge — were marked read milliseconds after rendering,
+// and merely starting to SCROLL the list marked rows read. Prefetch passes peek=1;
+// only a real open (messages/[id] load()) clears the count.
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const peek = new URL(req.url).searchParams.get('peek') === '1'
   const meId = await getCurrentProfileId()
   if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
 
@@ -36,7 +45,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // Mark my side read — but only WRITE when there's actually something to clear,
   // so the ~1.5s polling reads stay write-free.
   const myUnread = iAmBuyer ? convo.buyerUnread : convo.sellerUnread
-  if (myUnread > 0) {
+  if (myUnread > 0 && !peek) {
     await db.conversation.update({
       where: { id },
       data: iAmBuyer ? { buyerUnread: 0 } : { sellerUnread: 0 },

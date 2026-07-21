@@ -87,7 +87,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [user])
   const prefetchThread = useCallback((id: string) => {
     if (!id || threadCache.current.has(id)) return
-    fetch(`/api/conversations/${id}`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) cacheThread(id, d) }).catch(() => {})
+    // ⚠️ peek=1 — a prefetch must NEVER mark the thread read. Without it this warm-up
+    // (top 3 on inbox load, plus onTouchStart per row) cleared the unread counter on
+    // threads the user never opened, so the blue rail + count badge vanished before
+    // they could be seen and scrolling the list marked messages read.
+    fetch(`/api/conversations/${id}?peek=1`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) cacheThread(id, d) }).catch(() => {})
   }, [cacheThread])
 
   // Preload the inbox so opening Messages is instant. This is FUNCTIONAL caching
