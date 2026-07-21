@@ -82,6 +82,43 @@ public struct EnoCatalogView: View {
                     .enoSkeleton(true)
                 }
 
+                Section("Forms") {
+                    EnoField("Title", placeholder: "iPhone 13 Pro 256GB", text: .constant(""))
+                    EnoField("Email", placeholder: "you@example.com", text: .constant("not-an-email"),
+                             kind: .email, error: "That email doesn't look right.")
+                    EnoField("Password", text: .constant("hunter2"), kind: .secure,
+                             helper: "At least 8 characters.")
+                    EnoTextArea("Description", placeholder: "Describe your item…",
+                                text: .constant(""), characterLimit: 500)
+                }
+
+                Section("Rows & selection") {
+                    // Interactive (EnoListRow) …
+                    EnoListRow(icon: "square.grid.2x2", title: "My listings",
+                               subtitle: "3 active", accessory: .disclosure, action: {})
+                    EnoListRow(icon: "trash", title: "Delete listing",
+                               role: .destructive, action: {})
+                    // … and the same visual with no button around it (EnoListRowLabel),
+                    // for when a NavigationLink or swipe container owns the tap.
+                    EnoListRowLabel(title: "Seller", subtitle: "Trusted") {
+                        EnoAvatar(initials: "MK", size: .sm)
+                    } trailing: { EnoTrustChip(tier: .trusted, score: 96) }
+                    EnoSegmentedControl(
+                        selection: .constant("grid"),
+                        options: ["list", "grid", "map"],
+                        accessibilityLabel: "View mode"
+                    ) { $0.capitalized }
+                }
+
+                Section("Avatars") {
+                    HStack(spacing: EnoSpacing.s3) {
+                        EnoAvatar(initials: "MK", size: .xs)
+                        EnoAvatar(initials: "AN", size: .sm)
+                        EnoAvatar(initials: "TL", tint: EnoColor.success, size: .md)
+                        EnoAvatar(initials: "", size: .lg)   // symbol fallback
+                    }
+                }
+
                 Section("States") {
                     EnoEmptyState(
                         icon: "heart",
