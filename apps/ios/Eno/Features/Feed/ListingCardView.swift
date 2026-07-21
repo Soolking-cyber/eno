@@ -22,7 +22,7 @@ struct ListingCardView: View {
             photo
             VStack(alignment: .leading, spacing: 2) {
                 priceRow
-                Text(listing.displayTitle)
+                LocalizedText(source: listing.title, preferred: L10n.isVi ? listing.titleVi : nil)
                     .scaledFont(14, weight: .medium)
                     .foregroundStyle(Tokens.fg)
                     .lineLimit(2)

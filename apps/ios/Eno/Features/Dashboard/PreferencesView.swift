@@ -17,13 +17,17 @@ struct PreferencesView: View {
                 }
                 .pickerStyle(.segmented)
             }
-            Section(L10n.tr("Language", "Ngôn ngữ")) {
+            Section {
                 Picker(L10n.tr("Language", "Ngôn ngữ"), selection: $settings.language) {
-                    Text(L10n.tr("System", "Hệ thống")).tag(AppSettings.LangMode.system)
-                    Text("English").tag(AppSettings.LangMode.en)
-                    Text("Tiếng Việt").tag(AppSettings.LangMode.vi)
+                    ForEach(AppSettings.LangMode.allCases) { mode in
+                        Text(mode.nativeName).tag(mode)
+                    }
                 }
-                .pickerStyle(.segmented)
+            } header: {
+                Text(L10n.tr("Language", "Ngôn ngữ"))
+            } footer: {
+                Text(L10n.tr("The whole app — including listing titles and descriptions — is shown in your language, translated automatically.",
+                             "Toàn bộ ứng dụng — gồm cả tiêu đề và mô tả tin đăng — hiển thị bằng ngôn ngữ của bạn, dịch tự động."))
             }
             Section(L10n.tr("Currency", "Tiền tệ")) {
                 Toggle(L10n.tr("Show ≈ USD on prices", "Hiện ≈ USD trên giá"), isOn: $settings.showUSD)

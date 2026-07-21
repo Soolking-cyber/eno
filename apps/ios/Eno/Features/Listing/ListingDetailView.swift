@@ -47,6 +47,10 @@ struct ListingDetailView: View {
 
     private var images: [String] { detail?.images ?? card.images }
     private var title: String { detail?.displayTitle ?? card.displayTitle }
+    // Raw source title + curated Vietnamese, for machine translation into the
+    // selected language (LocalizedText). displayTitle stays for share/nav labels.
+    private var rawTitle: String { detail?.title ?? card.title }
+    private var rawTitleVi: String? { detail?.titleVi ?? card.titleVi }
     private var price: Int { detail?.price ?? card.price }
     private var videoURL: URL? { (detail?.video ?? card.video).flatMap { URL(string: $0) } }
 
@@ -65,7 +69,7 @@ struct ListingDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     priceBlock
                     if let band { MarketGauge(price: price, band: band) }
-                    Text(title)
+                    LocalizedText(source: rawTitle, preferred: L10n.isVi ? rawTitleVi : nil)
                         .scaledFont(18, weight: .medium)   // web text-lg font-medium leading-snug
                         .foregroundStyle(Tokens.fg)
                         .lineSpacing(2)
@@ -79,8 +83,9 @@ struct ListingDetailView: View {
                         // Description (web page.tsx order-8: h-section 18px heading + body).
                         Text(L10n.tr("Description", "Mô tả")).scaledFont(18, weight: .bold).foregroundStyle(Tokens.fg)
                         // Light-markdown render (web listing-content.tsx): bullets,
-                        // numbered lists, headings, inline **bold**.
-                        ListingDescriptionView(text: d.description)
+                        // numbered lists, headings, inline **bold** — auto-translated
+                        // into the selected language (web parity: LocalizedText).
+                        Localized(source: d.description) { ListingDescriptionView(text: $0) }
                         detailsTable(d)
                         reviewsPreview
                     } else if unavailable {

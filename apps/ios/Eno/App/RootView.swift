@@ -13,6 +13,9 @@ struct RootView: View {
     // still available each day). auth drives a re-check when a sign-in completes.
     @State private var auth = AuthModel.shared
     @State private var availability = AvailabilityReviewModel()
+    // Rebuilds the chrome when a machine-translation UI-dictionary prefetch lands
+    // (uiGen), so fixed strings swap from English into the selected language.
+    @ObservedObject private var mt = Translator.shared
 
     var body: some View {
         TabView(selection: $router.selectedTab) {
@@ -46,7 +49,8 @@ struct RootView: View {
         // INNERMOST (right on the TabView) so the modifiers below sit OUTSIDE the
         // reset boundary — otherwise a language switch would restart .task and a
         // theme change would tear the tree down instead of recoloring smoothly.
-        .id(AppSettings.shared.language)
+        // uiGen folds in so the chrome also rebuilds once the MT prefetch fills.
+        .id("\(AppSettings.shared.language.rawValue)-\(mt.uiGen)")
         // OUTSIDE the .id reset boundary on purpose: these run once, not on every
         // language switch. Refresh unread + decide whether to surface the daily
         // availability review.
