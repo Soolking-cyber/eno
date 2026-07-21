@@ -25,7 +25,11 @@ public struct EnoChipLabel: View {
     public var body: some View {
         HStack(spacing: EnoSpacing.s1) {
             if let icon { Image(systemName: icon).enoIcon(.xs, color: fg) }
-            Text(title).font(EnoTextRole.caption.font.weight(.semibold))
+            Text(title)
+                .font(EnoTextRole.caption.font.weight(.semibold))
+                // Chips are chrome too — one line, shrink-then-truncate, never wrap.
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
             if let count, count > 0 {
                 Text("\(count)")
                     .font(EnoTextRole.micro.font)
@@ -40,6 +44,8 @@ public struct EnoChipLabel: View {
         .padding(.horizontal, EnoSpacing.s3)
         .frame(minHeight: 32)
         .background(selected ? EnoColor.brand : EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.chip))
+        .fixedSize(horizontal: true, vertical: false)
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)   // compact chrome — see EnoBadge
     }
 
     private var fg: Color { selected ? EnoColor.onBrand : EnoColor.fg }

@@ -32,24 +32,31 @@ public enum EnoTextRole {
     case caption
     case micro
 
-    /// (base size, weight, the text style it scales against for Dynamic Type)
-    var spec: (size: CGFloat, weight: Font.Weight, metric: UIFont.TextStyle) {
+    /// (base size, weight)
+    var spec: (size: CGFloat, weight: Font.Weight) {
         switch self {
-        case .titleXL:     return (28, .heavy,    .largeTitle)
-        case .titleL:      return (22, .bold,     .title1)
-        case .title:       return (18, .bold,     .title3)      // section headers
-        case .headline:    return (16, .semibold, .headline)    // card / panel titles
-        case .body:        return (16, .regular,  .body)        // paragraphs
-        case .subheadline: return (15, .regular,  .subheadline) // dense body (PDP)
-        case .callout:     return (14, .regular,  .callout)     // card / list-item titles
-        case .label:       return (14, .semibold, .subheadline) // buttons & field labels
-        case .caption:     return (12, .regular,  .footnote)    // meta rows
-        case .micro:       return (11, .semibold, .caption2)    // badges
+        case .titleXL:     return (28, .heavy)
+        case .titleL:      return (22, .bold)
+        case .title:       return (18, .bold)      // section headers
+        case .headline:    return (16, .semibold)  // card / panel titles
+        case .body:        return (16, .regular)   // paragraphs
+        case .subheadline: return (15, .regular)   // dense body (PDP)
+        case .callout:     return (14, .regular)   // card / list-item titles
+        case .label:       return (14, .semibold)  // buttons & field labels
+        case .caption:     return (12, .regular)   // meta rows
+        case .micro:       return (11, .semibold)  // badges
         }
     }
 
+    // ⚠️ EVERY role scales against ONE metric (.body) — never its "matching" text style.
+    // Owner bug ("some words smaller some larger"): roles used to scale against different
+    // styles (.footnote/.callout/.subheadline/.title3), and those grow at DIFFERENT RATES.
+    // At a larger Dynamic Type setting a 12pt label and a 14pt title converged on the same
+    // size and the hierarchy collapsed — the scale looked random. One shared metric makes
+    // the whole ramp grow PROPORTIONALLY, so 11 < 12 < 14 < 16 < 18 < 22 < 28 holds at every
+    // text size.
     public var font: Font {
         let s = spec
-        return .system(size: UIFontMetrics(forTextStyle: s.metric).scaledValue(for: s.size), weight: s.weight)
+        return .system(size: UIFontMetrics(forTextStyle: .body).scaledValue(for: s.size), weight: s.weight)
     }
 }

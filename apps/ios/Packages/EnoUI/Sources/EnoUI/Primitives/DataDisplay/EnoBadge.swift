@@ -1,6 +1,13 @@
 import SwiftUI
 
 // A PASSIVE status / count pill — never tappable (if it needs a tap, it's an EnoChip).
+//
+// A badge is CHROME, not prose, so it has two hard rules (owner: "Business" was wrapping to
+// "Busi / ness" inside its pill at a large text size, and "if words don't fit use icons only"):
+//  1. It NEVER wraps. One line, shrink slightly, then truncate.
+//  2. When it carries an icon and the label genuinely doesn't fit, it drops to ICON-ONLY
+//     rather than showing a mangled word. ViewThatFits picks the first layout that fits, so
+//     this is automatic at every text size and screen width — VoiceOver still reads the word.
 public struct EnoBadge: View {
     public enum Kind { case neutral, brand, success, warning, danger }
 
@@ -13,15 +20,37 @@ public struct EnoBadge: View {
     }
 
     public var body: some View {
+        Group {
+            if icon != nil {
+                ViewThatFits(in: .horizontal) {
+                    pill(showText: true)
+                    pill(showText: false)   // icon-only fallback
+                }
+            } else {
+                pill(showText: true)
+            }
+        }
+        // Compact chrome tracks Dynamic Type only to xLarge; past that a badge would dominate
+        // the card it annotates. Body copy, titles and prices keep scaling unbounded.
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
+    }
+
+    private func pill(showText: Bool) -> some View {
         HStack(spacing: 3) {
             if let icon { Image(systemName: icon).font(.system(size: 9, weight: .bold)) }
-            Text(text).font(EnoTextRole.micro.font)
+            if showText {
+                Text(text)
+                    .font(EnoTextRole.micro.font)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
         }
         .foregroundStyle(fg)
-        .padding(.horizontal, EnoSpacing.s2)
+        .padding(.horizontal, showText ? EnoSpacing.s2 : 5)
         .padding(.vertical, 2)
         .background(bg, in: Capsule())
-        .accessibilityElement(children: .combine)
     }
 
     private var fg: Color {
